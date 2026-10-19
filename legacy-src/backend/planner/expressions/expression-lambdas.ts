@@ -116,6 +116,15 @@ export function planArrowFunctionExpression(node: Node, sourceFile: SourceFile, 
     return planCsharpExpressionCompletion(node, sourceFile, input, diagnostics,
       planCsharpFrameClosureReference(node, input, diagnostics, state), closure.method.type);
   }
+  return complete(planCsharpArrowLambdaSyntax(node, sourceFile, input, diagnostics, planExpression, state));
+}
+
+export function planCsharpArrowLambdaSyntax(
+  node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner, state?: DestructuringPlannerState,
+): Extract<CsharpExpression, { readonly kind: "LambdaExpression" }> | undefined {
+  const creationPolicy = input.program.records.lambdaCreation.get(node);
+  const targetContext = getLambdaTargetContext(node, input);
   const expression = AsArrowFunction(input.program.source.ast, node)!;
   diagnoseMissingLambdaTargetContext(node, input, diagnostics, targetContext);
   const returnContext = getLambdaReturnContext(node, targetContext, input, diagnostics);
@@ -154,12 +163,12 @@ export function planArrowFunctionExpression(node: Node, sourceFile: SourceFile, 
     if (body === undefined) {
       return undefined;
     }
-    return complete({
+    return {
       kind: "LambdaExpression",
       ...(isAsyncExpression(input.program.source.ast, node) ? { async: true } : {}),
       parameters,
       body,
-    });
+    };
   }
   const entryPrelude = expression.Body === undefined ? parameterIdentityDeclarations : [
     ...planCsharpCaptureFrame(expression.Body, scopedInput, diagnostics, plannerState),
@@ -175,7 +184,7 @@ export function planArrowFunctionExpression(node: Node, sourceFile: SourceFile, 
   const quotedEffect = creationPolicy.kind === "quotation" && completion === "void" &&
     entryPrelude.length === 0 && body.completion.kind === "void" && body.prelude.length === 1 &&
     body.prelude[0]?.kind === "ExpressionStatement" ? body.prelude[0].expression : undefined;
-  return complete({
+  return {
     kind: "LambdaExpression",
     ...(isAsyncExpression(input.program.source.ast, node) ? { async: true } : {}),
     parameters,
@@ -196,7 +205,7 @@ export function planArrowFunctionExpression(node: Node, sourceFile: SourceFile, 
             ], () => [{ kind: "ReturnStatement" }]),
           ],
         }),
-  });
+  };
 }
 
 export function planFunctionExpression(
@@ -283,27 +292,46 @@ export function planFunctionExpression(
   if (parameterPlan === undefined) return undefined;
   const parameters = parameterPlan.parameters;
   const parameterIdentityDeclarations = parameterPlan.prelude;
-  if (generatorSyntax) {
-    const generator = planCsharpGeneratorFunction(
-      node,
-      expression.Body,
-      sourceFile,
-      scopedInput,
-      diagnostics,
-      plannerState,
-      parameterIdentityDeclarations,
-      planBlockStatements,
-    );
-    if (generator === undefined) {
-      return undefined;
-    }
-    return completeBody(generator.body);
+  const body = planCsharpFunctionLambdaBody(node, expression.Body, sourceFile, scopedInput, diagnostics,
+    plannerState, targetContext, returnContext, parameterIdentityDeclarations, generatorSyntax);
+  return body === undefined ? undefined : completeBody(body, !generatorSyntax && isAsyncExpression(input.program.source.ast, node));
+}
+
+function planCsharpFunctionLambdaBody(
+  node: Node, bodyNode: Node | undefined, sourceFile: SourceFile, input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[], state: DestructuringPlannerState,
+  targetContext: LambdaTargetContext | undefined, returnContext: LambdaReturnContext | undefined,
+  entryPrelude: readonly CsharpStatement[], generator: boolean,
+): CsharpBlock | undefined {
+  if (generator) {
+    const planned = planCsharpGeneratorFunction(node, bodyNode, sourceFile, input, diagnostics, state, entryPrelude, planBlockStatements);
+    return planned?.body;
   }
-  const body = planLambdaBlockBody(node, expression.Body, sourceFile, scopedInput, diagnostics, plannerState, targetContext, returnContext, parameterIdentityDeclarations);
-  if (body === undefined) {
-    return undefined;
-  }
-  return completeBody(body, isAsyncExpression(input.program.source.ast, node));
+  return planLambdaBlockBody(node, bodyNode, sourceFile, input, diagnostics, state, targetContext, returnContext, entryPrelude);
+}
+
+export function planCsharpCapturedFunctionLambdaSyntax(
+  node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
+): Extract<CsharpExpression, { readonly kind: "LambdaExpression" }> | undefined {
+  const expression = AsFunctionExpression(input.program.source.ast, node);
+  if (expression === undefined) return undefined;
+  const targetContext = getLambdaTargetContext(node, input);
+  diagnoseMissingLambdaTargetContext(node, input, diagnostics, targetContext);
+  const generator = hasCsharpGeneratorPlan(node, input);
+  const returnContext = generator ? undefined : getLambdaReturnContext(node, targetContext, input, diagnostics);
+  if (!generator && isAsyncExpression(input.program.source.ast, node) && returnContext === undefined) return undefined;
+  const parameterNodes = expression.Parameters?.Nodes ?? [];
+  const scoped = createLambdaPlanningContext(parameterNodes, input, diagnostics, targetContext);
+  if (scoped === undefined) return undefined;
+  const state = createDestructuringPlannerState(node, input.program.source.ast);
+  const parameterPlan = planLambdaParameterStorage(parameterNodes,
+    planLambdaParameters(parameterNodes, sourceFile, scoped, diagnostics, state, targetContext),
+    sourceFile, scoped, diagnostics, state);
+  if (parameterPlan === undefined) return undefined;
+  const body = planCsharpFunctionLambdaBody(node, expression.Body, sourceFile, scoped, diagnostics,
+    state, targetContext, returnContext, parameterPlan.prelude, generator);
+  return body === undefined ? undefined : { kind: "LambdaExpression", parameters: parameterPlan.parameters, body,
+    ...(!generator && isAsyncExpression(input.program.source.ast, node) ? { async: true } : {}) };
 }
 
 export interface LambdaReturnContext {

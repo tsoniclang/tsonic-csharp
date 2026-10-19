@@ -5,12 +5,11 @@ import type { CsharpObjectShapeFact } from "../../../../target-model/types/model
 import type { CsharpExpression, CsharpTypeMember } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import { createCsharpMemberPlanningContext } from "../../context.js";
-import { planArrowFunctionExpression, planFunctionExpression } from "../../expressions/expression-lambdas.js";
+import { planCsharpArrowLambdaSyntax, planCsharpCapturedFunctionLambdaSyntax } from "../../expressions/expression-lambdas.js";
 import { planExpression } from "../../expressions/index.js";
 import { planTypeParameters } from "../../types/type-parameters.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
-import { getCsharpLambdaSignature, getCsharpExpressionTreeDelegateType, isCsharpVoidTargetType } from "../../../../target-model/types/index.js";
-import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../../invariants.js";
 import { planSourceFunctionDeclaration } from "../../declarations/callables/functions.js";
 import { withCsharpSafetyModifiers } from "../../safety/explicit-safety.js";
 import { planCsharpArtifactMemberHiding } from "../../declarations/modifiers.js";
@@ -37,21 +36,18 @@ export function renderCsharpCaptureFrameMethods(
   };
   retain(frame, { kind: "IdentifierName", name: "this" });
   const members: CsharpTypeMember[] = [];
-  for (const method of frame.methods) {
-    const quotation = getCsharpExpressionTreeDelegateType(method.type) !== undefined;
-    const signature = getCsharpLambdaSignature(method.type);
-    const returnType = signature === undefined ? undefined : csharpTypeFromTargetTypeRef(
-      quotation ? method.type : signature.returnType, input.scope.typeParameterNames);
+  const methods = input.program.records.captureMethods.get(shape);
+  if (methods === undefined) failCsharpPlannerInvariant("An admitted capture frame requires its sealed native method inventory.", frame.scope);
+  for (const selected of methods) {
+    const { method, quotation, signature } = selected;
+    const returnType = csharpTypeFromTargetTypeRef(selected.returnType, input.scope.typeParameterNames);
     const file = input.program.source.ast.getSourceFile(method.declaration);
-    if (signature === undefined || returnType === undefined || file === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(method.declaration, "A native captured method requires its sealed callable signature."));
-      return undefined;
-    }
+    if (returnType === undefined || file === undefined) failCsharpPlannerInvariant("An admitted capture method requires its native return syntax and checked source file.", method.declaration);
     const context = createCsharpMemberPlanningContext({ ...input, scope: { ...input.scope,
       captureFrames, capturedBindings, capturedReceivers,
       nativeCallableBody: { declaration: method.declaration, carrier: method.type },
     } });
-    if (input.program.source.ast.is.IsFunctionDeclaration(method.declaration)) {
+    if (selected.form === "declaration") {
       const planned = planSourceFunctionDeclaration(method.declaration, file, context, diagnostics);
       members.push({ ...planned.declaration, kind: "MethodDeclaration", name: method.methodName,
         modifiers: withCsharpSafetyModifiers(planned.async
@@ -60,11 +56,10 @@ export function renderCsharpCaptureFrameMethods(
           method.declaration, "declaration", context) });
       continue;
     }
-    const planned = input.program.source.ast.is.IsArrowFunction(method.declaration)
-      ? planArrowFunctionExpression(method.declaration, file, context, diagnostics, planExpression, undefined)
-      : planFunctionExpression(method.declaration, file, context, diagnostics);
-    const lambda = planned?.completion.kind === "value" ? planned.completion.expression : undefined;
-    if (planned === undefined || planned.prelude.length !== 0 || lambda?.kind !== "LambdaExpression") return undefined;
+    const lambda = selected.form === "arrow"
+      ? planCsharpArrowLambdaSyntax(method.declaration, file, context, diagnostics, planExpression)
+      : planCsharpCapturedFunctionLambdaSyntax(method.declaration, file, context, diagnostics);
+    if (lambda === undefined) failCsharpPlannerInvariant("An admitted captured callable requires its native body fragments.", method.declaration);
     if (quotation) {
       members.push({ kind: "MethodDeclaration", name: method.methodName,
         modifiers: ["public", ...planCsharpArtifactMemberHiding(input.program.records.nativeMemberHiding, shape, method.methodName)], returnType,
@@ -74,20 +69,20 @@ export function renderCsharpCaptureFrameMethods(
     }
     const parameters = lambda.parameters.map((parameter, index) => {
       const type = parameter.type ?? (signature.parameters[index] === undefined ? undefined : csharpTypeFromTargetTypeRef(signature.parameters[index]!, input.scope.typeParameterNames));
-      return type === undefined ? undefined : { name: parameter.name, type,
+      if (type === undefined) failCsharpPlannerInvariant("An admitted captured parameter requires its native carrier syntax.", method.declaration);
+      return { name: parameter.name, type,
         ...(signature.restParameterIndex === index ? { isParams: true } : {}),
         ...(signature.optionalParameterIndexes?.includes(index)
           ? { defaultValue: { kind: "DefaultExpression" as const, type } } : {}),
       };
     });
-    if (parameters.some(parameter => parameter === undefined)) return undefined;
     members.push({ kind: "MethodDeclaration", name: method.methodName,
       modifiers: ["public", ...(lambda.async ? ["async" as const] : []),
         ...planCsharpArtifactMemberHiding(input.program.records.nativeMemberHiding, shape, method.methodName)], returnType,
       typeParameters: planTypeParameters(input.program.source.ast.typeParameters(method.declaration), context, diagnostics),
-      parameters: parameters as NonNullable<typeof parameters[number]>[],
+      parameters,
       body: lambda.body.kind === "Block" ? lambda.body : { kind: "Block", statements: [
-        isCsharpVoidTargetType(signature.returnType) ? { kind: "ExpressionStatement", expression: lambda.body }
+        selected.returnsVoid ? { kind: "ExpressionStatement", expression: lambda.body }
           : { kind: "ReturnStatement", expression: lambda.body },
       ] },
     }, ...context.scope.generatedMethods?.values() ?? []);

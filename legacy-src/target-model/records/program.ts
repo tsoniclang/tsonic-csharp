@@ -50,12 +50,14 @@ import type { CsharpObjectMemberRecords } from "./object-members.js";
 import type { CsharpObjectLiteralRecords } from "./object-literals.js";
 import type { CsharpIndexedRecordRecords } from "./indexed-records.js";
 import type { CsharpFrozenDataPropertyRecords } from "./frozen-data-properties.js";
+import type { CsharpCaptureMethodRecords } from "./capture-methods.js";
 import type { CsharpCompilationRecords } from "./compilation.js";
 import type { CsharpSourceUnionEmissionRecords } from "./source-unions.js";
 
 export interface CsharpProgramRecords extends CsharpStatementExitRecords, CsharpStatementCompletionRecords, CsharpResourceScopeRecords, CsharpDeclarationModifierRecords, CsharpNativeDeclarationRecords, CsharpStructuralInterfaceRecords, CsharpLexicalValueRecords, CsharpConstructorEmissionRecords, CsharpClassEmissionRecords {
   readonly indexedRecordRead: CsharpIndexedRecordRecords["indexedRecordRead"];
   readonly frozenDataProperties: CsharpFrozenDataPropertyRecords["frozenDataProperties"];
+  readonly captureMethods: CsharpCaptureMethodRecords["captureMethods"];
   readonly bindingIdentity: CsharpBindingIdentityRecords["bindingIdentity"];
   readonly sourceFile: CsharpSourceFileRecords["sourceFile"];
   readonly nodeObjectShape: CsharpObjectShapeRecords["nodeObjectShape"];

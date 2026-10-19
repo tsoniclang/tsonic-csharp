@@ -15,6 +15,7 @@ import { analyzeCsharpObjectMemberEmission } from "../objects/member-emission.js
 import { analyzeCsharpObjectLiterals } from "../objects/object-literals.js";
 import { analyzeCsharpIndexedRecords } from "../objects/indexed-records.js";
 import { analyzeCsharpFrozenDataProperties } from "../objects/frozen-data-properties.js";
+import { analyzeCsharpCaptureMethods } from "../objects/capture-methods.js";
 import { analyzeCsharpDeclarationModifiers } from "../declarations/classes/modifiers.js";
 import { analyzeCsharpNativeDeclarationForms } from "../declarations/native-forms.js";
 import { analyzeCsharpStructuralInterfaceEmission } from "../declarations/interfaces/structural.js";
@@ -573,7 +574,10 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const frozenDataProperties = analyzeCsharpFrozenDataProperties({ ast: source.ast, demand: objectShapeDemand, members: objectMembers.records,
     storage: analysis.storage, operations: admittedOperations, attributes: attributeApplications });
   if (frozenDataProperties.issues.length !== 0) return rejectedTargetStage(frozenDataProperties.issues);
+  const captureMethods = analyzeCsharpCaptureMethods(source.ast, captureStorage);
+  if (captureMethods.issues.length !== 0) return rejectedTargetStage(captureMethods.issues);
   const records = createCsharpProgramRecords({
+    captureMethods: captureMethods.records,
     frozenDataProperties: frozenDataProperties.records,
     indexedRecords: indexedRecords.records,
     objectLiterals: objectLiterals.records,

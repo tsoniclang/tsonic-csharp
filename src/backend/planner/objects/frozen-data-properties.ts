@@ -18,7 +18,7 @@ export function guardCsharpFrozenDataProperties(
     arguments: [{ kind: "Argument", expression: { kind: "IdentifierName", name: "this" } }],
   } };
   return members.flatMap((member): readonly CsharpTypeMember[] => {
-    const selected = selections.get(member.name);
+    const selected = "name" in member ? selections.get(member.name) : undefined;
     if (selected === undefined) return [member];
     if (selected.kind === "setter") {
       if (member.kind !== "PropertyDeclaration" || member.setter === undefined) failCsharpPlannerInvariant("An admitted frozen setter requires its native property body.", shape.methodImplementation?.declaration);

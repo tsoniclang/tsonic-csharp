@@ -53,8 +53,10 @@ import type { CsharpObjectMemberRecords } from "../../../target-model/records/ob
 import type { CsharpObjectLiteralRecords } from "../../../target-model/records/object-literals.js";
 import type { CsharpIndexedRecordRecords } from "../../../target-model/records/indexed-records.js";
 import type { CsharpFrozenDataPropertyRecords } from "../../../target-model/records/frozen-data-properties.js";
+import type { CsharpCaptureMethodRecords } from "../../../target-model/records/capture-methods.js";
 
 export interface CsharpProgramRecordInput {
+  readonly captureMethods: CsharpCaptureMethodRecords;
   readonly frozenDataProperties: CsharpFrozenDataPropertyRecords;
   readonly indexedRecords: CsharpIndexedRecordRecords;
   readonly objectLiterals: CsharpObjectLiteralRecords;
@@ -115,6 +117,7 @@ export function createCsharpProgramRecords(
   required: readonly CsharpRequiredRecord[],
 ): CsharpProgramRecords {
   const records: CsharpProgramRecords = Object.freeze({
+    ...input.captureMethods,
     ...input.frozenDataProperties,
     ...input.indexedRecords,
     ...input.objectLiterals,
