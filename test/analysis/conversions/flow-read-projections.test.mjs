@@ -88,6 +88,63 @@ for (const surface of ["native", "js"]) {
     assertCsharpCompilationSucceeded(compiled);
     assert.equal(executeCsharpConstruction(compiled, `absence-effects-${surface}`), "");
   });
+
+  test(`${surface} present narrowed bindings retain native absence checks without allocation`, () => {
+    const sourceText = `
+      let calls = 0;
+      function absent(): void { calls += 1; }
+      function fallback(): number { calls += 100; return 9; }
+      export function pick(value: number | undefined): number { return value ?? 9; }
+      export function run(): boolean {
+        calls = 0;
+        const { present }: { present?: number } = { present: 7 };
+        const kept = ((present) satisfies number | undefined) ?? fallback();
+        const compared = present != null && null != present &&
+          present !== undefined && undefined !== present &&
+          (present == null) === false && (null == present) === false &&
+          (present === undefined) === false && (undefined === present) === false &&
+          present != void absent() && (void absent()) != present;
+        return kept === 7 && compared && calls === 2 &&
+          typeof present === "number" && present + 1 === 8;
+      }
+    `;
+    const compiled = compileCsharpSource({ sourceText, surface });
+    assertCsharpCompilationSucceeded(compiled);
+    const nativeProgram = `
+      if (!Tsonic.Generated.Index.run()) throw new System.Exception("native absence effects or value read");
+      for (int index = 0; index < 100000; index++) {
+        double? value = index % 2 == 0 ? 7D : null;
+        _ = NativeBaseline.Read(value);
+        _ = Tsonic.Generated.Index.pick(value);
+      }
+      for (int repeat = 0; repeat < 3; repeat++) {
+        long before = System.GC.GetAllocatedBytesForCurrentThread();
+        double nativeChecksum = 0D;
+        for (int index = 0; index < 100000; index++) {
+          double? value = index % 2 == 0 ? 7D : null;
+          nativeChecksum += NativeBaseline.Read(value);
+        }
+        long nativeBytes = System.GC.GetAllocatedBytesForCurrentThread() - before;
+        before = System.GC.GetAllocatedBytesForCurrentThread();
+        double generatedChecksum = 0D;
+        for (int index = 0; index < 100000; index++) {
+          double? value = index % 2 == 0 ? 7D : null;
+          generatedChecksum += Tsonic.Generated.Index.pick(value);
+        }
+        long generatedBytes = System.GC.GetAllocatedBytesForCurrentThread() - before;
+        if (nativeChecksum != 800000D || generatedChecksum != nativeChecksum ||
+          nativeBytes != 0 || generatedBytes != nativeBytes) {
+          throw new System.Exception($"native {nativeBytes}/{nativeChecksum}, generated {generatedBytes}/{generatedChecksum}");
+        }
+        System.Console.WriteLine($"{nativeBytes}:{generatedBytes}:{generatedChecksum}");
+      }
+      public static class NativeBaseline {
+        public static double Read(double? value) => value ?? 9D;
+      }
+    `;
+    assert.equal(executeCsharpConstruction(compiled, `absence-native-cost-${surface}`, false, false, [], nativeProgram),
+      "0:0:800000\n".repeat(3));
+  });
 }
 
 for (const surface of ["native", "js"]) {
