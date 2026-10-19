@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createCsharpObjectShapeDemandEngine } from "../../../dist/analysis/objects/native-demand-requests.js";
+import { publishCsharpNativeArtifactDemand } from "../../../dist/analysis/objects/native-demand-declarations.js";
 import { renderObjectShapeProjectionMethods } from "../../../dist/backend/planner/objects/closed-object-shapes.js";
 import { objectShapeArtifactKey } from "../../../dist/target-model/records/object-shape-demand.js";
 import { csharpStringTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../../dist/target-model/types/index.js";
@@ -26,7 +27,7 @@ function fixture(arguments_ = [integer, text], selectedConversion) {
   const byType = new Map([declaration, ...instances].map(fact => [targetTypeRefKey(fact.targetType), fact]));
   const conversions = [];
   const host = {
-    ast: {}, names: { typeParameterNames: [] }, captureStorage: { captureFrameShape: { get() {} } },
+    ast: {}, captureStorage: { captureFrameShape: { get() {} } },
     conversions: { conversion: { get(source, destination) {
       conversions.push([source, destination]);
       return selectedConversion === undefined
@@ -39,7 +40,9 @@ function fixture(arguments_ = [integer, text], selectedConversion) {
       assignmentSourceOrder: () => ({ kind: "resolved", propertyOrder: ["value"] }),
     },
   };
-  return { declaration, instances, host, conversions, engine: createCsharpObjectShapeDemandEngine(host) };
+  const engine = createCsharpObjectShapeDemandEngine(host);
+  return { declaration, instances, host, conversions, engine,
+    publish: () => publishCsharpNativeArtifactDemand(engine.close(), { typeParameterNames: [] }) };
 }
 
 function resultType(kind, receiver) {
@@ -60,7 +63,7 @@ for (const reversed of [false, true]) for (const kind of ["assign", "keys", "val
       assert.equal(request.kind === "accepted" && request.projection !== undefined, true, "the complete typed source projection is admitted");
       requests.push({ receiver, subject, selection: request.projection });
     }
-    const publication = current.engine.seal();
+    const publication = current.publish();
     const artifact = publication.get(objectShapeArtifactKey(current.declaration));
     assert.equal(artifact.fact === current.declaration && artifact.projections.length === 2, true, "one physical generic declaration contains both exact methods");
     const readsBeforeRendering = current.conversions.length;
@@ -93,7 +96,7 @@ test("partially open projections close every actual free native binder and prese
   const receiver = current.instances[0];
   assert.equal(current.engine.requireObjectShapeProjection(subject, receiver.targetType, {}, "assign", receiver.targetType,
     "object-shape", { node: {}, type: receiver.targetType }).kind, "accepted");
-  const publication = current.engine.seal();
+  const publication = current.publish();
   const binding = publication.projection(subject);
   assert.equal(binding.typeParameters.length, 2, "a constraint dependency is an actual required native binder");
   assert.equal(binding.typeParameters.some(selected => selected.identity === free.identity) &&
@@ -119,7 +122,7 @@ test("typed projection admission refuses missing and source-dependent conversion
     const request = current.engine.requireObjectShapeProjection(subject, receiver.targetType, {}, "values",
       resultType("values", receiver), "object-shape");
     assert.equal(request.kind, "rejected", "an unproven field conversion is not a renderer fallback");
-    assert.equal(current.engine.seal().projection(subject) === undefined, true, "a rejected projection publishes no physical method");
+    assert.equal(current.publish().projection(subject) === undefined, true, "a rejected projection publishes no physical method");
   }
 });
 
@@ -131,7 +134,7 @@ test("projection source identity cannot silently switch its admitted native rece
   assert.equal(current.engine.requireObjectShapeProjection(subject, first.targetType, {}, "keys", resultType("keys", first), "object-shape").kind, "accepted");
   const wrong = current.engine.requireObjectShapeProjection(subject, second.targetType, {}, "keys", resultType("keys", second), "object-shape");
   assert.equal(wrong.kind, "rejected", "identical key results are not proof of a different native receiver");
-  assert.equal(current.engine.seal().projection(subject).receiver === first, true, "the original receiver identity is never replaced");
+  assert.equal(current.publish().projection(subject).receiver === first, true, "the original receiver identity is never replaced");
 });
 
 function projectedParameter(kind) {
@@ -159,7 +162,7 @@ for (const kind of ["optional", "conditional"]) for (const reversed of [false, t
         subjects.push({ subject, receiver });
       }
     }
-    const published = current.engine.seal();
+    const published = current.publish();
     for (const { subject, receiver } of subjects) {
       const binding = published.projection(subject);
       assert.equal(binding.receiver === receiver, true, "physical receiver identity is unchanged");
@@ -236,7 +239,7 @@ test("actual optional and conditional physical projection methods compile and re
       "accepted", `${kind} ${projection}: native proof consumes admitted metadata`);
       subjects.push(subject);
     }
-    const published = current.engine.seal();
+    const published = current.publish();
     for (const subject of subjects) bindings.push(published.projection(subject));
   }
   const inverseTypes = [

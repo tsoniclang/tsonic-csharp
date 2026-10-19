@@ -74,7 +74,7 @@ export function planConstructorDeclarations(
       kind: "ConstructorDeclaration",
       name: className,
       modifiers: withCsharpSafetyModifiers(
-        planClassMemberModifiers(node, undefined, input),
+        planClassMemberModifiers(node, undefined, input, { kind: "source", declaration: node, role: "member" }),
         node,
         "constructor",
         input,

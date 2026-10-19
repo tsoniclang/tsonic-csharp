@@ -18,13 +18,12 @@ import type {
 } from "../../policy/identities/source-nodes.js";
 import type {
   CsharpNamePlan,
+  CsharpNativeMemberNames,
+  CsharpNativeMemberIdentity,
+  CsharpNativeMemberRole,
   CsharpSourceNameResolution,
 } from "../../target-model/names/model.js";
-import type { CsharpProjectCallableAdapters } from "../../target-model/records/callable-adapters.js";
-import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
-import type { CsharpSourceCallableContract } from "../../target-model/records/source-callable-contract.js";
-import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
-import { csharpTargetStorageIdentityEquals } from "../../policy/types/storage/storage-identity.js";
+import { csharpNativeMemberIdentityParts } from "../../target-model/names/model.js";
 import { csharpSourceTypeParameter, csharpSourceTypeParameters } from "../../target-model/names/type-parameters.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 
@@ -37,7 +36,7 @@ export interface CsharpSourceNameResolver {
 }
 
 export interface CsharpSourceNameBuilder extends CsharpSourceNameResolver {
-  seal(requiredBindingRoots: readonly Node[]): CsharpNamePlan;
+  seal(requiredBindingRoots: readonly Node[], nativeMemberNames: CsharpNativeMemberNames): CsharpNamePlan;
 }
 
 export interface CsharpSourceNameResolverHost {
@@ -99,6 +98,7 @@ export function createCsharpSourceNameBuilder(
 
   let sealed: CsharpNamePlan | undefined;
   let sealedBindingRoots: ReadonlySet<Node> | undefined;
+  let sealedMemberNames: CsharpNativeMemberNames | undefined;
   return Object.freeze({
     resolve,
     temporaryName(preferred: string): string {
@@ -108,7 +108,10 @@ export function createCsharpSourceNameBuilder(
       sourceNames.add(name);
       return name;
     },
-    seal(requiredBindingRoots: readonly Node[]): CsharpNamePlan {
+    seal(requiredBindingRoots: readonly Node[], nativeMemberNames: CsharpNativeMemberNames): CsharpNamePlan {
+      if (!Array.isArray(nativeMemberNames?.memberHiding) || !Array.isArray(nativeMemberNames.issues)) {
+        throw new TypeError("C# source names require the completed native member-name decisions.");
+      }
       const required = new Set<Node>();
       for (const root of requiredBindingRoots) {
         if (!resolutions.has(root)) throw new Error("A C# native binding root is outside the checked source name inventory.");
@@ -119,10 +122,11 @@ export function createCsharpSourceNameBuilder(
         if (previous === undefined || previous.size !== required.size || [...required].some(root => !previous.has(root))) {
           throw new Error("C# source names are already sealed for a different native binding domain.");
         }
+        if (sealedMemberNames !== nativeMemberNames) throw new Error("C# source names are already sealed for different native member-name decisions.");
         return sealed;
       }
       const valueNames = new Map<Node, Set<string>>();
-      const issues: TargetDiagnostic[] = [];
+      const issues: TargetDiagnostic[] = [...nativeMemberNames.issues];
       const emittedBindings: typeof bindings = [];
       for (const binding of bindings) {
         const retained = required.has(binding.root) || binding.iteration !== undefined && required.has(binding.iteration) ||
@@ -232,10 +236,31 @@ export function createCsharpSourceNameBuilder(
         host.ast.forEachChild(node, child => { if (child !== undefined) recordEnclosing(child, children); });
       };
       host.sourceFiles.forEach(file => recordEnclosing(file, noParameters));
+      const memberHiding = new Map<Node | string, Map<Node | string, Map<CsharpNativeMemberRole, boolean>>>();
+      for (const entry of nativeMemberNames.memberHiding) {
+        const [container, member, role] = csharpNativeMemberIdentityParts(entry.subject);
+        let members = memberHiding.get(container);
+        if (members === undefined) {
+          members = new Map();
+          memberHiding.set(container, members);
+        }
+        let roles = members.get(member);
+        if (roles === undefined) {
+          roles = new Map();
+          members.set(member, roles);
+        }
+        if (roles.has(role)) throw new Error("A native member-name decision has more than one producer.");
+        roles.set(role, entry.hides);
+      }
       sealedBindingRoots = required;
+      sealedMemberNames = nativeMemberNames;
       sealed = Object.freeze({ reservedNames: Object.freeze([...sourceNames]),
         typeParameterNames: Object.freeze([...typeParameterNames]),
         generatedMethodTypeParameters: Object.freeze({ get: (node: Node) => enclosing.get(node) }),
+        memberHiding: Object.freeze({ get: (subject: CsharpNativeMemberIdentity) => {
+          const [container, member, role] = csharpNativeMemberIdentityParts(subject);
+          return memberHiding.get(container)?.get(member)?.get(role);
+        } }),
         issues: Object.freeze(issues), resolve });
       return sealed;
     },
@@ -339,53 +364,6 @@ export function createCsharpSourceNameBuilder(
       if (child !== undefined) visitNames(child);
     });
   }
-}
-
-export function admitCsharpClassMemberNames(
-  ast: AstReader,
-  members: readonly Node[],
-  names: Pick<CsharpNamePlan, "resolve">,
-  dispatch: CsharpProjectCallableAdapters["callableDispatch"],
-  writes: CsharpDeclarationClassifications["methodWrite"],
-): readonly TargetDiagnostic[] {
-  const groups = new Map<string, { readonly static: boolean; readonly accessor: boolean;
-    readonly contract: CsharpSourceCallableContract | undefined }[]>();
-  const issues: TargetDiagnostic[] = [];
-  for (const member of members) {
-    const nameNode = ast.name(member);
-    const selected = names.resolve(nameNode);
-    if (nameNode === undefined || selected.kind !== "resolved") continue;
-    const method = ast.is.IsMethodDeclaration(member) && writes.get(member) === undefined;
-    const contract = method ? dispatch.get(member)?.implementation : undefined;
-    if (method && contract === undefined) continue;
-    const accessor = ast.kindName(member) === "KindGetAccessor" || ast.kindName(member) === "KindSetAccessor";
-    const current = { static: ast.hasModifierKind(member, "static"), accessor, contract };
-    const group = groups.get(selected.name) ?? [];
-    if (accessor && group.some(previous => previous.accessor && previous.static === current.static)) continue;
-    const conflict = group.find(previous => previous.static !== current.static &&
-      (previous.contract === undefined || contract === undefined || sameNativeMemberParameters(previous.contract, contract)));
-    if (conflict !== undefined) {
-      const code = conflict.contract !== undefined && contract !== undefined ? "CS0111" : "CS0102";
-      issues.push(Object.freeze({ code: "CSHARP_INVALID_IDENTIFIER", category: "error", source: "tsonic-csharp",
-        sourceNode: nameNode,
-        message: `Static member '${selected.name}' and instance member '${selected.name}' cannot share the emitted C# name '${selected.name}' (${code}).` }));
-    }
-    group.push(current);
-    groups.set(selected.name, group);
-  }
-  return Object.freeze(issues);
-}
-
-function sameNativeMemberParameters(left: CsharpSourceCallableContract, right: CsharpSourceCallableContract): boolean {
-  if (left.methodTypeParameterIdentities.length !== right.methodTypeParameterIdentities.length ||
-    left.parameters.length !== right.parameters.length) return false;
-  const substitutions = new Map(right.methodTypeParameterIdentities.map((identity, index) => [identity,
-    { kind: "type-parameter" as const, identity: left.methodTypeParameterIdentities[index]!, name: "T" }]));
-  return left.parameters.every(({ targetParameter: selected }, index) => {
-    const other = right.parameters[index]!.targetParameter;
-    return selected.passingMode === other.passingMode && csharpTargetStorageIdentityEquals(selected.type,
-      substituteTargetTypeParameters(other.type, substitutions));
-  });
 }
 
 function exactPrivateDeclaration(

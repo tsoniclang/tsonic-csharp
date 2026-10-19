@@ -1,4 +1,5 @@
 import type { CsharpPlanningContext } from "../context.js";
+import { planCsharpNativeMemberHiding } from "../declarations/modifiers.js";
 import { planGenericClassStaticMembers } from "../declarations/classes/generic-static-members.js";
 import { createCsharpMemberPlanningContext } from "../context.js";
 import {
@@ -424,5 +425,6 @@ function planExportAssignment(
   const planned = planExpression(assignment.Expression, sourceFile, input, diagnostics);
   if (planned === undefined) return undefined;
   statements.push(...consumeCsharpPlannedValue(planned, value => [topLevelFieldAssignment(name, value)]));
-  return topLevelBindingMember(name, type, "public", false);
+  return topLevelBindingMember(name, type, "public",
+    planCsharpNativeMemberHiding(input.program.names, { kind: "source", declaration: node, role: "member" }), false);
 }

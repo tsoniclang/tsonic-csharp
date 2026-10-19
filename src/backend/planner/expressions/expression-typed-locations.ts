@@ -4,7 +4,8 @@ import type {
 } from "@tsonic/tsts";
 import { planCsharpNativeMemoryCall } from "./native-memory.js";
 import { planCsharpIndexedLocation } from "./indexed-locations.js";
-import { objectShapeBoundStorageMemberName, objectShapeBoundStorageTargetType } from "../objects/object-shape-storage.js";
+import { objectShapeBoundStorageMemberName } from "../../../target-model/names/object-members.js";
+import { objectShapeBoundStorageTargetType } from "../objects/object-shape-storage.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTypedLocationOperationKind } from "../../../target-model/records/typed-locations.js";
 import type { CsharpTypedLocationStorage } from "../../../target-model/records/typed-location-storage.js";

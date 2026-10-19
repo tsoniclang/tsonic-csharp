@@ -38,11 +38,12 @@ import {
 } from "../../target-model/types/index.js";
 import { csharpUnionLeaves } from "../../target-model/types/union-relations.js";
 import { objectShapeArtifactKey, objectShapeMaterialization } from "../../target-model/records/object-shape-demand.js";
-import type { CsharpObjectShapeDemand } from "../../target-model/records/object-shape-demand.js";
 import { csharpTargetTypeRenderingRejection, csharpTargetTypeRendersAsUnqualifiedIdentifier } from "../../policy/types/model/renderability.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
 import { createCsharpObjectShapeDemandEngine } from "./native-demand-requests.js";
 import type { CsharpArtifactRequestResult, CsharpObjectShapeDemandHost } from "./native-demand-batches.js";
+import type { CsharpObjectShapeDemandClosure } from "./native-demand-batches.js";
+export { publishCsharpNativeArtifactDemand } from "./native-demand-declarations.js";
 import type { CsharpObjectShapeClassifications } from "./model.js";
 
 export interface CsharpNativeArtifactDemandInput extends CsharpObjectShapeDemandHost, CsharpNativeParticipationInput {
@@ -69,7 +70,7 @@ export interface CsharpNativeArtifactDemandInput extends CsharpObjectShapeDemand
 export function analyzeCsharpNativeArtifactDemand(
   input: CsharpNativeArtifactDemandInput,
   required: CsharpRequiredRecord[],
-): TargetStageResult<CsharpObjectShapeDemand> {
+): TargetStageResult<CsharpObjectShapeDemandClosure> {
   const engine = createCsharpObjectShapeDemandEngine(input);
   const issues: TargetDiagnostic[] = [];
   const types = new Set<string>();
@@ -83,7 +84,7 @@ export function analyzeCsharpNativeArtifactDemand(
     if (input.ast.is.IsVariableDeclaration(binding)) demandType(input.storage.storageType.get(binding), binding);
   }
   if (issues.length > 0) return rejectedTargetStage(issues);
-  const result = engine.seal();
+  const result = engine.close();
   for (const [key, subject] of requiredShapes) requireCsharpRecord(required, {
     family: "objectShapeArtifact", key, subject, construct: "native object-shape artifact",
     producer: "analyzeCsharpNativeArtifactDemand",
@@ -274,7 +275,8 @@ export function analyzeCsharpNativeArtifactDemand(
     const storedParameter = input.storage.requiredStorageType.get(node);
     demandType(storedParameter, node);
     if (nativeParameter !== undefined && storedParameter !== undefined && defaulted === undefined) demandPair(node, nativeParameter, storedParameter);
-    for (const adapter of input.callableAdapters.callableDispatch.get(node)?.adapters ?? []) {
+    const dispatch = input.callableAdapters.callableDispatch.get(node);
+    for (const adapter of dispatch?.kind === "method" ? dispatch.adapters : []) {
       demandParameters(node, adapter.parameters);
       demandAdapter(node, adapter.result);
     }

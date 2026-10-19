@@ -1,5 +1,7 @@
-import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import { failTargetAnalysisInvariant, rejectedTargetStage, resolvedTargetStage, targetDiagnosticFromExtension,
+  type TargetDiagnostic, type TargetStageResult } from "@tsonic/target-api/artifacts";
 import type { Node } from "@tsonic/tsts";
+import { sourceObjectMemberDeclarations, sourceParameterIsProperty } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { namedTargetTypeImplicitlyAccepts } from "../../policy/conversions/carriers.js";
 import { isCsharpSourceCallableArtifactDeclaration } from "../../policy/types/callables/source-callable-contract.js";
@@ -22,6 +24,13 @@ import { csharpTypeParameterConstraintsEqual, csharpTypeParameterConstraintsImpl
 import type { CsharpTypeParameterConstraint } from "../../target-model/types/generic-constraints.js";
 import type { CsharpGenericProjectionIndex } from "../../target-model/records/type-projections.js";
 import { csharpProjectedType, csharpTypeProjection } from "../../target-model/types/projections.js";
+import type { CsharpSourceNameResolver } from "../names/source-names.js";
+import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
+import type { CsharpNativeUseClassifications } from "../../target-model/records/native-demand.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
+import type { CsharpNativeInheritedDispatchSlot, CsharpNativeInheritedMember,
+  CsharpNativeTargetBindingFact } from "../../target-model/types/native-inheritance.js";
+import { csharpTargetStorageIdentityEquals } from "../../policy/types/storage/storage-identity.js";
 
 type StructuralMethod = CsharpStructuralInterfaceImplementation["methods"][number];
 type FinalMethod = CsharpFinalStructuralInterfaceImplementation["methods"][number];
@@ -43,13 +52,26 @@ export function analyzeCsharpProjectCallableAdapters(
   shapes: CsharpObjectShapeAnalysis,
   declarations: Pick<CsharpDeclarationClassifications, "runtimeDefault">,
   projections: CsharpGenericProjectionIndex["genericProjection"],
-): CsharpProjectCallableAdapters & {
+  native: {
+    readonly names: Pick<CsharpSourceNameResolver, "resolve">;
+    readonly storage: Pick<CsharpStorageClassifications, "storageType">;
+    readonly nativeUse: CsharpNativeUseClassifications["nativeUse"];
+    readonly classPropertyStorage: CsharpTargetOperationClassifications["classPropertyStorage"];
+  },
+): TargetStageResult<CsharpProjectCallableAdapters & {
   readonly objectShapes: CsharpObjectShapeClassifications<CsharpFinalStructuralInterfaceImplementation> &
     Pick<CsharpObjectShapeAnalysis, "targetShapes">;
-} {
+}> {
+  if (typeof native?.names.resolve !== "function" || typeof native.storage.storageType.get !== "function" ||
+    typeof native.nativeUse.order !== "function" || typeof native.classPropertyStorage.get !== "function") {
+    throw new TypeError("Native callable dispatch requires the open authored-name lookup and completed storage and participation inputs.");
+  }
   const byDeclaration = new Map<Node, CsharpProjectCallableDispatch>();
   const requests = new Map<string, { readonly type: TargetTypeRef; readonly interfaces: Map<string, MethodRequest> }>();
   const issues: CsharpProjectTypeIssue[] = [...shapes.issues];
+  const nativeIssues: TargetDiagnostic[] = [];
+  const nativeBindings = new Map<string, CsharpNativeTargetBindingFact | undefined>();
+  const nativeMembers = new Map<string, readonly CsharpNativeInheritedMember[] | undefined>();
   for (const type of shapes.structuralImplementationTypes) {
     for (const selected of shapes.structuralImplementations(type)) {
       const request = interfaceRequest(type, selected);
@@ -59,8 +81,9 @@ export function analyzeCsharpProjectCallableAdapters(
   for (const implementation of callables.declarationContracts) {
     const declaration = implementation.sourceDeclaration;
     if (!policy.ast.is.IsMethodDeclaration(declaration)) continue;
+    if (native.nativeUse.order(declaration) === undefined) continue;
     if (policy.ast.hasModifierKind(declaration, "static")) {
-      byDeclaration.set(declaration, Object.freeze({ implementation,
+      byDeclaration.set(declaration, Object.freeze({ kind: "method", implementation,
         overridesBase: false, hasDerivedOverride: false, adapters: Object.freeze([]) }));
       continue;
     }
@@ -137,9 +160,29 @@ export function analyzeCsharpProjectCallableAdapters(
       adapters.push(Object.freeze({ contract, parameters, result }));
     }
     const dispatch = objectMethod ? undefined : policy.navigation.memberDispatch(declaration);
-    byDeclaration.set(declaration, Object.freeze({ implementation,
-      overridesBase: hasProjectBaseContract ? overridesBase : dispatch?.overridesBase === true,
+    const nativeOverride = hasProjectBaseContract ? overridesBase : overridesNativeMethod(declaration, implementation, parent);
+    byDeclaration.set(declaration, Object.freeze({ kind: "method", implementation,
+      overridesBase: nativeOverride,
       hasDerivedOverride: dispatch?.hasDerivedOverride === true, adapters: Object.freeze(adapters) }));
+  }
+  for (const definition of policy.projectTypes.catalog.definitions) {
+    if (definition.kind !== "class") continue;
+    for (const member of sourceObjectMemberDeclarations(policy.ast, definition.declaration)) {
+      if (member === undefined || !policy.ast.is.IsPropertyDeclaration(member) && !sourceParameterIsProperty(policy.ast, member) &&
+        !policy.ast.is.IsGetAccessorDeclaration(member) && !policy.ast.is.IsSetAccessorDeclaration(member)) continue;
+      if (native.nativeUse.order(member) === undefined && !sourceParameterIsProperty(policy.ast, member)) continue;
+      const property = native.classPropertyStorage.get(member);
+      const accessor = policy.ast.is.IsGetAccessorDeclaration(member) || policy.ast.is.IsSetAccessorDeclaration(member);
+      if (!accessor && property?.kind !== "property") continue;
+      const dispatch = policy.navigation.memberDispatch(member);
+      const contracts = policy.navigation.memberContracts(member);
+      const projectBase = contracts.kind === "resolved" && contracts.contracts.some(contract =>
+        policy.projectTypes.catalog.definitionForDeclaration(policy.ast.parent(contract))?.kind === "class");
+      const overridesBase = policy.ast.hasModifierKind(member, "static") ? false
+        : projectBase ? dispatch?.overridesBase === true : overridesNativeProperty(member, definition.declaration, property?.readonly === true);
+      byDeclaration.set(member, Object.freeze({ kind: "property",
+        overridesBase, hasDerivedOverride: dispatch?.hasDerivedOverride === true }));
+    }
   }
   for (const owner of requests.values()) {
     for (const request of owner.interfaces.values()) {
@@ -268,8 +311,136 @@ export function analyzeCsharpProjectCallableAdapters(
       "C# structural forwarding has no sealed record for the selected native instantiation.");
     return selected;
   } });
-  return Object.freeze({ issues: Object.freeze(issues), objectShapes,
-    callableDispatch: Object.freeze({ get: (declaration: Node) => byDeclaration.get(declaration) }) });
+  if (nativeIssues.length > 0) return rejectedTargetStage(nativeIssues);
+  return resolvedTargetStage(Object.freeze({ issues: Object.freeze(issues), objectShapes,
+    callableDispatch: Object.freeze({ get: (declaration: Node) => byDeclaration.get(declaration) }) }));
+
+  function inheritanceBinding(key: string, metadataName: boolean, subject: Node): CsharpNativeTargetBindingFact | undefined {
+    const cacheKey = `${metadataName ? "metadata" : "target"}:${key}`;
+    if (nativeBindings.has(cacheKey)) return nativeBindings.get(cacheKey);
+    const selected = metadataName ? policy.providers.findTargetBindingByMetadataName(key, "inheritance")
+      : policy.providers.findTargetBindingByTargetId(key, "inheritance");
+    if (selected.kind === "rejected") {
+      nativeIssues.push(targetDiagnosticFromExtension(subject, selected.diagnostic));
+      nativeBindings.set(cacheKey, undefined);
+      return undefined;
+    }
+    nativeBindings.set(cacheKey, selected.binding);
+    nativeBindings.set(`target:${selected.binding.id}`, selected.binding);
+    return selected.binding;
+  }
+
+  function inheritedNativeMembers(owner: Node | undefined, subject: Node): readonly CsharpNativeInheritedMember[] | undefined {
+    const definition = policy.projectTypes.catalog.definitionForDeclaration(owner);
+    let base: TargetTypeRef | undefined = definition === undefined ? undefined : policy.projectTypes.catalog.targetTypeForDeclaration(
+      definition.declaration, definition.typeParameterBindings);
+    const visited = new Set<Node>();
+    while (base !== undefined) {
+      const project = policy.projectTypes.catalog.definitionForTarget(base);
+      if (project === undefined) break;
+      if (visited.has(project.declaration)) return failTargetAnalysisInvariant("tsonic-csharp",
+        "An admitted native dispatch owner requires an acyclic completed class hierarchy.", subject);
+      visited.add(project.declaration);
+      const declaredBase = policy.projectTypes.heritageForDeclaration(project.declaration)?.baseType;
+      if (declaredBase === undefined) { base = undefined; break; }
+      const selected = policy.projectTypes.instantiateDeclarationType(project.declaration, base, declaredBase);
+      if (selected.kind !== "resolved") {
+        reject(subject, "An inherited callable has no exact instantiated native owner.");
+        return undefined;
+      }
+      base = selected.type;
+    }
+    const shape = definition === undefined && owner !== undefined ? policy.objectShapes.resolveNode(owner, policy.ast.getSourceFile(owner)) : undefined;
+    const valueType = definition?.kind === "struct" || shape?.targetType.kind === "target-named" && shape.targetType.csharpValueType === true;
+    const key = base === undefined ? `root:${valueType ? "struct" : "class"}` : targetTypeRefKey(base);
+    if (nativeMembers.has(key)) return nativeMembers.get(key);
+    if (base !== undefined && base.kind !== "target-named") {
+      reject(subject, "An inherited callable has no exact named native owner.");
+      return undefined;
+    }
+    const binding = base === undefined ? inheritanceBinding(valueType ? "System.ValueType" : "System.Object", true, subject)
+      : inheritanceBinding(base.id, false, subject);
+    if (binding === undefined) { nativeMembers.set(key, undefined); return undefined; }
+    const substitutions = new Map((binding.typeParameters ?? []).map((parameter, index) => [parameter.identity,
+      base?.kind === "target-named" ? base.typeArguments![index]! : parameter]));
+    const members: CsharpNativeInheritedMember[] = [];
+    for (const entry of binding.csharpInheritance) {
+      const declaration = entry.targetId === binding.id ? binding : inheritanceBinding(entry.targetId, false, subject);
+      if (declaration === undefined) { nativeMembers.set(key, undefined); return undefined; }
+      const type = substituteTargetTypeParameters(entry.type, substitutions);
+      if (type.kind !== "target-named") return failTargetAnalysisInvariant("tsonic-csharp",
+        "Acquired native inheritance requires exact constructed named class identities.", subject);
+      const parameters = new Map((declaration.typeParameters ?? []).map((parameter, index) =>
+        [parameter.identity, type.typeArguments![index]!]));
+      const instantiate = (type: TargetTypeRef): TargetTypeRef => substituteTargetTypeParameters(type, parameters);
+      members.push(...declaration.csharpInheritableMembers.map(member => Object.freeze({ ...member,
+        parameters: Object.freeze(member.parameters.map(parameter => Object.freeze({ ...parameter, type: instantiate(parameter.type) }))),
+        dispatchSlots: Object.freeze(member.dispatchSlots.map(slot => Object.freeze({ ...slot,
+          parameters: Object.freeze(slot.parameters.map(parameter => Object.freeze({ ...parameter, type: instantiate(parameter.type) }))),
+          returnType: instantiate(slot.returnType) }))) })));
+    }
+    const completed = Object.freeze(members);
+    nativeMembers.set(key, completed);
+    return completed;
+  }
+
+  function overridesNativeMethod(declaration: Node, implementation: CsharpSourceCallableContract, owner: Node | undefined): boolean {
+    const selectedName = native.names.resolve(policy.ast.name(declaration));
+    if (selectedName.kind !== "resolved") return false;
+    const name = selectedName.name.startsWith("@") ? selectedName.name.slice(1) : selectedName.name;
+    const inherited = inheritedNativeMembers(owner, declaration);
+    if (inherited === undefined) return false;
+    for (const member of inherited) {
+      if (member.targetName !== name) continue;
+      if (member.kind !== "method") return false;
+      if (member.static) continue;
+      for (const slot of member.dispatchSlots) {
+        if (slot.kind !== "method" || slot.genericParameterIds.length !== implementation.methodTypeParameterIdentities.length ||
+          slot.parameters.length !== implementation.parameters.length) continue;
+        const substitutions = new Map<string, TargetTypeRef>(slot.genericParameterIds.map((identity, index) => [identity,
+          { kind: "type-parameter", identity: implementation.methodTypeParameterIdentities[index]!, name: "T" }]));
+        if (!slot.parameters.every((parameter, index) => parameter.passingMode === implementation.parameters[index]!.targetParameter.passingMode &&
+          csharpTargetStorageIdentityEquals(substituteTargetTypeParameters(parameter.type, substitutions),
+            implementation.parameters[index]!.targetParameter.type))) continue;
+        if (!slot.virtual || slot.final || slot.returnPassing !== "by-value") return false;
+        return nativeReturnAccepted(implementation.returnType, slot, substitutions);
+      }
+    }
+    return false;
+  }
+
+  function overridesNativeProperty(declaration: Node, owner: Node, readonly: boolean): boolean {
+    const selectedName = native.names.resolve(policy.ast.name(declaration));
+    if (selectedName.kind !== "resolved") return false;
+    const name = selectedName.name.startsWith("@") ? selectedName.name.slice(1) : selectedName.name;
+    const inherited = inheritedNativeMembers(owner, declaration);
+    if (inherited === undefined) return false;
+    const sourceProperty = policy.ast.is.IsPropertyDeclaration(declaration) || sourceParameterIsProperty(policy.ast, declaration);
+    const getter = sourceProperty || policy.ast.is.IsGetAccessorDeclaration(declaration);
+    const setter = sourceProperty && !readonly || policy.ast.is.IsSetAccessorDeclaration(declaration);
+    for (const member of inherited) {
+      if (member.targetName !== name) continue;
+      if (member.kind !== "property" || member.static || member.parameters.length !== 0) return false;
+      const type = native.storage.storageType.get(declaration);
+      if (type === undefined) {
+        reject(declaration, "An inherited property has no exact completed native storage carrier.");
+        return false;
+      }
+      const accepts = (kind: "get" | "set"): boolean => member.dispatchSlots.some(slot => {
+        if (slot.kind !== kind || !slot.virtual || slot.final || slot.returnPassing !== "by-value") return false;
+        return kind === "get" ? nativeReturnAccepted(type, slot, new Map()) : slot.parameters.length === 1 &&
+          slot.parameters[0]!.passingMode === "by-value" && csharpTargetStorageIdentityEquals(type, slot.parameters[0]!.type);
+      });
+      return (!getter || accepts("get")) && (!setter || accepts("set"));
+    }
+    return false;
+  }
+
+  function nativeReturnAccepted(type: TargetTypeRef, slot: CsharpNativeInheritedDispatchSlot,
+    substitutions: ReadonlyMap<string, TargetTypeRef>): boolean {
+    const target = substituteTargetTypeParameters(slot.returnType, substitutions);
+    return csharpTargetStorageIdentityEquals(type, target) || namedTargetTypeImplicitlyAccepts(policy, type, target, new Set());
+  }
 
   function interfaceRequest(type: TargetTypeRef, selected: CsharpStructuralInterfaceImplementation): MethodRequest {
     const key = targetTypeRefKey(type);

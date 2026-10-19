@@ -309,7 +309,7 @@ function nativeMethodNodes(program) {
 
 function admitMethodRecords(program, nodes, records = program.records) {
   return admitCsharpNativeDeclarations(program.source.ast, nodes, records.nativeUse,
-    program.projectTypes, program.sourceNavigation, program.names, records, records, records.nativeParticipation, records.nativeUnreachable,
+    program.projectTypes, program.sourceNavigation, records, records, records.nativeParticipation, records.nativeUnreachable,
     records, records.callableDispatch, records.classFactory, records);
 }
 

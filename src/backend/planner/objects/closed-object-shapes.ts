@@ -24,7 +24,7 @@ import type {
 } from "../../target-ast/syntax/index.js";
 import {
   objectShapeStorageMemberName,
-} from "./object-shape-storage.js";
+} from "../../../target-model/names/object-members.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";

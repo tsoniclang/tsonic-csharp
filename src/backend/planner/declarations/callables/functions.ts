@@ -6,7 +6,7 @@ import type { CsharpMethodDeclaration, CsharpStatement } from "../../../target-a
 import { planAttributesForSubject } from "../attributes.js";
 import { createDestructuringPlannerState, createNestedPlannerState, getCsharpLocalBindingName,
   type DestructuringPlannerState } from "../../bindings/index.js";
-import { isAsyncNode } from "../modifiers.js";
+import { isAsyncNode, planCsharpNativeMemberHiding } from "../modifiers.js";
 import { planIdentifierName } from "../../names/source-identifiers.js";
 import { planParametersWithPrelude } from "./parameters.js";
 import { planBlockStatements } from "../../statements/index.js";
@@ -26,7 +26,8 @@ export function planFunctionDeclaration(
 ): CsharpMethodDeclaration {
   const planned = planSourceFunctionDeclaration(node, sourceFile, input, diagnostics);
   return { ...planned.declaration, kind: "MethodDeclaration",
-    modifiers: withCsharpSafetyModifiers(planned.async ? ["public", "static", "async"] : ["public", "static"],
+    modifiers: withCsharpSafetyModifiers(["public", "static", ...(planned.async ? ["async" as const] : []),
+      ...planCsharpNativeMemberHiding(input.program.names, { kind: "source", declaration: node, role: "member" })],
       node, "declaration", input) };
 }
 

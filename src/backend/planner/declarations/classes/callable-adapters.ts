@@ -13,7 +13,7 @@ export function planCsharpProjectCallableAdapters(
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpMethodDeclaration[] {
   const dispatch = input.program.records.callableDispatch.get(node);
-  if (dispatch === undefined) failCsharpPlannerInvariant("An admitted method lost its exact native adapter contract.", node);
+  if (dispatch?.kind !== "method") failCsharpPlannerInvariant("An admitted method lost its exact native adapter contract.", node);
   const methods: CsharpMethodDeclaration[] = [];
   for (const adapter of dispatch.adapters) {
     const returnType = csharpTypeFromTargetTypeRef(adapter.contract.returnType, input.scope.typeParameterNames);

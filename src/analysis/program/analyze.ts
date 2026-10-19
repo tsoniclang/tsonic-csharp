@@ -74,6 +74,7 @@ import {
 } from "../declarations/index.js";
 import {
   createCsharpSourceNameBuilder,
+  analyzeCsharpNativeMemberNames,
 } from "../names/index.js";
 import {
   analyzeCsharpCallableContracts,
@@ -132,7 +133,7 @@ import { csharpJsEventLoopBinaryExecutionDriver } from "../../target-model/proje
 import { analyzeCsharpFlowReadProjections } from "../conversions/flow-read-projections.js";
 import { analyzeCsharpValueReadStages } from "../conversions/value-read-stages.js";
 import { analyzeCsharpNativeValueCarriers, analyzeCsharpObjectMethodSources } from "../objects/value-carriers.js";
-import { analyzeCsharpNativeArtifactDemand } from "../objects/native-demand.js";
+import { analyzeCsharpNativeArtifactDemand, publishCsharpNativeArtifactDemand } from "../objects/native-demand.js";
 
 interface CsharpRepresentationContract {
   readonly typeProjections: CsharpGenericProjectionIndex;
@@ -287,9 +288,13 @@ export function analyzeCsharpTargetProgram(
     typeDefinitions: analysis.policy.typeDefinitions, projectTypes: analysis.policy.projectTypes,
     providers: analysis.policy.providers, target: analysis.policy.target, objectShapes: analysis.objectShapes,
   });
-  const callableAdapters = analyzeCsharpProjectCallableAdapters(
+  const callableAdapterResult = analyzeCsharpProjectCallableAdapters(
     callablePolicy, analysis.callables, analysis.objectShapes, analysis.declarations, analysis.typeProjections.genericProjection,
+    { names: analysis.names, storage: analysis.storage, nativeUse: analysis.nativeDemand.nativeUse,
+      classPropertyStorage: analysis.operations.classPropertyStorage },
   );
+  if (callableAdapterResult.kind === "rejected") return callableAdapterResult;
+  const callableAdapters = callableAdapterResult.value;
   const analysisIssues = [
     ...callableAdapters.issues,
     ...memoryBindings.issues.map(issue => ({ node: issue.node, message: issue.reason, code: "CSHARP_MEMORY_BINDING_NOT_PROVEN" })),
@@ -404,20 +409,18 @@ export function analyzeCsharpTargetProgram(
     analysis.typeSystem.projectTypes, source.ast, sourceStorage.nodes, analysis.objectShapes,
   );
   const sourceSyntax = targetSourceSyntaxProgram(source);
-  const names = analysis.names.seal(nativeDemand.requiredBindingRoots);
   const admittedIterations = admitCsharpIterationBindings(analysis.policy, sourceStorage.nodes,
     nativeDemand.nativeUse, analysis.operations, analysis.storage,
     nativeParticipation.participation, analysis.sourceEvidence.compileTimeMetadata);
   const admittedOperations = admittedIterations.operations;
   const nonCallableIssues = [
-    ...names.issues,
     ...admittedIterations.issues,
     ...admitCsharpStatementBindings(source.ast, sourceStorage.nodes, nativeDemand.nativeUse,
       admittedOperations, analysis.storage, analysis.sourceEvidence.generator,
       nativeParticipation.participation, analysis.sourceEvidence.compileTimeMetadata,
       analysis.valueReads.valueRead),
     ...admitCsharpNativeDeclarations(source.ast, sourceStorage.nodes, nativeDemand.nativeUse,
-      projectTypes, source.navigation, names, analysis.sourceEvidence, analysis.storage,
+      projectTypes, source.navigation, analysis.sourceEvidence, analysis.storage,
       nativeParticipation.participation, admittedOperations.nativeUnreachable,
       analysis.declarations, callableAdapters.callableDispatch, classFactories.classFactory, captureStorage),
     ...admitCsharpNativeStorageBindings(source.ast, sourceStorage.nodes, nativeDemand.nativeUse,
@@ -425,28 +428,43 @@ export function analyzeCsharpTargetProgram(
       analysis.sourceEvidence.compileTimeMetadata, admittedOperations.nativeUnreachable),
   ];
   if (nonCallableIssues.length > 0) return rejectedTargetStage(nonCallableIssues);
+  const objectShapeClosure = analyzeCsharpNativeArtifactDemand({
+    ast: source.ast, sourceFiles, propertyNames: sourceSyntax.propertyNames,
+    nativeDemand, participation: nativeParticipation.participation,
+    objectShapes: callableAdapters.objectShapes, projectTypes, typeDefinitions,
+    valueReads: analysis.valueReads, operations: admittedOperations, storage: analysis.storage,
+    callables: analysis.callables, captureStorage, callableAdapters, flowReads, declarations: analysis.declarations,
+    bindingPatterns, conversions, nativeValueCarriers, sourceEvidence: analysis.sourceEvidence,
+  }, analysis.requiredRecords);
+  if (objectShapeClosure.kind === "rejected") return objectShapeClosure;
+  const nativeMemberNames = analyzeCsharpNativeMemberNames({
+    ast: source.ast, nodes: sourceStorage.nodes, nativeUse: nativeDemand.nativeUse,
+    metadata: analysis.sourceEvidence, participation: nativeParticipation.participation,
+    unreachable: admittedOperations.nativeUnreachable, projectTypes, names: analysis.names,
+    dispatch: callableAdapters.callableDispatch, writes: analysis.declarations.methodWrite,
+    factories: classFactories.classFactory, helperAccess: captureStorage.helperAccess,
+    requiredBindingRoots: nativeDemand.requiredBindingRoots, artifactClosure: objectShapeClosure.value,
+    nativeValueCarriers, storage: analysis.storage, moduleInitialization: moduleInitialization.index,
+    callables: analysis.callables, callableCreations, classPropertyStorage: admittedOperations.classPropertyStorage,
+    captureFrameShape: captureStorage.captureFrameShape, bindingPatterns, providers: analysis.policy.providers,
+  });
+  if (nativeMemberNames.issues.length > 0) return rejectedTargetStage(nativeMemberNames.issues);
+  const names = analysis.names.seal(nativeDemand.requiredBindingRoots, nativeMemberNames);
+  if (names.issues.length > 0) return rejectedTargetStage(names.issues);
   const pendingUses = nativeDemand.unadmitted.filter(use => use.kind === "pending-use");
   if (pendingUses.length > 0) {
     const incomplete = pendingUses[0]!;
     return failTargetAnalysisInvariant("tsonic-csharp",
       `Native consumption '${incomplete.site.role}' requires completed '${incomplete.reason}' evidence before publication.`, incomplete.expression);
   }
-  const objectShapeDemand = analyzeCsharpNativeArtifactDemand({
-    ast: source.ast, sourceFiles, propertyNames: sourceSyntax.propertyNames,
-    nativeDemand, participation: nativeParticipation.participation,
-    objectShapes: callableAdapters.objectShapes, projectTypes, typeDefinitions,
-    valueReads: analysis.valueReads, operations: admittedOperations, storage: analysis.storage,
-    callables: analysis.callables, captureStorage, callableAdapters, flowReads, declarations: analysis.declarations,
-    bindingPatterns, conversions, nativeValueCarriers, sourceEvidence: analysis.sourceEvidence, names,
-  }, analysis.requiredRecords);
-  if (objectShapeDemand.kind === "rejected") return objectShapeDemand;
+  const objectShapeDemand = publishCsharpNativeArtifactDemand(objectShapeClosure.value, names);
   const rawInterfaceIssues = admitCsharpRawInterfaceDeclarations(source.ast, sourceStorage.nodes,
-    nativeDemand.nativeUse, callableAdapters.objectShapes, objectShapeDemand.value, analysis.storage,
+    nativeDemand.nativeUse, callableAdapters.objectShapes, objectShapeDemand, analysis.storage,
     analysis.sourceEvidence.compileTimeMetadata, nativeParticipation.participation,
     admittedOperations.nativeUnreachable);
   if (rawInterfaceIssues.length > 0) return rejectedTargetStage(rawInterfaceIssues);
   const records = createCsharpProgramRecords({
-    objectShapeDemand: objectShapeDemand.value,
+    objectShapeDemand,
     nativeValueCarriers,
     literalValues, exactLiterals, nativeParticipation, nativeDemand, bindingPatterns,
     flowReads, valueReads: analysis.valueReads,

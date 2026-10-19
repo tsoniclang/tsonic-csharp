@@ -49,9 +49,9 @@ import {
 export {
   objectShapeAccessorGetterStorageMemberName,
   objectShapeAccessorSetterStorageMemberName,
-  objectShapeMethodStorageTargetType,
   objectShapeStorageMemberName,
-} from "./object-shape-storage.js";
+} from "../../../target-model/names/object-members.js";
+export { objectShapeMethodStorageTargetType } from "./object-shape-storage.js";
 
 import { isCsharpEmptyObjectTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { guardCsharpFrozenDataProperties } from "./frozen-data-properties.js";
@@ -227,7 +227,8 @@ function renderObjectShapeDeclaration(
         targetTypeRefEquals(artifact.fact.targetType, base) &&
         artifact.capabilities.includes("enumerable-keys")));
     const inherited = csharpInheritedStructuralInterfaces(fact, input);
-    const contractMembers = renderCsharpStructuralInterfaceMembers(input.scope.typeParameterNames, fact, input.program.records, capabilities.includes("method-values"), inherited);
+    const contractMembers = renderCsharpStructuralInterfaceMembers(input.scope.typeParameterNames, fact, input.program.records,
+      capabilities.includes("method-values"), inherited, input.program.names);
     if (contractMembers === undefined || interfaces === undefined || typeParameters === undefined) {
       diagnostics.push({ code: "CSHARP_STRUCTURAL_INTERFACE_NOT_CLOSED", category: "error", source: "tsonic-csharp",
         message: "A structural reference contract requires exact renderable member signatures." });
@@ -248,6 +249,7 @@ function renderObjectShapeDeclaration(
     undefined,
     undefined,
     input.program.records,
+    input.program.names,
     new Set(input.program.records.captureFrameShape.get(fact.targetType)?.bindings
       .filter(binding => binding.initialization === "deferred").map(binding => binding.fieldName)),
   );

@@ -13,11 +13,12 @@ import {
 import {
   objectShapeAccessorGetterStorageMemberName,
   objectShapeAccessorSetterStorageMemberName,
-  objectShapeMethodStorageTargetType,
   objectShapeStorageMemberName,
   objectShapeBoundStorageMemberName,
-  objectShapeBoundStorageTargetType,
-} from "../object-shape-storage.js";
+  csharpFrozenStorageName,
+  csharpJsonValueWriterMethodName,
+} from "../../../../target-model/names/object-members.js";
+import { objectShapeMethodStorageTargetType, objectShapeBoundStorageTargetType } from "../object-shape-storage.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../../types/target-types.js";
@@ -30,12 +31,10 @@ import {
 } from "./interfaces.js";
 import {
   csharpJsonValueInterfaceType,
-  csharpJsonValueWriterMethodName,
 } from "../json-object-shapes.js";
 import {
   csharpObjectShapeMemberContractKey,
 } from "../../../../target-model/types/index.js";
-import { csharpFrozenStorageName } from "../frozen-data-properties.js";
 import { isCsharpEnumerableKeysMember } from "./enumerable-keys.js";
 import type { CsharpObjectShapeProjectionDeclaration } from "../../../../target-model/records/object-shape-demand.js";
 import { renderObjectShapeProjectionMethod } from "../closed-object-shapes.js";

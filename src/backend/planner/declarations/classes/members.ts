@@ -65,8 +65,9 @@ export function planClassMembers(
         const participation = input.program.records.nativeParticipation.get(member);
         if (participation === "body" || participation === "signature") {
           const firstDiagnostic = diagnostics.length;
-          const method = planMethodDeclaration(member, sourceFile, memberInput, diagnostics);
           const write = input.program.records.methodWrite.get(member);
+          const method = planMethodDeclaration(member, sourceFile, memberInput, diagnostics,
+            { kind: "source", declaration: member, role: write === undefined ? "member" : "implementation" });
           planned.push(...(write === undefined ? [method] : planCsharpMutableMethod(member, method, write, input, diagnostics)));
           if (!diagnostics.some((issue, index) => index >= firstDiagnostic && issue.category === "error")) {
             planned.push(...planCsharpProjectCallableAdapters(member, method, sourceFile, memberInput, diagnostics));

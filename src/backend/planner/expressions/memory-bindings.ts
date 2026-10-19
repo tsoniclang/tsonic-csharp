@@ -5,7 +5,8 @@ import type { CsharpObjectInitializerAssignment } from "../../target-ast/syntax/
 import type { ExpressionPlanner } from "./expression-planner-types.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
-import { objectShapeBoundStorageMemberName, objectShapeBoundStorageTargetType } from "../objects/object-shape-storage.js";
+import { objectShapeBoundStorageMemberName } from "../../../target-model/names/object-members.js";
+import { objectShapeBoundStorageTargetType } from "../objects/object-shape-storage.js";
 import { csharpConstructibleTypeFromObjectShapeFact } from "../objects/index.js";
 import type { CsharpPlannedValue } from "./planned-values.js";
 import { buildCsharpPlannedValue } from "./planned-value-composition.js";

@@ -26,6 +26,7 @@ import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { planResourceRegistrationStatement } from "../statements/resource-management.js";
 import { getLambdaTargetContext, lambdaTargetContextFromTargetRef } from "../expressions/expression-lambdas.js";
 import { getCsharpTaskResultTargetType, isCsharpVoidTargetType } from "../../../target-model/types/index.js";
+import { planCsharpNativeMemberHiding } from "../declarations/modifiers.js";
 
 export function planTopLevelVariableStatement(
   statement: Node,
@@ -71,6 +72,7 @@ export function planTopLevelVariableStatement(
           binding.name,
           binding.type,
           "public",
+          planCsharpNativeMemberHiding(input.program.names, { kind: "source", declaration: sourceDeclaration, role: "member" }),
           reassignable,
           input.program.records.nativeModuleField.get(sourceDeclaration),
         )))
@@ -113,7 +115,8 @@ export function planTopLevelVariableStatement(
       moduleMembers.push({
         kind: "MethodDeclaration",
         name: field.name,
-        modifiers: lambda.async ? [callableVisibility, "static", "async"] : [callableVisibility, "static"],
+        modifiers: [callableVisibility, "static", ...(lambda.async ? ["async" as const] : []),
+          ...planCsharpNativeMemberHiding(input.program.names, { kind: "source", declaration, role: "member" })],
         returnType: signature.returnType ?? { kind: "PredefinedType", name: "void" },
         parameters: lambda.parameters.map(parameter => ({ ...parameter, type: parameter.type! })),
         body: lambda.body.kind === "Block" ? lambda.body : {
@@ -129,6 +132,7 @@ export function planTopLevelVariableStatement(
       field.name,
       field.type,
       "public",
+      planCsharpNativeMemberHiding(input.program.names, { kind: "source", declaration, role: "member" }),
       reassignable,
       input.program.records.nativeModuleField.get(declaration),
     ));
@@ -153,6 +157,7 @@ export function topLevelBindingMember(
   name: string,
   type: CsharpTypeNode,
   accessibility: "public" | "private",
+  hiding: readonly "new"[],
   reassignable = false,
   nativeField = false,
 ): CsharpTypeMember {
@@ -162,13 +167,13 @@ export function topLevelBindingMember(
     nullForgiving: true,
   } as const;
   if (nativeField) return {
-    kind: "FieldDeclaration", name, type, modifiers: [accessibility, "static"], initializer,
+    kind: "FieldDeclaration", name, type, modifiers: [accessibility, "static", ...hiding], initializer,
   };
   return {
     kind: "PropertyDeclaration",
     name,
     type,
-    modifiers: [accessibility, "static"],
+    modifiers: [accessibility, "static", ...hiding],
     initializer,
     autoGetter: true,
     autoSetter: true,

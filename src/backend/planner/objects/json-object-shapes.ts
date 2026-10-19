@@ -13,13 +13,12 @@ import {
 } from "../../../target-model/types/index.js";
 import {
   objectShapeStorageMemberName,
-} from "./object-shape-storage.js";
+  csharpJsonValueWriterMethodName,
+  csharpJsonValueProjectionMethodName,
+} from "../../../target-model/names/object-members.js";
 import {
   qualifiedCsharpType,
 } from "../types/index.js";
-
-export const csharpJsonValueWriterMethodName = "__tsonicWriteJson";
-export const csharpJsonValueProjectionMethodName = "__tsonicJsonValue";
 
 export function objectShapeRequiresJsonSerialization(
   input: CsharpPlanningContext,

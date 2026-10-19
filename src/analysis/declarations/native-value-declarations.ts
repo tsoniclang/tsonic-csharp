@@ -17,8 +17,6 @@ import type { CsharpObjectShapeDemand } from "../../target-model/records/object-
 import { objectShapeArtifactKey } from "../../target-model/records/object-shape-demand.js";
 import type { CsharpObjectShapeClassifications } from "../objects/model.js";
 import type { CsharpObjectShapeFact } from "../../target-model/types/model.js";
-import type { CsharpNamePlan } from "../../target-model/names/model.js";
-import { admitCsharpClassMemberNames } from "../names/source-names.js";
 import { csharpSourceTypeParameters } from "../../target-model/names/type-parameters.js";
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 import { csharpBigIntegerTargetType, csharpCarrierAdmitsSourceAbsence, csharpNullableTargetType,
@@ -31,7 +29,6 @@ export function admitCsharpNativeDeclarations(
   nativeUse: CsharpNativeUseClassifications["nativeUse"],
   projectTypes: Pick<CsharpProjectTypeClassifications, "heritageForDeclaration">,
   authoredHeritage: Pick<SourceProgramNavigation, "declaredHeritage">,
-  names: Pick<CsharpNamePlan, "resolve">,
   metadata: Pick<CsharpSourceEvidenceIndex, "compileTimeMetadata" | "sourceField">,
   storage: Pick<CsharpStorageClassifications, "storageType" | "nativeBacking" | "typedLocationIdentity">,
   participation: CsharpNativeParticipationInput["participation"],
@@ -62,7 +59,7 @@ export function admitCsharpNativeDeclarations(
       const returned = declarations.returnContract.get(node);
       if (returned?.kind === "rejected") refuse(node, returned.reason);
       const dispatch = methodDispatch.get(node);
-      if (dispatch === undefined) {
+      if (dispatch?.kind !== "method") {
         refuse(node, "A method has no sealed native dispatch contract.");
       } else {
         if (csharpTargetTypeRenderingRejection(dispatch.implementation.returnType) !== undefined) {
@@ -109,10 +106,6 @@ export function admitCsharpNativeDeclarations(
       }
     }
     if (classDeclaration) {
-      const members = ast.members(node).filter((member): member is Node => member !== undefined &&
-        !metadata.compileTimeMetadata.get(member) && !sourceClassFieldIsTypeOnly(ast, member) &&
-        (!ast.is.IsMethodDeclaration(member) || participation.get(member) === "body" || participation.get(member) === "signature"));
-      issues.push(...admitCsharpClassMemberNames(ast, members, names, methodDispatch, declarations.methodWrite));
       const factory = factories.get(node);
       if (factory !== undefined) {
         if (csharpTargetTypeRenderingRejection(factory.factoryType) !== undefined ||

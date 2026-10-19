@@ -13,8 +13,10 @@ import type { DestructuringPlannerState } from "../../bindings/binding-state.js"
 import { getCsharpLocalBindingName } from "../../bindings/binding-state.js";
 import { csharpCapturedBindingExpression, csharpCaptureFrameExpression } from "../../bindings/capture-storage.js";
 import { requireCsharpIdentifier } from "../../../../target-model/names/identifiers.js";
-import { objectShapeStorageMemberName } from "../object-shape-storage.js";
+import { objectShapeStorageMemberName } from "../../../../target-model/names/object-members.js";
 import { csharpObjectShapeMethodDeclaration } from "../../../../target-model/types/method-values.js";
+import { objectShapeArtifactKey } from "../../../../target-model/records/object-shape-demand.js";
+import { planCsharpArtifactMemberHiding } from "../../declarations/modifiers.js";
 
 interface ObjectCaptureField {
   readonly name: string;
@@ -60,7 +62,8 @@ export function renderCsharpAuthoredObjectMethods(
     if (type === undefined) return undefined;
     const frame = field.frameScope === undefined ? undefined : input.program.records.captureFrame.get(field.frameScope);
     if (frame !== undefined && csharpTypeFromObjectShapeFact(input, frame.shape, diagnostics, implementation.declaration) === undefined) return undefined;
-    members.push({ kind: "FieldDeclaration", name: field.name, type, modifiers: ["public", "required"] });
+    members.push({ kind: "FieldDeclaration", name: field.name, type,
+      modifiers: ["public", "required", ...planCsharpArtifactMemberHiding(input.program.names, shape, field.name)] });
     const receiver: CsharpExpression = { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: "this" }, name: field.name };
     if (field.frameScope !== undefined) captureFrames.set(field.frameScope, receiver);
     for (const binding of field.declarations) capturedBindings.set(binding.declaration, binding.member === undefined ? receiver
@@ -81,14 +84,15 @@ export function renderCsharpAuthoredObjectMethods(
       return undefined;
     }
     const methodContext = createCsharpMemberPlanningContext(context);
-    const method = planMethodDeclaration(declaration, sourceFile, methodContext, diagnostics);
+    const method = planMethodDeclaration(declaration, sourceFile, methodContext, diagnostics,
+      { kind: "artifact", container: objectShapeArtifactKey(shape), member: member.targetName, role: "member" });
     members.push({ ...method, name: member.targetName });
     members.push(...methodContext.scope.generatedMethods?.values() ?? []);
     if (input.artifacts.objectShapeHasCapability(shape, "method-values")) {
       const type = csharpTypeFromTargetTypeRef(shape.targetType, input.scope.typeParameterNames);
       if (type === undefined) return undefined;
       members.push({ kind: "PropertyDeclaration", name: objectShapeStorageMemberName(shape, member),
-        modifiers: ["public"], type,
+        modifiers: ["public", ...planCsharpArtifactMemberHiding(input.program.names, shape, objectShapeStorageMemberName(shape, member))], type,
         getter: { kind: "Block", statements: [{ kind: "ReturnStatement", expression: { kind: "IdentifierName", name: "this" } }] },
       });
     }

@@ -1,16 +1,10 @@
 import type { CsharpObjectShapeFact } from "../../../target-model/types/index.js";
 import type { CsharpExpression, CsharpStatement, CsharpTypeMember } from "../../target-ast/syntax/index.js";
 import { qualifiedCsharpType } from "../types/index.js";
-import { objectShapeStorageMemberName } from "./object-shape-storage.js";
+import { csharpFrozenStorageName, objectShapeStorageMemberName } from "../../../target-model/names/object-members.js";
 import type { CsharpPlanningContext } from "../context.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-
-export function csharpFrozenStorageName(shape: CsharpObjectShapeFact, name: string): string {
-  const reserved = new Set(shape.members.map(member => objectShapeStorageMemberName(shape, member)));
-  let candidate = `__tsonic_frozen_${name}`;
-  while (reserved.has(candidate)) candidate = `_${candidate}`;
-  return candidate;
-}
+import { planCsharpArtifactMemberHiding } from "../declarations/modifiers.js";
 
 export function guardCsharpFrozenDataProperties(
   shape: CsharpObjectShapeFact, members: readonly CsharpTypeMember[],
@@ -41,7 +35,8 @@ export function guardCsharpFrozenDataProperties(
     if (member.kind === "PropertyDeclaration" && member.autoSetter !== true) return [member];
     const storageName = csharpFrozenStorageName(shape, member.name);
     const storage: CsharpExpression = { kind: "IdentifierName", name: storageName };
-    return [{ kind: "FieldDeclaration", name: storageName, modifiers: ["private"], type: member.type,
+    return [{ kind: "FieldDeclaration", name: storageName,
+      modifiers: ["private", ...planCsharpArtifactMemberHiding(input.program.names, shape, storageName)], type: member.type,
       initializer: member.initializer ?? { kind: "DefaultExpression", type: member.type, nullForgiving: true } },
     { kind: "PropertyDeclaration", name: member.name, modifiers: member.modifiers.filter(modifier => modifier !== "readonly"),
       type: member.type, ...(member.attributes === undefined ? {} : { attributes: member.attributes }),

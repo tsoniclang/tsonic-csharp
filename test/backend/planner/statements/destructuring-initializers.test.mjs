@@ -106,6 +106,12 @@ for (const surface of ["native", "js"]) {
       }
       export function run(): number { return View.read("a") + new View().read(undefined); }
     ` },
+    { label: "keyword method", name: "event", emittedName: "@event", nativeCode: "CS0111", sourceText: `
+      export class View {
+        static event(): number { return 1; }
+        event(): number { return 2; }
+      }
+    ` },
   ]) {
     test(`${surface} static and instance ${control.label} collisions are refused before native publication`, () => {
       const compiled = compileCsharpSource({ surface, sourceText: control.sourceText });
@@ -114,7 +120,7 @@ for (const surface of ["native", "js"]) {
       const diagnostic = compiled.result.diagnostics[0];
       assert.equal(diagnostic.code, "CSHARP_INVALID_IDENTIFIER", "the existing native-name refusal code is used");
       assert.equal(diagnostic.message,
-        `Static member '${control.name}' and instance member '${control.name}' cannot share the emitted C# name '${control.name}' (${control.nativeCode}).`,
+        `Static member '${control.emittedName ?? control.name}' and instance member '${control.emittedName ?? control.name}' cannot share the emitted C# name '${control.emittedName ?? control.name}' (${control.nativeCode}).`,
         "the exact refusal identifies both members and the native C# constraint");
       const source = createTargetSourceProgram(compiled.source);
       const ast = source.ast;

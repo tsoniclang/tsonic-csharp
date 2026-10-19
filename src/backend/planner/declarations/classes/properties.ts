@@ -48,6 +48,7 @@ import {
   planAttributesForSubject,
 } from "../attributes.js";
 import { getCsharpTypeForSourceField } from "../value-types.js";
+import { planCsharpAdmittedMemberName } from "../modifiers.js";
 import {
   csharpSafetyAccessorModifiersForDeclaration,
   diagnoseUnavailableCsharpSafetyAccessors,
@@ -76,9 +77,9 @@ export function planPropertyDeclaration(
     const type = getCsharpTypeForSourceField(sourceField, "Class field", sourceFile, input, diagnostics);
     return {
       kind: "FieldDeclaration",
-      name: planIdentifierName(declaration.name, "FieldDeclaration", input, diagnostics, "Field name"),
+      name: planCsharpAdmittedMemberName(input.program.names, declaration.name),
       modifiers: withCsharpSafetyModifiers(
-        planClassMemberModifiers(node, declaration.name, input),
+        planClassMemberModifiers(node, declaration.name, input, { kind: "source", declaration: node, role: "member" }),
         node,
         "declaration",
         input,
@@ -94,8 +95,9 @@ export function planPropertyDeclaration(
     invalidCsharpType("property type"),
     diagnostics,
   );
-  const propertyName = planIdentifierName(declaration.name, "FieldDeclaration", input, diagnostics, "Field name");
-  const modifiers = planClassMemberModifiers(node, declaration.name, input);
+  const propertyName = planCsharpAdmittedMemberName(input.program.names, declaration.name);
+  const modifiers = planClassMemberModifiers(node, declaration.name, input,
+    { kind: "source", declaration: node, role: "member" });
   const storage = input.program.records.classPropertyStorage.get(node);
   if (storage === undefined) return failCsharpPlannerInvariant(
     "A checked class property lost its selected native field or property storage.", node);
@@ -166,7 +168,7 @@ export function mergeAccessorProperty(
   const accessor = HasSourceKind(input.program.source.ast, node, KindGetAccessor)
     ? AsGetAccessorDeclaration(input.program.source.ast, node)!
     : AsSetAccessorDeclaration(input.program.source.ast, node)!;
-  const name = planIdentifierName(accessor.name, "PropertyDeclaration", input, diagnostics, "Accessor name");
+  const name = planCsharpAdmittedMemberName(input.program.names, accessor.name);
   const existing = accessorProperties.get(name);
   const next = HasSourceKind(input.program.source.ast, node, KindGetAccessor)
     ? mergeGetterAccessor(existing, node, name, sourceFile, input, diagnostics)

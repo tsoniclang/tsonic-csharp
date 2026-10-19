@@ -1,4 +1,4 @@
-import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
+import type { AstReader, Node, SourceFile, Type } from "@tsonic/tsts";
 import { csharpNativePropertyNameIssue } from "../objects/computed-field-names.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
@@ -126,6 +126,7 @@ export function analyzeCsharpBindingPatterns(
   const { ast } = input;
   const facts = new Map<Node, CsharpBindingProjectionFact>();
   const roots = new Map<Node, Node>();
+  const checkedPatternTypes = new Map<Node, Type | undefined>();
   const lookup = Object.freeze({ get: (node: Node) => facts.get(node) });
   const candidates: CsharpBindingPatternCandidate[] = [];
   const assignmentDefaults = new WeakSet<Node>();
@@ -358,6 +359,8 @@ export function analyzeCsharpBindingPatterns(
 
   function analyzeObjectShapePattern(pattern: Node, shape: CsharpObjectShapeFact, sourceFile: SourceFile): void {
     recordSource(pattern, { kind: "object-shape-source", shape });
+    const checkedType = checkedPatternType(pattern);
+    const checkedMembers = checkedType === undefined ? [] : input.semanticsFor(pattern).types.propertyInfos(checkedType);
     const elements = AsBindingPattern(ast, pattern)?.Elements?.Nodes ?? [];
     const extractedSourceNames = new Set<string>();
     for (const elementNode of elements) {
@@ -386,8 +389,10 @@ export function analyzeCsharpBindingPatterns(
         issue(elementNode, "Object destructuring property must match a finalized provider object-shape member.");
         continue;
       }
+      const checked = checkedMembers.filter(member => member.name === property.sourceName);
       const selected = selectCsharpBindingPatternProjection({ kind: "object-member", shape, sourceName: property.sourceName,
-        description: "Object destructuring property", permitsAbsence: bindingPermitsAbsence(pattern, property.sourceName) });
+        description: "Object destructuring property", permitsAbsence: element.Initializer !== undefined ||
+          checked.length === 1 && checked[0]!.optional });
       if (selected.kind !== "element" || selected.element.kind !== "object-shape-member" && selected.element.kind !== "object-shape-absence") {
         if (selected.kind === "unresolved") for (const reason of selected.reasons) issue(elementNode, reason);
         continue;
@@ -405,14 +410,44 @@ export function analyzeCsharpBindingPatterns(
     }
   }
 
-  function bindingPermitsAbsence(pattern: Node, sourceName: string): boolean {
-    const declaration = ast.parent(pattern);
-    if (declaration === undefined) return false;
-    const semantics = input.semanticsFor(declaration);
-    const type = semantics.declarations.declaredValueType(declaration);
-    if (type === undefined) return false;
-    const members = semantics.types.propertyInfos(type).filter(member => member.name === sourceName);
-    return members.length === 1 && members[0]!.optional;
+  function checkedPatternType(pattern: Node): Type | undefined {
+    if (checkedPatternTypes.has(pattern)) return checkedPatternTypes.get(pattern);
+    const selected = selectCheckedPatternType(pattern);
+    checkedPatternTypes.set(pattern, selected);
+    return selected;
+  }
+
+  function selectCheckedPatternType(pattern: Node): Type | undefined {
+    const owner = ast.parent(pattern);
+    if (owner === undefined) return undefined;
+    const semantics = input.semanticsFor(owner);
+    const element = AsBindingElement(ast, owner);
+    if (element !== undefined) {
+      const parentPattern = ast.parent(owner);
+      const parentType = parentPattern === undefined ? undefined : checkedPatternType(parentPattern);
+      if (parentPattern === undefined || parentType === undefined) return undefined;
+      let selected: Type | undefined;
+      if (HasSourceKind(ast, parentPattern, KindObjectBindingPattern)) {
+        const name = objectShapePropertyName(owner)?.sourceName;
+        const members = name === undefined ? [] : semantics.types.propertyInfos(parentType).filter(member => member.name === name);
+        selected = members.length === 1 ? members[0]!.type : undefined;
+      } else if (HasSourceKind(ast, parentPattern, KindArrayBindingPattern)) {
+        const index = AsBindingPattern(ast, parentPattern)?.Elements?.Nodes.indexOf(owner);
+        if (index === undefined || index < 0) return undefined;
+        if (semantics.types.isTuple(parentType)) selected = semantics.types.tupleElementInfos(parentType)[index]?.type;
+        else {
+          const indices = semantics.types.indexInfos(parentType).filter(info => semantics.types.isNumberLike(info.keyType));
+          selected = indices.length === 1 ? indices[0]!.valueType : undefined;
+        }
+      }
+      return selected === undefined || element.Initializer === undefined ? selected
+        : semantics.types.withoutMissingOrUndefined(selected);
+    }
+    const declaration = AsVariableDeclaration(ast, owner) ?? AsParameterDeclaration(ast, owner);
+    if (declaration?.Type !== undefined) return semantics.types.authoredType(declaration.Type);
+    const iteration = forOfHeadStatement(owner);
+    if (iteration !== undefined) return semantics.operations.iteration(iteration)?.sourceElementType;
+    return declaration?.Initializer === undefined ? undefined : semantics.types.expressionType(declaration.Initializer);
   }
 
   function analyzeObjectShapeRest(

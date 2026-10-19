@@ -1,10 +1,12 @@
-import type { CsharpObjectShapeFact } from "../../../../target-model/types/model.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../../../target-model/types/model.js";
 import { getCsharpDelegateSignature } from "../../../../target-model/types/index.js";
-import type { CsharpInterfaceMember } from "../../../target-ast/syntax/index.js";
+import type { CsharpNamePlan } from "../../../../target-model/names/model.js";
+import { planCsharpArtifactMemberHiding } from "../../declarations/modifiers.js";
+import type { CsharpInterfaceMember, CsharpInterfacePropertyDeclaration } from "../../../target-ast/syntax/index.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import type { CsharpStorageClassifications } from "../../../../target-model/records/storage.js";
 import { csharpRuntimeLocationTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
-import { objectShapeStorageMemberName } from "../object-shape-storage.js";
+import { objectShapeStorageMemberName } from "../../../../target-model/names/object-members.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTypeParameter } from "../../../target-ast/syntax/index.js";
 import { csharpGenericConstraintFromTargetTypeParameterConstraint } from "../../types/type-parameters.js";
@@ -46,18 +48,16 @@ export function csharpMethodValueHandleIsInherited(
   }));
 }
 
-export function renderCsharpStructuralInterfaceMembers(typeParameterNames: ReadonlyMap<string, string> | undefined, shape: CsharpObjectShapeFact, storage: Pick<CsharpStorageClassifications, "nativeField">, methodValues: boolean, inherited: readonly CsharpInheritedStructuralInterface[]): readonly CsharpInterfaceMember[] | undefined {
+export function renderCsharpStructuralInterfaceMembers(typeParameterNames: ReadonlyMap<string, string> | undefined,
+  shape: CsharpObjectShapeFact, storage: Pick<CsharpStorageClassifications, "nativeField">, methodValues: boolean,
+  inherited: readonly CsharpInheritedStructuralInterface[], names: Pick<CsharpNamePlan, "memberHiding">): readonly CsharpInterfaceMember[] | undefined {
   const result: CsharpInterfaceMember[] = [];
   for (const member of shape.members) {
     if (member.memberKind === "method") {
       if (methodValues || member.optional === true) {
-        const valueType = member.methodValueContract ?? member.type;
-        const type = valueType === undefined ? undefined : csharpTypeFromTargetTypeRef(
-          member.optional === true ? csharpNullableTargetType(valueType) : valueType, typeParameterNames);
-        if (type === undefined) return undefined;
-        const name = objectShapeStorageMemberName(shape, member);
-        if (!csharpMethodValueHandleIsInherited(shape, member, inherited))
-          result.push({ kind: "PropertyDeclaration", name, type, writable: false });
+        const values = renderCsharpStructuralInterfaceMethodValue(typeParameterNames, shape, member, inherited, names);
+        if (values === undefined) return undefined;
+        result.push(...values);
         if (member.optional === true) continue;
       }
       const signature = getCsharpDelegateSignature(member.type);
@@ -74,6 +74,7 @@ export function renderCsharpStructuralInterfaceMembers(typeParameterNames: Reado
       }));
       if (issues.length > 0) return undefined;
       result.push({ kind: "MethodDeclaration", name: member.targetName, returnType, typeParameters,
+        modifiers: planCsharpArtifactMemberHiding(names, shape, member.targetName),
         parameters: parameters.map((type, index) => ({ name: `arg${index}`, type: type!,
           ...(signature.restParameterIndex === index ? { isParams: true } : {}),
           ...(signature.optionalParameterIndexes?.includes(index) ? { defaultValue: { kind: "DefaultExpression" as const, type: type! } } : {}),
@@ -82,28 +83,46 @@ export function renderCsharpStructuralInterfaceMembers(typeParameterNames: Reado
       const type = csharpTypeFromTargetTypeRef(member.type, typeParameterNames);
       if (type === undefined) return undefined;
       result.push({ kind: "PropertyDeclaration", name: member.targetName, type,
+        modifiers: planCsharpArtifactMemberHiding(names, shape, member.targetName),
         writable: member.readonly !== true && member.accessor?.setter !== false });
       const backing = storage.nativeField.get(shape.targetType, member.targetName);
       if (backing !== undefined) {
         const locationType = csharpTypeFromTargetTypeRef(csharpRuntimeLocationTargetType(member.type), typeParameterNames);
         if (locationType === undefined) return undefined;
-        result.push({ kind: "PropertyDeclaration", name: backing.storageName, type: locationType, writable: false });
+        result.push({ kind: "PropertyDeclaration", name: backing.storageName, type: locationType, writable: false,
+          modifiers: planCsharpArtifactMemberHiding(names, shape, backing.storageName) });
       }
     }
   }
-  const inheritedMembers: CsharpInterfaceMember[] = [];
-  for (const parent of inherited) {
-    const members = renderCsharpStructuralInterfaceMembers(typeParameterNames, parent.shape, storage, parent.methodValues, []);
-    if (members === undefined) return undefined;
-    inheritedMembers.push(...members);
-  }
-  return shadowCsharpInheritedInterfaceMembers(result, inheritedMembers);
+  return result;
 }
 
-export function shadowCsharpInheritedInterfaceMembers(
-  members: readonly CsharpInterfaceMember[], inherited: readonly CsharpInterfaceMember[],
-): readonly CsharpInterfaceMember[] {
-  const inheritedNames = new Set(inherited.flatMap(member => member.kind === "IndexerDeclaration" ? [] : [member.name]));
-  return members.map(member => member.kind !== "IndexerDeclaration" && inheritedNames.has(member.name)
-    ? { ...member, modifiers: ["new", ...member.modifiers ?? []] } : member);
+export function renderCsharpStructuralInterfaceMethodValues(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
+  shape: CsharpObjectShapeFact, inherited: readonly CsharpInheritedStructuralInterface[],
+  names: Pick<CsharpNamePlan, "memberHiding">,
+): readonly CsharpInterfacePropertyDeclaration[] | undefined {
+  const result: CsharpInterfacePropertyDeclaration[] = [];
+  for (const member of shape.members) {
+    if (member.memberKind !== "method") continue;
+    const values = renderCsharpStructuralInterfaceMethodValue(typeParameterNames, shape, member, inherited, names);
+    if (values === undefined) return undefined;
+    result.push(...values);
+  }
+  return result;
+}
+
+function renderCsharpStructuralInterfaceMethodValue(
+  typeParameterNames: ReadonlyMap<string, string> | undefined,
+  shape: CsharpObjectShapeFact, member: CsharpObjectShapeMemberFact,
+  inherited: readonly CsharpInheritedStructuralInterface[], names: Pick<CsharpNamePlan, "memberHiding">,
+): readonly CsharpInterfacePropertyDeclaration[] | undefined {
+  const valueType = member.methodValueContract ?? member.type;
+  const type = valueType === undefined ? undefined : csharpTypeFromTargetTypeRef(
+    member.optional === true ? csharpNullableTargetType(valueType) : valueType, typeParameterNames);
+  if (type === undefined) return undefined;
+  if (csharpMethodValueHandleIsInherited(shape, member, inherited)) return [];
+  const name = objectShapeStorageMemberName(shape, member);
+  return [{ kind: "PropertyDeclaration", name, type, writable: false,
+    modifiers: planCsharpArtifactMemberHiding(names, shape, name) }];
 }

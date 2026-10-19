@@ -5,7 +5,7 @@ import type { CsharpExpression, CsharpStatement } from "../../../target-ast/synt
 import type { CsharpPlanningContext } from "../../context.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { planExpression } from "../../expressions/index.js";
-import { planIdentifierName } from "../../names/source-identifiers.js";
+import { planCsharpAdmittedMemberName } from "../modifiers.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { createDestructuringPlannerState } from "../../bindings/binding-state.js";
 import { planClassStaticBlockDeclaration } from "./constructors.js";
@@ -69,7 +69,7 @@ export function planClassInitializationRegion(
     const value = fields.get(node);
     if (value === undefined) continue;
     const property = ast.as.AsPropertyDeclaration(node)!;
-    const name = planIdentifierName(property.name, "Field", input, diagnostics, "Class field");
+    const name = planCsharpAdmittedMemberName(input.program.names, property.name);
     const defaultValue = defaults.get(node);
     entries.push({ node, name, value, ...(defaultValue === undefined ? {} : { defaultValue }) });
   }

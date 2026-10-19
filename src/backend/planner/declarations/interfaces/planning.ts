@@ -39,8 +39,8 @@ import {
 import {
   getCsharpObjectShapeFactForNode,
 } from "../../objects/fact-queries.js";
-import { csharpInheritedStructuralInterfaces, renderCsharpStructuralInterfaceMembers, shadowCsharpInheritedInterfaceMembers } from "../../objects/declarations/structural-interfaces.js";
-import { objectShapeStorageMemberName } from "../../objects/object-shape-storage.js";
+import { csharpInheritedStructuralInterfaces, renderCsharpStructuralInterfaceMethodValues } from "../../objects/declarations/structural-interfaces.js";
+import { planCsharpNativeMemberHiding, planCsharpAdmittedMemberName } from "../modifiers.js";
 import { renderObjectShapeProjectionMethods } from "../../objects/closed-object-shapes.js";
 import {
   csharpSafetyAccessorModifiersForDeclaration,
@@ -77,17 +77,10 @@ export function planInterfaceDeclaration(
   });
   const inherited = objectShape === undefined ? [] : csharpInheritedStructuralInterfaces(objectShape, input);
   if (objectShape !== undefined && input.artifacts.objectShapeHasCapability(objectShape, "method-values")) {
-    const storageNames = new Set(objectShape.members.filter(member => member.memberKind === "method")
-      .map(member => objectShapeStorageMemberName(objectShape, member)));
-    const rendered = renderCsharpStructuralInterfaceMembers(input.scope.typeParameterNames, objectShape, input.program.records, true, inherited);
+    const rendered = renderCsharpStructuralInterfaceMethodValues(input.scope.typeParameterNames, objectShape, inherited, input.program.names);
     if (rendered === undefined) failCsharpPlannerInvariant("An admitted interface method value lost its native callable storage.", node);
-    members.push(...rendered.filter(member => member.kind === "PropertyDeclaration" && storageNames.has(member.name)));
+    members.push(...rendered);
   }
-  const inheritedMembers = inherited.flatMap(parent => {
-    const rendered = renderCsharpStructuralInterfaceMembers(input.scope.typeParameterNames, parent.shape, input.program.records, parent.methodValues, []);
-    if (rendered === undefined) failCsharpPlannerInvariant("An admitted inherited interface lost its exact native member signatures.", node);
-    return rendered;
-  });
   return {
     kind: "InterfaceDeclaration",
     name: planIdentifierName(declaration.name, "AnonymousInterface", input, diagnostics, "Interface name"),
@@ -102,7 +95,7 @@ export function planInterfaceDeclaration(
             ...(jsonSerializable ? [csharpJsonValueInterfaceType()] : []),
           ],
         }),
-    members: [...shadowCsharpInheritedInterfaceMembers(members, inheritedMembers),
+    members: [...members,
       ...(objectShape === undefined ? [] : renderObjectShapeProjectionMethods(input,
         input.artifacts.objectShapeProjections(objectShape), diagnostics))],
   };
@@ -124,12 +117,12 @@ function planInterfaceMethodDeclaration(
   );
   return {
     kind: "MethodDeclaration",
-    name: planIdentifierName(declaration.name, "MethodDeclaration", input, diagnostics, "Interface method name"),
-    modifiers: csharpSafetyModifiersForDeclaration(
+    name: planCsharpAdmittedMemberName(input.program.names, declaration.name),
+    modifiers: [...planCsharpNativeMemberHiding(input.program.names, { kind: "source", declaration: node, role: "member" }), ...csharpSafetyModifiersForDeclaration(
       node,
       "declaration",
       input,
-    ),
+    )],
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], input, diagnostics),
     returnType: getExplicitReturnType(declaration.Type, node, "interface method declaration", sourceFile, input, diagnostics),
@@ -163,12 +156,12 @@ function planInterfacePropertyDeclaration(
   );
   return {
     kind: "PropertyDeclaration",
-    name: planIdentifierName(declaration.name, "PropertyDeclaration", input, diagnostics, "Interface property name"),
-    modifiers: csharpSafetyModifiersForDeclaration(
+    name: planCsharpAdmittedMemberName(input.program.names, declaration.name),
+    modifiers: [...planCsharpNativeMemberHiding(input.program.names, { kind: "source", declaration: node, role: "member" }), ...csharpSafetyModifiersForDeclaration(
       node,
       "declaration",
       input,
-    ),
+    )],
     getterModifiers: csharpSafetyAccessorModifiersForDeclaration(
       node,
       "getter",

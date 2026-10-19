@@ -6,6 +6,7 @@ import type { CsharpPlanningContext } from "../../context.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { nullableCsharpType } from "../../types/index.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
+import { planCsharpNativeMemberHiding } from "../modifiers.js";
 
 export function planCsharpMutableMethod(
   node: Node, method: CsharpMethodDeclaration,
@@ -17,8 +18,10 @@ export function planCsharpMutableMethod(
     "An admitted writable method lost its renderable native delegate storage.", node);
   return [
     { ...method, name: write.implementationName, modifiers: method.modifiers.map(modifier => modifier === "public" ? "private" : modifier) },
-    { kind: "FieldDeclaration", name: write.storageName, type: nullableCsharpType(type), modifiers: ["private"] },
-    { kind: "PropertyDeclaration", name: method.name, type, modifiers: ["public"],
+    { kind: "FieldDeclaration", name: write.storageName, type: nullableCsharpType(type),
+      modifiers: ["private", ...planCsharpNativeMemberHiding(input.program.names, { kind: "source", declaration: node, role: "storage" })] },
+    { kind: "PropertyDeclaration", name: method.name, type,
+      modifiers: ["public", ...planCsharpNativeMemberHiding(input.program.names, { kind: "source", declaration: node, role: "member" })],
       getter: { kind: "Block", statements: [{ kind: "ReturnStatement", expression: {
         kind: "AssignmentExpression", operatorToken: { kind: "QuestionQuestionEqualsToken" },
         left: { kind: "IdentifierName", name: write.storageName },

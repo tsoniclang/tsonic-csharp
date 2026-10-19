@@ -403,7 +403,7 @@ test(`${declarationKind} native heritage renderability is refused by its owner b
   assert.equal(declaration !== undefined, true, "the checked interface is present");
   const issues = admitCsharpNativeDeclarations(ast, [declaration], { order: () => [] },
     { heritageForDeclaration: () => ({ interfaces: [{ kind: "opaque", id: "missing" }] }) },
-    source.navigation, { resolve: () => ({ kind: "resolved", name: "View" }) },
+    source.navigation,
     { compileTimeMetadata: { get: () => false }, sourceField: { get: () => undefined } },
     { storageType: { get: () => ({ kind: "source-primitive", name: "float64" }) } },
     { get: () => undefined }, { get: () => false },
@@ -434,7 +434,7 @@ test("declaration admission consumes exact retained masks, not empty constructio
   ]) {
     const issues = admitCsharpNativeDeclarations(ast, [declaration], { order: () => [] },
       { heritageForDeclaration: () => ({ interfaces: [{ kind: "opaque", id: "missing" }] }) },
-      source.navigation, { resolve: () => ({ kind: "resolved", name: "View" }) },
+      source.navigation,
       { compileTimeMetadata: { get: () => control.metadata }, sourceField: { get: () => undefined } },
       { storageType: { get: () => ({ kind: "source-primitive", name: "float64" }) } },
       { get: () => control.participation }, { get: () => control.unreachable },

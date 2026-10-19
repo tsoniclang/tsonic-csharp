@@ -75,7 +75,7 @@ if (Tsonic.Generated.Index.run() != 7) throw new System.Exception("native class 
     const original = program.records;
     const records = { ...original, physicalStorageType: { get: () => ({ kind: "opaque", id: "missing" }) } };
     const issues = admitCsharpNativeDeclarations(program.source.ast, [factory.declaration], records.nativeUse,
-      program.projectTypes, program.sourceNavigation, program.names, records, records, records.nativeParticipation, records.nativeUnreachable,
+      program.projectTypes, program.sourceNavigation, records, records, records.nativeParticipation, records.nativeUnreachable,
       records, records.callableDispatch, records.classFactory, records);
     assert.equal(issues.length, 1, "an actual non-frame capture's unrenderable physical carrier is refused before sealing");
     assert.equal(issues[0].message, "A class capture has no renderable native storage.", "the original capture refusal is unchanged");
