@@ -1,4 +1,4 @@
-import type { CsharpObjectShapeFact, CsharpPropertyKeyIterationPolicy, CsharpStringIterationPolicy, TargetTypeRef } from "../types/model.js";
+import type { CsharpObjectShapeFact, CsharpPropertyKeyIterationPolicy, CsharpStringIterationPolicy, CsharpTargetMember, TargetTypeRef } from "../types/model.js";
 import type { Node, ResolvedSourceIterationInfo } from "@tsonic/tsts";
 import type { CsharpConversionSelection } from "../conversions/selection.js";
 
@@ -60,7 +60,11 @@ export type CsharpResolvedIteration =
       >;
       readonly iterableType: TargetTypeRef;
       readonly elementType: TargetTypeRef;
-      readonly lowering: { readonly kind: "foreach" };
+      readonly lowering: { readonly kind: "foreach" } | {
+        readonly kind: "indexed";
+        readonly lengthMemberName: string;
+        readonly member: CsharpTargetMember;
+      };
     }
   | {
       readonly kind: "resolved";

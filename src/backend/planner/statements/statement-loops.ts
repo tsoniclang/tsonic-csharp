@@ -33,19 +33,10 @@ import {
 } from "./resource-management.js";
 import type { CsharpPlannedValue } from "../expressions/planned-values.js";
 import { consumeCsharpPlannedValue } from "./statement-output.js";
-import { planCsharpCollectionIndexedIteration } from "../expressions/collection-reads.js";
-import { csharpCollectionElementRead } from "../../../target-model/types/carriers/collection-reads.js";
 import { allocateExpressionTemp } from "../bindings/binding-state.js";
+import type { NestedStatementPlanner } from "./model.js";
 
 export { planForInStatement } from "./statement-for-in.js";
-
-type NestedStatementPlanner = (
-  node: Node | undefined,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  state: DestructuringPlannerState,
-) => readonly CsharpStatement[];
 
 export function planForOfStatement(
   statementNode: Node,
@@ -66,7 +57,7 @@ export function planForOfStatement(
   }
   const binding = planForOfBinding(statement.Initializer, selectedIteration, sourceFile, input, diagnostics, state);
   if (binding === undefined) {
-    return [];
+    failCsharpPlannerInvariant("An admitted iteration requires its native binding plan.", statementNode);
   }
   if (selectedIteration.lowering.kind === "string-code-point") {
     return planStringCodePointForOfStatement(statementNode, statement, binding,
@@ -75,7 +66,7 @@ export function planForOfStatement(
   }
   const sourceCollection = planForOfCollectionExpression(statement.Expression, sourceFile, input, diagnostics);
   if (sourceCollection === undefined) {
-    return [];
+    failCsharpPlannerInvariant("An admitted iteration requires its collection value plan.", statementNode);
   }
   const resourceDeclaration = forOfResourceDeclaration(
     selectedIteration,
@@ -110,18 +101,31 @@ export function planForOfStatement(
         planBody,
       );
   return consumeCsharpPlannedValue(sourceCollection, source => {
-  if (selectedIteration.iterationKind === "for-of" &&
-    csharpCollectionElementRead(sourceCollection.completion.carrier)?.kind === "method") {
+  if (selectedIteration.iterationKind === "for-of" && selectedIteration.lowering.kind === "indexed") {
     const name = allocateExpressionTemp(state);
     const receiver: CsharpExpression = { kind: "IdentifierName", name };
-    const loop = planCsharpCollectionIndexedIteration(sourceCollection.completion.carrier, receiver, allocateExpressionTemp(state),
-      value => [{ kind: "LocalDeclarationStatement", name: binding.name, type: binding.type, initializer: value }, ...bodyStatements],
-      input.scope.typeParameterNames);
-    const type = csharpTypeFromTargetTypeRef(sourceCollection.completion.carrier, input.scope.typeParameterNames);
-    if (loop === undefined || type === undefined) {
+    const indexName = allocateExpressionTemp(state);
+    const index: CsharpExpression = { kind: "IdentifierName", name: indexName };
+    const member = selectedIteration.lowering.member;
+    const owner = member.declaringType === undefined ? undefined : csharpTypeFromTargetTypeRef(member.declaringType, input.scope.typeParameterNames);
+    const type = csharpTypeFromTargetTypeRef(selectedIteration.iterableType, input.scope.typeParameterNames);
+    if (owner === undefined || type === undefined) {
       return failCsharpPlannerInvariant(
         "A native indexed for-of carrier has no C# length member, element read or type syntax.", diagnosticNode);
     }
+    const value: CsharpExpression = { kind: "InvocationExpression",
+      callee: { kind: "SimpleMemberAccessExpression", receiver: owner, name: member.targetName },
+      arguments: [{ kind: "Argument", expression: receiver,
+        ...(member.parameters[0]?.passingMode === "byref-readonly" ? { passing: "in" as const } : {}) },
+        { kind: "Argument", expression: index }] };
+    const loop: CsharpStatement = { kind: "ForStatement",
+      initializer: { kind: "VariableDeclaration", locals: [{ kind: "VariableDeclarator", name: indexName,
+        type: { kind: "PredefinedType", name: "int" }, initializer: { kind: "LiteralExpression", value: 0 } }] },
+      condition: { kind: "BinaryExpression", operatorToken: { kind: "LessThanToken" }, left: index,
+        right: { kind: "SimpleMemberAccessExpression", receiver, name: selectedIteration.lowering.lengthMemberName } },
+      incrementors: [{ kind: "PostfixUnaryExpression", operand: index, operatorToken: { kind: "PlusPlusToken" } }],
+      body: { kind: "Block", statements: [{ kind: "LocalDeclarationStatement", name: binding.name, type: binding.type,
+        initializer: value }, ...bodyStatements] } };
     return [...binding.outerPrelude, { kind: "LocalDeclarationStatement", name, type, initializer: source }, loop];
   }
   const collection = selectedIteration.iterationKind === "for-await-of" &&
@@ -187,7 +191,7 @@ function planForOfBinding(
   state: DestructuringPlannerState,
 ): PlannedForOfBinding | undefined {
   const binding = planForOfBindingCore(selectedIteration, sourceFile, input, diagnostics, state);
-  if (binding === undefined) return undefined;
+  if (binding === undefined) failCsharpPlannerInvariant("An admitted iteration requires its native binding plan.", selectedIteration.binding.node);
   const loop = input.program.source.ast.parent(initializer!);
   if (loop === undefined) failCsharpPlannerInvariant("An admitted for-of binding lost its checked loop.", selectedIteration.binding.node);
   const selected = selectedIteration.binding;
@@ -218,7 +222,7 @@ function planForOfBindingCore(
     const target = planIdentifierExpression(selected.name, sourceFile,
       { ...input, storageExpression: selected.name }, diagnostics, state);
     if (target === undefined) {
-      return undefined;
+      failCsharpPlannerInvariant("An admitted iteration assignment requires its native destination.", selected.node);
     }
     const itemName = allocateForOfItem(state);
     const local: CsharpLocalDeclaration = { name: itemName, kind: "VariableDeclarator", type: elementType };

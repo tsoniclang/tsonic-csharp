@@ -19,6 +19,8 @@ import {
   targetTypeRefEquals,
 } from "../../types/index.js";
 import type { CsharpOperationSelection } from "../../../target-model/records/operator-selection.js";
+import { csharpCollectionElementRead } from "../../../target-model/types/carriers/collection-reads.js";
+import { getCsharpIndexableLengthMemberName } from "../../../target-model/types/carriers/collections.js";
 
 export type CsharpForInIteration = Extract<
   CsharpResolvedIteration,
@@ -289,6 +291,14 @@ function selectForOf(
     return rejected(
       "The selected C# iterable representation does not prove an enumerable target element.",
     );
+  }
+  const read = csharpCollectionElementRead(iterableType);
+  if (read?.kind === "invalid") return rejected(read.reason);
+  if (read?.kind === "method") {
+    const lengthMemberName = getCsharpIndexableLengthMemberName(iterableType);
+    if (lengthMemberName === undefined) return rejected("A native indexed for-of carrier has no C# length member, element read or type syntax.");
+    return { kind: "resolved", iterationKind: "for-of", source, iterableType, elementType: enumerableElement,
+      lowering: { kind: "indexed", lengthMemberName, member: read.member } };
   }
   return {
     kind: "resolved",
