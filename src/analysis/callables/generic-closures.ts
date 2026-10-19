@@ -1,6 +1,7 @@
 import type { Node } from "@tsonic/tsts";
-import { sourceCallableDefinitionIsDiscarded, sourceBindingScope, sourceBindingCapturedBeforeInitialization, sourceLexicalCaptures,
+import { sourceBindingScope, sourceBindingCapturedBeforeInitialization, sourceLexicalCaptures,
   type TargetSourceProgram } from "@tsonic/target-api/source";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpStorageIssue } from "../../target-model/records/storage.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
@@ -15,14 +16,19 @@ export function selectCsharpGenericFrameClosures(
   groups: Map<Node, Map<Node, TargetTypeRef>>,
   physicalType: (declaration: Node, type: TargetTypeRef) => TargetTypeRef,
   issues: CsharpStorageIssue[],
+  creationDemand: Pick<ReadonlyMap<Node, boolean>, "get">,
 ): readonly CsharpFrameClosure[] {
   const selected: CsharpFrameClosure[] = [];
   let capturesCount = 0;
   let exhausted = false;
   const visit = (node: Node): void => {
     if (exhausted || evidence.compileTimeMetadata.get(node)) return;
-    if ((source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) &&
-      sourceCallableDefinitionIsDiscarded(node, source.ast)) return;
+    if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) {
+      const discarded = creationDemand.get(node);
+      if (discarded === undefined) failTargetAnalysisInvariant("tsonic-csharp",
+        "Generic closure selection requires its original checked creation demand.", node);
+      if (discarded) return;
+    }
     if ((source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) && source.ast.typeParameters(node).length > 0) {
       const type = evidence.nodeTargetType.get(node);
       const method = getCsharpMethodValue(type);

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { createTargetSourceProgram, sourceCallableDefinitionIsDiscarded } from "@tsonic/target-api/source";
 import { selectCsharpFrameClosures } from "../../../dist/analysis/callables/capture-closures.js";
 
 const scalar = Object.freeze({ kind: "source-primitive", name: "float64" });
@@ -23,6 +23,7 @@ function fixture(text) {
   const metadata = new Set();
   const runtimeDefaults = new Set();
   const nativeBackings = new Map();
+  const creationDemand = new Map();
   const loops = [];
   const visit = node => {
     if (source.ast.is.IsForStatement(node)) loops.push(node);
@@ -32,7 +33,10 @@ function fixture(text) {
       if (name !== undefined && source.ast.is.IsIdentifier(name)) declarations.set(source.ast.text(name), node);
       types.set(node, source.ast.is.IsFunctionDeclaration(node) ? callable : scalar);
     }
-    if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) types.set(node, callable);
+    if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) {
+      types.set(node, callable);
+      creationDemand.set(node, sourceCallableDefinitionIsDiscarded(node, source.ast, source.navigation));
+    }
     source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
   visit(file);
@@ -53,7 +57,8 @@ function fixture(text) {
     const selected = selectCsharpFrameClosures(source, evidence, groups, physicalType, issues, valueOwned,
       { declarations: { runtimeDefault: Object.freeze({ get: node => runtimeDefaults.has(node) ? {} : undefined }) },
         storage: { nativeBacking: Object.freeze({ get: node => nativeBackings.get(node) }), typedLocationIdentity: Object.freeze({ get: () => false }) },
-        expectedTypes: { callableTarget: Object.freeze({ get: () => undefined }) } });
+        expectedTypes: { callableTarget: Object.freeze({ get: () => undefined }) } },
+      Object.freeze({ get: node => creationDemand.get(node) }));
     return { ...selected, groups, issues };
   };
   return { source, loops, declaration, owner, types, storageTypes, metadata, runtimeDefaults, nativeBackings, select };
