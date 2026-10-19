@@ -100,7 +100,7 @@ for (const surface of ["native", "js"]) {
       assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
         `${control.description}: refusal is before records, planning and artifact publication`);
       assert.equal(compiled.targetDiagnostics.length, 1, `${control.description}: one source owner, with no late duplicate reporter`);
-      const diagnostic = compiled.targetDiagnostics[0];
+      const diagnostic = compiled.result.diagnostics[0];
       assert.equal(diagnostic.code, "CSHARP_UNSUPPORTED_NAME", `${control.description}: original code`);
       assert.equal(diagnostic.category, "error", `${control.description}: original category`);
       assert.equal(diagnostic.message,

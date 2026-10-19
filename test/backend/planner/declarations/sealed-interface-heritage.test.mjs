@@ -105,10 +105,10 @@ for (const preview of [false, true]) {
       "both sides have the same explicit safety contract, not a safety mismatch");
     const number = { kind: "PredefinedType", name: "double" };
     assert.equal(isDeepStrictEqual(rendered.members[2], { kind: "PropertyDeclaration", name: "independent",
-      modifiers: [], getterModifiers: [], setterModifiers: [], attributes: [], writable: false, type: number }), true,
+      modifiers: [], getterModifiers: [], setterModifiers: [], attributes: undefined, writable: false, type: number }), true,
     "the unrelated property retains every constructor field");
     assert.equal(isDeepStrictEqual(rendered.members[3], { kind: "IndexerDeclaration", modifiers: [],
-      getterModifiers: [], setterModifiers: [], attributes: [], writable: false, keyName: "key", keyType: number, valueType: number }), true,
+      getterModifiers: [], setterModifiers: [], attributes: undefined, writable: false, keyName: "key", keyType: number, valueType: number }), true,
     "the unrelated indexer retains every constructor field");
     assert.equal(isDeepStrictEqual({ memberHiding: rows(), declarationFacts: facts() }, before), true,
       "all exact owner rows and complete consumed checked declaration facts remain unchanged across planning");

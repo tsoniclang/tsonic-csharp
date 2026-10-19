@@ -29,7 +29,6 @@ import type { CsharpNativeValueCarriers } from "../../target-model/records/nativ
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
 import type { CsharpModuleInitializationIndex } from "../../target-model/records/module-initialization.js";
 import type { CsharpCallableContractIndex, CsharpCallableCreationIndex } from "../callables/model.js";
-import type { CsharpBindingPatternClassifications } from "../../target-model/records/value-projections.js";
 import type { CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
 import { objectShapeArtifactKey } from "../../target-model/records/object-shape-demand.js";
 import { objectShapeStorageMemberName, objectShapeBoundStorageMemberName,
@@ -60,7 +59,6 @@ export interface CsharpNativeMemberNameInput {
   readonly classPropertyStorage: CsharpTargetOperationClassifications["classPropertyStorage"];
   readonly captureFrameShape: CsharpCaptureStorage["captureFrameShape"];
   readonly capturedBinding: CsharpCaptureStorage["capturedBinding"];
-  readonly bindingPatterns: CsharpBindingPatternClassifications;
   readonly providers: Pick<CsharpProviderRelationResolver, "findTargetBindingByTargetId" | "findTargetBindingByMetadataName">;
 }
 
@@ -251,10 +249,9 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
     const binding = (node: Node, name: Node | undefined): void => {
       if (name === undefined) return;
       if (input.ast.is.IsIdentifier(name)) {
-        const destination = input.bindingPatterns.bindingPatternProjection.get(node)?.binding?.node ?? node;
-        if (!seen.has(destination)) {
-          seen.add(destination);
-          moduleBindings.push({ node: destination, name });
+        if (!seen.has(node)) {
+          seen.add(node);
+          moduleBindings.push({ node, name });
         }
         return;
       }

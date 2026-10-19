@@ -101,9 +101,27 @@ function topLevelIndex(statements, predicate, label) {
 }
 
 const iteration = functionNamed(paths.analyze, "analyzeIteration");
-const program = functionNamed(paths.analyze, "analyzeCsharpTargetProgram");
+const entry = functionNamed(paths.analyze, "analyzeCsharpTargetProgram");
+const program = functionNamed(paths.analyze, "analyzeCsharpTargetProgramBeforeSeal");
 const evaluate = descendants(program).find(node => ast.is.IsMethodDeclaration(node) && named(node, "evaluate"));
 const programStatements = ast.statements(ast.body(program));
+
+test("one expected native provider rejection wraps the same preseal program owner", () => {
+  const calls = callsTo(entry, "analyzeCsharpTargetProgramBeforeSeal");
+  assert.equal(calls.length, 1, "the public entry delegates once to the actual preseal owner");
+  const returns = descendants(entry).filter(node => ast.is.IsReturnStatement(node));
+  assert.equal(returns.length === 2 && text(ast.as.AsReturnStatement(returns[0]).Expression) ===
+    "analyzeCsharpTargetProgramBeforeSeal(request)" && text(ast.as.AsReturnStatement(returns[1]).Expression) ===
+    "rejectedTargetStage([targetDiagnosticFromExtension(undefined, error.diagnostic)])", true,
+  "the existing typed expected abort returns only its original diagnostic, never poisoned records");
+  const expected = descendants(entry).filter(node => ast.is.IsIfStatement(node) &&
+    text(ast.as.AsIfStatement(node).Expression) === "error instanceof CsharpProviderAcquisitionRejection");
+  assert.equal(expected.length === 1 && descendants(expected[0]).filter(node => ast.is.IsReturnStatement(node)).length === 1,
+    true, "only the one original typed provider rejection enters the expected diagnostic return");
+  assert.equal(descendants(entry).filter(node => ast.is.IsThrowStatement(node) &&
+    text(ast.as.AsThrowStatement(node).Expression) === "error").length, 1,
+  "every non-provider error keeps its original throw path");
+});
 
 test("the requirement list is declared once, as the first statement of analyzeIteration", () => {
   const first = ast.statements(ast.body(iteration))[0];
@@ -252,9 +270,19 @@ test("callable contracts and forwarding consume the actual attempt's mandatory f
     "ast,navigation,typeDefinitions,projectTypes,providers,target,objectShapes", "the final view cannot expose the mutable source policy");
   const call = composedCall("analyzeCsharpProjectCallableAdapters", program, "stable callable input");
   assert.equal(text(ast.arguments(call)[0]), "callablePolicy", "the one actual conversion view remains mandatory");
-  assert.equal(ast.arguments(call).length === 5 && ast.arguments(call).map(text).join() ===
+  assert.equal(ast.arguments(call).length === 6 && ast.arguments(call).slice(0, 5).map(text).join() ===
     "callablePolicy,analysis.callables,analysis.objectShapes,analysis.declarations,analysis.typeProjections.genericProjection", true,
   "one canonical owner receives actual contracts, the complete shape publication, exact native defaults and the existing projection index");
+  const native = ast.arguments(call)[5];
+  assert.equal(ast.is.IsObjectLiteralExpression(native), true, "the native dispatch input is required data from the completed attempt");
+  assert.equal(ast.properties(native).map(candidate => text(ast.name(candidate))).join(),
+    "names,storage,nativeUse,classPropertyStorage", "only the four approved completed native dispatch inputs cross this boundary");
+  for (const [name, expected] of [["names", "analysis.names"], ["storage", "analysis.storage"],
+    ["nativeUse", "analysis.nativeDemand.nativeUse"], ["classPropertyStorage", "analysis.operations.classPropertyStorage"]]) {
+    const selected = property(native, name);
+    assert.equal(ast.is.IsPropertyAssignment(selected) && text(ast.as.AsPropertyAssignment(selected).Initializer) === expected, true,
+      `${name}: the original owner is forwarded, without a final name seal or a copied selector`);
+  }
   assert.equal(callsTo(file(paths.analyze), "finalizeCsharpStructuralInterfaceForwarding").length === 0 &&
     identifiers(file(paths.analyze), "finalizeCsharpStructuralInterfaceForwarding").length === 0, true,
   "the composing program has no competing finalizer call or stale import");
@@ -309,6 +337,13 @@ test("owning issues reject before the late registrations finish and before the o
     ["ref-like placement", rejection("analysis.refLikeDiagnostics.length > 0")],
     ["noncallable issues", rejection("nonCallableIssues.length > 0")],
     ["pending native uses", rejection("pendingUses.length > 0")],
+    ["one semantic artifact closure", calling("analyzeCsharpNativeArtifactDemand")],
+    ["artifact-closure rejection", rejection('objectShapeClosure.kind === "rejected"')],
+    ["native member-name owner", calling("analyzeCsharpNativeMemberNames")],
+    ["native member-name rejection", rejection("nativeMemberNames.issues.length > 0")],
+    ["one final name seal", calling("analysis.names.seal")],
+    ["name-plan rejection", rejection("names.issues.length > 0")],
+    ["pure artifact publication", calling("publishCsharpNativeArtifactDemand")],
     ["raw-interface issues", rejection("rawInterfaceIssues.length > 0")],
     ["assembly", calling("createCsharpProgramRecords")],
     ["program literal", statement => ownDeclaration(statement, "program") !== undefined],

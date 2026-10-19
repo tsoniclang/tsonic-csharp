@@ -450,6 +450,12 @@ function analyzeCsharpTargetProgramBeforeSeal(
       analysis.sourceEvidence.compileTimeMetadata, admittedOperations.nativeUnreachable),
   ];
   if (nonCallableIssues.length > 0) return rejectedTargetStage(nonCallableIssues);
+  const pendingUses = nativeDemand.unadmitted.filter(use => use.kind === "pending-use");
+  if (pendingUses.length > 0) {
+    const incomplete = pendingUses[0]!;
+    return failTargetAnalysisInvariant("tsonic-csharp",
+      `Native consumption '${incomplete.site.role}' requires completed '${incomplete.reason}' evidence before publication.`, incomplete.expression);
+  }
   const objectShapeClosure = analyzeCsharpNativeArtifactDemand({
     ast: source.ast, sourceFiles, propertyNames: sourceSyntax.propertyNames,
     nativeDemand, participation: nativeParticipation.participation,
@@ -469,17 +475,11 @@ function analyzeCsharpTargetProgramBeforeSeal(
     nativeValueCarriers, storage: analysis.storage, moduleInitialization: moduleInitialization.index,
     callables: analysis.callables, callableCreations, classPropertyStorage: admittedOperations.classPropertyStorage,
     captureFrameShape: captureStorage.captureFrameShape, capturedBinding: captureStorage.capturedBinding,
-    bindingPatterns, providers: analysis.policy.providers,
+    providers: analysis.policy.providers,
   });
   if (nativeMemberNames.issues.length > 0) return rejectedTargetStage(nativeMemberNames.issues);
   const names = analysis.names.seal(nativeDemand.requiredBindingRoots, nativeMemberNames);
   if (names.issues.length > 0) return rejectedTargetStage(names.issues);
-  const pendingUses = nativeDemand.unadmitted.filter(use => use.kind === "pending-use");
-  if (pendingUses.length > 0) {
-    const incomplete = pendingUses[0]!;
-    return failTargetAnalysisInvariant("tsonic-csharp",
-      `Native consumption '${incomplete.site.role}' requires completed '${incomplete.reason}' evidence before publication.`, incomplete.expression);
-  }
   const objectShapeDemand = publishCsharpNativeArtifactDemand(objectShapeClosure.value, names);
   const rawInterfaceIssues = admitCsharpRawInterfaceDeclarations(source.ast, sourceStorage.nodes,
     nativeDemand.nativeUse, callableAdapters.objectShapes, objectShapeDemand, analysis.storage,

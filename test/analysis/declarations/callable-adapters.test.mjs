@@ -426,13 +426,14 @@ test("method and raw-adapter planners reject only corrupted admitted contracts",
     const input = createCsharpPlanningContext({ ...program, records: { ...program.records,
       callableDispatch: { get: node => node === method ? control.dispatch : program.records.callableDispatch.get(node) } } });
     const diagnostics = [];
-    assert.throws(() => planMethodDeclaration(method, file, input, diagnostics),
+    assert.throws(() => planMethodDeclaration(method, file, input, diagnostics,
+      { kind: "source", declaration: method, role: "member" }),
       error => error.message.includes(control.message), `${control.label}: the producer guarantee fails internally`);
     assert.equal(diagnostics.length, 0, `${control.label}: the planner does not issue a source refusal`);
   }
   const input = createCsharpPlanningContext(program);
   const diagnostics = [];
-  const planned = planMethodDeclaration(method, file, input, diagnostics);
+  const planned = planMethodDeclaration(method, file, input, diagnostics, { kind: "source", declaration: method, role: "member" });
   const corrupted = createCsharpPlanningContext({ ...program, records: { ...program.records,
     callableDispatch: { get: node => node === method ? { ...dispatch, adapters: [{ contract: {
       ...dispatch.implementation, returnType: { kind: "opaque", id: "missing" } } }] }
