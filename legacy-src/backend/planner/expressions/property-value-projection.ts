@@ -14,7 +14,7 @@ import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { planCsharpJsValueBox } from "./js-value-operations.js";
 import { planCsharpUnionPattern } from "./union-patterns.js";
-import { convertClosedShapeValue } from "../objects/closed-object-shapes.js";
+import { renderCsharpClosedShapeConversion } from "../objects/closed-object-shapes.js";
 
 export function planCsharpPropertyValueProjection(
   node: Node,
@@ -77,14 +77,10 @@ export function planCsharpPropertyValueProjection(
   }
   const name = input.names.temporaryName(`__tsonic_properties_${input.program.source.ast.pos(node)}`);
   const values: CsharpExpression[] = [];
-  for (const member of members) {
-    const converted = convertClosedShapeValue(input, member.type, resultType,
+  for (const { member, conversion } of members) {
+    const converted = renderCsharpClosedShapeConversion(input.scope.typeParameterNames, conversion,
       { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name }, name: member.targetName });
-    if (converted.kind === "rejected") {
-      diagnostics.push(unsupportedNodeDiagnostic(node, converted.reason));
-      return undefined;
-    }
-    values.push({ kind: "LiteralExpression", value: member.sourceName }, converted.expression);
+    values.push({ kind: "LiteralExpression", value: member.sourceName }, converted);
   }
   return { kind: "SwitchExpression", expression, arms: [{
     pattern: members.length === 0 ? { kind: "DiscardPattern" } : { kind: "VarPattern", designation: name },

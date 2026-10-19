@@ -7,12 +7,12 @@ import type { CsharpObjectShapeArtifact, CsharpObjectShapeDemand,
 import { objectShapeArtifactKey } from "../../target-model/records/object-shape-demand.js";
 import type { CsharpNamePlan } from "../../target-model/names/model.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeProjection, TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import { csharpAuthoredTypeParameterNames, csharpGeneratedTypeParameterNames } from "../../target-model/names/type-parameters.js";
 import { closeCsharpOwnerTypeParameterEnvironment, visitCsharpTargetTypeParameters } from "../../target-model/types/generic-references.js";
 import { isCsharpReferenceCarrier } from "../../target-model/types/identity.js";
 import { csharpObjectShapeAssignmentMembers, csharpObjectShapeProjectionMembers, csharpObjectShapeProjectionMethodName } from "../../target-model/types/object-shape-projection.js";
 import { getCsharpJsArrayElementTargetType } from "../../target-model/types/carriers/collections.js";
+import { selectCsharpObjectProjection } from "../../policy/objects/closed-object-shapes.js";
 
 export function prepareCsharpObjectShapeDeclarationNames(
   host: CsharpObjectShapeDemandHost,
@@ -35,7 +35,7 @@ export function objectShapeProjectionConversions(
   host: CsharpObjectShapeDemandHost,
   receiver: CsharpObjectShapeFact,
   projection: CsharpObjectShapeProjection,
-): { readonly kind: "resolved"; readonly conversions: CsharpObjectShapeProjectionDeclaration["conversions"] }
+): { readonly kind: "resolved"; readonly conversions: CsharpObjectShapeProjectionDeclaration["conversions"]; readonly emission: CsharpObjectShapeProjectionDeclaration["emission"] }
   | { readonly kind: "rejected"; readonly reason: string } {
   const pairs: { readonly source: TargetTypeRef; readonly target: TargetTypeRef }[] = [];
   if (projection.kind === "assign") {
@@ -55,20 +55,10 @@ export function objectShapeProjectionConversions(
     const selection = host.conversions.conversion.get(pair.source, pair.target, "implicit");
     if (selection === undefined) return { kind: "rejected", reason:
       "Closed object-shape planning requires a sealed target conversion classification that analysis did not produce." };
-    const reason = projectionConversionRejection(selection);
-    if (reason !== undefined) return { kind: "rejected", reason };
     conversions.push(Object.freeze({ ...pair, selection }));
   }
-  return { kind: "resolved", conversions: Object.freeze(conversions) };
-}
-
-function projectionConversionRejection(selection: CsharpConversionSelection): string | undefined {
-  switch (selection.kind) {
-    case "identity": case "empty-record": case "js-value-box": return undefined;
-    case "implicit": return selection.proof === "runtime-union-arm" ? projectionConversionRejection(selection.sourceToArm) : undefined;
-    case "ambiguous": case "rejected": return selection.reason;
-    default: return `Selected conversion '${selection.kind}' requires source-expression evidence unavailable to a generated object projection.`;
-  }
+  const selected = selectCsharpObjectProjection({ receiver, projection, conversions });
+  return selected.kind === "rejected" ? selected : { kind: "resolved", conversions: Object.freeze(conversions), emission: selected.value };
 }
 
 export function prepareCsharpObjectShapeProjectionDeclaration(
@@ -76,6 +66,7 @@ export function prepareCsharpObjectShapeProjectionDeclaration(
   selection: CsharpObjectShapeProjection,
   declarationParameters: readonly { readonly identity: string }[],
   conversions: CsharpObjectShapeProjectionDeclaration["conversions"],
+  emission: CsharpObjectShapeProjectionDeclaration["emission"],
 ): CsharpPreparedObjectShapeProjection {
   const types = [receiver.targetType, selection.resultType, ...(selection.kind === "assign" ? [selection.sourceShape.targetType] : [])];
   const parameters: Extract<TargetTypeRef, { readonly kind: "type-parameter" }>[] = [];
@@ -91,7 +82,7 @@ export function prepareCsharpObjectShapeProjectionDeclaration(
       "An admitted object projection requires representable native generic constraints.", parameter.csharpDeclaration);
   }
   return Object.freeze({ receiver, selection, methodName: csharpObjectShapeProjectionMethodName(receiver, selection),
-    receiverRequiresNullCheck: isCsharpReferenceCarrier(receiver.targetType), typeParameters, conversions });
+    receiverRequiresNullCheck: isCsharpReferenceCarrier(receiver.targetType), typeParameters, conversions, emission });
 }
 
 export function publishCsharpObjectShapeProjectionDeclaration(

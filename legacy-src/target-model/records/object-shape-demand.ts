@@ -5,8 +5,10 @@ import { targetTypeRefKey } from "../types/equality.js";
 import { isSourceDeclaredNominalShape } from "../types/object-shape-projection.js";
 import type { TargetTypeRef } from "../types/model.js";
 import type { CsharpConversionSelection } from "../conversions/selection.js";
+import type { CsharpObjectProjectionEmission } from "./closed-object-shapes.js";
 
 export interface CsharpObjectShapeProjectionDeclaration {
+  readonly emission: CsharpObjectProjectionEmission;
   readonly receiver: CsharpObjectShapeFact;
   readonly selection: CsharpObjectShapeProjection;
   readonly methodName: string;

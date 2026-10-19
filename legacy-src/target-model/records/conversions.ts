@@ -1,5 +1,6 @@
 import type { CsharpConversionMode, CsharpConversionSelection } from "../conversions/selection.js";
-import type { CsharpObjectShapeMemberFact, TargetTypeRef } from "../types/model.js";
+import type { TargetTypeRef } from "../types/model.js";
+import type { CsharpClosedShapeMemberProjection } from "./closed-object-shapes.js";
 import type { SourceProjectReference } from "@tsonic/target-api/source";
 import type { Node } from "@tsonic/tsts";
 
@@ -28,7 +29,7 @@ export interface CsharpExpressionConversionClassification {
 
 export interface CsharpConversionClassifications {
   readonly issues: readonly CsharpConversionIssue[];
-  readonly propertyProjection: { readonly get: (expression: Node, source: TargetTypeRef) => readonly CsharpObjectShapeMemberFact[] | undefined };
+  readonly propertyProjection: { readonly get: (expression: Node, source: TargetTypeRef) => readonly CsharpClosedShapeMemberProjection[] | undefined };
   readonly delegateAdapters: { readonly get: (scope: Node) => readonly CsharpDelegateAdapterIdentity[] };
   readonly delegateAdapter: { readonly get: (expression: Node, source: TargetTypeRef, target: TargetTypeRef) => CsharpDelegateAdapterIdentity | undefined };
   readonly directCallableReference: { readonly get: (expression: Node) => SourceProjectReference | undefined };

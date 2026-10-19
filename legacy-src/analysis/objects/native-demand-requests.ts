@@ -346,7 +346,7 @@ export function requireObjectShapeProjection(
     Map<string, CsharpObjectShapeProjectionAdmission>
   >();
   const published = previous?.selection ?? records.get(objectShapeArtifactKey(preferredShape))?.projections.get(objectShapeProjectionKey(projection))?.selection ?? projection;
-  addShapeProjection(projectionsByShape, projectedShapes, Object.freeze({ selection: published, conversions: conversions.conversions }));
+  addShapeProjection(projectionsByShape, projectedShapes, Object.freeze({ selection: published, conversions: conversions.conversions, emission: conversions.emission }));
   const capabilitiesByShape = new Map<string, Set<CsharpObjectShapeCapability>>();
   const validation = validateObjectShapeBatch(
     prepared.batch,
@@ -447,7 +447,7 @@ export function closeObjectShapeArtifacts(
     for (const capability of record.capabilities) declaration.capabilities.add(capability);
     for (const projection of record.projections.values()) {
       const selected = prepareCsharpObjectShapeProjectionDeclaration(record.fact, projection.selection,
-        declaration.naming.parameters, projection.conversions);
+        declaration.naming.parameters, projection.conversions, projection.emission);
       declaration.projections.set(selected.methodName, selected);
     }
     declarations.set(key, declaration);

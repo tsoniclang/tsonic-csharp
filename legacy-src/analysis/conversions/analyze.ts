@@ -26,7 +26,9 @@ import {
 import {
   directCsharpSourceYieldExpression,
 } from "../../target-model/syntax/yield-expression.js";
-import type { CsharpObjectShapeMemberFact, TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { CsharpClosedShapeMemberProjection } from "../../target-model/records/closed-object-shapes.js";
+import { selectCsharpClosedShapeConversion } from "../../policy/objects/closed-object-shapes.js";
 import {
   resolveCsharpObjectShapeMemberBySourceContract,
 } from "../../target-model/types/index.js";
@@ -74,7 +76,7 @@ export function analyzeCsharpConversions(
   const callConversions = new Map<Node, CsharpCallConversionRequests>();
   let delegateAdapters: ReturnType<typeof sealCsharpDelegateAdapterIdentities> = new Map();
   const issues: CsharpConversionIssue[] = [];
-  const propertyProjections = new WeakMap<Node, ReadonlyMap<string, readonly CsharpObjectShapeMemberFact[]>>();
+  const propertyProjections = new WeakMap<Node, ReadonlyMap<string, readonly CsharpClosedShapeMemberProjection[]>>();
   const directCallables = new WeakMap<Node, NonNullable<ReturnType<CsharpPolicyContext["navigation"]["referenceFor"]>>>();
   let classificationCount = 0;
   let closed = false;
@@ -471,14 +473,19 @@ export function analyzeCsharpConversions(
           message: "Native property projection requires exact checked selected-parameter member correspondence." });
         continue;
       }
-      const orders = new Map<string, readonly CsharpObjectShapeMemberFact[]>();
+      const orders = new Map<string, readonly CsharpClosedShapeMemberProjection[]>();
       for (const projection of projected) {
         if (!reserveClassification(subject)) return;
-        orders.set(targetTypeRefKey(projection.source), projection.members);
+        const members: CsharpClosedShapeMemberProjection[] = [];
         for (const member of projection.members) {
           if (!reserveClassification(subject)) return;
-          classifyPair(member.type, csharpTsValueTargetType(), "implicit", subject);
+          const conversion = classifyPair(member.type, csharpTsValueTargetType(), "implicit", subject);
+          if (conversion === undefined) continue;
+          const selected = selectCsharpClosedShapeConversion(conversion, csharpTsValueTargetType());
+          if (selected.kind === "rejected") issues.push({ node: subject, code: "CSHARP_UNSUPPORTED_AST", message: selected.reason });
+          else members.push(Object.freeze({ member, conversion: selected.value }));
         }
+        orders.set(targetTypeRefKey(projection.source), Object.freeze(members));
       }
       propertyProjections.set(subject, orders);
     }

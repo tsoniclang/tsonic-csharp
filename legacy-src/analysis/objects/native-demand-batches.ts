@@ -67,6 +67,7 @@ export interface MutableObjectShapeArtifact {
 }
 
 export interface CsharpObjectShapeProjectionAdmission {
+  readonly emission: CsharpObjectShapeProjectionDeclaration["emission"];
   readonly selection: CsharpObjectShapeProjection;
   readonly conversions: CsharpObjectShapeProjectionDeclaration["conversions"];
 }
