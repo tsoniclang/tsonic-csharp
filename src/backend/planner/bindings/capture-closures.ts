@@ -6,12 +6,9 @@ import type { CsharpPlanningContext } from "../context.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import { csharpCaptureFrameExpression, csharpCapturedBindingExpression } from "./capture-storage.js";
 import { csharpTypeFromObjectShapeFact } from "../objects/planning.js";
-import { unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 import { allocateExpressionTemp, getCsharpLocalBindingName } from "./binding-state.js";
-import { requireCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 import { planThisExpression } from "../expressions/expression-this.js";
-import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
-import { getCsharpExpressionTreeDelegateType } from "../../../target-model/types/carriers/delegates.js";
 
 export function planCsharpNamedSelfCaptureContext(
   self: CsharpNamedSelfBinding, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], state: DestructuringPlannerState,
@@ -25,9 +22,7 @@ export function planCsharpNamedSelfCaptureContext(
     const initializer = csharpCaptureFrameExpression(frame.scope, input, state);
     const type = csharpTypeFromObjectShapeFact(input, frame.shape, diagnostics, self.declaration);
     if (initializer === undefined || type === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(self.declaration,
-        "A named self callable requires its exact captured activation frame."));
-      return undefined;
+      failCsharpPlannerInvariant("A named self callable requires its exact captured activation frame.", self.declaration);
     }
     const name = allocateExpressionTemp(state);
     const retained: CsharpExpression = { kind: "IdentifierName", name };
@@ -53,25 +48,26 @@ export function planCsharpFrameClosureReference(
     const retained = input.scope.captureFrames?.get(selected.frame.scope);
     if (retained !== undefined) return retained;
     const type = csharpTypeFromObjectShapeFact(input, selected.frame.shape, diagnostics, node);
-    if (type === undefined) return undefined;
+    if (type === undefined) failCsharpPlannerInvariant("An admitted value-owned callable requires its native environment storage.", node);
     const assignments: CsharpObjectInitializerAssignment[] = [];
     for (const binding of selected.frame.bindings) {
       const name = input.program.source.ast.name(binding.declaration);
-      const expression = csharpCapturedBindingExpression(binding.declaration, input, state) ?? (name === undefined ? undefined : {
-        kind: "IdentifierName" as const, name: getCsharpLocalBindingName(name, input, state) ??
-          requireCsharpIdentifier(input.program.source.ast.text(name), diagnostics, "Captured binding"),
-      });
+      let expression = csharpCapturedBindingExpression(binding.declaration, input, state);
+      if (expression === undefined && name !== undefined) {
+        const local = getCsharpLocalBindingName(name, input, state);
+        const selectedName = input.program.names.resolve(name);
+        if (local === undefined && selectedName.kind !== "resolved") failCsharpPlannerInvariant("An admitted captured binding requires its sealed native name.", binding.declaration);
+        expression = { kind: "IdentifierName", name: local === undefined && selectedName.kind === "resolved" ? selectedName.name : local! };
+      }
       if (expression === undefined) {
-        diagnostics.push(unsupportedNodeDiagnostic(binding.declaration, "A generic callable capture requires its exact source binding access."));
-        return undefined;
+        failCsharpPlannerInvariant("A generic callable capture requires its exact source binding access.", binding.declaration);
       }
       assignments.push({ kind: "AssignmentExpression", name: binding.fieldName, expression });
     }
     for (const parent of selected.frame.parents) {
       const expression = csharpCaptureFrameExpression(parent.frame.scope, input, state);
       if (expression === undefined || csharpTypeFromObjectShapeFact(input, parent.frame.shape, diagnostics, node) === undefined) {
-        diagnostics.push(unsupportedNodeDiagnostic(node, "A generic callable capture requires its exact shared activation frame."));
-        return undefined;
+        failCsharpPlannerInvariant("A generic callable capture requires its exact shared activation frame.", node);
       }
       assignments.push({ kind: "AssignmentExpression", name: parent.fieldName, expression });
     }
@@ -79,18 +75,17 @@ export function planCsharpFrameClosureReference(
       const reference = receiver.references[0];
       const file = reference === undefined ? undefined : input.program.source.ast.getSourceFile(reference);
       const expression = reference === undefined || file === undefined ? undefined : planThisExpression(reference, file, input, diagnostics);
-      if (expression === undefined) return undefined;
+      if (expression === undefined) failCsharpPlannerInvariant("An admitted callable capture requires its exact native receiver.", node);
       assignments.push({ kind: "AssignmentExpression", name: receiver.fieldName, expression });
     }
     return { kind: "ObjectCreationExpression", type, assignments };
   }
   const receiver = csharpCaptureFrameExpression(selected.frame.scope, input, state);
   if (receiver === undefined || csharpTypeFromObjectShapeFact(input, selected.frame.shape, diagnostics, node) === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "A native captured callable has no exact activation frame."));
-    return undefined;
+    failCsharpPlannerInvariant("A native captured callable has no exact activation frame.", node);
   }
-  if (getCsharpMethodValue(selected.method.type) !== undefined) return receiver;
+  if (selected.reference === "frame") return receiver;
   const method: CsharpExpression = { kind: "SimpleMemberAccessExpression", receiver, name: selected.method.methodName };
-  return getCsharpExpressionTreeDelegateType(selected.method.type) === undefined ? method
+  return selected.reference === "method" ? method
     : { kind: "InvocationExpression", callee: method, arguments: [] };
 }

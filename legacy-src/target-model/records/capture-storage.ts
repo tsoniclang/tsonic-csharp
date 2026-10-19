@@ -36,7 +36,7 @@ export interface CsharpCaptureStorage {
   readonly captureFrame: { readonly get: (scope: Node) => CsharpCaptureFrame | undefined };
   readonly capturedBinding: { readonly get: (declaration: Node) => CsharpCapturedBinding | undefined };
   readonly physicalStorageType: { readonly get: (declaration: Node, logicalType: TargetTypeRef) => TargetTypeRef };
-  readonly captureClosure: { readonly get: (declaration: Node) => { readonly frame: CsharpCaptureFrame; readonly method: CsharpFrameClosure } | undefined };
+  readonly captureClosure: { readonly get: (declaration: Node) => CsharpCaptureClosure | undefined };
   readonly namedSelf: { readonly get: (declaration: Node) => CsharpNamedSelfBinding | undefined };
   readonly lambdaCreation: { readonly get: (declaration: Node) => CsharpLambdaCreation };
   readonly helperAccess: { readonly get: (declaration: Node) => boolean };
@@ -53,6 +53,12 @@ export interface CsharpFrameClosure {
   readonly type: TargetTypeRef;
   readonly captures: readonly Node[];
   readonly receivers: readonly { readonly owner: Node; readonly references: readonly Node[]; readonly type: TargetTypeRef }[];
+}
+
+export interface CsharpCaptureClosure {
+  readonly frame: CsharpCaptureFrame;
+  readonly method: CsharpFrameClosure;
+  readonly reference: "frame" | "method" | "quotation";
 }
 
 export interface CsharpNamedSelfBinding {

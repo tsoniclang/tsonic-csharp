@@ -121,7 +121,12 @@ export function analyzeCsharpCaptureStorage(
     ...genericClosures.filter(closure => closure.scope !== closure.declaration)];
   const byScope = new Map<Node, CsharpCaptureFrame>();
   const byBinding = new Map<Node, CsharpCapturedBinding>();
-  const byClosure = new Map<Node, { readonly frame: CsharpCaptureFrame; readonly method: CsharpFrameClosure }>();
+  const byClosure = new Map<Node, import("../../target-model/records/capture-storage.js").CsharpCaptureClosure>();
+  const retainClosure = (frame: CsharpCaptureFrame, method: CsharpFrameClosure): void => {
+    byClosure.set(method.declaration, Object.freeze({ frame, method,
+      reference: frame.ownership === "value" || getCsharpMethodValue(method.type) !== undefined ? "frame"
+        : getCsharpExpressionTreeDelegateType(method.type) === undefined ? "method" : "quotation" }));
+  };
   const byShape = new Map<string, CsharpCaptureFrame>();
   const buildFrame = (scope: Node): CsharpCaptureFrame => {
     const previous = byScope.get(scope);
@@ -166,7 +171,7 @@ export function analyzeCsharpCaptureStorage(
     byScope.set(scope, frame);
     byShape.set(targetTypeRefKey(type), frame);
     for (const binding of bindings) byBinding.set(binding.declaration, Object.freeze({ frame, fieldName: binding.fieldName }));
-    for (const method of methods) byClosure.set(method.declaration, Object.freeze({ frame, method }));
+    for (const method of methods) retainClosure(frame, method);
     return frame;
   };
   for (const scope of groups.keys()) buildFrame(scope);
@@ -200,7 +205,7 @@ export function analyzeCsharpCaptureStorage(
     const frame: CsharpCaptureFrame = Object.freeze({ scope: method.declaration, ownership: "value", bindings, parents, methods: Object.freeze([method]), receivers,
       shape: Object.freeze({ targetType: type, members, implements: Object.freeze([contract]) }),
     });
-    byClosure.set(method.declaration, Object.freeze({ frame, method }));
+    retainClosure(frame, method);
     byShape.set(targetTypeRefKey(type), frame);
     valueFrames.push(frame);
   }
