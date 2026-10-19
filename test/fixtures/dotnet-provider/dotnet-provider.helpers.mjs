@@ -1,3 +1,4 @@
+import { resolvedNativeBinding } from "./native-inheritance.helpers.mjs";
 import assert from "node:assert/strict";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
@@ -132,7 +133,7 @@ export function getDotnetTargetId(provider, moduleSpecifier, metadataName) {
 
 export function getDotnetBinding(provider, moduleSpecifier, metadataName) {
   const targetId = getDotnetTargetId(provider, moduleSpecifier, metadataName);
-  const binding = provider.findTargetBindingByTargetId(targetId);
+  const binding = resolvedNativeBinding(provider.findTargetBindingByTargetId(targetId, "ordinary"));
   assert.ok(binding, `Missing .NET target binding '${targetId}'`);
   return binding;
 }

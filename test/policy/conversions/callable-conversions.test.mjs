@@ -3,7 +3,7 @@ import test from "node:test";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/index.js";
 import { csharpDelegateTargetType, csharpNullableTargetType, csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/index.js";
 
-const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId() {} }, target: {} };
+const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId() { return { kind: "missing" }; } }, target: {} };
 const number = csharpSourcePrimitiveTargetType("float64");
 const optional = csharpNullableTargetType(number);
 const callable = (parameters, result = number, optionalParameterIndexes = []) => csharpDelegateTargetType(

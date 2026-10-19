@@ -1,3 +1,4 @@
+import { resolvedNativeBinding } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
 import assert from "node:assert/strict";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
@@ -36,8 +37,8 @@ test(".NET reflection provider does not first-win duplicate source names from di
     "Shared.Widget from Acme.Contracts and Contoso.Contracts must not collapse into one normal source export.",
   );
   assert.equal(
-    provider.findTargetBindingByTargetId("Shared.Widget"),
-    undefined,
+    provider.findTargetBindingByTargetId("Shared.Widget", "ordinary").kind,
+    "missing",
     "Metadata-name-only target id Shared.Widget must not resolve by first-wins behavior across assemblies.",
   );
 
@@ -165,7 +166,7 @@ test(".NET alias facts render C# extern-alias qualified target types", () => {
   const widget = module.exports.find(isSharedWidgetDeclaration);
   assert.ok(widget);
 
-  const binding = provider.findTargetBindingByTargetId(widget.targetId);
+  const binding = resolvedNativeBinding(provider.findTargetBindingByTargetId(widget.targetId, "ordinary"));
   assert.ok(binding);
   const aliasedBinding = csharpApplyExternAliasToTargetBinding(binding, {
     alias: "acme",
@@ -338,7 +339,7 @@ test(".NET provider keeps variant-only CLR family constraints in exact target fa
   const generic = rawModule.exports.find((entry) =>
     entry.metadataName === "Acme.First.ConstrainedFamily`1");
   assert.ok(generic);
-  const targetBinding = provider.findTargetBindingByTargetId(generic.targetId);
+  const targetBinding = resolvedNativeBinding(provider.findTargetBindingByTargetId(generic.targetId, "ordinary"));
   assert.ok(targetBinding);
   assert.equal(targetBinding.typeParameters?.[0]?.constraints.length, 1);
   assert.match(JSON.stringify(targetBinding.typeParameters[0].constraints[0]), /IEquatable/u);

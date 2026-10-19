@@ -4,6 +4,7 @@ import type {
 } from "../../../policy/types/index.js";
 import type {
   DotnetModuleModel,
+  DotnetTypeDeclaration,
 } from "../model/index.js";
 import {
   dotnetExportToTargetBinding,
@@ -26,9 +27,13 @@ import type {
 import type {
   DotnetProviderCacheRequest,
 } from "./cache.js";
+import type { DotnetProviderDiagnostic } from "../projection/provider.js";
+import { dotnetTypeDeclarationIsComplete } from "./module-request-validation.js";
+import { canonicalProviderValue } from "../../model/canonical-value.js";
+import { diagnostic } from "./diagnostics.js";
 
 export interface DotnetTargetBindingIndex extends DotnetTargetRelationLookup {
-  readonly rememberModule: (module: DotnetModuleModel, request: DotnetProviderCacheRequest) => void;
+  readonly rememberModule: (module: DotnetModuleModel, request: DotnetProviderCacheRequest) => DotnetProviderDiagnostic | undefined;
   readonly getByTargetId: (targetId: string) => TargetBindingFact | undefined;
   readonly getUniqueByMetadataName: (metadataName: string) => TargetBindingFact | undefined;
 }
@@ -45,8 +50,13 @@ export function createDotnetTargetBindingIndex(): DotnetTargetBindingIndex {
   >();
   const functionProjectionsByProviderId = new Map<string, DotnetTargetFunctionProjection[]>();
 
-  function rememberModule(module: DotnetModuleModel, request: DotnetProviderCacheRequest): void {
+  function rememberModule(module: DotnetModuleModel, request: DotnetProviderCacheRequest): DotnetProviderDiagnostic | undefined {
     const targetOnlyDeclarations = new Set(module.targetOnlyTypes ?? []);
+    const prepared: {
+      readonly declaration: DotnetTypeDeclaration;
+      readonly binding: TargetBindingFact;
+    }[] = [];
+    const candidates = new Map<string, TargetBindingFact>();
     for (const declaration of [...module.exports, ...targetOnlyDeclarations]) {
       if (declaration.kind !== "type") {
         continue;
@@ -55,14 +65,32 @@ export function createDotnetTargetBindingIndex(): DotnetTargetBindingIndex {
       if (binding === undefined) {
         continue;
       }
-      const mergedTargetBinding = rememberTargetBindingByTargetId(binding);
-      if (targetOnlyDeclarations.has(declaration) || sourceDeclarationIsComplete(declaration, request)) {
-        completeTargetIds.add(binding.id);
+      const existing = candidates.get(binding.id) ?? targetBindingsByTargetId.get(binding.id);
+      if (existing !== undefined) {
+        const previous = existing as DotnetTargetBindingFact;
+        const candidate = binding as DotnetTargetBindingFact;
+        if (canonicalProviderValue(previous.csharpInheritance) !== canonicalProviderValue(candidate.csharpInheritance) ||
+          previous.csharpInheritableMembers !== undefined && candidate.csharpInheritableMembers !== undefined &&
+          canonicalProviderValue(previous.csharpInheritableMembers) !== canonicalProviderValue(candidate.csharpInheritableMembers)) {
+          return diagnostic("DOTNET_REFLECTION_NATIVE_INHERITANCE_CONFLICT", ".NET reflection provider supplied contradictory native inheritance metadata.", {
+            targetId: binding.id,
+            specifier: request.moduleSpecifier,
+          });
+        }
+      }
+      const mergedTargetBinding = mergeTargetBindingFacts(existing, binding);
+      candidates.set(binding.id, mergedTargetBinding);
+      prepared.push({ declaration, binding: mergedTargetBinding });
+    }
+    for (const { declaration, binding: mergedTargetBinding } of prepared) {
+      targetBindingsByTargetId.set(mergedTargetBinding.id, mergedTargetBinding);
+      if (targetOnlyDeclarations.has(declaration) || dotnetTypeDeclarationIsComplete(declaration, request)) {
+        completeTargetIds.add(mergedTargetBinding.id);
       }
       const existing = targetBindingsByMetadataName.get(declaration.metadataName);
       targetBindingsByMetadataName.set(
         declaration.metadataName,
-        existing === undefined || (existing !== "ambiguous" && existing.id === binding.id)
+        existing === undefined || (existing !== "ambiguous" && existing.id === mergedTargetBinding.id)
           ? mergeTargetBindingFacts(existing, mergedTargetBinding)
           : "ambiguous",
       );
@@ -131,12 +159,7 @@ export function createDotnetTargetBindingIndex(): DotnetTargetBindingIndex {
         );
       }
     }
-  }
-
-  function rememberTargetBindingByTargetId(binding: TargetBindingFact): TargetBindingFact {
-    const merged = mergeTargetBindingFacts(targetBindingsByTargetId.get(binding.id), binding);
-    targetBindingsByTargetId.set(binding.id, merged);
-    return merged;
+    return undefined;
   }
 
   return {
@@ -187,21 +210,6 @@ function typeParameterRelations(
     sourceTypeParameterIndex,
     targetTypeParameterIndex,
   })));
-}
-
-function sourceDeclarationIsComplete(
-  declaration: Extract<DotnetModuleModel["exports"][number], { readonly kind: "type" }>,
-  request: DotnetProviderCacheRequest,
-): boolean {
-  if (request.materialization.kind === "complete") {
-    return true;
-  }
-  return request.materialization.completeExports.some((materialized) =>
-    materialized.exportId === undefined
-      ? declaration.sourceName === materialized.exportName ||
-        declaration.sourceTypeFamily?.exportName === materialized.exportName
-      : declaration.targetId === materialized.exportId
-  );
 }
 
 function rememberProjection<TProjection extends DotnetTargetMemberProjection>(

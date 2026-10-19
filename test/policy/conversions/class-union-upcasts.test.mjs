@@ -10,7 +10,7 @@ const second = reference("Second");
 const unrelated = reference("Unrelated");
 const host = {
   projectTypes: { directSupertypes: type => type === first || type === second ? [base] : [] },
-  providers: { findTargetBindingByTargetId: () => undefined },
+  providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) },
   target: {},
 };
 

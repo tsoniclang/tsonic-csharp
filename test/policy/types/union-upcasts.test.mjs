@@ -10,7 +10,7 @@ const child = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: 
 const other = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "fixture.Other" };
 const policy = {
   projectTypes: { directSupertypes: carrier => carrier === child ? [base] : [] },
-  providers: { findTargetBindingByTargetId: () => undefined }, target: {},
+  providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) }, target: {},
 };
 
 test("native nominal relations compose with exact union payloads in both directions", () => {

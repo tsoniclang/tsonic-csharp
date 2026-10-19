@@ -18,7 +18,7 @@ const host = {
     definitionForTarget: type => [base.id, child.id, other.id].includes(type.id) ? { kind: "class" } : undefined,
   },
   projectTypes: () => ({ directSupertypes: type => type.id === child.id ? [base] : [] }),
-  providers: { findTargetBindingByTargetId: () => undefined },
+  providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) },
   target: {},
 };
 

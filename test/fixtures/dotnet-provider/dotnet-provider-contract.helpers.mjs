@@ -1,3 +1,4 @@
+import { resolvedNativeBinding } from "./native-inheritance.helpers.mjs";
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -60,6 +61,37 @@ export function assertRawModuleContractInvariants(module) {
       continue;
     }
     assert.equal(typeof declaration.constraintRequiresReferenceType, "boolean", `${declaration.sourceName}.constraintRequiresReferenceType`);
+    assert.equal(Array.isArray(declaration.inheritance), true, `${declaration.sourceName}.inheritance`);
+    if (declaration.typeKind === "class" &&
+      (declaration.targetType === undefined || declaration.targetType.kind === "named")) {
+      assert.equal(declaration.inheritance[0]?.targetId, declaration.targetId, `${declaration.sourceName}.inheritance.self`);
+      assert.equal(declaration.inheritance.at(-1)?.type.kind, "object", `${declaration.sourceName}.inheritance.root`);
+    } else {
+      assert.equal(declaration.inheritance.length, 0, `${declaration.sourceName}.inheritance.nonclass`);
+    }
+    for (const [index, member] of (declaration.inheritableMembers ?? []).entries()) {
+      const label = `${declaration.sourceName}.inheritableMembers[${index}]`;
+      assert.equal(["method", "property", "field", "event", "type"].includes(member.kind), true, `${label}.kind`);
+      assert.equal(["public", "protected", "protected-internal"].includes(member.accessibility), true, `${label}.accessibility`);
+      assert.equal(typeof member.static, "boolean", `${label}.static`);
+      assert.equal(member.genericParameterIds.length, member.genericArity, `${label}.genericArity`);
+      for (const parameter of member.parameters) {
+        assert.equal(supportedPassingModes.has(parameter.passingMode), true, `${label}.passingMode`);
+      }
+      assert.equal(Array.isArray(member.dispatchSlots), true, `${label}.dispatchSlots`);
+      for (const slot of member.dispatchSlots) {
+        assert.equal(["method", "get", "set", "add", "remove"].includes(slot.kind), true, `${label}.slot.kind`);
+        for (const identity of [slot.id, slot.baseDefinitionId]) {
+          assert.equal(typeof identity, "string", `${label}.slot.identity`);
+          assert.equal(identity.length > 0, true, `${label}.slot.nonemptyIdentity`);
+        }
+        for (const flag of ["virtual", "abstract", "final"]) assert.equal(typeof slot[flag], "boolean", `${label}.${flag}`);
+        assert.equal(["public", "protected", "protected-internal"].includes(slot.accessibility), true, `${label}.slot.accessibility`);
+        assert.equal(Array.isArray(slot.genericParameterIds), true, `${label}.slot.genericParameterIds`);
+        assert.equal(["by-value", "byref-readwrite", "byref-readonly"].includes(slot.returnPassing), true, `${label}.slot.returnPassing`);
+        for (const parameter of slot.parameters) assert.equal(supportedPassingModes.has(parameter.passingMode), true, `${label}.slot.passingMode`);
+      }
+    }
     assertTargetIdentity(declaration.targetId, declaration.metadataName, `${declaration.sourceName}.targetId`, declaration.assembly);
     if (declaration.assembly !== undefined) {
       assertAssemblyReference(declaration.assembly, `${declaration.sourceName}.assembly`);
@@ -123,7 +155,7 @@ export function assertTargetBindingContractInvariants(provider, module) {
     if (declaration.kind !== "type") {
       continue;
     }
-    const binding = provider.findTargetBindingByTargetId(declaration.targetId);
+    const binding = resolvedNativeBinding(provider.findTargetBindingByTargetId(declaration.targetId, "ordinary"));
     assert.ok(binding, `Missing target binding for ${declaration.targetId}`);
     assert.equal(binding.id, declaration.targetId);
     assert.equal(binding.target, "csharp");
@@ -253,6 +285,21 @@ export function assertTargetIdentity(targetId, metadataName, path, assembly) {
 }
 
 export function walkDotnetTypeDeclarationRefs(declaration, visit) {
+  for (const [index, entry] of declaration.inheritance.entries()) {
+    walkDotnetTypeRef(entry.type, (type, path) => visit(type, `inheritance[${index}].type.${path}`));
+  }
+  for (const [memberIndex, member] of (declaration.inheritableMembers ?? []).entries()) {
+    for (const [parameterIndex, parameter] of member.parameters.entries()) {
+      walkDotnetTypeRef(parameter.type, (type, path) => visit(type, `inheritableMembers[${memberIndex}].parameters[${parameterIndex}].type.${path}`));
+    }
+    for (const [slotIndex, slot] of member.dispatchSlots.entries()) {
+      const slotPath = `inheritableMembers[${memberIndex}].dispatchSlots[${slotIndex}]`;
+      walkDotnetTypeRef(slot.returnType, (type, path) => visit(type, `${slotPath}.returnType.${path}`));
+      for (const [parameterIndex, parameter] of slot.parameters.entries()) {
+        walkDotnetTypeRef(parameter.type, (type, path) => visit(type, `${slotPath}.parameters[${parameterIndex}].type.${path}`));
+      }
+    }
+  }
   for (const type of [
     declaration.baseType,
     declaration.sourceShape,

@@ -1,10 +1,14 @@
 import type { TargetCapabilityContribution } from "@tsonic/target-api/provider";
-import type { CsharpProviderTargetRejection } from "./provider-relations.js";
+import type { CsharpProviderTargetRejection } from "../../target-model/identities/provider-relations.js";
 import type { CsharpProviderTargetRelation } from "../../target-model/identities/provider-relations.js";
 import type {
   CsharpTargetBindingFact,
-  CsharpTargetBinaryExecutionDriver,
 } from "../../target-model/types/model.js";
+import {
+  csharpProviderPolicyContributionKind,
+  type CsharpProviderBinaryExecutionDriver,
+  type CsharpProviderPolicyContribution,
+} from "../../target-model/metadata/provider-metadata.js";
 import {
   hasExactContributionFields,
   isContributionRecord,
@@ -14,22 +18,6 @@ import { snapshotCsharpMetadata } from "../../target-model/metadata/immutable.js
 import {
   canonicalProviderValue,
 } from "./canonical-value.js";
-
-export const csharpProviderPolicyContributionKind = "csharp-provider-policy";
-
-export interface CsharpProviderPolicyContribution
-  extends TargetCapabilityContribution {
-  readonly kind: typeof csharpProviderPolicyContributionKind;
-  readonly providerId: string;
-  readonly providerVersion: string;
-  readonly targetBindings: readonly CsharpTargetBindingFact[];
-  readonly relations: readonly CsharpProviderTargetRelation[];
-  readonly rejections: readonly CsharpProviderTargetRejection[];
-  readonly binaryExecutionDriver?: CsharpProviderBinaryExecutionDriver;
-}
-
-export type CsharpProviderBinaryExecutionDriver =
-  CsharpTargetBinaryExecutionDriver;
 
 export function composeCsharpBinaryExecutionDriver(
   ...drivers: readonly (CsharpProviderBinaryExecutionDriver | undefined)[]

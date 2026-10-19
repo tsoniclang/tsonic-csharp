@@ -1,3 +1,4 @@
+import { CsharpProviderAcquisitionRejection, csharpProviderBindingFromResolution } from "../../providers/model/relation-resolver.js";
 import type {
   Node,
   SourceFile,
@@ -146,14 +147,35 @@ type CsharpAnalysisRejection = Extract<TargetStageResult<never>, { readonly kind
 export function analyzeCsharpTargetProgram(
   request: CsharpTargetAnalysisRequest,
 ): TargetStageResult<CsharpTargetProgram> {
+  try {
+    return analyzeCsharpTargetProgramBeforeSeal(request);
+  } catch (error) {
+    if (error instanceof CsharpProviderAcquisitionRejection) {
+      return rejectedTargetStage([targetDiagnosticFromExtension(undefined, error.diagnostic)]);
+    }
+    throw error;
+  }
+}
+
+function analyzeCsharpTargetProgramBeforeSeal(
+  request: CsharpTargetAnalysisRequest,
+): TargetStageResult<CsharpTargetProgram> {
   const { input, configuration, providers } = request;
   const project = analyzeCsharpProject(
     configuration,
     input.runtimeReferences,
+    input.paths.cacheRoot,
   );
   if (project.kind === "rejected") {
     return rejectedTargetStage(project.diagnostics);
   }
+  providers.prepareRuntimeSources(Object.freeze({
+    sources: project.value.runtimeSources,
+    projects: project.value.runtimeProjects,
+    project: project.value.project,
+    properties: project.value.properties,
+    cacheRoot: input.paths.cacheRoot,
+  }));
   const source = input.source;
   if (source.semantics.enumConstants.issues.length !== 0) return rejectedTargetStage(source.semantics.enumConstants.issues);
   const nativeControlIssues = analyzeCsharpNativeControlFlow(source);
@@ -549,7 +571,7 @@ function analyzeIteration(
     },
   };
   const representations = Object.freeze(planningRepresentations);
-  const typeDefinitions = createCsharpTypeDefinitionRegistry(id => providers.findTargetBindingByTargetId(id));
+  const typeDefinitions = createCsharpTypeDefinitionRegistry(id => csharpProviderBindingFromResolution(providers.findTargetBindingByTargetId(id, "ordinary")));
   typeSystem = createCsharpTypeAnalysis(
     { ...typeHost, typeDefinitions },
     createCsharpProjectTypeCatalog(typeHost, previous?.typeProjections),

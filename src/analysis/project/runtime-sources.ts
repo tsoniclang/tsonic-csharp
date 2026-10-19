@@ -1,6 +1,7 @@
-import { isAbsolute } from "node:path";
+import { createHash } from "node:crypto";
+import { basename, isAbsolute, join } from "node:path";
 import type { TargetRuntimeReference } from "@tsonic/target-api/artifacts";
-import type { CsharpRuntimeSourceProject } from "../../target-model/project/runtime.js";
+import type { CsharpRuntimeProjectInstance, CsharpRuntimeSourceProject } from "../../target-model/project/runtime.js";
 
 export function classifyCsharpRuntimeSource(reference: TargetRuntimeReference): CsharpRuntimeSourceProject {
   validatePath(reference.include, ".csproj");
@@ -43,6 +44,65 @@ export function validateCsharpRuntimeSources(sources: readonly CsharpRuntimeSour
   };
   for (const path of byPath.keys()) visit(path);
   return Object.freeze([...byPath.values()].sort((left, right) => left.projectPath.localeCompare(right.projectPath)));
+}
+
+export function instantiateCsharpRuntimeSources(
+  sources: readonly CsharpRuntimeSourceProject[],
+  framework: string,
+  cacheRoot: string,
+): readonly CsharpRuntimeProjectInstance[] {
+  if (!isAbsolute(cacheRoot)) throw new TypeError("C# runtime instances require the actual absolute compilation cache root.");
+  const byPath = new Map(sources.map(source => [source.projectPath, source]));
+  const planned = new Map<string, CsharpRuntimeProjectInstance>();
+  const visit = (sourcePath: string): CsharpRuntimeProjectInstance => {
+    const cached = planned.get(sourcePath);
+    if (cached !== undefined) return cached;
+    const source = byPath.get(sourcePath);
+    if (source === undefined) throw new Error(`Missing classified runtime project '${sourcePath}'.`);
+    const dependencies = Object.freeze(Object.fromEntries(Object.entries(source.dependencies).map(([name, path]) => [name, visit(path).path])));
+    const identity = createHash("sha256").update(JSON.stringify([source.projectPath, source.propertiesPath, framework, dependencies])).digest("hex");
+    const project = Object.freeze({
+      path: join(cacheRoot, "csharp", "runtime", framework, identity, basename(source.projectPath)),
+      sourceProject: source.projectPath,
+      sourceProperties: source.propertiesPath,
+      framework,
+      dependencies,
+      text: runtimeProjectText(source, framework, dependencies),
+    });
+    planned.set(sourcePath, project);
+    return project;
+  };
+  for (const path of byPath.keys()) visit(path);
+  return Object.freeze([...planned.values()]);
+}
+
+function runtimeProjectText(
+  source: CsharpRuntimeSourceProject,
+  framework: string,
+  dependencies: Readonly<Record<string, string>>,
+): string {
+  return [
+    "<Project>",
+    "  <PropertyGroup>",
+    `    <TargetFramework>${xmlValue(framework)}</TargetFramework>`,
+    `    <DirectoryBuildPropsPath>${pathValue(source.propertiesPath)}</DirectoryBuildPropsPath>`,
+    "    <TsonicRuntimeArtifactsPath>$(MSBuildThisFileDirectory)artifacts/</TsonicRuntimeArtifactsPath>",
+    ...Object.entries(dependencies).map(([name, path]) => `    <${name}>${pathValue(path)}</${name}>`),
+    "  </PropertyGroup>",
+    `  <Import Project="${pathValue(source.projectPath)}" />`,
+    "</Project>",
+    "",
+  ].join("\n");
+}
+
+function pathValue(value: string): string {
+  return xmlValue(value.replace(/[%$@();'?*]/gu, character =>
+    `%${character.charCodeAt(0).toString(16).toUpperCase()}`));
+}
+
+function xmlValue(value: string): string {
+  const entities: Readonly<Record<string, string>> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" };
+  return value.replace(/[&<>"']/gu, character => entities[character]!);
 }
 
 function validatePath(value: unknown, extension: string): asserts value is string {

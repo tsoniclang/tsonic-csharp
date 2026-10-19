@@ -1,3 +1,4 @@
+import { resolvedNativeBinding } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
 import assert from "node:assert/strict";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
@@ -56,7 +57,7 @@ test(".NET target binding facts preserve reflected attributes without exposing a
   assert.equal("exports" in module, true);
 
   const target = getDeclaration(module, "ProviderAttributeFixtures.AttributeTarget");
-  const binding = provider.findTargetBindingByTargetId(target.targetId);
+  const binding = resolvedNativeBinding(provider.findTargetBindingByTargetId(target.targetId, "ordinary"));
   assert.ok(binding);
   const typeAttribute = sampleAttribute(binding.attributes, "type");
   assert.equal(typeAttribute.target, "type");
@@ -100,7 +101,7 @@ test(".NET reflection provider preserves pointer type attribute values exactly",
   });
   assert.equal(unsupportedTarget.unsupportedAttributes, undefined);
 
-  const binding = provider.findTargetBindingByTargetId(unsupportedTarget.targetId);
+  const binding = resolvedNativeBinding(provider.findTargetBindingByTargetId(unsupportedTarget.targetId, "ordinary"));
   assert.ok(binding);
   assert.ok(binding.attributes.some((attribute) => attribute.id === pointerAttribute.id));
 });
@@ -143,7 +144,7 @@ test(".NET reflection provider proves attribute type bases, constructors, defaul
     { kind: "named", name: "AllowMultiple", memberKind: "property", value: { kind: "source-primitive", name: "bool", value: true } },
   ]);
 
-  const targetBinding = provider.findTargetBindingByTargetId(sampleAttribute.targetId);
+  const targetBinding = resolvedNativeBinding(provider.findTargetBindingByTargetId(sampleAttribute.targetId, "ordinary"));
   assert.ok(targetBinding);
   assert.equal(idEndsWith(targetBinding.csharpBaseType.id, "System.Attribute"), true);
   assert.ok(targetBinding.attributes.some((attribute) =>

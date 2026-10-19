@@ -1,3 +1,4 @@
+import { resolvedNativeBinding } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -239,7 +240,7 @@ function getDotnetBinding(provider, moduleSpecifier, metadataName) {
   const declaration = [...module.exports, ...(module.targetOnlyTypes ?? [])]
     .find((candidate) => candidate.kind === "type" && candidate.metadataName === metadataName);
   assert.ok(declaration, `Missing .NET declaration '${metadataName}' in ${moduleSpecifier}`);
-  const binding = provider.findTargetBindingByTargetId(declaration.targetId);
+  const binding = resolvedNativeBinding(provider.findTargetBindingByTargetId(declaration.targetId, "ordinary"));
   assert.ok(binding, `Missing .NET target binding '${declaration.targetId}'`);
   return binding;
 }

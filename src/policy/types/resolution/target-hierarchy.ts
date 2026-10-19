@@ -1,3 +1,4 @@
+import { csharpProviderBindingFromResolution } from "../../../providers/model/relation-resolver.js";
 import type {
   CsharpProviderRelationResolver,
 } from "../../../providers/model/relation-resolver.js";
@@ -55,7 +56,7 @@ export function isCsharpThrowableType(
       pending.push(declaredBaseType);
     }
     const binding = csharpTargetBindingFact(
-      host.providers.findTargetBindingByTargetId(candidate.id),
+      csharpProviderBindingFromResolution(host.providers.findTargetBindingByTargetId(candidate.id, "ordinary")),
     );
     if (isCsharpThrowableTargetType(binding?.csharpType)) {
       return true;

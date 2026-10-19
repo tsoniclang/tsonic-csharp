@@ -11,7 +11,7 @@ import { selectCsharpRuntimeUnionProjection } from "../../../dist/policy/convers
 
 const policy = {
   projectTypes: { directSupertypes: () => [] },
-  providers: { findTargetBindingByTargetId: () => undefined }, target: {},
+  providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) }, target: {},
 };
 const integer = csharpSourcePrimitiveTargetType("int32");
 const string = csharpStringTargetType();

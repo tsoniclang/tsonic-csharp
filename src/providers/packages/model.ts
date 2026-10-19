@@ -5,7 +5,7 @@ import type {
   ProviderIdentity,
 } from "@tsonic/tsts";
 import type { TargetRuntimeContributions } from "@tsonic/target-api/artifacts";
-import type { CsharpProviderPolicyContribution } from "../model/provider-policy-contribution.js";
+import type { CsharpProviderPolicyContribution } from "../../target-model/metadata/provider-metadata.js";
 
 export interface CsharpProviderModuleDefinition {
   readonly moduleSpecifier: string;

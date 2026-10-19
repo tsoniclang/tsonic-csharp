@@ -14,7 +14,7 @@ import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../../
 import { assertNoTargetDiagnostics } from "../../../../../tsonic/test/scripts/diagnostic-assertions.mjs";
 
 const integer = { kind: "source-primitive", name: "int32" };
-const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId() {} }, target: {} };
+const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId() { return { kind: "missing" }; } }, target: {} };
 const context = { scope: {}, program: { records: { directCallableReference: { get: () => undefined },
   captureClosure: { get: () => undefined } } }, names: { temporaryName: () => assert.fail("Native bindings must not allocate wrapper temporaries") } };
 

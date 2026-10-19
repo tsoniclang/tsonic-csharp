@@ -154,7 +154,7 @@ Console.WriteLine("nullable event identity passed");
 test("retained adapter planning rejects a stale activation or carrier and keeps ABI validation at one owner", () => {
   const source = csharpDelegateTargetType("System.Action", [{ kind: "source-primitive", name: "float64" }]);
   const target = csharpDelegateTargetType("System.Action", [{ kind: "source-primitive", name: "int32" }]);
-  const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => undefined }, target: {} };
+  const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) }, target: {} };
   const selection = selectCsharpConversion(policy, source, target, "implicit");
   const identity = Object.freeze({ declaration: {}, scope: {}, source, target, selection });
   const node = {};

@@ -9,7 +9,7 @@ import { csharpAbsenceTargetType, csharpDelegateTargetType, csharpNullableTarget
   csharpNeverTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpVoidTargetType,
   targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 
-const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => undefined }, target: {} };
+const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) }, target: {} };
 const stringType = csharpStringTargetType();
 const integerType = csharpSourcePrimitiveTargetType("int32");
 const booleanType = csharpSourcePrimitiveTargetType("bool");

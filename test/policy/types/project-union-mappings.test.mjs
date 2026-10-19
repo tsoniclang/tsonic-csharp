@@ -36,7 +36,7 @@ function fixture({ siblings = false, nested = false, authored = false } = {}) {
   const definitions = registry.seal();
   const policy = { typeDefinitions: definitions, sourceFiles: [], target: {},
     projectTypes: { directSupertypes: carrier => [derived, second].some(candidate => targetTypeRefEquals(candidate, carrier)) ? [base] : [] },
-    providers: { findTargetBindingByTargetId: () => undefined },
+    providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) },
   };
   return { source, target, inner, base, derived, second, unrelated, text, policy, definitions };
 }

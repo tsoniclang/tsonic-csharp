@@ -23,6 +23,8 @@ sealed partial class ReflectionProvider
         return new
         {
             kind = "type",
+            inheritance = Inheritance(type),
+            inheritableMembers = complete && type.IsClass && !IsDelegate(type) ? InheritableMembers(type) : null,
             typeKind = TypeKind(type),
             isByRefLike = type.IsByRefLike,
             constraintRequiresReferenceType = ConstraintRequiresReferenceType(type),

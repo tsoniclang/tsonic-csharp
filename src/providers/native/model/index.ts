@@ -8,6 +8,8 @@ export type {
   DotnetConversionOperatorDeclaration,
   DotnetExportDeclaration,
   DotnetFunctionDeclaration,
+  DotnetInheritanceEntry,
+  DotnetInheritedMemberDeclaration,
   DotnetMemberDeclaration,
   DotnetMemberKind,
   DotnetModuleModel,

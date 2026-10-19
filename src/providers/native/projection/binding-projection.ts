@@ -3,6 +3,10 @@ import type {
   TargetTypeRef,
 } from "../../../policy/types/index.js";
 import type {
+  CsharpNativeInheritedMember,
+  CsharpNativeInheritanceEntry,
+} from "../../../target-model/types/native-inheritance.js";
+import type {
   DotnetExportDeclaration,
   DotnetTypeDeclaration,
   DotnetTypeKind,
@@ -48,6 +52,8 @@ export type {
 } from "./members.js";
 
 export type DotnetTargetBindingFact = CsharpTargetBindingFact & {
+  readonly csharpInheritance: readonly CsharpNativeInheritanceEntry[];
+  readonly csharpInheritableMembers?: readonly CsharpNativeInheritedMember[];
   readonly typeParameters?: readonly DotnetTargetTypeParameter[];
   readonly members?: readonly DotnetTargetMember[];
   readonly unsupportedImplementedContracts?: readonly DotnetUnsupportedConstraintDeclaration[];
@@ -78,6 +84,29 @@ export function dotnetTypeToTargetBinding(declaration: DotnetTypeDeclaration): D
     target: "csharp",
     kind: dotnetTypeKindToTargetBindingKind(declaration.typeKind),
     csharpType: declaredCsharpType,
+    csharpInheritance: Object.freeze(declaration.inheritance.map((entry) => Object.freeze({
+      targetId: entry.targetId,
+      type: dotnetTypeRefToTargetTypeRef(entry.type),
+    }))),
+    ...(declaration.inheritableMembers === undefined ? {} : {
+      csharpInheritableMembers: Object.freeze(declaration.inheritableMembers.map((member) => Object.freeze({
+        ...member,
+        genericParameterIds: Object.freeze([...member.genericParameterIds]),
+        dispatchSlots: Object.freeze(member.dispatchSlots.map((slot) => Object.freeze({
+          ...slot,
+          genericParameterIds: Object.freeze([...slot.genericParameterIds]),
+          parameters: Object.freeze(slot.parameters.map((parameter) => Object.freeze({
+            type: dotnetTypeRefToTargetTypeRef(parameter.type),
+            passingMode: parameter.passingMode,
+          }))),
+          returnType: dotnetTypeRefToTargetTypeRef(slot.returnType),
+        }))),
+        parameters: Object.freeze(member.parameters.map((parameter) => Object.freeze({
+          type: dotnetTypeRefToTargetTypeRef(parameter.type),
+          passingMode: parameter.passingMode,
+        }))),
+      }))),
+    }),
     ...(declaration.abstract === true ? { csharpAbstract: true as const } : {}),
     ...(declaration.unmanagedTypeParameterIndexes === undefined
       ? {}

@@ -1,3 +1,5 @@
+import { resolvedNativeBinding } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
+import { nativeTypeFixture } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
 import { readdirSync, readFileSync } from "node:fs";
 import { assert, dirname, join, test, fileURLToPath, augmentDotnetModuleWithNativeArray, completeDotnetProviderContext, completeProviderDeclarationRequest, createDotnetProviderTelemetry, createDotnetReflectionTypeDataProvider, createDotnetSourceDeclarationProvider, dotnetNativeArrayCreateMemberId, dotnetNativeArrayIndexerMemberId, dotnetNativeArrayLengthMemberId, dotnetNativeArrayTypeId, dotnetModuleToProviderDeclarationModel, dotnetTypeRefToProviderType, dotnetTypeRefToTargetTypeRef, validateDotnetProviderDeclarationModelContract, dotnetExportToTargetBinding, tryDotnetTypeRefToProviderType, buildDotnetFixture, repoRoot, testAssemblyId, testTargetId, namedDotnetTypeRef, methodMember, dotnetTestTypeMetadataName, sourcePrimitiveTestMetadataName, getDotnetDeclaration, getDotnetTargetId, getDotnetBinding, requireDotnetMember, requireProviderDeclarationMember, idEndsWith, findByIdSuffix, stripAssemblyQualifiers, collectProviderRefs, assertProviderDeclarationRefsFullyQualified, unsupportedMembersByMetadataName, constructorSignature, methodSignature, parameterFacts, stripTargetPayload, typeFact, omitLocalName, buildAttributeFixture, buildConstructorFixture, buildUnsupportedEventFixture, buildUnsupportedMemberFixture, buildConstraintFixture, buildConversionFixture, buildSignatureIdentityFixture } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
 
@@ -8,7 +10,7 @@ test(".NET provider declaration model preserves explicit target parameter passin
     moduleSpecifier: "@tsonic/dotnet/System.Collections.Generic.js",
     namespaceName: "System.Collections.Generic",
     exports: [
-      {
+      nativeTypeFixture({
         kind: "type",
         isByRefLike: false, constraintRequiresReferenceType: true,
         allowsRefLikeTypeArguments: [],
@@ -45,7 +47,7 @@ test(".NET provider declaration model preserves explicit target parameter passin
             ],
           },
         ],
-      },
+      }),
     ],
   });
 
@@ -72,7 +74,7 @@ test(".NET provider exposes explicit native Array as a provider-owned C# array p
       moduleSpecifier: "@tsonic/dotnet/System.js",
       namespaceName: "System",
       exports: [
-        {
+        nativeTypeFixture({
           kind: "type",
           isByRefLike: false, constraintRequiresReferenceType: true,
           allowsRefLikeTypeArguments: [],
@@ -81,7 +83,7 @@ test(".NET provider exposes explicit native Array as a provider-owned C# array p
           namespaceName: "System",
           targetId: testTargetId("System.Array"),
           metadataName: "System.Array",
-        },
+        }),
       ],
     },
     completeDotnetProviderContext({ requestedExports: ["Array"] }),
@@ -522,7 +524,7 @@ test(".NET reflection provider exposes members on source-visible returned closur
 
 test(".NET target bindings preserve inherited source signature identity for overridden methods", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
-  const binding = provider.findTargetBindingByMetadataName("System.IO.StreamReader");
+  const binding = resolvedNativeBinding(provider.findTargetBindingByMetadataName("System.IO.StreamReader", "ordinary"));
   assert.ok(binding);
   const relations = provider.resolveTargetRelations({
     moduleSpecifier: "@tsonic/dotnet/System.IO.js",

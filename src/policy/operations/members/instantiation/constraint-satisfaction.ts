@@ -1,3 +1,4 @@
+import { csharpProviderBindingFromResolution } from "../../../../providers/model/relation-resolver.js";
 import type {
   AstReader,
   SourceFile,
@@ -269,7 +270,7 @@ function validateConstructedTargetType(
       return undefined;
     case "target-named": {
       const binding = csharpTargetBindingFact(
-        host.providers.findTargetBindingByTargetId(type.id),
+        csharpProviderBindingFromResolution(host.providers.findTargetBindingByTargetId(type.id, "ordinary")),
       );
       if (binding === undefined) {
         for (const argument of type.typeArguments ?? []) {
@@ -419,7 +420,7 @@ function isCsharpPubliclyParameterlessConstructible(
       project.publicParameterlessConstructor;
   }
   const binding = csharpTargetBindingFact(
-    host.providers.findTargetBindingByTargetId(type.id),
+    csharpProviderBindingFromResolution(host.providers.findTargetBindingByTargetId(type.id, "ordinary")),
   );
   return binding?.kind === "class" &&
     binding.csharpAbstract !== true &&
@@ -478,7 +479,7 @@ function isCsharpUnmanagedType(
         }
       }
       const binding = csharpTargetBindingFact(
-        host.providers.findTargetBindingByTargetId(type.id),
+        csharpProviderBindingFromResolution(host.providers.findTargetBindingByTargetId(type.id, "ordinary")),
       );
       const required = binding?.csharpUnmanagedTypeParameterIndexes;
       const arguments_ = type.typeArguments ?? [];

@@ -316,7 +316,7 @@ test("structural destination retains a supplied outer argument absent from every
   const source = Object.freeze({ targetType: body(integer), members: template.members, declarationTemplate: template });
   const destination = Object.freeze({ targetType: view(integer), members: destinationTemplate.members, declarationTemplate: destinationTemplate });
   const selected = selectCsharpStructuralInterfaceImplementation({ projectTypes: { directSupertypes: () => undefined },
-    providers: { findTargetBindingByTargetId: () => undefined } }, { sourceNode: {}, source, destination, members: [{ source: read, destination: openWrite,
+    providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) } }, { sourceNode: {}, source, destination, members: [{ source: read, destination: openWrite,
     openSource: read, openDestination: openWrite, declaration: {} }] });
   assert.equal(selected !== undefined, true, "the selected closed destination supplies its actual otherwise-uninferable owner argument");
   assert.equal(selected.interfaceType.typeArguments[0] === integer, true, "no phantom argument is guessed from the nongeneric implementation");
@@ -412,7 +412,7 @@ function fixture(passingMode = "by-value") {
   const policy = { ast: { parent: () => undefined, parameters: () => assert.fail("source parameter analysis cannot run again") },
     projectTypes: { catalog: { definitionForDeclaration: () => undefined, definitionForTarget: () => undefined }, directSupertypes: () => [] },
     objectShapes: Object.freeze({ resolveNode: () => undefined, resolveTarget: () => undefined }),
-    providers: { findTargetBindingByTargetId: () => undefined }, target: {} };
+    providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) }, target: {} };
   const shapes = { issues: Object.freeze([]), structuralImplementationTypes: Object.freeze([sourceType]),
     structuralImplementations: () => Object.freeze([selected]), knownShapes: () => [], resolveTarget: () => undefined };
   return { sourceType, declaration, sourceParameter, implementation, runtimeDefault, callables, declarations, policy, shapes,
@@ -862,7 +862,7 @@ function adaptedNativeForwarder(control, destinationNames = []) {
     parameters: () => assert.fail("native forwarding cannot re-plan source parameters") },
     projectTypes: { catalog: { definitionForDeclaration: () => undefined, definitionForTarget: () => undefined }, directSupertypes: () => [] },
     objectShapes: Object.freeze({ resolveNode: () => undefined, resolveTarget: () => undefined }),
-    providers: { findTargetBindingByTargetId: () => undefined }, target: {} };
+    providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) }, target: {} };
   const finalized = analyzeCsharpProjectCallableAdapters(policy,
     { declarationContracts: Object.freeze([]), get: identity => identity.declaration === declaration ? implementation
       : identity.declaration === destinationDeclaration ? destinationContract : undefined },

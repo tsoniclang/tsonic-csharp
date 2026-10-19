@@ -16,7 +16,7 @@ import { planMethodDeclaration } from "../../../dist/backend/planner/declaration
 import { planCsharpProjectCallableAdapters } from "../../../dist/backend/planner/declarations/classes/callable-adapters.js";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
-const host = { typeDefinitions: undefined, projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => undefined }, target: {},
+const host = { typeDefinitions: undefined, projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) }, target: {},
   objectShapes: Object.freeze({ resolveNode: () => undefined, resolveTarget: () => undefined }) };
 const scalar = csharpSourcePrimitiveTargetType("string");
 const unrelated = csharpSourcePrimitiveTargetType("boolean");

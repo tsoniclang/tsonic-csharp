@@ -81,6 +81,8 @@ function dotnetNativeArrayDeclaration(complete: boolean): DotnetTypeDeclaration 
   return {
     kind: "type",
     typeKind: "class",
+    inheritance: [],
+    ...(complete ? { inheritableMembers: [] } : {}),
     isByRefLike: false,
     constraintRequiresReferenceType: true,
     allowsRefLikeTypeArguments: [false],

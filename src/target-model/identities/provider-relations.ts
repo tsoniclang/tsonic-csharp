@@ -1,6 +1,25 @@
 import type { CsharpProviderArgumentAdapter } from "../conversions/selection.js";
 import type { CsharpTargetBindingFact, CsharpTargetMember } from "../types/model.js";
-import type { ArgumentPassingMode, ProviderMemberKey } from "@tsonic/tsts";
+import type { ArgumentPassingMode, ExtensionDiagnostic, ProviderMemberKey } from "@tsonic/tsts";
+
+export type CsharpProviderSourceIdentity =
+  | CsharpProviderTypeSourceIdentity
+  | CsharpProviderValueSourceIdentity
+  | CsharpProviderMemberSourceIdentity
+  | CsharpProviderSignatureSourceIdentity;
+
+export interface CsharpProviderTargetRejection {
+  readonly source: CsharpProviderSourceIdentity;
+  readonly diagnostic: CsharpProviderTargetRejectionDiagnostic;
+}
+
+export interface CsharpProviderTargetRejectionDiagnostic extends Pick<
+  ExtensionDiagnostic,
+  "extensionId" | "extensionCode" | "numericCode" | "message"
+> {
+  readonly category: "error";
+  readonly evidence?: readonly { readonly message: string }[];
+}
 
 export type CsharpTargetReceiverRelation =
   | { readonly kind: "none" }

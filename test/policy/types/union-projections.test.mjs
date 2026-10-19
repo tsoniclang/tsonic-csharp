@@ -15,7 +15,7 @@ test("nested union payload paths are exact, immutable and independently checked"
   const path = csharpUnionProjectionPath(nested, integer);
   assert.deepEqual(path, [{ union: nested, index: 1 }, { union: inner, index: 0 }]);
   assert.ok(Object.isFrozen(path) && path.every(Object.isFrozen));
-  const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId() {} } };
+  const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId() { return { kind: "missing" }; } } };
   const selected = selectCsharpRuntimeUnionProjection(policy, nested, integer);
   assert.deepEqual(selected, { kind: "runtime-union-projection", path, armType: integer, retainsAbsence: false });
   assert.equal(csharpRuntimeUnionProjectionMatches(policy, nested, integer, selected), true);

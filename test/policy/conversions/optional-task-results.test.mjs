@@ -7,7 +7,7 @@ import { csharpAbsenceTargetType, csharpDelegateTargetType, csharpNullableTarget
   combineCsharpTargetUnionMembers, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 
 test("optional Task lifting preserves arity, payload and non-null requirements", () => {
-  const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId() {} }, target: {} };
+  const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId() { return { kind: "missing" }; } }, target: {} };
   const integer = csharpSourcePrimitiveTargetType("int32");
   const boolean = csharpSourcePrimitiveTargetType("bool");
   const unit = csharpVoidTargetType();

@@ -11,7 +11,7 @@ const primitive = name => ({ kind: "source-primitive", name });
 const integers = ["int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64", "native-int", "native-uint", "int128", "uint128"];
 const conversionContext = {
   projectTypes: { typeFromTarget: () => undefined, directSupertypes: () => [] },
-  providers: { findTargetBindingByTargetId: () => undefined },
+  providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) },
 };
 
 test("native Object ancestry supports exact checked reads without implicit downcasts", () => {

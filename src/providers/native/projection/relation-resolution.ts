@@ -22,7 +22,12 @@ import {
 } from "../../model/provider-relations.js";
 import type {
   CsharpProviderPolicyContribution,
-} from "../../model/provider-policy-contribution.js";
+  CsharpProviderBindingResolution,
+  CsharpProviderBindingLookupPurpose,
+  CsharpProviderNativeBindingResolution,
+} from "../../../target-model/metadata/provider-metadata.js";
+import { dotnetExtensionDiagnostic } from "../model/diagnostics.js";
+import { dotnetReflectionProviderIdentity } from "../acquisition/provider-identity.js";
 import { canonicalProviderValue } from "../../model/canonical-value.js";
 import {
   csharpBuiltInProviderPolicies,
@@ -31,6 +36,9 @@ import type {
   CsharpProviderRelationResolution,
   CsharpProviderRelationResolver,
 } from "../../model/relation-resolver.js";
+import { assertCsharpProviderLookupPurpose } from "../../model/relation-resolver.js";
+import type { CsharpProviderRuntimePreparation } from "../../model/relation-resolver.js";
+import { csharpNativeTargetBindingFact } from "../../../target-model/types/native-inheritance.js";
 
 export interface CsharpProviderRelationResolverInputs {
   readonly providers: readonly DotnetReflectionTypeDataProvider[];
@@ -77,6 +85,73 @@ export function createCsharpProviderRelationResolver(
     ProviderVirtualDeclarationFact,
     Map<CsharpProviderTargetRelation["kind"], CsharpProviderRelationResolution>
   >();
+  let runtimePrepared = false;
+  const inheritance = new Map<string, CsharpProviderNativeBindingResolution>();
+  const acquiring = new Set<string>();
+  const bindingCandidates = (
+    query: string,
+    kind: "id" | "metadata",
+  ): readonly CsharpProviderBindingResolution[] => [
+      ...providers.map(provider => kind === "id"
+        ? provider.findTargetBindingByTargetId(query, "ordinary")
+        : provider.findTargetBindingByMetadataName(query, "ordinary")),
+      ...staticBindings.filter(binding => kind === "id" ? binding.id === query : binding.targetName === query)
+        .map<CsharpProviderBindingResolution>(binding => Object.freeze({ kind: "resolved", binding })),
+  ];
+  const inheritanceQuery = (
+    query: string,
+    kind: "id" | "metadata",
+  ): CsharpProviderNativeBindingResolution => {
+    const key = JSON.stringify([kind, query]);
+    const existing = inheritance.get(key);
+    if (existing !== undefined) return existing;
+    const eligible = bindingCandidates(query, kind).filter(candidate =>
+      candidate.kind !== "resolved" || csharpNativeTargetBindingFact(candidate.binding) !== undefined);
+    let result = findUniqueTargetBinding(eligible, query);
+    if (result.kind !== "resolved" && providers[0] !== undefined) {
+      const runtime = kind === "id" ? providers[0].findTargetBindingByTargetId(query, "inheritance")
+        : providers[0].findTargetBindingByMetadataName(query, "inheritance");
+      result = findUniqueTargetBinding([...eligible, runtime], query);
+    }
+    if (result.kind !== "resolved") return result.kind === "rejected" ? result : Object.freeze({
+      kind: "rejected", diagnostic: dotnetExtensionDiagnostic(dotnetReflectionProviderIdentity.id,
+        "DOTNET_REFLECTION_NATIVE_INHERITANCE_NOT_PROVEN", 9200000,
+        "The retained native inheritance demand requires complete metadata from its actual referenced assembly.", [{ query }]),
+    });
+    const native = csharpNativeTargetBindingFact(result.binding);
+    if (native === undefined || acquiring.has(key)) return Object.freeze({
+      kind: "rejected", diagnostic: dotnetExtensionDiagnostic(dotnetReflectionProviderIdentity.id,
+        "DOTNET_REFLECTION_NATIVE_INHERITANCE_INCOMPLETE", 9200000,
+        "Native inheritance must publish one complete acyclic class inventory before sealing.", [{ query }]),
+    });
+    acquiring.add(key);
+    try {
+      for (const entry of native.csharpInheritance) {
+        if (entry.targetId === native.id) continue;
+        const base = inheritanceQuery(entry.targetId, "id");
+        if (base.kind !== "resolved") return base;
+      }
+      const completed = Object.freeze({ kind: "resolved" as const, binding: native });
+      inheritance.set(key, completed);
+      return completed;
+    } finally {
+      acquiring.delete(key);
+    }
+  };
+  function findTargetBindingByTargetId(targetId: string, purpose: "inheritance"): CsharpProviderNativeBindingResolution;
+  function findTargetBindingByTargetId(targetId: string, purpose: CsharpProviderBindingLookupPurpose): CsharpProviderBindingResolution;
+  function findTargetBindingByTargetId(targetId: string, purpose: CsharpProviderBindingLookupPurpose): CsharpProviderBindingResolution {
+    assertCsharpProviderLookupPurpose(purpose);
+    return purpose === "inheritance" ? inheritanceQuery(targetId, "id")
+      : findUniqueTargetBinding(bindingCandidates(targetId, "id"), targetId);
+  }
+  function findTargetBindingByMetadataName(metadataName: string, purpose: "inheritance"): CsharpProviderNativeBindingResolution;
+  function findTargetBindingByMetadataName(metadataName: string, purpose: CsharpProviderBindingLookupPurpose): CsharpProviderBindingResolution;
+  function findTargetBindingByMetadataName(metadataName: string, purpose: CsharpProviderBindingLookupPurpose): CsharpProviderBindingResolution {
+    assertCsharpProviderLookupPurpose(purpose);
+    return purpose === "inheritance" ? inheritanceQuery(metadataName, "metadata")
+      : findUniqueTargetBinding(bindingCandidates(metadataName, "metadata"), metadataName);
+  }
   const resolve = (
     declaration: ProviderVirtualDeclarationFact | undefined,
     kind: CsharpProviderTargetRelation["kind"],
@@ -165,6 +240,11 @@ export function createCsharpProviderRelationResolver(
     return result;
   };
   return Object.freeze({
+    prepareRuntimeSources(preparation: CsharpProviderRuntimePreparation): void {
+      if (runtimePrepared) throw new TypeError("C# native runtime acquisition inputs are prepared exactly once per analysis.");
+      providers[0]?.prepareRuntimeSources(preparation);
+      runtimePrepared = true;
+    },
     validateReferences() {
       return Object.freeze(providers.flatMap((provider) => {
         const diagnostic = provider.validateReferences();
@@ -191,25 +271,8 @@ export function createCsharpProviderRelationResolver(
     ): CsharpProviderRelationResolution {
       return selected(declaration, "signature");
     },
-    findTargetBindingByTargetId(targetId: string): TargetBindingFact | undefined {
-      return findUniqueTargetBinding(
-        [
-          ...providers.map((provider) =>
-            provider.findTargetBindingByTargetId(targetId)),
-          ...staticBindings.filter((binding) => binding.id === targetId),
-        ],
-      );
-    },
-    findTargetBindingByMetadataName(metadataName: string): TargetBindingFact | undefined {
-      return findUniqueTargetBinding(
-        [
-          ...providers.map((provider) =>
-            provider.findTargetBindingByMetadataName(metadataName)),
-          ...staticBindings.filter((binding) =>
-            binding.targetName === metadataName),
-        ],
-      );
-    },
+    findTargetBindingByTargetId,
+    findTargetBindingByMetadataName,
   });
 }
 
@@ -238,20 +301,11 @@ function resolveStaticProviderPolicy(
 function uniqueStaticBindings(
   bindings: readonly TargetBindingFact[],
 ): readonly TargetBindingFact[] {
-  const byId = new Map<string, TargetBindingFact>();
+  const byValue = new Map<string, TargetBindingFact>();
   for (const binding of bindings) {
-    const existing = byId.get(binding.id);
-    if (
-      existing !== undefined &&
-      canonicalProviderValue(existing) !== canonicalProviderValue(binding)
-    ) {
-      throw new Error(
-        `C# provider relation contributions define incompatible target binding '${binding.id}'.`,
-      );
-    }
-    byId.set(binding.id, binding);
+    byValue.set(canonicalProviderValue(binding), binding);
   }
-  return Object.freeze([...byId.values()]);
+  return Object.freeze([...byValue.values()]);
 }
 
 function assertUniqueProviderSources(
@@ -280,18 +334,24 @@ function assertUniqueProviderSources(
 }
 
 function findUniqueTargetBinding(
-  candidates: readonly (TargetBindingFact | undefined)[],
-): TargetBindingFact | undefined {
-  const bindings = candidates.filter(
-    (candidate): candidate is TargetBindingFact => candidate !== undefined,
-  );
+  candidates: readonly CsharpProviderBindingResolution[],
+  query: string,
+): CsharpProviderBindingResolution {
+  const bindings = candidates.flatMap(candidate => candidate.kind === "resolved" ? [candidate.binding] : []);
   if (bindings.length === 0) {
-    return undefined;
+    return candidates.find(candidate => candidate.kind === "rejected") ?? Object.freeze({ kind: "missing" });
   }
   const first = bindings[0]!;
-  return bindings.every((binding) => binding.id === first.id)
-    ? first
-    : undefined;
+  const canonical = canonicalProviderValue(first);
+  return bindings.every(binding => canonicalProviderValue(binding) === canonical)
+    ? Object.freeze({ kind: "resolved", binding: first })
+    : Object.freeze({ kind: "rejected", diagnostic: dotnetExtensionDiagnostic(
+        dotnetReflectionProviderIdentity.id,
+        "CSHARP_PROVIDER_TARGET_BINDING_CONFLICT",
+        9200000,
+        "C# providers supplied contradictory complete target binding evidence.",
+        [{ query, bindingIds: bindings.map(binding => binding.id) }],
+      ) });
 }
 
 function assertUniqueProviderIdentities(

@@ -12,7 +12,7 @@ const integer = csharpSourcePrimitiveTargetType("int32");
 const floating = csharpSourcePrimitiveTargetType("float64");
 const boolean = csharpSourcePrimitiveTargetType("bool");
 const callable = (result, parameters = [], options = {}) => csharpDelegateTargetType("System.Func", parameters, result, options);
-const policy = { providers: { findTargetBindingByTargetId() {} }, objectShapes: { resolveTarget() {} },
+const policy = { providers: { findTargetBindingByTargetId() { return { kind: "missing" }; } }, objectShapes: { resolveTarget() {} },
   projectTypes: { directSupertypes: () => [], catalog: { definitionForTarget() {} } }, target: {} };
 
 test("native callable identity reuses the exact one-direction numeric conversion proof", () => {

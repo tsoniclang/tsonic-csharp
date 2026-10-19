@@ -24,7 +24,7 @@ function sealedConversions(inputs, elementTarget = int64) {
     types: { resolveNode: () => undefined },
     navigation: { referenceFor: () => undefined },
     projectTypes: { directSupertypes: () => [] },
-    providers: { findTargetBindingByTargetId: () => undefined },
+    providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) },
     literalValues: { literalValue: Object.freeze({ get: () => undefined }) },
     target: {},
   };
