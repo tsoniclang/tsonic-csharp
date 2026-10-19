@@ -52,6 +52,8 @@ export interface CsharpProgramRecords extends CsharpStatementExitRecords, Csharp
   readonly nodeObjectShape: CsharpObjectShapeRecords["nodeObjectShape"];
   readonly targetObjectShape: CsharpObjectShapeRecords["targetObjectShape"];
   readonly objectShapeParameters: CsharpObjectShapeEmissionRecords["objectShapeParameters"];
+  readonly objectShapeEmission: CsharpObjectShapeEmissionRecords["objectShapeEmission"];
+  readonly objectShapeDeclarations: CsharpObjectShapeEmissionRecords["objectShapeDeclarations"];
   readonly enumerableKeys: CsharpObjectShapeEmissionRecords["enumerableKeys"];
   readonly compilation: CsharpCompilationRecords["compilation"];
   readonly sourceUnions: CsharpSourceUnionEmissionRecords["sourceUnions"];

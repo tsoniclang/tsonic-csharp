@@ -1,5 +1,6 @@
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../types/model.js";
 import type { CsharpTypeParameterConstraint } from "../types/generic-constraints.js";
+import type { CsharpObjectShapeArtifact } from "./object-shape-demand.js";
 
 export interface CsharpObjectShapeParameter {
   readonly parameter: Extract<TargetTypeRef, { readonly kind: "type-parameter" }>;
@@ -9,6 +10,21 @@ export interface CsharpObjectShapeParameter {
 }
 
 export interface CsharpObjectShapeEmissionRecords {
+  readonly objectShapeEmission: { readonly get: (fact: CsharpObjectShapeFact) => CsharpObjectShapeEmission | undefined };
+  readonly objectShapeDeclarations: { readonly get: () => readonly CsharpObjectShapeDeclarationEmission[] };
   readonly objectShapeParameters: { readonly get: (fact: CsharpObjectShapeFact) => readonly CsharpObjectShapeParameter[] | undefined };
   readonly enumerableKeys: { readonly get: (fact: CsharpObjectShapeFact) => readonly string[] | undefined };
 }
+
+export interface CsharpObjectShapeDeclarationEmission {
+  readonly artifact: CsharpObjectShapeArtifact;
+  readonly name: string;
+  readonly representation: "class" | "struct" | "interface";
+  readonly identity: string | undefined;
+  readonly inheritedEnumerableKeys: boolean;
+}
+
+export type CsharpObjectShapeEmission =
+  | { readonly kind: "runtime" }
+  | { readonly kind: "source"; readonly artifact: CsharpObjectShapeArtifact }
+  | { readonly kind: "synthetic"; readonly declaration: CsharpObjectShapeDeclarationEmission };

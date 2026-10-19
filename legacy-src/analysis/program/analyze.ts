@@ -547,7 +547,8 @@ function analyzeCsharpTargetProgramBeforeSeal(
       factory.instanceScope, factory.factoryName, ...(factory.identity === undefined ? [] : [factory.identity.name]),
     ])] });
   if (sourceIdentities.kind === "rejected") return rejectedTargetStage(sourceIdentities.diagnostics);
-  const objectShapeEmission = analyzeCsharpObjectShapeEmission({ demand: objectShapeDemand, shapes: callableAdapters.objectShapes, names });
+  const objectShapeEmission = analyzeCsharpObjectShapeEmission({ ast: source.ast, nodes: sourceStorage.nodes, nativeDemand, bindings: bindingPatterns,
+    demand: objectShapeDemand, shapes: callableAdapters.objectShapes, names });
   if (objectShapeEmission.issues.length !== 0) return rejectedTargetStage(objectShapeEmission.issues);
   const records = createCsharpProgramRecords({
     compilation: Object.freeze({ namespace: project.value.namespace, languageDialect: configuration.languageDialect }),
