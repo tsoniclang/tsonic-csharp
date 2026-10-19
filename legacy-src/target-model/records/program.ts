@@ -23,8 +23,9 @@ import type { CsharpObjectShapeDemand } from "./object-shape-demand.js";
 import type { CsharpAdmittedIteration } from "./selection.js";
 import type { CsharpStatementExitRecords } from "./statement-exits.js";
 import type { CsharpStatementCompletionRecords } from "./statement-completion.js";
+import type { CsharpResourceScopeRecords } from "./resource-scopes.js";
 
-export interface CsharpProgramRecords extends CsharpStatementExitRecords, CsharpStatementCompletionRecords {
+export interface CsharpProgramRecords extends CsharpStatementExitRecords, CsharpStatementCompletionRecords, CsharpResourceScopeRecords {
   readonly objectShapeArtifact: CsharpObjectShapeDemand;
   readonly nativeValueDeclaration: CsharpNativeValueCarriers["nativeValueDeclaration"];
   readonly literalValue: import("@tsonic/target-api/source").SourceLiteralIndex["literalValue"];

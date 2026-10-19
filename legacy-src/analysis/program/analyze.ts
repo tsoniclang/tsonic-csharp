@@ -11,6 +11,7 @@ import { analyzeCsharpClassInitialization } from "../project-types/class-initial
 import { createCsharpProgramRecords } from "./records/create.js";
 import { analyzeCsharpStatementExits } from "../control-flow/statement-exits.js";
 import { analyzeCsharpStatementCompletions } from "../control-flow/statement-completion.js";
+import { analyzeCsharpResourceScopes } from "../control-flow/resource-scopes.js";
 import type { CsharpRequiredRecord } from "./records/required-records.js";
 import { analyzeSourceLiteralValues, sourceDeclarationHasOnlyTypeUses, sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
 import { analyzeCsharpExactLiteralSelections } from "../conversions/literal-plans.js";
@@ -505,6 +506,10 @@ function analyzeCsharpTargetProgramBeforeSeal(
     participation: nativeParticipation.participation, values: analysis.valueReads.valueRead,
     required: analysis.requiredRecords });
   const records = createCsharpProgramRecords({
+    resourceScopes: analyzeCsharpResourceScopes({ ast: source.ast, nodes: sourceStorage.nodes,
+      erased: node => analysis.sourceEvidence.compileTimeMetadata.get(node) === true ||
+        admittedOperations.nativeUnreachable.get(node) === true || nativeParticipation.participation.get(node) === "erased",
+      required: analysis.requiredRecords }),
     statementCompletions,
     statementExits,
     objectShapeDemand,

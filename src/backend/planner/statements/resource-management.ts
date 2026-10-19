@@ -25,12 +25,6 @@ import {
   failCsharpPlannerInvariant,
 } from "../diagnostics.js";
 import {
-  AsBlock,
-  AsVariableStatement,
-  KindVariableStatement,
-  SourceKind,
-} from "@tsonic/target-api/source";
-import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
 import type { TargetTypeRef } from "../../../target-model/types/index.js";
@@ -44,17 +38,13 @@ export function planResourceManagedBlockStatements(
   state: DestructuringPlannerState,
   planStatements: BlockStatementPlanner,
 ): readonly CsharpStatement[] {
-  const block = AsBlock(input.program.source.ast, blockNode);
-  const resources = directResourceDeclarations(
-    block?.Statements?.Nodes ?? [],
-    input,
-  );
-  if (resources.length === 0) {
+  const scope = input.program.records.resourceScope.get(blockNode);
+  if (scope === undefined) {
     return planStatements();
   }
   return planResourceScopeStatements(
-    resources[0]!,
-    resourceScopeKind(resources, input),
+    scope.declarations[0]!,
+    scope.kind,
     state,
     planStatements,
   );
@@ -66,15 +56,12 @@ export function planResourceManagedSourceFileStatements(
   state: DestructuringPlannerState,
   planStatements: BlockStatementPlanner,
 ): readonly CsharpStatement[] {
-  const resources = directResourceDeclarations(
-    sourceFile.Statements?.Nodes ?? [],
-    input,
-  );
-  return resources.length === 0
+  const scope = input.program.records.resourceScope.get(sourceFile);
+  return scope === undefined
     ? planStatements()
     : planResourceScopeStatements(
-        resources[0]!,
-        resourceScopeKind(resources, input),
+        scope.declarations[0]!,
+        scope.kind,
         state,
         planStatements,
       );
@@ -310,40 +297,3 @@ function disposalInvocation(
   };
 }
 
-function directResourceDeclarations(
-  statements: readonly (Node | undefined)[],
-  input: CsharpPlanningContext,
-): readonly Node[] {
-  return statements.flatMap((statement) => {
-    if (
-      statement === undefined ||
-      SourceKind(input.program.source.ast, statement) !== KindVariableStatement
-    ) {
-      return [];
-    }
-    const declarationList = AsVariableStatement(input.program.source.ast, statement)?.DeclarationList;
-    if (declarationList === undefined) {
-      return [];
-    }
-    return input.program.source.ast.children(declarationList).filter(
-      (declaration): declaration is Node =>
-        declaration !== undefined &&
-        input.program.source.ast.is.IsVariableDeclaration(declaration) &&
-        (
-          input.program.source.ast.variableDeclarationKind(declaration) === "using" ||
-          input.program.source.ast.variableDeclarationKind(declaration) === "await using"
-        ),
-    );
-  });
-}
-
-function resourceScopeKind(
-  resources: readonly Node[],
-  input: CsharpPlanningContext,
-): "sync" | "async" {
-  return resources.some((declaration) =>
-      input.program.source.ast.variableDeclarationKind(declaration) === "await using"
-    )
-    ? "async"
-    : "sync";
-}

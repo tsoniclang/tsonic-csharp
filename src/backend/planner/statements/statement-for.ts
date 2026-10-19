@@ -39,7 +39,8 @@ export function planForStatement(
   planNestedStatementBody: NestedStatementPlanner,
 ): readonly CsharpStatement[] {
   const statement = AsForStatement(input.program.source.ast, node)!;
-  const resource = forInitializerResource(statement.Initializer, input);
+  const scope = input.program.records.resourceScope.get(node);
+  const resource = scope === undefined ? undefined : { declaration: scope.declarations[0]!, kind: scope.kind };
   return resource === undefined
     ? planForStatementCore(
         node,
@@ -184,34 +185,3 @@ function planForInitializer(
   };
 }
 
-function forInitializerResource(
-  initializer: Node | undefined,
-  input: CsharpPlanningContext,
-): {
-  readonly declaration: Node;
-  readonly kind: "sync" | "async";
-} | undefined {
-  if (!HasSourceKind(input.program.source.ast, initializer, KindVariableDeclarationList)) {
-    return undefined;
-  }
-  const declarations = input.program.source.ast.children(initializer).filter(
-    (declaration): declaration is Node =>
-      declaration !== undefined && input.program.source.ast.is.IsVariableDeclaration(declaration),
-  );
-  const resourceDeclarations = declarations.filter((declaration) => {
-    const kind = input.program.source.ast.variableDeclarationKind(declaration);
-    return kind === "using" || kind === "await using";
-  });
-  const first = resourceDeclarations[0];
-  if (first === undefined) {
-    return undefined;
-  }
-  return {
-    declaration: first,
-    kind: resourceDeclarations.some((declaration) =>
-        input.program.source.ast.variableDeclarationKind(declaration) === "await using"
-      )
-      ? "async"
-      : "sync",
-  };
-}
