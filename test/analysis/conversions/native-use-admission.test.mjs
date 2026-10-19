@@ -94,7 +94,7 @@ test("flow admission consumes the completed actual shape view and publishes pure
     forEachChild(node, visit) { if (node === file) visit(expression); }, parent: () => undefined },
     sourceFiles: [file], navigation: { sourceReferenceFor: node => node === expression ? { declaration } : undefined,
       declarationUses: () => [{ kind: "runtime", role: "read", reference: expression }] },
-    projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => undefined },
+    projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) },
     target: {}, objectShapes: actualShapes };
   const admitted = analyzeCsharpFlowReadProjections(policy, evidence, operations, valueReads);
   const projection = admitted.flowReadProjection.get(expression);
@@ -141,8 +141,8 @@ test("native delegate variance uses exact reference edges without adding an adap
   const shapes = new Map([[concrete.id, { targetType: concrete, members: [], implements: [base] }],
     [base.id, { targetType: base, members: [], implements: [concrete] }]]);
   const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: id =>
-    id === "Owner.Covariant" ? { id, target: "csharp", kind: "interface", sourceName: "Covariant", targetName: "Covariant",
-      typeParameters: [{ identity: "Owner.Covariant:T", name: "T", variance: "out" }] } : undefined }, target: {},
+    id === "Owner.Covariant" ? { kind: "resolved", binding: { id, target: "csharp", kind: "interface", sourceName: "Covariant", targetName: "Covariant",
+      typeParameters: [{ identity: "Owner.Covariant:T", name: "T", variance: "out" }] } } : { kind: "missing" } }, target: {},
     objectShapes: { resolveTarget: type => type.kind === "target-named" ? shapes.get(type.id) : undefined } };
   const callable = (parameters, result) => csharpDelegateTargetType("System.Func", parameters, result);
   const conversions = [
@@ -271,9 +271,9 @@ for (const wrapper of ["direct", "delegate", "tuple", "native-generic"]) test(wr
   const policy = { sourceFiles: [], target: {},
     ast: { is: { IsCallExpression: () => false, IsIdentifier: () => false }, getSourceFile: () => undefined },
     navigation: { referenceFor: () => undefined }, projectTypes: { directSupertypes: () => [] },
-    providers: { findTargetBindingByTargetId: id => id === "Owner.Covariant" ? { id, target: "csharp", kind: "interface",
-      sourceName: "Covariant", targetName: "Covariant", typeParameters: [{ identity: "Owner.Covariant:T", name: "T", variance: "out" }] }
-      : undefined }, literalValues: { literalValue: none } };
+    providers: { findTargetBindingByTargetId: id => id === "Owner.Covariant" ? { kind: "resolved", binding: { id, target: "csharp", kind: "interface",
+      sourceName: "Covariant", targetName: "Covariant", typeParameters: [{ identity: "Owner.Covariant:T", name: "T", variance: "out" }] } }
+      : { kind: "missing" } }, literalValues: { literalValue: none } };
   const shape = { targetType: source, sourceType: {}, members: [], implements: [] };
   const contract = { targetType: target, sourceType: {}, members: [] };
   const shapes = { resolveNode: () => undefined, resolveTarget: type => type === source ? shape : type === target ? contract : undefined,

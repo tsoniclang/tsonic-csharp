@@ -1,3 +1,5 @@
+import { resolvedNativeBinding } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
+import { nativeTypeFixture } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
 import assert from "node:assert/strict";
 import { resolve } from "node:path";
 import test from "node:test";
@@ -130,7 +132,7 @@ test(".NET target binding provider records virtual declaration model metrics", (
       return {
         moduleSpecifier: "@tsonic/dotnet/Example.js",
         namespaceName: "Example",
-        exports: [{
+        exports: [nativeTypeFixture({
           kind: "type",
           isByRefLike: false, constraintRequiresReferenceType: true,
           allowsRefLikeTypeArguments: [],
@@ -154,7 +156,7 @@ test(".NET target binding provider records virtual declaration model metrics", (
               returnType: { kind: "void" },
             }],
           }],
-        }],
+        })],
       };
     },
     recordVirtualDeclarationModel(model, elapsedMs) {
@@ -195,7 +197,7 @@ test(".NET target binding provider preserves requested export slices for virtual
       return {
         moduleSpecifier: "@tsonic/dotnet/Example.js",
         namespaceName: "Example",
-        exports: [{
+        exports: [nativeTypeFixture({
           kind: "type",
           isByRefLike: false, constraintRequiresReferenceType: true,
           allowsRefLikeTypeArguments: [],
@@ -205,7 +207,7 @@ test(".NET target binding provider preserves requested export slices for virtual
           targetId: "Example.Assembly::Example.Widget",
           metadataName: "Example.Widget",
           members: [],
-        }],
+        })],
       };
     },
   };
@@ -229,7 +231,7 @@ test(".NET native Array augmentation stays out of unrelated System export slices
   const module = augmentDotnetModuleWithNativeArray({
     moduleSpecifier: "@tsonic/dotnet/System.js",
     namespaceName: "System",
-    exports: [{
+    exports: [nativeTypeFixture({
       kind: "type",
       isByRefLike: false, constraintRequiresReferenceType: false,
       allowsRefLikeTypeArguments: [],
@@ -239,7 +241,7 @@ test(".NET native Array augmentation stays out of unrelated System export slices
       targetId: "Test.Assembly::System.IFormatProvider",
       metadataName: "System.IFormatProvider",
       members: [],
-    }],
+    })],
   }, {
     materialization: emptyIncrementalDotnetProviderMaterialization,
     requestedExports: ["IFormatProvider"],
@@ -268,7 +270,7 @@ test(".NET target binding provider receives requested export slices from TSTS na
       return {
         moduleSpecifier: specifier,
         namespaceName: "System",
-        exports: [{
+        exports: [nativeTypeFixture({
           kind: "type",
           isByRefLike: false, constraintRequiresReferenceType: true,
           allowsRefLikeTypeArguments: [],
@@ -278,7 +280,7 @@ test(".NET target binding provider receives requested export slices from TSTS na
           targetId: "Test.Assembly::System.Convert",
           metadataName: "System.Convert",
           members: [],
-        }],
+        })],
       };
     },
   };
@@ -411,7 +413,7 @@ test(".NET target binding provider fails closed when a requested export is unpro
       return {
         moduleSpecifier: specifier,
         namespaceName: "Example",
-        exports: [{
+        exports: [nativeTypeFixture({
           kind: "type",
           isByRefLike: false, constraintRequiresReferenceType: true,
           allowsRefLikeTypeArguments: [],
@@ -421,7 +423,7 @@ test(".NET target binding provider fails closed when a requested export is unpro
           targetId: "Example.Assembly::Example.Other",
           metadataName: "Example.Other",
           members: [],
-        }],
+        })],
       };
     },
   };
@@ -475,7 +477,7 @@ test(".NET reflection provider records metadata target-binding lookups as sliced
     telemetry,
   });
 
-  const binding = provider.findTargetBindingByMetadataName("System.Convert");
+  const binding = resolvedNativeBinding(provider.findTargetBindingByMetadataName("System.Convert", "ordinary"));
   assert.ok(binding);
   assert.equal(binding.id.endsWith("::System.Convert"), true);
 

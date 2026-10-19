@@ -10,6 +10,13 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 import { csharpDelegateTargetType, getCsharpDelegateSignature } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { analyzeCsharpProjectCallableAdapters } from "../../../dist/analysis/project-types/callable-adapters.js";
+const unexpectedNativeDispatchRead = () => assert.fail("this structural fixture has no authored native dispatch domain");
+const emptyNativeDispatch = Object.freeze({
+  names: Object.freeze({ resolve: unexpectedNativeDispatchRead }),
+  storage: Object.freeze({ storageType: Object.freeze({ get: unexpectedNativeDispatchRead }) }),
+  nativeUse: Object.freeze({ order: unexpectedNativeDispatchRead }),
+  classPropertyStorage: Object.freeze({ get: unexpectedNativeDispatchRead }),
+});
 import { selectCsharpStructuralInterface } from "../../../dist/analysis/objects/structural-interfaces.js";
 import { analyzeCsharpObjectShapes } from "../../../dist/analysis/objects/analyze.js";
 import { selectCsharpStructuralInterfaceImplementation } from "../../../dist/policy/types/objects/method-values.js";
@@ -316,7 +323,7 @@ test("structural destination retains a supplied outer argument absent from every
   const source = Object.freeze({ targetType: body(integer), members: template.members, declarationTemplate: template });
   const destination = Object.freeze({ targetType: view(integer), members: destinationTemplate.members, declarationTemplate: destinationTemplate });
   const selected = selectCsharpStructuralInterfaceImplementation({ projectTypes: { directSupertypes: () => undefined },
-    providers: { findTargetBindingByTargetId: () => undefined } }, { sourceNode: {}, source, destination, members: [{ source: read, destination: openWrite,
+    providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) } }, { sourceNode: {}, source, destination, members: [{ source: read, destination: openWrite,
     openSource: read, openDestination: openWrite, declaration: {} }] });
   assert.equal(selected !== undefined, true, "the selected closed destination supplies its actual otherwise-uninferable owner argument");
   assert.equal(selected.interfaceType.typeArguments[0] === integer, true, "no phantom argument is guessed from the nongeneric implementation");
@@ -410,9 +417,9 @@ function fixture(passingMode = "by-value") {
   const declarations = { runtimeDefault: { get(node) { reads += 1;
     return node === sourceParameter && passingMode === "by-value" ? runtimeDefault : undefined; } } };
   const policy = { ast: { parent: () => undefined, parameters: () => assert.fail("source parameter analysis cannot run again") },
-    projectTypes: { catalog: { definitionForDeclaration: () => undefined, definitionForTarget: () => undefined }, directSupertypes: () => [] },
+    projectTypes: { catalog: { definitions: Object.freeze([]), definitionForDeclaration: () => undefined, definitionForTarget: () => undefined }, directSupertypes: () => [] },
     objectShapes: Object.freeze({ resolveNode: () => undefined, resolveTarget: () => undefined }),
-    providers: { findTargetBindingByTargetId: () => undefined }, target: {} };
+    providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) }, target: {} };
   const shapes = { issues: Object.freeze([]), structuralImplementationTypes: Object.freeze([sourceType]),
     structuralImplementations: () => Object.freeze([selected]), knownShapes: () => [], resolveTarget: () => undefined };
   return { sourceType, declaration, sourceParameter, implementation, runtimeDefault, callables, declarations, policy, shapes,
@@ -421,7 +428,9 @@ function fixture(passingMode = "by-value") {
 
 test("structural method admission rejects every unrenderable selected native signature slot before publication", () => {
   const value = fixture();
-  const admitted = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections);
+  const admittedResult = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections, emptyNativeDispatch);
+  assert.equal(admittedResult.kind, "resolved", "structural forwarding preserves its native dispatch boundary");
+  const admitted = admittedResult.value;
   assert.equal(admitted.issues.length, 0, "the complete unmodified native forwarding contract is admitted");
   const selected = admitted.objectShapes.structuralImplementations(value.sourceType)[0];
   const original = selected.methods[0];
@@ -447,7 +456,9 @@ test("structural method admission rejects every unrenderable selected native sig
 
 test("structural forwarding publishes canonical completed contracts and pure immutable native reads", () => {
   const value = fixture();
-  const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections);
+  const finalizedResult = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections, emptyNativeDispatch);
+  assert.equal(finalizedResult.kind, "resolved", "structural forwarding preserves its native dispatch boundary");
+  const finalized = finalizedResult.value;
   assert.equal(finalized.issues.length, 0, "the canonical incoming native ABI is admitted");
   const selected = finalized.objectShapes.structuralImplementations(value.sourceType);
   const method = selected[0]?.methods[0];
@@ -474,7 +485,9 @@ test("the complete interface request union is deduplicated before native admissi
   const value = fixture();
   const selected = value.shapes.structuralImplementations(value.sourceType)[0];
   value.shapes.structuralImplementations = () => [selected, { ...selected, methods: [...selected.methods] }];
-  const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections);
+  const finalizedResult = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections, emptyNativeDispatch);
+  assert.equal(finalizedResult.kind, "resolved", "structural forwarding preserves its native dispatch boundary");
+  const finalized = finalizedResult.value;
   assert.equal(finalized.issues.length, 0, "identical checked obligations are not competing source constraints");
   const admitted = finalized.objectShapes.structuralImplementations(value.sourceType);
   assert.equal(admitted.length === 1 && admitted[0].methods.length === 1, true, "one native owner/interface/member implementation");
@@ -496,8 +509,12 @@ test("retained method protocols require their exact producer-owned shape and che
         sourceSubjects: mode === "foreign-subject" ? [Object.freeze({})] : member.sourceSubjects,
         memberKind: mode === "non-method" ? "property" : "method" }],
     };
-    const analyze = () => analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes,
-      value.declarations, value.projections);
+    const analyze = () => {
+      const result = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes,
+        value.declarations, value.projections, emptyNativeDispatch);
+      assert.equal(result.kind, "resolved", "structural forwarding preserves its native dispatch boundary");
+      return result.value;
+    };
     if (mode === "retained") {
       const finalized = analyze();
       assert.equal(finalized.issues.length, 0, `${mode}: the actual producer-owned protocol is admitted`);
@@ -534,7 +551,9 @@ test("native implicit methods need no bridge while phantom destination binders s
         sourceDeclarations: [destinationDeclaration],
         typeParameters: [{ declaration: destinationBinder, identity: "destination:T", name: "T", constraints: [] }] } }] }];
     }
-    const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections);
+    const finalizedResult = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections, emptyNativeDispatch);
+    assert.equal(finalizedResult.kind, "resolved", "structural forwarding preserves its native dispatch boundary");
+    const finalized = finalizedResult.value;
     assert.equal(finalized.issues.length, 0, `${phantom}: exact native parameters and result are admitted`);
     const methods = finalized.objectShapes.structuralImplementations(value.sourceType)[0].methods;
     assert.equal(methods.length, phantom ? 1 : 0, `${phantom}: actual native method arity controls implicit implementation`);
@@ -568,7 +587,9 @@ test("canonical generic admission alpha-aligns real body parameters and retains 
     typeParameters: [{ declaration: destinationBinder, identity: destination.identity, name: destination.name, constraints: [] }] } }] }];
   value.shapes.resolveTarget = () => ({ targetType: value.sourceType, members: [{ ...method.member,
     sourceSubjects: [value.declaration], typeParameters: [{ declaration: bodyBinder, identity: source.identity, name: source.name, constraints: [] }] }] });
-  const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections);
+  const finalizedResult = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections, emptyNativeDispatch);
+  assert.equal(finalizedResult.kind, "resolved", "structural forwarding preserves its native dispatch boundary");
+  const finalized = finalizedResult.value;
   assert.equal(finalized.issues.length, 0, "different authored generic names have one native signature");
   const forwarding = finalized.objectShapes.structuralImplementations(value.sourceType)[0].methods[0].forwarding;
   assert.equal(forwarding.typeArguments.length === 1 && forwarding.typeArguments[0].identity === destination.identity, true,
@@ -632,7 +653,9 @@ for (const control of [
 ]) {
   test(`canonical generic native admission: ${control.name}`, () => {
     const value = genericBoundFixture(control.body, control.destination);
-    const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections);
+    const finalizedResult = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections, emptyNativeDispatch);
+    assert.equal(finalizedResult.kind, "resolved", "structural forwarding preserves its native dispatch boundary");
+    const finalized = finalizedResult.value;
     assert.equal(finalized.issues.length, control.accepted ? 0 : 1, `${control.name}: exact native invocation legality`);
     const methods = finalized.objectShapes.structuralImplementations(value.sourceType)[0].methods;
     assert.equal(methods.length, control.accepted ? control.bridges : 0,
@@ -653,7 +676,9 @@ for (const control of [
 ]) {
   test(`canonical generic native metadata: ${control.name}`, () => {
     const value = genericBoundFixture([], [], control.body, control.destination);
-    const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections);
+    const finalizedResult = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections, emptyNativeDispatch);
+    assert.equal(finalizedResult.kind, "resolved", "structural forwarding preserves its native dispatch boundary");
+    const finalized = finalizedResult.value;
     assert.equal(finalized.issues.length, control.accepted ? 0 : 1, `${control.name}: actual anti-constraint evidence governs`);
     assert.equal(finalized.objectShapes.structuralImplementations(value.sourceType)[0].methods.length,
       control.accepted ? control.bridges : 0, `${control.name}: no generic bridge is published with unproved permissions`);
@@ -707,7 +732,9 @@ test("matching native projection layouts retain all actual binder, permission an
     type: csharpDelegateTargetType("System.Func", [destinationStorage], widened) } }] }];
   value.projections.get = declaration => declaration === value.declaration ? bodyProjections
     : declaration === destinationDeclaration ? destinationProjections : Object.freeze([]);
-  const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections);
+  const finalizedResult = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections, emptyNativeDispatch);
+  assert.equal(finalizedResult.kind, "resolved", "structural forwarding preserves its native dispatch boundary");
+  const finalized = finalizedResult.value;
   assert.equal(finalized.issues.length, 0, "the real matching projection tail is not confused with authored binder arity");
   const forwarding = finalized.objectShapes.structuralImplementations(value.sourceType)[0].methods[0].forwarding;
   assert.equal(forwarding.typeParameters.length === 3 && forwarding.typeArguments.length === 3, true,
@@ -731,7 +758,9 @@ for (const missing of ["canonical method contract", "native parameter passing co
       } };
       value.shapes.structuralImplementations = () => [{ ...selected, methods: [{ ...method, member }] }];
     }
-    const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections);
+    const finalizedResult = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections, emptyNativeDispatch);
+    assert.equal(finalizedResult.kind, "resolved", "structural forwarding preserves its native dispatch boundary");
+    const finalized = finalizedResult.value;
     assert.equal(finalized.issues.length, 1, "one precise incomplete native contract diagnostic");
     assert.equal(finalized.issues[0]?.node === value.declaration, true, "the exact implementation declaration owns the failure");
     assert.equal(finalized.issues[0]?.message, "An analyzed interface method has no exact native forwarding signature.",
@@ -744,7 +773,9 @@ for (const missing of ["canonical method contract", "native parameter passing co
 for (const passingMode of ["by-value", "byref-readonly", "byref-readwrite", "byref-writeonly-must-init"]) {
   test(`structural forwarding preserves the canonical ${passingMode} incoming parameter without a body prelude`, () => {
     const value = fixture(passingMode);
-    const finalized = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections);
+    const finalizedResult = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes, value.declarations, value.projections, emptyNativeDispatch);
+    assert.equal(finalizedResult.kind, "resolved", "structural forwarding preserves its native dispatch boundary");
+    const finalized = finalizedResult.value;
     assert.equal(finalized.issues.length, 0, "identical native passing contracts need no new adaptation capability");
     const diagnostics = [];
     const planned = planCsharpStructuralInterfaceMembers({ targetType: value.sourceType }, {
@@ -860,15 +891,17 @@ function adaptedNativeForwarder(control, destinationNames = []) {
     parameters: implementation.parameters, returnType: widened });
   const policy = { ast: { parent: node => destinationBinders.has(node) ? destinationDeclaration : undefined,
     parameters: () => assert.fail("native forwarding cannot re-plan source parameters") },
-    projectTypes: { catalog: { definitionForDeclaration: () => undefined, definitionForTarget: () => undefined }, directSupertypes: () => [] },
+    projectTypes: { catalog: { definitions: Object.freeze([]), definitionForDeclaration: () => undefined, definitionForTarget: () => undefined }, directSupertypes: () => [] },
     objectShapes: Object.freeze({ resolveNode: () => undefined, resolveTarget: () => undefined }),
-    providers: { findTargetBindingByTargetId: () => undefined }, target: {} };
-  const finalized = analyzeCsharpProjectCallableAdapters(policy,
+    providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) }, target: {} };
+  const finalizedResult = analyzeCsharpProjectCallableAdapters(policy,
     { declarationContracts: Object.freeze([]), get: identity => identity.declaration === declaration ? implementation
       : identity.declaration === destinationDeclaration ? destinationContract : undefined },
     { issues: Object.freeze([]), structuralImplementationTypes: Object.freeze([sourceType]), structuralImplementations: () => Object.freeze([selected]),
       resolveTarget: () => undefined },
-    { runtimeDefault: { get: () => undefined } }, { get: () => Object.freeze([]) });
+    { runtimeDefault: { get: () => undefined } }, { get: () => Object.freeze([]) }, emptyNativeDispatch);
+  assert.equal(finalizedResult.kind, "resolved", "structural forwarding preserves its native dispatch boundary");
+  const finalized = finalizedResult.value;
   assert.equal(finalized.issues.length, 0, `${control.name}: canonical native admission accepts exact byref parameters and an adapted result`);
   const forwarding = finalized.objectShapes.structuralImplementations(sourceType)[0]?.methods[0]?.forwarding;
   assert.equal(forwarding?.implementation === implementation, true, `${control.name}: exact canonical physical method identity`);

@@ -16,7 +16,8 @@ const value = name => csharpPlannedValue(integer, call(name));
 const group = (name, planned) => ({ value: planned, presence: { kind: "required" }, assignments: expression => [{ kind: "AssignmentExpression", name, carrier: integer, expression }] });
 function context() {
   let index = 0;
-  return { program: { source: { ast: { pos: () => 1, end: () => 9, parent: () => undefined } } },
+  return { program: { source: { ast: { pos: () => 1, end: () => 9, parent: () => undefined } },
+    names: { generatedMethodTypeParameters: { get: () => [] } } },
     scope: { generatedMethods: new Map() }, names: { temporaryName: name => `${name}_${index++}` } };
 }
 

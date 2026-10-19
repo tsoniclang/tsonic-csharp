@@ -24,7 +24,7 @@ import type {
 } from "../../target-ast/syntax/index.js";
 import {
   objectShapeStorageMemberName,
-} from "./object-shape-storage.js";
+} from "../../../target-model/names/object-members.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
@@ -32,6 +32,8 @@ import type { CsharpObjectShapeProjectionDeclaration } from "../../../target-mod
 import { csharpGenericConstraintFromTargetTypeParameterConstraint } from "../types/type-parameters.js";
 import type { CsharpTypeParameter } from "../../target-ast/syntax/index.js";
 import { qualifiedCsharpType } from "../types/csharp-type-primitives.js";
+import type { CsharpNamePlan } from "../../../target-model/names/model.js";
+import { planCsharpArtifactMemberHiding } from "../declarations/modifiers.js";
 
 const stringTargetType = csharpStringTargetType();
 const boolTargetType = csharpSourcePrimitiveTargetType("bool");
@@ -43,7 +45,7 @@ export function renderObjectShapeProjectionMethods(
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpMethodDeclaration[] {
   return projections.flatMap((projection) => {
-    const result = renderObjectShapeProjectionMethod(input.scope.typeParameterNames, projection);
+    const result = renderObjectShapeProjectionMethod(input.scope.typeParameterNames, projection, input.program.names);
     if (result.kind === "rejected") {
       diagnostics.push({
         code: "CSHARP_OBJECT_SHAPE_PROJECTION_NOT_CLOSED",
@@ -64,6 +66,7 @@ type ProjectionMethodResult =
 export function renderObjectShapeProjectionMethod(
   names: ReadonlyMap<string, string> | undefined,
   declaration: CsharpObjectShapeProjectionDeclaration,
+  memberNames: CsharpNamePlan,
 ): ProjectionMethodResult {
   const fact = declaration.receiver;
   const projection = declaration.selection;
@@ -110,7 +113,7 @@ export function renderObjectShapeProjectionMethod(
     method: {
       kind: "MethodDeclaration",
       name: declaration.methodName,
-      modifiers: ["public", "static"],
+      modifiers: [...planCsharpArtifactMemberHiding(memberNames, fact, declaration.methodName), "public", "static"],
       ...(typeParameters.length === 0 ? {} : { typeParameters }),
       returnType,
       parameters: [{ name: "receiver", type: receiverType }, ...(projection.kind === "has-own"

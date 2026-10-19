@@ -23,5 +23,5 @@ export function planObjectBindingElement(
   return planBindingNameFromProjection(element.name, {
     kind: "SimpleMemberAccessExpression", receiver: sourceExpression,
     name: requireCsharpIdentifier(selected.propertyName, diagnostics, "Object destructuring source property"),
-  }, undefined, elementNode, sourceFile, input, diagnostics, state);
+  }, elementNode, sourceFile, input, diagnostics, state);
 }

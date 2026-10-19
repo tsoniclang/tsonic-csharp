@@ -15,7 +15,7 @@ import {
   csharpObjectShapeMemberLookupFailureMessage,
 } from "../../../target-model/types/object-shape-members.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { getCsharpGenericOptionalParts, isCsharpAbsenceTargetType, isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpAbsenceTargetType, getCsharpGenericOptionalParts, isCsharpAbsenceTargetType, isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { tryCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 import type { CsharpRecursiveObjectShapePolicy } from "./object-shape-policy/model.js";
 import type {
@@ -39,7 +39,8 @@ type BindingPatternProjectionRequest =
   | { readonly kind: "array-element"; readonly carrier: CsharpArrayBindingCarrier; readonly index: number;
       readonly rest: boolean; readonly hasDefault: boolean }
   | { readonly kind: "object-source"; readonly shape: CsharpObjectShapeFact | undefined; readonly sourceOwned: boolean }
-  | { readonly kind: "object-member"; readonly shape: CsharpObjectShapeFact; readonly sourceName: string; readonly description: string }
+  | { readonly kind: "object-member"; readonly shape: CsharpObjectShapeFact; readonly sourceName: string;
+      readonly description: string; readonly permitsAbsence: boolean }
   | { readonly kind: "object-rest"; readonly source: CsharpObjectShapeFact; readonly rest: CsharpObjectShapeFact;
       readonly extractedNames: ReadonlySet<string>; readonly description: string }
   | { readonly kind: "source-owned-member"; readonly sourceName: string | undefined; readonly stringLiteral: boolean;
@@ -100,7 +101,11 @@ export function selectCsharpBindingPatternProjection(input: BindingPatternProjec
       return input.shape !== undefined ? source({ kind: "object-shape-source", shape: input.shape })
         : input.sourceOwned ? source({ kind: "source-owned-source" }) : unresolved();
     case "object-member": {
+      if (typeof input.permitsAbsence !== "boolean") throw new TypeError("An object binding requires its checked absence permission.");
       const selected = resolveCsharpObjectShapeMemberBySourceContract(input.shape, input.sourceName, "checked-object-binding-property");
+      if (selected.kind === "missing" && selected.reason === "not-in-finalized-shape" && input.permitsAbsence) {
+        return element({ kind: "object-shape-absence", carrier: csharpAbsenceTargetType() });
+      }
       return selected.kind === "resolved" ? element({ kind: "object-shape-member", member: selected.member })
         : unresolved(csharpObjectShapeMemberLookupFailureMessage(selected, input.description));
     }
@@ -284,30 +289,31 @@ function resolveObjectBindingProjection(
   const declaration = host.ast.as.AsBindingElement(binding);
   if (declaration?.DotDotDotToken !== undefined) {
     const selected = host.scopedTargetType(binding);
-    if (selected !== undefined) return selected;
     const sourceFile = host.ast.getSourceFile(binding);
-    return sourceFile === undefined ? undefined : host.objectShapes.resolveTypeWithState(
+    const shape = selected !== undefined ? host.objectShapes.resolveTarget(selected)
+      : sourceFile === undefined ? undefined : host.objectShapes.resolveTypeWithState(
       host.semantics(sourceFile).declarations.declaredValueType(binding), sourceFile, undefined, nextState(state),
-    )?.targetType;
+    );
+    return shape === undefined ? undefined : host.objectShapes.resolveCopyShape(shape)?.targetType;
   }
   const property = declaration?.PropertyName ?? declaration?.name;
-  if (
-    property === undefined ||
-    !(
-      host.ast.is.IsIdentifier(property) ||
-      host.ast.is.IsStringLiteral(property) ||
-      host.ast.is.IsNumericLiteral(property)
-    )
-  ) {
-    return undefined;
-  }
+  if (property === undefined) return undefined;
+  let sourceName: string;
+  if (host.ast.is.IsComputedPropertyName(property) || host.ast.is.IsNumericLiteral(property)) {
+    const sourceFile = host.ast.getSourceFile(property);
+    const selectedName = sourceFile === undefined ? undefined : host.semantics(sourceFile).propertyNames.get(property);
+    if (selectedName?.kind !== "resolved") return undefined;
+    sourceName = selectedName.name;
+  } else if (host.ast.is.IsIdentifier(property) || host.ast.is.IsStringLiteral(property)) {
+    sourceName = host.ast.text(property);
+  } else return undefined;
   const shape = host.objectShapes.resolveTarget(ownerType);
   if (shape === undefined) {
     return undefined;
   }
   const selected = resolveCsharpObjectShapeMemberBySourceContract(
     shape,
-    host.ast.text(property),
+    sourceName,
     "checked-object-binding-property",
   );
   return selected.kind === "resolved" ? selected.member.type : undefined;

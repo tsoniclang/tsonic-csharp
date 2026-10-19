@@ -690,13 +690,17 @@ function providerResolver(catalog, bindings) {
         catalog.resolveSignature,
       );
     },
-    findTargetBindingByTargetId(targetId) {
-      return uniqueBinding(bindings.filter((binding) => binding.id === targetId));
+    findTargetBindingByTargetId(targetId, purpose) {
+      assert.equal(purpose, "ordinary", "fixture lookup purpose is explicit");
+      const binding = uniqueBinding(bindings.filter((binding) => binding.id === targetId));
+      return binding === undefined ? { kind: "missing" } : { kind: "resolved", binding };
     },
-    findTargetBindingByMetadataName(metadataName) {
-      return uniqueBinding(
+    findTargetBindingByMetadataName(metadataName, purpose) {
+      assert.equal(purpose, "ordinary", "fixture lookup purpose is explicit");
+      const binding = uniqueBinding(
         bindings.filter((binding) => binding.targetName === metadataName),
       );
+      return binding === undefined ? { kind: "missing" } : { kind: "resolved", binding };
     },
   });
 }

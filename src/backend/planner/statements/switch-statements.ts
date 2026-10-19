@@ -5,7 +5,7 @@ import type { CsharpPlannedValue } from "../expressions/planned-values.js";
 import { consumeCsharpPlannedValue } from "./statement-output.js";
 import type { CsharpPlanningContext } from "../context.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";
-import { unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { finishSwitchSections, planOrderedSwitch } from "./ordered-switch.js";
 
 interface SwitchStatementPlanner {
@@ -28,8 +28,7 @@ export function planSwitchStatement(
 ): CsharpStatement | undefined {
   const selection = input.program.records.switchStatement.get(node);
   if (selection === undefined || selection.kind === "rejected") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, selection?.reason ?? "Switch requires sealed C# classification."));
-    return undefined;
+    return failCsharpPlannerInvariant("An admitted switch lost its selected native classification.", node);
   }
   const ast = input.program.source.ast;
   const body = (clause: Node) => (ast.as.AsCaseOrDefaultClause(clause)?.Statements?.Nodes ?? [])
@@ -50,8 +49,7 @@ export function planSwitchStatement(
       const value = source === undefined ? undefined : planner.planExpression(source, sourceFile, input, diagnostics);
       if (value === undefined) return undefined;
       if (value.prelude.length !== 0 || value.completion.kind !== "value") {
-        diagnostics.push(unsupportedNodeDiagnostic(clause, "A native switch case requires its sealed constant expression without runtime statements."));
-        return undefined;
+        return failCsharpPlannerInvariant("A native switch case lost its selected constant expression without runtime statements.", clause);
       }
       label = { kind: "CaseSwitchLabel", expression: value.completion.expression };
     }

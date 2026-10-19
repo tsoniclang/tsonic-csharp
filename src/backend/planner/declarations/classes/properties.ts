@@ -32,12 +32,8 @@ import {
   invalidCsharpType,
 } from "../../types/index.js";
 import {
-  targetPolicyDiagnostic,
-  unsupportedNodeDiagnostic,
+  failCsharpPlannerInvariant,
 } from "../../diagnostics.js";
-import {
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers,
-} from "../modifiers.js";
 import {
   planIdentifierName,
 } from "../../names/source-identifiers.js";
@@ -52,6 +48,7 @@ import {
   planAttributesForSubject,
 } from "../attributes.js";
 import { getCsharpTypeForSourceField } from "../value-types.js";
+import { planCsharpAdmittedMemberName } from "../modifiers.js";
 import {
   csharpSafetyAccessorModifiersForDeclaration,
   diagnoseUnavailableCsharpSafetyAccessors,
@@ -68,7 +65,6 @@ export function planPropertyDeclaration(
   const parameterProperty = sourceParameterIsProperty(input.program.source.ast, node);
   const declaration = parameterProperty ? AsParameterDeclaration(input.program.source.ast, node)! :
     AsPropertyDeclaration(input.program.source.ast, node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "property declaration", diagnostics, ["public", "private", "protected", "readonly", "abstract", "override"]);
   const sourceField = input.program.records.sourceField.get([node, declaration.name, declaration.Type,
     ...(parameterProperty ? [] : [declaration.Initializer])]);
   if (sourceField !== undefined) {
@@ -81,9 +77,9 @@ export function planPropertyDeclaration(
     const type = getCsharpTypeForSourceField(sourceField, "Class field", sourceFile, input, diagnostics);
     return {
       kind: "FieldDeclaration",
-      name: planIdentifierName(declaration.name, "FieldDeclaration", input, diagnostics, "Field name"),
+      name: planCsharpAdmittedMemberName(input.program.names, declaration.name),
       modifiers: withCsharpSafetyModifiers(
-        planClassMemberModifiers(node, declaration.name, input),
+        planClassMemberModifiers(node, declaration.name, input, { kind: "source", declaration: node, role: "member" }),
         node,
         "declaration",
         input,
@@ -99,27 +95,21 @@ export function planPropertyDeclaration(
     invalidCsharpType("property type"),
     diagnostics,
   );
-  const propertyName = planIdentifierName(declaration.name, "FieldDeclaration", input, diagnostics, "Field name");
-  const modifiers = planClassMemberModifiers(node, declaration.name, input);
+  const propertyName = planCsharpAdmittedMemberName(input.program.names, declaration.name);
+  const modifiers = planClassMemberModifiers(node, declaration.name, input,
+    { kind: "source", declaration: node, role: "member" });
   const storage = input.program.records.classPropertyStorage.get(node);
-  if (storage === undefined) diagnostics.push(unsupportedNodeDiagnostic(node,
-    "The class property has no sealed native field/property representation."));
+  if (storage === undefined) return failCsharpPlannerInvariant(
+    "A checked class property lost its selected native field or property storage.", node);
   if (input.program.source.ast.hasModifierKind(node, "abstract")) {
     return {
       kind: "PropertyDeclaration", name: propertyName,
       modifiers: planPropertyModifiers(node, declaration.name, sourceFile, input),
-      type, autoGetter: true, autoSetter: storage?.readonly !== true,
+      type, autoGetter: true, autoSetter: !storage.readonly,
       attributes: parameterProperty ? [] : planAttributesForSubject(node, sourceFile, input, diagnostics),
     };
   }
-  if (declaration.Initializer === undefined && modifiers.includes("static")) {
-    diagnostics.push(targetPolicyDiagnostic(
-      node,
-      "CSHARP_STATIC_FIELD_INITIALIZER_REQUIRED",
-      "A static class field requires an explicit initializer. Use defaultValue<T>() when target-native default initialization is intended; an uninitialized TypeScript field has undefined runtime semantics and cannot be replaced by a C# default value.",
-    ));
-  }
-  if (storage?.kind === "field") {
+  if (storage.kind === "field") {
     diagnoseUnavailableCsharpSafetyAccessors(
       node,
       [],
@@ -175,11 +165,10 @@ export function mergeAccessorProperty(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): void {
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "accessor declaration", diagnostics, ["public", "private", "protected", "abstract", "override"]);
   const accessor = HasSourceKind(input.program.source.ast, node, KindGetAccessor)
     ? AsGetAccessorDeclaration(input.program.source.ast, node)!
     : AsSetAccessorDeclaration(input.program.source.ast, node)!;
-  const name = planIdentifierName(accessor.name, "PropertyDeclaration", input, diagnostics, "Accessor name");
+  const name = planCsharpAdmittedMemberName(input.program.names, accessor.name);
   const existing = accessorProperties.get(name);
   const next = HasSourceKind(input.program.source.ast, node, KindGetAccessor)
     ? mergeGetterAccessor(existing, node, name, sourceFile, input, diagnostics)
@@ -253,10 +242,10 @@ function mergeSetterAccessor(
   const parameterNode = parameterNodes[0];
   const parameterDeclaration = parameterNode === undefined ? undefined : AsParameterDeclaration(input.program.source.ast, parameterNode)!;
   if (parameterDeclaration === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Set accessor requires exactly one parameter."));
+    return failCsharpPlannerInvariant("A checked set accessor requires exactly one parameter.", node);
   }
   if (parameterNodes.filter((parameterItem) => parameterItem !== undefined).length > 1) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Set accessor has more than one parameter."));
+    return failCsharpPlannerInvariant("A checked set accessor cannot retain multiple parameters.", node);
   }
   const type = getCsharpTypeForNode(
     parameterDeclaration?.Type ?? declaration.Type ?? declaration.name,

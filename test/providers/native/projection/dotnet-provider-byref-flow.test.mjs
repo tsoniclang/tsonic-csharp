@@ -1,3 +1,4 @@
+import { nativeTypeFixture } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -9,7 +10,7 @@ import {
 } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
 
 test(".NET target parameters preserve MaybeNull output flow as explicit C# metadata", () => {
-  const dictionary = {
+  const dictionary = nativeTypeFixture({
     kind: "type",
     isByRefLike: false, constraintRequiresReferenceType: true,
     allowsRefLikeTypeArguments: [false, false],
@@ -57,7 +58,7 @@ test(".NET target parameters preserve MaybeNull output flow as explicit C# metad
         returnType: { kind: "source-primitive", name: "bool" },
       }],
     }],
-  };
+  });
 
   const binding = dotnetExportToTargetBinding(dictionary);
   assert.ok(binding);
@@ -85,7 +86,7 @@ test(".NET target parameters do not infer output nullability from unrelated attr
       constructorId: testTargetId("System.ObsoleteAttribute..ctor()"),
     }],
   };
-  const declaration = {
+  const declaration = nativeTypeFixture({
     kind: "type",
     isByRefLike: false, constraintRequiresReferenceType: true,
     allowsRefLikeTypeArguments: [],
@@ -107,7 +108,7 @@ test(".NET target parameters do not infer output nullability from unrelated attr
         returnType: { kind: "void" },
       }],
     }],
-  };
+  });
 
   const binding = dotnetExportToTargetBinding(declaration);
   assert.ok(binding);

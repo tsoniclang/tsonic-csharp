@@ -522,7 +522,6 @@ export function analyzeCsharpObjectShapes(
     },
     resolveCopyShape(shape) {
       if (!sealed) {
-        rememberShape(shape);
         preparePhysicalShapes();
       }
       const copy = copies.get(targetTypeRefKey(shape.targetType));

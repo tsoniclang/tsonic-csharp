@@ -19,14 +19,14 @@ import type {
   DotnetReflectionTypeDataProvider,
 } from "./provider.js";
 import {
-  csharpProviderPolicyContributionKind,
   composeCsharpBinaryExecutionDriver,
   validateCsharpProviderPolicyContribution,
 } from "../../model/provider-policy-contribution.js";
 import type {
   CsharpProviderBinaryExecutionDriver,
   CsharpProviderPolicyContribution,
-} from "../../model/provider-policy-contribution.js";
+} from "../../../target-model/metadata/provider-metadata.js";
+import { csharpProviderPolicyContributionKind } from "../../../target-model/metadata/provider-metadata.js";
 import {
   hasExactContributionFields,
   isContributionRecord,

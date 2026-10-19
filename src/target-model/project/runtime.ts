@@ -9,3 +9,12 @@ export interface CsharpRuntimeSourceProject {
   readonly propertiesPath: string;
   readonly dependencies: Readonly<Record<string, string>>;
 }
+
+export interface CsharpRuntimeProjectInstance {
+  readonly path: string;
+  readonly sourceProject: string;
+  readonly sourceProperties: string;
+  readonly framework: string;
+  readonly dependencies: Readonly<Record<string, string>>;
+  readonly text: string;
+}

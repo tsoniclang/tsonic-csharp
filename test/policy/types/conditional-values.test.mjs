@@ -35,7 +35,7 @@ const ast = {
 const literalValues = { literalValue: { get: node =>
   analyzeSourceLiteralValues(ast, [{ kind: "SourceFile", children: [node] }]).literalValue.get(node) } };
 const input = { ast, literalValues, target: {}, types: { resolveReadStorage: () => undefined },
-  projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => undefined } };
+  projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) } };
 
 test("sequence completion demand is sealed independently of its checked value carrier", () => {
   const selections = ["consumed", "discarded"].map(resultUse => selectCsharpBinaryOperands({

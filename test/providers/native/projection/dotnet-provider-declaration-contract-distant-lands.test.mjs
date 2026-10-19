@@ -1,3 +1,4 @@
+import { nativeTypeFixture } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -203,7 +204,7 @@ test("concrete properties suppress colliding extension-method projections", () =
 });
 
 test("enum source declarations omit extension-method projections", () => {
-  const declaration = {
+  const declaration = nativeTypeFixture({
     kind: "type",
     isByRefLike: false, constraintRequiresReferenceType: false,
     allowsRefLikeTypeArguments: [],
@@ -212,7 +213,7 @@ test("enum source declarations omit extension-method projections", () => {
     namespaceName: "Example",
     targetId: "Example.Status",
     metadataName: "Example.Status",
-  };
+  });
   const members = dotnetMembersToProviderMembers([{
     kind: "method",
     sourceName: "Describe",
@@ -239,7 +240,7 @@ test("enum source declarations omit extension-method projections", () => {
 });
 
 test("concrete method call shapes precede extensions while distinct extension overloads remain", () => {
-  const declaration = {
+  const declaration = nativeTypeFixture({
     kind: "type",
     isByRefLike: false, constraintRequiresReferenceType: true,
     allowsRefLikeTypeArguments: [],
@@ -248,7 +249,7 @@ test("concrete method call shapes precede extensions while distinct extension ov
     namespaceName: "Example",
     targetId: "Example.Widget",
     metadataName: "Example.Widget",
-  };
+  });
   const receiver = {
     name: "value",
     type: {
@@ -367,7 +368,7 @@ test("derived provider signatures replace their exact virtual slot while retaini
     moduleSpecifier: "@acme/contracts/Example.js",
     namespaceName: "Example",
     exports: [
-      {
+      nativeTypeFixture({
         kind: "type",
         isByRefLike: false, constraintRequiresReferenceType: true,
         allowsRefLikeTypeArguments: [],
@@ -409,8 +410,8 @@ test("derived provider signatures replace their exact virtual slot while retaini
             },
           ],
         }],
-      },
-      {
+      }),
+      nativeTypeFixture({
         kind: "type",
         isByRefLike: false, constraintRequiresReferenceType: true,
         allowsRefLikeTypeArguments: [],
@@ -459,7 +460,7 @@ test("derived provider signatures replace their exact virtual slot while retaini
             },
           ],
         }],
-      },
+      }),
     ],
   });
 

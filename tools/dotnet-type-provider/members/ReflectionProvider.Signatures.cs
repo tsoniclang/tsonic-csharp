@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Reflection;
+using System.Text.Json;
 
 sealed partial class ReflectionProvider
 {
@@ -116,18 +117,20 @@ sealed partial class ReflectionProvider
         return MethodId(baseDefinition);
     }
 
-    static MethodInfo MetadataBaseDefinition(MethodInfo method)
+    MethodInfo MetadataBaseDefinition(MethodInfo method)
     {
-        if ((method.Attributes & MethodAttributes.NewSlot) != 0)
+        if (!method.IsVirtual || method.IsStatic || method.DeclaringType!.IsInterface ||
+            (method.Attributes & MethodAttributes.NewSlot) != 0)
         {
             return method;
         }
+        var slot = MethodSlotKey(method);
         var definition = method;
         for (var baseType = method.DeclaringType?.BaseType; baseType is not null; baseType = baseType.BaseType)
         {
             var matches = baseType
                 .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly)
-                .Where(candidate => candidate.IsVirtual && MethodSlotKey(candidate) == MethodSlotKey(method))
+                .Where(candidate => candidate.IsVirtual && MethodSlotKey(candidate) == slot)
                 .ToArray();
             if (matches.Length > 1)
             {
@@ -136,17 +139,38 @@ sealed partial class ReflectionProvider
             if (matches.Length == 1)
             {
                 definition = matches[0];
+                if ((definition.Attributes & MethodAttributes.NewSlot) != 0)
+                    break;
             }
         }
         return definition;
     }
 
-    static string MethodSlotKey(MethodInfo method)
+    string MethodSlotKey(MethodInfo method)
     {
-        return $"{method.Name}`{method.GetGenericArguments().Length}({string.Join(",", method.GetParameters().Select(parameter => $"{PassingMode(parameter)}:{TypeSlotKey(UnwrapByRef(parameter.ParameterType))}"))})";
+        var evidence = SignatureEvidence((MemberInfo)method);
+        return JsonSerializer.Serialize(new
+        {
+            name = method.Name,
+            genericArity = method.GetGenericArguments().Length,
+            callingConvention = method.CallingConvention,
+            parameters = method.GetParameters().Select((parameter, index) =>
+                SlotParameter(parameter, evidence.ParameterTypes[index])).ToArray(),
+            result = SlotParameter(method.ReturnParameter, evidence.ReturnType),
+        });
     }
 
-    static string TypeSlotKey(Type type)
+    object SlotParameter(ParameterInfo parameter, SignatureTypeEvidence? evidence)
+    {
+        return new
+        {
+            type = TypeSlotKey(parameter.ParameterType, evidence),
+            requiredModifiers = parameter.GetRequiredCustomModifiers().Select(modifier => TypeSlotKey(modifier, null)).ToArray(),
+            optionalModifiers = parameter.GetOptionalCustomModifiers().Select(modifier => TypeSlotKey(modifier, null)).ToArray(),
+        };
+    }
+
+    string TypeSlotKey(Type type, SignatureTypeEvidence? evidence)
     {
         if (type.IsGenericParameter)
         {
@@ -154,17 +178,42 @@ sealed partial class ReflectionProvider
                 ? $"!{type.GenericParameterPosition}"
                 : $"!!{type.GenericParameterPosition}";
         }
+        if (type.IsByRef)
+        {
+            return $"byref:{TypeSlotKey(type.GetElementType()!, evidence)}";
+        }
         if (type.IsArray)
         {
-            return $"{TypeSlotKey(type.GetElementType()!)}{ArrayRankSuffix(type)}";
+            return $"{TypeSlotKey(type.GetElementType()!, evidence?.ElementType)}{ArrayRankSuffix(type)}";
         }
         if (type.IsPointer)
         {
-            return $"{TypeSlotKey(type.GetElementType()!)}*";
+            return $"{TypeSlotKey(type.GetElementType()!, evidence?.ElementType)}*";
+        }
+        if (type.IsFunctionPointer)
+        {
+            var signature = evidence?.FunctionPointer
+                ?? throw new InvalidOperationException("A native virtual function-pointer signature requires exact metadata ABI evidence.");
+            var parameters = type.GetFunctionPointerParameterTypes();
+            if (parameters.Length != signature.Parameters.Length)
+                throw new InvalidOperationException("Native virtual function-pointer parameter evidence does not match the physical signature.");
+            return JsonSerializer.Serialize(new
+            {
+                kind = "function-pointer",
+                abi = signature.Abi,
+                parameters = parameters.Select((parameter, index) => TypeSlotKey(parameter, signature.Parameters[index])).ToArray(),
+                result = TypeSlotKey(type.GetFunctionPointerReturnType(), signature.Result),
+                modifiers = evidence.CustomModifiers,
+            });
         }
         if (type.IsGenericType && !type.IsGenericTypeDefinition)
         {
-            return $"{TargetId(type.GetGenericTypeDefinition())}<{string.Join(",", type.GetGenericArguments().Select(TypeSlotKey))}>";
+            return JsonSerializer.Serialize(new
+            {
+                definition = TargetId(type.GetGenericTypeDefinition()),
+                arguments = type.GetGenericArguments().Select((argument, index) =>
+                    TypeSlotKey(argument, SignatureTypeArgument(evidence, index))).ToArray(),
+            });
         }
         return TargetId(type);
     }

@@ -7,6 +7,13 @@ import { emptyCsharpTypeDefinitions } from "../../../dist/target-model/types/sou
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { resolveCsharpOptionalStorage } from "../../../dist/target-model/types/carriers/optional-storage.js";
 import { analyzeCsharpProjectCallableAdapters } from "../../../dist/analysis/project-types/callable-adapters.js";
+const unexpectedNativeDispatchRead = () => assert.fail("this structural fixture has no authored native dispatch domain");
+const emptyNativeDispatch = Object.freeze({
+  names: Object.freeze({ resolve: unexpectedNativeDispatchRead }),
+  storage: Object.freeze({ storageType: Object.freeze({ get: unexpectedNativeDispatchRead }) }),
+  nativeUse: Object.freeze({ order: unexpectedNativeDispatchRead }),
+  classPropertyStorage: Object.freeze({ get: unexpectedNativeDispatchRead }),
+});
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 
 const integer = { kind: "source-primitive", name: "int64" };
@@ -91,9 +98,12 @@ test("one immutable completed target index retains alias keys and instantiated s
     const { sealed, counts, files } = harness({ resolvesComponent, aliases: [alias] });
     const before = counts.policy;
     const data = sealed.targetShapes;
-    const adapters = analyzeCsharpProjectCallableAdapters({}, { declarationContracts: [] }, sealed,
+    const adaptersResult = analyzeCsharpProjectCallableAdapters({ projectTypes: { catalog: { definitions: Object.freeze([]) } } },
+      { declarationContracts: [] }, sealed,
       { runtimeDefault: { get: () => assert.fail("a graph without callable obligations never resolves defaults") } },
-      { get: () => assert.fail("a graph without callable obligations never derives native projection metadata") });
+      { get: () => assert.fail("a graph without callable obligations never derives native projection metadata") }, emptyNativeDispatch);
+    assert.equal(adaptersResult.kind, "resolved", "the completed shape graph has no native dispatch acquisition");
+    const adapters = adaptersResult.value;
     assert.equal(adapters.objectShapes.targetShapes === data, true,
       "the completed callable adapter publication retains the identical canonical data reference");
     assert.equal(Object.isFrozen(data), true, "the canonical completed exact-key publication is immutable");

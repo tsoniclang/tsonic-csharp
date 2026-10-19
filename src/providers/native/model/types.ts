@@ -83,6 +83,8 @@ export type DotnetTypeKind =
 
 export interface DotnetTypeDeclaration {
   readonly kind: "type";
+  readonly inheritance: readonly DotnetInheritanceEntry[];
+  readonly inheritableMembers?: readonly DotnetInheritedMemberDeclaration[];
   readonly typeKind: DotnetTypeKind;
   readonly isByRefLike: boolean;
   readonly constraintRequiresReferenceType: boolean;
@@ -109,6 +111,42 @@ export interface DotnetTypeDeclaration {
   readonly throwable?: boolean;
   readonly abstract?: true;
   readonly unmanagedTypeParameterIndexes?: readonly number[];
+}
+
+export interface DotnetInheritanceEntry {
+  readonly targetId: string;
+  readonly type: DotnetTypeRef;
+}
+
+export interface DotnetInheritedDispatchSlot {
+  readonly kind: "method" | "get" | "set" | "add" | "remove";
+  readonly id: string;
+  readonly baseDefinitionId: string;
+  readonly virtual: boolean;
+  readonly abstract: boolean;
+  readonly final: boolean;
+  readonly accessibility: "public" | "protected" | "protected-internal";
+  readonly genericParameterIds: readonly string[];
+  readonly parameters: readonly {
+    readonly type: DotnetTypeRef;
+    readonly passingMode: ArgumentPassingMode;
+  }[];
+  readonly returnType: DotnetTypeRef;
+  readonly returnPassing: "by-value" | "byref-readwrite" | "byref-readonly";
+}
+
+export interface DotnetInheritedMemberDeclaration {
+  readonly targetName: string;
+  readonly kind: "method" | "property" | "field" | "event" | "type";
+  readonly static: boolean;
+  readonly accessibility: "public" | "protected" | "protected-internal";
+  readonly genericArity: number;
+  readonly genericParameterIds: readonly string[];
+  readonly dispatchSlots: readonly DotnetInheritedDispatchSlot[];
+  readonly parameters: readonly {
+    readonly type: DotnetTypeRef;
+    readonly passingMode: ArgumentPassingMode;
+  }[];
 }
 
 export interface DotnetNamespaceDeclaration {

@@ -49,9 +49,9 @@ import {
 export {
   objectShapeAccessorGetterStorageMemberName,
   objectShapeAccessorSetterStorageMemberName,
-  objectShapeMethodStorageTargetType,
   objectShapeStorageMemberName,
-} from "./object-shape-storage.js";
+} from "../../../target-model/names/object-members.js";
+export { objectShapeMethodStorageTargetType } from "./object-shape-storage.js";
 
 import { isCsharpEmptyObjectTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { guardCsharpFrozenDataProperties } from "./frozen-data-properties.js";
@@ -133,6 +133,7 @@ export function materializeObjectShapeDeclarations(
         ? JSON.stringify(existing) !== JSON.stringify(declaration)
         : existing.kind === "ClassDeclaration" && !objectShapeDeclarationMatches(
         typeParameterNames,
+        input.program.names,
         existing,
         declarationArtifact.fact,
         declarationArtifact.capabilities.includes("json-serialization"),
@@ -227,7 +228,8 @@ function renderObjectShapeDeclaration(
         targetTypeRefEquals(artifact.fact.targetType, base) &&
         artifact.capabilities.includes("enumerable-keys")));
     const inherited = csharpInheritedStructuralInterfaces(fact, input);
-    const contractMembers = renderCsharpStructuralInterfaceMembers(input.scope.typeParameterNames, fact, input.program.records, capabilities.includes("method-values"), inherited);
+    const contractMembers = renderCsharpStructuralInterfaceMembers(input.scope.typeParameterNames, fact, input.program.records,
+      capabilities.includes("method-values"), inherited, input.program.names);
     if (contractMembers === undefined || interfaces === undefined || typeParameters === undefined) {
       diagnostics.push({ code: "CSHARP_STRUCTURAL_INTERFACE_NOT_CLOSED", category: "error", source: "tsonic-csharp",
         message: "A structural reference contract requires exact renderable member signatures." });
@@ -237,7 +239,7 @@ function renderObjectShapeDeclaration(
       objectShapeIdentity: csharpStructuralObjectShapeIdentity(fact.targetType), modifiers: ["public"], typeParameters,
       interfaces: [...interfaces, ...(jsonSerializable ? [csharpJsonValueInterfaceType()] : []),
         ...(referenceIdentity ? [csharpClosedValueCarrierInterfaceType()] : [])],
-      members: [...contractMembers, ...(capabilities.includes("enumerable-keys") && !inheritedEnumerableKeys ? [csharpEnumerableKeysContract()] : []),
+      members: [...contractMembers, ...(capabilities.includes("enumerable-keys") && !inheritedEnumerableKeys ? [csharpEnumerableKeysContract(fact, input.program.names)] : []),
         ...renderObjectShapeProjectionMethods(input, projections, diagnostics)] };
   }
   const members = renderObjectShapeMembers(
@@ -248,6 +250,7 @@ function renderObjectShapeDeclaration(
     undefined,
     undefined,
     input.program.records,
+    input.program.names,
     new Set(input.program.records.captureFrameShape.get(fact.targetType)?.bindings
       .filter(binding => binding.initialization === "deferred").map(binding => binding.fieldName)),
   );
@@ -292,7 +295,7 @@ function renderObjectShapeDeclaration(
       ...methodValues,
       ...enumerableKeys,
       ...(capabilities.includes("js-freeze") ? guardCsharpFrozenDataProperties(fact, members, input, diagnostics) : members),
-      ...(jsonSerializable ? renderJsonSerializableObjectShapeMethod(fact) : []),
+      ...(jsonSerializable ? renderJsonSerializableObjectShapeMethod(fact, input.program.names) : []),
       ...renderObjectShapeProjectionMethods(
         input,
         projections,

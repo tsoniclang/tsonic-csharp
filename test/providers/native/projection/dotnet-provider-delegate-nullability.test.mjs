@@ -1,3 +1,4 @@
+import { resolvedNativeBinding } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import test from "node:test";
@@ -254,9 +255,7 @@ test(".NET provider separates nullable object inputs from non-null object inputs
     elementType: { kind: "unknown" },
   });
 
-  const binding = provider.findTargetBindingByMetadataName(
-    "ProviderDelegateNullabilityFixtures.ObjectInputHost",
-  );
+  const binding = resolvedNativeBinding(provider.findTargetBindingByMetadataName("ProviderDelegateNullabilityFixtures.ObjectInputHost", "ordinary"));
   assert.ok(binding);
   for (const member of binding.members) {
     assert.equal(member.parameters[0].csharpAcceptsCheckedSourceArgument, true);

@@ -1,5 +1,6 @@
 import type {
   DotnetModuleModel,
+  DotnetTypeDeclaration,
 } from "../model/index.js";
 import type {
   DotnetProviderDiagnostic,
@@ -10,11 +11,24 @@ import type {
 import {
   diagnostic,
 } from "./diagnostics.js";
+import { dotnetTypeDeclarationHasClassCarrier } from "../model/normalization/dotnet-inheritance.js";
 
 export function validateModuleSatisfiesRequest(
   module: DotnetModuleModel,
   request: DotnetProviderCacheRequest,
 ): DotnetProviderDiagnostic | undefined {
+  const targetOnly = new Set(module.targetOnlyTypes ?? []);
+  const incompleteInventories = [...module.exports, ...targetOnly].filter((declaration) =>
+    declaration.kind === "type" && dotnetTypeDeclarationHasClassCarrier(declaration) &&
+    (targetOnly.has(declaration) || dotnetTypeDeclarationIsComplete(declaration, request)) &&
+    !Array.isArray(declaration.inheritableMembers)
+  ).map((declaration) => declaration.kind === "type" ? declaration.targetId : declaration.sourceName);
+  if (incompleteInventories.length !== 0) {
+    return diagnostic("DOTNET_REFLECTION_NATIVE_INHERITANCE_INCOMPLETE", ".NET reflection provider did not prove complete native class-member inventories.", {
+      specifier: request.moduleSpecifier,
+      targetIds: incompleteInventories,
+    });
+  }
   const missingExports = missingRequestedExports(module, request.requestedExports);
   const missingTargetIds = missingRequestedTargetIds(module, request.requestedTargetIds);
   const missingMetadataNames = missingRequestedMetadataNames(module, request.requestedMetadataNames);
@@ -29,6 +43,21 @@ export function validateModuleSatisfiesRequest(
     missingMetadataNames,
     missingMaterializedExports,
   });
+}
+
+export function dotnetTypeDeclarationIsComplete(
+  declaration: DotnetTypeDeclaration,
+  request: DotnetProviderCacheRequest,
+): boolean {
+  if (request.materialization.kind === "complete") {
+    return true;
+  }
+  return request.materialization.completeExports.some((materialized) =>
+    materialized.exportId === undefined
+      ? declaration.sourceName === materialized.exportName ||
+        declaration.sourceTypeFamily?.exportName === materialized.exportName
+      : declaration.targetId === materialized.exportId
+  );
 }
 
 function missingRequestedMaterializedExports(

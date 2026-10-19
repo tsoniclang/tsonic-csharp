@@ -1,4 +1,4 @@
-import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
+import type { AstReader, Node, SourceFile, Type } from "@tsonic/tsts";
 import { csharpNativePropertyNameIssue } from "../objects/computed-field-names.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
@@ -51,12 +51,17 @@ import type {
 } from "../../target-model/records/value-projections.js";
 import { selectCsharpBindingPatternProjection, selectCsharpDefaultValueContract } from "../../policy/types/objects/binding-projection-policy.js";
 import { csharpBindingDefaultCarrier } from "../../target-model/types/binding-normalization.js";
+import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 import {
   isCsharpNeverTargetType,
   isCsharpVoidTargetType,
 } from "../../target-model/types/index.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/index.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
+import type { CsharpPolicyContext } from "../../policy/model/context.js";
+import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
+import { selectCsharpConversion } from "../../policy/conversions/core.js";
+import { admitCsharpConversionSelection } from "../conversions/validation.js";
 
 export interface CsharpBindingPatternAnalysisInput {
   readonly ast: AstReader;
@@ -67,6 +72,9 @@ export interface CsharpBindingPatternAnalysisInput {
   readonly operations: CsharpTargetOperationClassifications;
   readonly valueReads: CsharpValueReadClassifications;
   readonly objectShapes: CsharpObjectShapeClassifications;
+  readonly typePolicy: Pick<CsharpPolicyContext["types"], "resolveType">;
+  readonly conversionPolicy: Parameters<typeof selectCsharpConversion>[0];
+  readonly storage: Pick<CsharpStorageClassifications, "storageType">;
 }
 
 export interface CsharpBindingPatternCandidate extends CsharpBindingPatternIssue {
@@ -118,6 +126,7 @@ export function analyzeCsharpBindingPatterns(
   const { ast } = input;
   const facts = new Map<Node, CsharpBindingProjectionFact>();
   const roots = new Map<Node, Node>();
+  const checkedPatternTypes = new Map<Node, Type | undefined>();
   const lookup = Object.freeze({ get: (node: Node) => facts.get(node) });
   const candidates: CsharpBindingPatternCandidate[] = [];
   const assignmentDefaults = new WeakSet<Node>();
@@ -198,13 +207,30 @@ export function analyzeCsharpBindingPatterns(
     if (root === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A binding element requires its checked root.", node);
     roots.set(node, root);
     const source = element.kind === "array-element" ? element.elementCarrier
-      : element.kind === "object-shape-member" ? element.member.type : undefined;
+      : element.kind === "object-shape-member" ? element.member.type
+      : element.kind === "object-shape-absence" ? element.carrier : undefined;
     const tupleDefault = element.kind === "array-element" ? element.tupleDefault : undefined;
     const initialType = initializer === undefined ? undefined : input.evidence.nodeTargetType.get(initializer);
     const target = tupleDefault?.kind === "planned" ? tupleDefault.carrier
       : source === undefined || initialType === undefined ? undefined : csharpBindingDefaultCarrier(source, initialType);
     const defaultValue = source === undefined || target === undefined || initializer === undefined || tupleDefault?.kind === "unused"
       ? undefined : selectCsharpDefaultValueContract(source, target, presence);
+    if (element.kind === "array-element") {
+      if (element.elementCarrier === undefined || csharpTargetTypeRenderingRejection(element.elementCarrier) !== undefined) {
+        issue(node, "Array destructuring element requires a renderable provider element carrier type before C# emission.");
+      }
+      if (element.tupleDefault?.kind === "planned" &&
+        csharpTargetTypeRenderingRejection(element.tupleDefault.carrier) !== undefined) {
+        issue(initializer ?? node, "Tuple destructuring defaults require a renderable non-nullish element type and the active expression planner.");
+      }
+      if (presence && defaultValue !== undefined && csharpTargetTypeRenderingRejection(defaultValue.target) !== undefined) {
+        issue(initializer ?? node, "Array default requires a renderable finalized element carrier.");
+      }
+    } else if (element.kind === "array-rest" && csharpTargetTypeRenderingRejection(element.restCarrier) !== undefined) {
+      issue(node, "Array rest destructuring requires a renderable provider array carrier type before C# emission.");
+    } else if (element.kind === "tuple-rest" && csharpTargetTypeRenderingRejection(element.restCarrier) !== undefined) {
+      issue(node, "Tuple rest destructuring requires a renderable provider tuple carrier type before C# emission.");
+    }
     facts.set(node, Object.freeze({ ...facts.get(node), element: Object.freeze(element),
       ...(defaultValue === undefined ? {} : { defaultValue }) }));
   }
@@ -224,14 +250,34 @@ export function analyzeCsharpBindingPatterns(
   }
 
   function analyzeNested(name: Node, elementNode: Node, sourceFile: SourceFile, carrier: TargetTypeRef | undefined): void {
+    recordBinding(elementNode, name, carrier);
     if (isBindingPattern(name)) analyzePattern(name, elementNode, sourceFile, carrier);
+  }
+
+  function recordBinding(node: Node, name: Node, source: TargetTypeRef | undefined): void {
+    if (source === undefined) return;
+    const pattern = isBindingPattern(name) || ast.is.IsArrayLiteralExpression(name) || ast.is.IsObjectLiteralExpression(name);
+    const target = pattern ? source : input.storage.storageType.get(name);
+    if (target === undefined || csharpTargetTypeRenderingRejection(target) !== undefined) {
+      issue(name, "Destructuring binding requires its exact renderable finalized native storage carrier before C# emission.");
+      return;
+    }
+    const selected = selectCsharpConversion(input.conversionPolicy, source, target, "implicit");
+    const conversion = admitCsharpConversionSelection(input.conversionPolicy, source, target, selected);
+    if (conversion.kind === "rejected") {
+      issue(name, conversion.reason);
+      return;
+    }
+    facts.set(node, Object.freeze({ ...facts.get(node), binding: Object.freeze({
+      node: name, source, target, conversion: Object.freeze(conversion),
+    }) }));
   }
 
   function analyzePattern(pattern: Node, sourceNode: Node, sourceFile: SourceFile, sourceCarrierOverride: TargetTypeRef | undefined): void {
     if (HasSourceKind(ast, pattern, KindArrayBindingPattern)) {
       analyzeArrayPattern(pattern, sourceNode, sourceFile, sourceCarrierOverride);
     } else if (HasSourceKind(ast, pattern, KindObjectBindingPattern)) {
-      analyzeObjectPattern(pattern, sourceNode, sourceFile);
+      analyzeObjectPattern(pattern, sourceNode, sourceFile, sourceCarrierOverride);
     }
   }
 
@@ -275,8 +321,9 @@ export function analyzeCsharpBindingPatterns(
     }
   }
 
-  function analyzeObjectPattern(pattern: Node, sourceNode: Node, sourceFile: SourceFile): void {
-    const shape = input.objectShapes.resolveNode(sourceNode, sourceFile);
+  function analyzeObjectPattern(pattern: Node, sourceNode: Node, sourceFile: SourceFile, sourceCarrier: TargetTypeRef | undefined): void {
+    const shape = sourceCarrier === undefined ? input.objectShapes.resolveNode(sourceNode, sourceFile)
+      : input.objectShapes.resolveTarget(sourceCarrier);
     const selected = selectCsharpBindingPatternProjection({ kind: "object-source", shape,
       sourceOwned: input.evidence.sourceOwnedProjectShape.get(sourceNode) === true });
     if (selected.kind === "source" && selected.source.kind === "object-shape-source") {
@@ -284,7 +331,7 @@ export function analyzeCsharpBindingPatterns(
       return;
     }
     if (selected.kind === "source" && selected.source.kind === "source-owned-source") {
-      analyzeSourceOwnedPattern(pattern, sourceFile);
+      analyzeSourceOwnedPattern(pattern, sourceNode, sourceFile);
       return;
     }
     issue(pattern, "Object destructuring requires an exact source-owned declaration or target object-shape policy.");
@@ -312,6 +359,8 @@ export function analyzeCsharpBindingPatterns(
 
   function analyzeObjectShapePattern(pattern: Node, shape: CsharpObjectShapeFact, sourceFile: SourceFile): void {
     recordSource(pattern, { kind: "object-shape-source", shape });
+    const checkedType = checkedPatternType(pattern);
+    const checkedMembers = checkedType === undefined ? [] : input.semanticsFor(pattern).types.propertyInfos(checkedType);
     const elements = AsBindingPattern(ast, pattern)?.Elements?.Nodes ?? [];
     const extractedSourceNames = new Set<string>();
     for (const elementNode of elements) {
@@ -340,16 +389,18 @@ export function analyzeCsharpBindingPatterns(
         issue(elementNode, "Object destructuring property must match a finalized provider object-shape member.");
         continue;
       }
+      const checked = checkedMembers.filter(member => member.name === property.sourceName);
       const selected = selectCsharpBindingPatternProjection({ kind: "object-member", shape, sourceName: property.sourceName,
-        description: "Object destructuring property" });
-      if (selected.kind !== "element" || selected.element.kind !== "object-shape-member") {
+        description: "Object destructuring property", permitsAbsence: element.Initializer !== undefined ||
+          checked.length === 1 && checked[0]!.optional });
+      if (selected.kind !== "element" || selected.element.kind !== "object-shape-member" && selected.element.kind !== "object-shape-absence") {
         if (selected.kind === "unresolved") for (const reason of selected.reasons) issue(elementNode, reason);
         continue;
       }
-      const { member } = selected.element;
+      const carrier = selected.element.kind === "object-shape-member" ? selected.element.member.type : selected.element.carrier;
       recordElement(elementNode, selected.element, element.Initializer);
       if (element.Initializer === undefined) {
-        analyzeNested(name, elementNode, sourceFile, member.type);
+        analyzeNested(name, elementNode, sourceFile, carrier);
         continue;
       }
       const defaultValue = facts.get(elementNode)?.defaultValue;
@@ -357,6 +408,46 @@ export function analyzeCsharpBindingPatterns(
         analyzeNested(name, elementNode, sourceFile, defaultValue.target);
       }
     }
+  }
+
+  function checkedPatternType(pattern: Node): Type | undefined {
+    if (checkedPatternTypes.has(pattern)) return checkedPatternTypes.get(pattern);
+    const selected = selectCheckedPatternType(pattern);
+    checkedPatternTypes.set(pattern, selected);
+    return selected;
+  }
+
+  function selectCheckedPatternType(pattern: Node): Type | undefined {
+    const owner = ast.parent(pattern);
+    if (owner === undefined) return undefined;
+    const semantics = input.semanticsFor(owner);
+    const element = AsBindingElement(ast, owner);
+    if (element !== undefined) {
+      const parentPattern = ast.parent(owner);
+      const parentType = parentPattern === undefined ? undefined : checkedPatternType(parentPattern);
+      if (parentPattern === undefined || parentType === undefined) return undefined;
+      let selected: Type | undefined;
+      if (HasSourceKind(ast, parentPattern, KindObjectBindingPattern)) {
+        const name = objectShapePropertyName(owner)?.sourceName;
+        const members = name === undefined ? [] : semantics.types.propertyInfos(parentType).filter(member => member.name === name);
+        selected = members.length === 1 ? members[0]!.type : undefined;
+      } else if (HasSourceKind(ast, parentPattern, KindArrayBindingPattern)) {
+        const index = AsBindingPattern(ast, parentPattern)?.Elements?.Nodes.indexOf(owner);
+        if (index === undefined || index < 0) return undefined;
+        if (semantics.types.isTuple(parentType)) selected = semantics.types.tupleElementInfos(parentType)[index]?.type;
+        else {
+          const indices = semantics.types.indexInfos(parentType).filter(info => info.keyType !== undefined && semantics.types.isNumberLike(info.keyType));
+          selected = indices.length === 1 ? indices[0]!.valueType : undefined;
+        }
+      }
+      return selected === undefined || element.Initializer === undefined ? selected
+        : semantics.types.withoutMissingOrUndefined(selected);
+    }
+    const declaration = AsVariableDeclaration(ast, owner) ?? AsParameterDeclaration(ast, owner);
+    if (declaration?.Type !== undefined) return semantics.types.authoredType(declaration.Type);
+    const iteration = forOfHeadStatement(owner);
+    if (iteration !== undefined) return semantics.operations.iteration(iteration)?.sourceElementType;
+    return declaration?.Initializer === undefined ? undefined : semantics.types.expressionType(declaration.Initializer);
   }
 
   function analyzeObjectShapeRest(
@@ -373,6 +464,7 @@ export function analyzeCsharpBindingPatterns(
       return;
     }
     recordObjectRest(elementNode, restShape, sourceShape, extractedSourceNames, "Object rest destructuring");
+    recordBinding(elementNode, name, restShape.targetType);
   }
 
   function recordObjectRest(
@@ -388,8 +480,12 @@ export function analyzeCsharpBindingPatterns(
     else if (selected.kind === "unresolved") for (const reason of selected.reasons) issue(elementNode, reason);
   }
 
-  function analyzeSourceOwnedPattern(pattern: Node, sourceFile: SourceFile): void {
+  function analyzeSourceOwnedPattern(pattern: Node, sourceNode: Node, sourceFile: SourceFile): void {
     recordSource(pattern, { kind: "source-owned-source" });
+    const semantics = input.semanticsFor(sourceNode);
+    const sourceType = ast.is.IsParameterDeclaration(sourceNode) || ast.is.IsBindingElement(sourceNode)
+      ? semantics.declarations.declaredValueType(sourceNode) : semantics.types.expressionType(sourceNode);
+    const members = sourceType === undefined ? [] : semantics.types.propertyInfos(sourceType);
     const elements = AsBindingPattern(ast, pattern)?.Elements?.Nodes ?? [];
     for (const elementNode of elements) {
       const element = elementNode === undefined ? undefined : AsBindingElement(ast, elementNode);
@@ -413,7 +509,13 @@ export function analyzeCsharpBindingPatterns(
         continue;
       }
       recordElement(elementNode, selected.element);
-      analyzeNested(name, elementNode, sourceFile, undefined);
+      const member = members.find(candidate => candidate.name === sourceName);
+      const carrier = member === undefined ? undefined : input.typePolicy.resolveType(member.type, sourceFile);
+      if (carrier === undefined) {
+        issue(elementNode, "Object destructuring source property requires its exact finalized native extraction carrier before C# emission.");
+        continue;
+      }
+      analyzeNested(name, elementNode, sourceFile, carrier);
     }
   }
 
@@ -522,15 +624,15 @@ export function analyzeCsharpBindingPatterns(
         continue;
       }
       const selected = selectCsharpBindingPatternProjection({ kind: "object-member", shape, sourceName: property.sourceName,
-        description: "Object destructuring assignment property" });
-      if (selected.kind !== "element" || selected.element.kind !== "object-shape-member") {
+        description: "Object destructuring assignment property", permitsAbsence: false });
+      if (selected.kind !== "element" || selected.element.kind !== "object-shape-member" && selected.element.kind !== "object-shape-absence") {
         if (selected.kind === "unresolved") for (const reason of selected.reasons) issue(element.sourceNode, reason);
         continue;
       }
-      const { member } = selected.element;
+      const carrier = selected.element.kind === "object-shape-member" ? selected.element.member.type : selected.element.carrier;
       recordElement(element.sourceNode, selected.element, element.initializer);
       if (element.initializer === undefined) {
-        analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, member.type);
+        analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, carrier);
         continue;
       }
       const defaultValue = facts.get(element.sourceNode)?.defaultValue;
@@ -565,6 +667,7 @@ export function analyzeCsharpBindingPatterns(
       return;
     }
     recordObjectRest(element.sourceNode, restShape, sourceShape, extractedSourceNames, "Object rest destructuring assignment");
+    recordBinding(element.sourceNode, element.target.node, restShape.targetType);
   }
 
   function analyzeAssignmentTarget(
@@ -574,9 +677,12 @@ export function analyzeCsharpBindingPatterns(
     carrier: TargetTypeRef | undefined,
   ): void {
     if (target.kind === "pattern") {
+      recordBinding(projectionNode, target.pattern.sourceNode, carrier);
       analyzeAssignmentPattern(target.pattern, projectionNode, sourceFile, carrier);
     } else if (!HasSourceKind(ast, target.node, KindIdentifier)) {
       issue(target.node, "Destructuring assignment target supports source-owned identifiers and nested destructuring patterns only.");
+    } else {
+      recordBinding(projectionNode, target.node, carrier);
     }
   }
 

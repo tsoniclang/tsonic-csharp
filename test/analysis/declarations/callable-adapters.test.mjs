@@ -11,8 +11,12 @@ import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../hel
 import { createCsharpPlanningContext } from "../../../dist/backend/planner/context.js";
 import { planCsharpStructuralInterfaceMembers } from "../../../dist/backend/planner/declarations/interfaces/structural.js";
 import { printCsharpCompilationUnit } from "../../../dist/print/source/printer.js";
+import { admitCsharpNativeDeclarations } from "../../../dist/analysis/declarations/native-value-declarations.js";
+import { planMethodDeclaration } from "../../../dist/backend/planner/declarations/classes/methods.js";
+import { planCsharpProjectCallableAdapters } from "../../../dist/backend/planner/declarations/classes/callable-adapters.js";
+import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
-const host = { typeDefinitions: undefined, projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => undefined }, target: {},
+const host = { typeDefinitions: undefined, projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) }, target: {},
   objectShapes: Object.freeze({ resolveNode: () => undefined, resolveTarget: () => undefined }) };
 const scalar = csharpSourcePrimitiveTargetType("string");
 const unrelated = csharpSourcePrimitiveTargetType("boolean");
@@ -291,4 +295,175 @@ test("class native countercontrol observes omitted in selecting the wrong valid 
   assert.equal(executed.status === 0, false, "the runtime observer detects the incorrect overload");
   assert.equal(String(executed.stderr).includes("in adapted native forwarding"), true,
     "the failure is the exact in-overload observation, not an unrelated error");
+});
+
+function nativeMethodNodes(program) {
+  const declarations = [];
+  const visit = node => {
+    if (program.source.ast.is.IsMethodDeclaration(node)) declarations.push(node);
+    program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  program.sourceFiles.forEach(visit);
+  return declarations;
+}
+
+function admitMethodRecords(program, nodes, records = program.records) {
+  return admitCsharpNativeDeclarations(program.source.ast, nodes, records.nativeUse,
+    program.projectTypes, program.sourceNavigation, records, records, records.nativeParticipation, records.nativeUnreachable,
+    records, records.callableDispatch, records.classFactory, records);
+}
+
+for (const surface of ["native", "js"]) {
+  test(`static, abstract, optional and rest methods consume final native dispatch on ${surface}`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      export abstract class Base { abstract read(value?: number): number; }
+      export class View extends Base {
+        static increment(value: number): number { return value + 1; }
+        read(value?: number): number { return value ?? 5; }
+        sum(first: number, ...rest: number[]): number { return first + rest[0]; }
+      }
+      export function run(): number {
+        const view: Base = new View();
+        return View.increment(view.read()) + new View().sum(2, 3);
+      }
+    ` });
+    assertCsharpCompilationSucceeded(compiled);
+    const program = compiled.result.program;
+    const methods = nativeMethodNodes(program);
+    assert.equal(methods.length, 4, "every declared native method has one final signature");
+    for (const method of methods) {
+      const dispatch = program.records.callableDispatch.get(method);
+      assert.equal(dispatch?.implementation.sourceDeclaration === method, true,
+        "the existing dispatch family publishes the actual source method contract");
+      assert.equal(Object.isFrozen(dispatch) && Object.isFrozen(dispatch.adapters), true,
+        "the method contract is immutable before planning");
+      if (program.source.ast.hasModifierKind(method, "static")) {
+        assert.equal(dispatch.overridesBase || dispatch.hasDerivedOverride || dispatch.adapters.length !== 0, false,
+          "static methods never acquire instance dispatch or adapters");
+      }
+    }
+    assert.equal(admitMethodRecords(program, methods).length, 0,
+      "final physical signatures, not a second return-type selector, satisfy declaration admission");
+    executeCsharpConstruction(compiled, `final-native-methods-${surface}`, false, false, [], `
+if (Tsonic.Generated.Index.run() != 11) throw new System.Exception("final native method dispatch");
+`);
+  });
+
+  test(`native raw adapters retain omitted defaults and one rest sequence on ${surface}`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      class OptionalBase { read(value: number): number { return value; } }
+      class OptionalView extends OptionalBase {
+        read(value: number, extra?: number): number { return value + (extra ?? 2); }
+      }
+      class RestBase { read(...values: number[]): number { return values[0]; } }
+      class RestView extends RestBase { read(value?: number): number { return value ?? 5; } }
+      export function run(): number {
+        const optional: OptionalBase = new OptionalView();
+        const rest: RestBase = new RestView();
+        return optional.read(3) + rest.read() + rest.read(7);
+      }
+    ` });
+    assertCsharpCompilationSucceeded(compiled);
+    const program = compiled.result.program;
+    const adapters = nativeMethodNodes(program).flatMap(method => program.records.callableDispatch.get(method)?.adapters ?? []);
+    assert.equal(adapters.length, 2, "both native parameter adaptations publish one final logical stream");
+    assert.equal(adapters.some(adapter => adapter.parameters.some(parameter => parameter.kind === "omitted")), true,
+      "the missing destination consumes its admitted default");
+    assert.equal(adapters.some(adapter => adapter.parameters.some(parameter => parameter.kind === "rest-element" && parameter.optional)), true,
+      "the single source sequence preserves optional-element absence");
+    executeCsharpConstruction(compiled, `native-raw-adapter-streams-${surface}`, false, false, [], `
+if (Tsonic.Generated.Index.run() != 17) throw new System.Exception("native admitted default and rest streams");
+`);
+  });
+}
+
+test("method admission owns exact return, parameter, adapter and logical-return refusals", () => {
+  const compiled = compileCsharpSource({ sourceText:
+    "export class View { static read(value: number): number { return value; } }" });
+  assertCsharpCompilationSucceeded(compiled);
+  const program = compiled.result.program;
+  const method = nativeMethodNodes(program)[0];
+  const dispatch = program.records.callableDispatch.get(method);
+  const opaque = Object.freeze({ kind: "opaque", id: "missing" });
+  for (const control of [
+    { label: "physical return", dispatch: { ...dispatch, implementation: { ...dispatch.implementation, returnType: opaque } },
+      node: method, code: "CSHARP_UNSUPPORTED_AST", message: "A method's sealed native return contract is not renderable." },
+    { label: "physical parameter", dispatch: { ...dispatch, implementation: { ...dispatch.implementation,
+      parameters: [{ ...dispatch.implementation.parameters[0], targetParameter: {
+        ...dispatch.implementation.parameters[0].targetParameter, type: opaque } }] } },
+      node: dispatch.implementation.parameters[0].sourceParameter, code: "CSHARP_OPAQUE_TARGET_TYPE_UNSUPPORTED",
+      message: "Opaque target type 'missing' has no renderable C# source representation." },
+    { label: "raw adapter", dispatch: { ...dispatch, adapters: [{ contract: { ...dispatch.implementation, returnType: opaque } }] },
+      node: method, code: "CSHARP_UNSUPPORTED_AST", message: "A sealed callable adapter has an unrenderable native signature." },
+    { label: "logical return", dispatch, rejectedReturn: { kind: "rejected", reason: "exact completed return refusal" },
+      node: method, code: "CSHARP_UNSUPPORTED_AST", message: "exact completed return refusal" },
+  ]) {
+    const records = { ...program.records,
+      callableDispatch: { get: node => node === method ? control.dispatch : program.records.callableDispatch.get(node) },
+      returnContract: { get: node => node === method && control.rejectedReturn !== undefined
+        ? control.rejectedReturn : program.records.returnContract.get(node) } };
+    const issues = admitMethodRecords(program, [method], records);
+    assert.equal(issues.length, 1, `${control.label}: exactly one pre-seal refusal`);
+    assert.equal(issues[0].code, control.code, `${control.label}: unchanged diagnostic code`);
+    assert.equal(issues[0].message, control.message, `${control.label}: unchanged diagnostic message`);
+    assert.equal(issues[0].sourceNode === control.node, true, `${control.label}: exact original diagnostic node`);
+  }
+});
+
+test("method and raw-adapter planners reject only corrupted admitted contracts", () => {
+  const compiled = compileCsharpSource({ sourceText:
+    "export class View { static read(value: number): number { return value; } }" });
+  assertCsharpCompilationSucceeded(compiled);
+  const program = compiled.result.program;
+  const method = nativeMethodNodes(program)[0];
+  const dispatch = program.records.callableDispatch.get(method);
+  const file = program.source.ast.getSourceFile(method);
+  for (const control of [
+    { label: "missing contract", dispatch: undefined, message: "final native callable contract" },
+    { label: "unrenderable return", dispatch: { ...dispatch, implementation: {
+      ...dispatch.implementation, returnType: { kind: "opaque", id: "missing" } } }, message: "renderable native return type" },
+  ]) {
+    const input = createCsharpPlanningContext({ ...program, records: { ...program.records,
+      callableDispatch: { get: node => node === method ? control.dispatch : program.records.callableDispatch.get(node) } } });
+    const diagnostics = [];
+    assert.throws(() => planMethodDeclaration(method, file, input, diagnostics,
+      { kind: "source", declaration: method, role: "member" }),
+      error => error.message.includes(control.message), `${control.label}: the producer guarantee fails internally`);
+    assert.equal(diagnostics.length, 0, `${control.label}: the planner does not issue a source refusal`);
+  }
+  const input = createCsharpPlanningContext(program);
+  const diagnostics = [];
+  const planned = planMethodDeclaration(method, file, input, diagnostics, { kind: "source", declaration: method, role: "member" });
+  const corrupted = createCsharpPlanningContext({ ...program, records: { ...program.records,
+    callableDispatch: { get: node => node === method ? { ...dispatch, adapters: [{ contract: {
+      ...dispatch.implementation, returnType: { kind: "opaque", id: "missing" } } }] }
+      : program.records.callableDispatch.get(node) } } });
+  assert.throws(() => planCsharpProjectCallableAdapters(method, planned, file, corrupted, diagnostics),
+    error => error.message.includes("renderable physical signature"), "raw signatures were admitted before planner entry");
+  assert.equal(diagnostics.length, 0, "corrupted raw adapters cannot fabricate another source diagnostic");
+  const invalidStream = createCsharpPlanningContext({ ...program, records: { ...program.records,
+    callableDispatch: { get: node => node === method ? { ...dispatch, adapters: [{ contract: dispatch.implementation,
+      parameters: [] }] } : program.records.callableDispatch.get(node) } } });
+  assert.throws(() => planCsharpProjectCallableAdapters(method, planned, file, invalidStream, diagnostics),
+    error => error.message.includes("exact logical argument stream"),
+    "one admitted parameter adapter per physical destination is a producer guarantee");
+  assert.equal(diagnostics.length, 0, "a corrupted stream is distinct from a child's existing source refusal");
+});
+
+test("a rejected method default cannot become an adapter-stream invariant", () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+    function tag(parts: TemplateStringsArray): number { return 1; }
+    class Base { read(): number { return 1; } }
+    export class View extends Base {
+      read(value: number = tag\`default\`): number { return value; }
+    }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText, "", "the checked optional override is valid source");
+  assert.equal(compiled.result.diagnostics.some(issue => issue.category === "error"), true,
+    "the unsupported initializer retains its source refusal instead of an internal error");
+  assert.equal(compiled.targetDiagnostics.some(issue => issue.code === "CSHARP_UNSUPPORTED_AST"), true,
+    "the checked JS initializer keeps its actual unsupported-expression refusal");
+  assert.equal(compiled.targetDiagnostics.some(issue => issue.code.startsWith("TSONIC_INTERNAL_")), false,
+    "a refused initializer cannot become an internal adapter-stream failure");
+  assert.equal(compiled.artifacts.size, 0, "a rejected child cannot publish its incomplete adapter");
 });

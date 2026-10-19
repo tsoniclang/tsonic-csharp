@@ -10,12 +10,21 @@ export interface CsharpProjectCallableAdapter {
   readonly result: CsharpCallableValueAdapter;
 }
 
-export interface CsharpProjectCallableDispatch {
+export interface CsharpProjectMethodDispatch {
+  readonly kind: "method";
   readonly overridesBase: boolean;
   readonly hasDerivedOverride: boolean;
   readonly implementation: CsharpSourceCallableContract;
   readonly adapters: readonly CsharpProjectCallableAdapter[];
 }
+
+export interface CsharpProjectPropertyDispatch {
+  readonly kind: "property";
+  readonly overridesBase: boolean;
+  readonly hasDerivedOverride: boolean;
+}
+
+export type CsharpProjectCallableDispatch = CsharpProjectMethodDispatch | CsharpProjectPropertyDispatch;
 
 export interface CsharpProjectCallableAdapters {
   readonly issues: readonly CsharpProjectTypeIssue[];

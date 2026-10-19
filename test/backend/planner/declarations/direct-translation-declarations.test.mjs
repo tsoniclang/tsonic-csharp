@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   compileCsharpSource,
 } from "../../../helpers/direct-csharp-session.mjs";
+import { executeCsharpConstruction } from "../../../helpers/native-construction.mjs";
 
 test("direct C# declaration translation preserves generic constraints, static state, accessors, and optional storage", () => {
   const compiled = cleanCompile(`
@@ -89,21 +90,38 @@ test("direct C# declaration translation preserves generic constraints, static st
 `);
 });
 
-test("static class fields require explicit source initialization semantics", () => {
-  const rejected = compileCsharpSource({
+test("static class fields admit native numeric, boolean and absent defaults only", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({
     sourceText: `
       import type { int32 } from "@tsonic/core/types.js";
       export class Counter {
         static total: int32;
+        static enabled: boolean;
+        static note: string | undefined;
       }
     `,
   });
 
-  assert.equal(rejected.sourceDiagnosticsText, "");
-  assert.deepEqual(rejected.extensionDiagnostics, []);
-  assert.deepEqual(rejected.targetDiagnostics.map(({ code }) => code), [
-    "CSHARP_STATIC_FIELD_INITIALIZER_REQUIRED",
-  ]);
+  assert.equal(compiled.sourceDiagnosticsText, "", "native-default fields are checked source");
+  assert.equal(compiled.extensionDiagnostics.length, 0, "no extra initialization annotation");
+  assert.equal(compiled.targetDiagnostics.length, 0, "native defaults belong to the declared physical carriers");
+  executeCsharpConstruction(compiled, "native-static-defaults", false, false, [], `
+if (Tsonic.Generated.Counter.total != Handwritten.total ||
+    Tsonic.Generated.Counter.enabled != Handwritten.enabled ||
+    Tsonic.Generated.Counter.note != Handwritten.note)
+    throw new System.Exception("native static defaults");
+static class Handwritten {
+    public static int total = default(int);
+    public static bool enabled = default(bool);
+    public static string? note = default(string?);
+}
+`);
+  const rejected = compileCsharpSource({ sourceText: "export class Text { static value: string; }" });
+  assert.equal(rejected.sourceDiagnosticsText, "", "reference refusal is native admission, not source syntax");
+  assert.equal(rejected.extensionDiagnostics.length, 0, "reference refusal has one owning layer");
+  assert.equal(rejected.targetDiagnostics.length, 1, "one native reference-default refusal");
+  assert.equal(rejected.targetDiagnostics[0]?.code, "CSHARP_STATIC_FIELD_INITIALIZER_REQUIRED");
+  assert.equal(rejected.artifacts.size, 0, "an invalid reference default publishes no artifacts");
 
   const explicitDefault = cleanCompile(`
     import { defaultvalue } from "@tsonic/core/lang.js";

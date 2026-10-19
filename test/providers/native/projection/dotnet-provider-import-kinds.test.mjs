@@ -1,3 +1,4 @@
+import { nativeTypeFixture } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
 import {
   assert,
   createDotnetSourceDeclarationProvider,
@@ -26,7 +27,7 @@ test(".NET provider preserves exact synthetic export slices used by provider her
       return {
         moduleSpecifier: specifier,
         namespaceName: "Acme",
-        exports: [{
+        exports: [nativeTypeFixture({
           kind: "type",
           isByRefLike: false, constraintRequiresReferenceType: true,
           allowsRefLikeTypeArguments: [],
@@ -35,7 +36,7 @@ test(".NET provider preserves exact synthetic export slices used by provider her
           namespaceName: "Acme",
           targetId: testTargetId("Acme.Base"),
           metadataName: "Acme.Base",
-        }],
+        })],
       };
     },
   };
@@ -88,7 +89,7 @@ test(".NET provider resolves interleaved declaration requests from each exact re
       return {
         moduleSpecifier: specifier,
         namespaceName: "Acme",
-        exports: (context.requestedExports ?? []).map((sourceName) => ({
+        exports: (context.requestedExports ?? []).map((sourceName) => (nativeTypeFixture({
           kind: "type",
           isByRefLike: false, constraintRequiresReferenceType: true,
           allowsRefLikeTypeArguments: [],
@@ -97,7 +98,7 @@ test(".NET provider resolves interleaved declaration requests from each exact re
           namespaceName: "Acme",
           targetId: testTargetId(`Acme.${sourceName}`),
           metadataName: `Acme.${sourceName}`,
-        })),
+        }))),
       };
     },
   };
@@ -151,7 +152,7 @@ test(".NET provider imports external class heritage as values without widening t
   const model = dotnetModuleToProviderDeclarationModel({
     moduleSpecifier: "@acme/derived.js",
     namespaceName: "Acme",
-    exports: [{
+    exports: [nativeTypeFixture({
       kind: "type",
       isByRefLike: false, constraintRequiresReferenceType: true,
       allowsRefLikeTypeArguments: [],
@@ -165,7 +166,7 @@ test(".NET provider imports external class heritage as values without widening t
         property("Metadata", externalType("Acme.BaseMetadata", "@acme/base.js", "BaseMetadata")),
         property("Contract", externalType("Acme.Contract", "@acme/contracts.js", "Contract")),
       ],
-    }],
+    })],
   });
 
   assert.deepEqual(model.imports, [
@@ -212,7 +213,7 @@ test(".NET provider promotes a repeated external ref to one value-capable herita
   const model = dotnetModuleToProviderDeclarationModel({
     moduleSpecifier: "@acme/derived.js",
     namespaceName: "Acme",
-    exports: [{
+    exports: [nativeTypeFixture({
       kind: "type",
       isByRefLike: false, constraintRequiresReferenceType: true,
       allowsRefLikeTypeArguments: [],
@@ -231,7 +232,7 @@ test(".NET provider promotes a repeated external ref to one value-capable herita
         readable: true,
         type: baseType,
       }],
-    }],
+    })],
   });
 
   assert.deepEqual(model.imports, [{

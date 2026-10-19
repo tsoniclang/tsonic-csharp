@@ -17,7 +17,7 @@ import {
   sourceClassFieldIsTypeOnly,
 } from "@tsonic/target-api/source";
 import {
-  unsupportedNodeDiagnostic,
+  failCsharpPlannerInvariant,
 } from "../../diagnostics.js";
 import { planConstructorDeclarations } from "./constructors.js";
 import {
@@ -43,7 +43,7 @@ export function planClassMembers(
   const planned: CsharpTypeMember[] = [];
   const accessorProperties = new Map<string, CsharpPropertyDeclaration>();
   for (const member of members) {
-    if (member === undefined || sourceClassFieldIsTypeOnly(input.program.source.ast, member)) {
+    if (member === undefined || input.program.records.compileTimeMetadata.get(member) || sourceClassFieldIsTypeOnly(input.program.source.ast, member)) {
       continue;
     }
     const owner = input.program.source.ast.parent(member);
@@ -64,10 +64,14 @@ export function planClassMembers(
       case KindMethodDeclaration: {
         const participation = input.program.records.nativeParticipation.get(member);
         if (participation === "body" || participation === "signature") {
-          const method = planMethodDeclaration(member, sourceFile, memberInput, diagnostics);
+          const firstDiagnostic = diagnostics.length;
           const write = input.program.records.methodWrite.get(member);
+          const method = planMethodDeclaration(member, sourceFile, memberInput, diagnostics,
+            { kind: "source", declaration: member, role: write === undefined ? "member" : "implementation" });
           planned.push(...(write === undefined ? [method] : planCsharpMutableMethod(member, method, write, input, diagnostics)));
-          planned.push(...planCsharpProjectCallableAdapters(member, method, sourceFile, memberInput, diagnostics));
+          if (!diagnostics.some((issue, index) => index >= firstDiagnostic && issue.category === "error")) {
+            planned.push(...planCsharpProjectCallableAdapters(member, method, sourceFile, memberInput, diagnostics));
+          }
         }
         break;
       }
@@ -81,8 +85,7 @@ export function planClassMembers(
         mergeAccessorProperty(member, planned, accessorProperties, sourceFile, memberInput, diagnostics);
         break;
       default:
-        diagnostics.push(unsupportedNodeDiagnostic(member, "Class member is outside the current C# planning surface."));
-        break;
+        return failCsharpPlannerInvariant("An admitted class member lost its native declaration form.", member);
     }
   }
   return planned;

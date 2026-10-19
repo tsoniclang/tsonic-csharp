@@ -124,7 +124,7 @@ test("constraint carriers use their single exact source or native producer witho
     { allowsRefLikeTypeArguments: [false] });
   const sourceDefinition = { id: sourceCarrier.id, declaration };
   let nativeLookups = 0;
-  const providers = { findTargetBindingByTargetId() { nativeLookups += 1; return undefined; } };
+  const providers = { findTargetBindingByTargetId() { nativeLookups += 1; return { kind: "missing" }; } };
   const arguments_ = new Map([[parameter.identity, integer]]);
   const constraint = { kind: "implements", contract: sourceCarrier.id, typeArguments: [parameter] };
   const catalog = { definitions: [sourceDefinition], targetTypeForDeclaration(selected, types) {
@@ -143,7 +143,7 @@ test("constraint carriers use their single exact source or native producer witho
   const binding = { target: "csharp", id: nativeCarrier.id, kind: "interface", csharpType: nativeCarrier,
     typeParameters: [{ ...parameter, csharpAllowsRefLike: true }] };
   const selected = implementedConstraintType({ projectTypes: { catalog: { definitions: [] } },
-    providers: { findTargetBindingByTargetId: id => id === nativeCarrier.id ? binding : undefined } },
+    providers: { findTargetBindingByTargetId: id => id === nativeCarrier.id ? { kind: "resolved", binding } : { kind: "missing" } } },
   { kind: "implements", contract: nativeCarrier.id, typeArguments: [integer] }, new Map());
   assert.equal(selected?.kind, "target-named", "native constraints retain their real named carrier");
   assert.equal(selected.typeArguments[0] === integer, true, "native argument substitution is exact");

@@ -13,7 +13,7 @@ import type { CsharpExpectedUseCollection } from "./collection.js";
 import type { CsharpExpectedTypeAnalysisInput, CsharpExpectedUseSiteDemand, CsharpExpectedUseWithholding } from "./model.js";
 
 export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnalysisInput, collection: CsharpExpectedUseCollection) {
-  const { policy, evidence, operations, objectShapes, callables, declarations } = input;
+  const { policy, evidence, operations, objectShapes, callables, declarations, valueReadStages } = input;
   const record = collection.record;
   const at = (owner: Node, slot: CsharpNativeUseSlot): CsharpExpectedUseSiteDemand => ({ owner, slot });
   return Object.freeze({ recordThrownValue, recordInitializer, recordOperationUses });
@@ -33,6 +33,13 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
     const slot: CsharpNativeUseSlot | undefined = policy.ast.is.IsVariableDeclaration(node) || policy.ast.is.IsPropertyDeclaration(node)
       ? { kind: "initializer" } : policy.ast.is.IsParameterDeclaration(node) || policy.ast.is.IsBindingElement(node) ? { kind: "default" } : undefined;
     if (initializer === undefined) return;
+    const name = policy.ast.name(node);
+    if (policy.ast.is.IsVariableDeclaration(node) && name !== undefined &&
+      (policy.ast.is.IsObjectBindingPattern(name) || policy.ast.is.IsArrayBindingPattern(name))) {
+      record(initializer, valueReadStages.get(initializer)?.operationValue, "required",
+        slot === undefined ? undefined : at(node, slot));
+      return;
+    }
     const target = policy.ast.is.IsParameterDeclaration(node) ? declarations.runtimeDefault.get(node)?.valueType : undefined;
     record(initializer, target ?? (typeNode === undefined ? evidence.storageTargetType.get(node) : evidence.nodeTargetType.get(typeNode)),
       typeNode === undefined ? "contextual" : "required", slot === undefined ? undefined : at(node, slot));
@@ -79,6 +86,12 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
         construction.sourceArgumentParameterTypes, construction.sourceArgumentGrouping);
     }
     const switchSelection = operations.switchStatement.get(node);
+    if (switchSelection?.kind === "native") {
+      record(switchSelection.expression, switchSelection.type, "required", at(node, { kind: "operand", position: "only" }));
+      for (const [index, clause] of switchSelection.clauses.entries()) {
+        if (clause.expression !== undefined) record(clause.expression, switchSelection.type, "required", at(node, { kind: "case", index }));
+      }
+    }
     if (switchSelection?.kind === "ordered") for (const [index, clause] of switchSelection.clauses.entries()) {
       if (clause.comparison?.kind !== "resolved") continue;
       record(clause.comparison.left, clause.comparison.leftInputType, "required", at(node, { kind: "operand", position: "left" }));

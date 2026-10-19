@@ -5,6 +5,7 @@ import { compileCsharpRequiredRecordSource, csharpRecordInput } from "../../help
 import { createCsharpProgramRecords } from "../../../dist/analysis/program/records/create.js";
 import { assertCsharpRequiredRecords } from "../../../dist/analysis/program/records/required-records.js";
 import { createCsharpObjectShapeDemandEngine } from "../../../dist/analysis/objects/native-demand-requests.js";
+import { publishCsharpNativeArtifactDemand } from "../../../dist/analysis/objects/native-demand-declarations.js";
 import { objectShapeArtifactKey } from "../../../dist/target-model/records/object-shape-demand.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { createCsharpPlanningContext } from "../../../dist/backend/planner/context.js";
@@ -149,10 +150,14 @@ test("artifact demand seals once and the backend cannot reach the native query o
     targetShapes,
     resolveTarget(selected) { assert.equal(closed, false, "queries run before publication"); reads += 1; return selected === type ? fact : undefined; },
     knownShapes: () => [fact],
-  }, ast: {}, names: { typeParameterNames: [] }, captureStorage: { captureFrameShape: { get() {} } },
+  }, ast: {}, captureStorage: { captureFrameShape: { get() {} } },
     conversions: { conversion: { get() {} } } });
   assert.equal(engine.registerObjectShape(fact, "synthetic").kind, "accepted");
-  const demand = engine.seal();
+  const closure = engine.close();
+  closed = true;
+  const closedReads = reads;
+  const demand = publishCsharpNativeArtifactDemand(closure, { typeParameterNames: [] });
+  assert.equal(reads, closedReads, "final name publication never re-enters native artifact demand");
   assert.equal(demand.targetShapes === targetShapes && Object.isFrozen(demand.targetShapes), true,
     "the immutable completed lookup is transported without reindexing");
   closed = true;
@@ -160,15 +165,16 @@ test("artifact demand seals once and the backend cannot reach the native query o
   for (let index = 0; index < 4; index += 1) assert.equal(demand.get(objectShapeArtifactKey(fact)).fact === fact, true, "same fixed record");
   assert.equal(reads, before, "no native-query recomputation after publication");
   assert.throws(() => engine.registerObjectShape(fact, "synthetic"), /artifact demand is sealed/u);
-  assert.throws(() => engine.seal(), /artifact demand is sealed/u);
+  assert.throws(() => engine.close(), /artifact demand is sealed/u);
+  assert.equal(Object.hasOwn(engine, "seal"), false, "the retired demand-and-publication API is absent");
 });
 
 test("artifact demand requires its canonical immutable completed shape index at sealing", () => {
   for (const targetShapes of [undefined, {}]) {
     const engine = createCsharpObjectShapeDemandEngine({ objectShapes: { targetShapes, resolveTarget() {} },
-      ast: {}, names: { typeParameterNames: [] }, captureStorage: { captureFrameShape: { get() {} } },
+      ast: {}, captureStorage: { captureFrameShape: { get() {} } },
       conversions: { conversion: { get() {} } } });
-    assert.throws(() => engine.seal(), /immutable completed target-shape index/u,
+    assert.throws(() => engine.close(), /immutable completed target-shape index/u,
       "a missing or mutable input cannot become a published artifact DTO");
   }
 });

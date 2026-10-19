@@ -182,7 +182,7 @@ test("sealed C# classification queries cannot delegate to analysis policy", () =
 
 test("binding rendering has no superseded source or carrier hint API", () => {
   for (const file of ["binding-patterns.ts", "binding-array-patterns.ts", "binding-object-patterns.ts",
-    "binding-pattern-contracts.ts", "destructuring-assignment/planning.ts"]) {
+    "binding-pattern-contracts.ts", "destructuring-assignment.ts"]) {
     const source = readFileSync(resolve(repositoryRoot, "src/backend/planner/bindings", file), "utf8");
     assert.doesNotMatch(source, /\b(?:getObjectShapeForBindingSource|_sourceNode|_sourceCarrier|_sourceCarrierOverride|_sourceFile|projectedCarrier)\b/u,
       `${file}: only sealed projection evidence determines the binding representation`);

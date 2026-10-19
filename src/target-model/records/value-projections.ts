@@ -1,6 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { CsharpArrayBindingCarrier } from "../types/carriers/binding-array-carrier.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../types/model.js";
+import type { CsharpConversionSelection } from "../conversions/selection.js";
 
 export type CsharpBindingPatternSource =
   | {
@@ -25,6 +26,7 @@ export type CsharpBindingElementProjection =
   | { readonly kind: "array-rest"; readonly start: number; readonly restCarrier: TargetTypeRef }
   | { readonly kind: "tuple-rest"; readonly start: number; readonly restCarrier: Extract<TargetTypeRef, { readonly kind: "tuple" }> }
   | { readonly kind: "object-shape-member"; readonly member: CsharpObjectShapeMemberFact }
+  | { readonly kind: "object-shape-absence"; readonly carrier: TargetTypeRef }
   | {
       readonly kind: "object-shape-rest";
       readonly restShape: CsharpObjectShapeFact;
@@ -82,6 +84,12 @@ export interface CsharpBindingProjectionFact {
   readonly element?: CsharpBindingElementProjection;
   readonly assignmentPattern?: CsharpDestructuringAssignmentPattern;
   readonly defaultValue?: CsharpDefaultValueContract;
+  readonly binding?: {
+    readonly node: Node;
+    readonly source: TargetTypeRef;
+    readonly target: TargetTypeRef;
+    readonly conversion: CsharpConversionSelection;
+  };
 }
 
 export interface CsharpDefaultValueContract {

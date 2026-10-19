@@ -16,7 +16,7 @@ import {
 
 const policy = {
   projectTypes: { directSupertypes: () => [] },
-  providers: { findTargetBindingByTargetId: () => undefined },
+  providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) },
   target: {},
 };
 const stringType = csharpStringTargetType();

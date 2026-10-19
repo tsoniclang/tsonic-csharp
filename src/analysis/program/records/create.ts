@@ -23,6 +23,7 @@ import type { CsharpNativeValueCarriers } from "../../../target-model/records/na
 import { assertCsharpRequiredRecords, type CsharpRequiredRecord } from "./required-records.js";
 import type { CsharpCallableCreationIndex } from "../../callables/model.js";
 import type { CsharpObjectShapeDemand } from "../../../target-model/records/object-shape-demand.js";
+import type { CsharpAdmittedIteration } from "../../../target-model/records/selection.js";
 
 export interface CsharpProgramRecordInput {
   readonly objectShapeDemand: CsharpObjectShapeDemand;
@@ -34,7 +35,7 @@ export interface CsharpProgramRecordInput {
   readonly sourceEvidence: CsharpSourceEvidenceIndex;
   readonly flowReads: CsharpFlowReadClassifications;
   readonly valueReads: CsharpValueReadClassifications;
-  readonly operations: CsharpTargetOperationClassifications;
+  readonly operations: CsharpTargetOperationClassifications<CsharpAdmittedIteration>;
   readonly expectedTypes: CsharpExpectedTypeClassifications;
   readonly declarations: CsharpDeclarationClassifications;
   readonly storage: CsharpStorageClassifications;

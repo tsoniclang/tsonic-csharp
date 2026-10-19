@@ -1,3 +1,4 @@
+import { csharpProviderBindingFromResolution } from "../../providers/model/relation-resolver.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import {
@@ -691,7 +692,7 @@ export function analyzeCsharpConversions(
           pending.push({ source: element, target: target.elements[elementIndex]! });
         }
       } else if (source.kind === "target-named" && target.kind === "target-named" && source.id === target.id) {
-        const parameters = csharpTargetBindingFact(policy.providers.findTargetBindingByTargetId(source.id))?.typeParameters;
+        const parameters = csharpTargetBindingFact(csharpProviderBindingFromResolution(policy.providers.findTargetBindingByTargetId(source.id, "ordinary")))?.typeParameters;
         const sourceArguments = source.typeArguments ?? [];
         const targetArguments = target.typeArguments ?? [];
         if (parameters === undefined || sourceArguments.length !== targetArguments.length || parameters.length !== sourceArguments.length) continue;

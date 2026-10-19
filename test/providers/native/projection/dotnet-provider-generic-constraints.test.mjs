@@ -1,3 +1,4 @@
+import { resolvedNativeBinding } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
 import assert from "node:assert/strict";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
@@ -25,7 +26,7 @@ test("native bound metadata round-trips actual class, interface, value, enum and
   ]) {
     const declaration = getDeclaration(module, `ProviderConstraintFixtures.${name}`);
     assert.equal(declaration.constraintRequiresReferenceType, expected, `${name}: native declaration evidence`);
-    const binding = provider.findTargetBindingByTargetId(declaration.targetId);
+    const binding = resolvedNativeBinding(provider.findTargetBindingByTargetId(declaration.targetId, "ordinary"));
     assert.equal(binding !== undefined, true, `${name}: the canonical binding is present`);
     assert.equal(binding.csharpType.csharpConstraintRequiresReferenceType === true, expected,
       `${name}: selected native carrier retains the actual guarantee`);
@@ -73,7 +74,7 @@ test(".NET provider projects source-compatible constraints and keeps target-only
     },
   ]);
 
-  const binding = provider.findTargetBindingByTargetId(rawReferenceNewTarget.targetId);
+  const binding = resolvedNativeBinding(provider.findTargetBindingByTargetId(rawReferenceNewTarget.targetId, "ordinary"));
   assert.ok(binding);
   assert.deepEqual(
     binding.typeParameters[0].constraints.map(targetConstraintKindOrName),
@@ -90,7 +91,7 @@ test(".NET provider projects source-compatible constraints and keeps target-only
   const sourceStructTarget = getSourceDeclaration(sourceModel, "StructTarget");
   assert.equal(sourceStructTarget.typeParameters?.[0]?.constraints, undefined);
   assert.deepEqual(
-    provider.findTargetBindingByTargetId(rawStructTarget.targetId).typeParameters[0].constraints.map(targetConstraintKindOrName),
+    resolvedNativeBinding(provider.findTargetBindingByTargetId(rawStructTarget.targetId, "ordinary")).typeParameters[0].constraints.map(targetConstraintKindOrName),
     ["value-type", "constructible"],
   );
 
@@ -98,7 +99,7 @@ test(".NET provider projects source-compatible constraints and keeps target-only
   const sourceUnmanagedTarget = getSourceDeclaration(sourceModel, "UnmanagedTarget");
   assert.equal(sourceUnmanagedTarget.typeParameters?.[0]?.constraints, undefined);
   assert.deepEqual(
-    provider.findTargetBindingByTargetId(rawUnmanagedTarget.targetId).typeParameters[0].constraints.map(targetConstraintKindOrName),
+    resolvedNativeBinding(provider.findTargetBindingByTargetId(rawUnmanagedTarget.targetId, "ordinary")).typeParameters[0].constraints.map(targetConstraintKindOrName),
     ["unmanaged"],
   );
 
@@ -106,7 +107,7 @@ test(".NET provider projects source-compatible constraints and keeps target-only
   const sourceNotNullTarget = getSourceDeclaration(sourceModel, "NotNullTarget");
   assert.equal(sourceNotNullTarget.typeParameters?.[0]?.constraints, undefined);
   assert.deepEqual(
-    provider.findTargetBindingByTargetId(rawNotNullTarget.targetId).typeParameters[0].constraints.map(targetConstraintKindOrName),
+    resolvedNativeBinding(provider.findTargetBindingByTargetId(rawNotNullTarget.targetId, "ordinary")).typeParameters[0].constraints.map(targetConstraintKindOrName),
     ["target-specific:csharp:notnull"],
   );
 });
@@ -127,7 +128,7 @@ test(".NET provider preserves nested and generic target identities without metad
     nested: [{ name: "SpecialFolder" }],
   });
 
-  const specialFolderBinding = provider.findTargetBindingByTargetId(specialFolder.targetId);
+  const specialFolderBinding = resolvedNativeBinding(provider.findTargetBindingByTargetId(specialFolder.targetId, "ordinary"));
   assert.ok(specialFolderBinding);
   assert.equal(specialFolderBinding.id, specialFolder.targetId);
   assert.equal(specialFolderBinding.csharpType.kind, "target-named");
@@ -145,7 +146,7 @@ test(".NET provider preserves nested and generic target identities without metad
   assert.match(dictionary.targetId, /::System\.Collections\.Generic\.Dictionary`2$/u);
   assert.deepEqual(dictionary.typeParameters?.map((parameter) => parameter.name), ["TKey", "TValue"]);
 
-  const dictionaryBinding = provider.findTargetBindingByTargetId(dictionary.targetId);
+  const dictionaryBinding = resolvedNativeBinding(provider.findTargetBindingByTargetId(dictionary.targetId, "ordinary"));
   assert.ok(dictionaryBinding);
   assert.equal(dictionaryBinding.id, dictionary.targetId);
   assert.deepEqual(dictionaryBinding.csharpType.typeArguments, [

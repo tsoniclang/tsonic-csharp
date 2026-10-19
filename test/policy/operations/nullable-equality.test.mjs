@@ -4,7 +4,7 @@ import { validateBinaryTargetSemantics } from "../../../dist/policy/operations/o
 import { csharpNullableTargetType, csharpTargetNamedType } from "../../../dist/target-model/types/index.js";
 
 const context = {
-  providers: { findTargetBindingByTargetId: () => undefined },
+  providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) },
   projectTypes: { catalog: { definitionForTarget: () => undefined } },
 };
 
@@ -21,7 +21,7 @@ test("nullable equality does not infer equality of two absent or unproved provid
   const nullable = csharpNullableTargetType({ kind: "source-primitive", name: "float64" });
   assert.match(validateBinaryTargetSemantics("===", nullable, nullable, context), /not proven equivalent/);
   const provider = csharpTargetNamedType("External.Value", [], { kind: "named", namespace: ["External"], name: "Value" }, { allowsRefLikeTypeArguments: [], valueType: true });
-  const owned = { ...context, providers: { findTargetBindingByTargetId: () => ({ kind: "struct" }) } };
+  const owned = { ...context, providers: { findTargetBindingByTargetId: () => ({ kind: "resolved", binding: { kind: "struct" } }) } };
   assert.match(validateBinaryTargetSemantics("===", csharpNullableTargetType(provider), provider, owned), /provider operator relation/);
 });
 
@@ -32,7 +32,7 @@ test("native nullish operators do not require provider overloads", () => {
   const value = csharpTargetNamedType("External.Value", [], {
     kind: "named", namespace: ["External"], name: "Value",
   }, { allowsRefLikeTypeArguments: [], valueType: true });
-  const owned = { ...context, providers: { findTargetBindingByTargetId: () => ({ kind: "class" }) } };
+  const owned = { ...context, providers: { findTargetBindingByTargetId: () => ({ kind: "resolved", binding: { kind: "class" } }) } };
   for (const operator of ["??", "??="]) {
     assert.equal(validateBinaryTargetSemantics(operator, reference, reference, owned), undefined);
     assert.equal(validateBinaryTargetSemantics(operator, csharpNullableTargetType(value), value, owned), undefined);

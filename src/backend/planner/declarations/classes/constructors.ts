@@ -18,9 +18,6 @@ import {
   planCallArgument,
 } from "../../expressions/index.js";
 import {
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers,
-} from "../modifiers.js";
-import {
   planParametersWithPrelude,
 } from "../callables/parameters.js";
 import {
@@ -69,18 +66,15 @@ export function planConstructorDeclarations(
   initializers: readonly CsharpStatement[],
 ): readonly CsharpConstructorDeclaration[] {
   const declaration = AsConstructorDeclaration(input.program.source.ast, node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "constructor declaration", diagnostics, ["public", "private", "protected"]);
   const baseCall = csharpConstructorBaseCall(input.program.source.ast, node);
   const leadingSuperCall = baseCall === undefined ? undefined : AsCallExpression(input.program.source.ast, baseCall);
   const state = createDestructuringPlannerState(node, input.program.source.ast);
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
-  const baseArgumentPlans = leadingSuperCall === undefined ? []
-    : planBaseConstructorArguments(leadingSuperCall, sourceFile, input, diagnostics, state);
   const constructor: CsharpConstructorDeclaration = {
       kind: "ConstructorDeclaration",
       name: className,
       modifiers: withCsharpSafetyModifiers(
-        planClassMemberModifiers(node, undefined, input),
+        planClassMemberModifiers(node, undefined, input, { kind: "source", declaration: node, role: "member" }),
         node,
         "constructor",
         input,
@@ -89,10 +83,17 @@ export function planConstructorDeclarations(
       parameters: parameters.parameters,
       body: { kind: "Block", statements: [] },
   };
-  if (baseArgumentPlans === undefined) return [constructor];
   if (csharpConstructorRequiresPreparation(input.program.source.ast, node, input.program.records, input.program.records,
-    parameter => input.program.records.capturedBinding.get(parameter) !== undefined)) return planCsharpPreparedConstructor(node, declaration.Body, constructor,
-    parameters, baseArgumentPlans, sourceFile, input, diagnostics, state, leadingSuperCall !== undefined, initializers);
+    parameter => input.program.records.capturedBinding.get(parameter) !== undefined)) {
+    const baseArgumentPlans = leadingSuperCall === undefined ? []
+      : planBaseConstructorArguments(leadingSuperCall, sourceFile, input, diagnostics, state, false);
+    if (baseArgumentPlans === undefined) return [constructor];
+    return planCsharpPreparedConstructor(node, declaration.Body, constructor, parameters,
+      baseArgumentPlans, sourceFile, input, diagnostics, state, leadingSuperCall !== undefined, initializers);
+  }
+  const baseArgumentPlans = leadingSuperCall === undefined ? []
+    : planBaseConstructorArguments(leadingSuperCall, sourceFile, input, diagnostics, state, true);
+  if (baseArgumentPlans === undefined) return [constructor];
   const baseArguments: CsharpArgument[] = [];
   for (const argument of baseArgumentPlans) {
     const syntax = planCsharpConstructorInitializerArgument(argument.node, argument.value, parameters.parameters, input, diagnostics, argument.expectedCarrier);
@@ -118,6 +119,7 @@ function planBaseConstructorArguments(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
+  directEntry: boolean,
 ): readonly CsharpConstructorArgumentPlan[] | undefined {
   const planned: CsharpConstructorArgumentPlan[] = [];
   const callNode = call.Expression === undefined ? undefined : input.program.source.ast.parent(call.Expression);
@@ -127,7 +129,9 @@ function planBaseConstructorArguments(
       continue;
     }
     const carrier = selection?.sourceArgumentParameterTypes?.[index];
-    const plannedArgument = planCallArgument(argument, sourceFile, input, diagnostics, carrier, state);
+    const selectedArgument = directEntry ? input.program.records.sourceArgument.get(argument) : undefined;
+    const plannedArgument = planCallArgument(argument, sourceFile, input, diagnostics, carrier, state,
+      selectedArgument?.kind === "resolved" ? selectedArgument.argument.passingMode : undefined);
     if (plannedArgument === undefined) {
       return undefined;
     }

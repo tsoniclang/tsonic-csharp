@@ -1,14 +1,5 @@
 import type { CsharpPlanningContext } from "../context.js";
-import {
-  AsAsExpression,
-  AsTypeAssertion,
-  AsVariableDeclaration,
-  HasSourceKind,
-  KindArrowFunction,
-  KindCallExpression,
-  KindFunctionExpression,
-  KindNewExpression,
-} from "@tsonic/target-api/source";
+import { AsVariableDeclaration } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
@@ -16,14 +7,9 @@ import type {
   CsharpLocalDeclaration,
   CsharpStatement,
 } from "../../target-ast/syntax/index.js";
-import { getCsharpTypeForNode } from "../types/index.js";
-import {
-  getTargetTypeRefForNode,
-} from "../types/runtime-carriers.js";
 import { planExpression } from "../expressions/index.js";
 import { planCsharpNativeMemoryCall } from "../expressions/native-memory.js";
 import { csharpCarrierAdmitsSourceAbsence, csharpRuntimeLocationTargetType, csharpRuntimeNativeArrayTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
-import { getLambdaTargetContext } from "../expressions/expression-lambdas.js";
 import { planVariableBindingStatements } from "./index.js";
 import {
   declareCsharpLocalBindingName,
@@ -35,11 +21,7 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
 import {
-  targetTypeRefEquals,
-} from "../../../target-model/types/index.js";
-import {
   failCsharpPlannerInvariant,
-  unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
 import {
   planCsharpAbsentValue,
@@ -73,9 +55,6 @@ export function planLocalDeclaration(
   initializerOverride?: CsharpExpression,
 ): CsharpPlannedLocalDeclaration {
   const variable = AsVariableDeclaration(input.program.source.ast, declarationNode)!;
-  const typeSubject = variable.Type ?? getInitializerTypeSubject(variable.Initializer, sourceFile, input) ?? variable.name ?? variable.Initializer;
-  const expectedTargetType = getTargetTypeRefForNode(input, typeSubject, sourceFile) ??
-    getTargetTypeRefForNode(input, variable.name, sourceFile);
   const nativeRefReturn = variable.Initializer !== undefined &&
       input.program.source.ast.variableDeclarationKind(declarationNode) === "const"
     ? input.program.records.nativeRefReturn.get(variable.Initializer)
@@ -84,54 +63,22 @@ export function planLocalDeclaration(
     nativeRefReturn?.kind === "resolved" &&
     nativeRefReturn.returnType === undefined
   ) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      variable.Initializer ?? declarationNode,
-      "A selected C# native ref-return local has no closed pointee type.",
-    ));
+    failCsharpPlannerInvariant("An admitted native ref-return local lost its exact pointee type.", variable.Initializer ?? declarationNode);
   }
   const nativeRefTargetType = nativeRefReturn?.kind === "resolved"
     ? nativeRefReturn.returnType
     : undefined;
-  const explicitType = variable.Type === undefined
-    ? undefined
-    : getCsharpTypeForNode(variable.Type, sourceFile, input, undefined, diagnostics);
-  const lambdaInitializer = variable.Initializer !== undefined &&
-    (
-      HasSourceKind(input.program.source.ast, variable.Initializer, KindArrowFunction) ||
-      HasSourceKind(input.program.source.ast, variable.Initializer, KindFunctionExpression)
-    );
-  const inferredLambdaType = lambdaInitializer
-    ? getLambdaTargetContext(
-        variable.Initializer!,
-        input,
-      )?.type
-    : undefined;
-  const inferredTargetType = input.program.records.storageTargetType.get(
-    declarationNode,
-  );
   const storageType = input.program.records.storageType.get(declarationNode);
-  const requiredStorageType = storageType !== undefined &&
-      inferredTargetType !== undefined &&
-      !targetTypeRefEquals(storageType, inferredTargetType)
-    ? csharpTypeFromTargetTypeRef(storageType, input.scope.typeParameterNames)
-    : undefined;
-  const type = (nativeRefTargetType === undefined
-      ? undefined
-      : csharpTypeFromTargetTypeRef(nativeRefTargetType, input.scope.typeParameterNames)) ??
-    requiredStorageType ??
-    explicitType ??
-    inferredLambdaType ??
-    (storageType === undefined
-      ? undefined
-      : csharpTypeFromTargetTypeRef(storageType, input.scope.typeParameterNames)) ??
-    getCsharpTypeForNode(typeSubject, sourceFile, input, undefined, diagnostics);
-  const name = declareCsharpLocalBindingName(variable.name, input, diagnostics, state, "Local binding name", "LocalDeclarationStatement");
-  const initializerCarrier = nativeRefTargetType ?? storageType ?? expectedTargetType ?? inferredTargetType;
+  const initializerCarrier = nativeRefTargetType ?? storageType;
+  if (initializerCarrier === undefined) failCsharpPlannerInvariant(
+    "An admitted local declaration lost its finalized native storage carrier.", declarationNode);
+  const type = csharpTypeFromTargetTypeRef(initializerCarrier, input.scope.typeParameterNames);
+  if (type === undefined) failCsharpPlannerInvariant(
+    "An admitted local declaration lost its renderable native storage carrier.", declarationNode);
+  const name = declareCsharpLocalBindingName(variable.name!, input, state);
   let initializer: CsharpPlannedValue | undefined;
   if (initializerOverride !== undefined) {
-    if (initializerCarrier === undefined) diagnostics.push(unsupportedNodeDiagnostic(declarationNode,
-      "A supplied local initializer requires its finalized native storage carrier."));
-    else initializer = csharpPlannedValue(initializerCarrier, initializerOverride);
+    initializer = csharpPlannedValue(initializerCarrier, initializerOverride);
   } else if (variable.Initializer !== undefined) {
     initializer = planExpression(variable.Initializer, sourceFile, input, diagnostics, state
     );
@@ -149,7 +96,7 @@ export function planLocalDeclaration(
   if (nativeArray !== undefined && initializer !== undefined) {
     const nativeType = csharpTypeFromTargetTypeRef(csharpRuntimeNativeArrayTargetType(nativeArray.layout.pointeeType), input.scope.typeParameterNames);
     if (nativeType !== undefined) return { kind: "VariableDeclarator", name, type: nativeType, initializer };
-    diagnostics.push(unsupportedNodeDiagnostic(declarationNode, "The sealed native array has no renderable storage type."));
+    failCsharpPlannerInvariant("An admitted native array lost its renderable storage type.", declarationNode);
   }
   const nativeBacking = input.program.records.nativeBacking.get(declarationNode);
   if (nativeBacking !== undefined && initializer !== undefined) {
@@ -157,7 +104,7 @@ export function planLocalDeclaration(
     if (nativeType !== undefined) return { kind: "VariableDeclarator", name, type: nativeType,
       initializer: mapCsharpPlannedValue(initializer, csharpRuntimeLocationTargetType(nativeBacking.pointeeType),
         value => planCsharpNativeMemoryCall(input.scope.typeParameterNames, "Allocate", value, nativeBacking)) };
-    diagnostics.push(unsupportedNodeDiagnostic(declarationNode, "The sealed native local backing has no renderable location type."));
+    failCsharpPlannerInvariant("An admitted native local backing lost its renderable location type.", declarationNode);
   }
   return {
     kind: "VariableDeclarator",
@@ -187,11 +134,7 @@ export function planLocalDeclarationStatements(
   const declarationKind = input.program.source.ast.variableDeclarationKind(declarationNode);
   if (declarationKind === "using" || declarationKind === "await using") {
     if (!input.program.source.ast.is.IsIdentifier(variable.name)) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        variable.name ?? declarationNode,
-        "A resource declaration requires one exact identifier binding in C#.",
-      ));
-      return [];
+      return failCsharpPlannerInvariant("An admitted resource lost its exact identifier binding.", variable.name ?? declarationNode);
     }
     const locationIdentity = planCsharpTypedLocationIdentityDeclaration(
       declarationNode,
@@ -208,10 +151,10 @@ export function planLocalDeclarationStatements(
     const emit = (initializer?: CsharpExpression): readonly CsharpStatement[] => {
       const { initializer: _planned, ...binding } = local;
       const selected = { ...binding, ...(initializer === undefined ? {} : { initializer }) };
-      const registration = planResourceRegistrationStatement(declarationNode, selected, input, diagnostics, state);
+      const registration = planResourceRegistrationStatement(declarationNode, selected, input, state);
       return [...(locationIdentity === undefined ? [] : [locationIdentity]),
         { ...selected, kind: "LocalDeclarationStatement" },
-        ...(registration === undefined ? [] : [registration])];
+        registration];
     };
     return local.initializer === undefined ? emit() : consumeCsharpPlannedValue(local.initializer, emit);
   }
@@ -223,11 +166,8 @@ export function planLocalDeclarationStatements(
       );
   if (directYield !== undefined) {
     if (!input.program.source.ast.is.IsIdentifier(variable.name)) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        variable.name ?? declarationNode,
-        "A yield initializer with a binding pattern requires an explicit post-resume destructuring plan.",
-      ));
-      return [];
+      return failCsharpPlannerInvariant("An admitted yield initializer lost its exact post-resume identifier binding.",
+        variable.name ?? declarationNode);
     }
     const yieldPlan = planCsharpYieldValue(
       directYield,
@@ -296,6 +236,9 @@ export function planLocalDeclarationStatements(
   const emit = (initializer?: CsharpExpression): readonly CsharpStatement[] => {
     const captured = planCsharpCapturedInitialization(declarationNode, initializer, input, state);
     if (captured !== undefined) return [...(locationIdentity === undefined ? [] : [locationIdentity]), captured];
+    if (initializer === undefined && input.program.records.capturedBinding.get(declarationNode) !== undefined) {
+      return locationIdentity === undefined ? [] : [locationIdentity];
+    }
     if (
     variable.Initializer !== undefined &&
     initializer?.kind === "LambdaExpression" &&
@@ -354,31 +297,4 @@ function sourceInitializerReferencesDeclaration(
     child !== undefined &&
     sourceInitializerReferencesDeclaration(child, declaration, input)
   );
-}
-
-function getInitializerTypeSubject(
-  initializer: Node | undefined,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-): Node | undefined {
-  if (initializer === undefined) {
-    return undefined;
-  }
-  const assertion = AsAsExpression(input.program.source.ast, initializer) ?? AsTypeAssertion(input.program.source.ast, initializer);
-  const assertedTarget = assertion?.Type;
-  if (assertedTarget !== undefined && input.program.source.ast.isConstAssertion(initializer)) {
-    return assertion?.Expression;
-  }
-  if (assertedTarget !== undefined) {
-    return assertedTarget;
-  }
-  if (HasSourceKind(input.program.source.ast, initializer, KindArrowFunction) || HasSourceKind(input.program.source.ast, initializer, KindFunctionExpression)) {
-    return initializer;
-  }
-  if (HasSourceKind(input.program.source.ast, initializer, KindCallExpression) || HasSourceKind(input.program.source.ast, initializer, KindNewExpression)) {
-    return initializer;
-  }
-  return getTargetTypeRefForNode(input, initializer, sourceFile) !== undefined
-    ? initializer
-    : undefined;
 }

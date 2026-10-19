@@ -1,3 +1,4 @@
+import { nativeTypeFixture } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -12,7 +13,7 @@ test(".NET provider source closure excludes target-only metadata dependencies", 
     moduleSpecifier,
     exportName,
   });
-  const type = (sourceName, extra = {}) => ({
+  const type = (sourceName, extra = {}) => (nativeTypeFixture({
     kind: "type",
     isByRefLike: false, constraintRequiresReferenceType: true,
     allowsRefLikeTypeArguments: [],
@@ -22,7 +23,7 @@ test(".NET provider source closure excludes target-only metadata dependencies", 
     targetId: `Example::${sourceName}`,
     metadataName: `Example.${sourceName}`,
     ...extra,
-  });
+  }));
   const module = {
     moduleSpecifier,
     namespaceName: "Example",

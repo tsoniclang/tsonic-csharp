@@ -9,12 +9,8 @@ import { planCsharpAbsenceReturn } from "../../statements/statement-output.js";
 import {
   createDestructuringPlannerState,
 } from "../../bindings/index.js";
-import {
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers,
-} from "../modifiers.js";
-import {
-  planIdentifierName,
-} from "../../names/source-identifiers.js";
+import { planCsharpAdmittedMemberName } from "../modifiers.js";
+import type { CsharpNativeMemberIdentity } from "../../../../target-model/names/model.js";
 import {
   planParametersWithPrelude,
 } from "../callables/parameters.js";
@@ -26,8 +22,6 @@ import {
 } from "../../types/type-parameters.js";
 import {
   getAsyncReturnExpressionExpectedType,
-  getDeclarationReturnTargetType,
-  getExplicitReturnType,
 } from "../callables/return-types.js";
 import {
   planAttributesForSubject,
@@ -38,9 +32,7 @@ import {
 import {
   csharpTypeFromTargetTypeRef,
 } from "../../types/target-types.js";
-import {
-  unsupportedNodeDiagnostic,
-} from "../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import {
   csharpWellKnownSymbolTargetMemberName,
 } from "../../../../target-model/types/index.js";
@@ -57,27 +49,18 @@ export function planMethodDeclaration(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
+  subject: CsharpNativeMemberIdentity,
 ): CsharpMethodDeclaration {
   const declaration = AsMethodDeclaration(input.program.source.ast, node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "method declaration", diagnostics, ["public", "private", "protected", "abstract", "override"]);
   const state = createDestructuringPlannerState(node, input.program.source.ast);
-  const callable = input.program.records.callableDispatch.get(node)?.implementation;
+  const dispatch = input.program.records.callableDispatch.get(node);
+  if (dispatch?.kind !== "method") failCsharpPlannerInvariant("An admitted method lost its final native callable contract.", node);
+  const callable = dispatch.implementation;
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
-  const declaredReturnTargetType = callable?.returnType ?? getDeclarationReturnTargetType(
-    declaration.Type,
-    node,
-    sourceFile,
-    input,
-  );
-  const declaredReturnType = declaredReturnTargetType === undefined
-    ? getExplicitReturnType(declaration.Type, node, "method declaration", sourceFile, input, diagnostics)
-    : csharpTypeFromTargetTypeRef(declaredReturnTargetType, input.scope.typeParameterNames) ??
-      getExplicitReturnType(declaration.Type, node, "method declaration", sourceFile, input, diagnostics);
-  if (callable !== undefined && csharpTypeFromTargetTypeRef(callable.returnType, input.scope.typeParameterNames) === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "A method's sealed native return contract is not renderable."));
-  }
+  const declaredReturnType = csharpTypeFromTargetTypeRef(callable.returnType, input.scope.typeParameterNames);
+  if (declaredReturnType === undefined) failCsharpPlannerInvariant("An admitted method lost its renderable native return type.", node);
   const modifiers = withCsharpSafetyModifiers(
-    planMethodModifiers(node, declaration.name, sourceFile, input, diagnostics),
+    planMethodModifiers(node, declaration.name, input, subject),
     node,
     "declaration",
     input,
@@ -85,7 +68,6 @@ export function planMethodDeclaration(
   const name = planMethodDeclarationName(
     declaration.name,
     input,
-    diagnostics,
   );
   if (input.program.records.nativeParticipation.get(node) === "signature") {
     return {
@@ -135,26 +117,13 @@ export function planMethodDeclaration(
     state,
     parameters.prelude,
   );
-  if (returnContract?.kind === "rejected") {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
-      returnContract.reason,
-    ));
-  }
-  const effectiveReturnTargetType = callable?.returnType ?? (returnContract?.kind === "resolved"
-    ? returnContract.type
-    : declaredReturnTargetType);
-  const returnType = effectiveReturnTargetType === undefined
-    ? declaredReturnType
-    : csharpTypeFromTargetTypeRef(effectiveReturnTargetType, input.scope.typeParameterNames) ??
-      declaredReturnType;
   return {
     kind: "MethodDeclaration",
     name,
     modifiers,
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], input, diagnostics),
-    returnType,
+    returnType: declaredReturnType,
     parameters: parameters.parameters,
     body: {
       kind: "Block",
@@ -170,12 +139,10 @@ export function planMethodDeclaration(
 function planMethodDeclarationName(
   nameNode: Node | undefined,
   input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
 ): string {
   if (nameNode !== undefined && input.program.source.ast.is.IsComputedPropertyName(nameNode)) {
     const name = input.program.source.propertyNames.get(nameNode);
-    if (name?.kind === "resolved") return planIdentifierName(
-      nameNode, "MethodDeclaration", input, diagnostics, "Method name");
+    if (name?.kind === "resolved") return planCsharpAdmittedMemberName(input.program.names, nameNode);
     const selected = input.program.records.wellKnownSymbol.get(nameNode);
     if (selected !== undefined) {
       const targetName = csharpWellKnownSymbolTargetMemberName(selected.kind);
@@ -184,11 +151,5 @@ function planMethodDeclarationName(
       }
     }
   }
-  return planIdentifierName(
-    nameNode,
-    "MethodDeclaration",
-    input,
-    diagnostics,
-    "Method name",
-  );
+  return planCsharpAdmittedMemberName(input.program.names, nameNode);
 }

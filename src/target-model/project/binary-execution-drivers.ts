@@ -3,7 +3,7 @@ import {
 } from "../types/factories.js";
 import type {
   CsharpTargetBinaryExecutionDriver,
-} from "../types/model.js";
+} from "../metadata/provider-metadata.js";
 import {
   csharpQualifiedTypeRenderShape,
 } from "../types/render-shapes.js";

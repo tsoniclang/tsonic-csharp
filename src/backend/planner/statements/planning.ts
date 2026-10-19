@@ -32,7 +32,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpStatement,
 } from "../../target-ast/syntax/index.js";
-import { unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import {
   createDestructuringPlannerState,
   declareCsharpLocalBindingName,
@@ -98,7 +98,7 @@ export function planBlockStatements(
   for (const statement of statements) {
     if (input.program.source.ast.is.IsFunctionDeclaration(statement)) {
       const name = input.program.source.ast.name(statement);
-      if (name !== undefined) declareCsharpLocalBindingName(name, input, diagnostics, state, "Local function name", "__anonymous");
+      if (name !== undefined) declareCsharpLocalBindingName(name, input, state);
     }
   }
   const captures = planCsharpCaptureFrame(blockNode, input, diagnostics, state);
@@ -109,7 +109,6 @@ export function planBlockStatements(
   const plan = () => [...captures, ...entryPrelude, ...planCsharpCaptureEntryBindings(blockNode, input, state), ...planResourceManagedBlockStatements(
     blockNode,
     input,
-    diagnostics,
     state,
     () => [...executable.flatMap(
       (statement) => [...(values.get(statement) ?? []), ...planStatements(
@@ -198,11 +197,18 @@ export function planStatements(
     }
     case "KindClassDeclaration": {
       const factory = input.program.records.classFactory.get(node);
-      const initializer = factory === undefined ? undefined : planClassFactoryExpression(factory, sourceFile, input, diagnostics, state);
-      const type = factory === undefined ? undefined : csharpTypeFromTargetTypeRef(factory.factoryType, input.scope.typeParameterNames);
-      if (initializer === undefined || type === undefined) {
-        diagnostics.push(unsupportedNodeDiagnostic(node, "A local class requires a sealed native factory."));
-        return [];
+      if (factory === undefined) {
+        return failCsharpPlannerInvariant("A checked local class lost its required native factory.", node);
+      }
+      const type = csharpTypeFromTargetTypeRef(factory.factoryType, input.scope.typeParameterNames);
+      if (type === undefined) {
+        return failCsharpPlannerInvariant("An admitted local class lost its renderable native factory type.", node);
+      }
+      const firstDiagnostic = diagnostics.length;
+      const initializer = planClassFactoryExpression(factory, sourceFile, input, diagnostics, state);
+      if (initializer === undefined) {
+        if (diagnostics.some((issue, index) => index >= firstDiagnostic && issue.category === "error")) return [];
+        return failCsharpPlannerInvariant("An admitted local class lost its native capture values without a child refusal.", node);
       }
       return consumeCsharpPlannedValue(initializer, expression => [{ kind: "LocalDeclarationStatement", type, initializer: expression,
         name: planIdentifierName(input.program.source.ast.name(node), "Class", input, diagnostics, "Local class") }]);
@@ -214,14 +220,13 @@ export function planStatements(
         : input.program.source.ast.children(declarationList)
           .filter((declaration): declaration is Node => declaration !== undefined && input.program.source.ast.is.IsVariableDeclaration(declaration));
       if (declarations.length === 0) {
-        diagnostics.push(unsupportedNodeDiagnostic(node, "Variable statement has no declaration."));
-        return [];
+        return failCsharpPlannerInvariant("A checked variable statement requires its declaration list.", node);
       }
       return declarations.flatMap((declaration) => planLocalDeclarationStatements(declaration, sourceFile, input, diagnostics, state));
     }
     default:
-      diagnostics.push(unsupportedNodeDiagnostic(node, "Statement is outside the current C# planning surface."));
-      return [];
+      return failCsharpPlannerInvariant(
+        "C# statement planner caller contract excludes module-only or unadmitted checked statement kinds.", node);
   }
 }
 

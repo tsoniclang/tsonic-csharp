@@ -19,11 +19,10 @@ import {
 import {
   objectShapeAccessorGetterStorageMemberName,
   objectShapeAccessorSetterStorageMemberName,
-  objectShapeMethodStorageTargetType,
   objectShapeStorageMemberName,
   objectShapeBoundStorageMemberName,
-  objectShapeBoundStorageTargetType,
-} from "../object-shape-storage.js";
+} from "../../../../target-model/names/object-members.js";
+import { objectShapeMethodStorageTargetType, objectShapeBoundStorageTargetType } from "../object-shape-storage.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../../types/target-types.js";
@@ -39,6 +38,8 @@ import { renderCsharpStructuralInterfaceMembers } from "./structural-interfaces.
 import { csharpNullableTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { csharpObjectShapeMethodDeclaration } from "../../../../target-model/types/method-values.js";
 import { renderCsharpDeferredCaptureMember } from "./deferred-captures.js";
+import type { CsharpNamePlan } from "../../../../target-model/names/model.js";
+import { planCsharpArtifactMemberHiding } from "../../declarations/modifiers.js";
 
 export function renderObjectShapeMembers(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
@@ -48,16 +49,17 @@ export function renderObjectShapeMembers(
   diagnostics: TargetDiagnostic[] | undefined,
   diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0] | undefined,
   storage: Pick<CsharpStorageClassifications, "nativeField">,
+  names: Pick<CsharpNamePlan, "memberHiding">,
   deferredCaptures: ReadonlySet<string> = new Set(),
 ): CsharpClassDeclaration["members"] | undefined {
   const members = canonicalCsharpObjectShapeMembers(fact.members).flatMap((member) => {
     if ((member.typeParameters?.length ?? 0) > 0 || member.methodValueContract !== undefined) {
-      if (member.methodStorageType !== undefined) return renderCopiedGenericMethod(typeParameterNames, fact, member, storage);
+      if (member.methodStorageType !== undefined) return renderCopiedGenericMethod(typeParameterNames, fact, member, storage, names);
       if (csharpObjectShapeMethodDeclaration(fact, member) !== undefined) return [];
       if (member.optional === true && member.methodValueContract !== undefined) {
         const type = csharpTypeFromTargetTypeRef(csharpNullableTargetType(member.methodValueContract), typeParameterNames);
         return type === undefined ? [undefined] : [{ kind: "FieldDeclaration" as const, name: objectShapeStorageMemberName(fact, member),
-          type, modifiers: ["public"] as const }];
+          type, modifiers: ["public", ...planCsharpArtifactMemberHiding(names, fact, objectShapeStorageMemberName(fact, member))] as const }];
       }
       return [undefined];
     }
@@ -68,7 +70,7 @@ export function renderObjectShapeMembers(
       }
       return [undefined];
     }
-    if (deferredCaptures.has(member.targetName)) return renderCsharpDeferredCaptureMember(member.targetName, type);
+    if (deferredCaptures.has(member.targetName)) return renderCsharpDeferredCaptureMember(member.targetName, type, fact, names);
     if (member.memberKind === "method") {
       return renderObjectShapeMethodMember(
         typeParameterNames,
@@ -79,6 +81,7 @@ export function renderObjectShapeMembers(
         ),
         diagnostics,
         diagnosticSubject,
+        names,
       );
     }
     if (member.accessor !== undefined) {
@@ -89,9 +92,13 @@ export function renderObjectShapeMembers(
         type,
         diagnostics,
         diagnosticSubject,
+        names,
       );
     }
-    if (member.bound === true) return renderBoundRecordMember(typeParameterNames, fact, member, type);
+    if (member.bound === true) return renderBoundRecordMember(typeParameterNames, fact, member, type, {
+      member: planCsharpArtifactMemberHiding(names, fact, member.targetName),
+      storage: planCsharpArtifactMemberHiding(names, fact, objectShapeBoundStorageMemberName(fact, member)),
+    });
     const backing = storage.nativeField.get(fact.targetType, member.targetName);
     if (backing !== undefined) {
       const locationType = csharpTypeFromTargetTypeRef(csharpRuntimeLocationTargetType(member.type), typeParameterNames);
@@ -102,9 +109,9 @@ export function renderObjectShapeMembers(
         callee: { kind: "SimpleMemberAccessExpression", receiver: location, name },
         arguments: args.map(expression => ({ kind: "Argument", expression })) });
       return [{ kind: "PropertyDeclaration" as const, name: backing.storageName, type: locationType,
-        modifiers: ["public"] as const, autoGetter: true, initializer },
+        modifiers: ["public", ...planCsharpArtifactMemberHiding(names, fact, backing.storageName)] as const, autoGetter: true, initializer },
       { kind: "PropertyDeclaration" as const, name: member.targetName, type,
-        modifiers: ["public", "required"] as const,
+        modifiers: ["public", "required", ...planCsharpArtifactMemberHiding(names, fact, member.targetName)] as const,
         getter: { kind: "Block" as const, statements: [{ kind: "ReturnStatement" as const, expression: access("Load", []) }] },
         setter: { kind: "Block" as const, statements: [{ kind: "ExpressionStatement" as const,
           expression: access("Store", [{ kind: "IdentifierName", name: "value" }]) }] } }];
@@ -114,8 +121,8 @@ export function renderObjectShapeMembers(
         kind: "PropertyDeclaration" as const,
         name: member.targetName,
         modifiers: member.optional === true
-          ? ["public"] as const
-          : ["public", "required"] as const,
+          ? ["public", ...planCsharpArtifactMemberHiding(names, fact, member.targetName)] as const
+          : ["public", "required", ...planCsharpArtifactMemberHiding(names, fact, member.targetName)] as const,
         type,
         autoGetter: true,
         autoSetter: true,
@@ -125,8 +132,8 @@ export function renderObjectShapeMembers(
       kind: "FieldDeclaration" as const,
       name: member.targetName,
       modifiers: member.optional === true
-        ? ["public"] as const
-        : ["public", "required"] as const,
+        ? ["public", ...planCsharpArtifactMemberHiding(names, fact, member.targetName)] as const
+        : ["public", "required", ...planCsharpArtifactMemberHiding(names, fact, member.targetName)] as const,
       type,
     }];
   });
@@ -138,9 +145,10 @@ export function renderObjectShapeMembers(
 function renderCopiedGenericMethod(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
   shape: CsharpObjectShapeFact, member: CsharpObjectShapeFact["members"][number], storage: Pick<CsharpStorageClassifications, "nativeField">,
+  names: Pick<CsharpNamePlan, "memberHiding">,
 ): readonly (CsharpTypeMember | undefined)[] {
   const storageType = member.methodStorageType === undefined ? undefined : csharpTypeFromTargetTypeRef(member.methodStorageType, typeParameterNames);
-  const contract = renderCsharpStructuralInterfaceMembers(typeParameterNames, { ...shape, members: [member] }, storage, false, []);
+  const contract = renderCsharpStructuralInterfaceMembers(typeParameterNames, { ...shape, members: [member] }, storage, false, [], names);
   const method = contract?.[0];
   if (storageType === undefined || method?.kind !== "MethodDeclaration") return [undefined];
   const name = objectShapeStorageMemberName(shape, member);
@@ -149,21 +157,23 @@ function renderCopiedGenericMethod(
     typeArguments: (member.typeParameters ?? []).map(parameter => csharpTypeFromTargetTypeRef({ kind: "type-parameter", identity: parameter.identity, name: parameter.name }, typeParameterNames)!),
   }, arguments: method.parameters.map(parameter => ({ kind: "Argument", expression: { kind: "IdentifierName", name: parameter.name } })) };
   const returnsVoid = getCsharpDelegateSignature(member.type)?.returnType;
-  return [{ kind: "FieldDeclaration", name, type: storageType, modifiers: ["public", "required"] },
-    { ...method, modifiers: ["public"], body: { kind: "Block", statements: [returnsVoid !== undefined && isCsharpVoidTargetType(returnsVoid)
+  return [{ kind: "FieldDeclaration", name, type: storageType,
+    modifiers: ["public", "required", ...planCsharpArtifactMemberHiding(names, shape, name)] },
+    { ...method, modifiers: ["public", ...planCsharpArtifactMemberHiding(names, shape, member.targetName)], body: { kind: "Block", statements: [returnsVoid !== undefined && isCsharpVoidTargetType(returnsVoid)
       ? { kind: "ExpressionStatement", expression: call } : { kind: "ReturnStatement", expression: call }] } }];
 }
 
 export function renderBoundRecordMember(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
   shape: CsharpObjectShapeFact, member: CsharpObjectShapeFact["members"][number], type: CsharpTypeNode,
+  hiding: { readonly member: readonly "new"[]; readonly storage: readonly "new"[] },
 ): readonly (CsharpTypeMember | undefined)[] {
   const storageType = csharpTypeFromTargetTypeRef(objectShapeBoundStorageTargetType(member), typeParameterNames);
   if (storageType === undefined || member.bound !== true) return [undefined];
   const storageName = objectShapeBoundStorageMemberName(shape, member);
   const access: CsharpExpression = { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: storageName }, name: "Value" };
-  return [{ kind: "FieldDeclaration", name: storageName, type: storageType, modifiers: ["public"] },
-    { kind: "PropertyDeclaration", name: member.targetName, type, modifiers: ["public"],
+  return [{ kind: "FieldDeclaration", name: storageName, type: storageType, modifiers: ["public", ...hiding.storage] },
+    { kind: "PropertyDeclaration", name: member.targetName, type, modifiers: ["public", ...hiding.member],
       getter: { kind: "Block", statements: [{ kind: "ReturnStatement", expression: access }] },
       ...(member.readonly ? {} : { setter: { kind: "Block" as const, statements: [{ kind: "ExpressionStatement" as const, expression: {
         kind: "AssignmentExpression", operatorToken: { kind: "EqualsToken" }, left: access, right: { kind: "IdentifierName", name: "value" },
@@ -178,6 +188,7 @@ function renderObjectShapeAccessorMember(
   type: CsharpTypeNode,
   diagnostics: TargetDiagnostic[] | undefined,
   diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0] | undefined,
+  names: Pick<CsharpNamePlan, "memberHiding">,
 ): readonly (CsharpTypeMember | undefined)[] {
   const selfType = csharpTypeFromTargetTypeRef(objectShape.targetType, typeParameterNames);
   const getterType = csharpTypeFromTargetTypeRef(
@@ -212,7 +223,7 @@ function renderObjectShapeAccessorMember(
   const property: CsharpTypeMember = {
     kind: "PropertyDeclaration",
     name: member.targetName,
-    modifiers: ["public"],
+    modifiers: ["public", ...planCsharpArtifactMemberHiding(names, objectShape, member.targetName)],
     type,
     getter: {
       kind: "Block",
@@ -241,14 +252,14 @@ function renderObjectShapeAccessorMember(
   return [{
     kind: "FieldDeclaration",
     name: getterName,
-    modifiers: ["public", "required"],
+    modifiers: ["public", "required", ...planCsharpArtifactMemberHiding(names, objectShape, getterName)],
     type: getterType,
   }, ...(setterType === undefined
     ? []
     : [{
         kind: "FieldDeclaration" as const,
         name: setterName,
-        modifiers: ["public", "required"] as const,
+        modifiers: ["public", "required", ...planCsharpArtifactMemberHiding(names, objectShape, setterName)] as const,
         type: setterType,
       }]), property];
 }
@@ -274,6 +285,7 @@ function renderObjectShapeMethodMember(
   receiverBound: boolean,
   diagnostics: TargetDiagnostic[] | undefined,
   diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0] | undefined,
+  names: Pick<CsharpNamePlan, "memberHiding">,
 ): readonly (CsharpTypeMember | undefined)[] {
   const signature = csharpDelegateSignatureFromTargetTypeRef(typeParameterNames, member.type);
   const storageTargetType = objectShapeMethodStorageTargetType(
@@ -327,12 +339,14 @@ function renderObjectShapeMethodMember(
   return [{
     kind: "FieldDeclaration",
     name: backingName,
-    modifiers: member.optional === true ? ["public"] : ["public", "required"],
+    modifiers: member.optional === true
+      ? ["public", ...planCsharpArtifactMemberHiding(names, objectShape, backingName)]
+      : ["public", "required", ...planCsharpArtifactMemberHiding(names, objectShape, backingName)],
     type: storageType,
   }, {
     kind: "MethodDeclaration",
     name: member.targetName,
-    modifiers: ["public"],
+    modifiers: ["public", ...planCsharpArtifactMemberHiding(names, objectShape, member.targetName)],
     returnType: signature.returnType,
     parameters,
     body: {

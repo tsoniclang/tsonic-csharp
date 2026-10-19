@@ -26,7 +26,7 @@ test("union mappings require complete exact coverage and reject forged or numeri
   assert.equal(selectCsharpUnionArmMapping(narrow, duplicate, "source"), undefined);
   assert.equal(selectCsharpUnionArmMapping(duplicate, wide, "source"), undefined);
   assert.ok(Object.isFrozen(widening) && widening.every(Object.isFrozen));
-  const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId() {} }, target: {} };
+  const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId() { return { kind: "missing" }; } }, target: {} };
   assert.deepEqual(selectCsharpConversion(policy, narrow, wide, "implicit"), { kind: "union-map", coverage: "source", arms: widening });
   assert.equal(selectCsharpConversion(policy, wide, narrow, "implicit").kind, "rejected");
   const selection = selectCsharpFlowReadConversion(policy, csharpNullableTargetType(wide), csharpNullableTargetType(narrow));
@@ -59,7 +59,7 @@ test("nested union paths preserve each native grouping and reject stale intermed
   const arms = selectCsharpUnionArmMapping(flat, nested, "source");
   assert.deepEqual(arms.map(arm => arm.target.map(step => step.index)), [[1, 1], [0], [1, 0]]);
   assert.deepEqual(arms.map(arm => arm.carrier), [string, boolean, integer]);
-  const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => undefined } };
+  const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) } };
   const context = { program: { source: { ast: { pos: () => 0, end: () => 5 } } }, scope: {}, names: { temporaryName: name => name } };
   const expression = { kind: "IdentifierName", name: "original" };
   const selection = { kind: "union-map", coverage: "source", arms };

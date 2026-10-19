@@ -58,7 +58,7 @@ function selectedHeritageFixture(relation, target, binding) {
     providers: { findTargetBindingByTargetId(id) {
       providerReads += 1;
       assert.equal(id, target.id, "provider evidence is read by the exact selected target identity");
-      return binding;
+      return binding === undefined ? { kind: "missing" } : { kind: "resolved", binding };
     } },
     types: { resolveSelectedType: (node, type) => {
       assert.equal(node === heritage && type === selectedType, true, "the checked heritage selection is authoritative");

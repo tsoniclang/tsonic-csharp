@@ -1,3 +1,4 @@
+import { resolvedNativeBinding } from "../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { writeFileSync } from "node:fs";
@@ -61,16 +62,20 @@ test("physical target bindings share the exact native relation catalog without i
   };
   const contribution = targetBindings => csharpProviderPolicyContribution({ providerId: "fixture.physical", providerVersion: "1", targetBindings, relations: [], rejections: [] });
   const resolver = createCsharpProviderRelationResolver({ providers: [], providerPolicies: [contribution([binding])] });
-  assert.equal(resolver.findTargetBindingByTargetId(binding.id)?.kind, "interface");
-  assert.equal(resolver.findTargetBindingByMetadataName(binding.targetName)?.id, binding.id);
-  assert.equal(resolver.findTargetBindingByTargetId("Fixture.Other"), undefined);
+  assert.equal(resolvedNativeBinding(resolver.findTargetBindingByTargetId(binding.id, "ordinary"))?.kind, "interface");
+  assert.equal(resolvedNativeBinding(resolver.findTargetBindingByMetadataName(binding.targetName, "ordinary"))?.id, binding.id);
+  assert.equal(resolver.findTargetBindingByTargetId("Fixture.Other", "ordinary").kind, "missing");
   assert.equal(resolver.resolveType(providerDeclaration({ providerId: "fixture.physical", providerVersion: "1" })).kind, "resolved");
   assert.equal(resolver.resolveType(providerDeclaration({ providerId: "fixture.physical", providerVersion: "1" })).relations.length, 0);
   const equal = Object.fromEntries(Object.entries(binding).reverse());
   assert.doesNotThrow(() => createCsharpProviderRelationResolver({ providers: [], providerPolicies: [contribution([binding, equal])] }), "identical native identity independent of object field order");
-  assert.throws(
-    () => createCsharpProviderRelationResolver({ providers: [], providerPolicies: [contribution([binding, { ...binding, kind: "class" }])] }),
-    { message: "C# provider relation contributions define incompatible target binding 'Fixture.IWritable'." },
-    "contradictory physical identity is refused before analysis",
-  );
+  const contradictory = createCsharpProviderRelationResolver({ providers: [],
+    providerPolicies: [contribution([binding, { ...binding, kind: "class" }])] });
+  for (const [method, query] of [["findTargetBindingByTargetId", binding.id], ["findTargetBindingByMetadataName", binding.targetName]]) {
+    const rejected = contradictory[method](query, "ordinary");
+    assert.equal(rejected.kind, "rejected", `${method}: contradictory physical identity is refused before analysis`);
+    assert.equal(rejected.diagnostic.extensionCode, "CSHARP_PROVIDER_TARGET_BINDING_CONFLICT", `${method}: exact conflict owner`);
+    assert.equal(rejected.diagnostic.message, "C# providers supplied contradictory complete target binding evidence.",
+      `${method}: the complete original native conflict reason is retained`);
+  }
 });

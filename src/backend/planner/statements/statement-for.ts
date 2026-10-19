@@ -52,7 +52,6 @@ export function planForStatement(
     : planResourceScopeStatements(
         resource.declaration,
         resource.kind,
-        diagnostics,
         state,
         () => planForStatementCore(
           node,

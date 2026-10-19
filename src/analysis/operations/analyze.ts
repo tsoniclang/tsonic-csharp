@@ -197,7 +197,7 @@ export function analyzeCsharpTargetOperations(
   });
   const classPropertyStorage = classifyCsharpClassPropertyStorage(policy, evidence);
   const binaryExecutionDrivers:
-    import("../../target-model/types/model.js").CsharpTargetBinaryExecutionDriver[] = [];
+    import("../../target-model/metadata/provider-metadata.js").CsharpTargetBinaryExecutionDriver[] = [];
   const issues: CsharpOperationIssue[] = [];
   const erasure = createCsharpOperationErasure(policy.ast, erasureIndexes, issues);
   for (const sourceFile of policy.sourceFiles) {
@@ -276,7 +276,7 @@ function visit(
   erasure: CsharpOperationErasure,
   builder: ReturnType<typeof createTargetClassificationBuilder>,
   binaryExecutionDrivers:
-    import("../../target-model/types/model.js").CsharpTargetBinaryExecutionDriver[],
+    import("../../target-model/metadata/provider-metadata.js").CsharpTargetBinaryExecutionDriver[],
   scopeIssues: CsharpOperationIssue[] | undefined,
 ): void {
   if (evidence.compileTimeMetadata.get(node)) return;

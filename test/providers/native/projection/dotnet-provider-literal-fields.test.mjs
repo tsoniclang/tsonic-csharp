@@ -1,3 +1,4 @@
+import { resolvedNativeBinding } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -19,7 +20,7 @@ function reflectedField(provider, moduleSpecifier, metadataName, targetName) {
   const declaration = reflectedType(provider, moduleSpecifier, metadataName);
   const raw = declaration.members.filter(member => member.kind === "field" && member.targetName === targetName);
   assert.equal(raw.length, 1, `${metadataName}.${targetName}`);
-  const binding = provider.findTargetBindingByTargetId(declaration.targetId);
+  const binding = resolvedNativeBinding(provider.findTargetBindingByTargetId(declaration.targetId, "ordinary"));
   assert.ok(binding, declaration.targetId);
   const bound = binding.members.filter(member => member.kind === "field" && member.targetName === targetName);
   assert.equal(bound.length, 1, `${metadataName}.${targetName} binding`);

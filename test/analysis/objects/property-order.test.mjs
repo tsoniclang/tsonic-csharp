@@ -13,7 +13,7 @@ import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 
 const noNativeImplementations = () => { throw new Error("An empty implementation domain cannot query a native relation"); };
 const exactNativePolicy = { projectTypes: { directSupertypes: () => undefined },
-  providers: { findTargetBindingByTargetId: () => undefined } };
+  providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) } };
 const canonicalNativeRelation = (source, target) => namedTargetTypeImplicitlyAccepts(exactNativePolicy, source, target, new Set());
 
 function fixture(names = ["tail", "10", "2", "01"]) {

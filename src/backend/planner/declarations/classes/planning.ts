@@ -5,7 +5,6 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpClassDeclaration, CsharpConstructorDeclaration, CsharpStatement } from "../../../target-ast/syntax/index.js";
 import { planAttributesForSubject } from "../attributes.js";
 import { planClassHeritage } from "./heritage.js";
-import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "../modifiers.js";
 import { csharpClosedValueCarrierInterfaceType } from "../../objects/declarations/interfaces.js";
 import { planCsharpStructuralInterfaceMembers } from "../interfaces/structural.js";
 import { planIdentifierName } from "../../names/source-identifiers.js";
@@ -22,6 +21,7 @@ import { createCsharpMemberPlanningContext } from "../../context.js";
 import { classFactoryContext, completeLocalClassConstructor } from "./factories.js";
 import { planClassInitializationRegion } from "./initializers.js";
 import { renderObjectShapeProjectionMethods } from "../../objects/closed-object-shapes.js";
+import { planCsharpNativeMemberHiding } from "../modifiers.js";
 
 export function planClassDeclaration(
   node: Node,
@@ -32,13 +32,12 @@ export function planClassDeclaration(
   input = createCsharpTypeParameterPlanningContext(node, createCsharpMemberPlanningContext(input));
   const declaration = input.program.source.ast.is.IsClassExpression(node)
     ? input.program.source.ast.as.AsClassExpression(node)! : AsClassDeclaration(input.program.source.ast, node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "class declaration", diagnostics, ["abstract"]);
   const factory = input.program.records.classFactory.get(node);
   const staticCompanion = input.types.projectTypes.definitionContainingDeclaration(node)?.staticCompanion === true;
   const className = declaration.name === undefined && factory !== undefined ? factory.instanceName
     : planIdentifierName(declaration.name, "AnonymousClass", input, diagnostics, "Class name");
   const objectShape = getCsharpObjectShapeFactForNode(node, sourceFile, input);
-  const heritage = planClassHeritage(node, input, diagnostics);
+  const heritage = planClassHeritage(node, input);
   const interfaces = [...heritage.interfaces, csharpClosedValueCarrierInterfaceType()];
   if (factory?.identity !== undefined) interfaces.push(csharpTypeFromTargetTypeRef(factory.identity.type, input.scope.typeParameterNames)!);
   const jsonSerializable = objectShape !== undefined && objectShapeRequiresJsonSerialization(input, objectShape);
@@ -94,7 +93,8 @@ export function planClassDeclaration(
         ? completeConstructor(member, instanceRegion.statements) : member),
       ...(factory?.retainsEnvironment ? [{ kind: "FieldDeclaration" as const, name: factory.environmentName,
         type: csharpTypeFromTargetTypeRef(factory.factoryType, input.scope.typeParameterNames)!,
-        modifiers: [factory.requiresInstanceTest ? "internal" as const : "private" as const, "readonly" as const] }] : []),
+        modifiers: [factory.requiresInstanceTest ? "internal" as const : "private" as const, "readonly" as const,
+          ...planCsharpNativeMemberHiding(input.program.names, { kind: "source", declaration: node, role: "storage" })] }] : []),
       ...(factory?.identity === undefined ? [] : [{ kind: "PropertyDeclaration" as const,
         name: factory.environmentName, explicitInterface: csharpTypeFromTargetTypeRef(factory.identity.type, input.scope.typeParameterNames)!, modifiers: [],
         type: csharpTypeFromTargetTypeRef(factory.factoryType, input.scope.typeParameterNames)!,
@@ -107,7 +107,7 @@ export function planClassDeclaration(
         ? guardCsharpFrozenDataProperties(objectShape, members, input, diagnostics) : members).map(member =>
           member.kind === "ConstructorDeclaration" ? completeConstructor(member, []) : member),
       ...(jsonSerializable && objectShape !== undefined
-        ? renderJsonSerializableObjectShapeMethod(objectShape)
+        ? renderJsonSerializableObjectShapeMethod(objectShape, input.program.names)
         : []),
       ...(objectShape === undefined ? [] : renderObjectShapeProjectionMethods(input,
         input.artifacts.objectShapeProjections(objectShape), diagnostics)),

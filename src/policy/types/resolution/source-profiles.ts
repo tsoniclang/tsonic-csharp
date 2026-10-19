@@ -1,3 +1,4 @@
+import { csharpProviderBindingFromResolution } from "../../../providers/model/relation-resolver.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpTypeResolutionScope } from "./engine.js";
 import type { CsharpTypeResolutionState } from "./model.js";
@@ -150,9 +151,7 @@ export function resolveSourceProfileType(
       if (typeArguments.length !== 2) {
         return undefined;
       }
-      const binding = host.providers.findTargetBindingByMetadataName(
-        "System.Collections.Generic.Dictionary`2",
-      );
+      const binding = csharpProviderBindingFromResolution(host.providers.findTargetBindingByMetadataName("System.Collections.Generic.Dictionary`2", "ordinary"));
       const targetType = binding === undefined
         ? undefined
         : csharpTargetTypeFromBinding(binding, typeArguments);

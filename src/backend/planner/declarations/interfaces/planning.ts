@@ -24,9 +24,8 @@ import {
   invalidCsharpType,
 } from "../../types/index.js";
 import { getExplicitReturnType } from "../callables/return-types.js";
-import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { planInterfaceHeritage } from "../classes/heritage.js";
-import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "../modifiers.js";
 import { planIdentifierName } from "../../names/source-identifiers.js";
 import {
   planParametersWithPrelude,
@@ -40,8 +39,8 @@ import {
 import {
   getCsharpObjectShapeFactForNode,
 } from "../../objects/fact-queries.js";
-import { csharpInheritedStructuralInterfaces, renderCsharpStructuralInterfaceMembers, shadowCsharpInheritedInterfaceMembers } from "../../objects/declarations/structural-interfaces.js";
-import { objectShapeStorageMemberName } from "../../objects/object-shape-storage.js";
+import { csharpInheritedStructuralInterfaces, renderCsharpStructuralInterfaceMethodValues } from "../../objects/declarations/structural-interfaces.js";
+import { planCsharpNativeMemberHiding, planCsharpAdmittedMemberName } from "../modifiers.js";
 import { renderObjectShapeProjectionMethods } from "../../objects/closed-object-shapes.js";
 import {
   csharpSafetyAccessorModifiersForDeclaration,
@@ -56,12 +55,11 @@ export function planInterfaceDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpInterfaceDeclaration {
   const declaration = AsInterfaceDeclaration(input.program.source.ast, node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "interface declaration", diagnostics);
   const objectShape = getCsharpObjectShapeFactForNode(node, sourceFile, input);
-  const interfaces = planInterfaceHeritage(node, input, diagnostics);
+  const interfaces = planInterfaceHeritage(node, input);
   const jsonSerializable = objectShape !== undefined && objectShapeRequiresJsonSerialization(input, objectShape);
   const members = (declaration.Members?.Nodes ?? []).flatMap((member): CsharpInterfaceMember[] => {
-    if (member === undefined) {
+    if (member === undefined || input.program.records.compileTimeMetadata.get(member)) {
       return [];
     }
     switch (input.program.source.ast.kindName(member)) {
@@ -74,23 +72,15 @@ export function planInterfaceDeclaration(
       case KindIndexSignature:
         return [planInterfaceIndexerDeclaration(member, sourceFile, input, diagnostics)];
       default:
-        diagnostics.push(unsupportedNodeDiagnostic(member, "Interface member is outside the current C# planning surface."));
-        return [];
+        return failCsharpPlannerInvariant("An admitted interface member lost its native declaration form.", member);
     }
   });
   const inherited = objectShape === undefined ? [] : csharpInheritedStructuralInterfaces(objectShape, input);
   if (objectShape !== undefined && input.artifacts.objectShapeHasCapability(objectShape, "method-values")) {
-    const storageNames = new Set(objectShape.members.filter(member => member.memberKind === "method")
-      .map(member => objectShapeStorageMemberName(objectShape, member)));
-    const rendered = renderCsharpStructuralInterfaceMembers(input.scope.typeParameterNames, objectShape, input.program.records, true, inherited);
-    if (rendered === undefined) diagnostics.push(unsupportedNodeDiagnostic(node, "An interface method value requires its exact native callable storage contract."));
-    else members.push(...rendered.filter(member => member.kind === "PropertyDeclaration" && storageNames.has(member.name)));
+    const rendered = renderCsharpStructuralInterfaceMethodValues(input.scope.typeParameterNames, objectShape, inherited, input.program.names);
+    if (rendered === undefined) failCsharpPlannerInvariant("An admitted interface method value lost its native callable storage.", node);
+    members.push(...rendered);
   }
-  const inheritedMembers = inherited.flatMap(parent => {
-    const rendered = renderCsharpStructuralInterfaceMembers(input.scope.typeParameterNames, parent.shape, input.program.records, parent.methodValues, []);
-    if (rendered === undefined) diagnostics.push(unsupportedNodeDiagnostic(node, "An inherited interface requires exact native member signatures."));
-    return rendered ?? [];
-  });
   return {
     kind: "InterfaceDeclaration",
     name: planIdentifierName(declaration.name, "AnonymousInterface", input, diagnostics, "Interface name"),
@@ -105,7 +95,7 @@ export function planInterfaceDeclaration(
             ...(jsonSerializable ? [csharpJsonValueInterfaceType()] : []),
           ],
         }),
-    members: [...shadowCsharpInheritedInterfaceMembers(members, inheritedMembers),
+    members: [...members,
       ...(objectShape === undefined ? [] : renderObjectShapeProjectionMethods(input,
         input.artifacts.objectShapeProjections(objectShape), diagnostics))],
   };
@@ -119,27 +109,20 @@ function planInterfaceMethodDeclaration(
 ): CsharpInterfaceMethodDeclaration {
   input = createCsharpTypeParameterPlanningContext(node, input);
   const declaration = AsMethodSignatureDeclaration(input.program.source.ast, node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "interface method declaration", diagnostics);
   const parameters = planParametersWithPrelude(
     declaration.Parameters?.Nodes ?? [],
     sourceFile,
     input,
     diagnostics,
   );
-  if (parameters.prelude.length > 0) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
-      "Interface methods cannot publish destructuring parameter preludes.",
-    ));
-  }
   return {
     kind: "MethodDeclaration",
-    name: planIdentifierName(declaration.name, "MethodDeclaration", input, diagnostics, "Interface method name"),
-    modifiers: csharpSafetyModifiersForDeclaration(
+    name: planCsharpAdmittedMemberName(input.program.names, declaration.name),
+    modifiers: [...planCsharpNativeMemberHiding(input.program.names, { kind: "source", declaration: node, role: "member" }), ...csharpSafetyModifiersForDeclaration(
       node,
       "declaration",
       input,
-    ),
+    )],
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], input, diagnostics),
     returnType: getExplicitReturnType(declaration.Type, node, "interface method declaration", sourceFile, input, diagnostics),
@@ -154,15 +137,8 @@ function planInterfacePropertyDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpInterfacePropertyDeclaration {
   const declaration = AsPropertySignatureDeclaration(input.program.source.ast, node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(
-    input.program.source.ast,
-    node,
-    "interface property declaration",
-    diagnostics,
-    ["readonly"],
-  );
   if (declaration.Initializer !== undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Interface property initializers have no direct C# interface equivalent."));
+    failCsharpPlannerInvariant("An admitted interface property unexpectedly retained an initializer.", node);
   }
   const type = getCsharpTypeForNode(
     node,
@@ -180,12 +156,12 @@ function planInterfacePropertyDeclaration(
   );
   return {
     kind: "PropertyDeclaration",
-    name: planIdentifierName(declaration.name, "PropertyDeclaration", input, diagnostics, "Interface property name"),
-    modifiers: csharpSafetyModifiersForDeclaration(
+    name: planCsharpAdmittedMemberName(input.program.names, declaration.name),
+    modifiers: [...planCsharpNativeMemberHiding(input.program.names, { kind: "source", declaration: node, role: "member" }), ...csharpSafetyModifiersForDeclaration(
       node,
       "declaration",
       input,
-    ),
+    )],
     getterModifiers: csharpSafetyAccessorModifiersForDeclaration(
       node,
       "getter",
@@ -209,17 +185,10 @@ function planInterfaceIndexerDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpInterfaceIndexerDeclaration {
   const declaration = AsIndexSignatureDeclaration(input.program.source.ast, node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(
-    input.program.source.ast,
-    node,
-    "interface index signature",
-    diagnostics,
-    ["readonly"],
-  );
   const parameterNodes = declaration.Parameters?.Nodes ?? [];
   const parameterNode = parameterNodes.find((item): item is Node => item !== undefined);
   if (parameterNode === undefined || parameterNodes.filter((item) => item !== undefined).length !== 1) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Interface index signature requires exactly one key parameter."));
+    return failCsharpPlannerInvariant("A checked interface index signature requires exactly one key parameter.", node);
   }
   const parameterDeclaration = parameterNode === undefined ? undefined : AsParameterDeclaration(input.program.source.ast, parameterNode);
   const writable = !input.program.source.ast.hasModifierKind(node, "readonly");

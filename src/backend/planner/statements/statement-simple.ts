@@ -22,18 +22,13 @@ import type {
   DestructuringPlannerState,
 } from "../bindings/index.js";
 import {
-  unsupportedNodeDiagnostic,
+  failCsharpPlannerInvariant,
 } from "../diagnostics.js";
 import {
   isDestructuringAssignmentExpression,
   planDestructuringAssignmentStatement,
 } from "../bindings/destructuring-assignment.js";
 import { planExpression } from "../expressions/index.js";
-import {
-  probeCarrierFromResolution,
-  missingCarrierDiagnosticDetail,
-  resolveRuntimeCarrierForExpression,
-} from "../types/runtime-carriers.js";
 import {
   csharpThrownValueFromExpression,
   isExactUnmodifiedCatchRethrow,
@@ -62,13 +57,9 @@ import {
 import {
   directCsharpSourceYieldExpression,
 } from "../../../target-model/syntax/yield-expression.js";
-import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
-import {
-  isCsharpGeneratorReturnInsideFinally,
-} from "./generators.js";
 
 export function planReturnStatement(
   node: Node,
@@ -79,24 +70,9 @@ export function planReturnStatement(
 ): readonly CsharpStatement[] {
   const statement = AsReturnStatement(input.program.source.ast, node)!;
   if (state.generator !== undefined) {
-    const returnType = csharpTypeFromTargetTypeRef(
-      state.generator.protocol.returnType, input.scope.typeParameterNames,
-    );
+    const returnType = state.currentReturnType;
     if (returnType === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        node,
-        "The exact generator return type has no closed C# source representation.",
-      ));
-      return [];
-    }
-    if (isCsharpGeneratorReturnInsideFinally(node, state.generator.declaration, input)) {
-      diagnostics.push({
-        code: "CSHARP_UNSUPPORTED_GENERATOR_RETURN_REGION",
-        category: "error",
-        source: "tsonic-csharp",
-        message: "C# native iterators cannot leave a finally clause through a generator return.",
-      });
-      return [];
+      return failCsharpPlannerInvariant("A native generator body lost its already rendered return type.", node);
     }
     const directYield = directCsharpSourceYieldExpression(
       input.program.source.ast,
@@ -173,15 +149,14 @@ export function planReturnStatement(
 export function planBreakStatement(
   node: Node,
   ast: AstReader,
-  diagnostics: TargetDiagnostic[],
+  _diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
   const statement = AsBreakStatement(ast, node)!;
   if (statement.Label !== undefined) {
     const target = findControlLabel(state, Node_Text(ast, statement.Label));
     if (target === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(node, "Labeled break target was not available from TSTS control-flow binding."));
-      return [];
+      return failCsharpPlannerInvariant("A checked labeled break lost its active native label target.", node);
     }
     target.breakUsed = true;
     return [{ kind: "GotoStatement", label: target.breakLabel }];
@@ -192,15 +167,14 @@ export function planBreakStatement(
 export function planContinueStatement(
   node: Node,
   ast: AstReader,
-  diagnostics: TargetDiagnostic[],
+  _diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
   const statement = AsContinueStatement(ast, node)!;
   if (statement.Label !== undefined) {
     const target = findControlLabel(state, Node_Text(ast, statement.Label));
     if (target?.continueLabel === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(node, "Labeled continue target must be an iteration statement."));
-      return [];
+      return failCsharpPlannerInvariant("A checked labeled continue lost its active native iteration target.", node);
     }
     target.continueUsed = true;
     const region = [...state.loopContinuations].reverse().find(region => region.loop === target.loop);
@@ -227,41 +201,18 @@ export function planThrowStatement(
 ): readonly CsharpStatement[] {
   const statement = AsThrowStatement(input.program.source.ast, node)!;
   if (statement.Expression === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Throw statement must have an expression."));
-    return [];
+    return failCsharpPlannerInvariant("A checked throw statement requires its source expression.", node);
   }
-  const sourceExpression = statement.Expression;
   if (isExactUnmodifiedCatchRethrow(node, statement.Expression, input)) {
     return [{ kind: "ThrowStatement" }];
   }
-  const carrierResolution = resolveRuntimeCarrierForExpression(
-    input,
-    statement.Expression,
-    sourceFile,
-  );
-  const carrier = probeCarrierFromResolution(carrierResolution);
   const thrown = input.program.records.throwValue.get(node);
-  if (thrown === undefined || thrown.expression !== statement.Expression ||
-    (carrier === undefined ? thrown.sourceCarrier !== undefined
-      : thrown.sourceCarrier === undefined || !targetTypeRefEquals(thrown.sourceCarrier, carrier))) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      statement.Expression,
-      "Throw expression has no exact sealed C# native error carrier classification.",
-    ));
-    return [];
-  }
-  if (thrown.targetCarrier === undefined) {
-    const detail = carrier === undefined
-      ? missingCarrierDiagnosticDetail(carrierResolution, "Runtime carrier fact is missing for the thrown expression.")
-      : { reason: "Resolved thrown expression carrier is not a target throwable carrier.", evidence: [] };
-    diagnostics.push(unsupportedNodeDiagnostic(statement.Expression, `Throw statements require finalized TSTS/provider exception-carrier facts before C# emission. ${detail.reason}`, detail.evidence));
-    return [];
+  if (thrown === undefined || thrown.targetCarrier === undefined) {
+    return failCsharpPlannerInvariant("An admitted throw lost its selected native error carrier.", statement.Expression);
   }
   const type = csharpTypeFromTargetTypeRef(thrown.targetCarrier, input.scope.typeParameterNames);
   if (type === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(statement.Expression,
-      `Throw statements require C# type syntax for the sealed thrown carrier '${targetTypeRefKey(thrown.targetCarrier)}' before C# emission.`));
-    return [];
+    return failCsharpPlannerInvariant("An admitted throw lost its selected native error type rendering.", statement.Expression);
   }
   const expression = planExpression(statement.Expression, sourceFile, input, diagnostics, state);
   if (expression === undefined) {
@@ -270,9 +221,7 @@ export function planThrowStatement(
   return consumeCsharpPlannedValue(expression, value => {
     const native = isCsharpJsValueTargetType(thrown.targetCarrier) ? csharpThrownValueFromExpression(value) : value;
     if (native === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(sourceExpression,
-        "Throw statements require a renderable closed TsThrownValueException carrier before C# emission."));
-      return [];
+      return failCsharpPlannerInvariant("The declared TsThrownValueException bridge lost its fixed native constructor syntax.", statement.Expression);
     }
     return [{ kind: "ThrowStatement", expression: native }];
   });

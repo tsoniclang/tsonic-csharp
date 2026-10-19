@@ -1,3 +1,4 @@
+import { resolvedNativeBinding } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
 import { assert, mkdirSync, writeFileSync, dirname, join, test, fileURLToPath, createDotnetReflectionTypeDataProvider, createDotnetSourceDeclarationProvider, dotnetModuleToProviderDeclarationModel, dotnetNativeArrayTypeId, validateDotnetModuleModelContract, validateDotnetProviderDeclarationModelContract, buildDotnetFixture, repoRoot, testAssemblyId, supportedPassingModes, testTargetId, hasEvidencePath, assertRawModuleContractInvariants, assertProviderDeclarationContractInvariants, assertTargetBindingContractInvariants, assertRawSignatureInvariant, assertTypeParameterInvariant, assertDotnetTypeRefInvariant, assertProviderTypeExpressionInvariant, assertAssemblyReference, assertTargetIdentity, walkDotnetTypeDeclarationRefs, walkDotnetTypeRef, walkProviderExportRefs, walkProviderTypeExpression, rawType, rawMethod, sourceType, sourceMember, rawConstructor, rawIndexer, idHasShape, stripAssemblyQualifiers, escapeRegExp, buildConstraintFixture, buildSignatureIdentityFixture, buildUnsupportedMemberFixture, buildAttributeFixture, buildUnsupportedDefaultParameterFixture } from "../../../fixtures/dotnet-provider/dotnet-provider-contract.helpers.mjs";
 
 import { getCompleteDotnetModule } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
@@ -32,7 +33,7 @@ test(".NET provider preserves exact pointer attribute and unsupported default-va
     },
   });
   assert.equal(unsupportedAttributeTarget.unsupportedAttributes, undefined);
-  const attributeBinding = provider.findTargetBindingByTargetId(unsupportedAttributeTarget.targetId);
+  const attributeBinding = resolvedNativeBinding(provider.findTargetBindingByTargetId(unsupportedAttributeTarget.targetId, "ordinary"));
   assert.ok(attributeBinding);
   assert.ok(attributeBinding.attributes?.some((attribute) =>
     attribute.id === pointerAttribute.id &&
@@ -64,7 +65,7 @@ test(".NET provider preserves exact pointer attribute and unsupported default-va
   assert.equal("defaultValue" in sourceSignature.parameters[0], false);
   assert.equal("unsupportedDefaultValue" in sourceSignature.parameters[0], false);
 
-  const defaultBinding = provider.findTargetBindingByTargetId(unsupportedDefaultSource.targetId);
+  const defaultBinding = resolvedNativeBinding(provider.findTargetBindingByTargetId(unsupportedDefaultSource.targetId, "ordinary"));
   assert.ok(defaultBinding);
   const targetSignature = defaultBinding.members
     ?.find((member) => idHasShape(member.id, "ProviderUnsupportedDefaultFixtures.UnsupportedDefaultParameterSource.UnsupportedDateTimeDefault(System.DateTime)"));
@@ -73,7 +74,7 @@ test(".NET provider preserves exact pointer attribute and unsupported default-va
 });
 test(".NET synthetic native array target binding is discoverable by provider target id", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
-  const binding = provider.findTargetBindingByTargetId(dotnetNativeArrayTypeId);
+  const binding = resolvedNativeBinding(provider.findTargetBindingByTargetId(dotnetNativeArrayTypeId, "ordinary"));
   assert.ok(binding);
   assert.equal(binding.id, dotnetNativeArrayTypeId);
   assert.equal(binding.sourceName, "Array");

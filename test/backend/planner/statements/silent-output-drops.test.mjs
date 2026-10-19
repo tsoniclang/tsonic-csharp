@@ -5,10 +5,29 @@ import { createCsharpPlanningContext } from "../../../../dist/backend/planner/co
 import { planThrowStatement } from "../../../../dist/backend/planner/statements/statement-simple.js";
 import { csharpTargetNamedType } from "../../../../dist/target-model/types/index.js";
 import { createTsonicPlugin } from "../../../../../csharp-nodejs/dist/index.js";
+import { admitCsharpStatementBindings } from "../../../../dist/analysis/control-flow/native-control-flow.js";
 
 const throwMessage = "Throw statements require C# type syntax for the sealed thrown carrier 'target:example.Unrendered<>' before C# emission.";
 
-test("a sealed thrown carrier without C# type syntax is reported, never emitted as a dropped throw", () => {
+for (const surface of ["native", "js"]) {
+  test(`an unrepresentable public native throw is refused before publication on ${surface}`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      import type { float16 } from "@tsonic/core/types.js";
+      export function fail(value: float16): void { throw value; }
+    ` });
+    assert.equal(compiled.sourceDiagnosticsText, "", "the native half-precision argument has checked source types");
+    assert.equal(compiled.targetDiagnostics.length, 1, "the single statement-admission owner refuses the unsupported error carrier");
+    assert.equal(compiled.targetDiagnostics[0].code, "CSHARP_UNSUPPORTED_AST", "the original native throw refusal code is preserved");
+    assert.equal(compiled.targetDiagnostics[0].message,
+      "Throw statements require finalized TSTS/provider exception-carrier facts before C# emission. Resolved thrown expression carrier is not a target throwable carrier.",
+      "the original native error-carrier refusal reason is preserved");
+    assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined, true,
+      "the real admission aggregation rejects before native program and plan publication");
+    assert.equal(compiled.artifacts.size, 0, "an unsupported native throw cannot emit partial artifacts");
+  });
+}
+
+test("a thrown carrier without native syntax is refused at admission; corrupt published evidence is an invariant", () => {
   const compiled = compileCsharpSource({ sourceText: "export function fail(error: Error): void { throw error; }" });
   const program = compiled.result.program;
   assert.equal(program !== undefined && compiled.result.diagnostics.length === 0, true, "the authored throw compiles");
@@ -24,14 +43,22 @@ test("a sealed thrown carrier without C# type syntax is reported, never emitted 
   const unrendered = csharpTargetNamedType("example.Unrendered", undefined, undefined, { allowsRefLikeTypeArguments: [],});
   const changed = { ...program, records: { ...program.records,
     throwValue: { get: node => node === statement ? { ...classification, targetCarrier: unrendered } : undefined } } };
+  const issues = admitCsharpStatementBindings(ast, [statement], program.records.nativeUse,
+    changed.records, program.records, program.records.generator, program.records.nativeParticipation,
+    program.records.compileTimeMetadata, program.records.valueRead);
+  assert.equal(issues.length, 1, "exactly one pre-seal diagnostic reports the refused throw");
+  assert.equal(issues[0].code === "CSHARP_UNSUPPORTED_AST" && issues[0].category === "error", true,
+    "the original unsupported-construct error is retained");
+  assert.equal(issues[0].message, throwMessage, "the original missing carrier syntax reason is retained");
+  assert.equal(issues[0].sourceNode === expression, true, "the same thrown expression owns the refusal");
+  assert.match([...compiled.artifacts.values()].join("\n"), /throw error;/u,
+    "the unchanged valid source still emits its native throw");
   const diagnostics = [];
-  const planned = planThrowStatement(statement, ast.getSourceFile(statement), { ...context, program: changed }, diagnostics);
-  assert.equal(planned.length === 0, true, "no throw statement is emitted for a carrier without C# type syntax");
-  assert.equal(diagnostics.length === 1, true, "exactly one diagnostic reports the refused throw");
-  assert.equal(diagnostics[0]?.code === "CSHARP_UNSUPPORTED_AST" && diagnostics[0]?.category === "error", true,
-    "the refusal is an unsupported-construct error");
-  assert.equal(diagnostics[0]?.message === throwMessage, true, "the refusal names the missing thrown carrier syntax");
-  assert.equal(diagnostics[0]?.sourceNode === expression, true, "the refusal points at the thrown expression");
+  assert.throws(() => planThrowStatement(statement, ast.getSourceFile(statement),
+    { ...context, program: changed }, diagnostics),
+  error => error.message.includes("An admitted throw lost its selected native error type rendering."),
+  "only deliberately corrupted published carrier evidence reaches the planner invariant");
+  assert.equal(diagnostics.length, 0, "corrupted internal evidence never fabricates a second source refusal");
 });
 
 const headerSource = `

@@ -1,3 +1,4 @@
+import { csharpProviderBindingFromResolution } from "../../../providers/model/relation-resolver.js";
 import type { CsharpPolicyContext } from "../../model/context.js";
 import type { CsharpSourceOperator } from "../../../target-model/syntax/operators.js";
 import type { CsharpReferenceEquality } from "../../../target-model/operations/binary.js";
@@ -44,7 +45,7 @@ function csharpSourceDelegateCarriersAreRelated(
 }
 
 export function csharpReferenceIdentityCarrier(type: TargetTypeRef, input: CsharpPolicyContext): TargetTypeRef | undefined {
-  const providerKind = type.kind === "target-named" ? input.providers.findTargetBindingByTargetId(type.id)?.kind : undefined;
+  const providerKind = type.kind === "target-named" ? csharpProviderBindingFromResolution(input.providers.findTargetBindingByTargetId(type.id, "ordinary"))?.kind : undefined;
   if (isCsharpStringTargetType(type) || isCsharpValueTypeTargetType(type) || providerKind === "enum" || providerKind === "struct") {
     return undefined;
   }

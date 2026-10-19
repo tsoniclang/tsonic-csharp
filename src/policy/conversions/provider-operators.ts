@@ -1,3 +1,4 @@
+import { csharpProviderBindingFromResolution } from "../../providers/model/relation-resolver.js";
 import {
   csharpTargetBindingFact,
   targetTypeRefEquals,
@@ -100,7 +101,7 @@ function uniqueProviderBindingCandidates(
       continue;
     }
     const binding = csharpTargetBindingFact(
-      input.providers.findTargetBindingByTargetId(type.id),
+      csharpProviderBindingFromResolution(input.providers.findTargetBindingByTargetId(type.id, "ordinary")),
     );
     if (binding === undefined) {
       continue;

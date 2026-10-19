@@ -13,13 +13,14 @@ import {
 } from "../../../target-model/types/index.js";
 import {
   objectShapeStorageMemberName,
-} from "./object-shape-storage.js";
+  csharpJsonValueWriterMethodName,
+  csharpJsonValueProjectionMethodName,
+} from "../../../target-model/names/object-members.js";
 import {
   qualifiedCsharpType,
 } from "../types/index.js";
-
-export const csharpJsonValueWriterMethodName = "__tsonicWriteJson";
-export const csharpJsonValueProjectionMethodName = "__tsonicJsonValue";
+import type { CsharpNamePlan } from "../../../target-model/names/model.js";
+import { planCsharpArtifactMemberHiding } from "../declarations/modifiers.js";
 
 export function objectShapeRequiresJsonSerialization(
   input: CsharpPlanningContext,
@@ -37,6 +38,7 @@ export function csharpJsonValueInterfaceType(): CsharpTypeNode {
 
 export function renderJsonSerializableObjectShapeMethod(
   fact: CsharpObjectShapeFact,
+  names: CsharpNamePlan,
 ): readonly CsharpMethodDeclaration[] {
   const writer = { kind: "IdentifierName", name: "writer" } as const;
   const context = { kind: "IdentifierName", name: "context" } as const;
@@ -55,7 +57,7 @@ export function renderJsonSerializableObjectShapeMethod(
   const projectionMethod: CsharpMethodDeclaration = {
     kind: "MethodDeclaration",
     name: csharpJsonValueProjectionMethodName,
-    modifiers: ["public"],
+    modifiers: [...planCsharpArtifactMemberHiding(names, fact, csharpJsonValueProjectionMethodName), "public"],
     returnType: {
       kind: "NullableType",
       inner: { kind: "PredefinedType", name: "object" },
@@ -72,7 +74,7 @@ export function renderJsonSerializableObjectShapeMethod(
       {
         kind: "MethodDeclaration",
         name: csharpJsonValueWriterMethodName,
-        modifiers: ["public"],
+        modifiers: [...planCsharpArtifactMemberHiding(names, fact, csharpJsonValueWriterMethodName), "public"],
         returnType: { kind: "PredefinedType", name: "void" },
         parameters: [
           { name: "writer", type: qualifiedCsharpType("System.Text.Json", "Utf8JsonWriter") },
@@ -126,7 +128,7 @@ export function renderJsonSerializableObjectShapeMethod(
     {
       kind: "MethodDeclaration",
       name: csharpJsonValueWriterMethodName,
-      modifiers: ["public"],
+      modifiers: [...planCsharpArtifactMemberHiding(names, fact, csharpJsonValueWriterMethodName), "public"],
       returnType: { kind: "PredefinedType", name: "void" },
       parameters: [
         { name: "writer", type: qualifiedCsharpType("System.Text.Json", "Utf8JsonWriter") },

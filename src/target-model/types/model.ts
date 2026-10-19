@@ -6,6 +6,7 @@ import type {
   SourcePrimitiveKind,
   Type,
 } from "@tsonic/tsts";
+import type { CsharpTargetBinaryExecutionDriver } from "../metadata/provider-metadata.js";
 
 export type CsharpTypeofRuntimeKind = "string" | "number" | "boolean" | "bigint" | "symbol" | "object" | "function" | "undefined";
 
@@ -389,13 +390,6 @@ export type CsharpCallArtifactRequirement =
         readonly index: number;
       };
     };
-
-export interface CsharpTargetBinaryExecutionDriver {
-  readonly id: string;
-  readonly declaringType: TargetTypeRef;
-  readonly runMethodName: string;
-  readonly runWithEntrypointMethodName: string;
-}
 
 export interface CsharpMethodTypeArgumentProjection {
   readonly kind: "project-constructible-object-shape";

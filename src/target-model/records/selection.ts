@@ -1,5 +1,38 @@
 import type { CsharpObjectShapeFact, CsharpPropertyKeyIterationPolicy, CsharpStringIterationPolicy, TargetTypeRef } from "../types/model.js";
-import type { ResolvedSourceIterationInfo } from "@tsonic/tsts";
+import type { Node, ResolvedSourceIterationInfo } from "@tsonic/tsts";
+import type { CsharpConversionSelection } from "../conversions/selection.js";
+
+export type CsharpForInKeyBinding = {
+  readonly node: Node;
+  readonly name: Node;
+  readonly declaration: Node;
+  readonly storageType: TargetTypeRef;
+  readonly conversion: CsharpConversionSelection;
+} & (
+  | { readonly kind: "assignment" }
+  | { readonly kind: "declaration"; readonly declarationKind: "var" | "let" | "const" }
+);
+
+export type CsharpForOfBinding = {
+  readonly node: Node;
+  readonly declaration: Node;
+  readonly storageType: TargetTypeRef;
+  readonly conversion: CsharpConversionSelection;
+} & (
+  | { readonly kind: "assignment"; readonly name: Node }
+  | { readonly kind: "declaration"; readonly name: Node;
+      readonly declarationKind: "var" | "let" | "const" | "using" | "await using" }
+  | { readonly kind: "pattern"; readonly pattern: Node;
+      readonly declarationKind: "var" | "let" | "const" | "using" | "await using" }
+);
+
+export type CsharpAdmittedIteration =
+  | (Exclude<CsharpResolvedIteration, { readonly iterationKind: "for-in" }> & {
+      readonly binding: CsharpForOfBinding;
+    })
+  | (Extract<CsharpResolvedIteration, { readonly iterationKind: "for-in" }> & {
+      readonly binding: CsharpForInKeyBinding;
+    });
 
 export type CsharpResolvedIteration =
   | {

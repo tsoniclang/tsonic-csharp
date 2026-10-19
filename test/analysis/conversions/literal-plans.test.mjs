@@ -518,7 +518,7 @@ test("actual literal uses prepare their selected union inner endpoint before the
       IsReturnStatement: () => false, IsArrayLiteralExpression: () => false },
       getSourceFile: () => undefined, forEachChild: (node, visit) => { if (node === sourceFile) visit(expression); } },
     navigation: { referenceFor: () => undefined }, projectTypes: { directSupertypes: () => [] },
-    providers: { findTargetBindingByTargetId: () => undefined } };
+    providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) } };
   const analysis = analyzeCsharpConversions(policy, { compileTimeMetadata: { get: () => false } },
     { resolveNode: () => undefined, resolveTarget: () => undefined, registerStructuralInterface: () => false });
   const prepared = analysis.prepare({

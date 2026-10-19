@@ -2,7 +2,6 @@ import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
-import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpResourceDisposalArm, CsharpResourceDisposalOperation, CsharpResolvedResourceManagement } from "../../../target-model/records/management.js";
 import type {
   CsharpPlanningContext,
@@ -23,7 +22,7 @@ import {
   qualifiedCsharpType,
 } from "../types/index.js";
 import {
-  unsupportedNodeDiagnostic,
+  failCsharpPlannerInvariant,
 } from "../diagnostics.js";
 import {
   AsBlock,
@@ -42,7 +41,6 @@ type BlockStatementPlanner = () => readonly CsharpStatement[];
 export function planResourceManagedBlockStatements(
   blockNode: Node,
   input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planStatements: BlockStatementPlanner,
 ): readonly CsharpStatement[] {
@@ -57,7 +55,6 @@ export function planResourceManagedBlockStatements(
   return planResourceScopeStatements(
     resources[0]!,
     resourceScopeKind(resources, input),
-    diagnostics,
     state,
     planStatements,
   );
@@ -66,7 +63,6 @@ export function planResourceManagedBlockStatements(
 export function planResourceManagedSourceFileStatements(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planStatements: BlockStatementPlanner,
 ): readonly CsharpStatement[] {
@@ -79,7 +75,6 @@ export function planResourceManagedSourceFileStatements(
     : planResourceScopeStatements(
         resources[0]!,
         resourceScopeKind(resources, input),
-        diagnostics,
         state,
         planStatements,
       );
@@ -88,20 +83,11 @@ export function planResourceManagedSourceFileStatements(
 export function planResourceScopeStatements(
   diagnosticNode: Node,
   kind: "sync" | "async",
-  diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planStatements: BlockStatementPlanner,
 ): readonly CsharpStatement[] {
   if (state.generator !== undefined) {
-    diagnostics.push({
-      code: "CSHARP_GENERATOR_RESOURCE_MANAGEMENT_NOT_PROVEN",
-      category: "error",
-      source: "tsonic-csharp",
-      message:
-        "Native C# iterator finally blocks cannot preserve SuppressedError composition when both generator execution and disposal fail.",
-      sourceNode: diagnosticNode,
-    });
-    return [];
+    return failCsharpPlannerInvariant("A refused generator resource scope cannot reach native resource planning.", diagnosticNode);
   }
   const names = allocateResourceScopeNames(state);
   const previousScope = state.resourceScope;
@@ -184,28 +170,18 @@ export function planResourceRegistrationStatement(
   declaration: Node,
   local: CsharpLocalDeclaration,
   input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
-): CsharpStatement | undefined {
+): CsharpStatement {
   const scope = state.resourceScope;
   if (scope === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      declaration,
-      "A resource declaration was planned outside its exact lexical resource scope.",
-    ));
-    return undefined;
+    return failCsharpPlannerInvariant("A resource declaration was planned outside its exact lexical resource scope.", declaration);
   }
   const selected = input.program.records.resource.get(declaration);
   if (selected === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      declaration,
-      "C# planning received a resource declaration without a sealed target classification.",
-    ));
-    return undefined;
+    return failCsharpPlannerInvariant("An admitted resource declaration lost its exact native disposal classification.", declaration);
   }
   if (selected.kind === "rejected") {
-    diagnostics.push(unsupportedNodeDiagnostic(declaration, selected.reason));
-    return undefined;
+    return failCsharpPlannerInvariant("A refused resource declaration cannot reach native resource planning.", declaration);
   }
   const operations = selected.registration.kind === "direct"
     ? [selected.registration.disposal]
@@ -214,21 +190,13 @@ export function planResourceRegistrationStatement(
     scope.kind === "sync" &&
     operations.some((operation) => operation.kind !== "sync")
   ) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      declaration,
-      "A synchronous resource scope cannot own an asynchronous disposer.",
-    ));
-    return undefined;
+    return failCsharpPlannerInvariant("An admitted synchronous resource scope cannot contain an asynchronous disposer.", declaration);
   }
   const resourceType = csharpTypeFromTargetTypeRef(
     selected.registration.resourceType, input.scope.typeParameterNames,
   );
   if (resourceType === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      declaration,
-      "The exact resource disposal receiver has no closed C# source representation.",
-    ));
-    return undefined;
+    return failCsharpPlannerInvariant("An admitted native resource lost its exact disposal receiver type syntax.", declaration);
   }
   const parameterName = allocateSyntheticParameter(state);
   const registrationName = resourceRegistrationName(selected.registration);

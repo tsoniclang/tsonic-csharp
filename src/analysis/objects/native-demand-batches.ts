@@ -1,5 +1,4 @@
 import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
-import type { CsharpNamePlan } from "../../target-model/names/model.js";
 import type { CsharpCaptureStorage } from "../../target-model/records/capture-storage.js";
 import type { CsharpConversionClassifications } from "../../target-model/records/conversions.js";
 import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from "./model.js";
@@ -27,12 +26,33 @@ export const maximumJsonClosureDepth = 256;
 
 export interface CsharpObjectShapeDemandHost {
   readonly ast: AstReader;
-  readonly names: CsharpNamePlan;
   readonly captureStorage: Pick<CsharpCaptureStorage, "captureFrameShape">;
   readonly conversions: Pick<CsharpConversionClassifications, "conversion">;
   readonly objectShapes: CsharpObjectShapeClassifications & Pick<CsharpObjectShapeAnalysis, "targetShapes">;
   readonly projectTypes?: Pick<CsharpProjectTypeClassifications, "heritageForTarget">;
   readonly typeDefinitions?: CsharpTypeDefinitions;
+}
+
+export interface CsharpObjectShapeDeclarationNaming {
+  readonly parameters: readonly Extract<TargetTypeRef, { readonly kind: "type-parameter" }>[];
+  readonly reservedParameters: readonly { readonly identity: string; readonly name: string }[];
+  readonly reservedNames: readonly string[];
+}
+
+export type CsharpPreparedObjectShapeProjection = Omit<CsharpObjectShapeProjectionDeclaration, "typeParameterNames">;
+
+export interface CsharpObjectShapeArtifactClosure extends Omit<CsharpObjectShapeArtifact, "typeParameterNames" | "projections"> {
+  readonly naming: CsharpObjectShapeDeclarationNaming;
+  readonly projections: readonly CsharpPreparedObjectShapeProjection[];
+}
+
+export interface CsharpObjectShapeDemandClosure {
+  readonly artifacts: readonly CsharpObjectShapeArtifactClosure[];
+  readonly targetShapes: Readonly<Record<string, CsharpObjectShapeFact>>;
+  readonly projectionSubjects: readonly {
+    readonly subject: Node;
+    readonly projection: CsharpPreparedObjectShapeProjection;
+  }[];
 }
 
 export interface MutableObjectShapeArtifact {
@@ -89,7 +109,7 @@ export interface CsharpObjectShapeDemandScope {
     assignmentSource?: { readonly node: Node; readonly type: TargetTypeRef }): CsharpObjectShapeProjectionRequestResult;
   requireObjectShapeMethodReceiver(fact: CsharpObjectShapeFact,
     member: CsharpObjectShapeFact["members"][number]): CsharpArtifactRequestResult;
-  objectShapeArtifacts(): readonly CsharpObjectShapeArtifact[];
+  closeObjectShapeArtifacts(): readonly CsharpObjectShapeArtifactClosure[];
   connect(ownerKey: string, dependencyKey: string): void;
   collectShapeDependencies(root: CsharpObjectShapeFact):
     CsharpObjectShapeClosure & { readonly dependencies: ReadonlyMap<string, ReadonlySet<string>> }

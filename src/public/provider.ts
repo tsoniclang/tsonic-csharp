@@ -38,17 +38,17 @@ export {
 } from "../target-model/types/carriers/runtime-carriers.js";
 export {
   csharpProviderPolicyContribution,
-  csharpProviderPolicyContributionKind,
 } from "../providers/model/provider-policy-contribution.js";
-export type { CsharpProviderPolicyContribution } from "../providers/model/provider-policy-contribution.js";
-export type { CsharpProviderBinaryExecutionDriver } from "../providers/model/provider-policy-contribution.js";
+export { csharpProviderPolicyContributionKind } from "../target-model/metadata/provider-metadata.js";
+export type { CsharpProviderPolicyContribution, CsharpProviderBinaryExecutionDriver } from "../target-model/metadata/provider-metadata.js";
 export { csharpJsEventLoopBinaryExecutionDriver } from "../target-model/project/binary-execution-drivers.js";
 export {
   assertCsharpProviderPolicyIsNonContradictory,
   createCsharpProviderRejectionCatalog,
   createCsharpProviderRelationCatalog,
 } from "../providers/model/provider-relations.js";
-export type { CsharpProviderArgumentAdapter, CsharpProviderIdentityResult, CsharpProviderSourceIdentity, CsharpProviderTargetRejection, CsharpProviderTargetRejectionDiagnostic } from "../providers/model/provider-relations.js";
+export type { CsharpProviderArgumentAdapter, CsharpProviderIdentityResult } from "../providers/model/provider-relations.js";
+export type { CsharpProviderSourceIdentity, CsharpProviderTargetRejection, CsharpProviderTargetRejectionDiagnostic } from "../target-model/identities/provider-relations.js";
 export type { CsharpProviderBindingTypeArgumentSource, CsharpProviderMemberSourceIdentity, CsharpProviderObjectLiteralConstruction, CsharpProviderParameterRelation, CsharpProviderSignatureSourceIdentity, CsharpProviderSourceIdentityBase, CsharpProviderTargetRelation, CsharpProviderTypeParameterRelation, CsharpProviderTypeSourceIdentity, CsharpProviderValueSourceIdentity, CsharpTargetReceiverRelation } from "../target-model/identities/provider-relations.js";
 export { substituteTargetTypeParameters } from "../target-model/types/substitution.js";
 export { csharpApplyExternAliasToTargetBinding } from "../policy/types/project/extern-aliases.js";

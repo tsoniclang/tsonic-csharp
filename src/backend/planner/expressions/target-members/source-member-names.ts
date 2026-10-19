@@ -2,7 +2,7 @@ import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpPropertyClassification } from "../../../../target-model/records/operations.js";
 import type { CsharpPlanningContext } from "../../context.js";
-import { objectShapeStorageMemberName } from "../../objects/object-shape-storage.js";
+import { objectShapeStorageMemberName } from "../../../../target-model/names/object-members.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 
 export function planCsharpSourceMemberName(

@@ -13,6 +13,7 @@ import { getCsharpLambdaSignature, getCsharpExpressionTreeDelegateType, isCsharp
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { planSourceFunctionDeclaration } from "../../declarations/callables/functions.js";
 import { withCsharpSafetyModifiers } from "../../safety/explicit-safety.js";
+import { planCsharpArtifactMemberHiding } from "../../declarations/modifiers.js";
 
 export function renderCsharpCaptureFrameMethods(
   shape: CsharpObjectShapeFact, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
@@ -53,7 +54,9 @@ export function renderCsharpCaptureFrameMethods(
     if (input.program.source.ast.is.IsFunctionDeclaration(method.declaration)) {
       const planned = planSourceFunctionDeclaration(method.declaration, file, context, diagnostics);
       members.push({ ...planned.declaration, kind: "MethodDeclaration", name: method.methodName,
-        modifiers: withCsharpSafetyModifiers(planned.async ? ["public", "async"] : ["public"],
+        modifiers: withCsharpSafetyModifiers(planned.async
+          ? ["public", "async", ...planCsharpArtifactMemberHiding(input.program.names, shape, method.methodName)]
+          : ["public", ...planCsharpArtifactMemberHiding(input.program.names, shape, method.methodName)],
           method.declaration, "declaration", context) });
       continue;
     }
@@ -63,7 +66,8 @@ export function renderCsharpCaptureFrameMethods(
     const lambda = planned?.completion.kind === "value" ? planned.completion.expression : undefined;
     if (planned === undefined || planned.prelude.length !== 0 || lambda?.kind !== "LambdaExpression") return undefined;
     if (quotation) {
-      members.push({ kind: "MethodDeclaration", name: method.methodName, modifiers: ["public"], returnType,
+      members.push({ kind: "MethodDeclaration", name: method.methodName,
+        modifiers: ["public", ...planCsharpArtifactMemberHiding(input.program.names, shape, method.methodName)], returnType,
         parameters: [], body: { kind: "Block", statements: [{ kind: "ReturnStatement", expression: lambda }] },
       }, ...context.scope.generatedMethods?.values() ?? []);
       continue;
@@ -78,7 +82,8 @@ export function renderCsharpCaptureFrameMethods(
     });
     if (parameters.some(parameter => parameter === undefined)) return undefined;
     members.push({ kind: "MethodDeclaration", name: method.methodName,
-      modifiers: ["public", ...(lambda.async ? ["async" as const] : [])], returnType,
+      modifiers: ["public", ...(lambda.async ? ["async" as const] : []),
+        ...planCsharpArtifactMemberHiding(input.program.names, shape, method.methodName)], returnType,
       typeParameters: planTypeParameters(input.program.source.ast.typeParameters(method.declaration), context, diagnostics),
       parameters: parameters as NonNullable<typeof parameters[number]>[],
       body: lambda.body.kind === "Block" ? lambda.body : { kind: "Block", statements: [

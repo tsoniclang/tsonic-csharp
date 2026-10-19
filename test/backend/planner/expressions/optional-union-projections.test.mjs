@@ -14,7 +14,7 @@ test("nullable union projections require exact payload and absence facts", () =>
   const input = { kind: "IdentifierName", name: "value" };
   const selection = { kind: "runtime-union-projection", path: [{ union, index: 1 }], armType: string, retainsAbsence: true };
   const diagnostics = [];
-  const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => undefined } };
+  const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) } };
   const context = { scope: { typeParameterNames: new Map() }, program: {} };
   const projected = planCsharpRuntimeUnionProjection({}, source, target, selection, input, diagnostics, context);
   assertNoTargetDiagnostics(diagnostics);

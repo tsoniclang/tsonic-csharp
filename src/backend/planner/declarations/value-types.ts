@@ -15,6 +15,8 @@ import { getCsharpTypeForNode, invalidCsharpType } from "../types/index.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planIdentifierName } from "../names/source-identifiers.js";
 import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../types/target-type-object-shapes.js";
+import { planCsharpNativeMemberHiding } from "./modifiers.js";
+import { objectShapeBoundStorageMemberName } from "../../../target-model/names/object-members.js";
 
 export function planValueTypeDeclaration(
   declarationNode: Node,
@@ -35,7 +37,12 @@ export function planValueTypeDeclaration(
       return failCsharpPlannerInvariant("An admitted native value field lost its exact renderable selected carrier.", field.source.sourceType);
     }
     if (field.bound !== undefined) {
-      const rendered = renderBoundRecordMember(input.scope.typeParameterNames, field.bound.owner, field.bound.member, type);
+      const rendered = renderBoundRecordMember(input.scope.typeParameterNames, field.bound.owner, field.bound.member, type, {
+        member: planCsharpNativeMemberHiding(input.program.names, { kind: "value", container: declarationNode,
+          member: field.bound.member.targetName, role: "member" }),
+        storage: planCsharpNativeMemberHiding(input.program.names, { kind: "value", container: declarationNode,
+          member: objectShapeBoundStorageMemberName(field.bound.owner, field.bound.member), role: "member" }),
+      });
       if (rendered.some(candidate => candidate === undefined)) {
         return failCsharpPlannerInvariant("An admitted bound native value field lost its renderable storage contract.", field.source.sourceType);
       }
@@ -45,7 +52,9 @@ export function planValueTypeDeclaration(
     members.push({
       kind: "FieldDeclaration",
       name: field.source.sourceName,
-      modifiers: field.source.readonly ? ["public", "readonly"] : ["public"],
+      modifiers: ["public", ...(field.source.readonly ? ["readonly" as const] : []),
+        ...planCsharpNativeMemberHiding(input.program.names,
+          { kind: "value", container: declarationNode, member: field.source.sourceName, role: "member" })],
       type,
     });
   }

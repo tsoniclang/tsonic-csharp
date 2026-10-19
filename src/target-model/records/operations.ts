@@ -1,6 +1,7 @@
 import type { CsharpConversionSelection } from "../conversions/selection.js";
 import type { CsharpJsValueOperationSelection } from "../operations/js-values.js";
-import type { CsharpObjectShapeFact, CsharpTargetBinaryExecutionDriver, CsharpTypeofRuntimeKind, TargetTypeRef } from "../types/model.js";
+import type { CsharpObjectShapeFact, CsharpTypeofRuntimeKind, TargetTypeRef } from "../types/model.js";
+import type { CsharpTargetBinaryExecutionDriver } from "../metadata/provider-metadata.js";
 import type { CsharpObjectShapeMemberLookupResult } from "../types/object-shape-members.js";
 import type { CsharpTypeofResult } from "../types/runtime-kind.js";
 import type { CsharpBorrowedSequenceInput } from "./borrowed-sequences.js";
@@ -184,7 +185,9 @@ export interface CsharpOperatorFormClassification {
   readonly usesExpectedResultType?: boolean;
 }
 
-export interface CsharpTargetOperationClassifications {
+export interface CsharpTargetOperationClassifications<
+  Iteration extends CsharpOperationSelection<CsharpResolvedIteration> = CsharpOperationSelection<CsharpResolvedIteration>,
+> {
   readonly issues: readonly CsharpOperationIssue[];
   readonly awaitCompletion: { readonly get: (node: Node) => import("../types/await-completions.js").CsharpAwaitCompletion | undefined };
   readonly classPropertyStorage: { readonly get: (declaration: Node) => import("./class-property-storage.js").CsharpClassPropertyStorage | undefined };
@@ -207,7 +210,7 @@ export interface CsharpTargetOperationClassifications {
   readonly binaryOperation: { readonly get: (node: Node) => CsharpBinaryClassification | undefined };
   readonly switchStatement: { readonly get: (node: Node) => CsharpSwitchSelection | undefined };
   readonly unaryOperation: { readonly get: (node: Node) => CsharpUnaryClassification | undefined };
-  readonly iteration: { readonly get: (node: Node) => CsharpOperationSelection<CsharpResolvedIteration> | undefined };
+  readonly iteration: { readonly get: (node: Node) => Iteration | undefined };
   readonly resource: { readonly get: (node: Node) => CsharpOperationSelection<CsharpResolvedResourceManagement> | undefined };
   readonly nativePointer: { readonly get: (node: Node) => CsharpNativePointerOperationSelection | undefined };
   readonly typedLocation: { readonly get: (node: Node) => CsharpTypedLocationOperationSelection | undefined };

@@ -98,6 +98,6 @@ test("explicit C# JsString planning preserves never completion and rejects missi
 
 test("ordinary native strings do not acquire explicit JsString identity through implicit conversion", () => {
   const context = { projectTypes: { typeFromTarget: () => undefined, directSupertypes: () => [] },
-    providers: { findTargetBindingByTargetId: () => undefined } };
+    providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) } };
   assert.equal(selectCsharpConversion(context, nativeString, exactString, "implicit").kind, "rejected");
 });

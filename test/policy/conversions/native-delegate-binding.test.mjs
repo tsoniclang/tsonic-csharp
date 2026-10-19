@@ -7,7 +7,7 @@ import { substituteTargetTypeParameters } from "../../../dist/target-model/types
 
 const integer = { kind: "source-primitive", name: "int32" };
 const widened = { kind: "source-primitive", name: "int64" };
-const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId() {} }, target: {} };
+const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId() { return { kind: "missing" }; } }, target: {} };
 const passingModes = ["by-value", "byref-readonly", "byref-readwrite", "byref-writeonly-must-init"];
 
 function nativeDelegate(name, passingMode = "by-value", parameterType = integer, returnPassing) {

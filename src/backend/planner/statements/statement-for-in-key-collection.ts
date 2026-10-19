@@ -6,10 +6,7 @@ import type {
   CsharpStatement,
 } from "../../target-ast/syntax/index.js";
 import {
-  sameCsharpType,
-} from "../types/index.js";
-import {
-  unsupportedNodeDiagnostic,
+  failCsharpPlannerInvariant,
 } from "../diagnostics.js";
 import {
   allocateForInNames,
@@ -24,7 +21,7 @@ import { consumeCsharpPlannedValue } from "./statement-output.js";
 import type {
   NestedStatementPlanner,
 } from "./statement-nested-planner.js";
-import type { CsharpResolvedIteration } from "../../../target-model/records/selection.js";
+import type { CsharpAdmittedIteration } from "../../../target-model/records/selection.js";
 import type {
   PlannedForInBinding,
 } from "./statement-for-in-binding.js";
@@ -39,7 +36,7 @@ export function planKeyCollectionForInStatement(
   statement: NonNullable<ReturnType<typeof AsForInOrOfStatement>>,
   binding: PlannedForInBinding,
   selectedIteration: Extract<
-    CsharpResolvedIteration,
+    CsharpAdmittedIteration,
     {
       readonly iterationKind: "for-in";
       readonly lowering: { readonly kind: "key-collection" };
@@ -51,36 +48,18 @@ export function planKeyCollectionForInStatement(
   state: DestructuringPlannerState,
   planNestedStatementBody: NestedStatementPlanner,
 ): readonly CsharpStatement[] {
-  const keyType = getForInKeyType(input.scope.typeParameterNames, selectedIteration, statementNode, diagnostics);
-  if (keyType === undefined) {
-    return [];
-  }
-  if (binding.currentType !== undefined && !sameCsharpType(binding.currentType, keyType)) {
-    diagnostics.push(unsupportedNodeDiagnostic(binding.node, "For-in key binding must have the finalized provider key type."));
-    return [];
-  }
+  const keyType = getForInKeyType(input.scope.typeParameterNames, selectedIteration, statementNode);
   if (statement.Expression === undefined) {
-    diagnostics.push({
-      code: "CSHARP_UNSUPPORTED_FOR_IN_COLLECTION",
-      category: "error",
-      source: "tsonic-csharp",
-      message: "For-in requires a collection expression.",
-    });
-    return [];
+    failCsharpPlannerInvariant("An admitted key-collection loop lost its checked collection expression.", statementNode);
   }
   const collectionType = getCsharpTypeForForInCollection(
     input.scope.typeParameterNames,
     selectedIteration,
     statement.Expression,
-    diagnostics,
   );
-  if (collectionType === undefined) {
-    return [];
-  }
   const { collectionName, keysName } = allocateForInNames(state);
   const bindingActivation = planForInKeyCollectionBindingActivation(
     binding,
-    keyType,
     keysName,
     input,
     state,

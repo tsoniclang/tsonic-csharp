@@ -5,7 +5,6 @@ import {
   KindArrayBindingPattern,
   KindIdentifier,
   KindObjectBindingPattern,
-  sourceParameterIsProperty,
 } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
@@ -25,7 +24,6 @@ import {
 import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../../types/target-type-object-shapes.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { planExpression } from "../../expressions/index.js";
-import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "../modifiers.js";
 import { planCsharpRuntimeParameterDefault } from "./defaults.js";
 import { consumeCsharpPlannedValue } from "../../statements/statement-output.js";
 import {
@@ -71,12 +69,10 @@ export function planParametersWithPrelude(
   for (const parameterNode of parameterNodes) {
     const parameter = AsParameterDeclaration(input.program.source.ast, parameterNode)!;
     const questionToken = input.program.source.ast.questionToken(parameterNode);
-    diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, parameterNode!, "parameter declaration", diagnostics,
-      sourceParameterIsProperty(input.program.source.ast, parameterNode!) ? ["public", "private", "protected", "readonly"] : []);
     if (HasSourceKind(input.program.source.ast, parameter.name, KindIdentifier)) {
       const type = getParameterType(parameterNode, sourceFile, input, diagnostics);
       if (input.program.records.runtimeDefault.get(parameterNode!) !== undefined) {
-        const sourceName = declareCsharpLocalBindingName(parameter.name, input, diagnostics, state, "Parameter name", "arg");
+        const sourceName = declareCsharpLocalBindingName(parameter.name!, input, state);
         const incomingName = allocateSyntheticParameter(state);
         const selected = planCsharpRuntimeParameterDefault(parameterNode!, incomingName, sourceFile, input, diagnostics, state);
         if (selected === undefined) continue;
@@ -95,7 +91,7 @@ export function planParametersWithPrelude(
       } else if (hasDefaultParameter && parameter.DotDotDotToken === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(parameterNode!, "Required parameters cannot follow C# optional parameters."));
       }
-      const sourceName = declareCsharpLocalBindingName(parameter.name, input, diagnostics, state, "Parameter name", "arg");
+      const sourceName = declareCsharpLocalBindingName(parameter.name!, input, state);
       parameters.push({
         name: sourceName,
         type,
@@ -148,7 +144,7 @@ export function planParametersWithPrelude(
       diagnostics.push(unsupportedNodeDiagnostic(parameterNode!, "Required parameters cannot follow C# optional parameters."));
     }
     diagnostics.push(unsupportedNodeDiagnostic(parameter.name ?? parameterNode!, "Parameter name is outside the current C# planning surface."));
-    const targetName = declareCsharpLocalBindingName(parameter.name, input, diagnostics, state, "Parameter name", "arg");
+    const targetName = declareCsharpLocalBindingName(parameter.name!, input, state);
     parameters.push({
       name: targetName,
       type,

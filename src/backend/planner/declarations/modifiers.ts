@@ -1,53 +1,35 @@
 import {
   HasSyntacticModifier,
-  ModifierFlagsAbstract,
-  ModifierFlagsAccessor,
-  ModifierFlagsAmbient,
   ModifierFlagsAsync,
-  ModifierFlagsConst,
-  ModifierFlagsOverride,
-  ModifierFlagsPrivate,
-  ModifierFlagsProtected,
-  ModifierFlagsPublic,
-  ModifierFlagsReadonly,
 } from "@tsonic/target-api/source";
 import type { AstReader, Node } from "@tsonic/tsts";
-import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import { unsupportedNodeDiagnostic } from "../diagnostics.js";
+import type { CsharpNamePlan, CsharpNativeMemberIdentity } from "../../../target-model/names/model.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
+import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
+import { objectShapeArtifactKey } from "../../../target-model/records/object-shape-demand.js";
 
-const typeScriptOnlyRuntimeShapeModifiers = [
-  { flag: ModifierFlagsPublic, name: "public" },
-  { flag: ModifierFlagsPrivate, name: "private" },
-  { flag: ModifierFlagsProtected, name: "protected" },
-  { flag: ModifierFlagsReadonly, name: "readonly" },
-  { flag: ModifierFlagsAbstract, name: "abstract" },
-  { flag: ModifierFlagsOverride, name: "override" },
-  { flag: ModifierFlagsAmbient, name: "declare" },
-  { flag: ModifierFlagsAccessor, name: "accessor" },
-  { flag: ModifierFlagsConst, name: "const" },
-] as const;
+export function planCsharpNativeMemberHiding(
+  names: Pick<CsharpNamePlan, "memberHiding">,
+  subject: CsharpNativeMemberIdentity,
+): readonly "new"[] {
+  const hides = names.memberHiding.get(subject);
+  if (hides === undefined) return failCsharpPlannerInvariant(
+    "An admitted native member lost its final physical-container hiding decision.",
+    subject.kind === "source" ? subject.declaration : subject.kind === "value" ? subject.container : undefined);
+  return hides ? ["new"] : [];
+}
 
-type TypeScriptOnlyRuntimeShapeModifierName =
-  (typeof typeScriptOnlyRuntimeShapeModifiers)[number]["name"];
+export function planCsharpAdmittedMemberName(names: Pick<CsharpNamePlan, "resolve">, node: Node | undefined): string {
+  const selected = names.resolve(node);
+  if (selected.kind !== "resolved") return failCsharpPlannerInvariant(
+    "An admitted native member lost its final representable name.", node);
+  return selected.name;
+}
 
-export function diagnoseTypeScriptOnlyRuntimeShapeModifiers(
-  ast: AstReader,
-  node: Node,
-  context: string,
-  diagnostics: TargetDiagnostic[],
-  allowedModifiers: readonly TypeScriptOnlyRuntimeShapeModifierName[] = [],
-): void {
-  for (const modifier of typeScriptOnlyRuntimeShapeModifiers) {
-    if (allowedModifiers.includes(modifier.name)) {
-      continue;
-    }
-    if (HasSyntacticModifier(ast, node, modifier.flag)) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        node,
-        `TypeScript-only modifier '${modifier.name}' on ${context} is outside the native runtime-shape source subset. Use standard ECMAScript runtime shape or target/provider facts instead.`,
-      ));
-    }
-  }
+export function planCsharpArtifactMemberHiding(names: Pick<CsharpNamePlan, "memberHiding">,
+  shape: CsharpObjectShapeFact, name: string): readonly "new"[] {
+  return planCsharpNativeMemberHiding(names,
+    { kind: "artifact", container: objectShapeArtifactKey(shape), member: name, role: "member" });
 }
 
 export function isAsyncNode(

@@ -4,7 +4,7 @@ import type { CsharpArrayBindingCarrier, TargetTypeRef } from "../../../target-m
 import type { CsharpDefaultValueContract } from "../../../target-model/records/value-projections.js";
 import type { CsharpExpression, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
-import { unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import type { ExpressionPlanner } from "../expressions/expression-planner-types.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
@@ -27,8 +27,7 @@ export function planArrayDefaultProjection(
   const carrier = contract.target;
   const type = csharpTypeFromTargetTypeRef(carrier, input.scope.typeParameterNames);
   if (type === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(initializer, "Array default requires a renderable finalized element carrier."));
-    return undefined;
+    failCsharpPlannerInvariant("An admitted array default lost its native element rendering.", initializer);
   }
   const defaultValue = planExpression(initializer, sourceFile, input, diagnostics, state);
   if (defaultValue === undefined) return undefined;

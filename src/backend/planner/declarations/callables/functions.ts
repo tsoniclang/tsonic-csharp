@@ -6,7 +6,7 @@ import type { CsharpMethodDeclaration, CsharpStatement } from "../../../target-a
 import { planAttributesForSubject } from "../attributes.js";
 import { createDestructuringPlannerState, createNestedPlannerState, getCsharpLocalBindingName,
   type DestructuringPlannerState } from "../../bindings/index.js";
-import { diagnoseTypeScriptOnlyRuntimeShapeModifiers, isAsyncNode } from "../modifiers.js";
+import { isAsyncNode, planCsharpNativeMemberHiding } from "../modifiers.js";
 import { planIdentifierName } from "../../names/source-identifiers.js";
 import { planParametersWithPrelude } from "./parameters.js";
 import { planBlockStatements } from "../../statements/index.js";
@@ -26,7 +26,8 @@ export function planFunctionDeclaration(
 ): CsharpMethodDeclaration {
   const planned = planSourceFunctionDeclaration(node, sourceFile, input, diagnostics);
   return { ...planned.declaration, kind: "MethodDeclaration",
-    modifiers: withCsharpSafetyModifiers(planned.async ? ["public", "static", "async"] : ["public", "static"],
+    modifiers: withCsharpSafetyModifiers(["public", "static", ...(planned.async ? ["async" as const] : []),
+      ...planCsharpNativeMemberHiding(input.program.names, { kind: "source", declaration: node, role: "member" })],
       node, "declaration", input) };
 }
 
@@ -46,7 +47,6 @@ export function planSourceFunctionDeclaration(
 ): { readonly async: boolean; readonly declaration: Omit<CsharpMethodDeclaration, "kind" | "modifiers" | "body"> &
   { readonly body: NonNullable<CsharpMethodDeclaration["body"]> } } {
   const declaration = AsFunctionDeclaration(input.program.source.ast, node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "function declaration", diagnostics);
   const name = declaration.name === undefined || parent === undefined ? undefined : getCsharpLocalBindingName(declaration.name, input, parent);
   const selectedName = name ?? planIdentifierName(declaration.name, "__anonymous", input, diagnostics, "Function name");
   const state = parent === undefined ? createDestructuringPlannerState(node, input.program.source.ast)
