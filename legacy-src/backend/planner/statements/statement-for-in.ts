@@ -16,7 +16,7 @@ import { planExpression } from "../expressions/index.js";
 import { consumeCsharpPlannedValue } from "./statement-output.js";
 import type {
   NestedStatementPlanner,
-} from "./statement-nested-planner.js";
+} from "./model.js";
 import {
   getCsharpTypeForForInCollection,
   planForInBinding,

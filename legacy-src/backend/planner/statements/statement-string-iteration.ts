@@ -24,7 +24,7 @@ import {
 } from "../expressions/index.js";
 import type {
   NestedStatementPlanner,
-} from "./statement-nested-planner.js";
+} from "./model.js";
 import {
   add,
   and,

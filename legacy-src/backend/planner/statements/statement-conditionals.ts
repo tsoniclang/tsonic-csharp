@@ -26,7 +26,7 @@ import {
 } from "../expressions/expression-bool-carriers.js";
 import type {
   NestedStatementPlanner,
-} from "./statement-nested-planner.js";
+} from "./model.js";
 import type { CsharpPlannedValue } from "../expressions/planned-values.js";
 import { consumeCsharpPlannedValue } from "./statement-output.js";
 import { planCsharpLoopContinuation, csharpLoopContinuationLabel } from "./loop-regions.js";

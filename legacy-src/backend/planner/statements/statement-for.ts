@@ -22,7 +22,7 @@ import {
 import { planLocalDeclarationStatements } from "../bindings/locals.js";
 import type {
   NestedStatementPlanner,
-} from "./statement-nested-planner.js";
+} from "./model.js";
 import { planResourceScopeStatements } from "./resource-management.js";
 import { planCsharpCaptureFrame, planCsharpCaptureFrameRotation } from "../bindings/capture-storage.js";
 import { sourceExpressionSequence } from "@tsonic/target-api/source";

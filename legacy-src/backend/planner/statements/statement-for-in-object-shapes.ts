@@ -28,7 +28,7 @@ import {
 import type { CsharpAdmittedIteration } from "../../../target-model/records/selection.js";
 import type {
   NestedStatementPlanner,
-} from "./statement-nested-planner.js";
+} from "./model.js";
 import type {
   PlannedForInBinding,
 } from "./statement-for-in-binding.js";
