@@ -12,7 +12,7 @@ import type {
 } from "../../providers/model/relation-resolver.js";
 import type {
   CsharpProviderBinaryExecutionDriver,
-} from "../../providers/model/provider-policy-contribution.js";
+} from "../../target-model/metadata/provider-metadata.js";
 import type { CsharpProjectTypeClassifications } from "../../target-model/records/project-types.js";
 import type { CsharpProgramRecords } from "../../target-model/records/program.js";
 import type { CsharpClassFactory } from "../../target-model/records/class-factories.js";

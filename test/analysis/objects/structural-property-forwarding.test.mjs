@@ -12,7 +12,7 @@ import { csharpStringTargetType } from "../../../dist/target-model/types/carrier
 
 const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
 const number = Object.freeze({ kind: "source-primitive", name: "float64" });
-const nativePolicy = { projectTypes: { directSupertypes: () => undefined }, providers: { findTargetBindingByTargetId: () => undefined } };
+const nativePolicy = { projectTypes: { directSupertypes: () => undefined }, providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) } };
 
 function propertyFixture(target = number) {
   const sourceNode = Object.freeze({});
@@ -25,7 +25,7 @@ function propertyFixture(target = number) {
   const selected = Object.freeze({ sourceNode, sourceType, interfaceType,
     methods: Object.freeze([]), properties: Object.freeze([property]) });
   let shapeReads = 0;
-  const policy = { ast: {}, target: {}, providers: { findTargetBindingByTargetId: () => undefined },
+  const policy = { ast: {}, target: {}, providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) },
     projectTypes: { directSupertypes: () => [], catalog: { definitionForDeclaration: () => undefined } },
     objectShapes: { resolveNode: () => undefined, resolveTarget() { shapeReads += 1; return undefined; } } };
   const shapes = { issues: Object.freeze([]), structuralImplementationTypes: Object.freeze([sourceType]),

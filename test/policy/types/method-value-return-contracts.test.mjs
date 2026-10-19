@@ -11,7 +11,7 @@ const parameter = { kind: "type-parameter", name: "Value", identity: "original-s
 const signature = csharpDelegateTargetType("System.Func", [parameter], parameter);
 const method = csharpMethodValueType(owner, "identity", "source.identity", signature, [parameter.identity]);
 const inferred = csharpMethodValueType(protocol, "Invoke", "checked-callable", signature, [parameter.identity]);
-const policy = { projectTypes: { directSupertypes() { return []; } }, providers: { findTargetBindingByTargetId() {} }, target: {} };
+const policy = { projectTypes: { directSupertypes() { return []; } }, providers: { findTargetBindingByTargetId() { return { kind: "missing" }; } }, target: {} };
 
 test("inferred generic callable coverage selects the original method and native environment", () => {
   assert.equal(csharpMethodValueCoversContract(method, inferred), true, "exact quantified baseline is covered");

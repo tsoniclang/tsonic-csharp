@@ -1,3 +1,5 @@
+import { resolvedNativeBinding } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
+import { nativeTypeFixture } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
 import { assert, dirname, join, test, fileURLToPath, augmentDotnetModuleWithNativeArray, completeProviderDeclarationRequest, createDotnetProviderTelemetry, createDotnetReflectionTypeDataProvider, createDotnetSourceDeclarationProvider, dotnetNativeArrayCreateMemberId, dotnetNativeArrayIndexerMemberId, dotnetNativeArrayLengthMemberId, dotnetNativeArrayTypeId, dotnetModuleToProviderDeclarationModel, dotnetTypeRefToProviderType, dotnetTypeRefToTargetTypeRef, validateDotnetProviderDeclarationModelContract, dotnetExportToTargetBinding, tryDotnetTypeRefToProviderType, buildDotnetFixture, repoRoot, testAssemblyId, testTargetId, namedDotnetTypeRef, methodMember, dotnetTestTypeMetadataName, sourcePrimitiveTestMetadataName, getDotnetDeclaration, getDotnetTargetId, getDotnetBinding, requireDotnetMember, requireProviderDeclarationMember, idEndsWith, findByIdSuffix, stripAssemblyQualifiers, collectProviderRefs, assertProviderDeclarationRefsFullyQualified, unsupportedMembersByMetadataName, constructorSignature, methodSignature, parameterFacts, stripTargetPayload, typeFact, omitLocalName, buildAttributeFixture, buildConstructorFixture, buildUnsupportedEventFixture, buildUnsupportedMemberFixture, buildConstraintFixture, buildConversionFixture, buildSignatureIdentityFixture } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
 
 import { getCompleteDotnetModule } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
@@ -21,7 +23,7 @@ test(".NET target binding provider preserves requested-export slices through dec
         return {
           moduleSpecifier: specifier,
           namespaceName: "System",
-          exports: (context.requestedExports ?? []).map((sourceName) => ({
+          exports: (context.requestedExports ?? []).map((sourceName) => (nativeTypeFixture({
             kind: "type",
             isByRefLike: false, constraintRequiresReferenceType: true,
             allowsRefLikeTypeArguments: [],
@@ -30,7 +32,7 @@ test(".NET target binding provider preserves requested-export slices through dec
             namespaceName: "System",
             targetId: testTargetId(`System.${sourceName}`),
             metadataName: `System.${sourceName}`,
-          })),
+          }))),
         };
       },
     },
@@ -540,10 +542,10 @@ test(".NET reflection provider target identities preserve nested CLR separators 
   assert.ok(specialFolder);
   assert.match(specialFolder.targetId, /::System\.Environment\+SpecialFolder$/u);
 
-  const binding = provider.findTargetBindingByTargetId(specialFolder.targetId);
+  const binding = resolvedNativeBinding(provider.findTargetBindingByTargetId(specialFolder.targetId, "ordinary"));
   assert.ok(binding);
   assert.equal(binding.id, specialFolder.targetId);
-  assert.equal(provider.findTargetBindingByTargetId(specialFolder.targetId.replace("Environment+SpecialFolder", "Environment.SpecialFolder")), undefined);
+  assert.equal(provider.findTargetBindingByTargetId(specialFolder.targetId.replace("Environment+SpecialFolder", "Environment.SpecialFolder"), "ordinary").kind, "missing");
 });
 test(".NET reflection provider preserves cross-namespace source-visible provider refs", () => {
   const provider = createDotnetReflectionTypeDataProvider();

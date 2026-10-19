@@ -10,7 +10,7 @@ const scalar = { kind: "source-primitive", name: "uint64" };
 const host = {
   projectTypeCatalog: { definitionForTarget: carrier => carrier === base || carrier === child ? { kind: "class" } : undefined },
   projectTypes: () => ({ directSupertypes: carrier => carrier === child ? [base] : [] }),
-  providers: { findTargetBindingByTargetId: () => undefined },
+  providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) },
 };
 
 test("source result selection retains exact native and checked nominal carriers", () => {

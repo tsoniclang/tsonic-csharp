@@ -12,7 +12,7 @@ const derived = csharpTargetNamedType("Project.Failure", undefined, { kind: "nam
 const unrelated = csharpTargetNamedType("Project.Value", undefined, { kind: "named", name: "Value" }, { allowsRefLikeTypeArguments: [],});
 const host = {
   projectTypes: { directSupertypes: carrier => carrier === derived ? [source] : [] },
-  providers: { findTargetBindingByTargetId: () => undefined },
+  providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) },
   target: {},
 };
 

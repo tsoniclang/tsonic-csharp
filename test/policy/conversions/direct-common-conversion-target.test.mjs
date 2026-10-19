@@ -25,7 +25,7 @@ import {
 
 const host = {
   projectTypes: { directSupertypes() { return []; } },
-  providers: { findTargetBindingByTargetId() {} },
+  providers: { findTargetBindingByTargetId() { return { kind: "missing" }; } },
   target: {},
 };
 const int32 = csharpSourcePrimitiveTargetType("int32");

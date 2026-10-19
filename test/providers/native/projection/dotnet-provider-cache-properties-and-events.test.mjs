@@ -1,3 +1,5 @@
+import { resolvedNativeBinding } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
+import { nativeTypeFixture } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
 import { readdirSync, readFileSync } from "node:fs";
 import { createTestWorkspace } from "../../../../../tsonic/test/scripts/test-workspaces.mjs";
 import { assert, dirname, join, test, fileURLToPath, augmentDotnetModuleWithNativeArray, completeDotnetProviderContext, completeProviderDeclarationRequest, createDotnetProviderTelemetry, createDotnetReflectionTypeDataProvider, createDotnetSourceDeclarationProvider, dotnetNativeArrayCreateMemberId, dotnetNativeArrayIndexerMemberId, dotnetNativeArrayLengthMemberId, dotnetNativeArrayTypeId, dotnetModuleToProviderDeclarationModel, dotnetTypeRefToProviderType, dotnetTypeRefToTargetTypeRef, validateDotnetProviderDeclarationModelContract, dotnetExportToTargetBinding, tryDotnetTypeRefToProviderType, buildDotnetFixture, repoRoot, testAssemblyId, testTargetId, namedDotnetTypeRef, methodMember, dotnetTestTypeMetadataName, sourcePrimitiveTestMetadataName, getDotnetDeclaration, getDotnetTargetId, getDotnetBinding, requireDotnetMember, requireProviderDeclarationMember, idEndsWith, findByIdSuffix, stripAssemblyQualifiers, collectProviderRefs, assertProviderDeclarationRefsFullyQualified, unsupportedMembersByMetadataName, constructorSignature, methodSignature, parameterFacts, stripTargetPayload, typeFact, omitLocalName, buildAttributeFixture, buildConstructorFixture, buildUnsupportedEventFixture, buildUnsupportedMemberFixture, buildConstraintFixture, buildConversionFixture, buildSignatureIdentityFixture } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
@@ -80,7 +82,7 @@ test(".NET reflection provider target-binding cache preserves member-complete bi
   const exception = model.exports.find((declaration) => declaration.name === "Exception");
   assert.ok(exception);
 
-  const binding = provider.findTargetBindingByMetadataName("System.Exception");
+  const binding = resolvedNativeBinding(provider.findTargetBindingByMetadataName("System.Exception", "ordinary"));
   assert.ok(binding);
   assert.equal(
     binding.members?.some((member) => member.id === `${binding.id}..ctor(System.Private.CoreLib, Version=10.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e::System.String)`),
@@ -97,7 +99,7 @@ test(".NET provider declaration model omits source members without truthful sour
     moduleSpecifier: "@tsonic/dotnet/System.js",
     namespaceName: "System",
     exports: [
-      {
+      nativeTypeFixture({
         kind: "type",
         isByRefLike: false, constraintRequiresReferenceType: true,
         allowsRefLikeTypeArguments: [],
@@ -151,7 +153,7 @@ test(".NET provider declaration model omits source members without truthful sour
             ],
           },
         ],
-      },
+      }),
     ],
   });
 
@@ -161,7 +163,7 @@ test(".NET provider declaration model omits source members without truthful sour
 
 test(".NET provider model maps property setters and field mutability to source and target facts", () => {
   const int32 = { kind: "source-primitive", name: "int32" };
-  const example = {
+  const example = nativeTypeFixture({
     kind: "type",
     isByRefLike: false, constraintRequiresReferenceType: true,
     allowsRefLikeTypeArguments: [],
@@ -220,7 +222,7 @@ test(".NET provider model maps property setters and field mutability to source a
         type: int32,
       },
     ],
-  };
+  });
 
   const sourceModel = dotnetModuleToProviderDeclarationModel({
     moduleSpecifier: "@tsonic/dotnet/ProviderModelFixtures.js",
@@ -256,7 +258,7 @@ test(".NET provider model keeps event facts target-only until source event seman
       returnType: { kind: "void" },
     },
   });
-  const eventSource = {
+  const eventSource = nativeTypeFixture({
     kind: "type",
     isByRefLike: false, constraintRequiresReferenceType: true,
     allowsRefLikeTypeArguments: [],
@@ -277,7 +279,7 @@ test(".NET provider model keeps event facts target-only until source event seman
         type: eventHandler,
       },
     ],
-  };
+  });
 
   const sourceModel = dotnetModuleToProviderDeclarationModel({
     moduleSpecifier: "@tsonic/dotnet/ProviderModelFixtures.js",
@@ -298,7 +300,7 @@ test(".NET provider model keeps event facts target-only until source event seman
 test(".NET provider declaration model keeps inherited source members on heritage declarations", () => {
   const int32 = { kind: "source-primitive", name: "int32" };
   const stringType = { kind: "string" };
-  const baseType = {
+  const baseType = nativeTypeFixture({
     kind: "type",
     isByRefLike: false, constraintRequiresReferenceType: true,
     allowsRefLikeTypeArguments: [],
@@ -322,8 +324,8 @@ test(".NET provider declaration model keeps inherited source members on heritage
         type: int32,
       },
     ],
-  };
-  const derivedType = {
+  });
+  const derivedType = nativeTypeFixture({
     kind: "type",
     isByRefLike: false, constraintRequiresReferenceType: true,
     allowsRefLikeTypeArguments: [],
@@ -348,7 +350,7 @@ test(".NET provider declaration model keeps inherited source members on heritage
       ]),
       methodMember("ProviderModelFixtures.Derived", "collision", "Collision", []),
     ],
-  };
+  });
 
   const sourceModel = dotnetModuleToProviderDeclarationModel({
     moduleSpecifier: "@tsonic/dotnet/ProviderModelFixtures.js",

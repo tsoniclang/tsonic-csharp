@@ -1,3 +1,4 @@
+import { csharpProviderBindingFromResolution } from "../../../providers/model/relation-resolver.js";
 import type { CsharpRawLocationSelection } from "../../../target-model/records/native-memory.js";
 import type { AstReader, ExtensionFactSubject, Node, ReadonlySourceFactResolver, SourceFile } from "@tsonic/tsts";
 import { countTsonicMemoryLayoutValues, selectTsonicRawLocationOperation } from "@tsonic/source-core/facts";
@@ -63,7 +64,7 @@ export function selectCsharpNativeMemoryLayout(
     const sourceStruct = project?.kind === "struct"
       ? readCsharpSourceStruct(input.sourceFacts, project.declaration) : undefined;
     const usedFields = new Set<string>();
-    const targetFields = csharpTargetBindingFact(input.providers.findTargetBindingByTargetId(pointeeType.id));
+    const targetFields = csharpTargetBindingFact(csharpProviderBindingFromResolution(input.providers.findTargetBindingByTargetId(pointeeType.id, "ordinary")));
     const completeFields: readonly string[] | undefined = sourceStruct?.valueType
       ? sourceStruct.fields.map(field => field.sourceName)
       : targetFields?.kind === "struct" ? targetFields.csharpNativeMemoryFieldIds : undefined;

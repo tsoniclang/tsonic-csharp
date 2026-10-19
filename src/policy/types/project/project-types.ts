@@ -1,3 +1,4 @@
+import { csharpProviderBindingFromResolution } from "../../../providers/model/relation-resolver.js";
 import type { CsharpProjectTypeDefinition, CsharpProjectTypeHeritage, CsharpProjectTypeIssue } from "../../../target-model/records/project-types.js";
 import type { AstReader, Node, ReadonlySourceFactResolver } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
@@ -533,7 +534,7 @@ function targetDeclarationKind(
     return undefined;
   }
   const binding = csharpTargetBindingFact(
-    host.providers.findTargetBindingByTargetId(type.id),
+    csharpProviderBindingFromResolution(host.providers.findTargetBindingByTargetId(type.id, "ordinary")),
   );
   return binding?.kind === "class"
     ? "class"

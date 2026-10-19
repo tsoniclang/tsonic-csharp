@@ -1,3 +1,4 @@
+import { nativeTypeFixture } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -6,7 +7,7 @@ import {
 } from "../../../../dist/providers/native/model/index.js";
 
 test(".NET target policy projects only exact JsonSerializer.Deserialize result type parameters", () => {
-  const binding = dotnetExportToTargetBinding({
+  const binding = dotnetExportToTargetBinding(nativeTypeFixture({
     kind: "type",
     isByRefLike: false, constraintRequiresReferenceType: true,
     allowsRefLikeTypeArguments: [],
@@ -48,7 +49,7 @@ test(".NET target policy projects only exact JsonSerializer.Deserialize result t
         static: false,
       },
     ],
-  });
+  }));
 
   assert.ok(binding);
   const members = new Map(binding.members.map((member) => [member.id, member]));

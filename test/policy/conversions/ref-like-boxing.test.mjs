@@ -11,7 +11,7 @@ import { dotnetExportToTargetBinding } from "../../../dist/providers/native/mode
 
 const carrier = csharpTargetNamedType("Proof.NativeLease", undefined, { kind: "named", name: "NativeLease" },
   { valueType: true, byRefLike: true, allowsRefLikeTypeArguments: [] });
-const policy = { providers: { findTargetBindingByTargetId: () => undefined } };
+const policy = { providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) } };
 
 test("ref-like boxing is refused by the one conversion selector", () => {
   const selected = selectCsharpConversion(policy, carrier, csharpObjectTargetType(), "implicit");
@@ -47,7 +47,7 @@ test("an actual non-boxing native ref-like conversion remains admitted", { timeo
   const operators = binding.conversionOperators;
   assert.equal(operators.length, 1, "the actual native ref-like conversion operator is retained");
   const selected = selectCsharpConversion({ providers: {
-    findTargetBindingByTargetId: id => id === binding.id ? binding : undefined,
+    findTargetBindingByTargetId: id => id === binding.id ? { kind: "resolved", binding } : { kind: "missing" },
   } }, binding.csharpType, operators[0].targetType, "implicit");
   assert.equal(selected.kind, "implicit", "a native ref-like source may convert without boxing");
   assert.equal(selected.proof, "provider-operator", "the one exact native operator owns the conversion");

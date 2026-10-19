@@ -12,7 +12,7 @@ import { createCsharpPlanningContext } from "../../../dist/backend/planner/conte
 import { planCsharpStructuralInterfaceMembers } from "../../../dist/backend/planner/declarations/interfaces/structural.js";
 import { printCsharpCompilationUnit } from "../../../dist/print/source/printer.js";
 
-const host = { typeDefinitions: undefined, projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => undefined }, target: {},
+const host = { typeDefinitions: undefined, projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) }, target: {},
   objectShapes: Object.freeze({ resolveNode: () => undefined, resolveTarget: () => undefined }) };
 const scalar = csharpSourcePrimitiveTargetType("string");
 const unrelated = csharpSourcePrimitiveTargetType("boolean");

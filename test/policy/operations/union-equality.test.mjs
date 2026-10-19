@@ -15,7 +15,7 @@ test("union equality covers nested leaf pairs without inventing operations for o
   const boolean = csharpSourcePrimitiveTargetType("bool");
   const inner = csharpRuntimeUnionTargetType([integer, text]);
   const outer = csharpRuntimeUnionTargetType([inner, boolean]);
-  const input = { providers: { findTargetBindingByTargetId() {} }, objectShapes: { resolveTarget() {} },
+  const input = { providers: { findTargetBindingByTargetId() { return { kind: "missing" }; } }, objectShapes: { resolveTarget() {} },
     projectTypes: { catalog: { definitionForTarget() {} } } };
   const selected = selectCsharpUnionEquality(outer, outer, input);
   assert.equal(selected.length, 3);
@@ -42,7 +42,7 @@ test("nullable union equality selects native presence and absence independently 
   assert.equal(registry.registerSourceUnion({ carrier: authored, arms: [text, base] }), true);
   const definitions = registry.seal();
   const input = { typeDefinitions: definitions,
-    providers: { findTargetBindingByTargetId() {} },
+    providers: { findTargetBindingByTargetId() { return { kind: "missing" }; } },
     objectShapes: { resolveTarget: carrier => [base, derived].some(value => targetTypeRefEquals(value, carrier)) ? {} : undefined },
     projectTypes: { catalog: { definitionForTarget() {} } } };
   for (const union of [csharpRuntimeUnionTargetType([text, base]), authored]) {
@@ -75,7 +75,7 @@ test("nullable union equality enters the existing binary owner and preserves inc
   const unsigned = csharpSourcePrimitiveTargetType("uint64");
   const text = csharpStringTargetType();
   const carrier = csharpNullableTargetType(csharpRuntimeUnionTargetType([integer, text]));
-  const policy = { providers: { findTargetBindingByTargetId() {} }, objectShapes: { resolveTarget() {} },
+  const policy = { providers: { findTargetBindingByTargetId() { return { kind: "missing" }; } }, objectShapes: { resolveTarget() {} },
     projectTypes: { catalog: { definitionForTarget() {} } } };
   assert.equal(selectCsharpUnionEquality(carrier, unsigned, policy), undefined);
   assert.equal(selectCsharpUnionEquality(carrier, csharpNullableTargetType(unsigned), policy), undefined);

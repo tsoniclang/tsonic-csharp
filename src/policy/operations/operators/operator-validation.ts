@@ -1,3 +1,4 @@
+import { csharpProviderBindingFromResolution } from "../../../providers/model/relation-resolver.js";
 import type { CsharpPolicyContext } from "../../model/context.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../types/index.js";
 import { csharpBigIntegerTargetType, getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms, isCsharpJsValueTargetType, isCsharpIntegralTargetType, isCsharpAbsenceTargetType, isCsharpStringTargetType, isCsharpReferenceCarrier, targetTypeRefEquals } from "../../types/index.js";
@@ -122,7 +123,7 @@ function isProviderOwned(
   input: CsharpPolicyContext,
 ): boolean {
   return type.kind === "target-named" &&
-    input.providers.findTargetBindingByTargetId(type.id) !== undefined;
+    csharpProviderBindingFromResolution(input.providers.findTargetBindingByTargetId(type.id, "ordinary")) !== undefined;
 }
 
 function isBoolean(type: TargetTypeRef): boolean {
@@ -142,7 +143,7 @@ function isCsharpEnumTargetType(
   return type.kind === "target-named" &&
     (
       (type as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "enum" ||
-      input.providers.findTargetBindingByTargetId(type.id)?.kind === "enum"
+      csharpProviderBindingFromResolution(input.providers.findTargetBindingByTargetId(type.id, "ordinary"))?.kind === "enum"
     );
 }
 

@@ -1,3 +1,5 @@
+import { resolvedNativeBinding } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
+import { nativeTypeFixture } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
 import { assert, dirname, join, test, fileURLToPath, augmentDotnetModuleWithNativeArray, createDotnetProviderTelemetry, createDotnetReflectionTypeDataProvider, createDotnetSourceDeclarationProvider, dotnetNativeArrayCreateMemberId, dotnetNativeArrayIndexerMemberId, dotnetNativeArrayLengthMemberId, dotnetNativeArrayTypeId, dotnetModuleToProviderDeclarationModel, dotnetTypeRefToProviderType, dotnetTypeRefToTargetTypeRef, validateDotnetProviderDeclarationModelContract, dotnetExportToTargetBinding, tryDotnetTypeRefToProviderType, buildDotnetFixture, repoRoot, testAssemblyId, testTargetId, namedDotnetTypeRef, methodMember, dotnetTestTypeMetadataName, sourcePrimitiveTestMetadataName, getDotnetDeclaration, getDotnetTargetId, getDotnetBinding, requireDotnetMember, requireProviderDeclarationMember, idEndsWith, findByIdSuffix, stripAssemblyQualifiers, collectProviderRefs, assertProviderDeclarationRefsFullyQualified, unsupportedMembersByMetadataName, constructorSignature, methodSignature, parameterFacts, stripTargetPayload, typeFact, omitLocalName, buildAttributeFixture, buildConstructorFixture, buildUnsupportedEventFixture, buildUnsupportedMemberFixture, buildConstraintFixture, buildConversionFixture, buildSignatureIdentityFixture } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
 
 import { getCompleteDotnetModule } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
@@ -179,7 +181,7 @@ test(".NET provider source declarations expose readonly TS-compatible string ind
     moduleSpecifier: "@example/headers.js",
     namespaceName: "Example",
     exports: [
-      {
+      nativeTypeFixture({
         kind: "type",
         isByRefLike: false, constraintRequiresReferenceType: true,
         allowsRefLikeTypeArguments: [],
@@ -210,7 +212,7 @@ test(".NET provider source declarations expose readonly TS-compatible string ind
             ],
           },
         ],
-      },
+      }),
     ],
   });
 
@@ -735,7 +737,7 @@ test(".NET reflection provider exposes requested conflicted nested type-family t
   assert.equal(sourceModel.exports.some((declaration) => declaration.name === "Span_Enumerator"), true);
 
   const bindingProvider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
-  const binding = bindingProvider.findTargetBindingByMetadataName("System.Span`1.Enumerator");
+  const binding = resolvedNativeBinding(bindingProvider.findTargetBindingByMetadataName("System.Span`1.Enumerator", "ordinary"));
   assert.ok(binding);
   assert.equal(binding.kind, "struct");
   assert.equal(binding.sourceName, "Span_Enumerator");
@@ -784,7 +786,7 @@ test(".NET reflection provider keeps requested pointer delegates source-visible 
     disablePersistentCache: true,
     references: [reference],
   });
-  const binding = bindingProvider.findTargetBindingByMetadataName("ProviderUnsupportedMemberFixtures.PointerDelegate");
+  const binding = resolvedNativeBinding(bindingProvider.findTargetBindingByMetadataName("ProviderUnsupportedMemberFixtures.PointerDelegate", "ordinary"));
   assert.ok(binding);
   assert.equal(binding.kind, "delegate");
   assert.equal(binding.sourceName, "PointerDelegate");

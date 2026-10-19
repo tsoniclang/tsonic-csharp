@@ -4,7 +4,7 @@ import { selectCsharpContextualAsyncReturn } from "../../../dist/policy/conversi
 import { csharpNullableTargetType, csharpRuntimeUnionTargetType, csharpSourcePrimitiveTargetType,
   csharpStringTargetType, csharpTaskTargetType, csharpVoidTargetType, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 
-const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => undefined }, target: {} };
+const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) }, target: {} };
 const integer = csharpSourcePrimitiveTargetType("int32");
 const text = csharpStringTargetType();
 const absentInteger = csharpNullableTargetType(integer);

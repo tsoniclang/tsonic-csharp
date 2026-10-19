@@ -12,7 +12,7 @@ test("union equality rejects stale carriers, paths, operations, coverage and pol
   const integer = csharpSourcePrimitiveTargetType("int64");
   const string = csharpStringTargetType();
   const union = csharpRuntimeUnionTargetType([integer, string]);
-  const policy = { providers: { findTargetBindingByTargetId() {} }, objectShapes: { resolveTarget() {} },
+  const policy = { providers: { findTargetBindingByTargetId() { return { kind: "missing" }; } }, objectShapes: { resolveTarget() {} },
     projectTypes: { catalog: { definitionForTarget() {} } } };
   const arms = selectCsharpUnionEquality(union, string, policy);
   const operation = { kind: "union-equality", negated: false, arms };
@@ -51,7 +51,7 @@ test("nullable union equality plans canonical native presence guards with each o
   const integer = csharpSourcePrimitiveTargetType("int64");
   const text = csharpStringTargetType();
   const base = csharpTargetNamedType("fixture.Base", [], { kind: "named", name: "Base" }, { allowsRefLikeTypeArguments: [], sourceDeclarationKind: "class" });
-  const policy = { providers: { findTargetBindingByTargetId() {} }, objectShapes: { resolveTarget() {} },
+  const policy = { providers: { findTargetBindingByTargetId() { return { kind: "missing" }; } }, objectShapes: { resolveTarget() {} },
     projectTypes: { catalog: { definitionForTarget() {} } } };
   const union = csharpNullableTargetType(csharpRuntimeUnionTargetType([integer, text, base]));
   for (const rightType of [union, csharpNullableTargetType(text), csharpNullableTargetType(base), integer]) {

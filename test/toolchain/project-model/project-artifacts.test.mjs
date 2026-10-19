@@ -303,7 +303,7 @@ function fakeInput(options = {}, runtimeReferences = []) {
     fixtureProjectRoot,
     paths.targetOutputRoot,
   );
-  const project = analyzeCsharpProject(configuration, runtimeReferences);
+  const project = analyzeCsharpProject(configuration, runtimeReferences, paths.cacheRoot);
   if (project.kind === "rejected") {
     throw new Error(project.diagnostics.map((diagnostic) =>
       diagnostic.message).join("\n"));

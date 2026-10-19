@@ -1,3 +1,4 @@
+import { nativeTypeFixture } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
 import { assert, dirname, join, test, fileURLToPath, augmentDotnetModuleWithNativeArray, createDotnetProviderTelemetry, createDotnetReflectionTypeDataProvider, createDotnetSourceDeclarationProvider, dotnetNativeArrayCreateMemberId, dotnetNativeArrayIndexerMemberId, dotnetNativeArrayLengthMemberId, dotnetNativeArrayTypeId, dotnetModuleToProviderDeclarationModel, dotnetTypeRefToProviderType, dotnetTypeRefToTargetTypeRef, validateDotnetProviderDeclarationModelContract, dotnetExportToTargetBinding, tryDotnetTypeRefToProviderType, buildDotnetFixture, repoRoot, testAssemblyId, testTargetId, namedDotnetTypeRef, methodMember, dotnetTestTypeMetadataName, sourcePrimitiveTestMetadataName, getDotnetDeclaration, getDotnetTargetId, getDotnetBinding, requireDotnetMember, requireProviderDeclarationMember, idEndsWith, findByIdSuffix, stripAssemblyQualifiers, collectProviderRefs, assertProviderDeclarationRefsFullyQualified, unsupportedMembersByMetadataName, constructorSignature, methodSignature, parameterFacts, stripTargetPayload, typeFact, omitLocalName, buildAttributeFixture, buildConstructorFixture, buildUnsupportedEventFixture, buildUnsupportedMemberFixture, buildConstraintFixture, buildConversionFixture, buildSignatureIdentityFixture } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
 import { mergeProviderSignatures } from "../../../../dist/providers/native/projection/declarations/signatures.js";
 
@@ -33,7 +34,7 @@ test(".NET native projections retain every primitive width in scalar, nullable a
 
 test(".NET provider declaration model preserves generic base arguments on heritage declarations", () => {
   const int32 = { kind: "source-primitive", name: "int32" };
-  const baseType = {
+  const baseType = nativeTypeFixture({
     kind: "type",
     isByRefLike: false, constraintRequiresReferenceType: true,
     allowsRefLikeTypeArguments: [false],
@@ -57,8 +58,8 @@ test(".NET provider declaration model preserves generic base arguments on herita
         { name: "value", type: { kind: "type-parameter", identity: "T", name: "T" }, passingMode: "by-value" },
       ], { kind: "type-parameter", identity: "T", name: "T" }),
     ],
-  };
-  const derivedType = {
+  });
+  const derivedType = nativeTypeFixture({
     kind: "type",
     isByRefLike: false, constraintRequiresReferenceType: true,
     allowsRefLikeTypeArguments: [],
@@ -78,7 +79,7 @@ test(".NET provider declaration model preserves generic base arguments on herita
         typeArguments: [int32],
       },
     }),
-  };
+  });
 
   const sourceModel = dotnetModuleToProviderDeclarationModel({
     moduleSpecifier: "@tsonic/dotnet/ProviderModelFixtures.js",
@@ -359,7 +360,7 @@ test(".NET named target refs do not derive C# special semantics from metadata na
   }
 });
 test(".NET target declarations do not derive C# special semantics from metadata names", () => {
-  const stringBinding = dotnetExportToTargetBinding({
+  const stringBinding = dotnetExportToTargetBinding(nativeTypeFixture({
     kind: "type",
     isByRefLike: false, constraintRequiresReferenceType: true,
     allowsRefLikeTypeArguments: [],
@@ -368,8 +369,8 @@ test(".NET target declarations do not derive C# special semantics from metadata 
     namespaceName: "System",
     targetId: testTargetId("System.String"),
     metadataName: "System.String",
-  });
-  const booleanBinding = dotnetExportToTargetBinding({
+  }));
+  const booleanBinding = dotnetExportToTargetBinding(nativeTypeFixture({
     kind: "type",
     isByRefLike: false, constraintRequiresReferenceType: false,
     allowsRefLikeTypeArguments: [],
@@ -378,7 +379,7 @@ test(".NET target declarations do not derive C# special semantics from metadata 
     namespaceName: "System",
     targetId: testTargetId("System.Boolean"),
     metadataName: "System.Boolean",
-  });
+  }));
 
   assert.equal(stringBinding.csharpType.csharpSpecialType, undefined);
   assert.equal(stringBinding.csharpType.csharpTypeofRuntimeKind, undefined);
@@ -750,7 +751,7 @@ test(".NET provider model preserves overlap-like receiver and out parameter fact
     typeArguments: [typeParameter],
     sourceShape: { kind: "array", elementType: typeParameter },
   };
-  const overlaps = {
+  const overlaps = nativeTypeFixture({
     kind: "type",
     isByRefLike: false, constraintRequiresReferenceType: true,
     allowsRefLikeTypeArguments: [],
@@ -786,7 +787,7 @@ test(".NET provider model preserves overlap-like receiver and out parameter fact
         ],
       },
     ],
-  };
+  });
 
   const declarationModel = dotnetModuleToProviderDeclarationModel({
     moduleSpecifier: "@tsonic/dotnet/Example.js",

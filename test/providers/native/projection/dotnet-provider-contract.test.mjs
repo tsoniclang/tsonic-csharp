@@ -1,3 +1,5 @@
+import { resolvedNativeBinding } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
+import { nativeTypeFixture } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
 import { assert, mkdirSync, writeFileSync, dirname, join, test, fileURLToPath, createDotnetReflectionTypeDataProvider, createDotnetSourceDeclarationProvider, dotnetModuleToProviderDeclarationModel, dotnetNativeArrayTypeId, validateDotnetModuleModelContract, validateDotnetProviderDeclarationModelContract, buildDotnetFixture, repoRoot, testAssemblyId, supportedPassingModes, testTargetId, hasEvidencePath, assertRawModuleContractInvariants, assertProviderDeclarationContractInvariants, assertTargetBindingContractInvariants, assertRawSignatureInvariant, assertTypeParameterInvariant, assertDotnetTypeRefInvariant, assertProviderTypeExpressionInvariant, assertAssemblyReference, assertTargetIdentity, walkDotnetTypeDeclarationRefs, walkDotnetTypeRef, walkProviderExportRefs, walkProviderTypeExpression, rawType, rawMethod, sourceType, sourceMember, rawConstructor, rawIndexer, idHasShape, stripAssemblyQualifiers, escapeRegExp, buildConstraintFixture, buildSignatureIdentityFixture, buildUnsupportedMemberFixture, buildAttributeFixture, buildUnsupportedDefaultParameterFixture } from "../../../fixtures/dotnet-provider/dotnet-provider-contract.helpers.mjs";
 import { completeProviderDeclarationRequest, getCompleteDotnetModule } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
 
@@ -6,7 +8,7 @@ test(".NET provider model contract rejects incomplete provider refs", () => {
     moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",
     namespaceName: "ProviderContractFixtures",
     exports: [
-      {
+      nativeTypeFixture({
         kind: "type",
         isByRefLike: false, constraintRequiresReferenceType: true,
         allowsRefLikeTypeArguments: [],
@@ -25,7 +27,7 @@ test(".NET provider model contract rejects incomplete provider refs", () => {
             kind: "provider-ref",
           },
         },
-      },
+      }),
     ],
   });
 
@@ -37,7 +39,7 @@ test(".NET provider model requires an explicit source identity for every target 
   const model = {
     moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",
     namespaceName: "ProviderContractFixtures",
-    exports: [{
+    exports: [nativeTypeFixture({
       kind: "type",
       isByRefLike: false, constraintRequiresReferenceType: true,
       allowsRefLikeTypeArguments: [],
@@ -58,7 +60,7 @@ test(".NET provider model requires an explicit source identity for every target 
           returnType: { kind: "void" },
         }],
       }],
-    }],
+    })],
   };
   const diagnostic = validateDotnetModuleModelContract(model);
 
@@ -76,7 +78,7 @@ test(".NET provider model contract rejects malformed identities and type refs be
     moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",
     namespaceName: "ProviderContractFixtures",
     exports: [
-      {
+      nativeTypeFixture({
         kind: "type",
         isByRefLike: false, constraintRequiresReferenceType: true,
         allowsRefLikeTypeArguments: [],
@@ -116,7 +118,7 @@ test(".NET provider model contract rejects malformed identities and type refs be
             ],
           },
         ],
-      },
+      }),
     ],
   });
 
@@ -134,7 +136,7 @@ test(".NET provider model contract rejects extra fields on type-ref variants", (
     moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",
     namespaceName: "ProviderContractFixtures",
     exports: [
-      {
+      nativeTypeFixture({
         kind: "type",
         isByRefLike: false, constraintRequiresReferenceType: true,
         allowsRefLikeTypeArguments: [],
@@ -188,7 +190,7 @@ test(".NET provider model contract rejects extra fields on type-ref variants", (
             ],
           },
         ],
-      },
+      }),
     ],
   });
 
@@ -203,7 +205,7 @@ test(".NET provider model accepts native-array input only as exact named-type ev
   const diagnostic = validateDotnetModuleModelContract({
     moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",
     namespaceName: "ProviderContractFixtures",
-    exports: [{
+    exports: [nativeTypeFixture({
       kind: "type",
       isByRefLike: false, constraintRequiresReferenceType: true,
       allowsRefLikeTypeArguments: [],
@@ -252,7 +254,7 @@ test(".NET provider model accepts native-array input only as exact named-type ev
           returnType: { kind: "void" },
         }],
       }],
-    }],
+    })],
   });
 
   assert.equal(diagnostic?.code, "DOTNET_PROVIDER_MODEL_CONTRACT_INVALID");
@@ -276,7 +278,7 @@ test(".NET provider model contract accepts nullable CLR params-array targets wit
     moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",
     namespaceName: "ProviderContractFixtures",
     exports: [
-      {
+      nativeTypeFixture({
         kind: "type",
         isByRefLike: false, constraintRequiresReferenceType: true,
         allowsRefLikeTypeArguments: [],
@@ -315,7 +317,7 @@ test(".NET provider model contract accepts nullable CLR params-array targets wit
             ],
           },
         ],
-      },
+      }),
     ],
   };
 
@@ -334,7 +336,7 @@ test(".NET provider model contract rejects metadata-name fallback identities and
     namespaceName: "ProviderContractFixtures",
     assembly: { name: "" },
     exports: [
-      {
+      nativeTypeFixture({
         kind: "type",
         isByRefLike: false, constraintRequiresReferenceType: true,
         allowsRefLikeTypeArguments: [false],
@@ -360,7 +362,7 @@ test(".NET provider model contract rejects metadata-name fallback identities and
             type: { kind: "string" },
           },
         ],
-      },
+      }),
     ],
     unsupportedExports: [
       {
@@ -387,7 +389,7 @@ test(".NET provider model contract rejects assembly identity drift", () => {
     namespaceName: "ProviderContractFixtures",
     assembly: { name: "Acme.Contracts" },
     exports: [
-      {
+      nativeTypeFixture({
         kind: "type",
         isByRefLike: false, constraintRequiresReferenceType: true,
         allowsRefLikeTypeArguments: [],
@@ -397,7 +399,7 @@ test(".NET provider model contract rejects assembly identity drift", () => {
         targetId: "Contoso.Contracts, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null::ProviderContractFixtures.Widget",
         metadataName: "ProviderContractFixtures.Widget",
         assembly: { name: "Acme.Contracts" },
-      },
+      }),
     ],
     unsupportedExports: [
       {
@@ -422,7 +424,7 @@ test(".NET provider model contract rejects unsupported discriminants and convers
     moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",
     namespaceName: "ProviderContractFixtures",
     exports: [
-      {
+      nativeTypeFixture({
         kind: "type",
         isByRefLike: false,
         allowsRefLikeTypeArguments: [],
@@ -471,7 +473,7 @@ test(".NET provider model contract rejects unsupported discriminants and convers
             },
           },
         ],
-      },
+      }),
       {
         kind: "alias",
         sourceName: "Alias",
@@ -494,7 +496,7 @@ test(".NET provider model contract accepts exact pointers and ranked arrays but 
     moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",
     namespaceName: "ProviderContractFixtures",
     exports: [
-      {
+      nativeTypeFixture({
         kind: "type",
         isByRefLike: false, constraintRequiresReferenceType: true,
         allowsRefLikeTypeArguments: [],
@@ -588,7 +590,7 @@ test(".NET provider model contract accepts exact pointers and ranked arrays but 
             },
           },
         ],
-      },
+      }),
     ],
   });
 
@@ -734,7 +736,7 @@ test(".NET reflection provider emits contract-valid SDK metadata slices", () => 
   assert.notEqual(sourceStringWriteLineSignatures[0]?.id, rawStringSignature.id);
   assert.notEqual(sourceStringWriteLineSignatures[0]?.id, rawCharSignature.id);
   assert.equal(new Set(sourceWriteLine.signatures?.map((signature) => signature.id)).size, sourceWriteLine.signatures?.length);
-  const consoleBinding = provider.findTargetBindingByTargetId(console.targetId);
+  const consoleBinding = resolvedNativeBinding(provider.findTargetBindingByTargetId(console.targetId, "ordinary"));
   assert.ok(consoleBinding);
   const targetStringWriteLine = consoleBinding.members?.find((member) => member.id === rawStringSignature.id);
   const targetCharWriteLine = consoleBinding.members?.find((member) => member.id === rawCharSignature.id);
@@ -852,7 +854,7 @@ test(".NET provider invariant scan closes reflected models, virtual declarations
 
   const constrained = rawType(constraintModule, "ReferenceNewTarget");
   assert.ok(constrained.typeParameters[0].constraints.length > 0);
-  const constrainedBinding = provider.findTargetBindingByTargetId(constrained.targetId);
+  const constrainedBinding = resolvedNativeBinding(provider.findTargetBindingByTargetId(constrained.targetId, "ordinary"));
   assert.ok(constrainedBinding);
   assert.equal(constrainedBinding.typeParameters[0].constraints.length >= constrained.typeParameters[0].constraints.length, true);
 
@@ -920,7 +922,7 @@ test(".NET provider model contract accepts literal only on static non-writable f
   const model = (member) => ({
     moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",
     namespaceName: "ProviderContractFixtures",
-    exports: [{
+    exports: [nativeTypeFixture({
       kind: "type",
       isByRefLike: false, constraintRequiresReferenceType: true,
       allowsRefLikeTypeArguments: [],
@@ -938,7 +940,7 @@ test(".NET provider model contract accepts literal only on static non-writable f
         type: { kind: "object" },
         ...member,
       }],
-    }],
+    })],
   });
   assert.equal(validateDotnetModuleModelContract(model({ kind: "field", static: true, literal: true })), undefined);
   assert.equal(validateDotnetModuleModelContract(model({ kind: "field", static: true })), undefined);

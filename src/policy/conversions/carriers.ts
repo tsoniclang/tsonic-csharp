@@ -1,3 +1,4 @@
+import { csharpProviderBindingFromResolution } from "../../providers/model/relation-resolver.js";
 import {
   csharpBaseTargetTypeFromBinding,
   csharpTargetTypeFromBinding,
@@ -378,7 +379,7 @@ export function namedTargetTypeImplicitlyAccepts(
       return true;
     }
     const sourceBinding = csharpTargetBindingFact(
-      input.providers.findTargetBindingByTargetId(source.id),
+      csharpProviderBindingFromResolution(input.providers.findTargetBindingByTargetId(source.id, "ordinary")),
     );
     if (sourceBinding === undefined) {
       return false;
@@ -450,7 +451,7 @@ function constructedNamedTargetTypeImplicitlyAccepts(
       csharpVariantArgumentImplicitlyAccepts(input, sourceSignature.returnType, targetSignature.returnType, visited);
   }
   const binding = csharpTargetBindingFact(
-    input.providers.findTargetBindingByTargetId(source.id),
+    csharpProviderBindingFromResolution(input.providers.findTargetBindingByTargetId(source.id, "ordinary")),
   );
   const parameters = binding?.typeParameters ?? [];
   const shape = binding === undefined && source.csharpStructuralContract === true
@@ -516,6 +517,6 @@ export function implementedConstraintType(
   if (definition !== undefined) {
     return input.projectTypes.catalog.targetTypeForDeclaration(definition.declaration, arguments_);
   }
-  const binding = csharpTargetBindingFact(input.providers.findTargetBindingByTargetId(constraint.contract));
+  const binding = csharpTargetBindingFact(csharpProviderBindingFromResolution(input.providers.findTargetBindingByTargetId(constraint.contract, "ordinary")));
   return binding === undefined ? undefined : csharpTargetTypeFromBinding(binding, arguments_);
 }

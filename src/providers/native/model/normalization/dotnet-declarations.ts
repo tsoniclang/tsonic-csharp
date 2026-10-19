@@ -8,6 +8,7 @@ import type {
   DotnetTypeDeclaration,
 } from "../index.js";
 import type { ContractCollector } from "./support.js";
+import { validateDotnetInheritance } from "./dotnet-inheritance.js";
 
 export function validateExportList(
   declarations: readonly DotnetExportDeclaration[],
@@ -77,6 +78,7 @@ function validateDotnetTypeDeclaration(
   collector: ContractCollector,
   options: { readonly sourceVisible: boolean },
 ): void {
+  validateDotnetInheritance(declaration, path, collector);
   const typeKindValid = requireSupportedDiscriminant(
     (declaration as unknown as Readonly<Record<string, unknown>>).typeKind,
     `${path}.typeKind`,

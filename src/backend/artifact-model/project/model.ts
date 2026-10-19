@@ -4,7 +4,7 @@ import type {
 import type {
   CsharpProjectProperty,
 } from "../../../target-model/project/model.js";
-import type { CsharpRuntimeProjectInstance } from "./runtime.js";
+import type { CsharpRuntimeProjectInstance } from "../../../target-model/project/runtime.js";
 
 export type { CsharpProjectReference } from "../../../target-model/project/references.js";
 export type { CsharpProjectProperty } from "../../../target-model/project/model.js";

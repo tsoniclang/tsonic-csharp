@@ -5,12 +5,15 @@ import type {
   ProviderDeclarationMaterialization,
   ProviderDeclarationModel,
 } from "@tsonic/tsts";
-import type {
-  TargetBindingFact,
-} from "../../../policy/types/index.js";
+import type { CsharpProviderBindingLookupPurpose, CsharpProviderBindingResolution } from "../../../target-model/metadata/provider-metadata.js";
+import { assertCsharpProviderLookupPurpose } from "../../model/relation-resolver.js";
+import type { CsharpProviderRuntimePreparation } from "../../model/relation-resolver.js";
+import { acquireCsharpRuntimeSources } from "./runtime-sources.js";
 import type {
   DotnetModuleModel,
+  DotnetTypeDeclaration,
 } from "../model/index.js";
+import type { TargetBindingFact } from "../../../target-model/types/model.js";
 import {
   dotnetModuleSpecifierPolicy,
   normalizeDotnetAssemblySourcePackages,
@@ -101,7 +104,7 @@ import {
   dotnetReflectionProviderIdentity,
 } from "./provider-identity.js";
 import { defaultCsharpTargetFramework } from "../../../target-model/configuration/framework.js";
-import type { DotnetProviderToolchain } from "./toolchain.js";
+import { resolveDotnetProviderToolchain, type DotnetProviderToolchain } from "./toolchain.js";
 import {
   createDotnetReferenceSnapshot,
 } from "./reference-snapshot.js";
@@ -129,8 +132,9 @@ export interface DotnetReflectionTypeDataProviderOptions {
 
 export interface DotnetReflectionTypeDataProvider extends DotnetTypeDataProvider {
   validateReferences(): ExtensionDiagnostic | undefined;
-  findTargetBindingByTargetId(targetId: string): TargetBindingFact | undefined;
-  findTargetBindingByMetadataName(metadataName: string): TargetBindingFact | undefined;
+  prepareRuntimeSources(preparation: CsharpProviderRuntimePreparation): void;
+  findTargetBindingByTargetId(targetId: string, purpose: CsharpProviderBindingLookupPurpose): CsharpProviderBindingResolution;
+  findTargetBindingByMetadataName(metadataName: string, purpose: CsharpProviderBindingLookupPurpose): CsharpProviderBindingResolution;
   resolveTargetRelations(
     request: DotnetProviderTargetRelationRequest,
   ): readonly DotnetProviderTargetRelationTemplate[] | ExtensionDiagnostic;
@@ -168,6 +172,9 @@ export function createDotnetReflectionTypeDataProvider(
   const targetBindingIndex = createDotnetTargetBindingIndex();
   const toolProjectPath = options.toolProjectPath ?? defaultToolProjectPath();
   const telemetry = options.telemetry ?? dotnetProviderGlobalTelemetry;
+  const toolchain = options.toolchain ?? resolveDotnetProviderToolchain(
+    options.projectDirectory ?? process.cwd(), reflectionOptions.targetFramework,
+  );
   telemetry.providerInstance();
   const toolRunner = createDotnetProviderToolRunner({
     toolProjectPath,
@@ -175,7 +182,7 @@ export function createDotnetReflectionTypeDataProvider(
     telemetry,
     targetFramework: reflectionOptions.targetFramework,
     ...(options.projectDirectory === undefined ? {} : { projectDirectory: options.projectDirectory }),
-    ...(options.toolchain === undefined ? {} : { toolchain: options.toolchain }),
+    toolchain,
   });
   const providerBroker = options.providerBroker;
   const persistentCache = options.disablePersistentCache === true
@@ -187,6 +194,8 @@ export function createDotnetReflectionTypeDataProvider(
     references: options.references ?? [],
     telemetry,
   });
+  let runtimePreparation: CsharpProviderRuntimePreparation | undefined;
+  let runtimeProvider: DotnetReflectionTypeDataProvider | undefined;
 
   function loadModule(specifier: string, context: DotnetProviderDeclarationContext): DotnetProviderModuleResult {
     telemetry.request("module");
@@ -226,7 +235,8 @@ export function createDotnetReflectionTypeDataProvider(
         telemetry.memoryCacheHit();
         return contractDiagnostic;
       }
-      rememberModule(memoryKey, brokerModule, cacheRequest);
+      const bindingDiagnostic = rememberModule(memoryKey, brokerModule, cacheRequest);
+      if (bindingDiagnostic !== undefined) return bindingDiagnostic;
       telemetry.memoryCacheHit();
       return completeSameModuleProviderRefClosure(specifier, effectiveContext, brokerModule);
     }
@@ -289,7 +299,8 @@ export function createDotnetReflectionTypeDataProvider(
         cachedDiagnostic === undefined &&
         contractDiagnostic === undefined
       ) {
-        rememberModule(memoryKey, module, cacheRequest);
+        const bindingDiagnostic = rememberModule(memoryKey, module, cacheRequest);
+        if (bindingDiagnostic !== undefined) return bindingDiagnostic;
         providerBroker?.writeModule(cacheRequest, module);
         telemetry.modelBytes(JSON.stringify(cached).length);
         return module;
@@ -354,8 +365,9 @@ export function createDotnetReflectionTypeDataProvider(
       if (contractDiagnostic !== undefined) {
         return contractDiagnostic;
       }
+      const bindingDiagnostic = rememberModule(memoryKey, module, cacheRequest);
+      if (bindingDiagnostic !== undefined) return bindingDiagnostic;
       persistentCache?.writeModule(cacheRequest, rawModule);
-      rememberModule(memoryKey, module, cacheRequest);
       providerBroker?.writeModule(cacheRequest, module);
       return module;
     } catch (error) {
@@ -407,7 +419,11 @@ export function createDotnetReflectionTypeDataProvider(
     identity: providerIdentity,
     validateReferences(): ExtensionDiagnostic | undefined {
       const result = validateReferenceSnapshot();
-      return result === undefined ? undefined : dotnetProviderDiagnosticToExtensionDiagnostic(providerIdentity.id, result);
+      return result === undefined ? runtimeProvider?.validateReferences() : dotnetProviderDiagnosticToExtensionDiagnostic(providerIdentity.id, result);
+    },
+    prepareRuntimeSources(preparation: CsharpProviderRuntimePreparation): void {
+      if (runtimePreparation !== undefined) throw new TypeError("Native runtime acquisition inputs are prepared exactly once before analysis queries.");
+      runtimePreparation = preparation;
     },
     ownsModule(specifier: string): DotnetProviderOwnership {
       return parseDotnetModuleSpecifier(specifier, moduleSpecifierPolicy) === undefined ? { kind: "unowned" } : { kind: "owned" };
@@ -426,75 +442,27 @@ export function createDotnetReflectionTypeDataProvider(
         elapsedMs + instrumentationElapsedMs,
       );
     },
-    findTargetBindingByTargetId(targetId: string): TargetBindingFact | undefined {
+    findTargetBindingByTargetId(targetId: string, purpose: CsharpProviderBindingLookupPurpose): CsharpProviderBindingResolution {
+      assertCsharpProviderLookupPurpose(purpose);
       telemetry.request("targetBindingByTargetId");
-      const existing = targetBindingIndex.getByTargetId(targetId);
-      if (existing !== undefined) {
-        return existing;
-      }
-      const moduleSpecifier = dotnetModuleSpecifierForTargetId(targetId, moduleSpecifierPolicy);
-      if (moduleSpecifier === undefined) {
-        return undefined;
-      }
-      const request = { requestedTargetIds: [targetId] } as const;
-      const header = loadModule(moduleSpecifier, {
-        ...request,
-        materialization: emptyIncrementalDotnetProviderMaterialization,
-      });
-      if (isDotnetProviderDiagnostic(header)) {
-        return undefined;
-      }
-      const headerBinding = targetBindingIndex.getByTargetId(targetId);
-      if (headerBinding !== undefined) {
-        return headerBinding;
-      }
-      const materialization = exactSourceTypeMaterialization(
-        header,
-        (declaration) => declaration.targetId === targetId,
+      const selected = findTargetBinding(
+        dotnetModuleSpecifierForTargetId(targetId, moduleSpecifierPolicy),
+        { requestedTargetIds: [targetId] },
+        () => targetBindingIndex.getByTargetId(targetId),
+        declaration => declaration.targetId === targetId,
       );
-      if (materialization === undefined) {
-        return undefined;
-      }
-      const loaded = loadModule(moduleSpecifier, { ...request, materialization });
-      if (isDotnetProviderDiagnostic(loaded)) {
-        return undefined;
-      }
-      return targetBindingIndex.getByTargetId(targetId);
+      return withRuntimeInheritance(selected, purpose, provider => provider.findTargetBindingByTargetId(targetId, "ordinary"));
     },
-    findTargetBindingByMetadataName(metadataName: string): TargetBindingFact | undefined {
+    findTargetBindingByMetadataName(metadataName: string, purpose: CsharpProviderBindingLookupPurpose): CsharpProviderBindingResolution {
+      assertCsharpProviderLookupPurpose(purpose);
       telemetry.request("targetBindingByMetadataName");
-      const existing = targetBindingIndex.getUniqueByMetadataName(metadataName);
-      if (existing !== undefined) {
-        return existing;
-      }
-      const moduleSpecifier = dotnetModuleSpecifierForMetadataName(metadataName, moduleSpecifierPolicy);
-      if (moduleSpecifier === undefined) {
-        return undefined;
-      }
-      const request = { requestedMetadataNames: [metadataName] } as const;
-      const header = loadModule(moduleSpecifier, {
-        ...request,
-        materialization: emptyIncrementalDotnetProviderMaterialization,
-      });
-      if (isDotnetProviderDiagnostic(header)) {
-        return undefined;
-      }
-      const headerBinding = targetBindingIndex.getUniqueByMetadataName(metadataName);
-      if (headerBinding !== undefined) {
-        return headerBinding;
-      }
-      const materialization = exactSourceTypeMaterialization(
-        header,
-        (declaration) => declaration.metadataName === metadataName,
+      const selected = findTargetBinding(
+        dotnetModuleSpecifierForMetadataName(metadataName, moduleSpecifierPolicy),
+        { requestedMetadataNames: [metadataName] },
+        () => targetBindingIndex.getUniqueByMetadataName(metadataName),
+        declaration => declaration.metadataName === metadataName,
       );
-      if (materialization === undefined) {
-        return undefined;
-      }
-      const loaded = loadModule(moduleSpecifier, { ...request, materialization });
-      if (isDotnetProviderDiagnostic(loaded)) {
-        return undefined;
-      }
-      return targetBindingIndex.getUniqueByMetadataName(metadataName);
+      return withRuntimeInheritance(selected, purpose, provider => provider.findTargetBindingByMetadataName(metadataName, "ordinary"));
     },
     resolveTargetRelations(
       request: DotnetProviderTargetRelationRequest,
@@ -544,13 +512,76 @@ export function createDotnetReflectionTypeDataProvider(
   };
   return typeDataProvider;
 
+  function withRuntimeInheritance(
+    selected: CsharpProviderBindingResolution,
+    purpose: CsharpProviderBindingLookupPurpose,
+    query: (provider: DotnetReflectionTypeDataProvider) => CsharpProviderBindingResolution,
+  ): CsharpProviderBindingResolution {
+    if (purpose === "ordinary" || selected.kind === "resolved") return selected;
+    if (runtimeProvider !== undefined) {
+      const current = query(runtimeProvider);
+      if (current.kind !== "missing") return current;
+    }
+    if (runtimePreparation === undefined || runtimePreparation.sources.length === 0) return selected;
+    const acquired = acquireCsharpRuntimeSources(runtimePreparation, toolchain, references => {
+      const provider = createDotnetReflectionTypeDataProvider({
+        ...options, toolchain, references: Object.freeze([...new Set([...(options.references ?? []), ...references])]),
+      });
+      const result = query(provider);
+      if (result.kind === "resolved") runtimeProvider = provider;
+      return result;
+    });
+    return acquired.kind === "missing" ? selected : acquired;
+  }
+
+  function findTargetBinding(
+    moduleSpecifier: string | undefined,
+    request: { readonly requestedTargetIds: readonly string[] } | { readonly requestedMetadataNames: readonly string[] },
+    currentBinding: () => TargetBindingFact | undefined,
+    matches: (declaration: DotnetTypeDeclaration) => boolean,
+  ): CsharpProviderBindingResolution {
+    const rejected = (failure: DotnetProviderDiagnostic): CsharpProviderBindingResolution => Object.freeze({
+      kind: "rejected", diagnostic: dotnetProviderDiagnosticToExtensionDiagnostic(providerIdentity.id, failure),
+    });
+    const referenceFailure = validateReferenceSnapshot();
+    if (referenceFailure !== undefined) return rejected(referenceFailure);
+    const existing = currentBinding();
+    if (existing !== undefined) return Object.freeze({ kind: "resolved", binding: existing });
+    if (moduleSpecifier === undefined) return Object.freeze({ kind: "missing" });
+    const header = loadModule(moduleSpecifier, {
+      ...request, materialization: emptyIncrementalDotnetProviderMaterialization,
+    });
+    if (isDotnetProviderDiagnostic(header)) {
+      return header.code === "DOTNET_REFLECTION_REQUESTED_DECLARATION_MISSING"
+        ? Object.freeze({ kind: "missing" }) : rejected(header);
+    }
+    const headerBinding = currentBinding();
+    if (headerBinding !== undefined) return Object.freeze({ kind: "resolved", binding: headerBinding });
+    const materialization = exactSourceTypeMaterialization(header, matches);
+    if (materialization === undefined) return Object.freeze({ kind: "missing" });
+    const loaded = loadModule(moduleSpecifier, { ...request, materialization });
+    if (isDotnetProviderDiagnostic(loaded)) return rejected(loaded);
+    const binding = currentBinding();
+    return binding !== undefined ? Object.freeze({ kind: "resolved", binding }) : rejected(diagnostic(
+      "DOTNET_REFLECTION_NATIVE_BINDING_NOT_PROVEN",
+      ".NET reflection provider did not prove a complete native target binding.",
+      { specifier: moduleSpecifier, ...request },
+    ));
+  }
+
   function rememberModule(
     memoryKey: string,
     module: DotnetModuleModel,
     request: DotnetProviderCacheRequest,
-  ): void {
+  ): DotnetProviderDiagnostic | undefined {
+    const bindingDiagnostic = targetBindingIndex.rememberModule(module, request);
+    if (bindingDiagnostic !== undefined) {
+      diagnostics.set(memoryKey, bindingDiagnostic);
+      providerBroker?.writeDiagnostic(request, bindingDiagnostic);
+      return bindingDiagnostic;
+    }
     modules.set(memoryKey, module);
-    targetBindingIndex.rememberModule(module, request);
+    return undefined;
   }
 
   function validateLoadedModuleContract(

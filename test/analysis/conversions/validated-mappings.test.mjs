@@ -13,7 +13,7 @@ import { csharpNullableTargetType, csharpRuntimeUnionTargetType, csharpSourcePri
 
 const mappingRejected = { kind: "rejected", reason: "Union conversion requires exact sealed arm coverage and native absence correspondence." };
 const projectionRejected = { kind: "rejected", reason: "Union projection requires exact sealed payload and absence correspondence." };
-const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => undefined }, target: {} };
+const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) }, target: {} };
 
 function compiled(sourceText, surface) {
   const result = compileCsharpSource({ sourceText, surface });

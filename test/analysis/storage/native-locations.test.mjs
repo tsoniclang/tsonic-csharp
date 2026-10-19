@@ -65,7 +65,7 @@ function fixture(kind = "identifier", options = {}) {
       resolveStorage: () => options.receiverType ?? owner,
       resolveSelectedValue: () => options.receiverType ?? owner, nativeFlowTypes: () => undefined },
     objectShapes: { resolveTarget: () => undefined },
-    providers: { findTargetBindingByTargetId: () => undefined },
+    providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) },
   };
   return { expression, declaration, receiver, policy, storage };
 }

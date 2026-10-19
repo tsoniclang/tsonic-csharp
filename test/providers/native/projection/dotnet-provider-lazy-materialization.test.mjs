@@ -1,3 +1,5 @@
+import { resolvedNativeBinding } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
+import { nativeTypeFixture } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import test from "node:test";
@@ -94,7 +96,7 @@ test("header-only target bindings cannot satisfy a complete target lookup", () =
   }));
   const listHeader = requireType(header, "List");
 
-  const binding = provider.findTargetBindingByTargetId(listHeader.targetId);
+  const binding = resolvedNativeBinding(provider.findTargetBindingByTargetId(listHeader.targetId, "ordinary"));
 
   assert.ok(binding);
   assert.equal(binding.members?.some((member) => member.sourceName === "Add"), true);
@@ -163,7 +165,7 @@ test("cross-module inherited members materialize only the exact base export", ()
   const model = dotnetModuleToProviderDeclarationModel({
     moduleSpecifier: "@acme/dotnet/Derived.js",
     namespaceName: "Example",
-    exports: [{
+    exports: [nativeTypeFixture({
       kind: "type",
       isByRefLike: false, constraintRequiresReferenceType: true,
       allowsRefLikeTypeArguments: [],
@@ -188,7 +190,7 @@ test("cross-module inherited members materialize only the exact base export", ()
         kind: "source-primitive",
         name: "int32",
       })],
-    }],
+    })],
   }, {
     resolveModule(specifier, requestedExports, materialization) {
       observed.push({ specifier, requestedExports, materialization });
@@ -197,7 +199,7 @@ test("cross-module inherited members materialize only the exact base export", ()
       return {
         moduleSpecifier: baseModuleSpecifier,
         namespaceName: "Example",
-        exports: [{
+        exports: [nativeTypeFixture({
           kind: "type",
           isByRefLike: false, constraintRequiresReferenceType: true,
           allowsRefLikeTypeArguments: [],
@@ -209,7 +211,7 @@ test("cross-module inherited members materialize only the exact base export", ()
           ...(baseComplete ? {
             members: [method("Acme::Example.Base.Read(System.String)", { kind: "string" })],
           } : {}),
-        }, {
+        }), nativeTypeFixture({
           kind: "type",
           isByRefLike: false, constraintRequiresReferenceType: true,
           allowsRefLikeTypeArguments: [],
@@ -221,7 +223,7 @@ test("cross-module inherited members materialize only the exact base export", ()
           ...(materialization.kind === "complete" ? {
             members: [method("Acme::Example.Unrelated.Read(System.String)", { kind: "string" })],
           } : {}),
-        }],
+        })],
       };
     },
   });
@@ -264,7 +266,7 @@ test("source declaration requests carry their own immutable slice and materializ
       return {
         moduleSpecifier: specifier,
         namespaceName: "Example",
-        exports: [{
+        exports: [nativeTypeFixture({
           kind: "type",
           isByRefLike: false, constraintRequiresReferenceType: true,
           allowsRefLikeTypeArguments: [],
@@ -285,7 +287,7 @@ test("source declaration requests carry their own immutable slice and materializ
               type: { kind: "source-primitive", name: "int32" },
             }],
           } : {}),
-        }],
+        })],
       };
     },
   };
@@ -340,7 +342,7 @@ test("TSTS checking rebuilds the program after exact .NET export demand", () => 
       return {
         moduleSpecifier: specifier,
         namespaceName: "Example",
-        exports: [{
+        exports: [nativeTypeFixture({
           kind: "type",
           isByRefLike: false, constraintRequiresReferenceType: true,
           allowsRefLikeTypeArguments: [],
@@ -362,7 +364,7 @@ test("TSTS checking rebuilds the program after exact .NET export demand", () => 
               type: { kind: "source-primitive", name: "int32" },
             }],
           } : {}),
-        }],
+        })],
       };
     },
   };

@@ -23,7 +23,7 @@ import type {
   CsharpProjectClassifications,
 } from "./model.js";
 import type { CsharpRuntimeSourceProject } from "../../target-model/project/runtime.js";
-import { classifyCsharpRuntimeSource, validateCsharpRuntimeSources } from "./runtime-sources.js";
+import { classifyCsharpRuntimeSource, instantiateCsharpRuntimeSources, validateCsharpRuntimeSources } from "./runtime-sources.js";
 
 const targetOwnedProjectProperties = new Set([
   "AllowUnsafeBlocks",
@@ -39,6 +39,7 @@ const targetOwnedProjectProperties = new Set([
 export function analyzeCsharpProject(
   configuration: CsharpTargetConfiguration,
   runtimeReferences: readonly TargetRuntimeReference[],
+  cacheRoot: string,
 ): TargetStageResult<CsharpProjectClassifications> {
   const diagnostics: TargetDiagnostic[] = [];
   const assemblyName = csharpAssemblyName(
@@ -101,6 +102,7 @@ export function analyzeCsharpProject(
     properties,
     references,
     runtimeSources,
+    runtimeProjects: instantiateCsharpRuntimeSources(runtimeSources, configuration.targetFramework, cacheRoot),
   }));
 }
 

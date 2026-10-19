@@ -1,3 +1,5 @@
+import { resolvedNativeBinding } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
+import { nativeTypeFixture } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -290,18 +292,14 @@ test(".NET reflection provider exposes every representable advanced native membe
     declaration.kind === "type" &&
     declaration.name === "RefReturnDelegate"));
 
-  const pointerBinding = provider.findTargetBindingByTargetId(
-    pointerSignatures.targetId,
-  );
+  const pointerBinding = resolvedNativeBinding(provider.findTargetBindingByTargetId(pointerSignatures.targetId, "ordinary"));
   assert.ok(pointerBinding);
   assert.equal(
     pointerBinding.members.some((member) =>
       member.returnType?.kind === "pointer"),
     true,
   );
-  const refBinding = provider.findTargetBindingByTargetId(
-    byRefReturns.targetId,
-  );
+  const refBinding = resolvedNativeBinding(provider.findTargetBindingByTargetId(byRefReturns.targetId, "ordinary"));
   assert.ok(refBinding);
   assert.deepEqual(
     new Set(refBinding.members.flatMap((member) =>
@@ -313,7 +311,7 @@ test(".NET reflection provider exposes every representable advanced native membe
 });
 
 test(".NET target binding facts preserve unsupported target-only constraint evidence", () => {
-  const declaration = {
+  const declaration = nativeTypeFixture({
     kind: "type",
     isByRefLike: false, constraintRequiresReferenceType: true,
     allowsRefLikeTypeArguments: [false],
@@ -355,7 +353,7 @@ test(".NET target binding facts preserve unsupported target-only constraint evid
           "Implemented contract uses a provider type-ref that is not representable.",
       },
     ],
-  };
+  });
 
   const binding = dotnetExportToTargetBinding(declaration);
 
