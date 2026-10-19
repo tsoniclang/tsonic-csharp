@@ -2,54 +2,50 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpCallableParameterAdapter, CsharpCallableValueAdapter } from "../../../../target-model/records/callable-adapters.js";
 import type { CsharpSourceCallContract } from "../../../../target-model/records/source-callable-contract.js";
-import { getCsharpIndexableLengthMemberName, getCsharpJsArrayElementTargetType } from "../../../../target-model/types/carriers/collections.js";
 import type { CsharpExpression, CsharpParameter, CsharpStatement } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import { applyCsharpConversionSelection } from "../../expressions/conversions.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { qualifiedCsharpType } from "../../types/index.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 
 export function planCsharpCallableArguments(
   declaration: Node, source: Pick<CsharpSourceCallContract, "parameters">, parameters: readonly CsharpParameter[],
   implementationParameters: readonly CsharpParameter[], adapters: readonly CsharpCallableParameterAdapter[],
   sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
-): { readonly statements: readonly CsharpStatement[]; readonly arguments: readonly CsharpExpression[] } | undefined {
-  if (source.parameters.length !== parameters.length || adapters.length !== implementationParameters.length) return undefined;
+): { readonly statements: readonly CsharpStatement[]; readonly arguments: readonly CsharpExpression[] } {
+  function missingPlan(): never { return failCsharpPlannerInvariant("An admitted callable adapter requires its complete native argument adaptation.", declaration); }
+  if (source.parameters.length !== parameters.length || adapters.length !== implementationParameters.length) missingPlan();
   const statements: CsharpStatement[] = [];
   const arguments_: CsharpExpression[] = [];
   const name = (preferred: string) => input.names.temporaryName(preferred);
-  const sourceValue = (index: number): CsharpExpression | undefined => parameters[index] === undefined ? undefined : identifier(parameters[index]!.name);
-  const length = (index: number): CsharpExpression | undefined => {
-    const parameter = source.parameters[index];
-    const member = parameter === undefined ? undefined : getCsharpIndexableLengthMemberName(parameter.targetParameter.type);
+  const sourceValue = (index: number): CsharpExpression => parameters[index] === undefined ? missingPlan() : identifier(parameters[index]!.name);
+  const length = (index: number, member: string): CsharpExpression => {
     const value = sourceValue(index);
-    return member === undefined || value === undefined ? undefined : { kind: "SimpleMemberAccessExpression", receiver: value, name: member };
+    return { kind: "SimpleMemberAccessExpression", receiver: value, name: member };
   };
   const convert = (expression: CsharpExpression, adapter: CsharpCallableValueAdapter) => applyCsharpConversionSelection(
     declaration, sourceFile, input, diagnostics, adapter.source, adapter.target, adapter.conversion, expression);
   for (const [index, adapter] of adapters.entries()) {
     if (adapter.kind === "omitted") {
       const value = implementationParameters[adapter.parameterIndex]?.defaultValue;
-      if (value === undefined) return undefined;
+      if (value === undefined) missingPlan();
       arguments_.push(value);
       continue;
     }
     if (adapter.kind === "rest") {
       const targetType = csharpTypeFromTargetTypeRef(adapter.target, input.scope.typeParameterNames);
-      const jsElement = getCsharpJsArrayElementTargetType(adapter.target);
-      const element = adapter.target.kind === "array" ? adapter.target.element : jsElement;
-      const elementType = element === undefined ? undefined : csharpTypeFromTargetTypeRef(element, input.scope.typeParameterNames);
-      if (targetType === undefined || elementType === undefined) return undefined;
+      const elementType = csharpTypeFromTargetTypeRef(adapter.element, input.scope.typeParameterNames);
+      if (targetType === undefined || elementType === undefined) missingPlan();
       if (adapter.segments.length === 0) {
         arguments_.push({ kind: "CastExpression", type: targetType, expression: { kind: "CollectionExpression", elements: [] } });
         continue;
       }
       const fixed = adapter.segments.filter(segment => segment.kind === "value");
       const sequences = adapter.segments.filter(segment => segment.kind === "sequence");
-      if (sequences.length > 1 || fixed.length + sequences.length !== adapter.segments.length) return undefined;
+      if (sequences.length > 1 || fixed.length + sequences.length !== adapter.segments.length) missingPlan();
       const sequence = sequences[0];
-      const sourceLength = sequence === undefined ? undefined : length(sequence.parameterIndex);
-      if (sequence !== undefined && sourceLength === undefined) return undefined;
+      const sourceLength = sequence === undefined ? undefined : length(sequence.parameterIndex, sequence.lengthMember);
       const count = identifier(name(`__tsonic_rest_count${index}`));
       const tailLength: CsharpExpression = sequence === undefined ? literal(0) : sequence.offset === 0 ? sourceLength! : {
         kind: "ConditionalExpression", condition: binary(sourceLength!, "GreaterThanToken", literal(sequence.offset)),
@@ -59,17 +55,17 @@ export function planCsharpCallableArguments(
         initializer: fixed.length === 0 ? tailLength : { kind: "CheckedExpression", expression: binary(literal(fixed.length), "PlusToken", tailLength) } });
       const buffer = identifier(name(`__tsonic_rest${index}`));
       statements.push({ kind: "LocalDeclarationStatement", name: buffer.name, type: targetType,
-        initializer: jsElement === undefined
+        initializer: adapter.collection === "array"
           ? { kind: "ArrayCreationExpression", elementType, size: count, elements: [] }
           : { kind: "ObjectCreationExpression", type: targetType, arguments: [], assignments: [{ kind: "AssignmentExpression", name: "Capacity", expression: count }] } });
-      const append = (position: CsharpExpression, value: CsharpExpression): CsharpStatement => ({ kind: "ExpressionStatement", expression: jsElement === undefined
+      const append = (position: CsharpExpression, value: CsharpExpression): CsharpStatement => ({ kind: "ExpressionStatement", expression: adapter.collection === "array"
         ? { kind: "AssignmentExpression", left: elementAt(buffer, position), operatorToken: { kind: "EqualsToken" }, right: value }
         : { kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression", receiver: buffer, name: "Add" },
           arguments: [{ kind: "Argument", expression: value }] } });
       for (const [position, segment] of fixed.entries()) {
         const operand = sourceValue(segment.parameterIndex);
         const value = operand === undefined ? undefined : convert(operand, segment.adapter);
-        if (value === undefined) return undefined;
+        if (value === undefined) missingPlan();
         statements.push(append(literal(position), value));
       }
       if (sequence !== undefined) {
@@ -77,7 +73,7 @@ export function planCsharpCallableArguments(
         const operand = sourceValue(sequence.parameterIndex);
         const readIndex = sequence.offset === 0 ? cursor : binary(cursor, "PlusToken", literal(sequence.offset));
         const value = operand === undefined ? undefined : convert(elementAt(operand, readIndex), sequence.adapter);
-        if (value === undefined) return undefined;
+        if (value === undefined) missingPlan();
         statements.push({ kind: "ForStatement", initializer: { kind: "VariableDeclaration", locals: [{ kind: "VariableDeclarator",
           name: cursor.name, type: { kind: "PredefinedType", name: "int" }, initializer: literal(0) }] },
           condition: binary(cursor, "LessThanToken", fixed.length === 0 ? count : binary(count, "MinusToken", literal(fixed.length))),
@@ -88,17 +84,17 @@ export function planCsharpCallableArguments(
       continue;
     }
     const operand = sourceValue(adapter.parameterIndex);
-    if (operand === undefined) return undefined;
     if (adapter.kind === "value") {
       const value = convert(operand, adapter.adapter);
-      if (value === undefined) return undefined;
+      if (value === undefined) missingPlan();
       arguments_.push(value);
       continue;
     }
-    const sourceLength = length(adapter.parameterIndex);
+    const sourceLength = length(adapter.parameterIndex, adapter.lengthMember);
     const converted = convert(elementAt(operand, literal(adapter.offset)), adapter.adapter);
     const missing = implementationParameters[index]?.defaultValue;
-    if (sourceLength === undefined || converted === undefined || adapter.optional && missing === undefined) return undefined;
+    if (sourceLength === undefined || converted === undefined || adapter.optional && missing === undefined)
+      failCsharpPlannerInvariant("An admitted rest-element adapter requires its native value, length and optional default.", declaration);
     const value: CsharpExpression = { kind: "ConditionalExpression",
       condition: binary(sourceLength, "GreaterThanToken", literal(adapter.offset)), whenTrue: converted,
       whenFalse: adapter.optional ? missing! : { kind: "ThrowExpression", expression: { kind: "ObjectCreationExpression",

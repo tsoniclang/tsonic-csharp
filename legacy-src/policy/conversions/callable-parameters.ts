@@ -1,6 +1,6 @@
 import type { CsharpCallableParameterAdapter, CsharpCallableRestSegment, CsharpCallableValueAdapter } from "../../target-model/records/callable-adapters.js";
 import type { CsharpTargetParameter, TargetTypeRef } from "../../target-model/types/model.js";
-import { getCsharpJsArrayElementTargetType } from "../../target-model/types/carriers/collections.js";
+import { getCsharpJsArrayElementTargetType, getCsharpIndexableLengthMemberName } from "../../target-model/types/carriers/collections.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 
@@ -86,11 +86,14 @@ export function selectCsharpCallableParameterAdapters(
         const value = parameter.paramsArray === true ? restElement(parameter.type) : parameter.type;
         const adapter = value === undefined ? undefined : conversion(value, element);
         if (adapter === undefined) return undefined;
+        const lengthMember = parameter.paramsArray === true ? getCsharpIndexableLengthMemberName(parameter.type) : undefined;
+        if (parameter.paramsArray === true && lengthMember === undefined) return undefined;
         segments.push(Object.freeze(parameter.paramsArray === true
-          ? { kind: "sequence", parameterIndex: sourceIndex, offset, adapter }
+          ? { kind: "sequence", parameterIndex: sourceIndex, offset, lengthMember: lengthMember!, adapter }
           : { kind: "value", parameterIndex: sourceIndex, adapter }));
       }
-      adapters.push(Object.freeze({ kind: "rest", target: destination.type, segments: Object.freeze(segments) }));
+      adapters.push(Object.freeze({ kind: "rest", target: destination.type, element,
+        collection: destination.type.kind === "array" ? "array" : "js-array", segments: Object.freeze(segments) }));
       continue;
     }
     if (origin === undefined) {
@@ -99,12 +102,14 @@ export function selectCsharpCallableParameterAdapters(
       continue;
     }
     if (origin.paramsArray !== true) return undefined;
+    const lengthMember = getCsharpIndexableLengthMemberName(origin.type);
+    if (lengthMember === undefined) return undefined;
     const element = restElement(origin.type)!;
     const value = destination.optional === true ? getCsharpNullableElementTargetType(destination.type) ?? destination.type : destination.type;
     const adapter = conversion(element, value);
     if (adapter === undefined) return undefined;
     adapters.push(Object.freeze({ kind: "rest-element", parameterIndex: sourceIndex, offset: offset++,
-      optional: destination.optional === true, adapter }));
+      optional: destination.optional === true, lengthMember, adapter }));
   }
   return Object.freeze(adapters);
 }
