@@ -19,7 +19,7 @@ export function planGenericClassStaticMembers(
   const initialization = planClassInitializationRegion(node, sourceFile, name, true, input, diagnostics);
   return { kind: "ClassDeclaration", name, modifiers: ["public", "static"],
     members: [
-      ...planClassMembers(members, name, sourceFile, input, diagnostics, [initialization]),
+      ...planClassMembers(members, name, sourceFile, input, diagnostics, [initialization]).members,
       ...(initialization.relocates ? [{ kind: "ConstructorDeclaration" as const, name,
         modifiers: ["static" as const], parameters: [], body: { kind: "Block" as const, statements: initialization.statements } }] : []),
       ...input.scope.generatedMethods!.values(),

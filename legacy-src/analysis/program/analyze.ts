@@ -544,7 +544,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
       shapes: callableAdapters.objectShapes, names, projectTypes, projections: analysis.typeProjections }),
     nativeDeclarations: analyzeCsharpNativeDeclarationForms({ ast: source.ast, nodes: sourceStorage.nodes, projectTypes, required: analysis.requiredRecords }),
     declarationModifiers: analyzeCsharpDeclarationModifiers({ ast: source.ast, nodes: sourceStorage.nodes,
-      dispatch: callableAdapters.callableDispatch, helperAccess: captureStorage.helperAccess, required: analysis.requiredRecords, generators: generators.records }),
+      dispatch: callableAdapters.callableDispatch, helperAccess: captureStorage.helperAccess, required: analysis.requiredRecords, generators: generators.records, factories: classFactories.classFactory }),
     generators: generators.records,
     localBindings: analyzeCsharpLocalBindings({ ast: source.ast, navigation: source.navigation, nodes: sourceStorage.nodes,
       admitted: admittedControlNode, nativeRefs: admittedOperations.nativeRefReturn, storage: analysis.storage.storageType,

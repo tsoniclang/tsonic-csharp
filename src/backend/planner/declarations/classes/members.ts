@@ -3,6 +3,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpPropertyDeclaration,
+  CsharpParameter,
   CsharpTypeMember,
 } from "../../../target-ast/syntax/index.js";
 import {
@@ -28,6 +29,12 @@ import { planCsharpMutableMethod } from "./mutable-methods.js";
 import { classFactoryContext } from "./factories.js";
 import { planCsharpProjectCallableAdapters } from "./callable-adapters.js";
 import type { CsharpClassInitializationRegion } from "./initializers.js";
+import { completeLocalClassConstructor } from "./factories.js";
+
+export interface CsharpPlannedClassMembers {
+  readonly members: readonly CsharpTypeMember[];
+  readonly constructorParameters: readonly CsharpParameter[] | undefined;
+}
 
 export function planClassMembers(
   members: readonly (Node | undefined)[],
@@ -36,8 +43,9 @@ export function planClassMembers(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   initialization: readonly CsharpClassInitializationRegion[],
-): readonly CsharpTypeMember[] {
+): CsharpPlannedClassMembers {
   const planned: CsharpTypeMember[] = [];
+  let constructorParameters: readonly CsharpParameter[] | undefined;
   const accessorProperties = new Map<string, CsharpPropertyDeclaration>();
   for (const member of members) {
     if (member === undefined) failCsharpPlannerInvariant("An admitted class requires its dense checked member declarations.");
@@ -53,8 +61,13 @@ export function planClassMembers(
     switch (SourceKind(input.program.source.ast, member)) {
       case KindConstructor:
         if (input.program.records.nativeParticipation.get(member) === "body") {
-          planned.push(...planConstructorDeclarations(member, className, sourceFile, memberInput, diagnostics,
-            initialization[0]?.statements ?? []));
+          const constructors = planConstructorDeclarations(member, className, sourceFile, memberInput, diagnostics,
+            initialization[0]?.statements ?? []);
+          const entry = input.program.records.constructorEntry.get(member);
+          if (constructors[0] === undefined || entry === undefined) failCsharpPlannerInvariant("An admitted class constructor requires its native entry and parameters.", member);
+          constructorParameters = constructors[0].parameters;
+          planned.push(...constructors.map((constructor, index) => factory === undefined ? constructor
+            : completeLocalClassConstructor(constructor, factory, input, [], entry.prepared && index === 0)));
         }
         break;
       case KindClassStaticBlockDeclaration:
@@ -83,5 +96,5 @@ export function planClassMembers(
         return failCsharpPlannerInvariant("An admitted class member lost its native declaration form.", member);
     }
   }
-  return planned;
+  return { members: planned, constructorParameters };
 }

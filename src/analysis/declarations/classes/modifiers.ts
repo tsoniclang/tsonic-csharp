@@ -6,6 +6,7 @@ import type { CsharpMemberVisibility, CsharpMemberModifier, CsharpCallableModifi
 import { createCsharpDeclarationModifierRecords } from "../../program/records/declaration-modifiers.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../../program/records/required-records.js";
 import type { CsharpGeneratorRecords } from "../../../target-model/records/generators.js";
+import type { CsharpClassFactoryIndex } from "../../../target-model/records/class-factories.js";
 
 export function analyzeCsharpDeclarationModifiers(input: {
   readonly ast: AstReader;
@@ -14,6 +15,7 @@ export function analyzeCsharpDeclarationModifiers(input: {
   readonly helperAccess: CsharpCaptureStorage["helperAccess"];
   readonly required: CsharpRequiredRecord[];
   readonly generators: CsharpGeneratorRecords;
+  readonly factories: CsharpClassFactoryIndex["classFactory"];
 }) {
   const values = new Map<Node, CsharpMemberModifierSelection>();
   for (const node of input.nodes) {
@@ -27,7 +29,9 @@ export function analyzeCsharpDeclarationModifiers(input: {
       ? access === "private" ? ["internal"] : access === "protected" ? ["protected", "internal"] : [access]
       : [access];
     const isStatic = HasSyntacticModifier(input.ast, node, ModifierFlagsStatic);
-    const member: readonly CsharpMemberModifier[] = Object.freeze(isStatic ? [...visibility, "static" as const] : [...visibility]);
+    const owner = input.ast.parent(node);
+    const emittedStatic = isStatic && (owner === undefined || input.factories.get(owner) === undefined);
+    const member: readonly CsharpMemberModifier[] = Object.freeze(emittedStatic ? [...visibility, "static" as const] : [...visibility]);
     const dispatch = input.dispatch.get(node);
     const abstract = input.ast.hasModifierKind(node, "abstract");
     let method: readonly CsharpCallableModifier[] | undefined;

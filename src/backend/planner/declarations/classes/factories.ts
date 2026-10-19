@@ -2,7 +2,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpClassFactory } from "../../../../target-model/records/class-factories.js";
 import type { CsharpCaptureFrame } from "../../../../target-model/records/capture-storage.js";
-import type { CsharpClassDeclaration, CsharpConstructorDeclaration, CsharpExpression, CsharpInterfaceDeclaration, CsharpStatement, CsharpTypeMember, CsharpTypeNode } from "../../../target-ast/syntax/index.js";
+import type { CsharpClassDeclaration, CsharpConstructorDeclaration, CsharpExpression, CsharpInterfaceDeclaration, CsharpParameter, CsharpStatement, CsharpTypeMember, CsharpTypeNode } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import type { DestructuringPlannerState } from "../../bindings/index.js";
 import { csharpCaptureFrameExpression, csharpCapturedBindingExpression } from "../../bindings/capture-storage.js";
@@ -13,7 +13,6 @@ import { planExpression } from "../../expressions/index.js";
 import { planClassMembers } from "./members.js";
 import { createCsharpTypeParameterPlanningContext } from "../../names/type-parameters.js";
 import { planOuterTypeParameters, planTypeParameters } from "../../types/type-parameters.js";
-import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import { failCsharpPlannerInvariant } from "../../../invariants.js";
 import { planClassInitializationRegion } from "./initializers.js";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
@@ -22,6 +21,7 @@ import { buildCsharpPlannedValue } from "../../expressions/planned-value-composi
 import { planCsharpNativeMemberHiding } from "../modifiers.js";
 
 interface CaptureSlot {
+  readonly kind: "frame" | "binding" | "expression";
   readonly name: string;
   readonly type: CsharpTypeNode;
   readonly carrier: TargetTypeRef;
@@ -31,22 +31,14 @@ interface CaptureSlot {
 }
 
 function captureSlots(factory: CsharpClassFactory, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[]): readonly CaptureSlot[] {
-  const slots: CaptureSlot[] = [];
-  const frames = new Set<Node>();
-  for (const capture of factory.captures) {
-    const shared = input.program.records.capturedBinding.get(capture.declaration);
-    if (shared !== undefined) {
-      if (frames.has(shared.frame.scope)) continue;
-      frames.add(shared.frame.scope);
-      const type = csharpTypeFromObjectShapeFact(input, shared.frame.shape, diagnostics, factory.declaration);
-      if (type !== undefined) slots.push({ name: capture.fieldName, type, carrier: shared.frame.shape.targetType, frame: shared.frame });
-    } else {
-      const type = csharpTypeFromTargetTypeRef(input.program.records.physicalStorageType.get(capture.declaration, capture.type), input.scope.typeParameterNames);
-      if (type === undefined) failCsharpPlannerInvariant("An admitted class capture lost its renderable physical storage.", capture.declaration);
-      slots.push({ name: capture.fieldName, type, carrier: input.program.records.physicalStorageType.get(capture.declaration, capture.type), reference: capture.reference, declaration: capture.declaration });
-    }
-  }
-  return slots;
+  const slots = input.program.records.classCaptures.get(factory.declaration);
+  if (slots === undefined) failCsharpPlannerInvariant("An admitted class factory requires its sealed capture layout.", factory.declaration);
+  return slots.map(slot => {
+    const type = slot.kind === "frame" ? csharpTypeFromObjectShapeFact(input, slot.frame.shape, diagnostics, factory.declaration)
+      : csharpTypeFromTargetTypeRef(slot.carrier, input.scope.typeParameterNames);
+    if (type === undefined) failCsharpPlannerInvariant("An admitted class capture lost its renderable physical storage.", factory.declaration);
+    return { ...slot, type };
+  });
 }
 
 function member(receiver: CsharpExpression, name: string): CsharpExpression {
@@ -88,17 +80,16 @@ export function planClassFactoryExpression(
       const value = csharpCaptureFrameExpression(slot.frame.scope, input, state);
       return value === undefined ? undefined : csharpPlannedValue(slot.carrier, value);
     }
-    if (slot.declaration !== undefined && input.program.records.nativeBacking.get(slot.declaration) !== undefined) {
-      const captured = csharpCapturedBindingExpression(slot.declaration, input, state);
+    if (slot.kind === "binding") {
       const name = getCsharpLocalBindingName(slot.reference!, input, state);
-      const value = captured ?? (name === undefined ? undefined : { kind: "IdentifierName" as const, name });
-      return value === undefined ? undefined : csharpPlannedValue(slot.carrier, value);
+      if (name === undefined) failCsharpPlannerInvariant("An admitted class environment requires its native captured binding name.", slot.declaration);
+      return csharpPlannedValue(slot.carrier, { kind: "IdentifierName", name });
     }
     return planExpression(slot.reference!, sourceFile, input, diagnostics, state);
   });
   const type = csharpTypeFromTargetTypeRef(factory.factoryType, input.scope.typeParameterNames);
   if (type === undefined) failCsharpPlannerInvariant("An admitted class factory lost its renderable native environment.", factory.declaration);
-  if (arguments_.some(argument => argument === undefined)) return undefined;
+  if (arguments_.some(argument => argument === undefined)) failCsharpPlannerInvariant("An admitted class environment requires its complete native argument values.", factory.declaration);
   return buildCsharpPlannedValue(factory.declaration, sourceFile, input, diagnostics, arguments_, values => ({
     kind: "ObjectCreationExpression", type, arguments: values.map(expression => ({ kind: "Argument", expression })),
   }), factory.factoryType);
@@ -106,13 +97,17 @@ export function planClassFactoryExpression(
 
 export function completeLocalClassConstructor(
   constructor: CsharpConstructorDeclaration, factory: CsharpClassFactory,
-  input: CsharpPlanningContext, initializers: readonly CsharpStatement[],
+  input: CsharpPlanningContext, initializers: readonly CsharpStatement[], delegating: boolean,
 ): CsharpConstructorDeclaration {
   const environment: CsharpExpression = { kind: "IdentifierName", name: factory.environmentName };
   const type = csharpTypeFromTargetTypeRef(factory.factoryType, input.scope.typeParameterNames)!;
-  if (constructor.initializer?.kind === "this") return { ...constructor,
+  if (delegating) {
+    const initializer = constructor.initializer;
+    if (initializer === undefined) failCsharpPlannerInvariant("A delegating class entry requires its rendered native initializer.", factory.declaration);
+    return { ...constructor,
     parameters: [{ name: factory.environmentName, type }, ...constructor.parameters],
-    initializer: { kind: "this", arguments: [{ kind: "Argument", expression: environment }, ...constructor.initializer.arguments] } };
+    initializer: { kind: "this", arguments: [{ kind: "Argument", expression: environment }, ...initializer.arguments] } };
+  }
   return { ...constructor, parameters: [{ name: factory.environmentName, type }, ...constructor.parameters],
     body: { kind: "Block", statements: [
       ...(factory.retainsEnvironment ? [assignment({ kind: "IdentifierName", name: "this" }, factory.environmentName, environment)] : []),
@@ -121,27 +116,18 @@ export function completeLocalClassConstructor(
 }
 
 export function planClassFactoryDeclaration(
-  factory: CsharpClassFactory, instanceDeclaration: CsharpClassDeclaration,
+  factory: CsharpClassFactory, parameters: readonly CsharpParameter[],
   outerInput: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
 ): CsharpClassDeclaration {
   const input = createCsharpTypeParameterPlanningContext(factory.declaration, outerInput);
   const slots = captureSlots(factory, input, diagnostics);
   const context = classFactoryContext(factory, { kind: "IdentifierName", name: "this" }, input, diagnostics, "factory");
-  const staticNodes = input.program.source.ast.members(factory.declaration).filter(node => node !== undefined &&
-    input.program.source.ast.hasModifierKind(node, "static") && !input.program.source.ast.is.IsClassStaticBlockDeclaration(node));
+  const selected = input.program.records.nativeClass.get(factory.declaration);
+  if (selected === undefined) failCsharpPlannerInvariant("An admitted class factory requires its native member inventory.", factory.declaration);
+  const staticNodes = selected.staticMembers;
   const staticRegion = planClassInitializationRegion(factory.declaration, factory.sourceFile, factory.factoryName, true, context, diagnostics, true);
   const staticMembers = planClassMembers(staticNodes, factory.factoryName, factory.sourceFile, context, diagnostics, [staticRegion]);
-  const members: CsharpTypeMember[] = staticMembers.filter(member => member.kind !== "ConstructorDeclaration" && member.kind !== "StaticConstructorDeclaration")
-    .map(member => ({ ...member, modifiers: member.modifiers.filter(modifier => modifier !== "static") }));
-  const constructors = instanceDeclaration.members.filter((member): member is CsharpConstructorDeclaration =>
-    member.kind === "ConstructorDeclaration");
-  const entries = constructors.filter(constructor => constructor.initializer?.kind === "this");
-  const entry = constructors.length === 1 ? constructors[0] : entries.length === 1 ? entries[0] : undefined;
-  if (entry === undefined || entry.parameters[0]?.name !== factory.environmentName) {
-    diagnostics.push(unsupportedNodeDiagnostic(factory.declaration,
-      "A local class factory requires one exact planned constructor and its environment parameter."));
-  }
-  const parameters = entry?.parameters.slice(1) ?? [];
+  const members: CsharpTypeMember[] = [...staticMembers.members];
   members.push(...slots.map(slot => ({ kind: "FieldDeclaration" as const, name: slot.name,
     type: slot.type, modifiers: ["public" as const, "readonly" as const, ...planCsharpNativeMemberHiding(input.program.records.nativeMemberHiding,
       { kind: "value", container: factory.declaration, member: slot.name, role: "member" })] })));
