@@ -41,10 +41,13 @@ import type { CsharpConstructorEmissionRecords } from "./constructor-emission.js
 import type { CsharpClassEmissionRecords } from "./class-emission.js";
 import type { CsharpBindingIdentityRecords } from "./binding-identities.js";
 import type { CsharpSourceFileRecords } from "./source-files.js";
+import type { CsharpObjectShapeRecords } from "./object-shapes.js";
 
 export interface CsharpProgramRecords extends CsharpStatementExitRecords, CsharpStatementCompletionRecords, CsharpResourceScopeRecords, CsharpDeclarationModifierRecords, CsharpNativeDeclarationRecords, CsharpStructuralInterfaceRecords, CsharpLexicalValueRecords, CsharpConstructorEmissionRecords, CsharpClassEmissionRecords {
   readonly bindingIdentity: CsharpBindingIdentityRecords["bindingIdentity"];
   readonly sourceFile: CsharpSourceFileRecords["sourceFile"];
+  readonly nodeObjectShape: CsharpObjectShapeRecords["nodeObjectShape"];
+  readonly targetObjectShape: CsharpObjectShapeRecords["targetObjectShape"];
   readonly classFieldDefault: CsharpClassFieldInitializationRecords["classFieldDefault"];
   readonly callableParameter: CsharpCallableParameterRecords["callableParameter"];
   readonly callableDeclaration: { readonly get: (subject: Node) => CsharpCallableDeclarationEmission | undefined };

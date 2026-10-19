@@ -24,6 +24,7 @@ import { analyzeCsharpResourceScopes } from "../control-flow/resource-scopes.js"
 import { analyzeCsharpLocalBindings } from "../storage/local-bindings.js";
 import { analyzeCsharpBindingIdentities } from "../storage/binding-identities.js";
 import { analyzeCsharpSourceOutputIdentities } from "../names/source-output-identities.js";
+import { createCsharpObjectShapeRecords } from "./records/object-shapes.js";
 import { analyzeCsharpGenerators } from "../callables/generators.js";
 import type { CsharpRequiredRecord } from "./records/required-records.js";
 import { analyzeSourceLiteralValues, sourceDeclarationHasOnlyTypeUses, sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
@@ -545,6 +546,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     ])] });
   if (sourceIdentities.kind === "rejected") return rejectedTargetStage(sourceIdentities.diagnostics);
   const records = createCsharpProgramRecords({
+    objectShapes: createCsharpObjectShapeRecords(callableAdapters.objectShapes),
     sourceFiles: sourceIdentities.records,
     bindingIdentities: analyzeCsharpBindingIdentities(source, sourceStorage.nodes),
     classEmission: classEmission.records,
