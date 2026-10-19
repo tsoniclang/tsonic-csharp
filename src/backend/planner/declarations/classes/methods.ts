@@ -9,7 +9,6 @@ import { planCsharpAbsenceReturn } from "../../statements/statement-output.js";
 import {
   createDestructuringPlannerState,
 } from "../../bindings/index.js";
-import { planCsharpAdmittedMemberName } from "../modifiers.js";
 import type { CsharpNativeMemberIdentity } from "../../../../target-model/names/model.js";
 import {
   planParametersWithPrelude,
@@ -34,10 +33,6 @@ import {
 } from "../../types/target-types.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import {
-  csharpWellKnownSymbolTargetMemberName,
-} from "../../../../target-model/types/index.js";
-import {
-  hasCsharpGeneratorPlan,
   planCsharpGeneratorFunction,
 } from "../../statements/generators.js";
 import {
@@ -65,10 +60,9 @@ export function planMethodDeclaration(
     "declaration",
     input,
   );
-  const name = planMethodDeclarationName(
-    declaration.name,
-    input,
-  );
+  const selected = input.program.records.methodDeclaration.get(node);
+  if (selected === undefined) failCsharpPlannerInvariant("An admitted method requires its selected native declaration name.", node);
+  const name = selected.name;
   if (input.program.records.nativeParticipation.get(node) === "signature") {
     return {
       kind: "MethodDeclaration", name, modifiers,
@@ -77,7 +71,9 @@ export function planMethodDeclaration(
       returnType: declaredReturnType, parameters: parameters.parameters,
     };
   }
-  if (hasCsharpGeneratorPlan(node, input)) {
+  const emission = input.program.records.callableDeclaration.get(node);
+  if (emission === undefined) failCsharpPlannerInvariant("An admitted method body requires its native callable emission record.", node);
+  if (emission.generator) {
     const generator = planCsharpGeneratorFunction(
       node,
       declaration.Body,
@@ -88,21 +84,22 @@ export function planMethodDeclaration(
       parameters.prelude,
       planBlockStatements,
     );
+    if (generator === undefined) failCsharpPlannerInvariant("An admitted generator method requires its native body and return type.", node);
     return {
       kind: "MethodDeclaration",
       name,
-      modifiers: modifiers.filter((modifier) => modifier !== "async"),
+      modifiers,
       attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
       typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], input, diagnostics),
-      returnType: generator?.generatorTypeNode ?? declaredReturnType,
+      returnType: generator.generatorTypeNode,
       parameters: parameters.parameters,
-      body: generator?.body ?? { kind: "Block", statements: [] },
+      body: generator.body,
     };
   }
   state.currentReturnType = declaredReturnType;
   state.currentReturnTypeSubject = declaration.Type;
   state.currentReturnExpressionTargetType = input.program.records.returnContext.get(node)?.target;
-  if (modifiers.includes("async")) {
+  if (emission.async) {
     const returnExpressionType = getAsyncReturnExpressionExpectedType(declaration.Type, node, "method declaration", sourceFile, input, diagnostics);
     state.currentReturnExpressionType = returnExpressionType?.type;
     state.currentReturnExpressionTypeSubject = returnExpressionType?.subject;
@@ -136,20 +133,3 @@ export function planMethodDeclaration(
   };
 }
 
-function planMethodDeclarationName(
-  nameNode: Node | undefined,
-  input: CsharpPlanningContext,
-): string {
-  if (nameNode !== undefined && input.program.source.ast.is.IsComputedPropertyName(nameNode)) {
-    const name = input.program.source.propertyNames.get(nameNode);
-    if (name?.kind === "resolved") return planCsharpAdmittedMemberName(input.program.names, nameNode);
-    const selected = input.program.records.wellKnownSymbol.get(nameNode);
-    if (selected !== undefined) {
-      const targetName = csharpWellKnownSymbolTargetMemberName(selected.kind);
-      if (targetName !== undefined) {
-        return targetName;
-      }
-    }
-  }
-  return planCsharpAdmittedMemberName(input.program.names, nameNode);
-}

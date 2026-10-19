@@ -16,6 +16,7 @@ import { analyzeCsharpLexicalValues } from "../callables/lexical-values.js";
 import { analyzeCsharpClassFieldInitialization } from "../project-types/class-initialization.js";
 import { analyzeCsharpCallableParameterEmission } from "../callables/parameters.js";
 import { analyzeCsharpCallableDeclarationEmission } from "../callables/declaration-emission.js";
+import { analyzeCsharpMethodEmission } from "../declarations/classes/methods.js";
 import { analyzeCsharpStatementExits } from "../control-flow/statement-exits.js";
 import { analyzeCsharpStatementCompletions } from "../control-flow/statement-completion.js";
 import { analyzeCsharpResourceScopes } from "../control-flow/resource-scopes.js";
@@ -536,13 +537,14 @@ function analyzeCsharpTargetProgramBeforeSeal(
     callableParameters: callableParameters.records,
     callableDeclarations: callableDeclarations.records,
     nativeMemberNames,
+    methods: analyzeCsharpMethodEmission(source.ast, nativeMemberNames),
     classFields: analyzeCsharpClassFieldInitialization({ ast: source.ast, nodes: sourceStorage.nodes, storage: analysis.storage }),
     lexicalValues: lexicalValues.records,
     structuralInterfaces: analyzeCsharpStructuralInterfaceEmission({ ast: source.ast,
       shapes: callableAdapters.objectShapes, names, projectTypes, projections: analysis.typeProjections }),
     nativeDeclarations: analyzeCsharpNativeDeclarationForms({ ast: source.ast, nodes: sourceStorage.nodes, projectTypes, required: analysis.requiredRecords }),
     declarationModifiers: analyzeCsharpDeclarationModifiers({ ast: source.ast, nodes: sourceStorage.nodes,
-      dispatch: callableAdapters.callableDispatch, helperAccess: captureStorage.helperAccess, required: analysis.requiredRecords }),
+      dispatch: callableAdapters.callableDispatch, helperAccess: captureStorage.helperAccess, required: analysis.requiredRecords, generators: generators.records }),
     generators: generators.records,
     localBindings: analyzeCsharpLocalBindings({ ast: source.ast, navigation: source.navigation, nodes: sourceStorage.nodes,
       admitted: admittedControlNode, nativeRefs: admittedOperations.nativeRefReturn, storage: analysis.storage.storageType,

@@ -31,6 +31,7 @@ import type { CsharpGeneratorRecords } from "./generators.js";
 import type { Node } from "@tsonic/tsts";
 import type { CsharpCallableDeclarationEmission } from "./callable-emission.js";
 import type { CsharpNativeMemberHidingReader } from "./native-member-names.js";
+import type { CsharpMethodDeclarationEmission } from "./method-emission.js";
 import type { CsharpDeclarationModifierRecords } from "./declaration-modifiers.js";
 import type { CsharpNativeDeclarationRecords } from "./native-declaration-forms.js";
 import type { CsharpStructuralInterfaceRecords } from "./structural-interfaces.js";
@@ -42,6 +43,7 @@ export interface CsharpProgramRecords extends CsharpStatementExitRecords, Csharp
   readonly callableParameter: CsharpCallableParameterRecords["callableParameter"];
   readonly callableDeclaration: { readonly get: (subject: Node) => CsharpCallableDeclarationEmission | undefined };
   readonly nativeMemberHiding: CsharpNativeMemberHidingReader;
+  readonly methodDeclaration: { readonly get: (subject: Node) => CsharpMethodDeclarationEmission | undefined };
   readonly localBinding: { readonly get: (subject: Node | undefined) => CsharpLocalBindingCompletion | undefined };
   readonly objectShapeArtifact: CsharpObjectShapeDemand;
   readonly nativeValueDeclaration: CsharpNativeValueCarriers["nativeValueDeclaration"];

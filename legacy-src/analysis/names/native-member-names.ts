@@ -112,7 +112,7 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
       groups.set(member.name, group);
     }
   }
-  if (issues.length > 0) return Object.freeze({ issues: Object.freeze(issues), memberHiding: Object.freeze(hiding) });
+  if (issues.length > 0) return Object.freeze({ issues: Object.freeze(issues), memberHiding: Object.freeze(hiding), declarationNames: Object.freeze([]) });
   for (const declaration of classes) {
     const members = membersByClass.get(declaration)!;
     const definition = input.projectTypes.definitionContainingDeclaration(declaration);
@@ -163,7 +163,13 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
   interfaceMembers();
   artifactMembers();
   valueMembers();
-  return Object.freeze({ issues: Object.freeze(issues), memberHiding: Object.freeze(hiding) });
+  const declarations = new Map<Node, string>();
+  for (const members of membersByClass.values()) for (const member of members) {
+    if (member.subject.kind !== "source" || member.subject.role !== "member") continue;
+    declarations.set(member.subject.declaration, member.emittedName);
+  }
+  return Object.freeze({ issues: Object.freeze(issues), memberHiding: Object.freeze(hiding),
+    declarationNames: Object.freeze([...declarations].map(([declaration, name]) => Object.freeze({ declaration, name }))) });
 
   function projectMembers(declaration: Node): readonly ProjectMember[] {
     return Object.freeze(sourceObjectMemberDeclarations(input.ast, declaration).flatMap(member => {

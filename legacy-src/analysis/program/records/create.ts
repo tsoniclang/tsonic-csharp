@@ -37,9 +37,11 @@ import type { CsharpCallableParameterRecords } from "../../../target-model/recor
 import type { CsharpCallableDeclarationRecords } from "../../../target-model/records/callable-emission.js";
 import type { CsharpNativeMemberNames } from "../../../target-model/names/model.js";
 import { createCsharpNativeMemberHidingRecords } from "./native-member-names.js";
+import type { CsharpMethodEmissionRecords } from "../../../target-model/records/method-emission.js";
 
 export interface CsharpProgramRecordInput {
   readonly nativeMemberNames: CsharpNativeMemberNames;
+  readonly methods: CsharpMethodEmissionRecords;
   readonly callableDeclarations: CsharpCallableDeclarationRecords;
   readonly callableParameters: CsharpCallableParameterRecords;
   readonly classFields: CsharpClassFieldInitializationRecords;
@@ -88,6 +90,7 @@ export function createCsharpProgramRecords(
     ...input.callableParameters,
     ...input.callableDeclarations,
     nativeMemberHiding: createCsharpNativeMemberHidingRecords(input.nativeMemberNames),
+    ...input.methods,
     ...input.classFields,
     ...input.lexicalValues,
     ...input.structuralInterfaces,

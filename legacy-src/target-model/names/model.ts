@@ -21,6 +21,7 @@ export function csharpNativeMemberIdentityParts(
 }
 
 export interface CsharpNativeMemberNames {
+  readonly declarationNames: readonly { readonly declaration: Node; readonly name: string }[];
   readonly issues: readonly TargetDiagnostic[];
   readonly memberHiding: readonly { readonly subject: CsharpNativeMemberIdentity; readonly hides: boolean }[];
 }

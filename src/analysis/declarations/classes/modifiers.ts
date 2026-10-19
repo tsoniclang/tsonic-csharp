@@ -5,6 +5,7 @@ import type { CsharpCaptureStorage } from "../../../target-model/records/capture
 import type { CsharpMemberVisibility, CsharpMemberModifier, CsharpCallableModifier, CsharpDispatchModifier, CsharpMemberModifierSelection } from "../../../target-model/records/declaration-modifiers.js";
 import { createCsharpDeclarationModifierRecords } from "../../program/records/declaration-modifiers.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../../program/records/required-records.js";
+import type { CsharpGeneratorRecords } from "../../../target-model/records/generators.js";
 
 export function analyzeCsharpDeclarationModifiers(input: {
   readonly ast: AstReader;
@@ -12,6 +13,7 @@ export function analyzeCsharpDeclarationModifiers(input: {
   readonly dispatch: CsharpProjectCallableAdapters["callableDispatch"];
   readonly helperAccess: CsharpCaptureStorage["helperAccess"];
   readonly required: CsharpRequiredRecord[];
+  readonly generators: CsharpGeneratorRecords;
 }) {
   const values = new Map<Node, CsharpMemberModifierSelection>();
   for (const node of input.nodes) {
@@ -31,7 +33,7 @@ export function analyzeCsharpDeclarationModifiers(input: {
     let method: readonly CsharpCallableModifier[] | undefined;
     if (kind === "KindMethodDeclaration" && (isStatic || dispatch?.kind === "method"))
       method = Object.freeze([...(isStatic ? [] : dispatchModifiers(dispatch!, abstract)),
-        ...(HasSyntacticModifier(input.ast, node, ModifierFlagsAsync) ? ["async" as const] : [])]);
+        ...(input.generators.generator.get(node) === undefined && HasSyntacticModifier(input.ast, node, ModifierFlagsAsync) ? ["async" as const] : [])]);
     const property = dispatch?.kind === "property" ? Object.freeze(dispatchModifiers(dispatch, abstract)) : undefined;
     const implementation = Object.freeze(member.map(modifier => modifier === "public" ? "private" as const : modifier));
     values.set(node, Object.freeze({ member, implementation, method, property, abstract, erased: sourceClassFieldIsTypeOnly(input.ast, node) }));
