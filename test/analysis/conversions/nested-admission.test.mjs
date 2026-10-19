@@ -1,13 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
+import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { admitCsharpConversionSelection } from "../../../dist/analysis/conversions/validation.js";
 import { sealCsharpConversionUses } from "../../../dist/analysis/conversions/use-admission.js";
 import { csharpOperationConversionIssue, csharpSelectedCallConversionIssue } from "../../../dist/analysis/operations/conversion-admission.js";
 import { elementSelectedTypes } from "../../../dist/analysis/operations/member-access.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/index.js";
-import { csharpAbsenceTargetType, csharpDelegateTargetType, csharpNullableTargetType, csharpRuntimeUnionTargetType,
+import { csharpAbsenceTargetType, csharpDelegateTargetType, csharpExceptionTargetType, csharpNullableTargetType, csharpRuntimeUnionTargetType,
   csharpNeverTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpVoidTargetType,
-  targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
+  csharpTsValueTargetType, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 
 const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => undefined }, target: {} };
 const stringType = csharpStringTargetType();
@@ -213,7 +215,7 @@ test("optional native call completion admission retains the exact present-to-opt
   }), (node, source, target) => {
     pairs.push({ node, source, target });
     return selectCsharpConversion(policy, source, target, "implicit");
-  }, requiredRecords, [], new Map([[expression, completion]]));
+  }, requiredRecords, [], new Map([[expression, Object.freeze({ completion, omitted: Object.freeze([]) })]]));
   assert.equal(admitted.issues.length, 0, "a valid native bool-to-Nullable<bool> branch is admitted before sealing");
   assert.equal(pairs.length === 1 && pairs[0].node === expression &&
     targetTypeRefEquals(pairs[0].source, booleanType) && targetTypeRefEquals(pairs[0].target, target), true,
@@ -252,7 +254,8 @@ test("void and never native completions admit no present-value conversion", () =
       selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined },
     }, () => assert.fail(`${kind} has no consumed value conversion`),
     () => assert.fail(`${kind} has no present-value conversion`), requiredRecords, [],
-    new Map([[expression, Object.freeze({ source: carrier, target: carrier })]]));
+    new Map([[expression, Object.freeze({ completion: Object.freeze({ source: carrier, target: carrier }),
+      omitted: Object.freeze([]) })]]));
     assert.equal(admitted.issues.length, 0, `${kind} does not manufacture an absence or value rejection`);
     assert.equal(admitted.expressions.size, 0, `${kind} publishes no expression conversion`);
     assert.equal(requiredRecords.length, 0, `${kind} requires no value conversion record`);
@@ -274,10 +277,152 @@ test("native call completion admission requires its exact pair only once across 
   }), (node, source, target) => {
     presentConversions++;
     return selectCsharpConversion(policy, source, target, "implicit");
-  }, requiredRecords, [], new Map([[expression, Object.freeze({ source: booleanType, target })]]));
+  }, requiredRecords, [], new Map([[expression, Object.freeze({ completion: Object.freeze({ source: booleanType, target }),
+    omitted: Object.freeze([]) })]]));
   assert.equal(admitted.issues.length, 0, "duplicate consuming sites retain valid native optional bool admission");
   assert.equal(presentConversions, 1, "the selected present-result conversion is admitted once");
   assert.equal(requiredRecords.filter(record => record.family === "conversion" && record.subject === expression &&
     targetTypeRefEquals(record.source, booleanType) && targetTypeRefEquals(record.target, target)).length, 1,
   "the exact present-to-optional required-record pair is published once");
 });
+
+test("native void absence admission requires the actual root completion and exact native carriers", () => {
+  const source = csharpVoidTargetType();
+  const target = csharpNullableTargetType(booleanType);
+  const selection = Object.freeze({ kind: "absence" });
+  assert.equal(admitCsharpConversionSelection(policy, source, target, selection, { kind: "void" }) === selection,
+    true, "the actual void completion may produce one absent native value");
+  assert.equal(selectCsharpConversion(policy, source, target, "implicit").kind, "rejected",
+    "void is never admitted as an ordinary native value carrier");
+  for (const [actualSource, actualTarget, completion] of [
+    [source, target, undefined],
+    [source, target, { kind: "value", type: source }],
+    [source, target, { kind: "never" }],
+    [booleanType, target, { kind: "void" }],
+    [source, booleanType, { kind: "void" }],
+  ]) {
+    const rejected = admitCsharpConversionSelection(policy, actualSource, actualTarget, selection, completion);
+    assert.equal(rejected.kind === "rejected" &&
+      rejected.reason === "An absence conversion requires its exact source and destination storage contracts.", true,
+    "a missing or forged completion cannot weaken the exact absence contract");
+  }
+  const nested = Object.freeze({ kind: "provider-argument-adapter", adapter: providerAdapter(target, target),
+    sourceToInput: selection, resultToTarget: Object.freeze({ kind: "identity" }) });
+  assert.equal(admitCsharpConversionSelection(policy, source, target, nested, { kind: "void" }).kind, "rejected",
+    "a root completion cannot authorize an arbitrary nested carrier conversion");
+});
+
+test("consumed native void completions require expression evidence without fabricating a generic value pair", () => {
+  const expression = Object.freeze({});
+  const source = csharpVoidTargetType();
+  const target = csharpNullableTargetType(booleanType);
+  const use = Object.freeze({ kind: "converted", expression, carrier: source, target, mode: "implicit",
+    input: Object.freeze({ kind: "void" }), completion: Object.freeze({ kind: "value", type: target }),
+    children: Object.freeze([]), evaluation: Object.freeze({ kind: "sequence", steps: Object.freeze([]) }) });
+  const requiredRecords = [];
+  const admitted = sealCsharpConversionUses({ entries: [{ use }] }, {
+    selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined },
+  }, (node, from, to, mode, exactInteger, boundary, completion) => ({ key: "void-completion",
+    classification: { source: from, target: to,
+      selection: admitCsharpConversionSelection(policy, from, to, { kind: "absence" }, completion) },
+  }), () => assert.fail("the native void completion has no generic value conversion"), requiredRecords, [], new Map());
+  assert.equal(admitted.issues.length, 0, "the actual void input becomes one admitted absent value");
+  assert.equal(admitted.expressions.get(expression)?.get("void-completion")?.selection.kind, "absence",
+    "rendering receives the exact admitted expression conversion");
+  assert.equal(requiredRecords.length === 1 && requiredRecords[0].family === "expressionConversion" &&
+    requiredRecords[0].subject === expression && targetTypeRefEquals(requiredRecords[0].source, source) &&
+    targetTypeRefEquals(requiredRecords[0].target, target), true,
+  "the publication seal requires the expression relation, not an inapplicable void value relation");
+});
+
+test("omitted source arguments admit their physical absence pairs once before discarded call results", () => {
+  const expression = Object.freeze({});
+  const source = csharpAbsenceTargetType();
+  const target = csharpTsValueTargetType();
+  const use = Object.freeze({ kind: "effect", expression, carrier: csharpVoidTargetType(),
+    completion: Object.freeze({ kind: "void" }), children: Object.freeze([]),
+    evaluation: Object.freeze({ kind: "sequence", steps: Object.freeze([]) }) });
+  const requiredRecords = [];
+  let physicalPairs = 0;
+  const admitted = sealCsharpConversionUses({ entries: [{ use }, { use }] }, {
+    selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined },
+  }, () => assert.fail("an omitted slot is not an authored expression conversion"), (node, from, to) => {
+    physicalPairs++;
+    return admitCsharpConversionSelection(policy, from, to, selectCsharpConversion(policy, from, to, "implicit"));
+  }, requiredRecords, [], new Map([[expression, Object.freeze({
+    omitted: Object.freeze([Object.freeze({ source, target })]),
+  })]]));
+  assert.equal(admitted.issues.length, 0, "the checked omitted slot is admitted independently of its void call result");
+  assert.equal(physicalPairs, 1, "repeated result uses never duplicate the omitted slot admission");
+  assert.equal(admitted.expressions.size, 0, "no source expression is fabricated for an omitted argument");
+  assert.equal(requiredRecords.length === 1 && requiredRecords[0].family === "conversion" &&
+    targetTypeRefEquals(requiredRecords[0].source, source) && targetTypeRefEquals(requiredRecords[0].target, target), true,
+  "the seal requires exactly the physical pair consumed by the source-call renderer");
+});
+
+test("an unresolved omitted formal is refused before publication without a guessed native destination", () => {
+  const expression = Object.freeze({});
+  const source = csharpAbsenceTargetType();
+  const use = Object.freeze({ kind: "effect", expression, carrier: csharpVoidTargetType(), completion: { kind: "void" },
+    children: Object.freeze([]), evaluation: Object.freeze({ kind: "sequence", steps: Object.freeze([]) }) });
+  const requiredRecords = [];
+  const admitted = sealCsharpConversionUses({ entries: [{ use }] }, {
+    selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined },
+  }, () => assert.fail("the missing formal never becomes an expression"),
+  (node, from, target) => selectCsharpConversion(policy, from, target, "implicit"), requiredRecords, [],
+  new Map([[expression, Object.freeze({ omitted: Object.freeze([{ source, target: undefined }]) })]]));
+  assert.equal(admitted.issues.length === 1 && admitted.issues[0].node === expression &&
+    admitted.issues[0].code === "CSHARP_UNSUPPORTED_AST" &&
+    admitted.issues[0].message === "C# conversion requires closed source and target representations.", true,
+  "the exact existing carrier refusal remains a pre-seal source diagnostic");
+  assert.equal(requiredRecords.length, 0, "a refused omitted slot publishes no physical conversion contract");
+});
+
+test("post-seal corruption pairs are source refusals at their actual conversion admission owner", () => {
+  for (const [source, target, reason] of [
+    [csharpExceptionTargetType(), stringType,
+      "No exact C# implicit conversion relates 'target:System.Exception<>' to 'target:System.String<>'."],
+    [csharpAbsenceTargetType(), csharpSourcePrimitiveTargetType("float64"),
+      "No exact C# implicit conversion relates 'nullable-reference:target:csharp.native.absence<>' to 'source:float64'."],
+  ]) {
+    const expression = Object.freeze({});
+    const use = Object.freeze({ kind: "converted", expression, carrier: source, target, mode: "implicit",
+      input: Object.freeze({ kind: "value", type: source }), completion: Object.freeze({ kind: "value", type: target }),
+      children: Object.freeze([]), evaluation: Object.freeze({ kind: "sequence", steps: Object.freeze([]) }) });
+    const requiredRecords = [];
+    const admitted = sealCsharpConversionUses({ entries: [{ use }] }, {
+      selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined },
+    }, (node, from, to) => ({ key: "exact-refused-pair",
+      classification: { source: from, target: to, selection: selectCsharpConversion(policy, from, to, "implicit") },
+    }), () => assert.fail("a refused expression pair cannot need a separate native value"), requiredRecords, [], new Map());
+    assert.equal(admitted.issues.length === 1 && admitted.issues[0].node === expression &&
+      admitted.issues[0].code === "CSHARP_UNSUPPORTED_AST" && admitted.issues[0].message === reason, true,
+    "the identical malformed pair is rejected with its exact owning message and node before publication");
+    assert.equal(requiredRecords.length, 0, "no accepted record is required or published for the refused pair");
+  }
+});
+
+test("omission admission does not fabricate source formal slots for native provider constructors", () => {
+  for (const surface of ["native", "js"]) {
+    const compiled = compileCsharpSource({ surface, sourceText:
+      "export function create(): Error { return new Error(); }" });
+    assertCsharpCompilationSucceeded(compiled);
+    assert.equal(compiled.artifacts.size > 0, true, `${surface}: the existing native constructor remains emitted`);
+  }
+});
+
+for (const surface of ["native", "js"]) {
+  test(`intrinsic void construction retains the physical absence before one outer conversion on ${surface}`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+let visits = 0;
+function unit(): void { visits += 1; }
+function value(): number { visits += 1; return visits; }
+function optional(value: number | undefined): boolean { return value === undefined; }
+export function run(): boolean {
+  return optional(void unit()) && optional(void value()) && visits === 2;
+}
+` });
+    assertCsharpCompilationSucceeded(compiled);
+    executeCsharpConstruction(compiled, `intrinsic-void-native-absence-${surface}`);
+  });
+}

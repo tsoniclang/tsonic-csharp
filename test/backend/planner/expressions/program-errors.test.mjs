@@ -55,7 +55,12 @@ test("native throw planning requires its exact sealed operand, source carrier an
       get: site => site === native.site ? invalidUse : program.records.nativeUse.get(site),
     } } };
   const invalid = [];
-  assert.deepEqual(planThrowStatement(statement, source.ast.getSourceFile(statement), { ...context, program: changed }, invalid), []);
-  assert.equal(invalid.length, 1);
-  assert.equal(invalid[0].message, "C# planning requires a sealed implicit expression conversion from 'target:System.Exception<>' to 'target:System.String<>'.");
+  const message = "C# planning requires a sealed implicit expression conversion from 'target:System.Exception<>' to 'target:System.String<>'.";
+  assert.throws(() => planThrowStatement(statement, source.ast.getSourceFile(statement), { ...context, program: changed }, invalid),
+    error => error instanceof Error && error.phase === "planning" &&
+      error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT" &&
+      error.diagnostic.source === "tsonic-csharp" && error.diagnostic.sourceNode === classification.expression &&
+      error.message === message && error.diagnostic.message === message,
+    "the same post-seal Exception-to-String corruption retains its exact message and operand");
+  assert.equal(invalid.length, 0, "post-seal corruption appends no source diagnostic");
 });

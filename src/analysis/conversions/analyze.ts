@@ -47,7 +47,8 @@ import { selectCsharpExactIntegerConversion } from "../../policy/conversions/exa
 import { admitCsharpConversionSelection } from "./validation.js";
 import { selectCsharpPropertyProjections } from "./property-projections.js";
 import { createCsharpExactLiteralRequestCollector } from "./literal-requests.js";
-import { sealCsharpConversionUses } from "./use-admission.js";
+import { sealCsharpConversionUses, type CsharpCallConversionRequests } from "./use-admission.js";
+import type { CsharpNativeCompletion } from "../../target-model/records/native-demand.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { csharpDelegateSignatureHasSupportedPassingModes, getCsharpDelegateSignature } from "../../target-model/types/carriers/delegates.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
@@ -69,7 +70,7 @@ export function analyzeCsharpConversions(
     Node,
     Map<string, CsharpExpressionConversionClassification>
   >();
-  const callCompletionConversions = new Map<Node, { readonly source: TargetTypeRef; readonly target: TargetTypeRef }>();
+  const callConversions = new Map<Node, CsharpCallConversionRequests>();
   let delegateAdapters: ReturnType<typeof sealCsharpDelegateAdapterIdentities> = new Map();
   const issues: CsharpConversionIssue[] = [];
   const propertyProjections = new WeakMap<Node, ReadonlyMap<string, readonly CsharpObjectShapeMemberFact[]>>();
@@ -133,10 +134,10 @@ export function analyzeCsharpConversions(
     close(nativeDemand, requiredRecords) {
       if (closed) return failTargetAnalysisInvariant("tsonic-csharp", "Native conversion preparation closes exactly once.");
       if (preparedClassifications === undefined || preparedOperations === undefined) failTargetAnalysisInvariant("tsonic-csharp", "Native conversion uses require completed preparation.");
-      const admitted = sealCsharpConversionUses(nativeDemand, preparedOperations, (expression, source, target, mode, exactInteger, boundary) => {
-        const selected = boundary === undefined ? classifyExpression(expression, source, target, mode, exactInteger) : boundary.selection;
+      const admitted = sealCsharpConversionUses(nativeDemand, preparedOperations, (expression, source, target, mode, exactInteger, boundary, sourceCompletion) => {
+        const selected = boundary === undefined ? classifyExpression(expression, source, target, mode, exactInteger, sourceCompletion) : boundary.selection;
         if (selected === undefined) return undefined;
-        if (boundary === undefined) classifyPair(source, target, mode, expression);
+        if (boundary === undefined && sourceCompletion?.kind !== "void") classifyPair(source, target, mode, expression);
         const key = pairKey(source, target, mode);
         if (boundary !== undefined) {
           const selections = expressionSelections.get(expression) ?? new Map();
@@ -146,7 +147,7 @@ export function analyzeCsharpConversions(
         }
         const classification = expressionSelections.get(expression)?.get(key);
         return classification === undefined ? undefined : Object.freeze({ key, classification });
-      }, (expression, source, target) => classifyPair(source, target, "implicit", expression), requiredRecords, issues, callCompletionConversions);
+      }, (expression, source, target) => classifyPair(source, target, "implicit", expression), requiredRecords, issues, callConversions);
       issues.push(...admitted.issues);
       delegateAdapters = sealCsharpDelegateAdapterIdentities(policy, admitted.expressions, issues);
       closed = true;
@@ -212,7 +213,7 @@ export function analyzeCsharpConversions(
       classifyArraySpreadElements(node, targetType, operations, valueReads);
     }
     classifyYieldResume(node);
-    classifyCallUses(node, operations);
+    classifyInvocationUses(node, operations);
     classifySelectedTargetCallUses(operations.selectedCall.get(node)?.target ?? operations.selectedConstruction.get(node)?.target, valueReads);
     policy.ast.forEachChild(
       node,
@@ -344,31 +345,32 @@ export function analyzeCsharpConversions(
     );
   }
 
-  function classifyCallUses(
+  function classifyInvocationUses(
     node: Node,
     operations: CsharpTargetOperationClassifications,
   ): void {
-    const classification = operations.selectedCall.get(node);
+    const call = operations.selectedCall.get(node);
+    const classification = call ?? operations.selectedConstruction.get(node);
     if (classification === undefined) {
       return;
     }
-    if (classification.sourceResult !== undefined) {
-      classifyPair(classification.sourceResult.nativeType, classification.sourceResult.selectedType, "explicit", node);
+    let completion: CsharpCallConversionRequests["completion"];
+    const omitted: { readonly source: TargetTypeRef; readonly target: TargetTypeRef | undefined }[] = [];
+    if (call?.sourceResult !== undefined) {
+      classifyPair(call.sourceResult.nativeType, call.sourceResult.selectedType, "explicit", node);
     }
-    if (classification.optionalCallee !== undefined || classification.optionalReceiver?.guard === true) {
-      const source = classification.sourceResult?.selectedType ?? (classification.target?.kind === "resolved"
-        ? classification.target.call.targetMember.returnType : undefined);
-      const target = classification.selectedResultType;
+    if (call !== undefined && (call.optionalCallee !== undefined || call.optionalReceiver?.guard === true)) {
+      const source = call.sourceResult?.selectedType ?? (call.target?.kind === "resolved"
+        ? call.target.call.targetMember.returnType : undefined);
+      const target = call.selectedResultType;
       if (source !== undefined && target !== undefined) {
         classifyPair(source, target, "implicit", node);
-        callCompletionConversions.set(node, Object.freeze({ source, target }));
+        completion = Object.freeze({ source, target });
       }
     }
-    const source = classification.source ?? (
-      classification.target?.kind === "resolved"
-        ? classification.target.source
-        : undefined
-    );
+    const source = call?.source ?? (classification.target?.kind === "source-owned"
+      ? classification.target.source
+      : undefined);
     if (source !== undefined) {
       const queries = policy.semanticsFor(node);
       const selectedArguments = source.sourceSelectedMethodTypeArguments ?? [];
@@ -379,13 +381,13 @@ export function analyzeCsharpConversions(
         return declarations.length === 1 ? declarations[0] : undefined;
       });
       const substitutions = new Map(parameters.flatMap((parameter, index) => {
-        const type = classification.sourceTypeArguments?.[index];
+        const type = call?.sourceTypeArguments?.[index];
         const identity = parameter === undefined ? undefined : csharpSourceTypeParameter(parameter, policy.ast)?.identity;
         return identity === undefined || type === undefined ? [] : [[identity, type] as const];
       }));
       for (const [index, argument] of selectedArguments.entries()) {
         const parameter = parameters[index];
-        const type = classification.sourceTypeArguments?.[index];
+        const type = call?.sourceTypeArguments?.[index];
         const requirements = parameter === undefined ? undefined : evidence.typeParameterConstraints.get(parameter);
         if (type === undefined || requirements?.kind !== "resolved") continue;
         for (const constraint of requirements.constraints) {
@@ -413,13 +415,21 @@ export function analyzeCsharpConversions(
         ) {
           continue;
         }
-        classifyPair(
-          csharpAbsenceTargetType(),
-          classification.sourceParameterTypes?.[parameterIndex],
-          "implicit",
-          node,
-        );
+        const absence = csharpAbsenceTargetType();
+        const target = classification.sourceParameterTypes?.[parameterIndex];
+        classifyPair(absence, target, "implicit", node);
       }
+    }
+    const grouping = classification.target?.kind === "source-owned" ? classification.sourceArgumentGrouping : undefined;
+    if (grouping?.kind === "grouped") for (const group of grouping.groups) {
+      if (group.collect || group.arguments.length > 0) continue;
+      const absence = csharpAbsenceTargetType();
+      classifyPair(absence, group.type, "implicit", node);
+      omitted.push(Object.freeze({ source: absence, target: group.type }));
+    }
+    if (completion !== undefined || omitted.length > 0) {
+      callConversions.set(node, Object.freeze({ ...(completion === undefined ? {} : { completion }),
+        omitted: Object.freeze(omitted) }));
     }
   }
 
@@ -590,6 +600,7 @@ export function analyzeCsharpConversions(
     target: TargetTypeRef | undefined,
     mode: CsharpConversionMode,
     exactInteger = false,
+    sourceCompletion?: CsharpNativeCompletion,
   ): CsharpConversionSelection | undefined {
     if (closed) return failTargetAnalysisInvariant("tsonic-csharp", "A closed conversion preparation cannot classify another native expression.", expression);
     if (source === undefined || target === undefined) {
@@ -638,7 +649,7 @@ export function analyzeCsharpConversions(
           reason:
             "C# delegate adaptation requires a source-owned callable; provider-owned delegate conversion requires provider conversion metadata.",
         })
-      : candidate);
+      : candidate, sourceCompletion);
     literalRequests.requestConversion(expression, source, target, selected);
     if (selections === undefined) {
       selections = new Map();

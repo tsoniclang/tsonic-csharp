@@ -15,7 +15,7 @@ import { reconcileCsharpSelectedTargetType } from "./selected-type-evidence.js";
 import { retainCsharpUnionObjectShapes, selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
 import { resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
-import { Node_Expression } from "@tsonic/target-api/source";
+import { Node_Expression, sourceAbsenceUse } from "@tsonic/target-api/source";
 import { selectCsharpNativeFlowMembers } from "./native-flow-refinement.js";
 import { csharpUnionLeaves } from "../../../target-model/types/union-relations.js";
 import { resolveCsharpInstanceType } from "./instance-tests.js";
@@ -151,6 +151,8 @@ export function resolveSelectedValueWithState(
       ? host.bindingProjection(declaration, sourceFile)?.bindingCarrier : undefined);
   const queries = host.semantics(sourceFile);
   const declaredType = declaration === undefined ? undefined : queries.declarations.declaredValueType(declaration);
+  if (scopedTarget !== undefined && getCsharpNullableElementTargetType(scopedTarget) !== undefined &&
+    sourceAbsenceUse(node, host) !== undefined) return scopedTarget;
   if (declaredType !== undefined && queries.types.isUnion(declaredType)) {
     const storage = scopedTarget ?? resolveNodeWithState(declaration, sourceFile, nextState(state));
     const guarded = storage === undefined ? undefined : selectCsharpNativeFlowMembers(host, node, storage,

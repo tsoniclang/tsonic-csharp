@@ -17,7 +17,7 @@ import {
 import type {
   ExpressionPlanner,
 } from "./expression-planner-types.js";
-import { planCsharpSourceUndefinedValue } from "./undefined-values.js";
+import { planCsharpAbsentValue } from "./optional-storage.js";
 import { csharpPlannedEffect, csharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { planCsharpPlannedDiscard } from "../statements/statement-output.js";
 
@@ -54,9 +54,9 @@ export function planVoidExpression(
     ));
     return undefined;
   }
-  const result = isCsharpVoidTargetType(target) ? undefined
-    : planCsharpSourceUndefinedValue(node, target, sourceFile, input, diagnostics);
-  if (result !== undefined && result.kind !== "resolved") {
+  const effectOnly = isCsharpVoidTargetType(target);
+  const result = effectOnly ? undefined : planCsharpAbsentValue(target, input.scope.typeParameterNames);
+  if (!effectOnly && result === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "The selected C# void result cannot represent undefined."));
     return undefined;
   }
@@ -65,5 +65,5 @@ export function planVoidExpression(
   if (expression.completion.kind === "never") return expression;
   const prelude = planCsharpPlannedDiscard(expression);
   return result === undefined ? csharpPlannedEffect(target, prelude)
-    : csharpPlannedValue(target, result.expression, prelude);
+    : csharpPlannedValue(target, result, prelude);
 }
