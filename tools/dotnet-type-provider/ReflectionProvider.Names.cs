@@ -274,9 +274,9 @@ sealed partial class ReflectionProvider
 
     static string TargetMetadataName(Type type)
     {
-        var name = type.FullName ?? type.Name;
-        var genericArgumentStart = name.IndexOf("[[", StringComparison.Ordinal);
-        return genericArgumentStart >= 0 ? name[..genericArgumentStart] : name;
+        var definition = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
+        return definition.FullName
+            ?? throw new InvalidOperationException($"Native physical declaration '{type}' has no full name.");
     }
 
     static string AssemblyIdentity(Assembly assembly)

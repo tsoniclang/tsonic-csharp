@@ -13,7 +13,6 @@ import type {
   DotnetModuleModel,
   DotnetTypeDeclaration,
 } from "../model/index.js";
-import type { TargetBindingFact } from "../../../target-model/types/model.js";
 import {
   dotnetModuleSpecifierPolicy,
   normalizeDotnetAssemblySourcePackages,
@@ -87,6 +86,7 @@ import {
 } from "../projection/module-slices.js";
 import {
   createDotnetTargetBindingIndex,
+  findUniqueTargetBinding,
 } from "./target-binding-index.js";
 import {
   dotnetProviderTargetRelationTemplates,
@@ -448,7 +448,10 @@ export function createDotnetReflectionTypeDataProvider(
       const selected = findTargetBinding(
         dotnetModuleSpecifierForTargetId(targetId, moduleSpecifierPolicy),
         { requestedTargetIds: [targetId] },
-        () => targetBindingIndex.getByTargetId(targetId),
+        () => {
+          const binding = targetBindingIndex.getByTargetId(targetId);
+          return binding === undefined ? Object.freeze({ kind: "missing" }) : Object.freeze({ kind: "resolved", binding });
+        },
         declaration => declaration.targetId === targetId,
       );
       return withRuntimeInheritance(selected, purpose, provider => provider.findTargetBindingByTargetId(targetId, "ordinary"));
@@ -459,7 +462,8 @@ export function createDotnetReflectionTypeDataProvider(
       const selected = findTargetBinding(
         dotnetModuleSpecifierForMetadataName(metadataName, moduleSpecifierPolicy),
         { requestedMetadataNames: [metadataName] },
-        () => targetBindingIndex.getUniqueByMetadataName(metadataName),
+        () => findUniqueTargetBinding(targetBindingIndex.getCompleteCandidatesByMetadataName(metadataName)
+          .map(binding => Object.freeze({ kind: "resolved", binding })), metadataName),
         declaration => declaration.metadataName === metadataName,
       );
       return withRuntimeInheritance(selected, purpose, provider => provider.findTargetBindingByMetadataName(metadataName, "ordinary"));
@@ -517,7 +521,7 @@ export function createDotnetReflectionTypeDataProvider(
     purpose: CsharpProviderBindingLookupPurpose,
     query: (provider: DotnetReflectionTypeDataProvider) => CsharpProviderBindingResolution,
   ): CsharpProviderBindingResolution {
-    if (purpose === "ordinary" || selected.kind === "resolved") return selected;
+    if (purpose === "ordinary" || selected.kind !== "missing") return selected;
     if (runtimeProvider !== undefined) {
       const current = query(runtimeProvider);
       if (current.kind !== "missing") return current;
@@ -537,7 +541,7 @@ export function createDotnetReflectionTypeDataProvider(
   function findTargetBinding(
     moduleSpecifier: string | undefined,
     request: { readonly requestedTargetIds: readonly string[] } | { readonly requestedMetadataNames: readonly string[] },
-    currentBinding: () => TargetBindingFact | undefined,
+    currentBinding: () => CsharpProviderBindingResolution,
     matches: (declaration: DotnetTypeDeclaration) => boolean,
   ): CsharpProviderBindingResolution {
     const rejected = (failure: DotnetProviderDiagnostic): CsharpProviderBindingResolution => Object.freeze({
@@ -546,7 +550,7 @@ export function createDotnetReflectionTypeDataProvider(
     const referenceFailure = validateReferenceSnapshot();
     if (referenceFailure !== undefined) return rejected(referenceFailure);
     const existing = currentBinding();
-    if (existing !== undefined) return Object.freeze({ kind: "resolved", binding: existing });
+    if (existing.kind !== "missing") return existing;
     if (moduleSpecifier === undefined) return Object.freeze({ kind: "missing" });
     const header = loadModule(moduleSpecifier, {
       ...request, materialization: emptyIncrementalDotnetProviderMaterialization,
@@ -556,13 +560,13 @@ export function createDotnetReflectionTypeDataProvider(
         ? Object.freeze({ kind: "missing" }) : rejected(header);
     }
     const headerBinding = currentBinding();
-    if (headerBinding !== undefined) return Object.freeze({ kind: "resolved", binding: headerBinding });
+    if (headerBinding.kind !== "missing") return headerBinding;
     const materialization = exactSourceTypeMaterialization(header, matches);
     if (materialization === undefined) return Object.freeze({ kind: "missing" });
     const loaded = loadModule(moduleSpecifier, { ...request, materialization });
     if (isDotnetProviderDiagnostic(loaded)) return rejected(loaded);
     const binding = currentBinding();
-    return binding !== undefined ? Object.freeze({ kind: "resolved", binding }) : rejected(diagnostic(
+    return binding.kind !== "missing" ? binding : rejected(diagnostic(
       "DOTNET_REFLECTION_NATIVE_BINDING_NOT_PROVEN",
       ".NET reflection provider did not prove a complete native target binding.",
       { specifier: moduleSpecifier, ...request },

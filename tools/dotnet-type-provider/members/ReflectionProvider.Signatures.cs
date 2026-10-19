@@ -10,12 +10,13 @@ sealed partial class ReflectionProvider
         var returnNullability = nullability.Create(method.ReturnParameter);
         var returnNullabilityMetadata = NullableMetadata.ForParameter(method.ReturnParameter);
         var genericParameters = GenericParameterContext.ForMethod(method, method.DeclaringType!);
+        var signatureEvidence = SignatureEvidence(method.ReturnParameter);
         var targetType = TypeRef(
             UnwrapByRef(returnType),
             genericParameters: genericParameters,
             typeNullability: returnNullability,
             typeNullabilityMetadata: returnNullabilityMetadata,
-            signatureEvidence: SignatureEvidence(method.ReturnParameter));
+            signatureEvidence: signatureEvidence);
         var sourceType = returnType.IsByRef
             ? ByRefReturnSourceType(
                 returnType,
@@ -24,7 +25,7 @@ sealed partial class ReflectionProvider
                 returnNullabilityMetadata)
             : targetType;
         return targetType is null || sourceType is null
-            ? $"{context} cannot be represented as closed .NET target type facts. {TypeRefFailureReason(returnType)}"
+            ? $"{context} cannot be represented as closed .NET target type facts. {TypeRefFailureReason(returnType, signatureEvidence)}"
             : null;
     }
 
@@ -33,13 +34,14 @@ sealed partial class ReflectionProvider
         foreach (var parameter in parameters)
         {
             var parameterType = UnwrapByRef(parameter.ParameterType);
+            var signatureEvidence = SignatureEvidence(parameter);
             if (TypeRef(
                 parameterType,
                 typeNullability: nullability.Create(parameter),
                 typeNullabilityMetadata: NullableMetadata.ForParameter(parameter),
-                signatureEvidence: SignatureEvidence(parameter)) is null)
+                signatureEvidence: signatureEvidence) is null)
             {
-                return $"{context} contains parameter '{parameter.Name ?? ""}' with type '{TypeMetadataName(parameterType)}' that cannot be represented as closed .NET target type facts. {TypeRefFailureReason(parameterType)}";
+                return $"{context} contains parameter '{parameter.Name ?? ""}' with type '{TypeMetadataName(parameterType, signatureEvidence)}' that cannot be represented as closed .NET target type facts. {TypeRefFailureReason(parameterType, signatureEvidence)}";
             }
         }
         return null;

@@ -12,7 +12,7 @@ import { analyzeCsharpProject } from "../../../dist/analysis/project/classificat
 import { createCsharpTargetConfiguration } from "../../../dist/options/csharp-target-options.js";
 import { csharpNativeInheritanceLookup, csharpNativeTargetBindingFact } from "../../../dist/target-model/types/native-inheritance.js";
 import { csharpExceptionTargetType, csharpRuntimeErrorTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
-import { printCsharpRuntimeProject } from "../../../dist/print/project/csharp-runtime-project.js";
+import { materializeCsharpOutputPlan } from "../../../dist/backend/emission/materialize.js";
 import { planCsharpProjectFile } from "../../../dist/backend/planner/project/project-artifacts.js";
 import { printCsharpProjectFile } from "../../../dist/print/project/csharp-project.js";
 
@@ -63,6 +63,13 @@ function native(result) {
 test("preparation, ordinary queries and complete SDK inheritance winners have zero runtime build cost", () => {
   const inputs = fixture();
   const provider = resolver(inputs);
+  assert.throws(() => provider.prepareRuntimeSources(inputs.preparation), {
+    name: "TypeError", message: "C# native runtime acquisition inputs are prepared exactly once per analysis.",
+  }, "same-session repeated preparation remains rejected rather than cached");
+  const fresh = resolver(inputs);
+  assert.throws(() => fresh.prepareRuntimeSources({ ...inputs.preparation, cacheRoot: join(inputs.root, "different-cache") }), {
+    name: "TypeError", message: "C# native runtime acquisition inputs are prepared exactly once per analysis.",
+  }, "a fresh resolver accepts one preparation only, including when the second input differs");
   assert.equal(existsSync(inputs.wrapper.path), false, "preparation publishes no runtime build input");
   const missing = provider.findTargetBindingByMetadataName("InheritanceProviderFixtures.ClosedBase", "ordinary");
   assert.equal(missing.kind, "missing", "an ordinary speculative query never compiles a runtime");
@@ -182,13 +189,68 @@ test("runtime wrappers and generated project files retain the pre-move native by
     `    <DirectoryBuildPropsPath>${escaped(inputs.runtime.propertiesPath)}</DirectoryBuildPropsPath>`,
     "    <TsonicRuntimeArtifactsPath>$(MSBuildThisFileDirectory)artifacts/</TsonicRuntimeArtifactsPath>",
     "  </PropertyGroup>", `  <Import Project="${escaped(inputs.runtime.projectPath)}" />`, "</Project>", ""].join("\n");
-  assert.equal(printCsharpRuntimeProject(wrapper), previous, "the complete wrapper bytes retain the original formatter contract");
   const planned = planCsharpProjectFile({ program: { configuration: inputs.configuration, project: inputs.project } });
   assert.equal(planned.runtimeProjects === inputs.project.runtimeProjects, true, "the backend reads the one pre-seal plan");
+  const materialized = materializeCsharpOutputPlan({ project: { kind: "generated", project: planned }, sources: [] });
+  assert.equal(readFileSync(wrapper.path, "utf8"), previous, "the complete wrapper bytes retain the original formatter contract");
   const text = printCsharpProjectFile(planned);
+  assert.equal(materialized.artifacts.find(artifact => artifact.kind === "project" && artifact.path === planned.path)?.text,
+    text, "actual project materialization preserves the complete project bytes");
   assert.equal(text.includes(`<ProjectReference Include="${wrapper.path}" />`), true, "the emitted project references the exact acquired wrapper");
   assert.equal(existsSync(resolve(repository, "src/backend/planner/project/runtime-projects.ts")), false, "the old late decision owner is removed");
   assert.equal(existsSync(resolve(repository, "src/backend/artifact-model/project/runtime.ts")), false, "the superseded type owner has no alias");
+  assert.equal(existsSync(resolve(repository, "src/print/project/csharp-runtime-project.ts")), false, "a pass-through printer is removed rather than exempted from layering");
+});
+
+test("runtime native selection sees all actually selected project references before one complete-winner decision in either graph order", () => {
+  const root = createTestWorkspace(resolve(repository, ".temp/native-runtime-metadata"), "collisions-");
+  const propertiesPath = join(root, "Runtime.props");
+  copyFileSync(resolve(repository, "../csharp-runtime/Directory.Build.props"), propertiesPath);
+  const sources = ["First", "Second"].map(name => {
+    const directory = join(root, name);
+    mkdirSync(directory);
+    const projectPath = join(directory, `${name}.csproj`);
+    writeFileSync(projectPath, `<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>${framework}</TargetFramework>` +
+      `<AssemblyName>${name}RuntimeCollision</AssemblyName><EnableDefaultCompileItems>false</EnableDefaultCompileItems>` +
+      `</PropertyGroup><ItemGroup><Compile Include="$(MSBuildThisFileDirectory)Widget.cs" /></ItemGroup></Project>`);
+    writeFileSync(join(directory, "Widget.cs"), `namespace Shared; public class Widget { public int Value => 1; } public class Marker${name} { }`);
+    return { projectPath, propertiesPath };
+  });
+  const observations = [];
+  for (const [orderIndex, ordered] of [sources, [...sources].reverse()].entries()) {
+    const cacheRoot = join(root, `cache-${orderIndex}`);
+    const configuration = createCsharpTargetConfiguration({ id: "csharp", options: { targetFramework: framework } },
+      repository, join(root, `out-${orderIndex}`));
+    const classified = analyzeCsharpProject(configuration,
+      ordered.flatMap(source => csharpRuntimeSourceContributions(source).references), cacheRoot);
+    assert.equal(classified.kind, "resolved", `graph ${orderIndex}: actual selected runtime classification`);
+    const project = classified.value;
+    const provider = resolver({ preparation: Object.freeze({ sources: project.runtimeSources, projects: project.runtimeProjects,
+      project: project.project, properties: project.properties, cacheRoot }) });
+    let bindingIds;
+    for (const phase of ["cold", "warm"]) {
+      const result = provider.findTargetBindingByMetadataName("Shared.Widget", "inheritance");
+      assert.equal(result.kind, "rejected", `graph ${orderIndex}/${phase}: no prefix winner escapes acquisition`);
+      assert.equal(result.diagnostic.extensionCode, "CSHARP_PROVIDER_TARGET_BINDING_CONFLICT", `graph ${orderIndex}/${phase}: same original conflict code`);
+      assert.equal(result.diagnostic.numericCode, 9200000, `graph ${orderIndex}/${phase}: same original numeric code`);
+      assert.equal(result.diagnostic.message, "C# providers supplied contradictory complete target binding evidence.",
+        `graph ${orderIndex}/${phase}: same original message`);
+      assert.equal(result.diagnostic.evidence[0].query, "Shared.Widget", `graph ${orderIndex}/${phase}: exact query`);
+      const current = [...result.diagnostic.evidence[0].bindingIds].sort();
+      assert.equal(current.length, 2, `graph ${orderIndex}/${phase}: every selected complete native winner is visible`);
+      assert.equal(current[0] === current[1], false, `graph ${orderIndex}/${phase}: assembly identities stay distinct`);
+      if (bindingIds !== undefined) assert.deepEqual(current, bindingIds, `graph ${orderIndex}/${phase}: warm ambiguity is identical`);
+      bindingIds = current;
+    }
+    for (const id of bindingIds)
+      assert.equal(native(provider.findTargetBindingByTargetId(id, "inheritance")).id, id, "physical identities remain individually resolvable after ambiguity");
+    for (const name of ["First", "Second"])
+      assert.equal(native(provider.findTargetBindingByMetadataName(`Shared.Marker${name}`, "inheritance")).targetName,
+        `Shared.Marker${name}`, "a contradictory metadata query does not poison its noncolliding sibling");
+    observations.push({ bindingIds, projects: project.runtimeProjects.map(project => project.sourceProject) });
+  }
+  assert.deepEqual(observations[0].bindingIds, observations[1].bindingIds, "both graph input orders reject the same two complete actual identities");
+  console.log(JSON.stringify({ nativeRuntimeCollisionOrders: observations }));
 });
 
 test("user-owned runtime metadata comes from native ResolveReferences without compiling or mutating the application", () => {

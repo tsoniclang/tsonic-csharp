@@ -12,7 +12,7 @@ sealed partial class ReflectionProvider
             chain.Add(new
             {
                 targetId = TargetId(current),
-                type = TypeRef(current, requireDelegateSourceShape: false)
+                type = TypeRef(current, physicalOnly: true)
                     ?? throw new InvalidOperationException($"Native inheritance type '{TypeTargetId(current)}' has no exact physical type."),
             });
         }
@@ -152,7 +152,7 @@ sealed partial class ReflectionProvider
                 ? method.GetGenericArguments().Select(GenericParameterIdentity).ToArray()
                 : Array.Empty<string>(),
             parameters = InheritedParameters(method.GetParameters(), genericParameters),
-            returnType = TypeRef(UnwrapByRef(method.ReturnType), requireDelegateSourceShape: false,
+            returnType = TypeRef(UnwrapByRef(method.ReturnType), physicalOnly: true,
                 genericParameters: genericParameters, includeTopLevelReferenceNullability: false,
                 signatureEvidence: SignatureEvidence(method.ReturnParameter))
                 ?? throw new InvalidOperationException($"Native dispatch return '{MethodId(method)}' has no exact physical type."),
@@ -164,7 +164,7 @@ sealed partial class ReflectionProvider
     {
         return parameters.Select(parameter => (object)new
         {
-            type = TypeRef(parameter.ParameterType, requireDelegateSourceShape: false,
+            type = TypeRef(parameter.ParameterType, physicalOnly: true,
                 genericParameters: genericParameters, includeTopLevelReferenceNullability: false,
                 signatureEvidence: SignatureEvidence(parameter))
                 ?? throw new InvalidOperationException($"Native inherited parameter '{parameter.Member.Name}.{parameter.Name}' has no exact physical type."),

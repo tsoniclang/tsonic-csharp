@@ -31,17 +31,20 @@ import type { DotnetProviderDiagnostic } from "../projection/provider.js";
 import { dotnetTypeDeclarationIsComplete } from "./module-request-validation.js";
 import { canonicalProviderValue } from "../../model/canonical-value.js";
 import { diagnostic } from "./diagnostics.js";
+import type { CsharpProviderBindingResolution } from "../../../target-model/metadata/provider-metadata.js";
+import { dotnetExtensionDiagnostic } from "../model/diagnostics.js";
+import { dotnetReflectionProviderIdentity } from "./provider-identity.js";
 
 export interface DotnetTargetBindingIndex extends DotnetTargetRelationLookup {
   readonly rememberModule: (module: DotnetModuleModel, request: DotnetProviderCacheRequest) => DotnetProviderDiagnostic | undefined;
   readonly getByTargetId: (targetId: string) => TargetBindingFact | undefined;
-  readonly getUniqueByMetadataName: (metadataName: string) => TargetBindingFact | undefined;
+  readonly getCompleteCandidatesByMetadataName: (metadataName: string) => readonly TargetBindingFact[];
 }
 
 export function createDotnetTargetBindingIndex(): DotnetTargetBindingIndex {
   const targetBindingsByTargetId = new Map<string, TargetBindingFact>();
   const completeTargetIds = new Set<string>();
-  const targetBindingsByMetadataName = new Map<string, TargetBindingFact | "ambiguous">();
+  const targetIdsByMetadataName = new Map<string, Set<string>>();
   const memberProjectionsByProviderId = new Map<string, DotnetTargetMemberProjection[]>();
   const signatureProjectionsByProviderId = new Map<string, DotnetTargetMemberProjection[]>();
   const canonicalSignatureProjectionsByProviderId = new Map<
@@ -87,13 +90,9 @@ export function createDotnetTargetBindingIndex(): DotnetTargetBindingIndex {
       if (targetOnlyDeclarations.has(declaration) || dotnetTypeDeclarationIsComplete(declaration, request)) {
         completeTargetIds.add(mergedTargetBinding.id);
       }
-      const existing = targetBindingsByMetadataName.get(declaration.metadataName);
-      targetBindingsByMetadataName.set(
-        declaration.metadataName,
-        existing === undefined || (existing !== "ambiguous" && existing.id === mergedTargetBinding.id)
-          ? mergeTargetBindingFacts(existing, mergedTargetBinding)
-          : "ambiguous",
-      );
+      const targetIds = targetIdsByMetadataName.get(declaration.metadataName) ?? new Set<string>();
+      targetIds.add(mergedTargetBinding.id);
+      targetIdsByMetadataName.set(declaration.metadataName, targetIds);
       const projections = dotnetTypeTargetMemberProjections(declaration);
       for (const [memberId, candidates] of projections.memberProjections) {
         for (const candidate of candidates) {
@@ -172,11 +171,11 @@ export function createDotnetTargetBindingIndex(): DotnetTargetBindingIndex {
     getTargetBinding(exportId: string): CsharpTargetBindingFact | undefined {
       return targetBindingsByTargetId.get(exportId) as CsharpTargetBindingFact | undefined;
     },
-    getUniqueByMetadataName(metadataName: string): TargetBindingFact | undefined {
-      const existing = targetBindingsByMetadataName.get(metadataName);
-      return existing === "ambiguous" || existing === undefined || !completeTargetIds.has(existing.id)
-        ? undefined
-        : existing;
+    getCompleteCandidatesByMetadataName(metadataName: string): readonly TargetBindingFact[] {
+      return Object.freeze([...(targetIdsByMetadataName.get(metadataName) ?? [])].flatMap(targetId => {
+        const binding = completeTargetIds.has(targetId) ? targetBindingsByTargetId.get(targetId) : undefined;
+        return binding === undefined ? [] : [binding];
+      }));
     },
     getTargetMembersForProviderMember(memberId: string): readonly DotnetTargetMemberProjection[] {
       return memberProjectionsByProviderId.get(memberId) ?? [];
@@ -201,6 +200,27 @@ export function createDotnetTargetBindingIndex(): DotnetTargetBindingIndex {
       ) ?? [];
     },
   };
+}
+
+export function findUniqueTargetBinding(
+  candidates: readonly CsharpProviderBindingResolution[],
+  query: string,
+): CsharpProviderBindingResolution {
+  const bindings = candidates.flatMap(candidate => candidate.kind === "resolved" ? [candidate.binding] : []);
+  if (bindings.length === 0) {
+    return candidates.find(candidate => candidate.kind === "rejected") ?? Object.freeze({ kind: "missing" });
+  }
+  const first = bindings[0]!;
+  const canonical = canonicalProviderValue(first);
+  return bindings.every(binding => canonicalProviderValue(binding) === canonical)
+    ? Object.freeze({ kind: "resolved", binding: first })
+    : Object.freeze({ kind: "rejected", diagnostic: dotnetExtensionDiagnostic(
+        dotnetReflectionProviderIdentity.id,
+        "CSHARP_PROVIDER_TARGET_BINDING_CONFLICT",
+        9200000,
+        "C# providers supplied contradictory complete target binding evidence.",
+        [{ query, bindingIds: bindings.map(binding => binding.id) }],
+      ) });
 }
 
 function typeParameterRelations(

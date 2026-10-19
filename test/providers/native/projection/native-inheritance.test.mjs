@@ -21,6 +21,7 @@ const projectDirectory = resolve(repoRoot, "test/fixtures/dotnet-provider/inheri
 const moduleSpecifier = "@tsonic/dotnet/InheritanceProviderFixtures.js";
 const completeRequest = { moduleSpecifier, materialization: { kind: "complete" } };
 let captured;
+let capturedNativeSlotObservation;
 
 function fixture() {
   if (captured !== undefined) return captured;
@@ -215,6 +216,7 @@ test("complete acquisition requires a proved own list while actual lazy headers 
 
 test("complete native inventory wins over a later header and contradictions do not partially publish", () => {
   const index = createDotnetTargetBindingIndex();
+  assert.equal(Object.hasOwn(index, "getUniqueByMetadataName"), false, "the ambiguity-collapsing getter is removed, not retained as a compatibility route");
   const valid = synthetic();
   const module = { moduleSpecifier, namespaceName: "Inventory", exports: [valid] };
   assert.equal(index.rememberModule(module, completeRequest) === undefined, true);
@@ -303,7 +305,8 @@ test("the deleted optional dispatch shape and incomplete physical slots are reje
   assert.equal(csharpNativeTargetBindingFact(old) === undefined, true, "old native-view payload is not a complete success");
 });
 
-test("the one metadata-only base-slot producer agrees with actual native GetBaseDefinition across the complete slot family", () => {
+function nativeSlotObservation() {
+  if (capturedNativeSlotObservation !== undefined) return capturedNativeSlotObservation;
   const directory = createTestWorkspace(resolve(repoRoot, ".temp/native-inheritance-oracle"), "run-");
   mkdirSync(directory, { recursive: true });
   const project = resolve(directory, "NativeSlotOracle.csproj");
@@ -317,14 +320,20 @@ test("the one metadata-only base-slot producer agrees with actual native GetBase
   assert.equal(observed.status, 0, `handwritten native slot oracle executes: ${observed.stdout}\n${observed.stderr}`);
   console.log(`native-slot-oracle native-stdout=${observed.stdout.trim()}`);
   const nativeObserved = JSON.parse(observed.stdout);
-  const expected = nativeObserved.slots;
-  assert.equal(expected.length >= 30, true, "the oracle covers complete methods, accessors and physical signature families");
   const pointerProvider = createDotnetReflectionTypeDataProvider({
     references: [fixture().reference, resolve(directory, "bin/Debug/net10.0/NativeSlotOracle.dll")], disablePersistentCache: true,
   });
   const pointers = getCompleteDotnetModule(pointerProvider, "@tsonic/dotnet/NativeSlotOracle.js");
   assert.equal("exports" in pointers, true, "real function-pointer override metadata acquisition");
   const declarations = [...fixture().module.exports, ...pointers.exports].filter(entry => entry.kind === "type");
+  capturedNativeSlotObservation = { nativeObserved, pointerProvider, declarations };
+  return capturedNativeSlotObservation;
+}
+
+test("the one metadata-only base-slot producer agrees with actual native GetBaseDefinition across the complete slot family", () => {
+  const { nativeObserved, declarations } = nativeSlotObservation();
+  const expected = nativeObserved.slots;
+  assert.equal(expected.length >= 30, true, "the oracle covers complete methods, accessors and physical signature families");
   const actual = new Map(declarations.flatMap(entry => (entry.inheritableMembers ?? []).flatMap(member =>
     member.dispatchSlots.map(slot => [slot.id, slot]))));
   for (const entry of expected) {
@@ -373,6 +382,105 @@ test("the one metadata-only base-slot producer agrees with actual native GetBase
   console.log(`native-slot-oracle observations=${expected.length}`);
 });
 
+test("one native provider preserves both complete assembly candidates instead of turning ambiguity into missing", () => {
+  const references = ["Acme.Contracts", "Contoso.Contracts"].map(assembly => {
+    const projectDirectory = resolve(repoRoot, "test/fixtures/dotnet-provider/assembly-identity", assembly);
+    return buildDotnetFixture({ project: resolve(projectDirectory, `${assembly}.csproj`), projectDirectory,
+      outputDirectory: resolve(repoRoot, ".temp/native-root-identity", assembly, "bin"),
+      intermediateDirectory: resolve(repoRoot, ".temp/native-root-identity", assembly, "obj"), outputAssemblyName: `${assembly}.dll` });
+  });
+  const bindings = references.map(reference => resolvedNativeBinding(createDotnetReflectionTypeDataProvider({
+    references: [reference], disablePersistentCache: true,
+  }).findTargetBindingByMetadataName("Shared.Widget", "ordinary")));
+  const provider = createDotnetReflectionTypeDataProvider({ references, disablePersistentCache: true });
+  for (const purpose of ["ordinary", "inheritance"]) for (const phase of ["cold", "warm"]) {
+    const result = provider.findTargetBindingByMetadataName("Shared.Widget", purpose);
+    assert.equal(result.kind, "rejected", `${purpose}/${phase}: both complete winners remain visible`);
+    assert.equal(result.diagnostic.extensionCode, "CSHARP_PROVIDER_TARGET_BINDING_CONFLICT", `${purpose}/${phase}: original owner code`);
+    assert.equal(result.diagnostic.numericCode, 9200000, `${purpose}/${phase}: original numeric code`);
+    assert.equal(result.diagnostic.message, "C# providers supplied contradictory complete target binding evidence.",
+      `${purpose}/${phase}: original conflict message`);
+    assert.equal(result.diagnostic.evidence[0].query, "Shared.Widget", `${purpose}/${phase}: exact query evidence`);
+    assert.deepEqual([...result.diagnostic.evidence[0].bindingIds].sort(), bindings.map(binding => binding.id).sort(),
+      `${purpose}/${phase}: both independently acquired physical identities`);
+  }
+  for (const binding of bindings)
+    assert.equal(resolvedNativeBinding(provider.findTargetBindingByTargetId(binding.id, "ordinary")).id, binding.id,
+      "an ambiguous metadata name does not poison either physical lookup");
+  assert.equal(provider.findTargetBindingByMetadataName("Shared.Absent", "ordinary").kind, "missing", "a genuine nonmatch remains missing");
+});
+
+test("open and nested-open native chains and override owners retain the actual generic-definition identity", () => {
+  const { nativeObserved, declarations } = nativeSlotObservation();
+  for (const observed of nativeObserved.openDeclarations) {
+    const selected = declarations.find(entry => entry.metadataName === observed.metadataName);
+    assert.equal(selected !== undefined, true, `${observed.metadataName}: real native declaration retained`);
+    assert.equal(selected.targetId, observed.id, `${observed.metadataName}: actual definition FullName and assembly`);
+    assert.deepEqual(selected.inheritance.map(entry => entry.targetId), observed.chain.map(entry => entry.id),
+      `${observed.metadataName}: every partially open base has its physical declaration identity`);
+    for (const entry of selected.inheritance.filter(entry => entry.type.kind === "named"))
+      assert.equal(entry.targetId, entry.type.targetId, `${observed.metadataName}: the strict chain invariant remains exact`);
+  }
+  const generic = declaration("NativeBase");
+  assert.deepEqual(generic.typeParameters.map(parameter => parameter.identity), nativeObserved.genericParameters,
+    "the original generic-parameter identity remains actual module, owner token and position");
+  for (const identity of nativeObserved.closedPhysicalIdentities)
+    assert.equal(declarations.some(entry => entry.targetId === identity), true, "every original closed physical declaration identity is unchanged");
+  const provider = createDotnetReflectionTypeDataProvider();
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.js", { requestedMetadataNames: ["System.Lazy`2"] });
+  assert.equal("exports" in module, true, "the original strict Lazy module is admitted without validator relaxation");
+  const lazy = [...module.exports, ...(module.targetOnlyTypes ?? [])].find(entry => entry.metadataName === "System.Lazy`2");
+  assert.equal(lazy !== undefined, true, "actual native Lazy<T,TMetadata> retained");
+  assert.equal(lazy.inheritance[1].targetId.endsWith("::System.Lazy`1"), true, "the partially open Lazy<T> base retains System");
+  assert.equal(lazy.inheritance[1].targetId, lazy.inheritance[1].type.targetId, "exact raw Lazy chain identity correspondence");
+  console.log(JSON.stringify({ nativeOpenDeclarations: nativeObserved.openDeclarations }));
+});
+
+test("unsupported recursive-delegate function pointers keep exact member evidence and structured rejection descriptions", () => {
+  const { nativeObserved, pointerProvider } = nativeSlotObservation();
+  const module = getCompleteDotnetModule(pointerProvider, "@tsonic/dotnet/NativeFailureOracle.js");
+  assert.equal("exports" in module, true, "unsupported source shapes do not unwind the native provider");
+  const host = module.exports.find(entry => entry.kind === "type" && entry.metadataName === "NativeFailureOracle.PointerHost");
+  assert.equal(host !== undefined, true, "the real unsupported-member owner is retained");
+  for (const observed of nativeObserved.failures) {
+    const member = host.unsupportedMembers.find(entry => entry.targetId === observed.id);
+    assert.equal(member !== undefined, true, `${observed.label}: exact independent physical identity retained`);
+    assert.equal(member.memberKind, observed.kind, `${observed.label}: unsupported member category retained`);
+    const signatureReason = `Function-pointer signature '${observed.signature}' contains a type that is not representable by the provider.`;
+    const reason = observed.context === "array"
+      ? `Field type cannot be represented as closed .NET target type facts. Array element type '${observed.signature}' is not representable. ${signatureReason}`
+      : observed.context === "parameter" || observed.context === "constructor" || observed.context === "index-parameter"
+        ? `${observed.context === "constructor" ? "Constructor" : observed.context === "index-parameter" ? "Indexer" : "Method"} signature contains parameter 'callback' with type '${observed.signature}' that cannot be represented as closed .NET target type facts. ${signatureReason}`
+        : `${observed.context} cannot be represented as closed .NET target type facts. ${signatureReason}`;
+    assert.equal(member.reason, reason, `${observed.label}: original complete contextual reason with exact modified signature`);
+    if (observed.kind === "method") {
+      const slot = host.inheritableMembers.flatMap(entry => entry.dispatchSlots).find(entry => entry.id === observed.id);
+      assert.equal(slot !== undefined, true, `${observed.label}: source rejection does not erase physical native inventory`);
+      assert.equal(observed.context === "Method return type" ? slot.returnType.kind === "function-pointer"
+        : slot.parameters[0].type.kind === "function-pointer", true, `${observed.label}: physical signature facts remain available`);
+    }
+  }
+  const sibling = host.members.find(entry => entry.targetName === "Ping");
+  assert.equal(sibling !== undefined, true, "the usable sibling is not poisoned by a rejected native source shape");
+  assert.equal(sibling.signatures[0].returnType.name, "int32", "the usable sibling retains its exact native result width");
+});
+
+test("native function-pointer arrays in nominal interfaces and constraints fail structurally without inventing an identity", () => {
+  const { pointerProvider } = nativeSlotObservation();
+  const module = getCompleteDotnetModule(pointerProvider, "@tsonic/dotnet/NativeFailureOracle.js");
+  assert.equal("exports" in module, true, "the selected compiler's real accepted nominal pointer-array input remains structured metadata");
+  const implemented = module.exports.find(entry => entry.kind === "type" && entry.metadataName === "NativeFailureOracle.PointerArrayHolder");
+  const constrained = module.exports.find(entry => entry.kind === "type" && entry.metadataName === "NativeFailureOracle.PointerArrayConstraint`1");
+  const reason = "A type containing a function-pointer signature cannot be represented as closed source facts without exact member-bound signature evidence.";
+  assert.equal(implemented !== undefined && constrained !== undefined, true, "both actual native nominal failure audiences are retained");
+  assert.equal(implemented.unsupportedImplementedContracts.length, 1, "one original unsupported implemented-contract fact");
+  assert.equal(implemented.unsupportedImplementedContracts[0].reason,
+    `Implemented contract type cannot be represented as closed .NET target type facts. ${reason}`, "nominal interface reason contains no fabricated signature identity");
+  assert.equal(constrained.typeParameters[0].unsupportedConstraints.length, 1, "one original unsupported native constraint fact");
+  assert.equal(constrained.typeParameters[0].unsupportedConstraints[0].reason,
+    `Generic constraint type cannot be represented as closed .NET target type facts. ${reason}`, "nominal constraint reason contains no fabricated signature identity");
+});
+
 const nativeSlotOracleSource = String.raw`
 using System.Reflection;
 using System.Text.Json;
@@ -381,7 +489,8 @@ using InheritanceProviderFixtures;
 var types = new[] { typeof(SlotBase<>), typeof(SlotDerived), typeof(MiddleSlot), typeof(LastSlot),
     typeof(CovariantBase), typeof(CovariantDerived), typeof(SameNameBase), typeof(SameNameDerived),
     typeof(DispatchBase<>), typeof(DispatchDerived), typeof(NativeSlotOracle.FunctionPointerBase),
-    typeof(NativeSlotOracle.FunctionPointerDerived), typeof(NativeSlotOracle.FunctionPointerSignatures) };
+    typeof(NativeSlotOracle.FunctionPointerDerived), typeof(NativeSlotOracle.FunctionPointerSignatures),
+    typeof(OpenSlotDerived<>), typeof(OpenOuter<>.Nested<>) };
 var rows = types.SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic |
     BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
     .Where(method => method.IsPublic || method.IsFamily || method.IsFamilyOrAssembly)
@@ -410,7 +519,49 @@ var signatures = identityOwner.GetConstructors().Select(constructor =>
           signatureId = MethodId(method) + ":" + TypeId(method.ReturnType, method.ReturnParameter.GetModifiedParameterType()),
           metadataName = identityOwner.FullName + "." + method.Name }))
     .ToArray();
-Console.WriteLine(JsonSerializer.Serialize(new { slots = rows, signatures }));
+var openDeclarations = new[] { typeof(OpenSlotDerived<>), typeof(OpenOuter<>.Nested<>) }.Select(type => new
+{
+    metadataName = type.FullName!.Replace('+', '.'),
+    id = TargetId(type),
+    chain = Chain(type).Select(entry => new
+    {
+        id = TargetId(entry),
+        declaringType = entry.ToString(),
+        genericDefinitionFullName = (entry.IsGenericType ? entry.GetGenericTypeDefinition() : entry).FullName,
+        assembly = entry.Assembly.GetName().FullName,
+    }).ToArray(),
+}).ToArray();
+var failureOwner = typeof(NativeFailureOracle.PointerHost);
+var field = failureOwner.GetField("Callback")!;
+var property = failureOwner.GetProperty("CallbackProperty")!;
+var accept = failureOwner.GetMethod("Accept")!;
+var returns = failureOwner.GetMethod("Return")!;
+var nested = failureOwner.GetMethod("AcceptNested")!;
+var constructor = failureOwner.GetConstructors().Single();
+var indexedReturn = failureOwner.GetProperties().Single(entry => entry.GetIndexParameters().Length != 0 && entry.PropertyType.IsFunctionPointer);
+var indexedParameter = failureOwner.GetProperties().Single(entry => entry.GetIndexParameters().Length != 0 && entry.GetIndexParameters()[0].ParameterType.IsFunctionPointer);
+var array = failureOwner.GetField("CallbackArray")!;
+var failures = new[]
+{
+    new { label = "field", kind = "field", id = TargetId(failureOwner) + ".Callback", signature = TypeId(field.FieldType, field.GetModifiedFieldType()), context = "Field type" },
+    new { label = "property", kind = "property", id = TargetId(failureOwner) + ".CallbackProperty", signature = TypeId(property.PropertyType, property.GetModifiedPropertyType()), context = "Property type" },
+    new { label = "parameter", kind = "method", id = MethodId(accept), signature = TypeId(accept.GetParameters()[0].ParameterType, accept.GetParameters()[0].GetModifiedParameterType()), context = "parameter" },
+    new { label = "return", kind = "method", id = MethodId(returns), signature = TypeId(returns.ReturnType, returns.ReturnParameter.GetModifiedParameterType()), context = "Method return type" },
+    new { label = "nested-parameter", kind = "method", id = MethodId(nested), signature = TypeId(nested.GetParameters()[0].ParameterType, nested.GetParameters()[0].GetModifiedParameterType()), context = "parameter" },
+    new { label = "constructor", kind = "constructor", id = TargetId(failureOwner) + "..ctor(" + Parameters(constructor.GetParameters()) + ")", signature = TypeId(constructor.GetParameters()[0].ParameterType, constructor.GetParameters()[0].GetModifiedParameterType()), context = "constructor" },
+    new { label = "indexer-return", kind = "indexer", id = TargetId(failureOwner) + ".Item(" + Parameters(indexedReturn.GetIndexParameters()) + ")", signature = TypeId(indexedReturn.PropertyType, indexedReturn.GetModifiedPropertyType()), context = "Indexer return type" },
+    new { label = "indexer-parameter", kind = "indexer", id = TargetId(failureOwner) + ".Item(" + Parameters(indexedParameter.GetIndexParameters()) + ")", signature = TypeId(indexedParameter.GetIndexParameters()[0].ParameterType, indexedParameter.GetIndexParameters()[0].GetModifiedParameterType()), context = "index-parameter" },
+    new { label = "array-field", kind = "field", id = TargetId(failureOwner) + ".CallbackArray", signature = TypeId(array.FieldType.GetElementType()!, array.GetModifiedFieldType().GetElementType()), context = "array" },
+};
+var genericParameters = typeof(NativeBase<>).GetGenericArguments().Select(parameter =>
+    $"{parameter.DeclaringType!.Module.ModuleVersionId:D}:{parameter.DeclaringType.MetadataToken:x8}:{parameter.GenericParameterPosition}").ToArray();
+Console.WriteLine(JsonSerializer.Serialize(new { slots = rows, signatures, openDeclarations, failures, genericParameters,
+    closedPhysicalIdentities = types.Where(type => !type.ContainsGenericParameters).Select(TargetId).ToArray() }));
+
+static IEnumerable<Type> Chain(Type type)
+{
+    for (Type? current = type; current is not null; current = current.BaseType) yield return current;
+}
 
 static string MethodId(MethodInfo method) => TargetId(method.DeclaringType!) + "." + method.Name +
     (method.IsGenericMethodDefinition ? "\u0060\u0060" + method.GetGenericArguments().Length : "") +
@@ -467,9 +618,9 @@ static object NativeTypeIdentity(Type type, Type modified) => new
 };
 static string TargetId(Type type)
 {
-    var name = type.FullName ?? type.Name;
-    var generic = name.IndexOf("[[", StringComparison.Ordinal);
-    return type.Assembly.GetName().FullName + "::" + (generic < 0 ? name : name[..generic]);
+    var definition = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
+    var name = definition.FullName ?? throw new InvalidOperationException($"Native physical declaration '{type}' has no full name.");
+    return type.Assembly.GetName().FullName + "::" + name;
 }
 
 namespace NativeSlotOracle
@@ -494,5 +645,26 @@ namespace NativeSlotOracle
         public virtual int WideResult(delegate* unmanaged[Cdecl]<int, long> callback) => 0;
         public virtual int Suppressed(delegate* unmanaged[Cdecl, SuppressGCTransition]<int, int> callback) => 0;
     }
+}
+
+namespace NativeFailureOracle
+{
+    public delegate void SelfRecursive(SelfRecursive next);
+    public unsafe sealed class PointerHost
+    {
+        public delegate*<SelfRecursive, void> Callback;
+        public delegate*<SelfRecursive, void>[] CallbackArray = [];
+        public PointerHost(delegate*<SelfRecursive, void> callback) { Callback = callback; }
+        public delegate*<SelfRecursive, void> CallbackProperty { get => Callback; set => Callback = value; }
+        public void Accept(delegate*<SelfRecursive, void> callback) { }
+        public void AcceptNested(delegate*<delegate*<SelfRecursive, void>, void> callback) { }
+        public delegate*<SelfRecursive, void> Return() => Callback;
+        public delegate*<SelfRecursive, void> this[int index] => Callback;
+        public int this[delegate*<SelfRecursive, void> callback] => 0;
+        public int Ping() => 1;
+    }
+    public interface IHolder<T> { }
+    public unsafe sealed class PointerArrayHolder : IHolder<delegate* unmanaged<void>[]> { }
+    public unsafe sealed class PointerArrayConstraint<T> where T : IHolder<delegate* unmanaged<void>[]> { }
 }
 `;

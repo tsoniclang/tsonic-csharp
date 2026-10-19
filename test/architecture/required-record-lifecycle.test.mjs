@@ -101,7 +101,7 @@ function topLevelIndex(statements, predicate, label) {
 }
 
 const iteration = functionNamed(paths.analyze, "analyzeIteration");
-const program = functionNamed(paths.analyze, "analyzeCsharpTargetProgram");
+const program = functionNamed(paths.analyze, "analyzeCsharpTargetProgramBeforeSeal");
 const evaluate = descendants(program).find(node => ast.is.IsMethodDeclaration(node) && named(node, "evaluate"));
 const programStatements = ast.statements(ast.body(program));
 
@@ -349,6 +349,9 @@ test("the published program literal carries no requirement state", () => {
   const names = ["requiredRecords", "requireCsharpRecord", "assertCsharpRequiredRecords", "CsharpRequiredRecord"];
   assert.equal(literal !== undefined && names.every(name => identifiers(literal, name).length === 0), true,
     "program literal: no requirement list, builder or assertion");
+  const wrapper = functionNamed(paths.analyze, "analyzeCsharpTargetProgram");
+  assert.equal([...names, "requirements"].every(name => identifiers(wrapper, name).length === 0), true,
+    "public analysis wrapper: no required-record state or read");
 });
 
 test("the assembly takes a mandatory list, asserts it, then returns", () => {

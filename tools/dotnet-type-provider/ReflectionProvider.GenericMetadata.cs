@@ -43,7 +43,9 @@ sealed partial class ReflectionProvider
             {
                 targetId = TargetId(contract),
                 metadataName = MetadataName(contract),
-                reason = $"Implemented contract type '{TypeMetadataName(contract)}' cannot be represented as closed .NET target type facts. {TypeRefFailureReason(contract)}",
+                reason = ContainsFunctionPointer(contract)
+                    ? $"Implemented contract type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(contract, null)}"
+                    : $"Implemented contract type '{TypeMetadataName(contract)}' cannot be represented as closed .NET target type facts. {TypeRefFailureReason(contract, null)}",
             })
             .ToArray();
     }
@@ -153,7 +155,9 @@ sealed partial class ReflectionProvider
             {
                 targetId = TargetId(constraint),
                 metadataName = MetadataName(constraint),
-                reason = $"Generic constraint type '{TypeMetadataName(constraint)}' cannot be represented as closed .NET target type facts. {TypeRefFailureReason(constraint)}",
+                reason = ContainsFunctionPointer(constraint)
+                    ? $"Generic constraint type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(constraint, null)}"
+                    : $"Generic constraint type '{TypeMetadataName(constraint)}' cannot be represented as closed .NET target type facts. {TypeRefFailureReason(constraint, null)}",
             });
         }
         return new

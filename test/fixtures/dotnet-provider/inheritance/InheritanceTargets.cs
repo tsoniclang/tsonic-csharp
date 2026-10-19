@@ -103,3 +103,17 @@ public class SameNameDerived : SameNameBase
 {
     public int Match(string value) => value.Length;
 }
+
+public class OpenSlotDerived<T> : SlotBase<T>
+{
+    public override T Apply(T value) => value;
+}
+
+public class OpenOuter<TOuter>
+{
+    public class Nested<TInner> : SlotBase<TInner>
+    {
+        public override TInner Apply(TInner value) => value;
+        public TOuter Outer(TOuter value) => value;
+    }
+}
