@@ -260,7 +260,7 @@ export function analyzeCsharpCaptureStorage(
   const empty: readonly Node[] = Object.freeze([]);
   const scheduledValues = new Map<Node, readonly Node[]>();
   for (const [statement, values] of valueDeclarations) {
-    const ordered = sourceLexicalFunctionValueOrder(values, source.ast, source.navigation,
+    const ordered = sourceLexicalFunctionValueOrder(values, source.ast, source.navigation, "source",
       use => !evidence.compileTimeMetadata.get(use.reference));
     if (ordered.kind === "resolved") scheduledValues.set(statement, ordered.declarations);
     else issues.push({ node: statement, code: "CSHARP_LEXICAL_VALUE_ACTIVATION_NOT_CLOSED", message: ordered.reason });

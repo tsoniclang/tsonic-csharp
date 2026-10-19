@@ -1,7 +1,7 @@
 import type { SourceStorageEffects } from "@tsonic/target-api/analysis";
 import { createSourceGlobalCallStorageEffects } from "@tsonic/target-api/analysis";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import { selectJsSourceCallStorageEffect, jsSourceCallableParameterEffects } from "@tsonic/js-source-profile";
+import { selectJsSourceCallStorageEffect, jsSourceCallableParameterEffects, jsSourceNativeConstructorStorage } from "@tsonic/js-source-profile";
 import { csharpTargetId } from "../../../target-model/identities/source.js";
 import { csharpSourceProfileDeclarationIdentity } from "./source-profile-identity.js";
 
@@ -17,6 +17,10 @@ export function createCsharpSourceProfileStorageEffects(source: TargetSourceProg
       : identity.kind === "call" && identity.name === undefined ? "call" : undefined;
     return memberName === undefined || identity.owner !== "js" && memberName !== "constructor" && memberName !== "call"
       ? undefined : selectJsSourceCallStorageEffect({ ownerName: identity.declaringName, memberName, declaration: identity.declaration }, call);
+  }, (declaration, semantics) => {
+    const identity = csharpSourceProfileDeclarationIdentity(source.ast, semantics, source.sourceFacts, declaration);
+    return identity?.kind !== "construct" || identity.declaringName === undefined ? undefined
+      : jsSourceNativeConstructorStorage({ ownerName: identity.declaringName, memberName: "constructor", declaration: identity.declaration });
   });
   return Object.freeze({ ...global,
     callbackEntries(node, call) {
