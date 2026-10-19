@@ -400,8 +400,8 @@ test("one native provider preserves both complete assembly candidates instead of
     assert.equal(result.diagnostic.numericCode, 9200000, `${purpose}/${phase}: original numeric code`);
     assert.equal(result.diagnostic.message, "C# providers supplied contradictory complete target binding evidence.",
       `${purpose}/${phase}: original conflict message`);
-    assert.equal(result.diagnostic.evidence[0].query, "Shared.Widget", `${purpose}/${phase}: exact query evidence`);
-    assert.deepEqual([...result.diagnostic.evidence[0].bindingIds].sort(), bindings.map(binding => binding.id).sort(),
+    assert.equal(result.diagnostic.evidence[0].details.query, "Shared.Widget", `${purpose}/${phase}: exact query evidence`);
+    assert.deepEqual([...result.diagnostic.evidence[0].details.bindingIds].sort(), bindings.map(binding => binding.id).sort(),
       `${purpose}/${phase}: both independently acquired physical identities`);
   }
   for (const binding of bindings)

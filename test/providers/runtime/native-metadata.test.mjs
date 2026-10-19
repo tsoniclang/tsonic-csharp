@@ -235,8 +235,8 @@ test("runtime native selection sees all actually selected project references bef
       assert.equal(result.diagnostic.numericCode, 9200000, `graph ${orderIndex}/${phase}: same original numeric code`);
       assert.equal(result.diagnostic.message, "C# providers supplied contradictory complete target binding evidence.",
         `graph ${orderIndex}/${phase}: same original message`);
-      assert.equal(result.diagnostic.evidence[0].query, "Shared.Widget", `graph ${orderIndex}/${phase}: exact query`);
-      const current = [...result.diagnostic.evidence[0].bindingIds].sort();
+      assert.equal(result.diagnostic.evidence[0].details.query, "Shared.Widget", `graph ${orderIndex}/${phase}: exact query`);
+      const current = [...result.diagnostic.evidence[0].details.bindingIds].sort();
       assert.equal(current.length, 2, `graph ${orderIndex}/${phase}: every selected complete native winner is visible`);
       assert.equal(current[0] === current[1], false, `graph ${orderIndex}/${phase}: assembly identities stay distinct`);
       if (bindingIds !== undefined) assert.deepEqual(current, bindingIds, `graph ${orderIndex}/${phase}: warm ambiguity is identical`);
