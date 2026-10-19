@@ -21,12 +21,10 @@ import type {
 import { planAttributesForSubject } from "../attributes.js";
 import {
   getCsharpTypeForNode,
-  invalidCsharpType,
 } from "../../types/index.js";
 import { getExplicitReturnType } from "../callables/return-types.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { planInterfaceHeritage } from "../classes/heritage.js";
-import { planIdentifierName } from "../../names/source-identifiers.js";
 import {
   planParametersWithPrelude,
 } from "../callables/parameters.js";
@@ -54,12 +52,14 @@ export function planInterfaceDeclaration(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpInterfaceDeclaration {
-  const declaration = AsInterfaceDeclaration(input.program.source.ast, node)!;
+  const declaration = AsInterfaceDeclaration(input.program.source.ast, node);
+  if (declaration === undefined) failCsharpPlannerInvariant("An admitted interface requires its checked source declaration.", node);
   const objectShape = getCsharpObjectShapeFactForNode(node, sourceFile, input);
   const interfaces = planInterfaceHeritage(node, input);
   const jsonSerializable = objectShape !== undefined && objectShapeRequiresJsonSerialization(input, objectShape);
   const members = (declaration.Members?.Nodes ?? []).flatMap((member): CsharpInterfaceMember[] => {
-    if (member === undefined || input.program.records.compileTimeMetadata.get(member)) {
+    if (member === undefined) failCsharpPlannerInvariant("An admitted interface requires a dense checked member list.", node);
+    if (input.program.records.compileTimeMetadata.get(member)) {
       return [];
     }
     switch (input.program.source.ast.kindName(member)) {
@@ -83,7 +83,7 @@ export function planInterfaceDeclaration(
   }
   return {
     kind: "InterfaceDeclaration",
-    name: planIdentifierName(declaration.name, "AnonymousInterface", input, diagnostics, "Interface name"),
+    name: requiredName(declaration.name, input, node),
     modifiers: ["public"],
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], input, diagnostics),
@@ -144,7 +144,7 @@ function planInterfacePropertyDeclaration(
     node,
     sourceFile,
     input,
-    invalidCsharpType("interface property type"),
+    undefined,
     diagnostics,
   );
   const writable = !input.program.source.ast.hasModifierKind(node, "readonly");
@@ -217,8 +217,15 @@ function planInterfaceIndexerDeclaration(
     ),
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     writable,
-    keyName: planIdentifierName(parameterDeclaration?.name, "key", input, diagnostics, "Interface indexer key name"),
+    keyName: requiredName(parameterDeclaration?.name, input, node),
     keyType: getCsharpTypeForNode(parameterDeclaration?.Type ?? parameterDeclaration?.name, sourceFile, input, undefined, diagnostics),
     valueType: getCsharpTypeForNode(declaration.Type, sourceFile, input, undefined, diagnostics),
   };
+}
+
+function requiredName(name: Node | undefined, input: CsharpPlanningContext, subject: Node): string {
+  if (name === undefined) failCsharpPlannerInvariant("An admitted native interface member requires its checked source name.", subject);
+  const selected = input.program.names.resolve(name);
+  if (selected.kind !== "resolved") failCsharpPlannerInvariant("An admitted native interface member requires its selected native name.", subject);
+  return selected.name;
 }
