@@ -73,6 +73,7 @@ export type CsharpProviderCallInstantiation =
 
 export interface CsharpProviderCallInstantiationHost {
   readonly ast: AstReader;
+  readonly literalValues: import("../../../../target-model/records/source-literals.js").CsharpSourceLiteralIndex;
   readonly navigation: SourceProgramNavigation;
   readonly sourceFacts?: ReadonlySourceFactResolver;
   readonly providers: CsharpProviderRelationResolver;

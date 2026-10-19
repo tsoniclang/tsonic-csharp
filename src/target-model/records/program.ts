@@ -17,6 +17,7 @@ import type { CsharpStorageClassifications, CsharpStorageRepresentationClassific
 import type { CsharpGenericProjectionIndex } from "./type-projections.js";
 
 export interface CsharpProgramRecords {
+  readonly literalValue: import("./source-literals.js").CsharpSourceLiteralIndex["literalValue"];
   readonly attributeApplication: CsharpAttributeApplicationIndex["attributeApplication"];
   readonly erasedAttribute: CsharpAttributeApplicationIndex["erasedAttribute"];
   readonly callableDispatch: CsharpProjectCallableAdapters["callableDispatch"];

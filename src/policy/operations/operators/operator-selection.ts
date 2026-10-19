@@ -157,8 +157,8 @@ export function selectCsharpBinaryOperands(
     const rightNullable = getCsharpNullableElementTargetType(rightType);
     const leftArms = getCsharpRuntimeUnionArms(leftNullable ?? leftType, input.typeDefinitions) ?? (leftNullable === undefined ? [] : [leftNullable]);
     const rightArms = getCsharpRuntimeUnionArms(rightNullable ?? rightType, input.typeDefinitions) ?? (rightNullable === undefined ? [] : [rightNullable]);
-    const rightCandidates = leftArms?.filter(arm => csharpLiteralIsRepresentableAs(input, right, arm));
-    const leftCandidates = rightArms?.filter(arm => csharpLiteralIsRepresentableAs(input, left, arm));
+    const rightCandidates = leftArms?.filter(arm => csharpLiteralIsRepresentableAs(input.literalValues.literalValue.get(right), arm));
+    const leftCandidates = rightArms?.filter(arm => csharpLiteralIsRepresentableAs(input.literalValues.literalValue.get(left), arm));
     if (rightCandidates?.length === 1) rightType = rightCandidates[0]!;
     if (leftCandidates?.length === 1) leftType = leftCandidates[0]!;
   }
@@ -429,7 +429,7 @@ function adaptLiteralToExpectedType(
 ): TargetTypeRef | undefined {
   return selected !== undefined &&
       expected !== undefined &&
-      csharpLiteralIsRepresentableAs(input, node, expected)
+      csharpLiteralIsRepresentableAs(input.literalValues.literalValue.get(node), expected)
     ? expected
     : selected;
 }
