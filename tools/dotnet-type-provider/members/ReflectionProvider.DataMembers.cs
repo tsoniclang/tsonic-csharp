@@ -27,8 +27,8 @@ sealed partial class ReflectionProvider
                     }
                     continue;
                 }
-                var targetId = $"{TargetId(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeTargetId(UnwrapByRef(parameter.ParameterType))))})";
-                var metadataName = $"{MetadataName(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeMetadataName(UnwrapByRef(parameter.ParameterType))))})";
+                var targetId = $"{TargetId(type)}.{property.Name}({string.Join(",", indexParameters.Select(ParameterTypeTargetId))})";
+                var metadataName = $"{MetadataName(type)}.{property.Name}({string.Join(",", indexParameters.Select(ParameterTypeMetadataName))})";
                 var parameters = Parameters(indexParameters, targetId);
                 var returnNullability = nullability.Create(property);
                 var returnNullabilityMetadata = NullableMetadata.ForProperty(property);
@@ -124,8 +124,8 @@ sealed partial class ReflectionProvider
     IEnumerable<object> MultiParameterIndexerMembers(Type type, PropertyInfo property, AttributeCollection attributes)
     {
         var indexParameters = property.GetIndexParameters();
-        var targetId = $"{TargetId(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeTargetId(UnwrapByRef(parameter.ParameterType))))})";
-        var metadataName = $"{MetadataName(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeMetadataName(UnwrapByRef(parameter.ParameterType))))})";
+        var targetId = $"{TargetId(type)}.{property.Name}({string.Join(",", indexParameters.Select(ParameterTypeTargetId))})";
+        var metadataName = $"{MetadataName(type)}.{property.Name}({string.Join(",", indexParameters.Select(ParameterTypeMetadataName))})";
         var returnNullability = nullability.Create(property);
         var returnNullabilityMetadata = NullableMetadata.ForProperty(property);
         var targetReturnType = TypeRef(
@@ -234,10 +234,10 @@ sealed partial class ReflectionProvider
             var indexParameters = property.GetIndexParameters();
             var memberKind = indexParameters.Length > 0 ? "indexer" : "property";
             var targetId = indexParameters.Length > 0
-                ? $"{TargetId(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeTargetId(UnwrapByRef(parameter.ParameterType))))})"
+                ? $"{TargetId(type)}.{property.Name}({string.Join(",", indexParameters.Select(ParameterTypeTargetId))})"
                 : $"{TargetId(type)}.{property.Name}";
             var metadataName = indexParameters.Length > 0
-                ? $"{MetadataName(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeMetadataName(UnwrapByRef(parameter.ParameterType))))})"
+                ? $"{MetadataName(type)}.{property.Name}({string.Join(",", indexParameters.Select(ParameterTypeMetadataName))})"
                 : $"{MetadataName(type)}.{property.Name}";
             yield return UnsupportedMember(
                 memberKind,

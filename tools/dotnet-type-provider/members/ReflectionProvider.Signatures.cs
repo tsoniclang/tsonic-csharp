@@ -172,6 +172,20 @@ sealed partial class ReflectionProvider
 
     string TypeSlotKey(Type type, SignatureTypeEvidence? evidence)
     {
+        var identity = UnmodifiedTypeSlotKey(type, evidence);
+        return evidence is not null &&
+            (evidence.RequiredCustomModifiers.Length != 0 || evidence.OptionalCustomModifiers.Length != 0)
+            ? JsonSerializer.Serialize(new
+            {
+                type = identity,
+                requiredModifiers = evidence.RequiredCustomModifiers,
+                optionalModifiers = evidence.OptionalCustomModifiers,
+            })
+            : identity;
+    }
+
+    string UnmodifiedTypeSlotKey(Type type, SignatureTypeEvidence? evidence)
+    {
         if (type.IsGenericParameter)
         {
             return type.DeclaringMethod is null
@@ -180,7 +194,7 @@ sealed partial class ReflectionProvider
         }
         if (type.IsByRef)
         {
-            return $"byref:{TypeSlotKey(type.GetElementType()!, evidence)}";
+            return $"byref:{TypeSlotKey(type.GetElementType()!, evidence?.ElementType)}";
         }
         if (type.IsArray)
         {
@@ -203,7 +217,6 @@ sealed partial class ReflectionProvider
                 abi = signature.Abi,
                 parameters = parameters.Select((parameter, index) => TypeSlotKey(parameter, signature.Parameters[index])).ToArray(),
                 result = TypeSlotKey(type.GetFunctionPointerReturnType(), signature.Result),
-                modifiers = evidence.CustomModifiers,
             });
         }
         if (type.IsGenericType && !type.IsGenericTypeDefinition)

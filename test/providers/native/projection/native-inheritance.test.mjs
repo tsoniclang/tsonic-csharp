@@ -315,7 +315,8 @@ test("the one metadata-only base-slot producer agrees with actual native GetBase
   assert.equal(built.status, 0, `handwritten native slot oracle builds: ${built.stdout}\n${built.stderr}`);
   const observed = spawnSync("dotnet", ["run", "--project", project, "--no-build", "--no-restore", "--no-launch-profile"], { encoding: "utf8" });
   assert.equal(observed.status, 0, `handwritten native slot oracle executes: ${observed.stdout}\n${observed.stderr}`);
-  const expected = JSON.parse(observed.stdout);
+  const nativeObserved = JSON.parse(observed.stdout);
+  const expected = nativeObserved.slots;
   assert.equal(expected.length >= 30, true, "the oracle covers complete methods, accessors and physical signature families");
   const pointerProvider = createDotnetReflectionTypeDataProvider({
     references: [fixture().reference, resolve(directory, "bin/Debug/net10.0/NativeSlotOracle.dll")], disablePersistentCache: true,
@@ -342,6 +343,30 @@ test("the one metadata-only base-slot producer agrees with actual native GetBase
   const pointer = actual.get(expected.find(entry => entry.label === "FunctionPointerDerived.Invoke").id);
   assert.equal(pointer.parameters[0].type.kind, "function-pointer");
   assert.deepEqual(pointer.parameters[0].type.abi, ["unmanaged", "Cdecl"]);
+  const overloads = expected.filter(entry => entry.label === "FunctionPointerSignatures.Overload");
+  assert.equal(overloads.length, 2, "both actual native width overloads remain present");
+  assert.equal(new Set(overloads.map(entry => entry.id)).size, 2,
+    "different physical function-pointer signatures cannot collapse to the same method id");
+  const signatureOwner = declarations.find(entry => entry.metadataName === "NativeSlotOracle.FunctionPointerSignatures");
+  assert.equal(signatureOwner !== undefined, true, "the exact native constructor, operator and indexer owner is retained");
+  for (const identity of nativeObserved.signatures) {
+    const retained = [...signatureOwner.members, ...(signatureOwner.unsupportedMembers ?? [])]
+      .find(member => member.targetId === identity.id);
+    assert.equal(retained !== undefined, true, `the canonical native identity reaches ${identity.kind}`);
+    assert.equal(retained.metadataName, identity.metadataName, `the same structural pointer owner reaches ${identity.kind} metadata descriptions`);
+  }
+  const pointerIdentity = name => {
+    const entry = expected.find(row => row.label === `FunctionPointerSignatures.${name}`);
+    assert.equal(entry !== undefined, true, `${name}: the native inverse control is retained`);
+    return entry.id.slice(entry.id.indexOf("fnptr:"), -1);
+  };
+  for (const inverse of ["Stdcall", "WideResult", "Suppressed"])
+    assert.equal(pointerIdentity("Cdecl") === pointerIdentity(inverse), false,
+      `${inverse}: calling convention, native width and optional modifiers keep exact distinct identities`);
+  const suppressedIdentity = JSON.parse(pointerIdentity("Suppressed").slice("fnptr:".length));
+  assert.equal(suppressedIdentity.result.optionalModifiers.some(modifier =>
+    modifier.endsWith("::System.Runtime.CompilerServices.CallConvSuppressGCTransition")), true,
+  "the native optional calling-convention modifier is retained separately from required modifiers");
   console.log(`native-slot-oracle observations=${expected.length} native-stdout=${observed.stdout.trim()}`);
 });
 
@@ -353,36 +378,81 @@ using InheritanceProviderFixtures;
 var types = new[] { typeof(SlotBase<>), typeof(SlotDerived), typeof(MiddleSlot), typeof(LastSlot),
     typeof(CovariantBase), typeof(CovariantDerived), typeof(SameNameBase), typeof(SameNameDerived),
     typeof(DispatchBase<>), typeof(DispatchDerived), typeof(NativeSlotOracle.FunctionPointerBase),
-    typeof(NativeSlotOracle.FunctionPointerDerived) };
+    typeof(NativeSlotOracle.FunctionPointerDerived), typeof(NativeSlotOracle.FunctionPointerSignatures) };
 var rows = types.SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic |
     BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
     .Where(method => method.IsPublic || method.IsFamily || method.IsFamilyOrAssembly)
     .Select(method => new { label = type.Name + "." + method.Name, id = MethodId(method),
         baseDefinitionId = MethodId(method.GetBaseDefinition()), @virtual = method.IsVirtual,
         @abstract = method.IsAbstract, final = method.IsFinal })).ToArray();
-Console.WriteLine(JsonSerializer.Serialize(rows));
+var identityOwner = typeof(NativeSlotOracle.FunctionPointerSignatures);
+var signatures = identityOwner.GetConstructors().Select(constructor => new
+    { kind = "constructor", id = TargetId(identityOwner) + "..ctor(" + Parameters(constructor.GetParameters()) + ")",
+      metadataName = identityOwner.FullName + "..ctor(" + MetadataParameters(constructor.GetParameters()) + ")" })
+    .Concat(identityOwner.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+        .Where(property => property.GetIndexParameters().Length != 0).Select(property => new
+        { kind = "indexer", id = TargetId(identityOwner) + "." + property.Name + "(" + Parameters(property.GetIndexParameters()) + ")",
+          metadataName = identityOwner.FullName + "." + property.Name + "(" + MetadataParameters(property.GetIndexParameters()) + ")" }))
+    .Concat(identityOwner.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
+        .Where(method => method.Name == "op_Addition").Select(method => new
+        { kind = "operator", id = MethodId(method) + ":" + TypeId(method.ReturnType, method.ReturnParameter.GetModifiedParameterType()),
+          metadataName = identityOwner.FullName + "." + method.Name + "(" + MetadataParameters(method.GetParameters()) + ")" }))
+    .ToArray();
+Console.WriteLine(JsonSerializer.Serialize(new { slots = rows, signatures }));
 
 static string MethodId(MethodInfo method) => TargetId(method.DeclaringType!) + "." + method.Name +
     (method.IsGenericMethodDefinition ? "\u0060\u0060" + method.GetGenericArguments().Length : "") +
-    "(" + string.Join(",", method.GetParameters().Select(ParameterId)) + ")";
+    "(" + Parameters(method.GetParameters()) + ")";
+static string Parameters(ParameterInfo[] parameters) => string.Join(",", parameters.Select(ParameterId));
+static string MetadataParameters(ParameterInfo[] parameters) => string.Join(",", parameters.Select(parameter =>
+    parameter.ParameterType.IsFunctionPointer ? TypeId(parameter.ParameterType, parameter.GetModifiedParameterType())
+        : parameter.ParameterType.FullName!.Replace('+', '.')));
 static string ParameterId(ParameterInfo parameter)
 {
     var type = parameter.ParameterType.IsByRef ? parameter.ParameterType.GetElementType()! : parameter.ParameterType;
-    var name = TypeId(type);
+    var modified = parameter.GetModifiedParameterType();
+    var name = TypeId(type, parameter.ParameterType.IsByRef ? modified.GetElementType()! : modified);
     if (!parameter.ParameterType.IsByRef) return name;
     if (parameter.IsOut) return "out " + name;
     return parameter.GetCustomAttributesData().Any(attribute => attribute.AttributeType == typeof(System.Runtime.InteropServices.InAttribute))
         ? "in " + name : "ref " + name;
 }
-static string TypeId(Type type)
+static string TypeId(Type type, Type? modified = null)
 {
-    if (type.IsArray) return TypeId(type.GetElementType()!) +
+    if (type.IsFunctionPointer)
+    {
+        if (modified is null) throw new InvalidOperationException("The independent native oracle requires a modified pointer type.");
+        var rawParameters = type.GetFunctionPointerParameterTypes();
+        var nativeParameters = modified.GetFunctionPointerParameterTypes();
+        return "fnptr:" + JsonSerializer.Serialize(new
+        {
+            abi = (type.IsUnmanagedFunctionPointer ? new[] { "unmanaged" } : ["managed"])
+                .Concat(modified.GetFunctionPointerCallingConventions().Select(convention => convention.FullName switch
+                {
+                    "System.Runtime.CompilerServices.CallConvCdecl" => "Cdecl",
+                    "System.Runtime.CompilerServices.CallConvStdcall" => "Stdcall",
+                    "System.Runtime.CompilerServices.CallConvSuppressGCTransition" => "SuppressGCTransition",
+                    _ => throw new InvalidOperationException("The handwritten native control contains an unlisted calling convention."),
+                }).OrderBy(name => name, StringComparer.Ordinal)).Distinct(StringComparer.Ordinal).ToArray(),
+            parameters = rawParameters.Select((parameter, index) => NativeTypeIdentity(parameter, nativeParameters[index])).ToArray(),
+            result = NativeTypeIdentity(type.GetFunctionPointerReturnType(), modified.GetFunctionPointerReturnType()),
+            requiredModifiers = modified.GetRequiredCustomModifiers().Select(TargetId).ToArray(),
+            optionalModifiers = modified.GetOptionalCustomModifiers().Select(TargetId).ToArray(),
+        });
+    }
+    if (type.IsArray) return TypeId(type.GetElementType()!, modified?.GetElementType()) +
         (type.IsSZArray ? "[]" : type.GetArrayRank() == 1 ? "[*]" : "[" + new string(',', type.GetArrayRank() - 1) + "]");
     if (type.IsGenericParameter) return type.Name;
     if (type.IsGenericType && !type.IsGenericTypeDefinition) return TargetId(type.GetGenericTypeDefinition()) +
         "<" + string.Join(",", type.GetGenericArguments().Select(TypeId)) + ">";
     return TargetId(type);
 }
+static object NativeTypeIdentity(Type type, Type modified) => new
+{
+    type = type.IsByRef ? "byref:" + TypeId(type.GetElementType()!, modified.GetElementType()) : TypeId(type, modified),
+    requiredModifiers = modified.GetRequiredCustomModifiers().Select(TargetId).ToArray(),
+    optionalModifiers = modified.GetOptionalCustomModifiers().Select(TargetId).ToArray(),
+};
 static string TargetId(Type type)
 {
     var name = type.FullName ?? type.Name;
@@ -399,6 +469,18 @@ namespace NativeSlotOracle
     public unsafe class FunctionPointerDerived : FunctionPointerBase
     {
         public override delegate* unmanaged[Cdecl]<int, int> Invoke(delegate* unmanaged[Cdecl]<int, int> callback) => callback;
+    }
+    public unsafe class FunctionPointerSignatures
+    {
+        public FunctionPointerSignatures(delegate* unmanaged[Cdecl]<int, int> callback) { }
+        public int this[delegate* unmanaged[Cdecl]<int, int> callback] => 0;
+        public static int operator +(FunctionPointerSignatures value, delegate* unmanaged[Cdecl]<int, int> callback) => 0;
+        public virtual int Overload(delegate* unmanaged[Cdecl]<int, int> callback) => 0;
+        public virtual int Overload(delegate* unmanaged[Cdecl]<long, int> callback) => 0;
+        public virtual int Cdecl(delegate* unmanaged[Cdecl]<int, int> callback) => 0;
+        public virtual int Stdcall(delegate* unmanaged[Stdcall]<int, int> callback) => 0;
+        public virtual int WideResult(delegate* unmanaged[Cdecl]<int, long> callback) => 0;
+        public virtual int Suppressed(delegate* unmanaged[Cdecl, SuppressGCTransition]<int, int> callback) => 0;
     }
 }
 `;

@@ -136,7 +136,7 @@ sealed partial class ReflectionProvider
             .OrderBy(OperatorId, StringComparer.Ordinal);
     }
 
-    static string OperatorProjectionGroupKey(MethodInfo method)
+    string OperatorProjectionGroupKey(MethodInfo method)
     {
         var projection = OperatorSourceProjectionFor(method);
         return projection is null
