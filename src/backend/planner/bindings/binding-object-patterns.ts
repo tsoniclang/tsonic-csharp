@@ -37,7 +37,7 @@ export function planObjectBindingPattern(
   const elements = AsBindingPattern(input.program.source.ast, patternNode)?.Elements?.Nodes ?? [];
   return elements.flatMap((elementNode) => {
     if (elementNode === undefined) {
-      return [];
+      failCsharpPlannerInvariant("An admitted object pattern requires its dense checked element list.", patternNode);
     }
     return planObjectBindingElement(elementNode, sourceExpression, sourceFile, input, diagnostics, state, planBindingNameFromProjection);
   });
