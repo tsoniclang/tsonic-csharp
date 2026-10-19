@@ -8,6 +8,7 @@ import { readCsharpSourceField } from "./source-markers.js";
 import { sourceRefinementOnlyRemovesNullish } from "./source-union-refinement.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { getCsharpGenericOptionalParts } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpSourceStorageContext } from "./source-storage-projection.js";
 
 export function resolveSelectedDeclarationResult(
   { declarationResultTypeNode, host, resolveAuthoredAndSelectedSourceType, resolveCallableType, resolveNodeWithState, resolveProjectEnumMemberTarget }: CsharpTypeResolutionScope,
@@ -63,12 +64,15 @@ export function resolveSelectedDeclarationResult(
     ? queries.types.refinement(declaredMemberType, semanticType) : undefined;
   const excludesNullish = refinement?.kind === "members" && refinement.types.length > 0 &&
     refinement.types.every(type => !queries.types.isNullish(type));
+  const authoredState = declarationType !== undefined && (unchanged || removesNullish)
+    ? csharpSourceStorageContext(host, { ...state, sourceStorageSubject: undefined }, declaration)
+    : state;
   const authored = resolveAuthoredAndSelectedSourceType(
     declarationType,
     declarationSourceFile,
     declarationType !== undefined && (unchanged || removesNullish) ? undefined : semanticType,
     queries.sourceFile,
-    state,
+    authoredState,
   );
   const selected = authored !== undefined && declaration !== undefined && host.ast.questionToken(declaration) !== undefined
     ? csharpNullableTargetType(authored) : authored;
