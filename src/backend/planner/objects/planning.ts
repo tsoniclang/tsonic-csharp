@@ -164,14 +164,7 @@ function renderObjectShapeDeclaration(
   const members = renderObjectShapeMembers(
     input.scope.typeParameterNames,
     fact,
-    (interfaces?.length ?? 0) > 0,
-    new Set(receiverBoundMethodKeys),
-    undefined,
-    undefined,
     input.program.records,
-    input.program.records.nativeMemberHiding,
-    new Set(input.program.records.captureFrameShape.get(fact.targetType)?.bindings
-      .filter(binding => binding.initialization === "deferred").map(binding => binding.fieldName)),
   );
   const methodValues = renderCsharpMethodValueContracts(fact, input);
   const genericMethods = renderCsharpAuthoredObjectMethods(fact, input, diagnostics);
