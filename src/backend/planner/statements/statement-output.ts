@@ -10,9 +10,10 @@ import { planCsharpAbsentValue } from "../expressions/optional-storage.js";
 import { planCsharpNeverValue } from "../expressions/never-values.js";
 import { qualifiedCsharpType } from "../types/index.js";
 import type { CsharpPlannedValue, CsharpPlannedEffectOperand } from "../expressions/planned-values.js";
-import { csharpPlannedEffect, csharpPlannedExpressionIsStable } from "../expressions/planned-values.js";
+import { csharpPlannedEffect } from "../expressions/planned-values.js";
 import { csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
+import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 
 export function consumeCsharpPlannedValue(
   planned: CsharpPlannedValue,
@@ -29,7 +30,6 @@ export function planCsharpPlannedDiscard(
   planned: CsharpPlannedValue, explicit = false,
 ): readonly CsharpStatement[] {
   return consumeCsharpPlannedValue(planned, expression => {
-    if (csharpPlannedExpressionIsStable(expression)) return [];
     const statement = planCsharpDiscardedStatement(expression, planned.completion.carrier, explicit);
     return statement === undefined ? [] : [statement];
   });
@@ -93,7 +93,7 @@ export function planDiscardedExpression(
   const task = getCsharpTaskResultTargetType(getCsharpNullableElementTargetType(targetType) ?? targetType);
   return task === undefined && isValidCsharpExpressionStatement(expression)
     ? expression
-    : discardAssignment(expression);
+    : discardAssignment(expression, targetType);
 }
 
 export function planExplicitlyDiscardedExpression(
@@ -102,7 +102,7 @@ export function planExplicitlyDiscardedExpression(
 ): CsharpExpression | undefined {
   return isCsharpVoidTargetType(targetType)
     ? expression
-    : discardAssignment(expression);
+    : discardAssignment(expression, targetType);
 }
 
 function isValidCsharpExpressionStatement(expression: CsharpExpression): boolean {
@@ -121,15 +121,19 @@ function isValidCsharpExpressionStatement(expression: CsharpExpression): boolean
   }
 }
 
-function discardAssignment(expression: CsharpExpression): CsharpExpression | undefined {
+function discardAssignment(expression: CsharpExpression, carrier: TargetTypeRef | undefined): CsharpExpression {
   let selected = expression;
-  let depth = 0;
-  while (selected.kind === "ParenthesizedExpression" && depth++ < 2048) selected = selected.expression;
-  if (selected.kind === "LambdaExpression") return undefined;
+  while (selected.kind === "ParenthesizedExpression") selected = selected.expression;
+  let value = expression;
+  if (selected.kind === "LambdaExpression") {
+    const type = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
+    if (type === undefined) failCsharpPlannerInvariant("Discarded native callable syntax requires its sealed delegate carrier.");
+    value = { kind: "CastExpression", type, expression: { kind: "ParenthesizedExpression", expression } };
+  }
   return {
     kind: "AssignmentExpression",
     left: { kind: "IdentifierName", name: "_" },
     operatorToken: { kind: "EqualsToken" },
-    right: expression,
+    right: value,
   };
 }
