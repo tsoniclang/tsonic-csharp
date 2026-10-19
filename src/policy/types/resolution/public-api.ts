@@ -15,7 +15,7 @@ import { reconcileCsharpSelectedTargetType } from "./selected-type-evidence.js";
 import { retainCsharpUnionObjectShapes, selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
 import { resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
-import { Node_Expression } from "@tsonic/target-api/source";
+import { Node_Expression, sourceAbsenceUse } from "@tsonic/target-api/source";
 import { selectCsharpNativeFlowMembers } from "./native-flow-refinement.js";
 import { csharpUnionLeaves } from "../../../target-model/types/union-relations.js";
 import { resolveCsharpInstanceType } from "./instance-tests.js";
@@ -201,7 +201,8 @@ export function resolveSelectedValueWithState(
           parent = host.ast.parent(value);
         }
         const members = queries.types.isUnion(selectedType) ? queries.types.unionOrIntersectionTypes(selectedType) : [selectedType];
-        if (!members.some(member => queries.types.isNullish(member)) && !host.ast.is.IsTypeOfExpression(parent)) return payload;
+        if (!members.some(member => queries.types.isNullish(member)) && !host.ast.is.IsTypeOfExpression(parent) &&
+          sourceAbsenceUse(node, host) === undefined) return payload;
       }
       const refinement = selectCsharpAuthoredUnionRefinement(
         scopedTarget, declaredType, selectedType, queries,
