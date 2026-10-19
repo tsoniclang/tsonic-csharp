@@ -67,7 +67,7 @@ export function planKeyCollectionForInStatement(
   );
   const itemName = bindingActivation.itemName;
   const collection = planExpression(statement.Expression, sourceFile, input, diagnostics, state);
-  if (collection === undefined) return [];
+  if (collection === undefined) failCsharpPlannerInvariant("Admitted key iteration requires its collection value plan.", statement.Expression);
   return consumeCsharpPlannedValue(collection, value => [...bindingActivation.outerPrelude, {
     kind: "Block",
     body: {
