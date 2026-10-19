@@ -241,9 +241,10 @@ function buildSelectedConstruction(
       ));
       return undefined;
     }
-    const entryIdentity = input.outputIdentities.resolveRequired(
+    const entryIdentity = input.program.records.sourceFile.get(
       input.program.source.ast.getFileName(construction.targetSourceFile),
     );
+    if (entryIdentity === undefined) failCsharpPlannerInvariant("An admitted source construction requires its exact source module identity.", node);
     const rewrittenArguments = arguments_.map((argument, index) =>
       index === construction.targetParameterIndex
         ? {

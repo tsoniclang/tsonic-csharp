@@ -15,7 +15,6 @@ import { planCsharpProject } from "../project/project-artifacts.js";
 import { preserveCsharpAuthoredNames } from "../../target-ast/normalization/authored-names.js";
 import {
   sourceFileArtifactPath,
-  validateSourceFileOutputIdentities,
 } from "../artifacts/source-paths.js";
 import {
   planCsharpGeneratedHelperSourceFile,
@@ -30,10 +29,6 @@ export type CsharpPlanningResult = TargetStageResult<CsharpOutputPlan>;
 
 export function planCsharpOutput(input: CsharpPlanningContext): CsharpPlanningResult {
   const diagnostics: TargetDiagnostic[] = [];
-  validateSourceFileOutputIdentities(input, diagnostics);
-  if (diagnostics.length > 0) {
-    return rejectedTargetStage(diagnostics);
-  }
   const reconstructed = reconstructCsharpSourceFiles(
     input,
     diagnostics,

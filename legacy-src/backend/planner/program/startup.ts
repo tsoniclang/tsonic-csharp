@@ -75,7 +75,7 @@ export function planCsharpStartupSourceFile(
     if (!workerEntryByKey.has(key)) {
       workerEntryByKey.set(key, {
         sourceFile,
-        identity: input.outputIdentities.resolveRequired(fileName).className,
+        identity: input.program.records.sourceFile.get(fileName)!.className,
         planned,
         bootstrap: construction.bootstrap,
       });

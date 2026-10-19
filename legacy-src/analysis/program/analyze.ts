@@ -23,6 +23,7 @@ import { analyzeCsharpStatementCompletions } from "../control-flow/statement-com
 import { analyzeCsharpResourceScopes } from "../control-flow/resource-scopes.js";
 import { analyzeCsharpLocalBindings } from "../storage/local-bindings.js";
 import { analyzeCsharpBindingIdentities } from "../storage/binding-identities.js";
+import { analyzeCsharpSourceOutputIdentities } from "../names/source-output-identities.js";
 import { analyzeCsharpGenerators } from "../callables/generators.js";
 import type { CsharpRequiredRecord } from "./records/required-records.js";
 import { analyzeSourceLiteralValues, sourceDeclarationHasOnlyTypeUses, sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
@@ -538,7 +539,13 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const classEmission = analyzeCsharpClassEmission({ ast: source.ast, nodes: sourceStorage.nodes, projectTypes, factories: classFactories,
     captures: captureStorage, storage: analysis.storage, names, admitted: admittedControlNode });
   if (classEmission.issues.length !== 0) return rejectedTargetStage(classEmission.issues);
+  const sourceIdentities = analyzeCsharpSourceOutputIdentities({ ast: source.ast, sourceFiles, paths: input.paths,
+    namespace: project.value.namespace, generatedTypeNames: [...projectTypes.declarationScopeNames, ...classFactories.factories.flatMap(factory => [
+      factory.instanceScope, factory.factoryName, ...(factory.identity === undefined ? [] : [factory.identity.name]),
+    ])] });
+  if (sourceIdentities.kind === "rejected") return rejectedTargetStage(sourceIdentities.diagnostics);
   const records = createCsharpProgramRecords({
+    sourceFiles: sourceIdentities.records,
     bindingIdentities: analyzeCsharpBindingIdentities(source, sourceStorage.nodes),
     classEmission: classEmission.records,
     callableParameters: callableParameters.records,

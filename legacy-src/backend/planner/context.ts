@@ -17,12 +17,6 @@ import {
 import type { CsharpNamePlan } from "../../target-model/names/model.js";
 import { createCsharpSyntheticNames } from "./names/synthetic.js";
 import type { CsharpSyntheticNames } from "./names/synthetic.js";
-import {
-  createCsharpSourceOutputIdentityPlanner,
-} from "./names/source-output-identities.js";
-import type {
-  CsharpSourceOutputIdentityPlanner,
-} from "./names/source-output-identities.js";
 import type {
   CsharpTargetProgram,
 } from "../../analysis/program/index.js";
@@ -87,7 +81,6 @@ export interface CsharpPlanningContext {
   readonly host: CsharpTargetProgram["host"];
   readonly types: CsharpPlanningTypeView;
   readonly artifacts: CsharpArtifactGraph;
-  readonly outputIdentities: CsharpSourceOutputIdentityPlanner;
   readonly names: CsharpPlanningNames;
   readonly scope: CsharpPlanningScope;
 }
@@ -105,14 +98,6 @@ export function createCsharpPlanningContext(
     objectShapes,
     projectTypes,
   });
-  const outputIdentities = createCsharpSourceOutputIdentityPlanner({
-    ast: program.source.ast,
-    sourceFiles: program.sourceFiles,
-    paths: program.host.paths,
-    generatedTypeNames: [...projectTypes.declarationScopeNames, ...program.classFactories.flatMap(factory => [
-      factory.instanceScope, factory.factoryName, ...(factory.identity === undefined ? [] : [factory.identity.name]),
-    ])],
-  });
   const names: CsharpPlanningNames = Object.freeze({
     resolve: program.names.resolve,
     temporaryName: createCsharpSyntheticNames(program.names.reservedNames).temporaryName,
@@ -122,7 +107,6 @@ export function createCsharpPlanningContext(
     host: program.host,
     types,
     artifacts,
-    outputIdentities,
     names,
     scope: Object.freeze({ typeParameterNames: new Map(program.names.typeParameterNames.map(parameter => [parameter.identity, parameter.name])) }),
   });

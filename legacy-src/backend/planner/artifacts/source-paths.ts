@@ -1,28 +1,23 @@
-import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpPlanningContext,
 } from "../context.js";
 
-export function validateSourceFileOutputIdentities(
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-): void {
-  const plan = input.outputIdentities.prepare();
-  if (plan.kind === "rejected") {
-    diagnostics.push(...plan.diagnostics);
-  }
-}
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 
 export function sourceFileClassName(
   input: CsharpPlanningContext,
   fileName: string,
 ): string {
-  return input.outputIdentities.resolveRequired(fileName).className;
+  const selected = input.program.records.sourceFile.get(fileName);
+  if (selected === undefined) failCsharpPlannerInvariant("An admitted source file requires its selected native module identity.");
+  return selected.className;
 }
 
 export function sourceFileArtifactPath(
   input: CsharpPlanningContext,
   fileName: string,
 ): string {
-  return input.outputIdentities.resolveRequired(fileName).artifactPath;
+  const selected = input.program.records.sourceFile.get(fileName);
+  if (selected === undefined) failCsharpPlannerInvariant("An admitted source file requires its selected native artifact identity.");
+  return selected.artifactPath;
 }

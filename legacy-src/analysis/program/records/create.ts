@@ -40,9 +40,11 @@ import { createCsharpNativeMemberHidingRecords } from "./native-member-names.js"
 import type { CsharpMethodEmissionRecords } from "../../../target-model/records/method-emission.js";
 import type { CsharpClassEmissionRecords } from "../../../target-model/records/class-emission.js";
 import type { CsharpBindingIdentityRecords } from "../../../target-model/records/binding-identities.js";
+import type { CsharpSourceFileRecords } from "../../../target-model/records/source-files.js";
 
 export interface CsharpProgramRecordInput {
   readonly bindingIdentities: CsharpBindingIdentityRecords;
+  readonly sourceFiles: CsharpSourceFileRecords;
   readonly classEmission: CsharpClassEmissionRecords;
   readonly nativeMemberNames: CsharpNativeMemberNames;
   readonly methods: CsharpMethodEmissionRecords;
@@ -92,6 +94,7 @@ export function createCsharpProgramRecords(
 ): CsharpProgramRecords {
   const records: CsharpProgramRecords = Object.freeze({
     ...input.bindingIdentities,
+    ...input.sourceFiles,
     ...input.classEmission,
     ...input.callableParameters,
     ...input.callableDeclarations,

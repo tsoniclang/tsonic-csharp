@@ -1,66 +1,28 @@
 import { relative, resolve } from "node:path";
-import type {
-  AstReader,
-  SourceFile,
-} from "@tsonic/tsts";
+import type { AstReader, SourceFile } from "@tsonic/tsts";
 import type { TargetCompilationPaths } from "@tsonic/target-api";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-
-export interface CsharpSourceFileOutputIdentity {
-  readonly fileName: string;
-  readonly className: string;
-  readonly artifactPath: string;
-}
+import type { CsharpSourceFileOutputIdentity } from "../../target-model/records/source-files.js";
+import { createCsharpSourceFileRecords } from "../program/records/source-files.js";
 
 export type CsharpSourceOutputIdentityPlan =
-  | {
-      readonly kind: "accepted";
-      readonly identities: ReadonlyMap<string, CsharpSourceFileOutputIdentity>;
-    }
-  | {
-      readonly kind: "rejected";
-      readonly diagnostics: readonly TargetDiagnostic[];
-    };
-
-export interface CsharpSourceOutputIdentityPlanner {
-  prepare(): CsharpSourceOutputIdentityPlan;
-  resolveRequired(fileName: string): CsharpSourceFileOutputIdentity;
-}
+  | { readonly kind: "accepted"; readonly identities: ReadonlyMap<string, CsharpSourceFileOutputIdentity> }
+  | { readonly kind: "rejected"; readonly diagnostics: readonly TargetDiagnostic[] };
 
 export interface CsharpSourceOutputIdentityPlannerHost {
+  readonly namespace: string;
   readonly ast: AstReader;
   readonly sourceFiles: readonly SourceFile[];
   readonly paths: TargetCompilationPaths;
   readonly generatedTypeNames: readonly string[];
 }
 
-export function createCsharpSourceOutputIdentityPlanner(
-  host: CsharpSourceOutputIdentityPlannerHost,
-): CsharpSourceOutputIdentityPlanner {
-  let prepared: CsharpSourceOutputIdentityPlan | undefined;
 
-  function prepare(): CsharpSourceOutputIdentityPlan {
-    prepared ??= buildSourceOutputIdentityPlan(host);
-    return prepared;
-  }
-
-  function resolveRequired(fileName: string): CsharpSourceFileOutputIdentity {
-    const plan = prepare();
-    if (plan.kind === "rejected") {
-      throw new Error(
-        "C# source output identities are unavailable because deterministic identity validation failed.",
-      );
-    }
-    const identity = plan.identities.get(fileName);
-    if (identity === undefined) {
-      throw new Error(
-        `Missing C# output identity for source file '${fileName}'. The source file was not part of the checked C# output plan.`,
-      );
-    }
-    return identity;
-  }
-
-  return Object.freeze({ prepare, resolveRequired });
+export function analyzeCsharpSourceOutputIdentities(host: CsharpSourceOutputIdentityPlannerHost) {
+  const selected = buildSourceOutputIdentityPlan(host);
+  return selected.kind === "rejected" ? selected : Object.freeze({
+    kind: "accepted" as const, records: createCsharpSourceFileRecords(selected.identities),
+  });
 }
 
 function buildSourceOutputIdentityPlan(
@@ -125,6 +87,7 @@ function buildSourceOutputIdentityPlan(
     byArtifactPath.set(artifactPath, fileName);
     byFileName.set(fileName, Object.freeze({
       fileName,
+      namespace: host.namespace,
       className,
       artifactPath,
     }));
