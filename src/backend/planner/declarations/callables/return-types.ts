@@ -5,12 +5,11 @@ import type {
 } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import { getCsharpTypeForNode, invalidCsharpType } from "../../types/index.js";
-import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
+import type { CsharpTypeNode } from "../../../target-ast/syntax/index.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import {
   getCsharpTaskResultTargetType,
-  isCsharpNeverTargetType,
 } from "../../../../target-model/types/index.js";
 import {
   csharpSourceTypeArgumentNodes,
@@ -23,37 +22,17 @@ export function getExplicitReturnType(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
-): ReturnType<typeof getCsharpTypeForNode> {
-  if (typeNode === undefined) {
-    const returnTargetType = getInferredDeclarationReturnTargetType(
-      declarationNode,
-      sourceFile,
-      input,
-    );
-    const inferred = csharpDeclarationReturnType(input.scope.typeParameterNames, returnTargetType);
-    if (inferred === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        declarationNode,
-        `C# ${context} emission requires one exact checked source signature with a closed target return representation.`,
-      ));
-      return invalidCsharpType(`${context} return type`);
-    }
-    return inferred;
-  }
-  const explicitTargetType = input.types.classifications.resolveNode(typeNode, sourceFile);
-  if (isCsharpNeverTargetType(explicitTargetType)) {
-    const neverReturnType = csharpDeclarationReturnType(input.scope.typeParameterNames, explicitTargetType);
-    if (neverReturnType !== undefined) {
-      return neverReturnType;
-    }
-  }
-  return getCsharpTypeForNode(typeNode, sourceFile, input, invalidCsharpType(`${context} return type`), diagnostics);
+): CsharpTypeNode {
+  void diagnostics;
+  const carrier = getDeclarationReturnTargetType(typeNode, declarationNode, sourceFile, input);
+  const type = csharpDeclarationReturnType(input.scope.typeParameterNames, carrier);
+  return type ?? failCsharpPlannerInvariant(`An admitted C# ${context} requires its exact renderable return carrier.`, declarationNode);
 }
 
 function csharpDeclarationReturnType(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
   targetType: TargetTypeRef | undefined,
-): ReturnType<typeof getCsharpTypeForNode> | undefined {
+): CsharpTypeNode | undefined {
   return targetType === undefined
     ? undefined
     : csharpTypeFromTargetTypeRef(targetType, typeParameterNames);
@@ -66,23 +45,16 @@ export function getAsyncReturnExpressionExpectedType(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
-): { readonly type: ReturnType<typeof getCsharpTypeForNode>; readonly subject?: Node; readonly targetType: TargetTypeRef } | undefined {
+): { readonly type: CsharpTypeNode; readonly subject?: Node; readonly targetType: TargetTypeRef } {
+  void diagnostics;
   const returnTargetType = getDeclarationReturnTargetType(typeNode, declarationNode, sourceFile, input);
   const resultTargetType = getCsharpTaskResultTargetType(returnTargetType);
   if (resultTargetType === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      typeNode ?? declarationNode,
-      `Async C# ${context} emission requires finalized Promise/Task result carrier facts before return expression planning.`,
-    ));
-    return undefined;
+    failCsharpPlannerInvariant(`An admitted async C# ${context} requires its finalized result carrier.`, typeNode ?? declarationNode);
   }
   const type = csharpTypeFromTargetTypeRef(resultTargetType, input.scope.typeParameterNames);
   if (type === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      typeNode ?? declarationNode,
-      `Async C# ${context} emission requires a renderable Promise/Task result carrier before return expression planning.`,
-    ));
-    return undefined;
+    failCsharpPlannerInvariant(`An admitted async C# ${context} requires its renderable result carrier.`, typeNode ?? declarationNode);
   }
   const subject = getAsyncReturnExpressionSubject(typeNode, input);
   return { type, ...(subject === undefined ? {} : { subject }), targetType: resultTargetType };
@@ -94,9 +66,7 @@ export function getDeclarationReturnTargetType(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
 ) {
-  if (typeNode !== undefined) {
-    return input.types.classifications.resolveNode(typeNode, sourceFile);
-  }
+  void typeNode;
   return getInferredDeclarationReturnTargetType(
     declarationNode,
     sourceFile,
