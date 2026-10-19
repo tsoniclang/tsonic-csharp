@@ -29,14 +29,10 @@ import {
 } from "../../bindings/index.js";
 import {
   getCsharpTypeForNode,
-  invalidCsharpType,
 } from "../../types/index.js";
 import {
   failCsharpPlannerInvariant,
 } from "../../diagnostics.js";
-import {
-  planIdentifierName,
-} from "../../names/source-identifiers.js";
 import {
   planBlockStatements,
 } from "../../statements/index.js";
@@ -92,7 +88,7 @@ export function planPropertyDeclaration(
     node,
     sourceFile,
     input,
-    invalidCsharpType("property type"),
+    undefined,
     diagnostics,
   );
   const propertyName = planCsharpAdmittedMemberName(input.program.names, declaration.name);
@@ -101,7 +97,9 @@ export function planPropertyDeclaration(
   const storage = input.program.records.classPropertyStorage.get(node);
   if (storage === undefined) return failCsharpPlannerInvariant(
     "A checked class property lost its selected native field or property storage.", node);
-  if (input.program.source.ast.hasModifierKind(node, "abstract")) {
+  const modifiersPlan = input.program.records.memberModifiers.get(node);
+  if (modifiersPlan === undefined) failCsharpPlannerInvariant("An admitted property requires its native modifier selection.", node);
+  if (modifiersPlan.abstract) {
     return {
       kind: "PropertyDeclaration", name: propertyName,
       modifiers: planPropertyModifiers(node, declaration.name, sourceFile, input),
@@ -179,9 +177,8 @@ export function mergeAccessorProperty(
     return;
   }
   const index = planned.indexOf(existing);
-  if (index >= 0) {
-    planned[index] = next;
-  }
+  if (index < 0) failCsharpPlannerInvariant("A native accessor assembly requires its existing property declaration.", node);
+  planned[index] = next;
 }
 
 function mergeGetterAccessor(
@@ -193,7 +190,7 @@ function mergeGetterAccessor(
   diagnostics: TargetDiagnostic[],
 ): CsharpPropertyDeclaration {
   const declaration = AsGetAccessorDeclaration(input.program.source.ast, node)!;
-  const type = getCsharpTypeForNode(declaration.Type ?? declaration.name, sourceFile, input, existing?.type ?? invalidCsharpType("get accessor type"), diagnostics);
+  const type = getCsharpTypeForNode(declaration.Type ?? declaration.name, sourceFile, input, undefined, diagnostics);
   const state = createDestructuringPlannerState(node, input.program.source.ast);
   state.currentReturnType = type;
   state.currentReturnExpressionTargetType = input.program.records.returnContext.get(node)?.target;
@@ -251,7 +248,7 @@ function mergeSetterAccessor(
     parameterDeclaration?.Type ?? declaration.Type ?? declaration.name,
     sourceFile,
     input,
-    existing?.type ?? invalidCsharpType("set accessor type"),
+    undefined,
     diagnostics,
   );
   const parameterAlias = HasSourceKind(input.program.source.ast, parameterDeclaration?.name, KindObjectBindingPattern) || HasSourceKind(input.program.source.ast, parameterDeclaration?.name, KindArrayBindingPattern)
@@ -259,7 +256,7 @@ function mergeSetterAccessor(
     : parameterDeclaration === undefined
       ? undefined
       : {
-          name: planIdentifierName(parameterDeclaration.name, "value", input, diagnostics, "Set accessor parameter name"),
+          name: setterParameterName(parameterDeclaration.name, node, input),
           type,
         };
   const state = createDestructuringPlannerState(node, input.program.source.ast);
@@ -304,6 +301,12 @@ function mergeAccessorModifiers(
   right: CsharpPropertyDeclaration["getterModifiers"],
 ): CsharpPropertyDeclaration["getterModifiers"] {
   return [...new Set([...(left ?? []), ...(right ?? [])])];
+}
+
+function setterParameterName(name: Node | undefined, subject: Node, input: CsharpPlanningContext): string {
+  const selected = input.program.names.resolve(name);
+  if (selected.kind !== "resolved") failCsharpPlannerInvariant("An admitted setter parameter requires its exact native name.", subject);
+  return selected.name;
 }
 
 function planSetAccessorStatements(
