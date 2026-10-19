@@ -1,11 +1,11 @@
 import type { CsharpTypeMember, CsharpTypeNode, CsharpExpression } from "../../../target-ast/syntax/index.js";
 import { csharpDeferredCaptureStorageNames } from "../../../../target-model/names/object-members.js";
-import type { CsharpNamePlan } from "../../../../target-model/names/model.js";
+import type { CsharpNativeMemberHidingReader } from "../../../../target-model/records/native-member-names.js";
 import type { CsharpObjectShapeFact } from "../../../../target-model/types/model.js";
 import { planCsharpArtifactMemberHiding } from "../../declarations/modifiers.js";
 
 export function renderCsharpDeferredCaptureMember(name: string, type: CsharpTypeNode,
-  shape: CsharpObjectShapeFact, names: Pick<CsharpNamePlan, "memberHiding">): readonly CsharpTypeMember[] {
+  shape: CsharpObjectShapeFact, names: CsharpNativeMemberHidingReader): readonly CsharpTypeMember[] {
   const { valueName, initializedName } = csharpDeferredCaptureStorageNames(name);
   const field = (name: string): CsharpExpression => ({ kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: "this" }, name });
   const assign = (name: string, expression: CsharpExpression) => ({ kind: "ExpressionStatement" as const,

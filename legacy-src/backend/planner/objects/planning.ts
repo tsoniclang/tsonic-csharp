@@ -133,7 +133,7 @@ export function materializeObjectShapeDeclarations(
         ? JSON.stringify(existing) !== JSON.stringify(declaration)
         : existing.kind === "ClassDeclaration" && !objectShapeDeclarationMatches(
         typeParameterNames,
-        input.program.names,
+        input.program.records.nativeMemberHiding,
         existing,
         declarationArtifact.fact,
         declarationArtifact.capabilities.includes("json-serialization"),
@@ -229,7 +229,7 @@ function renderObjectShapeDeclaration(
         artifact.capabilities.includes("enumerable-keys")));
     const inherited = csharpInheritedStructuralInterfaces(fact, input);
     const contractMembers = renderCsharpStructuralInterfaceMembers(input.scope.typeParameterNames, fact, input.program.records,
-      capabilities.includes("method-values"), inherited, input.program.names);
+      capabilities.includes("method-values"), inherited, input.program.records.nativeMemberHiding);
     if (contractMembers === undefined || interfaces === undefined || typeParameters === undefined) {
       diagnostics.push({ code: "CSHARP_STRUCTURAL_INTERFACE_NOT_CLOSED", category: "error", source: "tsonic-csharp",
         message: "A structural reference contract requires exact renderable member signatures." });
@@ -239,7 +239,7 @@ function renderObjectShapeDeclaration(
       objectShapeIdentity: csharpStructuralObjectShapeIdentity(fact.targetType), modifiers: ["public"], typeParameters,
       interfaces: [...interfaces, ...(jsonSerializable ? [csharpJsonValueInterfaceType()] : []),
         ...(referenceIdentity ? [csharpClosedValueCarrierInterfaceType()] : [])],
-      members: [...contractMembers, ...(capabilities.includes("enumerable-keys") && !inheritedEnumerableKeys ? [csharpEnumerableKeysContract(fact, input.program.names)] : []),
+      members: [...contractMembers, ...(capabilities.includes("enumerable-keys") && !inheritedEnumerableKeys ? [csharpEnumerableKeysContract(fact, input.program.records.nativeMemberHiding)] : []),
         ...renderObjectShapeProjectionMethods(input, projections, diagnostics)] };
   }
   const members = renderObjectShapeMembers(
@@ -250,7 +250,7 @@ function renderObjectShapeDeclaration(
     undefined,
     undefined,
     input.program.records,
-    input.program.names,
+    input.program.records.nativeMemberHiding,
     new Set(input.program.records.captureFrameShape.get(fact.targetType)?.bindings
       .filter(binding => binding.initialization === "deferred").map(binding => binding.fieldName)),
   );
@@ -295,7 +295,7 @@ function renderObjectShapeDeclaration(
       ...methodValues,
       ...enumerableKeys,
       ...(capabilities.includes("js-freeze") ? guardCsharpFrozenDataProperties(fact, members, input, diagnostics) : members),
-      ...(jsonSerializable ? renderJsonSerializableObjectShapeMethod(fact, input.program.names) : []),
+      ...(jsonSerializable ? renderJsonSerializableObjectShapeMethod(fact, input.program.records.nativeMemberHiding) : []),
       ...renderObjectShapeProjectionMethods(
         input,
         projections,

@@ -16,7 +16,7 @@ export function planClassMemberModifiers(node: Node, name: Node | undefined, inp
   if (selected === undefined) failCsharpPlannerInvariant("An admitted class member requires its native modifier selection.", node);
   const modifiers: ("public" | "private" | "protected" | "internal" | "static" | "new")[] = [...selected.member];
   if (name !== undefined) {
-    modifiers.push(...planCsharpNativeMemberHiding(input.program.names, subject));
+    modifiers.push(...planCsharpNativeMemberHiding(input.program.records.nativeMemberHiding, subject));
   }
   return modifiers;
 }

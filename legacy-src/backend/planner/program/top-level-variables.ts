@@ -72,7 +72,7 @@ export function planTopLevelVariableStatement(
           binding.name,
           binding.type,
           "public",
-          planCsharpNativeMemberHiding(input.program.names, { kind: "source", declaration: sourceDeclaration, role: "member" }),
+          planCsharpNativeMemberHiding(input.program.records.nativeMemberHiding, { kind: "source", declaration: sourceDeclaration, role: "member" }),
           reassignable,
           input.program.records.nativeModuleField.get(sourceDeclaration),
         )))
@@ -116,7 +116,7 @@ export function planTopLevelVariableStatement(
         kind: "MethodDeclaration",
         name: field.name,
         modifiers: [callableVisibility, "static", ...(lambda.async ? ["async" as const] : []),
-          ...planCsharpNativeMemberHiding(input.program.names, { kind: "source", declaration, role: "member" })],
+          ...planCsharpNativeMemberHiding(input.program.records.nativeMemberHiding, { kind: "source", declaration, role: "member" })],
         returnType: signature.returnType ?? { kind: "PredefinedType", name: "void" },
         parameters: lambda.parameters.map(parameter => ({ ...parameter, type: parameter.type! })),
         body: lambda.body.kind === "Block" ? lambda.body : {
@@ -132,7 +132,7 @@ export function planTopLevelVariableStatement(
       field.name,
       field.type,
       "public",
-      planCsharpNativeMemberHiding(input.program.names, { kind: "source", declaration, role: "member" }),
+      planCsharpNativeMemberHiding(input.program.records.nativeMemberHiding, { kind: "source", declaration, role: "member" }),
       reassignable,
       input.program.records.nativeModuleField.get(declaration),
     ));

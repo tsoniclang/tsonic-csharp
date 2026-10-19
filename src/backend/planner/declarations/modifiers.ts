@@ -7,12 +7,13 @@ import type { CsharpNamePlan, CsharpNativeMemberIdentity } from "../../../target
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
 import { objectShapeArtifactKey } from "../../../target-model/records/object-shape-demand.js";
+import type { CsharpNativeMemberHidingReader } from "../../../target-model/records/native-member-names.js";
 
 export function planCsharpNativeMemberHiding(
-  names: Pick<CsharpNamePlan, "memberHiding">,
+  names: CsharpNativeMemberHidingReader,
   subject: CsharpNativeMemberIdentity,
 ): readonly "new"[] {
-  const hides = names.memberHiding.get(subject);
+  const hides = names.get(subject);
   if (hides === undefined) return failCsharpPlannerInvariant(
     "An admitted native member lost its final physical-container hiding decision.",
     subject.kind === "source" ? subject.declaration : subject.kind === "value" ? subject.container : undefined);
@@ -26,7 +27,7 @@ export function planCsharpAdmittedMemberName(names: Pick<CsharpNamePlan, "resolv
   return selected.name;
 }
 
-export function planCsharpArtifactMemberHiding(names: Pick<CsharpNamePlan, "memberHiding">,
+export function planCsharpArtifactMemberHiding(names: CsharpNativeMemberHidingReader,
   shape: CsharpObjectShapeFact, name: string): readonly "new"[] {
   return planCsharpNativeMemberHiding(names,
     { kind: "artifact", container: objectShapeArtifactKey(shape), member: name, role: "member" });

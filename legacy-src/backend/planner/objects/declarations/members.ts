@@ -38,7 +38,7 @@ import { renderCsharpStructuralInterfaceMembers } from "./structural-interfaces.
 import { csharpNullableTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { csharpObjectShapeMethodDeclaration } from "../../../../target-model/types/method-values.js";
 import { renderCsharpDeferredCaptureMember } from "./deferred-captures.js";
-import type { CsharpNamePlan } from "../../../../target-model/names/model.js";
+import type { CsharpNativeMemberHidingReader } from "../../../../target-model/records/native-member-names.js";
 import { planCsharpArtifactMemberHiding } from "../../declarations/modifiers.js";
 
 export function renderObjectShapeMembers(
@@ -49,7 +49,7 @@ export function renderObjectShapeMembers(
   diagnostics: TargetDiagnostic[] | undefined,
   diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0] | undefined,
   storage: Pick<CsharpStorageClassifications, "nativeField">,
-  names: Pick<CsharpNamePlan, "memberHiding">,
+  names: CsharpNativeMemberHidingReader,
   deferredCaptures: ReadonlySet<string> = new Set(),
 ): CsharpClassDeclaration["members"] | undefined {
   const members = canonicalCsharpObjectShapeMembers(fact.members).flatMap((member) => {

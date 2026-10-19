@@ -55,8 +55,8 @@ export function renderCsharpCaptureFrameMethods(
       const planned = planSourceFunctionDeclaration(method.declaration, file, context, diagnostics);
       members.push({ ...planned.declaration, kind: "MethodDeclaration", name: method.methodName,
         modifiers: withCsharpSafetyModifiers(planned.async
-          ? ["public", "async", ...planCsharpArtifactMemberHiding(input.program.names, shape, method.methodName)]
-          : ["public", ...planCsharpArtifactMemberHiding(input.program.names, shape, method.methodName)],
+          ? ["public", "async", ...planCsharpArtifactMemberHiding(input.program.records.nativeMemberHiding, shape, method.methodName)]
+          : ["public", ...planCsharpArtifactMemberHiding(input.program.records.nativeMemberHiding, shape, method.methodName)],
           method.declaration, "declaration", context) });
       continue;
     }
@@ -67,7 +67,7 @@ export function renderCsharpCaptureFrameMethods(
     if (planned === undefined || planned.prelude.length !== 0 || lambda?.kind !== "LambdaExpression") return undefined;
     if (quotation) {
       members.push({ kind: "MethodDeclaration", name: method.methodName,
-        modifiers: ["public", ...planCsharpArtifactMemberHiding(input.program.names, shape, method.methodName)], returnType,
+        modifiers: ["public", ...planCsharpArtifactMemberHiding(input.program.records.nativeMemberHiding, shape, method.methodName)], returnType,
         parameters: [], body: { kind: "Block", statements: [{ kind: "ReturnStatement", expression: lambda }] },
       }, ...context.scope.generatedMethods?.values() ?? []);
       continue;
@@ -83,7 +83,7 @@ export function renderCsharpCaptureFrameMethods(
     if (parameters.some(parameter => parameter === undefined)) return undefined;
     members.push({ kind: "MethodDeclaration", name: method.methodName,
       modifiers: ["public", ...(lambda.async ? ["async" as const] : []),
-        ...planCsharpArtifactMemberHiding(input.program.names, shape, method.methodName)], returnType,
+        ...planCsharpArtifactMemberHiding(input.program.records.nativeMemberHiding, shape, method.methodName)], returnType,
       typeParameters: planTypeParameters(input.program.source.ast.typeParameters(method.declaration), context, diagnostics),
       parameters: parameters as NonNullable<typeof parameters[number]>[],
       body: lambda.body.kind === "Block" ? lambda.body : { kind: "Block", statements: [

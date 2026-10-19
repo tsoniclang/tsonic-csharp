@@ -22,13 +22,13 @@ export function planCsharpMutableMethod(
   return [
     { ...method, name: write.implementationName, modifiers: withCsharpSafetyModifiers([
       ...modifiers.implementation,
-      ...planCsharpNativeMemberHiding(input.program.names, { kind: "source", declaration: node, role: "implementation" }),
+      ...planCsharpNativeMemberHiding(input.program.records.nativeMemberHiding, { kind: "source", declaration: node, role: "implementation" }),
       ...modifiers.method,
     ], node, "declaration", input) },
     { kind: "FieldDeclaration", name: write.storageName, type: nullableCsharpType(type),
-      modifiers: ["private", ...planCsharpNativeMemberHiding(input.program.names, { kind: "source", declaration: node, role: "storage" })] },
+      modifiers: ["private", ...planCsharpNativeMemberHiding(input.program.records.nativeMemberHiding, { kind: "source", declaration: node, role: "storage" })] },
     { kind: "PropertyDeclaration", name: method.name, type,
-      modifiers: ["public", ...planCsharpNativeMemberHiding(input.program.names, { kind: "source", declaration: node, role: "member" })],
+      modifiers: ["public", ...planCsharpNativeMemberHiding(input.program.records.nativeMemberHiding, { kind: "source", declaration: node, role: "member" })],
       getter: { kind: "Block", statements: [{ kind: "ReturnStatement", expression: {
         kind: "AssignmentExpression", operatorToken: { kind: "QuestionQuestionEqualsToken" },
         left: { kind: "IdentifierName", name: write.storageName },

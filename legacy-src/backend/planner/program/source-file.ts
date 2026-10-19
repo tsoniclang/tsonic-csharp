@@ -426,5 +426,5 @@ function planExportAssignment(
   if (planned === undefined) return undefined;
   statements.push(...consumeCsharpPlannedValue(planned, value => [topLevelFieldAssignment(name, value)]));
   return topLevelBindingMember(name, type, "public",
-    planCsharpNativeMemberHiding(input.program.names, { kind: "source", declaration: node, role: "member" }), false);
+    planCsharpNativeMemberHiding(input.program.records.nativeMemberHiding, { kind: "source", declaration: node, role: "member" }), false);
 }

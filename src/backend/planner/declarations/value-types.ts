@@ -37,9 +37,9 @@ export function planValueTypeDeclaration(
     }
     if (field.bound !== undefined) {
       const rendered = renderBoundRecordMember(input.scope.typeParameterNames, field.bound.owner, field.bound.member, type, {
-        member: planCsharpNativeMemberHiding(input.program.names, { kind: "value", container: declarationNode,
+        member: planCsharpNativeMemberHiding(input.program.records.nativeMemberHiding, { kind: "value", container: declarationNode,
           member: field.bound.member.targetName, role: "member" }),
-        storage: planCsharpNativeMemberHiding(input.program.names, { kind: "value", container: declarationNode,
+        storage: planCsharpNativeMemberHiding(input.program.records.nativeMemberHiding, { kind: "value", container: declarationNode,
           member: objectShapeBoundStorageMemberName(field.bound.owner, field.bound.member), role: "member" }),
       });
       if (rendered.some(candidate => candidate === undefined)) {
@@ -52,7 +52,7 @@ export function planValueTypeDeclaration(
       kind: "FieldDeclaration",
       name: field.source.sourceName,
       modifiers: ["public", ...(field.source.readonly ? ["readonly" as const] : []),
-        ...planCsharpNativeMemberHiding(input.program.names,
+        ...planCsharpNativeMemberHiding(input.program.records.nativeMemberHiding,
           { kind: "value", container: declarationNode, member: field.source.sourceName, role: "member" })],
       type,
     });

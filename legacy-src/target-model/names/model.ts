@@ -29,7 +29,6 @@ export interface CsharpNamePlan {
   readonly reservedNames: readonly string[];
   readonly typeParameterNames: readonly { readonly identity: string; readonly name: string }[];
   readonly generatedMethodTypeParameters: { readonly get: (node: Node) => readonly Node[] | undefined };
-  readonly memberHiding: { readonly get: (subject: CsharpNativeMemberIdentity) => boolean | undefined };
   readonly issues: readonly TargetDiagnostic[];
   resolve(nameNode: Node | undefined, selectedDeclaration?: Node): CsharpSourceNameResolution;
 }

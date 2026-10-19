@@ -35,8 +35,11 @@ import type { CsharpStructuralInterfaceRecords } from "../../../target-model/rec
 import type { CsharpLexicalValueRecords } from "../../../target-model/records/lexical-values.js";
 import type { CsharpCallableParameterRecords } from "../../../target-model/records/parameter-emission.js";
 import type { CsharpCallableDeclarationRecords } from "../../../target-model/records/callable-emission.js";
+import type { CsharpNativeMemberNames } from "../../../target-model/names/model.js";
+import { createCsharpNativeMemberHidingRecords } from "./native-member-names.js";
 
 export interface CsharpProgramRecordInput {
+  readonly nativeMemberNames: CsharpNativeMemberNames;
   readonly callableDeclarations: CsharpCallableDeclarationRecords;
   readonly callableParameters: CsharpCallableParameterRecords;
   readonly classFields: CsharpClassFieldInitializationRecords;
@@ -84,6 +87,7 @@ export function createCsharpProgramRecords(
   const records: CsharpProgramRecords = Object.freeze({
     ...input.callableParameters,
     ...input.callableDeclarations,
+    nativeMemberHiding: createCsharpNativeMemberHidingRecords(input.nativeMemberNames),
     ...input.classFields,
     ...input.lexicalValues,
     ...input.structuralInterfaces,

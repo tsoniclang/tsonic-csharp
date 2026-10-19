@@ -36,7 +36,7 @@ export function guardCsharpFrozenDataProperties(
     const storageName = csharpFrozenStorageName(shape, member.name);
     const storage: CsharpExpression = { kind: "IdentifierName", name: storageName };
     return [{ kind: "FieldDeclaration", name: storageName,
-      modifiers: ["private", ...planCsharpArtifactMemberHiding(input.program.names, shape, storageName)], type: member.type,
+      modifiers: ["private", ...planCsharpArtifactMemberHiding(input.program.records.nativeMemberHiding, shape, storageName)], type: member.type,
       initializer: member.initializer ?? { kind: "DefaultExpression", type: member.type, nullForgiving: true } },
     { kind: "PropertyDeclaration", name: member.name, modifiers: member.modifiers.filter(modifier => modifier !== "readonly"),
       type: member.type, ...(member.attributes === undefined ? {} : { attributes: member.attributes }),

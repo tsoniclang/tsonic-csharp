@@ -118,7 +118,7 @@ function planInterfaceMethodDeclaration(
   return {
     kind: "MethodDeclaration",
     name: planCsharpAdmittedMemberName(input.program.names, declaration.name),
-    modifiers: [...planCsharpNativeMemberHiding(input.program.names, { kind: "source", declaration: node, role: "member" }), ...csharpSafetyModifiersForDeclaration(
+    modifiers: [...planCsharpNativeMemberHiding(input.program.records.nativeMemberHiding, { kind: "source", declaration: node, role: "member" }), ...csharpSafetyModifiersForDeclaration(
       node,
       "declaration",
       input,

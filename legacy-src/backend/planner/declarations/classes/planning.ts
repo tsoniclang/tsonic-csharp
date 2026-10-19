@@ -94,7 +94,7 @@ export function planClassDeclaration(
       ...(factory?.retainsEnvironment ? [{ kind: "FieldDeclaration" as const, name: factory.environmentName,
         type: csharpTypeFromTargetTypeRef(factory.factoryType, input.scope.typeParameterNames)!,
         modifiers: [factory.requiresInstanceTest ? "internal" as const : "private" as const, "readonly" as const,
-          ...planCsharpNativeMemberHiding(input.program.names, { kind: "source", declaration: node, role: "storage" })] }] : []),
+          ...planCsharpNativeMemberHiding(input.program.records.nativeMemberHiding, { kind: "source", declaration: node, role: "storage" })] }] : []),
       ...(factory?.identity === undefined ? [] : [{ kind: "PropertyDeclaration" as const,
         name: factory.environmentName, explicitInterface: csharpTypeFromTargetTypeRef(factory.identity.type, input.scope.typeParameterNames)!, modifiers: [],
         type: csharpTypeFromTargetTypeRef(factory.factoryType, input.scope.typeParameterNames)!,

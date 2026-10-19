@@ -19,7 +19,7 @@ import {
 import {
   qualifiedCsharpType,
 } from "../types/index.js";
-import type { CsharpNamePlan } from "../../../target-model/names/model.js";
+import type { CsharpNativeMemberHidingReader } from "../../../target-model/records/native-member-names.js";
 import { planCsharpArtifactMemberHiding } from "../declarations/modifiers.js";
 
 export function objectShapeRequiresJsonSerialization(
@@ -38,7 +38,7 @@ export function csharpJsonValueInterfaceType(): CsharpTypeNode {
 
 export function renderJsonSerializableObjectShapeMethod(
   fact: CsharpObjectShapeFact,
-  names: CsharpNamePlan,
+  names: CsharpNativeMemberHidingReader,
 ): readonly CsharpMethodDeclaration[] {
   const writer = { kind: "IdentifierName", name: "writer" } as const;
   const context = { kind: "IdentifierName", name: "context" } as const;

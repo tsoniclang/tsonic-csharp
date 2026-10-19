@@ -26,7 +26,7 @@ export function planFunctionDeclaration(
   const planned = planSourceFunctionDeclaration(node, sourceFile, input, diagnostics);
   return { ...planned.declaration, kind: "MethodDeclaration",
     modifiers: withCsharpSafetyModifiers(["public", "static", ...(planned.async ? ["async" as const] : []),
-      ...planCsharpNativeMemberHiding(input.program.names, { kind: "source", declaration: node, role: "member" })],
+      ...planCsharpNativeMemberHiding(input.program.records.nativeMemberHiding, { kind: "source", declaration: node, role: "member" })],
       node, "declaration", input) };
 }
 

@@ -142,7 +142,7 @@ export function planClassFactoryDeclaration(
   }
   const parameters = entry?.parameters.slice(1) ?? [];
   members.push(...slots.map(slot => ({ kind: "FieldDeclaration" as const, name: slot.name,
-    type: slot.type, modifiers: ["public" as const, "readonly" as const, ...planCsharpNativeMemberHiding(input.program.names,
+    type: slot.type, modifiers: ["public" as const, "readonly" as const, ...planCsharpNativeMemberHiding(input.program.records.nativeMemberHiding,
       { kind: "value", container: factory.declaration, member: slot.name, role: "member" })] })));
   members.push({ kind: "ConstructorDeclaration", name: factory.factoryName, modifiers: ["public"],
     parameters: slots.map(slot => ({ name: slot.name, type: slot.type })),

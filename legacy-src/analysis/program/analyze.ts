@@ -535,6 +535,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const records = createCsharpProgramRecords({
     callableParameters: callableParameters.records,
     callableDeclarations: callableDeclarations.records,
+    nativeMemberNames,
     classFields: analyzeCsharpClassFieldInitialization({ ast: source.ast, nodes: sourceStorage.nodes, storage: analysis.storage }),
     lexicalValues: lexicalValues.records,
     structuralInterfaces: analyzeCsharpStructuralInterfaceEmission({ ast: source.ast,

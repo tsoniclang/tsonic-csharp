@@ -19,11 +19,8 @@ import type {
 import type {
   CsharpNamePlan,
   CsharpNativeMemberNames,
-  CsharpNativeMemberIdentity,
-  CsharpNativeMemberRole,
   CsharpSourceNameResolution,
 } from "../../target-model/names/model.js";
-import { csharpNativeMemberIdentityParts } from "../../target-model/names/model.js";
 import { csharpSourceTypeParameter, csharpSourceTypeParameters } from "../../target-model/names/type-parameters.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 
@@ -236,33 +233,11 @@ export function createCsharpSourceNameBuilder(
         host.ast.forEachChild(node, child => { if (child !== undefined) recordEnclosing(child, children); });
       };
       host.sourceFiles.forEach(file => recordEnclosing(file, noParameters));
-      const memberHiding = new Map<Node | string, Map<Node | string, Map<CsharpNativeMemberRole, boolean>>>();
-      for (const entry of nativeMemberNames.memberHiding) {
-        const [container, member, role] = csharpNativeMemberIdentityParts(entry.subject);
-        let members = memberHiding.get(container);
-        if (members === undefined) {
-          members = new Map();
-          memberHiding.set(container, members);
-        }
-        let roles = members.get(member);
-        if (roles === undefined) {
-          roles = new Map();
-          members.set(member, roles);
-        }
-        if (roles.has(role)) throw new Error("A native member-name decision has more than one producer.");
-        roles.set(role, entry.hides);
-      }
       sealedBindingRoots = required;
       sealedMemberNames = nativeMemberNames;
       sealed = Object.freeze({ reservedNames: Object.freeze([...sourceNames]),
         typeParameterNames: Object.freeze([...typeParameterNames]),
         generatedMethodTypeParameters: Object.freeze({ get: (node: Node) => enclosing.get(node) }),
-        memberHiding: Object.freeze({ get: (subject: CsharpNativeMemberIdentity) => {
-          const [container, member, role] = csharpNativeMemberIdentityParts(subject);
-          return memberHiding.get(container)?.get(member)?.get(role);
-        } }),
-        issues: Object.freeze(issues), resolve });
-      return sealed;
     },
   });
 

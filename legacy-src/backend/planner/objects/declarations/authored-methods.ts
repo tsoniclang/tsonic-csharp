@@ -63,7 +63,7 @@ export function renderCsharpAuthoredObjectMethods(
     const frame = field.frameScope === undefined ? undefined : input.program.records.captureFrame.get(field.frameScope);
     if (frame !== undefined && csharpTypeFromObjectShapeFact(input, frame.shape, diagnostics, implementation.declaration) === undefined) return undefined;
     members.push({ kind: "FieldDeclaration", name: field.name, type,
-      modifiers: ["public", "required", ...planCsharpArtifactMemberHiding(input.program.names, shape, field.name)] });
+      modifiers: ["public", "required", ...planCsharpArtifactMemberHiding(input.program.records.nativeMemberHiding, shape, field.name)] });
     const receiver: CsharpExpression = { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: "this" }, name: field.name };
     if (field.frameScope !== undefined) captureFrames.set(field.frameScope, receiver);
     for (const binding of field.declarations) capturedBindings.set(binding.declaration, binding.member === undefined ? receiver
@@ -92,7 +92,7 @@ export function renderCsharpAuthoredObjectMethods(
       const type = csharpTypeFromTargetTypeRef(shape.targetType, input.scope.typeParameterNames);
       if (type === undefined) return undefined;
       members.push({ kind: "PropertyDeclaration", name: objectShapeStorageMemberName(shape, member),
-        modifiers: ["public", ...planCsharpArtifactMemberHiding(input.program.names, shape, objectShapeStorageMemberName(shape, member))], type,
+        modifiers: ["public", ...planCsharpArtifactMemberHiding(input.program.records.nativeMemberHiding, shape, objectShapeStorageMemberName(shape, member))], type,
         getter: { kind: "Block", statements: [{ kind: "ReturnStatement", expression: { kind: "IdentifierName", name: "this" } }] },
       });
     }
