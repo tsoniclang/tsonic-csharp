@@ -275,8 +275,7 @@ function translateSelectedElement(
   if (selection.invocation.kind === "record-optional-read") {
     if (selection.source.accessMode !== "read") return undefined;
     return planElementOperands(node, sourceFile, input, diagnostics, receiver, argument, selection.source.optionalChain,
-      (target, key) => csharpRecordOptionalRead(target, key, false,
-      selection.targetMember.declaringType, selection.targetMember.returnType,
+      (target, key) => csharpRecordOptionalRead(node, target, key,
       `__tsonic_record_${input.program.source.ast.pos(node)}_${input.program.source.ast.end(node)}`, input));
   }
   if (selection.invocation.kind === "array-like") {

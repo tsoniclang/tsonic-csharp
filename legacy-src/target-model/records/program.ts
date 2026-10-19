@@ -48,10 +48,12 @@ import type { CsharpJsonObjectShapeRecords } from "./json-object-shapes.js";
 import type { CsharpObjectMethodRecords } from "./object-methods.js";
 import type { CsharpObjectMemberRecords } from "./object-members.js";
 import type { CsharpObjectLiteralRecords } from "./object-literals.js";
+import type { CsharpIndexedRecordRecords } from "./indexed-records.js";
 import type { CsharpCompilationRecords } from "./compilation.js";
 import type { CsharpSourceUnionEmissionRecords } from "./source-unions.js";
 
 export interface CsharpProgramRecords extends CsharpStatementExitRecords, CsharpStatementCompletionRecords, CsharpResourceScopeRecords, CsharpDeclarationModifierRecords, CsharpNativeDeclarationRecords, CsharpStructuralInterfaceRecords, CsharpLexicalValueRecords, CsharpConstructorEmissionRecords, CsharpClassEmissionRecords {
+  readonly indexedRecordRead: CsharpIndexedRecordRecords["indexedRecordRead"];
   readonly bindingIdentity: CsharpBindingIdentityRecords["bindingIdentity"];
   readonly sourceFile: CsharpSourceFileRecords["sourceFile"];
   readonly nodeObjectShape: CsharpObjectShapeRecords["nodeObjectShape"];

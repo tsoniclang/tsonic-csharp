@@ -152,8 +152,7 @@ function translateSelectedProperty(
     }
     const key: CsharpExpression = { kind: "LiteralExpression", value: input.program.source.ast.text(sourceName) };
     if (selection.invocation.optionalRead) {
-      return projectCsharpPlannedValue(node, sourceFile, input, diagnostics, receiver, value => csharpRecordOptionalRead(value, key, selection.source.optionalChain,
-        member.declaringType, member.returnType,
+      return projectCsharpPlannedValue(node, sourceFile, input, diagnostics, receiver, value => csharpRecordOptionalRead(node, value, key,
         `__tsonic_record_${input.program.source.ast.pos(node)}_${input.program.source.ast.end(node)}`, input));
     }
     return projectCsharpPlannedValue(node, sourceFile, input, diagnostics, receiver, value => ({

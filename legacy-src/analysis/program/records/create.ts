@@ -51,8 +51,10 @@ import { createCsharpJsonObjectShapeRecords } from "./json-object-shapes.js";
 import type { CsharpObjectMethodRecords } from "../../../target-model/records/object-methods.js";
 import type { CsharpObjectMemberRecords } from "../../../target-model/records/object-members.js";
 import type { CsharpObjectLiteralRecords } from "../../../target-model/records/object-literals.js";
+import type { CsharpIndexedRecordRecords } from "../../../target-model/records/indexed-records.js";
 
 export interface CsharpProgramRecordInput {
+  readonly indexedRecords: CsharpIndexedRecordRecords;
   readonly objectLiterals: CsharpObjectLiteralRecords;
   readonly objectMembers: CsharpObjectMemberRecords;
   readonly objectMethods: CsharpObjectMethodRecords;
@@ -111,6 +113,7 @@ export function createCsharpProgramRecords(
   required: readonly CsharpRequiredRecord[],
 ): CsharpProgramRecords {
   const records: CsharpProgramRecords = Object.freeze({
+    ...input.indexedRecords,
     ...input.objectLiterals,
     ...input.objectMembers,
     ...input.objectMethods,

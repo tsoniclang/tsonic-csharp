@@ -1,8 +1,8 @@
 import type { CsharpExpression } from "../../target-ast/syntax/index.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/index.js";
+import type { Node } from "@tsonic/tsts";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import type { CsharpPlanningContext } from "../context.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 
 export function csharpRecordOperation(name: "GetOrDefault" | "Set" | "Extend", arguments_: readonly CsharpExpression[]): CsharpExpression {
   return { kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression",
@@ -11,20 +11,18 @@ export function csharpRecordOperation(name: "GetOrDefault" | "Set" | "Extend", a
 }
 
 export function csharpRecordOptionalRead(
+  node: Node,
   receiver: CsharpExpression,
   key: CsharpExpression,
-  optionalChain: boolean,
-  owner: TargetTypeRef | undefined,
-  value: TargetTypeRef | undefined,
   nameHint: string,
   input: CsharpPlanningContext,
-): CsharpExpression | undefined {
-  if (!optionalChain) return csharpRecordOperation("GetOrDefault", [receiver, key]);
-  const type = owner === undefined ? undefined
-    : csharpTypeFromTargetTypeRef(getCsharpNullableElementTargetType(owner) ?? owner, input.scope.typeParameterNames);
-  const result = value === undefined ? undefined
-    : csharpTypeFromTargetTypeRef(csharpNullableTargetType(value), input.scope.typeParameterNames);
-  if (type === undefined || result === undefined) return undefined;
+): CsharpExpression {
+  const selected = input.program.records.indexedRecordRead.get(node);
+  if (selected === undefined) failCsharpPlannerInvariant("An admitted indexed record read requires its sealed native absence plan.", node);
+  if (selected.kind === "direct") return csharpRecordOperation("GetOrDefault", [receiver, key]);
+  const type = csharpTypeFromTargetTypeRef(selected.owner, input.scope.typeParameterNames);
+  const result = csharpTypeFromTargetTypeRef(selected.result, input.scope.typeParameterNames);
+  if (type === undefined || result === undefined) failCsharpPlannerInvariant("An admitted optional record read requires its native receiver and result syntax.", node);
   const name = input.names.temporaryName(nameHint);
   return { kind: "ConditionalExpression", condition: { kind: "IsPatternExpression", expression: receiver, type, designation: name },
     whenTrue: csharpRecordOperation("GetOrDefault", [{ kind: "IdentifierName", name }, key]),

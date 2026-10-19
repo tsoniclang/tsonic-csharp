@@ -13,6 +13,7 @@ import { analyzeCsharpStructuralObjectEmission } from "../objects/structural-emi
 import { analyzeCsharpAuthoredObjectMethods } from "../objects/authored-methods.js";
 import { analyzeCsharpObjectMemberEmission } from "../objects/member-emission.js";
 import { analyzeCsharpObjectLiterals } from "../objects/object-literals.js";
+import { analyzeCsharpIndexedRecords } from "../objects/indexed-records.js";
 import { analyzeCsharpDeclarationModifiers } from "../declarations/classes/modifiers.js";
 import { analyzeCsharpNativeDeclarationForms } from "../declarations/native-forms.js";
 import { analyzeCsharpStructuralInterfaceEmission } from "../declarations/interfaces/structural.js";
@@ -566,7 +567,10 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const objectLiterals = analyzeCsharpObjectLiterals({ source: sourceSyntax, demand: nativeDemand, shapes: callableAdapters.objectShapes,
     operations: admittedOperations, methods: objectMethods.records, members: objectMembers.records, storage: analysis.storage });
   if (objectLiterals.issues.length !== 0) return rejectedTargetStage(objectLiterals.issues);
+  const indexedRecords = analyzeCsharpIndexedRecords(sourceStorage.nodes, admittedOperations);
+  if (indexedRecords.issues.length !== 0) return rejectedTargetStage(indexedRecords.issues);
   const records = createCsharpProgramRecords({
+    indexedRecords: indexedRecords.records,
     objectLiterals: objectLiterals.records,
     objectMembers: objectMembers.records,
     objectMethods: objectMethods.records,
