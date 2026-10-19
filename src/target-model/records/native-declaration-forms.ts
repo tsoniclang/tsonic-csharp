@@ -7,5 +7,15 @@ export interface CsharpNativeEnumDeclaration {
 }
 
 export interface CsharpNativeDeclarationRecords {
-  readonly nativeDeclaration: { readonly get: (subject: Node) => CsharpNativeEnumDeclaration | undefined };
+  readonly nativeDeclaration: { readonly get: (subject: Node) => CsharpNativeDeclarationForm | undefined };
 }
+
+export interface CsharpNativeClassDeclaration {
+  readonly kind: "class";
+  readonly staticCompanion: {
+    readonly name: string;
+    readonly members: readonly Node[];
+  } | undefined;
+}
+
+export type CsharpNativeDeclarationForm = CsharpNativeEnumDeclaration | CsharpNativeClassDeclaration;

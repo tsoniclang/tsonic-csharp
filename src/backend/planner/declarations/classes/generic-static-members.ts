@@ -5,21 +5,22 @@ import type { CsharpPlanningContext } from "../../context.js";
 import { createCsharpMemberPlanningContext } from "../../context.js";
 import { planClassMembers } from "./members.js";
 import { planClassInitializationRegion } from "./initializers.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 
 export function planGenericClassStaticMembers(
   node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
 ): CsharpClassDeclaration | undefined {
-  const definition = input.types.projectTypes.definitionContainingDeclaration(node);
-  if (!definition?.staticCompanion) return undefined;
-  const ast = input.program.source.ast;
-  const members = ast.members(node).filter(member => member !== undefined &&
-    (ast.hasModifierKind(member, "static") || ast.is.IsClassStaticBlockDeclaration(member)));
+  const selected = input.program.records.nativeDeclaration.get(node);
+  if (selected?.kind !== "class") failCsharpPlannerInvariant("An admitted native class requires its static-companion selection.", node);
+  const companion = selected.staticCompanion;
+  if (companion === undefined) return undefined;
+  const { members, name } = companion;
   input = createCsharpMemberPlanningContext(input);
-  const initialization = planClassInitializationRegion(node, sourceFile, definition.sourceName, true, input, diagnostics);
-  return { kind: "ClassDeclaration", name: definition.sourceName, modifiers: ["public", "static"],
+  const initialization = planClassInitializationRegion(node, sourceFile, name, true, input, diagnostics);
+  return { kind: "ClassDeclaration", name, modifiers: ["public", "static"],
     members: [
-      ...planClassMembers(members, definition.sourceName, sourceFile, input, diagnostics, [initialization]),
-      ...(initialization.relocates ? [{ kind: "ConstructorDeclaration" as const, name: definition.sourceName,
+      ...planClassMembers(members, name, sourceFile, input, diagnostics, [initialization]),
+      ...(initialization.relocates ? [{ kind: "ConstructorDeclaration" as const, name,
         modifiers: ["static" as const], parameters: [], body: { kind: "Block" as const, statements: initialization.statements } }] : []),
       ...input.scope.generatedMethods!.values(),
     ] };
