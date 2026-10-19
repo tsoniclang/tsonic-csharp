@@ -22,10 +22,8 @@ import type {
   CsharpExpression,
   CsharpTypeNode,
 } from "../../target-ast/syntax/index.js";
-import {
-  failCsharpPlannerInvariant,
-  unsupportedNodeDiagnostic,
-} from "../diagnostics.js";
+import { unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";

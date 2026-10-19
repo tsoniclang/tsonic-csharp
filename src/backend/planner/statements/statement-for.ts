@@ -28,7 +28,7 @@ import { planCsharpCaptureFrame, planCsharpCaptureFrameRotation } from "../bindi
 import { sourceExpressionSequence } from "@tsonic/target-api/source";
 import { expressionStatement, planCsharpPlannedDiscard, planDiscardedExpression } from "./statement-output.js";
 import { csharpLoopContinuationLabel, planCsharpLoopContinuation } from "./loop-regions.js";
-import { failCsharpPlannerInvariant } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 
 export function planForStatement(
   node: Node,

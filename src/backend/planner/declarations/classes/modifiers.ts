@@ -4,7 +4,7 @@ import type {
   CsharpPropertyDeclaration,
 } from "../../../target-ast/syntax/index.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import { failCsharpPlannerInvariant } from "../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../../invariants.js";
 import type { CsharpNativeMemberIdentity } from "../../../../target-model/names/model.js";
 import {
   planCsharpNativeMemberHiding,

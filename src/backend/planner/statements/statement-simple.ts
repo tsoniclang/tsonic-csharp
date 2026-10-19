@@ -20,9 +20,7 @@ import type {
 import type {
   DestructuringPlannerState,
 } from "../bindings/index.js";
-import {
-  failCsharpPlannerInvariant,
-} from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 import {
   isDestructuringAssignmentExpression,
   planDestructuringAssignmentStatement,

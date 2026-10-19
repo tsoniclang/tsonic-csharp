@@ -4,7 +4,7 @@ import {
 } from "@tsonic/target-api/source";
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { CsharpNamePlan, CsharpNativeMemberIdentity } from "../../../target-model/names/model.js";
-import { failCsharpPlannerInvariant } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
 import { objectShapeArtifactKey } from "../../../target-model/records/object-shape-demand.js";
 import type { CsharpNativeMemberHidingReader } from "../../../target-model/records/native-member-names.js";

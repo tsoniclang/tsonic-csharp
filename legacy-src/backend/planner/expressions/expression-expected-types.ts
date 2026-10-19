@@ -8,7 +8,7 @@ import type { CsharpStatement } from "../../target-ast/syntax/index.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
 import { csharpSourcePrimitiveTargetType, csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
-import { failCsharpPlannerInvariant } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 import { planArrayLiteralExpressionWithCarrier } from "./array-literals/index.js";
 import { planObjectLiteralExpression } from "../objects/object-literals/planning.js";
 import { tryPlanRecordDictionaryLiteralWithCarrier } from "./expression-dictionary-literals.js";

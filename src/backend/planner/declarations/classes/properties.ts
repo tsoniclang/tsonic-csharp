@@ -30,9 +30,7 @@ import {
 import {
   getCsharpTypeForNode,
 } from "../../types/index.js";
-import {
-  failCsharpPlannerInvariant,
-} from "../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../../invariants.js";
 import {
   planBlockStatements,
 } from "../../statements/index.js";

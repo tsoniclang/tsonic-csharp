@@ -18,9 +18,7 @@ import type {
 import {
   planExpression,
 } from "../expressions/index.js";
-import {
-  failCsharpPlannerInvariant,
-} from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 import {
   planCsharpConditionExpression as planCheckedConditionExpression,
 } from "../expressions/expression-bool-carriers.js";

@@ -5,7 +5,7 @@ import type { CsharpPlannedValue } from "../expressions/planned-values.js";
 import { consumeCsharpPlannedValue } from "./statement-output.js";
 import type { CsharpPlanningContext } from "../context.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";
-import { failCsharpPlannerInvariant } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 import { finishSwitchSections, planOrderedSwitch, type CsharpPlannedSwitchSection } from "./ordered-switch.js";
 
 interface SwitchStatementPlanner {

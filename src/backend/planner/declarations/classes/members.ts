@@ -15,9 +15,7 @@ import {
   KindSetAccessor,
   SourceKind,
 } from "@tsonic/target-api/source";
-import {
-  failCsharpPlannerInvariant,
-} from "../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../../invariants.js";
 import { planConstructorDeclarations } from "./constructors.js";
 import {
   planMethodDeclaration,

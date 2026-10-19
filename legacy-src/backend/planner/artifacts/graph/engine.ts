@@ -9,7 +9,7 @@ import { objectShapeArtifactKey } from "../../../../target-model/records/object-
 import { createCsharpGeneratedHelperRegistry } from "../generated-helpers.js";
 import { captureDependencies, dependOn } from "./dependencies.js";
 import { requireGeneratedHelper } from "./generated-helpers.js";
-import { failCsharpPlannerInvariant } from "../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../../invariants.js";
 import { reconstructArtifact, verifyContractClosure } from "./reconstruction.js";
 
 export interface CsharpArtifactGraphScope {

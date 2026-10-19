@@ -4,7 +4,7 @@ import type { CsharpExpression, CsharpStatement } from "../../target-ast/syntax/
 import type { CsharpPlanningContext } from "../context.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
-import { failCsharpPlannerInvariant } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 import { requireCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 
 export function planObjectBindingElement(

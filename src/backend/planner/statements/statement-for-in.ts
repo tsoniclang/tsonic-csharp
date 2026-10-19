@@ -6,7 +6,7 @@ import type {
   CsharpStatement,
 } from "../../target-ast/syntax/index.js";
 import { predefined } from "../types/index.js";
-import { failCsharpPlannerInvariant } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 import type { CsharpAdmittedIteration } from "../../../target-model/records/selection.js";
 import {
   allocateForInNames,

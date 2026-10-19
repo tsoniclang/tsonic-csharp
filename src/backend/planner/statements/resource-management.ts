@@ -21,9 +21,7 @@ import type {
 import {
   qualifiedCsharpType,
 } from "../types/index.js";
-import {
-  failCsharpPlannerInvariant,
-} from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";

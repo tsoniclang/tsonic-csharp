@@ -23,7 +23,7 @@ import {
   getCsharpTypeForNode,
 } from "../../types/index.js";
 import { getExplicitReturnType } from "../callables/return-types.js";
-import { failCsharpPlannerInvariant } from "../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../../invariants.js";
 import { planInterfaceHeritage } from "../classes/heritage.js";
 import {
   planParametersWithPrelude,

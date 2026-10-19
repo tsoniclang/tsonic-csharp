@@ -7,7 +7,7 @@ import type {
 import {
   csharpTypeFromTargetTypeRef,
 } from "../../types/target-types.js";
-import { failCsharpPlannerInvariant } from "../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../../invariants.js";
 
 export interface CsharpClassHeritage {
   readonly baseType?: CsharpTypeNode;

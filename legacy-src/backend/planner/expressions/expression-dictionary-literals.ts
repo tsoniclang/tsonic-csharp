@@ -26,10 +26,8 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
 } from "../../target-ast/syntax/index.js";
-import {
-  unsupportedNodeDiagnostic,
-  failCsharpPlannerInvariant,
-} from "../diagnostics.js";
+import { unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 import { requireCsharpNativeExpressionUse } from "./native-uses.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { csharpRecordOperation } from "../objects/indexed-records.js";

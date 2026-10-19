@@ -11,7 +11,7 @@ import { csharpPlannedValue, type CsharpPlannedValue } from "../expressions/plan
 import { planCsharpPlannedDiscard } from "../statements/statement-output.js";
 
 import type { CsharpArrayBindingCarrier } from "../../../target-model/types/index.js";
-import { failCsharpPlannerInvariant } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 import { planIdentifierExpression } from "../expressions/expression-source-references.js";
 import { applyCsharpConversionSelection } from "../expressions/conversions.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";

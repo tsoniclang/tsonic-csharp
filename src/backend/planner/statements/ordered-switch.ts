@@ -9,7 +9,7 @@ import { planSelectedCsharpBinaryOperation } from "../expressions/operators/sele
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import type { CsharpPlannedValue } from "../expressions/planned-values.js";
 import { consumeCsharpPlannedValue } from "./statement-output.js";
-import { failCsharpPlannerInvariant } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 
 export interface CsharpPlannedSwitchSection {
   readonly syntax: CsharpSwitchSection;

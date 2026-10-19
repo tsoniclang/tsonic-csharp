@@ -14,10 +14,8 @@ import {
   csharpPostfixUnaryOperatorTokenFromText,
   csharpPrefixUnaryOperatorTokenFromText,
 } from "./csharp-operator-tokens.js";
-import {
-  failCsharpPlannerInvariant,
-  unsupportedNodeDiagnostic,
-} from "../diagnostics.js";
+import { unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 import type {
   ExpressionPlanner,
 } from "./expression-planner-types.js";

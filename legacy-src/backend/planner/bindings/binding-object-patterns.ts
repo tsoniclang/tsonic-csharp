@@ -14,9 +14,7 @@ import { planObjectBindingElement } from "./binding-object-source-patterns.js";
 import {
   planObjectShapeBindingPattern,
 } from "./binding-object-shape-patterns.js";
-import {
-  failCsharpPlannerInvariant,
-} from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 
 export function planObjectBindingPattern(
   patternNode: Node,

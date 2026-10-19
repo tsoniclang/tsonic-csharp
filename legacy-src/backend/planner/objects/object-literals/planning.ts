@@ -18,7 +18,8 @@ import {
 } from "../../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpObjectShapeFact } from "../../../../target-model/types/index.js";
-import { failCsharpPlannerInvariant, unsupportedNodeDiagnostic } from "../../diagnostics.js";
+import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../../invariants.js";
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
 import { planCsharpObjectCaptureAssignments } from "../declarations/authored-methods.js";
 import { csharpConstructibleTypeFromObjectShapeFact } from "../index.js";

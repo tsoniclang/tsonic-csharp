@@ -2,11 +2,6 @@ import type {
   Node,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import { failTargetPlannerInvariant } from "@tsonic/target-api/artifacts";
-
-export function failCsharpPlannerInvariant(message: string, sourceNode?: Node): never {
-  return failTargetPlannerInvariant("tsonic-csharp", message, sourceNode);
-}
 
 export function targetPolicyDiagnostic(
   node: Node,

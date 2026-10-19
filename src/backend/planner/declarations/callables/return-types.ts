@@ -6,7 +6,7 @@ import type {
 import type { TargetTypeRef } from "../../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTypeNode } from "../../../target-ast/syntax/index.js";
-import { failCsharpPlannerInvariant } from "../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../../invariants.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import {
   getCsharpTaskResultTargetType,

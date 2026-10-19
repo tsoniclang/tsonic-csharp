@@ -7,7 +7,7 @@ import { allocateSyntheticParameter, createDestructuringPlannerState, declareCsh
 import { planAttributesForSubject } from "../attributes.js";
 import type { DestructuringPlannerState } from "../../bindings/index.js";
 import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../../types/target-type-object-shapes.js";
-import { failCsharpPlannerInvariant } from "../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../../invariants.js";
 import { planExpression } from "../../expressions/index.js";
 import { planCsharpRuntimeParameterDefault } from "./defaults.js";
 import { consumeCsharpPlannedValue } from "../../statements/statement-output.js";

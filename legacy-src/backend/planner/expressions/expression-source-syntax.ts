@@ -20,7 +20,8 @@ import {
   Node_Text,
   SourceKind,
 } from "@tsonic/target-api/source";
-import { failCsharpPlannerInvariant, unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 import type {
   ExpressionPlanner,
 } from "./expression-planner-types.js";

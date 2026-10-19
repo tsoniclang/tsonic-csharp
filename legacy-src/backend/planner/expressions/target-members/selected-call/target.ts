@@ -4,7 +4,8 @@ import { renderSelectedCsharpTargetMethodTypeArguments } from "../../selected-me
 import { sourceCallIsOptional, translateArrayCreationCall } from "./helpers.js";
 import { translateCsharpSelectedReceiver } from "../../receivers.js";
 import { translateSelectedTargetArguments } from "./arguments.js";
-import { unsupportedNodeDiagnostic, failCsharpPlannerInvariant } from "../../../diagnostics.js";
+import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../../../invariants.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../../expression-planner-types.js";
 import type { CsharpArgument, CsharpExpression } from "../../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";

@@ -5,7 +5,7 @@ import type { CsharpPlanningContext } from "../../context.js";
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
 import { getCsharpLocalBindingName } from "../../bindings/binding-state.js";
 import { planCsharpFrameClosureReference } from "../../bindings/capture-closures.js";
-import { failCsharpPlannerInvariant } from "../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../../invariants.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 
 export function planCsharpLexicalFunctionValues(

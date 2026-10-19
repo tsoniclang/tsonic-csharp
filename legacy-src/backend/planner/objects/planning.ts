@@ -10,10 +10,8 @@ import type {
 import type {
   CsharpOutputSourceFile,
 } from "../../artifact-model/output.js";
-import {
-  unsupportedNodeDiagnostic,
-  failCsharpPlannerInvariant,
-} from "../diagnostics.js";
+import { unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";

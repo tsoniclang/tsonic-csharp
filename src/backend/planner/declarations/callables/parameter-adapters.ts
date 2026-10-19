@@ -7,7 +7,7 @@ import type { CsharpPlanningContext } from "../../context.js";
 import { applyCsharpConversionSelection } from "../../expressions/conversions.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { qualifiedCsharpType } from "../../types/index.js";
-import { failCsharpPlannerInvariant } from "../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../../invariants.js";
 
 export function planCsharpCallableArguments(
   declaration: Node, source: Pick<CsharpSourceCallContract, "parameters">, parameters: readonly CsharpParameter[],

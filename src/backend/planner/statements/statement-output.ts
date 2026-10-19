@@ -12,7 +12,7 @@ import { qualifiedCsharpType } from "../types/index.js";
 import type { CsharpPlannedValue, CsharpPlannedEffectOperand } from "../expressions/planned-values.js";
 import { csharpPlannedEffect } from "../expressions/planned-values.js";
 import { csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
-import { failCsharpPlannerInvariant } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 
 export function consumeCsharpPlannedValue(

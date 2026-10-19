@@ -5,7 +5,7 @@ import type { CsharpPlanningContext } from "../../context.js";
 import { createCsharpMemberPlanningContext } from "../../context.js";
 import { planClassMembers } from "./members.js";
 import { planClassInitializationRegion } from "./initializers.js";
-import { failCsharpPlannerInvariant } from "../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../../invariants.js";
 
 export function planGenericClassStaticMembers(
   node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],

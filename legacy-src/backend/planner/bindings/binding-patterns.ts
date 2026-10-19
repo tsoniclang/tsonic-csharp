@@ -20,7 +20,7 @@ import { planArrayBindingPattern } from "./binding-array-patterns.js";
 import type { ExpressionPlanner } from "../expressions/expression-planner-types.js";
 import { allocateDestructuringTemp } from "./binding-state.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
-import { failCsharpPlannerInvariant } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 import { planObjectBindingPattern } from "./binding-object-patterns.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";

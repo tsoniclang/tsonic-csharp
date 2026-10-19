@@ -8,11 +8,8 @@ import type { CsharpTargetCallSelection } from "../../../target-model/records/me
 import type {
   CsharpExpression,
 } from "../../target-ast/syntax/index.js";
-import {
-  failCsharpPlannerInvariant,
-  targetPolicyDiagnostic,
-  unsupportedNodeDiagnostic,
-} from "../diagnostics.js";
+import { targetPolicyDiagnostic, unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 import type {
   CallArgumentPlanner,
   ExpressionPlanner,

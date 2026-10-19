@@ -8,7 +8,7 @@ import {
 import type { DestructuringPlannerState } from "../bindings/index.js";
 import type { ControlLabelTarget } from "../bindings/binding-state.js";
 import type { NestedStatementPlanner } from "./model.js";
-import { failCsharpPlannerInvariant } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 
 export function planLabeledStatement(
   node: Node,

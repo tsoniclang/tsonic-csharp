@@ -1,5 +1,6 @@
 import { targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
-import { targetPolicyDiagnostic, unsupportedNodeDiagnostic, failCsharpPlannerInvariant } from "../../../diagnostics.js";
+import { targetPolicyDiagnostic, unsupportedNodeDiagnostic } from "../../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../../../invariants.js";
 import { planCsharpJsValueCall } from "./js-values.js";
 import { buildCsharpPlannedValue, projectCsharpPlannedValue } from "../../planned-value-composition.js";
 import type { CsharpPlannedValue } from "../../planned-values.js";

@@ -10,7 +10,7 @@ import { planCsharpBindingDefaultValue } from "../../bindings/optional-values.js
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import type { CsharpDefaultParameterContract } from "../../../../target-model/records/declarations.js";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
-import { failCsharpPlannerInvariant } from "../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../../invariants.js";
 
 type CsharpRuntimeParameterDefaultPlan = {
   readonly valueType: CsharpTypeNode;

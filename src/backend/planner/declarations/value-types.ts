@@ -11,7 +11,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTypeMember, CsharpStructDeclaration, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import { renderBoundRecordMember } from "../objects/declarations/members.js";
 import { planAttributesForSubject } from "./attributes.js";
-import { failCsharpPlannerInvariant } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../types/target-type-object-shapes.js";
 import { planCsharpNativeMemberHiding } from "./modifiers.js";
 import { objectShapeBoundStorageMemberName } from "../../../target-model/names/object-members.js";
