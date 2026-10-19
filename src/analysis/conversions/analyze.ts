@@ -69,6 +69,7 @@ export function analyzeCsharpConversions(
     Node,
     Map<string, CsharpExpressionConversionClassification>
   >();
+  const callCompletionConversions = new Map<Node, { readonly source: TargetTypeRef; readonly target: TargetTypeRef }>();
   let delegateAdapters: ReturnType<typeof sealCsharpDelegateAdapterIdentities> = new Map();
   const issues: CsharpConversionIssue[] = [];
   const propertyProjections = new WeakMap<Node, ReadonlyMap<string, readonly CsharpObjectShapeMemberFact[]>>();
@@ -145,7 +146,7 @@ export function analyzeCsharpConversions(
         }
         const classification = expressionSelections.get(expression)?.get(key);
         return classification === undefined ? undefined : Object.freeze({ key, classification });
-      }, (expression, source, target) => classifyPair(source, target, "implicit", expression), requiredRecords, issues);
+      }, (expression, source, target) => classifyPair(source, target, "implicit", expression), requiredRecords, issues, callCompletionConversions);
       issues.push(...admitted.issues);
       delegateAdapters = sealCsharpDelegateAdapterIdentities(policy, admitted.expressions, issues);
       closed = true;
@@ -210,7 +211,6 @@ export function analyzeCsharpConversions(
     for (const targetType of expectedTypes.expectedType.get(node)) {
       classifyArraySpreadElements(node, targetType, operations, valueReads);
     }
-    classifyUndefinedInitializer(node);
     classifyYieldResume(node);
     classifyCallUses(node, operations);
     classifySelectedTargetCallUses(operations.selectedCall.get(node)?.target ?? operations.selectedConstruction.get(node)?.target, valueReads);
@@ -284,22 +284,6 @@ export function analyzeCsharpConversions(
     }
   }
 
-  function classifyUndefinedInitializer(node: Node): void {
-    if (!policy.ast.is.IsVariableDeclaration(node)) {
-      return;
-    }
-    const declaration = policy.ast.as.AsVariableDeclaration(node);
-    if (declaration?.Initializer !== undefined) {
-      return;
-    }
-    classifyPair(
-      csharpAbsenceTargetType(),
-      evidence.storageTargetType.get(node),
-      "implicit",
-      node,
-    );
-  }
-
   function classifyYieldResume(node: Node): void {
     if (policy.ast.is.IsVariableDeclaration(node)) {
       const initializer = policy.ast.as.AsVariableDeclaration(node)?.Initializer;
@@ -370,8 +354,14 @@ export function analyzeCsharpConversions(
     }
     if (classification.sourceResult !== undefined) {
       classifyPair(classification.sourceResult.nativeType, classification.sourceResult.selectedType, "explicit", node);
-      if (classification.optionalCallee !== undefined || classification.optionalReceiver?.guard === true) {
-        classifyPair(classification.sourceResult.selectedType, classification.selectedResultType, "implicit", node);
+    }
+    if (classification.optionalCallee !== undefined || classification.optionalReceiver?.guard === true) {
+      const source = classification.sourceResult?.selectedType ?? (classification.target?.kind === "resolved"
+        ? classification.target.call.targetMember.returnType : undefined);
+      const target = classification.selectedResultType;
+      if (source !== undefined && target !== undefined) {
+        classifyPair(source, target, "implicit", node);
+        callCompletionConversions.set(node, Object.freeze({ source, target }));
       }
     }
     const source = classification.source ?? (

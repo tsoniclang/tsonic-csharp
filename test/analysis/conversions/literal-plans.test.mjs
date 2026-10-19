@@ -106,11 +106,12 @@ test("exact property-key floating tokens render native D without parsing or an i
     assert.equal(planned.kind === "resolved", true, `${precision}: the exact token renders`);
     const text = printCsharpExpression(planned.expression);
     const suffix = precision === "float32" ? "F" : precision === "decimal" ? "M" : "D";
-    assert.equal(precision === "float16" ? text === "System.BitConverter.UInt16BitsToHalf(15360)" : text.endsWith(`1.0${suffix}`),
+    assert.equal(precision === "float16" ? text === "(Half)1D" : text.endsWith(`1.0${suffix}`),
       true, `${precision}: the exact native value survives`);
-    assert.equal(precision !== "float16" || planned.expression.kind === "InvocationExpression" &&
-      admitted.recipe.bits === 0x3c00 && planned.expression.arguments[0].expression.value === admitted.recipe.bits, true,
-    `${precision}: Half consumes sealed bits without a float32 or float64 intermediary`);
+    assert.equal(precision !== "float16" || planned.expression.kind === "CastExpression" &&
+      admitted.recipe.bits === 0x3c00 && planned.expression.expression.kind === "NumericLiteralExpression" &&
+      planned.expression.expression.token === admitted.recipe.token && planned.expression.expression.suffix === "D", true,
+    `${precision}: Half renders the canonical Double token already sealed for its selected bits`);
   }
 });
 
@@ -128,20 +129,22 @@ test("native dictionary construction and lookup agree on the exact selected doub
   executeCsharpConstruction(compiled, "exact-native-double-dictionary-key");
 });
 
-test("Half exact authored midpoint neighbors retain distinct sealed bits in native execution", { timeout: 300_000 }, () => {
+test("Half authored midpoint neighbors follow native Double-to-Half semantics in Node and C#", { timeout: 300_000 }, () => {
   const spellings = ["1.00048828124999999999999999999999", "1.00048828125000000000000000000001", "-0", "5.9604644775390625e-8"];
-  const expected = [0x3c00, 0x3c01, 0x8000, 1];
+  const expected = [0x3c00, 0x3c00, 0x8000, 1];
+  const nodeBits = spellings.map(token => new Uint16Array(new Float16Array([Math.f16round(Number(token))]).buffer)[0]);
+  assert.deepEqual(nodeBits, expected, "Node parses each authored Double before rounding it to native Half");
   const selected = checkedSourceLiteralValues(spellings).map(value => selectCsharpExactLiteralConversion(value, primitive("float16")));
   const expressions = selected.map((selection, index) => {
     assert.equal(selection.kind === "resolved" && selection.recipe.kind === "float" && selection.recipe.bits === expected[index], true,
-      `${index}: the exact authored Half value is selected before any float64 rounding`);
+      `${index}: the checked Double-to-Half value is selected before rendering`);
     const planned = planCsharpExactLiteralRecipe(undefined, selection.recipe);
     assert.equal(planned.kind, "resolved", `${index}: the planner consumes the sealed recipe`);
     return printCsharpExpression(planned.expression);
   });
   const compiled = compileCsharpSource({ sourceText: "export function run(): boolean { return true; }" });
   assertCsharpCompilationSucceeded(compiled);
-  executeCsharpConstruction(compiled, "exact-native-half-midpoints", false, false, [], expressions.map((expression, index) => `
+  executeCsharpConstruction(compiled, "exact-native-half-midpoints", false, false, [], "using System;\n" + expressions.map((expression, index) => `
     if (System.BitConverter.HalfToUInt16Bits(${expression}) != ${expected[index]})
       throw new System.Exception("exact native Half value ${index}");`).join("\n"));
 });

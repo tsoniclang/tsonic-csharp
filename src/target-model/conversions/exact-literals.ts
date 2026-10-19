@@ -15,6 +15,8 @@ export type CsharpExactLiteralRecipe =
       readonly target: CsharpExactLiteralPrimitive;
       readonly precision: "float16";
       readonly bits: number;
+      readonly token: CsharpNumericLiteralToken;
+      readonly negative: boolean;
     }
   | {
       readonly kind: "float";

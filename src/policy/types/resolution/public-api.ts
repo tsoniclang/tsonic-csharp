@@ -465,6 +465,7 @@ export function resolveSourceCallArgumentParameter(
   source: ResolvedSourceCallInfo,
   binding: ResolvedSourceCallInfo["sourceArgumentBindings"][number],
   sourceFile: SourceFile,
+  excludedSourceArgumentIndexes?: ReadonlySet<number>,
 ): TargetTypeRef | undefined {
   const parameter = source.sourceSelectedSignatureParameters[
     binding.sourceParameterIndex
@@ -489,6 +490,7 @@ export function resolveSourceCallArgumentParameter(
       contractedParameter.targetParameter.type,
       sourceFile,
       { depth: 0 },
+      excludedSourceArgumentIndexes,
     );
     return contracted === undefined
       ? undefined
@@ -509,6 +511,7 @@ export function resolveSourceCallArgumentParameter(
     parameter.rest ? parameter.selectedType : binding.selectedParameterType,
     sourceFile,
     { depth: 0 },
+    excludedSourceArgumentIndexes,
   );
   return selectedType === undefined ? undefined : csharpTargetParameterValueType({
     name: parameter.parameterName, type: selectedType, passingMode: "by-value", paramsArray: parameter.rest,
