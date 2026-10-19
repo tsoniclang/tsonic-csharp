@@ -12,6 +12,7 @@ import { createCsharpProgramRecords } from "./records/create.js";
 import { analyzeCsharpStatementExits } from "../control-flow/statement-exits.js";
 import { analyzeCsharpStatementCompletions } from "../control-flow/statement-completion.js";
 import { analyzeCsharpResourceScopes } from "../control-flow/resource-scopes.js";
+import { analyzeCsharpLocalBindings } from "../storage/local-bindings.js";
 import type { CsharpRequiredRecord } from "./records/required-records.js";
 import { analyzeSourceLiteralValues, sourceDeclarationHasOnlyTypeUses, sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
 import { analyzeCsharpExactLiteralSelections } from "../conversions/literal-plans.js";
@@ -509,6 +510,9 @@ function analyzeCsharpTargetProgramBeforeSeal(
     participation: nativeParticipation.participation, values: analysis.valueReads.valueRead,
     required: analysis.requiredRecords });
   const records = createCsharpProgramRecords({
+    localBindings: analyzeCsharpLocalBindings({ ast: source.ast, navigation: source.navigation, nodes: sourceStorage.nodes,
+      admitted: admittedControlNode, nativeRefs: admittedOperations.nativeRefReturn, storage: analysis.storage.storageType,
+      moduleInitialization: moduleInitialization.index.moduleBindingInitialization, required: analysis.requiredRecords }),
     resourceScopes: analyzeCsharpResourceScopes({ ast: source.ast, nodes: sourceStorage.nodes,
       erased: node => analysis.sourceEvidence.compileTimeMetadata.get(node) === true ||
         admittedOperations.nativeUnreachable.get(node) === true || nativeParticipation.participation.get(node) === "erased",

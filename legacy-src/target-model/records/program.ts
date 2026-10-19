@@ -24,8 +24,11 @@ import type { CsharpAdmittedIteration } from "./selection.js";
 import type { CsharpStatementExitRecords } from "./statement-exits.js";
 import type { CsharpStatementCompletionRecords } from "./statement-completion.js";
 import type { CsharpResourceScopeRecords } from "./resource-scopes.js";
+import type { CsharpLocalBindingCompletion } from "./local-bindings.js";
+import type { Node } from "@tsonic/tsts";
 
 export interface CsharpProgramRecords extends CsharpStatementExitRecords, CsharpStatementCompletionRecords, CsharpResourceScopeRecords {
+  readonly localBinding: { readonly get: (subject: Node | undefined) => CsharpLocalBindingCompletion | undefined };
   readonly objectShapeArtifact: CsharpObjectShapeDemand;
   readonly nativeValueDeclaration: CsharpNativeValueCarriers["nativeValueDeclaration"];
   readonly literalValue: import("@tsonic/target-api/source").SourceLiteralIndex["literalValue"];

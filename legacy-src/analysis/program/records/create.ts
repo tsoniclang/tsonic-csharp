@@ -32,6 +32,7 @@ export interface CsharpProgramRecordInput {
   readonly statementExits: CsharpStatementExitRecords;
   readonly statementCompletions: CsharpStatementCompletionRecords;
   readonly resourceScopes: CsharpResourceScopeRecords;
+  readonly localBindings: Pick<CsharpProgramRecords, "localBinding">;
   readonly objectShapeDemand: CsharpObjectShapeDemand;
   readonly nativeValueCarriers: CsharpNativeValueCarriers;
   readonly literalValues: import("@tsonic/target-api/source").SourceLiteralIndex;
@@ -68,6 +69,7 @@ export function createCsharpProgramRecords(
     statementExit: input.statementExits.statementExit,
     ...input.statementCompletions,
     ...input.resourceScopes,
+    ...input.localBindings,
     objectShapeArtifact: input.objectShapeDemand,
     nativeValueDeclaration: input.nativeValueCarriers.nativeValueDeclaration,
     literalValue: input.literalValues.literalValue,
