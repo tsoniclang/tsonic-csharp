@@ -6,32 +6,32 @@ import type {
 import type {
   DotnetAssemblySourcePackage,
   DotnetModuleSpecifierPolicy,
-} from "./projection/modules/specifier.js";
+} from "../projection/module-specifier.js";
 import {
   createDotnetModuleSpecifierPolicy,
   normalizeDotnetAssemblySourcePackages,
-} from "./projection/modules/specifier.js";
-import type { DotnetProviderIdentity } from "./model/index.js";
+} from "../projection/module-specifier.js";
+import type { DotnetProviderIdentity } from "../model/index.js";
 import {
   createDotnetReflectionTypeDataProvider,
-} from "./acquisition/provider.js";
+} from "./provider.js";
 import type {
   DotnetReflectionTypeDataProvider,
-} from "./acquisition/provider.js";
+} from "./provider.js";
 import {
   csharpProviderPolicyContributionKind,
   composeCsharpBinaryExecutionDriver,
   validateCsharpProviderPolicyContribution,
-} from "../model/provider-policy-contribution.js";
+} from "../../model/provider-policy-contribution.js";
 import type {
   CsharpProviderBinaryExecutionDriver,
   CsharpProviderPolicyContribution,
-} from "../model/provider-policy-contribution.js";
+} from "../../model/provider-policy-contribution.js";
 import {
   hasExactContributionFields,
   isContributionRecord,
   nonEmptyContributionString,
-} from "../model/contribution-values.js";
+} from "../../model/contribution-values.js";
 
 export const csharpDotnetProviderContributionKind = "csharp-dotnet-provider";
 
@@ -106,7 +106,7 @@ export function collectCsharpCapabilityContributions(
 export function createCapabilityDotnetProviders(
   contributions: CollectedCsharpCapabilityContributions,
   storage: CsharpDotnetProviderStorage,
-  toolchain: import("./acquisition/toolchain.js").DotnetProviderToolchain,
+  toolchain: import("./toolchain.js").DotnetProviderToolchain,
 ): readonly CsharpCapabilityDotnetProvider[] {
   const providers: CsharpCapabilityDotnetProvider[] = [];
   const identities = new Set<string>();

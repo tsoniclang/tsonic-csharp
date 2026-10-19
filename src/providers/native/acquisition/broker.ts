@@ -3,7 +3,7 @@ import type {
 } from "../model/index.js";
 import type {
   DotnetProviderDiagnostic,
-} from "../provider.js";
+} from "../projection/provider.js";
 import type {
   DotnetProviderCacheRequest,
 } from "./cache.js";

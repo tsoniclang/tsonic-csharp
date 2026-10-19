@@ -340,6 +340,37 @@ for (const surface of ["native", "js"]) {
     assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
       "a failed inferred construction is rejected before any sealed or emitted program");
   });
+  for (const [name, body] of [
+    ["argument", `function accept<T>(sample: T, values: T[]): T[] { void sample; return values; }
+      export function run(narrow: float32, signed: int32, wide: number) {
+        const values = [narrow, signed]; return accept(wide, values); }`],
+    ["callback", `function call<T>(sample: T, make: () => T[]): T[] { void sample; return make(); }
+      export function run(narrow: float32, signed: int32, wide: number) {
+        return call(wide, () => { const values = [narrow, signed]; return values; }); }`],
+  ]) test(`${surface} an independently inferred generic ${name} retains its actual native destination`, () => {
+    const program = accepted(compile(surface, body));
+    actualDestinationEvidence(program, ["float64"], `independent generic ${name}`);
+  });
+  for (const [name, body] of [
+    ["arguments", `function accept<T>(first: T[], second: T[]): T[] { void second; return first; }
+      export function run() { const values = ["text", 9007199254740993]; const alias = values;
+        return accept(values, alias); }`],
+    ["callbacks", `function call<T>(first: () => T[], second: () => T[]): T[] { void second; return first(); }
+      export function run() { const values = ["text", 9007199254740993];
+        return call(() => values, () => values); }`],
+  ]) test(`${surface} same-call ${name} of one array cannot certify each other's rounding destination`, () => {
+    const compiled = compile(surface, body);
+    assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
+    const issue = compiled.nativeStage.diagnostics[0];
+    const ast = compiled.nativeStage.source.ast;
+    const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
+    const text = range?.kind !== "authored" ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end);
+    assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH" &&
+      issue.message === "An inferred numeric union requires an exact canonical carrier for every authored integer literal." &&
+      text === '["text", 9007199254740993]', true, "checked aliases of the same native construction supply no independent rounding authority");
+    assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
+      "the original precise rejection occurs before sealing, without an alias-induced floating conversion");
+  });
   test(`${surface} incompatible actual native destinations refuse one physical array before sealing`, () => {
     const compiled = compile(surface, `function single(values: float32[]): void {}
       function double(values: number[]): void {}

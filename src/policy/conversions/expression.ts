@@ -18,7 +18,7 @@ import { selectCsharpConversion } from "./core.js";
 import type { CsharpConversionMode, CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import { csharpConversionIsApplicable } from "../../target-model/conversions/selection.js";
 import type { CsharpPolicyContext } from "../model/context.js";
-import type { CsharpProviderArgumentAdapter } from "../../providers/native/relations/index.js";
+import type { CsharpProviderArgumentAdapter } from "../../providers/model/provider-relations.js";
 import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../types/index.js";
 import type { CsharpConversionShapeQueries } from "./shape-queries.js";

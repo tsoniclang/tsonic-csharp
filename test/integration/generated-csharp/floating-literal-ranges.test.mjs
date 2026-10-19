@@ -203,13 +203,13 @@ System.Console.WriteLine("negative float16 values: correct");
     assert.equal(output.trim(), "negative float16 values: correct");
     const index = generatedIndex(compiled);
     assert.deepEqual([
-      "Half y = (Half)(-1.5);",
-      "Half y = (Half)(-65504);",
-      "Half y = (Half)(-65519.99);",
-      "Half y = (Half)(-0.1);",
-      "Half y = (Half)(-0F);",
+      "Half y = (Half)(-1.5D);",
+      "Half y = (Half)(-65504D);",
+      "Half y = (Half)(-65519.99D);",
+      "Half y = (Half)(-0.1D);",
+      "Half y = (Half)(-0D);",
       "return (Half)(-x);",
-      "(Half)1.5, (Half)(-1.5)",
+      "(Half)1.5D, (Half)(-1.5D)",
     ].filter(line => !index.includes(line)), [], "each signed operand of a Half cast is printed in parentheses");
   });
 

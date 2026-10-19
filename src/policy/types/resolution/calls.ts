@@ -131,6 +131,7 @@ export function resolveSourceCallInstantiation(
   state: CsharpTypeResolutionState,
   expectedTypeParameterIdentities?: readonly string[],
   callable?: CsharpSourceCallContract,
+  excludedSourceArgumentIndexes?: ReadonlySet<number>,
 ):
   | {
       readonly arguments: readonly TargetTypeRef[];
@@ -179,6 +180,7 @@ export function resolveSourceCallInstantiation(
         sourceFile,
         inferredParameterIdentities,
         nextState(state),
+        excludedSourceArgumentIndexes,
       );
   if (inferredTargetArguments === undefined) {
     return undefined;
@@ -197,13 +199,13 @@ export function resolveSourceCallInstantiation(
     }
     let targetArgument = selected.explicitTypeNode === undefined
       ? inferredTargetArguments.get(parameterIdentity) ??
-        resolveAuthoredAndSelectedSourceType(
+        (excludedSourceArgumentIndexes === undefined ? resolveAuthoredAndSelectedSourceType(
           undefined,
           sourceFile,
           selected.selectedType,
           sourceFile,
           nextState(state),
-        )
+        ) : undefined)
       : resolveAuthoredAndSelectedSourceType(
           selected.explicitTypeNode,
           sourceFile,
@@ -211,6 +213,14 @@ export function resolveSourceCallInstantiation(
           sourceFile,
           nextState(state),
         );
+    if (targetArgument === undefined && excludedSourceArgumentIndexes !== undefined && selected.explicitTypeNode === undefined) {
+      const declared = callable?.sourceDeclaration === undefined ? undefined
+        : host.ast.typeParameters(callable.sourceDeclaration)[index];
+      const native = declared === undefined ? undefined : csharpSourceTypeParameter(declared, host.ast);
+      const checked = resolveTypeParameter(selected.typeParameter, host.semantics(sourceFile), host.ast, host.typeParameterConstraints);
+      targetArgument = native?.identity === parameterIdentity ? native
+        : checked?.kind === "type-parameter" && checked.identity === parameterIdentity ? checked : undefined;
+    }
     if (targetArgument === undefined) {
       return undefined;
     }
@@ -239,12 +249,16 @@ export function resolveSourceCallSelectedType(
   selectedType: Type | undefined,
   selectedSourceFile: SourceFile,
   state: CsharpTypeResolutionState,
+  excludedSourceArgumentIndexes?: ReadonlySet<number>,
 ): TargetTypeRef | undefined {
   const { host, resolveAuthoredAndSelectedSourceType, resolveNodeWithState, resolveSourceCallInstantiation, resolveSourceCallReceiverTargetType } = scope;
   const instantiation = resolveSourceCallInstantiation(
     source,
     selectedSourceFile,
     nextState(state),
+    undefined,
+    undefined,
+    excludedSourceArgumentIndexes,
   );
   if (instantiation === undefined) {
     return undefined;
@@ -298,6 +312,10 @@ export function resolveSourceCallSelectedType(
   if (receiverInstantiation.kind === "resolved") {
     return receiverInstantiation.type;
   }
+  if (excludedSourceArgumentIndexes !== undefined) {
+    if (authored !== undefined) return instantiated;
+    if (source.sourceSelectedMethodTypeArguments?.some(argument => argument.explicitTypeNode === undefined)) return undefined;
+  }
   if (
     authored !== undefined &&
     instantiated !== undefined &&
@@ -321,6 +339,7 @@ export function resolveSourceCallableContractType(
   type: TargetTypeRef,
   selectedSourceFile: SourceFile,
   state: CsharpTypeResolutionState,
+  excludedSourceArgumentIndexes?: ReadonlySet<number>,
 ): TargetTypeRef | undefined {
   const instantiation = resolveSourceCallInstantiation(
     source,
@@ -328,6 +347,7 @@ export function resolveSourceCallableContractType(
     nextState(state),
     callable.methodTypeParameterIdentities,
     callable,
+    excludedSourceArgumentIndexes,
   );
   if (instantiation === undefined) {
     return undefined;
@@ -368,13 +388,15 @@ export function inferSourceCallTargetTypeArguments(
   sourceFile: SourceFile,
   parameterIdentities: ReadonlySet<string>,
   state: CsharpTypeResolutionState,
+  excludedSourceArgumentIndexes?: ReadonlySet<number>,
 ): ReadonlyMap<string, TargetTypeRef> | undefined {
   const inferred = new Map<string, TargetTypeRef>();
   const contextual = (index: number): boolean => {
     const argument = source.sourceArguments[index]?.expression;
     return argument !== undefined && (scope.host.ast.is.IsArrowFunction(argument) || scope.host.ast.is.IsFunctionExpression(argument));
   };
-  const bindings = [...source.sourceArgumentBindings].sort((left, right) =>
+  const bindings = source.sourceArgumentBindings.filter(binding =>
+    excludedSourceArgumentIndexes?.has(binding.sourceArgumentIndex) !== true).sort((left, right) =>
     Number(contextual(left.sourceArgumentIndex)) - Number(contextual(right.sourceArgumentIndex)));
   for (const binding of bindings) {
     const parameter = csharpSourceCallArgumentParameter(callable, binding.effectiveArgumentIndex)?.targetParameter;

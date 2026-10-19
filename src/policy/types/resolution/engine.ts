@@ -205,6 +205,7 @@ export interface CsharpTypeResolutionScope {
   source: ResolvedSourceCallInfo,
   binding: ResolvedSourceCallInfo["sourceArgumentBindings"][number],
   sourceFile: SourceFile,
+  excludedSourceArgumentIndexes?: ReadonlySet<number>,
 ): TargetTypeRef | undefined;
   resolveSourceCallResult(
   source: ResolvedSourceCallInfo,
@@ -364,6 +365,7 @@ export interface CsharpTypeResolutionScope {
   state: CsharpTypeResolutionState,
   expectedTypeParameterNames?: readonly string[],
   callable?: CsharpSourceCallContract,
+  excludedSourceArgumentIndexes?: ReadonlySet<number>,
 ):
   | {
       readonly arguments: readonly TargetTypeRef[];
@@ -377,6 +379,7 @@ export interface CsharpTypeResolutionScope {
   selectedType: Type | undefined,
   selectedSourceFile: SourceFile,
   state: CsharpTypeResolutionState,
+  excludedSourceArgumentIndexes?: ReadonlySet<number>,
 ): TargetTypeRef | undefined;
   resolveSourceCallableContractType(
   source: ResolvedSourceCallInfo,
@@ -384,6 +387,7 @@ export interface CsharpTypeResolutionScope {
   type: TargetTypeRef,
   selectedSourceFile: SourceFile,
   state: CsharpTypeResolutionState,
+  excludedSourceArgumentIndexes?: ReadonlySet<number>,
 ): TargetTypeRef | undefined;
   inferSourceCallTargetTypeArguments(
   source: ResolvedSourceCallInfo,
@@ -391,6 +395,7 @@ export interface CsharpTypeResolutionScope {
   sourceFile: SourceFile,
   parameterNames: ReadonlySet<string>,
   state: CsharpTypeResolutionState,
+  excludedSourceArgumentIndexes?: ReadonlySet<number>,
 ): ReadonlyMap<string, TargetTypeRef> | undefined;
   sourceCallSelectedDeclaration(
   source: ResolvedSourceCallInfo,
