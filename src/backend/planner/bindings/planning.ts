@@ -66,7 +66,7 @@ export function planVariableBindingStatements(
   const initializerExpression = planExpression(initializer, sourceFile, input, diagnostics, state
   );
   if (initializerExpression === undefined) {
-    return [];
+    failCsharpPlannerInvariant("An admitted destructuring declaration requires its native initializer value.", initializer);
   }
   return consumeCsharpPlannedValue(initializerExpression, expression => [
     {
