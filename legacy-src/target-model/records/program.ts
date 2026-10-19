@@ -39,8 +39,10 @@ import type { CsharpLexicalValueRecords } from "./lexical-values.js";
 import type { CsharpCallableParameterRecords } from "./parameter-emission.js";
 import type { CsharpConstructorEmissionRecords } from "./constructor-emission.js";
 import type { CsharpClassEmissionRecords } from "./class-emission.js";
+import type { CsharpBindingIdentityRecords } from "./binding-identities.js";
 
 export interface CsharpProgramRecords extends CsharpStatementExitRecords, CsharpStatementCompletionRecords, CsharpResourceScopeRecords, CsharpDeclarationModifierRecords, CsharpNativeDeclarationRecords, CsharpStructuralInterfaceRecords, CsharpLexicalValueRecords, CsharpConstructorEmissionRecords, CsharpClassEmissionRecords {
+  readonly bindingIdentity: CsharpBindingIdentityRecords["bindingIdentity"];
   readonly classFieldDefault: CsharpClassFieldInitializationRecords["classFieldDefault"];
   readonly callableParameter: CsharpCallableParameterRecords["callableParameter"];
   readonly callableDeclaration: { readonly get: (subject: Node) => CsharpCallableDeclarationEmission | undefined };

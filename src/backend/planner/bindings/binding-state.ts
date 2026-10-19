@@ -392,12 +392,9 @@ function localBindingKey(
   node: Node,
   input: CsharpPlanningContext,
 ): object | undefined {
-  const symbol = input.program.sourceNavigation.referenceFor(node)?.symbol;
-  return asObjectKey(symbol) ?? asObjectKey(node);
-}
-
-function asObjectKey(value: unknown): object | undefined {
-  return typeof value === "object" && value !== null ? value : undefined;
+  const selected = input.program.records.bindingIdentity.get(node);
+  if (selected === undefined) failCsharpPlannerInvariant("An admitted native binding requires its exact checked identity.", node);
+  return selected;
 }
 
 function collectReservedSourceNames(

@@ -22,6 +22,7 @@ import { analyzeCsharpStatementExits } from "../control-flow/statement-exits.js"
 import { analyzeCsharpStatementCompletions } from "../control-flow/statement-completion.js";
 import { analyzeCsharpResourceScopes } from "../control-flow/resource-scopes.js";
 import { analyzeCsharpLocalBindings } from "../storage/local-bindings.js";
+import { analyzeCsharpBindingIdentities } from "../storage/binding-identities.js";
 import { analyzeCsharpGenerators } from "../callables/generators.js";
 import type { CsharpRequiredRecord } from "./records/required-records.js";
 import { analyzeSourceLiteralValues, sourceDeclarationHasOnlyTypeUses, sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
@@ -538,6 +539,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     captures: captureStorage, storage: analysis.storage, names, admitted: admittedControlNode });
   if (classEmission.issues.length !== 0) return rejectedTargetStage(classEmission.issues);
   const records = createCsharpProgramRecords({
+    bindingIdentities: analyzeCsharpBindingIdentities(source, sourceStorage.nodes),
     classEmission: classEmission.records,
     callableParameters: callableParameters.records,
     callableDeclarations: callableDeclarations.records,
