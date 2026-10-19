@@ -26,9 +26,10 @@ export function planCsharpBindingDefaultValue(
   if (contract.normalize) {
     const selected = convertCsharpPlannedValue(node, sourceFile, input, diagnostics,
       csharpPlannedValue(contract.source, value), contract.storage, "implicit");
-    if (selected === undefined || selected.completion.kind !== "value") return undefined;
+    if (selected === undefined || selected.completion.kind !== "value") failCsharpPlannerInvariant("An admitted binding default requires its native normalization value.", node);
     const normalized = render(selected.completion.expression);
-    return normalized === undefined ? undefined : {
+    if (normalized === undefined) failCsharpPlannerInvariant("An admitted binding default requires its native normalized projection.", node);
+    return {
       prelude: [...selected.prelude, ...normalized.prelude], completion: normalized.completion,
     };
   }
