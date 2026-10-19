@@ -5,9 +5,8 @@ import type {
 import type {
   CsharpObjectShapeFact,
 } from "../../../../target-model/types/index.js";
-import {
-  unsupportedNodeDiagnostic,
-} from "../../diagnostics.js";
+import type { Node } from "@tsonic/tsts";
+import { failCsharpPlannerInvariant } from "../../../invariants.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../../types/target-types.js";
@@ -21,14 +20,11 @@ export function renderObjectShapeInterfaces(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
   fact: CsharpObjectShapeFact,
   diagnostics: TargetDiagnostic[] | undefined,
-  diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0] | undefined,
+  diagnosticSubject: Node | undefined,
 ): readonly CsharpTypeNode[] | undefined {
   const rendered = (fact.implements ?? []).map((contract) => csharpTypeFromTargetTypeRef(contract, typeParameterNames));
   if (rendered.some((contract) => contract === undefined)) {
-    if (diagnostics !== undefined && diagnosticSubject !== undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(diagnosticSubject, "Object-shape implemented contracts must carry renderable target type references before C# emission."));
-    }
-    return undefined;
+    failCsharpPlannerInvariant("Object-shape implemented contracts must carry renderable target type references before C# emission.", diagnosticSubject);
   }
   return rendered as readonly CsharpTypeNode[];
 }
