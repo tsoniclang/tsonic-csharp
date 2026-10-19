@@ -7,6 +7,7 @@ import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { nullableCsharpType } from "../../types/index.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { planCsharpNativeMemberHiding } from "../modifiers.js";
+import { withCsharpSafetyModifiers } from "../../safety/explicit-safety.js";
 
 export function planCsharpMutableMethod(
   node: Node, method: CsharpMethodDeclaration,
@@ -16,8 +17,14 @@ export function planCsharpMutableMethod(
   const type = csharpTypeFromTargetTypeRef(write.type, input.scope.typeParameterNames);
   if (type === undefined) return failCsharpPlannerInvariant(
     "An admitted writable method lost its renderable native delegate storage.", node);
+  const modifiers = input.program.records.memberModifiers.get(node);
+  if (modifiers?.method === undefined) failCsharpPlannerInvariant("An admitted writable method requires its native implementation modifiers.", node);
   return [
-    { ...method, name: write.implementationName, modifiers: method.modifiers.map(modifier => modifier === "public" ? "private" : modifier) },
+    { ...method, name: write.implementationName, modifiers: withCsharpSafetyModifiers([
+      ...modifiers.implementation,
+      ...planCsharpNativeMemberHiding(input.program.names, { kind: "source", declaration: node, role: "implementation" }),
+      ...modifiers.method,
+    ], node, "declaration", input) },
     { kind: "FieldDeclaration", name: write.storageName, type: nullableCsharpType(type),
       modifiers: ["private", ...planCsharpNativeMemberHiding(input.program.names, { kind: "source", declaration: node, role: "storage" })] },
     { kind: "PropertyDeclaration", name: method.name, type,

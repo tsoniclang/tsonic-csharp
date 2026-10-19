@@ -75,7 +75,8 @@ export function getCsharpTypeForSourceField(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpTypeNode {
-  const carrier = input.types.classifications.resolveNode(field.sourceType, sourceFile);
+  void sourceFile;
+  const carrier = input.program.records.nodeTargetType.get(field.sourceType);
   if (carrier === undefined) failCsharpPlannerInvariant(`An admitted ${diagnosticLabel} field requires its sealed native carrier.`, field.sourceType);
   const type = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, carrier, diagnostics, field.sourceType);
   return type ?? failCsharpPlannerInvariant(`An admitted ${diagnosticLabel} field requires its renderable native carrier.`, field.sourceType);

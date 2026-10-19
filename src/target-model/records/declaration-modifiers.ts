@@ -7,6 +7,7 @@ export type CsharpCallableModifier = CsharpDispatchModifier | "async";
 
 export interface CsharpMemberModifierSelection {
   readonly member: readonly CsharpMemberModifier[];
+  readonly implementation: readonly CsharpMemberModifier[];
   readonly method: readonly CsharpCallableModifier[] | undefined;
   readonly property: readonly CsharpDispatchModifier[] | undefined;
 }

@@ -14,7 +14,7 @@ export function planCsharpGeneratedMethodCall(
   arguments_: readonly CsharpArgument[],
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
-): CsharpExpression | undefined {
+): CsharpExpression {
   const methods = input.scope.generatedMethods;
   if (methods === undefined || parameters.length !== arguments_.length) {
     return failCsharpPlannerInvariant("A generated native method lost its containing scope or exact constructed argument contract.", node);

@@ -33,7 +33,8 @@ export function analyzeCsharpDeclarationModifiers(input: {
       method = Object.freeze([...(isStatic ? [] : dispatchModifiers(dispatch!, abstract)),
         ...(HasSyntacticModifier(input.ast, node, ModifierFlagsAsync) ? ["async" as const] : [])]);
     const property = dispatch?.kind === "property" ? Object.freeze(dispatchModifiers(dispatch, abstract)) : undefined;
-    values.set(node, Object.freeze({ member, method, property }));
+    const implementation = Object.freeze(member.map(modifier => modifier === "public" ? "private" as const : modifier));
+    values.set(node, Object.freeze({ member, implementation, method, property }));
     requireCsharpRecord(input.required, { family: "memberModifiers", subject: node, construct: kind, producer: "analyzeCsharpDeclarationModifiers" });
   }
   return createCsharpDeclarationModifierRecords(values);
