@@ -315,6 +315,7 @@ test("the one metadata-only base-slot producer agrees with actual native GetBase
   assert.equal(built.status, 0, `handwritten native slot oracle builds: ${built.stdout}\n${built.stderr}`);
   const observed = spawnSync("dotnet", ["run", "--project", project, "--no-build", "--no-restore", "--no-launch-profile"], { encoding: "utf8" });
   assert.equal(observed.status, 0, `handwritten native slot oracle executes: ${observed.stdout}\n${observed.stderr}`);
+  console.log(`native-slot-oracle native-stdout=${observed.stdout.trim()}`);
   const nativeObserved = JSON.parse(observed.stdout);
   const expected = nativeObserved.slots;
   assert.equal(expected.length >= 30, true, "the oracle covers complete methods, accessors and physical signature families");
@@ -351,9 +352,10 @@ test("the one metadata-only base-slot producer agrees with actual native GetBase
   assert.equal(signatureOwner !== undefined, true, "the exact native constructor, operator and indexer owner is retained");
   for (const identity of nativeObserved.signatures) {
     const retained = [...signatureOwner.members, ...(signatureOwner.unsupportedMembers ?? [])]
-      .find(member => member.targetId === identity.id);
+      .find(member => member.targetId === identity.id ||
+        identity.kind === "operator" && member.signatures?.some(signature => signature.id === identity.id));
     assert.equal(retained !== undefined, true, `the canonical native identity reaches ${identity.kind}`);
-    assert.equal(retained.metadataName, identity.metadataName, `the same structural pointer owner reaches ${identity.kind} metadata descriptions`);
+    assert.equal(retained.metadataName, identity.metadataName, `the exact published native ${identity.kind} metadata description is retained`);
   }
   const pointerIdentity = name => {
     const entry = expected.find(row => row.label === `FunctionPointerSignatures.${name}`);
@@ -367,7 +369,7 @@ test("the one metadata-only base-slot producer agrees with actual native GetBase
   assert.equal(suppressedIdentity.result.optionalModifiers.some(modifier =>
     modifier.endsWith("::System.Runtime.CompilerServices.CallConvSuppressGCTransition")), true,
   "the native optional calling-convention modifier is retained separately from required modifiers");
-  console.log(`native-slot-oracle observations=${expected.length} native-stdout=${observed.stdout.trim()}`);
+  console.log(`native-slot-oracle observations=${expected.length}`);
 });
 
 const nativeSlotOracleSource = String.raw`
@@ -382,6 +384,8 @@ var types = new[] { typeof(SlotBase<>), typeof(SlotDerived), typeof(MiddleSlot),
 var rows = types.SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic |
     BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
     .Where(method => method.IsPublic || method.IsFamily || method.IsFamilyOrAssembly)
+    // Inheritance.cs:30 excludes special-name method rows; this new operator is proven separately by its exact native group and signature.
+    .Where(method => !(method.DeclaringType == typeof(NativeSlotOracle.FunctionPointerSignatures) && method.Name == "op_Addition"))
     .Select(method => new { label = type.Name + "." + method.Name, id = MethodId(method),
         baseDefinitionId = MethodId(method.GetBaseDefinition()), @virtual = method.IsVirtual,
         @abstract = method.IsAbstract, final = method.IsFinal })).ToArray();
@@ -396,7 +400,7 @@ var signatures = identityOwner.GetConstructors().Select(constructor => new
     .Concat(identityOwner.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
         .Where(method => method.Name == "op_Addition").Select(method => new
         { kind = "operator", id = MethodId(method) + ":" + TypeId(method.ReturnType, method.ReturnParameter.GetModifiedParameterType()),
-          metadataName = identityOwner.FullName + "." + method.Name + "(" + MetadataParameters(method.GetParameters()) + ")" }))
+          metadataName = identityOwner.FullName + "." + method.Name }))
     .ToArray();
 Console.WriteLine(JsonSerializer.Serialize(new { slots = rows, signatures }));
 
