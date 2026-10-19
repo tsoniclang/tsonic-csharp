@@ -18,10 +18,10 @@ import {
 import {
   collectCsharpCapabilityContributions,
   createCapabilityDotnetProviders,
-} from "../providers/native/contributions.js";
+} from "../providers/native/acquisition/contributions.js";
 import {
   createCsharpProviderRelationResolver,
-} from "../providers/native/relations/resolver.js";
+} from "../providers/native/projection/relation-resolution.js";
 import { compileCsharpTarget } from "../backend/compile.js";
 import {
   createCsharpTargetConfiguration,

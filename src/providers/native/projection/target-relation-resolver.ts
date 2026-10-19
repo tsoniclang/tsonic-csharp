@@ -8,7 +8,7 @@ import {
   providerMemberSourceIdentity,
   providerSignatureSourceIdentity,
   providerTypeSourceIdentity,
-} from "./index.js";
+} from "../../model/provider-relations.js";
 import type {
   DotnetProviderTargetRelationTemplate,
 } from "./target-relations.js";

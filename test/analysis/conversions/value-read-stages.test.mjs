@@ -4,7 +4,7 @@ import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { checkCsharpSource, assertCsharpCheckingSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpTargetProgram } from "../../../dist/analysis/program/index.js";
 import { analyzeCsharpValueReadStages } from "../../../dist/analysis/conversions/value-read-stages.js";
-import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/relations/resolver.js";
+import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { createCsharpTargetConfiguration } from "../../../dist/options/csharp-target-options.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 

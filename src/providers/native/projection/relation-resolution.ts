@@ -19,10 +19,11 @@ import {
   providerSignatureSourceIdentity,
   providerTypeSourceIdentity,
   providerValueSourceIdentity,
-} from "./index.js";
+} from "../../model/provider-relations.js";
 import type {
   CsharpProviderPolicyContribution,
 } from "../../model/provider-policy-contribution.js";
+import { canonicalProviderValue } from "../../model/canonical-value.js";
 import {
   csharpBuiltInProviderPolicies,
 } from "../../builtins/source-semantic-relations.js";
@@ -43,12 +44,14 @@ export function createCsharpProviderRelationResolver(
   const staticCatalogs = [
     ...csharpBuiltInProviderPolicies().map((policy) => ({
       ...policy,
+      targetBindings: [],
       rejections: [],
     })),
     ...inputs.providerPolicies,
   ].map((contribution) => ({
     providerId: contribution.providerId,
     providerVersion: contribution.providerVersion,
+    targetBindings: contribution.targetBindings,
     relationCatalog: createCsharpProviderRelationCatalog([
       contribution.relations,
     ]),
@@ -63,9 +66,10 @@ export function createCsharpProviderRelationResolver(
     return policy;
   });
   const staticBindings = uniqueStaticBindings(
-    staticCatalogs.flatMap((entry) =>
-      entry.relationCatalog.relations.map((relation) =>
-        relation.targetBinding)),
+    staticCatalogs.flatMap((entry) => [
+      ...entry.targetBindings,
+      ...entry.relationCatalog.relations.map((relation) => relation.targetBinding),
+    ]),
   );
   assertUniqueProviderIdentities(providers);
   assertUniqueProviderSources(providers, staticCatalogs);
@@ -239,7 +243,7 @@ function uniqueStaticBindings(
     const existing = byId.get(binding.id);
     if (
       existing !== undefined &&
-      JSON.stringify(existing) !== JSON.stringify(binding)
+      canonicalProviderValue(existing) !== canonicalProviderValue(binding)
     ) {
       throw new Error(
         `C# provider relation contributions define incompatible target binding '${binding.id}'.`,
