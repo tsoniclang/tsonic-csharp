@@ -4,7 +4,7 @@ import { targetUseSiteIdentity, type TargetUseSiteRef } from "@tsonic/target-api
 import { failTargetAnalysisInvariant, targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
 import { sourceExpressionResultDisposition, sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
 import { selectCsharpNativeConstructSteps } from "../../policy/operations/control-flow/native-constructs.js";
-import { selectCsharpNativeOperandUses, type CsharpNativeOperandSelection, type CsharpNativeOperandStep } from "../../policy/operations/control-flow/native-operands.js";
+import { selectCsharpNativeOperandUses, type CsharpNativeOperandSelection, type CsharpNativeOperandStep } from "./control-flow/native-operands.js";
 import { selectCsharpNativeCompletion, type CsharpNativeCompletionFlow } from "../../policy/operations/control-flow/native-completion.js";
 import { csharpNativeUseSite, type CsharpExpectedNativeUse, type CsharpNativeChildUse, type CsharpNativeCompletion, type CsharpNativeEvaluation, type CsharpNativeOrderStep, type CsharpNativeUse, type CsharpNativeDiscardedPresence } from "../../target-model/records/native-demand.js";
 import { csharpConstructorBaseCall } from "../callables/constructor-entry.js";

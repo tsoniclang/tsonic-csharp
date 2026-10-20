@@ -6,13 +6,14 @@ import type { CsharpTargetOperationClassifications, CsharpSourceArgumentGrouping
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/source-evidence.js";
 import type { CsharpValueReadClassifications } from "../../../target-model/records/conversions.js";
 import type { CsharpClassFactoryIndex } from "../../../target-model/records/class-factories.js";
-import type { CsharpSelectedTargetCall, ResolvedSourceCallInfo } from "../../../target-model/records/members.js";
+import type { CsharpSelectedTargetCall } from "../../../target-model/records/members.js";
+import type { ResolvedSourceCallInfo } from "../../../target-model/records/source-calls.js";
 import type { CsharpBindingPatternClassifications, CsharpDestructuringAssignmentPattern } from "../../../target-model/records/value-projections.js";
 import { getCsharpClassFactory } from "../../../target-model/types/carriers/class-factories.js";
 import { getCsharpDelegateSignature } from "../../../target-model/types/carriers/delegates.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { csharpSelectedTargetArgumentBindings, csharpSourceOwnedArgumentBindings, csharpProviderArgumentSourceCarrier } from "../members/selection/native-use-arguments.js";
+import { csharpSelectedTargetArgumentBindings, csharpSourceOwnedArgumentBindings, csharpProviderArgumentSourceCarrier } from "../../../policy/operations/members/selection/native-use-arguments.js";
 import { sourceOperatorFromKindName } from "../../../target-model/syntax/operators.js";
 import { csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 
