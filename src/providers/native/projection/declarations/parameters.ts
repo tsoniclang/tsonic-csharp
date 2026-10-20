@@ -1,6 +1,6 @@
 import type { ProviderParameterDeclaration } from "@tsonic/tsts";
 import type { DotnetParameterDeclaration } from "../../model/index.js";
-import { tryDotnetTypeRefToProviderType } from "../../model/index.js";
+import { tryDotnetTypeRefToProviderType } from "./provider-conversion.js";
 
 export function dotnetParameterToProviderParameter(
   parameter: DotnetParameterDeclaration,
