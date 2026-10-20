@@ -629,18 +629,15 @@ function visit(
     const instancePredicate = instanceType === undefined ? undefined : Object.freeze({ kind: "nominal" as const, targetCarrier: instanceType });
     const instancePlan = instanceSource === undefined || instancePredicate === undefined ? undefined
       : selectCsharpClosedTypeTestPlan(instanceSource, instancePredicate, undefined, policy.typeDefinitions);
+    const jsValue = validateCsharpJsValueOperationSelection(selectCsharpJsValueBinaryOperation(
+      policy, expression?.Left, expression?.Right, sourceFile, sourceOperator));
+    if (jsValue.kind === "rejected") issues?.push(Object.freeze({ node, code: "CSHARP_UNSUPPORTED_AST", message: jsValue.reason }));
     setClassification(
       builder,
       node,
       binaryKey,
       Object.freeze({
-        jsValue: validateCsharpJsValueOperationSelection(selectCsharpJsValueBinaryOperation(
-          policy,
-          expression?.Left,
-          expression?.Right,
-          sourceFile,
-          sourceOperator,
-        )),
+        jsValue,
         target: selectCsharpBinaryOperation(
           policy,
           node,
