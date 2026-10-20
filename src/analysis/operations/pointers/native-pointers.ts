@@ -1,25 +1,15 @@
 import type { CsharpNativePointerOperationKind, CsharpNativePointerOperationSelection, CsharpResolvedNativePointerOperationBase } from "../../../target-model/records/native-pointers.js";
-import type {
-  Node,
-  SourceFile,
-} from "@tsonic/tsts";
-import type {
-  CsharpPolicyContext,
-} from "../../model/context.js";
+import type { Node, SourceFile } from "@tsonic/tsts";
+import type { CsharpPolicyContext } from "../../../policy/model/context.js";
 
-import {
-  csharpSourcePrimitiveTargetType,
-  targetTypeRefEquals,
-} from "../../types/index.js";
-import {
-  readCsharpSourceNativePointerOperation,
-} from "./source-native-pointers.js";
-import { readCsharpSourceRawPointerIdentity } from "./source-raw-pointers.js";
+import { csharpSourcePrimitiveTargetType, targetTypeRefEquals } from "../../../policy/types/index.js";
+import { readCsharpSourceNativePointerOperation } from "../../../policy/operations/pointers/source-native-pointers.js";
+import { readCsharpSourceRawPointerIdentity } from "../../../policy/operations/pointers/source-raw-pointers.js";
 import { csharpRuntimeRawPointerTargetType, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpNullableReferenceTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
-import { selectCsharpRawAddress } from "./raw-addresses.js";
+import { selectCsharpRawAddress } from "../../../policy/operations/pointers/raw-addresses.js";
 
-import { selectCsharpLayoutObservation } from "./layout-observations.js";
+import { selectCsharpLayoutObservation } from "../../../policy/operations/pointers/layout-observations.js";
 import { selectCsharpRawLocation } from "./native-memory.js";
 import { selectTargetNativePointerOperation } from "@tsonic/target-api/analysis";
 
