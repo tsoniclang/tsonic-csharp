@@ -1,49 +1,11 @@
-import type {
-  Node,
-} from "@tsonic/tsts";
-import type {
-  CsharpCallArtifactRequirement,
-  CsharpObjectShapeProjectionKind,
-  CsharpTargetInvocation,
-  CsharpTargetMember,
-  TargetTypeRef,
-} from "../../../types/index.js";
-import {
-  csharpEmptyObjectTargetType,
-  isCsharpEmptyObjectTargetType,
-  csharpObjectTargetType,
-  csharpQualifiedTypeRenderShape,
-  csharpSourcePrimitiveTargetType,
-  csharpStringTargetType,
-  csharpTsValueTargetType,
-  csharpTargetNamedType,
-  csharpTaskTargetType,
-  getCsharpTaskResultTargetType,
-  getCsharpDelegateSignature,
-  isCsharpRecordDictionaryTargetType,
-  targetTypeRefEquals,
-  targetTypeRefKey,
-} from "../../../../target-model/types/index.js";
+import type { Node } from "@tsonic/tsts";
+import type { CsharpCallArtifactRequirement, CsharpObjectShapeProjectionKind, CsharpTargetInvocation, CsharpTargetMember, TargetTypeRef } from "../../../types/index.js";
+import { csharpEmptyObjectTargetType, isCsharpEmptyObjectTargetType, csharpObjectTargetType, csharpQualifiedTypeRenderShape, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTsValueTargetType, csharpTargetNamedType, csharpTaskTargetType, getCsharpTaskResultTargetType, getCsharpDelegateSignature, isCsharpRecordDictionaryTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/index.js";
 import { csharpJsArrayTargetType } from "../../../../target-model/types/carriers/js.js";
 import { csharpValueDomainHasTargetType } from "../../../types/objects/value-domain-carrier.js";
-import type {
-  CsharpSourceProfileCallPolicy,
-} from "../source-profile-policy.js";
-import {
-  resolveCsharpSelectedSourceValue,
-} from "../source-profile-policy.js";
-import {
-  closedObjectParameter,
-  jsCallIdentity,
-  jsCallPolicy,
-  jsConstructIdentity,
-  jsMemberIdentity,
-  jsRuntimeTargetType,
-  jsUnsupportedCallPolicy,
-  receiverHelperMethod,
-  staticMethod,
-  targetParameter,
-} from "./common.js";
+import type { CsharpSourceProfileCallPolicy } from "../../../model/source-profiles.js";
+import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
+import { closedObjectParameter, jsCallIdentity, jsCallPolicy, jsConstructIdentity, jsMemberIdentity, jsRuntimeTargetType, jsUnsupportedCallPolicy, receiverHelperMethod, staticMethod, targetParameter } from "./common.js";
 
 const stringType = csharpStringTargetType();
 const boolType = csharpSourcePrimitiveTargetType("bool");
@@ -101,7 +63,7 @@ export const csharpJsObjectCallPolicies:
             [targetParameter("value", argument)], name === "freeze" ? argument : boolType,
             { typeParameters: [{ name: "T", csharpAllowsRefLike: false }] });
         }
-        const shape = expression === undefined ? undefined : context.host.objectShapes?.resolveNode(expression, context.sourceFile);
+        const shape = expression === undefined ? undefined : context.inputs.objectShape.get(expression);
         if (shape === undefined || !targetTypeRefEquals(argument, shape.targetType)) return undefined;
         return staticMethod(`Tsonic.CSharp.Js.FrozenObject.${name}`, name,
           name === "freeze" ? "Freeze" : "IsFrozen", jsRuntimeTargetType("FrozenObject"),
@@ -212,10 +174,7 @@ function objectCollectionMember(
     context,
     context.source.sourceArguments[0],
   );
-  const resultType = context.host.types.resolveType(
-    context.source.sourceResultType,
-    context.sourceFile,
-  );
+  const resultType = context.inputs.types.get(context.source.sourceResultType);
   const refinedResultType = argumentType === undefined || resultType === undefined
     ? undefined
     : objectCollectionResultType(row.result, argumentType, resultType);
@@ -327,16 +286,10 @@ function objectAssignMember(
   }
   const targetShape = targetType === undefined
     ? undefined
-    : context.host.objectShapes?.resolveNode(
-        context.source.sourceArguments[0]?.expression,
-        context.sourceFile,
-      ) ?? context.host.objectShapes?.resolveTarget(targetType);
+    : context.inputs.objectShape.get(context.source.sourceArguments[0]?.expression);
   const sourceShape = sourceType === undefined
     ? undefined
-    : context.host.objectShapes?.resolveNode(
-        context.source.sourceArguments[1]?.expression,
-        context.sourceFile,
-      ) ?? context.host.objectShapes?.resolveTarget(sourceType);
+    : context.inputs.objectShape.get(context.source.sourceArguments[1]?.expression);
   return targetType === undefined ||
       context.source.sourceArguments.length !== 2 ||
       sourceType === undefined ||
@@ -490,10 +443,7 @@ function objectShapeProjectionOptions(
   ) {
     return {};
   }
-  const shape = context.host.objectShapes?.resolveNode(
-    sourceValue.expression,
-    context.sourceFile,
-  ) ?? context.host.objectShapes?.resolveTarget(selectedTargetType);
+  const shape = context.inputs.objectShape.get(sourceValue.expression);
   const requirement: CsharpCallArtifactRequirement | undefined = shape === undefined
     ? undefined
     : projection === "assign"
@@ -527,10 +477,7 @@ function objectShapeProjectionOptions(
 function promiseAllMember(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
 ): CsharpTargetMember | undefined {
-  const taskType = context.host.types.resolveType(
-    context.source.sourceResultType,
-    context.sourceFile,
-  );
+  const taskType = context.inputs.types.get(context.source.sourceResultType);
   const resultType = getCsharpTaskResultTargetType(taskType);
   const elementType = resultType?.kind === "target-named" &&
       resultType.id === "Tsonic.CSharp.Js.JSArray`1"
