@@ -5,7 +5,7 @@ import { sourcePresentCallableType, type SourceFileSemantics } from "@tsonic/tar
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { nextState } from "./state.js";
 import { readCsharpSourceField } from "../../../policy/types/resolution/source-markers.js";
-import { sourceRefinementOnlyRemovesNullish } from "../../../policy/types/resolution/source-union-refinement.js";
+import { sourceRefinementOnlyRemovesNullish } from "./source-union-refinement.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { getCsharpGenericOptionalParts } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpSourceStorageContext } from "./source-storage-projection.js";
