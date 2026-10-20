@@ -1,3 +1,4 @@
+import type { CsharpProviderOperationHost } from "../../../policy/model/provider-calls.js";
 import type { ExtensionDiagnostic, Node, ProviderVirtualDeclarationFact, ReadonlySourceFactResolver, SourceFile } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { SourceStorageQueries } from "@tsonic/target-api/analysis";
@@ -26,13 +27,6 @@ export type CsharpProviderOperationResolution =
       readonly diagnostic: ExtensionDiagnostic;
     };
 
-export interface CsharpProviderOperationHost {
-  readonly sourceStorage?: SourceStorageQueries;
-  readonly valueDomainCarriers?: CsharpValueDomainCarrierQueries;
-  readonly sourceFacts?: ReadonlySourceFactResolver;
-  readonly providers: CsharpProviderRelationResolver;
-  semantics(sourceFile: SourceFile): SourceFileSemantics;
-}
 
 export function resolveCsharpProviderCallRelations(
   host: CsharpProviderOperationHost,

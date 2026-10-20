@@ -11,7 +11,7 @@ import { csharpTypeParameterConstraintsImply } from "../../policy/constraints/ty
 import { resolveCsharpTypeParameterConstraints } from "./type-parameter-constraints.js";
 import type { CsharpSelectedTargetMethodTypeArgument } from "../../target-model/records/members.js";
 import { implementedConstraintType, namedTargetTypeImplicitlyAccepts } from "../../policy/conversions/carriers.js";
-import type { CsharpTypePolicy } from "../types/resolution/model.js";
+import type { CsharpTypeQueries } from "../../policy/model/type-resolution.js";
 import type { CsharpProjectTypePolicy } from "../../target-model/records/project-types.js";
 import { substituteTargetConstraint } from "../../policy/types/index.js";
 import { readCsharpSourceStruct } from "../../source/extension/markers.js";
@@ -22,7 +22,7 @@ export interface CsharpConstraintSatisfactionHost {
   readonly providers: CsharpProviderRelationResolver;
   readonly projectTypes: CsharpProjectTypePolicy;
   readonly sourceFacts?: import("@tsonic/tsts").ReadonlySourceFactResolver;
-  readonly types: CsharpTypePolicy;
+  readonly types: CsharpTypeQueries;
   semantics(sourceFile: SourceFile): SourceFileSemantics;
 }
 

@@ -3,7 +3,7 @@ import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { CsharpProviderTargetRelation } from "../../../../target-model/identities/provider-relations.js";
 import type { TargetTypeRef } from "../../../../policy/types/index.js";
 
-import type { CsharpTypePolicy } from "../../../types/resolution/model.js";
+import type { CsharpTypeQueries } from "../../../../policy/model/type-resolution.js";
 
 import { csharpTargetBindingSubstitutions, csharpTargetParameterValueType, substituteCsharpTargetMember, targetTypeRefEquals } from "../../../../policy/types/index.js";
 
@@ -154,7 +154,7 @@ export function resolveMethodTypeArguments(
 }
 
 export function resolveInvocationTypeArguments(
-  types: CsharpTypePolicy,
+  types: CsharpTypeQueries,
   relation: CsharpProviderSignatureRelation,
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
@@ -176,7 +176,7 @@ export function resolveInvocationTypeArguments(
 }
 
 function resolveSelectedTypeArguments(
-  types: CsharpTypePolicy,
+  types: CsharpTypeQueries,
   sourceArguments: readonly {
     readonly selectedType: Type;
     readonly explicitTypeNode?: Node;

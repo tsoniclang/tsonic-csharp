@@ -1,3 +1,4 @@
+import type { CsharpProviderCallSelectionHost } from "../../../../policy/model/provider-calls.js";
 import type { ExtensionDiagnostic, Node, SourceFile } from "@tsonic/tsts";
 import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
 import type { CsharpProviderOperationResolution } from "../relations.js";
@@ -41,12 +42,6 @@ export type CsharpProviderCallSelection =
       readonly diagnostic: ExtensionDiagnostic;
     };
 
-export interface CsharpProviderCallSelectionHost
-  extends CsharpProviderOperationHost,
-    CsharpProviderCallInstantiationHost {
-  readonly navigation: SourceProgramNavigation;
-  readonly typeDefinitions?: import("../../../../target-model/types/source-union-definitions.js").CsharpTypeDefinitions;
-}
 
 export function selectCsharpProviderCall(
   host: CsharpProviderCallSelectionHost,

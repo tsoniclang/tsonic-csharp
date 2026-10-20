@@ -1,7 +1,7 @@
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { CsharpProviderTypeParameterRelation } from "../../../../target-model/identities/provider-relations.js";
 import type { CsharpTargetBindingFact, CsharpTargetMember, TargetTypeRef } from "../../../../policy/types/index.js";
-import type { CsharpTypePolicy } from "../../../types/resolution/model.js";
+import type { CsharpTypeQueries } from "../../../../policy/model/type-resolution.js";
 import { csharpTargetBindingSubstitutions, csharpTargetTypePatternFromBinding, resolveCsharpTargetTypePatternArguments, substituteCsharpTargetMember, targetTypeRefEquals } from "../../../../policy/types/index.js";
 
 import { isCompleteTypeParameterRelation } from "../../../../policy/operations/members/instantiation/binding-instantiation.js";
@@ -11,7 +11,7 @@ export interface CsharpSourceTypeEvidence {
 }
 
 export function resolveCsharpTargetBindingArguments(
-  types: CsharpTypePolicy,
+  types: CsharpTypeQueries,
   binding: CsharpTargetBindingFact,
   sourceEvidence: readonly CsharpSourceTypeEvidence[],
   sourceFile: SourceFile,
@@ -46,7 +46,7 @@ export function resolveCsharpTargetBindingArguments(
 }
 
 export function instantiateCsharpProviderBindingMember(
-  types: CsharpTypePolicy,
+  types: CsharpTypeQueries,
   binding: CsharpTargetBindingFact,
   member: CsharpTargetMember,
   bindingTypeParameters: readonly CsharpProviderTypeParameterRelation[],
