@@ -34,6 +34,7 @@ import { analyzeCsharpClassEmission } from "../declarations/classes/planning.js"
 import { analyzeCsharpProjectEmission } from "../project-types/emission.js";
 import { analyzeCsharpTypeParameterEmission } from "../declarations/type-parameters.js";
 import { analyzeCsharpTypeEmission } from "../types/emission.js";
+import { analyzeCsharpNativeMemoryEmission } from "../operations/native-memory-emission.js";
 import { analyzeCsharpIdentifierEmission } from "../names/source-identifiers.js";
 import { analyzeCsharpSourceFileEmission } from "../source-modules/emission.js";
 import { analyzeCsharpStartup } from "../source-modules/startup.js";
@@ -606,9 +607,10 @@ function analyzeCsharpTargetProgramBeforeSeal(
     operations: admittedOperations, admitted: admittedControlNode });
   if (identifierIssues.length !== 0) return rejectedTargetStage(identifierIssues);
   const sourceUnions = analyzeCsharpSourceUnionEmission(typeDefinitions);
+  const nativeLayouts = analyzeCsharpNativeMemoryEmission({ nodes: sourceStorage.nodes, storage: analysis.storage, operations: admittedOperations });
   const typeEmission = analyzeCsharpTypeEmission({ ast: source.ast, nodes: sourceStorage.nodes, evidence: analysis.sourceEvidence,
     languageDialect: configuration.languageDialect,
-    extraTypes: sourceUnions.sourceUnions.get().flatMap(union => [union.carrier, union.storage, ...union.arms]),
+    extraTypes: [...nativeLayouts.carriers, ...sourceUnions.sourceUnions.get().flatMap(union => [union.carrier, union.storage, ...union.arms])],
     values: analysis.valueReads, storage: analysis.storage, shapes: objectShapeDemand, admitted: admittedControlNode });
   if (typeEmission.issues.length !== 0) return rejectedTargetStage(typeEmission.issues);
   const sourceFileEmission = analyzeCsharpSourceFileEmission({ source, identities: sourceOutputIdentities.records,
@@ -642,6 +644,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     startup: startup.records,
     sourceFileEmission: sourceFileEmission.records,
     typeEmission: typeEmission.records,
+    nativeLayouts: nativeLayouts.records,
     typeParameterEmission: typeParameterEmission.records,
     projectEmission: projectEmission.records,
     captureMethods: captureMethods.records,

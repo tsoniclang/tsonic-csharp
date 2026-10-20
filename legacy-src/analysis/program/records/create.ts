@@ -67,6 +67,7 @@ export interface CsharpProgramRecordInput {
   readonly projectEmission: import("../../../target-model/records/project-emission.js").CsharpProjectEmissionRecords;
   readonly typeParameterEmission: import("../../../target-model/records/type-parameters.js").CsharpTypeParameterEmissionRecords;
   readonly typeEmission: import("../../../target-model/records/type-emission.js").CsharpTypeEmissionRecords;
+  readonly nativeLayouts: import("../../../target-model/records/native-layout-emission.js").CsharpNativeLayoutRecords;
   readonly captureMethods: CsharpCaptureMethodRecords;
   readonly frozenDataProperties: CsharpFrozenDataPropertyRecords;
   readonly indexedRecords: CsharpIndexedRecordRecords;
@@ -141,6 +142,7 @@ export function createCsharpProgramRecords(
     ...input.sourceFileEmission,
     ...input.typeParameterEmission,
     ...input.typeEmission,
+    ...input.nativeLayouts,
     ...input.captureMethods,
     ...input.frozenDataProperties,
     ...input.indexedRecords,

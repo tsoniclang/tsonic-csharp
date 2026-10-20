@@ -34,7 +34,7 @@ export function planCsharpParameterStorageDeclaration(
     if (binding === undefined) failCsharpPlannerInvariant("An admitted backed native parameter lost its declared binding.", declaration);
     if (type === undefined) failCsharpPlannerInvariant("An admitted backed native parameter lost its renderable pointee storage.", declaration);
     return { kind: "LocalDeclarationStatement", name: binding.storageName, type,
-      initializer: planCsharpNativeMemoryCall(input.scope.typeParameterNames, "Allocate", { kind: "IdentifierName", name: binding.parameterName }, backing) };
+      initializer: planCsharpNativeMemoryCall(input.scope.typeParameterNames, "Allocate", { kind: "IdentifierName", name: binding.parameterName }, backing, input.program.records) };
   }
   return planCsharpTypedLocationIdentityDeclaration(declaration, input, state);
 }

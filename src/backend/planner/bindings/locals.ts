@@ -89,7 +89,7 @@ export function planLocalDeclaration(
     const nativeType = csharpTypeFromTargetTypeRef(csharpRuntimeLocationTargetType(nativeBacking.pointeeType), input.scope.typeParameterNames);
     if (nativeType !== undefined) return { kind: "VariableDeclarator", name, type: nativeType,
       initializer: mapCsharpPlannedValue(initializer, csharpRuntimeLocationTargetType(nativeBacking.pointeeType),
-        value => planCsharpNativeMemoryCall(input.scope.typeParameterNames, "Allocate", value, nativeBacking)) };
+        value => planCsharpNativeMemoryCall(input.scope.typeParameterNames, "Allocate", value, nativeBacking, input.program.records)) };
     failCsharpPlannerInvariant("An admitted native local backing lost its renderable location type.", declarationNode);
   }
   return {

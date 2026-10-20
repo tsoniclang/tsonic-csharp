@@ -1,18 +1,21 @@
 import type { CsharpExpression, CsharpStatement } from "../../target-ast/syntax/index.js";
 import type { CsharpNativeMemoryLayout } from "../../../target-model/operations/native-memory.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
-import { csharpRuntimeNativeLayoutTargetType, csharpRuntimeNativeArrayTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpRuntimeNativeArrayTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpNativeLayoutOwner, csharpNativeMemoryOwner } from "../../../target-model/names/native-memory.js";
-import { qualifiedCsharpType } from "../types/csharp-type-primitives.js";
+import { qualifiedCsharpType } from "../types/primitives.js";
+import type { CsharpNativeLayoutRecords } from "../../../target-model/records/native-layout-emission.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 
 export function planCsharpNativeMemoryCall(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
   method: "Allocate" | "ToRaw" | "Reinterpret", value: CsharpExpression, layout: CsharpNativeMemoryLayout,
+  records: CsharpNativeLayoutRecords,
 ): CsharpExpression | undefined {
   const pointee = csharpTypeFromTargetTypeRef(layout.pointeeType, typeParameterNames);
   const owner = qualifiedCsharpType(csharpNativeMemoryOwner.namespace, csharpNativeMemoryOwner.name);
-  const codec = planCsharpNativeLayout(typeParameterNames, layout);
-  if (pointee === undefined || codec === undefined) return undefined;
+  const codec = planCsharpNativeLayout(typeParameterNames, layout, records);
+  if (pointee === undefined || codec === undefined) failCsharpPlannerInvariant("An admitted native allocation requires its pointee and codec syntax.");
   return { kind: "InvocationExpression", callee: {
     kind: "SimpleMemberAccessExpression",
     receiver: owner,
@@ -20,18 +23,20 @@ export function planCsharpNativeMemoryCall(
   }, arguments: [value, codec].map(expression => ({ kind: "Argument", expression })) };
 }
 
-export function planCsharpNativeArray(typeParameterNames: ReadonlyMap<string, string> | undefined, initial: CsharpExpression, layout: CsharpNativeMemoryLayout, stride: number): CsharpExpression | undefined {
+export function planCsharpNativeArray(typeParameterNames: ReadonlyMap<string, string> | undefined, initial: CsharpExpression, layout: CsharpNativeMemoryLayout, stride: number, records: CsharpNativeLayoutRecords): CsharpExpression | undefined {
   const type = csharpTypeFromTargetTypeRef(csharpRuntimeNativeArrayTargetType(layout.pointeeType), typeParameterNames);
-  const codec = planCsharpNativeLayout(typeParameterNames, layout);
+  const codec = planCsharpNativeLayout(typeParameterNames, layout, records);
   return type === undefined || codec === undefined ? undefined : { kind: "ObjectCreationExpression", type,
     arguments: [initial, codec, numeric(stride)].map(expression => ({ kind: "Argument", expression })) };
 }
 
-function planCsharpNativeLayout(typeParameterNames: ReadonlyMap<string, string> | undefined, layout: CsharpNativeMemoryLayout): CsharpExpression | undefined {
+function planCsharpNativeLayout(typeParameterNames: ReadonlyMap<string, string> | undefined, layout: CsharpNativeMemoryLayout, records: CsharpNativeLayoutRecords): CsharpExpression | undefined {
+  const selected = records.nativeLayoutEmission.get(layout);
+  if (selected === undefined) failCsharpPlannerInvariant("An admitted native layout requires its exact emission plan.");
   const pointee = csharpTypeFromTargetTypeRef(layout.pointeeType, typeParameterNames);
   const owner = layout.kind === "scalar" ? qualifiedCsharpType(csharpNativeLayoutOwner.namespace, csharpNativeLayoutOwner.name)
-    : csharpTypeFromTargetTypeRef(csharpRuntimeNativeLayoutTargetType(layout.pointeeType), typeParameterNames);
-  if (pointee === undefined || owner === undefined) return undefined;
+    : csharpTypeFromTargetTypeRef(selected.owner, typeParameterNames);
+  if (pointee === undefined || owner === undefined) failCsharpPlannerInvariant("An admitted native layout requires its exact pointee and owner syntax.");
   const dimensions: CsharpExpression[] = [
     { kind: "NumericLiteralExpression" as const, value: layout.size },
     { kind: "NumericLiteralExpression" as const, value: layout.alignment },
@@ -54,11 +59,11 @@ function planCsharpNativeLayout(typeParameterNames: ReadonlyMap<string, string> 
     offset: CsharpExpression, alignment: number, depth: number,
   ): { readonly read: readonly CsharpStatement[]; readonly write: readonly CsharpStatement[] } | undefined => {
     const type = csharpTypeFromTargetTypeRef(current.pointeeType, typeParameterNames);
-    if (type === undefined) return undefined;
+    const emission = records.nativeLayoutEmission.get(current);
+    if (type === undefined || emission === undefined) failCsharpPlannerInvariant("An admitted native layout requires each child type and emission plan.");
     if (current.kind === "array") {
-      if (type.kind !== "ArrayType" || !/^(0|[1-9][0-9]*)$/u.test(current.length) ||
-        BigInt(current.length) > 2147483647n) return undefined;
-      const length = Number(current.length);
+      if (type.kind !== "ArrayType" || emission.array === undefined) failCsharpPlannerInvariant("An admitted native array layout requires its selected element and extent syntax.");
+      const length = emission.array.length;
       const index: CsharpExpression = { kind: "IdentifierName", name: `index_${depth}` };
       const placement = addOffset(offset, { kind: "BinaryExpression",
         left: { kind: "CastExpression", type: { kind: "PredefinedType", name: "nuint" }, expression: index },
@@ -89,10 +94,12 @@ function planCsharpNativeLayout(typeParameterNames: ReadonlyMap<string, string> 
     if (current.kind === "record") {
       const read: CsharpStatement[] = [];
       const write: CsharpStatement[] = [];
-      for (const field of current.fields) {
+      for (const [index, field] of current.fields.entries()) {
+        const name = emission.fields[index];
+        if (name === undefined) failCsharpPlannerInvariant("An admitted native layout field requires its physical member name.");
         const child = walk(field.layout,
-          { kind: "SimpleMemberAccessExpression", receiver: destination, name: field.name },
-          { kind: "SimpleMemberAccessExpression", receiver: source, name: field.name },
+          { kind: "SimpleMemberAccessExpression", receiver: destination, name },
+          { kind: "SimpleMemberAccessExpression", receiver: source, name },
           field.offset === 0 ? offset : addOffset(offset, nativeSize(field.offset)),
           Math.min(alignment, field.alignment), depth + 1);
         if (child === undefined) return undefined;

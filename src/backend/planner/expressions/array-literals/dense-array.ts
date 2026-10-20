@@ -51,7 +51,7 @@ export function planArrayLiteralExpression(
     elements: values,
   };
   const native = input.program.records.nativeArray.get(node);
-  return native === undefined ? array : planCsharpNativeArray(input.scope.typeParameterNames, array, native.layout, native.stride);
+  return native === undefined ? array : planCsharpNativeArray(input.scope.typeParameterNames, array, native.layout, native.stride, input.program.records);
   });
 }
 

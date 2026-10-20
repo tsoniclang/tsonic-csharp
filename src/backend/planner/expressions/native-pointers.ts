@@ -31,7 +31,7 @@ export function planCsharpNativePointerOperation(node: Node, selection: Extract<
     const type = csharpTypeFromTargetTypeRef(selection.inputType, input.scope.typeParameterNames);
     const value = type === undefined ? undefined : planExpression(selection.expression, sourceFile, input, diagnostics, state);
     return projectCsharpPlannedValue(node, sourceFile, input, diagnostics, value,
-      value => planCsharpNativeMemoryCall(input.scope.typeParameterNames, selection.method, value, selection.layout));
+      value => planCsharpNativeMemoryCall(input.scope.typeParameterNames, selection.method, value, selection.layout, input.program.records));
   }
   if (selection.kind === "raw-address") {
     const arguments_: CsharpPlannedValue[] = [];

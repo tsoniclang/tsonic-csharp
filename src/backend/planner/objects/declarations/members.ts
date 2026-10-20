@@ -3,6 +3,7 @@ import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef 
 import type { CsharpObjectMemberRecords, CsharpObjectMemberEmission, CsharpObjectMethodSignature } from "../../../../target-model/records/object-members.js";
 import type { CsharpStructuralObjectEmissionRecords } from "../../../../target-model/records/structural-object-emission.js";
 import type { CsharpNativeMemberHidingReader } from "../../../../target-model/records/native-member-names.js";
+import type { CsharpNativeLayoutRecords } from "../../../../target-model/records/native-layout-emission.js";
 import type { CsharpExpression, CsharpParameter, CsharpTypeMember, CsharpTypeNode } from "../../../target-ast/syntax/index.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { planCsharpArtifactMemberHiding } from "../../declarations/modifiers.js";
@@ -15,7 +16,7 @@ import { failCsharpPlannerInvariant } from "../../../invariants.js";
 export function renderObjectShapeMembers(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
   shape: CsharpObjectShapeFact,
-  records: CsharpObjectMemberRecords & CsharpStructuralObjectEmissionRecords & { readonly nativeMemberHiding: CsharpNativeMemberHidingReader },
+  records: CsharpObjectMemberRecords & CsharpStructuralObjectEmissionRecords & CsharpNativeLayoutRecords & { readonly nativeMemberHiding: CsharpNativeMemberHidingReader },
 ): readonly CsharpTypeMember[] {
   const selected = records.objectMemberDeclarations.get(shape);
   if (selected === undefined) failCsharpPlannerInvariant("An admitted object requires its sealed native member inventory.", shape.methodImplementation?.declaration);
@@ -26,7 +27,7 @@ function renderMember(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
   shape: CsharpObjectShapeFact,
   emission: CsharpObjectMemberEmission,
-  records: CsharpObjectMemberRecords & CsharpStructuralObjectEmissionRecords & { readonly nativeMemberHiding: CsharpNativeMemberHidingReader },
+  records: CsharpObjectMemberRecords & CsharpStructuralObjectEmissionRecords & CsharpNativeLayoutRecords & { readonly nativeMemberHiding: CsharpNativeMemberHidingReader },
 ): readonly CsharpTypeMember[] {
   const { member, declaration: selected } = emission;
   const subject = member.sourceDeclarations?.[0] ?? shape.methodImplementation?.declaration;
@@ -80,7 +81,7 @@ function renderMember(
       { member: hiding(member.targetName), storage: hiding(objectShapeBoundStorageMemberName(shape, member)) });
     case "native-backing": {
       const type = render(selected.type);
-      const initializer = planCsharpNativeMemoryCall(typeParameterNames, "Allocate", { kind: "DefaultExpression", type }, selected.layout);
+      const initializer = planCsharpNativeMemoryCall(typeParameterNames, "Allocate", { kind: "DefaultExpression", type }, selected.layout, records);
       if (initializer === undefined) failCsharpPlannerInvariant("An admitted native object backing requires its exact allocation syntax.", subject);
       const location: CsharpExpression = { kind: "IdentifierName", name: selected.name };
       const access = (name: string, arguments_: readonly CsharpExpression[]): CsharpExpression => ({
