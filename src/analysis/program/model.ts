@@ -8,7 +8,7 @@ import type { CsharpProjectTypeClassifications } from "../../target-model/record
 import type { CsharpProgramRecords } from "../../target-model/records/program.js";
 import type { CsharpClassFactory } from "../../target-model/records/class-factories.js";
 import type { CsharpCaptureFrame } from "../../target-model/records/capture-storage.js";
-import type { CsharpNamePlan } from "../../target-model/records/native-member-names.js";
+import type { CsharpNamePlan } from "../../target-model/names/model.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 import type { CsharpProjectClassifications } from "../project/index.js";
 import type { CsharpSourceModuleConstructionIndex } from "../../target-model/records/source-modules.js";

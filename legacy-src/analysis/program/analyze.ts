@@ -215,7 +215,7 @@ interface CsharpRepresentationContract {
 
 type CsharpAnalysisRejection = Extract<TargetStageResult<never>, { readonly kind: "rejected" }>;
 
-export function analyzeCsharpAnalysisProgram(
+export function analyzeCsharpTargetProgram(
   request: CsharpTargetAnalysisRequest,
 ): TargetStageResult<CsharpAnalysisProgram> {
   const references = request.providers.validateReferences();
