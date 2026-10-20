@@ -2,7 +2,7 @@ import type { TargetSelection } from "@tsonic/target-api";
 import type { SourceLiteralValue } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpSourcePrimitiveTargetType } from "../../target-model/types/carriers/scalar-types.js";
-import { selectedCsharpSourceProfileOwner } from "../types/resolution/source-profile.js";
+import { selectedCsharpSourceProfileOwner } from "../identities/source-types.js";
 import { csharpTargetId } from "../../target-model/identities/source.js";
 
 export interface CsharpSourceLiteralPolicyHost {

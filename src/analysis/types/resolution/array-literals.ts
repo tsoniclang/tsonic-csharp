@@ -8,7 +8,7 @@ import { nextState } from "./state.js";
 import { getCsharpCollectionElementTargetType } from "../../../target-model/types/carriers/collections.js";
 import { combineCsharpTargetUnionMembers, isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpJsArrayTargetType } from "../../../target-model/types/carriers/js.js";
-import { selectedCsharpSourceProfileOwner } from "../../../policy/types/resolution/source-profile.js";
+import { selectedCsharpSourceProfileOwner } from "../../../policy/identities/source-types.js";
 import { selectCsharpInferredNumericArrayElement } from "../../../policy/types/collections/array-elements.js";
 import { csharpSourceStorageContext } from "./source-storage-projection.js";
 import { getCsharpCallableValueSignature, getCsharpTaskResultTargetType } from "../../../target-model/types/carriers/delegates.js";

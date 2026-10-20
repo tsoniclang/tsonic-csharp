@@ -2,7 +2,7 @@ import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { analyzeSourceGenericAdoption, sourceGenericAdoptionDiagnosticCode, sourceGenericAdoptionDiagnosticMessage, createSourceOwnershipQuery, createSourceStorageBudget, defaultSourceStorageLimits, type SourceOwnershipPremises, type SourceOwnershipUnresolved, type SourceStorageQueries } from "@tsonic/target-api/analysis";
 import { sourceExpressionResultDisposition, type TargetSourceProgram } from "@tsonic/target-api/source";
-import { classifyCsharpSourceProfileType } from "../../policy/types/resolution/source-profile.js";
+import { classifyCsharpSourceProfileType } from "../../policy/identities/source-types.js";
 import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpPromiseDiscard, CsharpPromiseResult, CsharpPromiseResults } from "../../target-model/records/promise-results.js";
