@@ -20,9 +20,7 @@ export function arrayConstructionMember(
   const sourceArgument = context.source.sourceArguments[0];
   const numericLength = context.source.sourceArguments.length === 1 &&
     sourceArgument !== undefined &&
-    context.host.semantics(context.sourceFile).types.isNumberLike(
-      sourceArgument.type,
-    );
+    context.inputs.numberLikeTypes.has(sourceArgument.type);
   if (numericLength) {
     const carrier = resolveCsharpSelectedSourceValue(context, sourceArgument);
     return Object.freeze({
@@ -62,9 +60,7 @@ export function arrayCallMember(
   const sourceArgument = context.source.sourceArguments[0];
   const numericLength = context.source.sourceArguments.length === 1 &&
     sourceArgument !== undefined &&
-    context.host.semantics(context.sourceFile).types.isNumberLike(
-      sourceArgument.type,
-    );
+    context.inputs.numberLikeTypes.has(sourceArgument.type);
   return staticMethod(
     numericLength
       ? "Tsonic.CSharp.Js.JSArrayStatics.withLength"
@@ -100,8 +96,6 @@ export function arrayConstructionTypeArguments(
   const sourceArgument = context.source.sourceArguments[0];
   const numericLength = context.source.sourceArguments.length === 1 &&
     sourceArgument !== undefined &&
-    context.host.semantics(context.sourceFile).types.isNumberLike(
-      sourceArgument.type,
-    );
+    context.inputs.numberLikeTypes.has(sourceArgument.type);
   return numericLength ? [] : arrayConstructorElementTypeArguments(context);
 }

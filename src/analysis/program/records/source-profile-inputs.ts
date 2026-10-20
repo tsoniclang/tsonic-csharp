@@ -1,3 +1,4 @@
+import { csharpRegExpReceiverHasNativeExecution } from "../../source-profiles/js/regexp-execution.js";
 import type { Node, Type, SourceFile } from "@tsonic/tsts";
 import type { CsharpProviderCallSelectionHost } from "../../../policy/model/provider-calls.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../../target-model/types/model.js";
@@ -15,6 +16,10 @@ export function createCsharpSourceProfileInputs(
   requirements: CsharpSourceProfileInputRequirements = {},
   source?: ResolvedSourceCallInfo,
 ): CsharpSourceProfileInputFacts {
+  const numberLikeTypes = new Set<Type>();
+  const identicalTypes = new Map<Type, Set<Type>>();
+  const nativeRegExpReceivers = new Set<Node>();
+  const sourceTypes = host.semantics(file).types;
   const values = new Map<Node, Map<Type, TargetTypeRef | undefined>>();
   const types = new Map<Type, TargetTypeRef | undefined>();
   const nodes = new Map<Node, TargetTypeRef | undefined>();
@@ -22,6 +27,15 @@ export function createCsharpSourceProfileInputs(
   const throwableCarriers = new Set<TargetTypeRef>();
   const objectShapes = new Map<Node, CsharpObjectShapeFact | undefined>();
   for (const value of sourceValues) {
+    if (sourceTypes.isNumberLike(value.type)) numberLikeTypes.add(value.type);
+    if (requirements.sourceTypeRelations === true) {
+      const identical = new Set<Type>();
+      for (const argument of selected) {
+        if (sourceTypes.relationship(value.type, argument.selectedType) === "identical") identical.add(argument.selectedType);
+      }
+      identicalTypes.set(value.type, identical);
+    }
+    if (requirements.regexpExecution === true && csharpRegExpReceiverHasNativeExecution(value.expression, { host, sourceFile: file })) nativeRegExpReceivers.add(value.expression);
     let selectedTypes = values.get(value.expression);
     if (selectedTypes === undefined) { selectedTypes = new Map(); values.set(value.expression, selectedTypes); }
     if (!selectedTypes.has(value.type)) selectedTypes.set(value.type, host.types.resolveSelectedValue(value.expression, value.type, file));
@@ -54,7 +68,7 @@ export function createCsharpSourceProfileInputs(
     host.types.resolveSourceCallParameter(source, index, file));
   const regexp = new Map<number, Map<CustomRegExpProtocolKind, CsharpCustomRegExpProtocol>>();
   const inputs: CsharpSourceProfileInputFacts = Object.freeze({
-    values, types: Object.freeze({ get: (type: Type | undefined) => type === undefined ? undefined : types.get(type) }),
+    values, numberLikeTypes, identicalTypes, nativeRegExpReceivers, types: Object.freeze({ get: (type: Type | undefined) => type === undefined ? undefined : types.get(type) }),
     nodes: Object.freeze({ get: (node: Node | undefined) => node === undefined ? undefined : nodes.get(node) }),
     selectedType: Object.freeze({ get: (node: Node | undefined, type: Type | undefined) =>
       typeArguments.find(argument => argument.node === node && argument.type === type)?.carrier }),

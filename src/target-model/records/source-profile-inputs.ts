@@ -9,9 +9,14 @@ export interface CsharpCustomRegExpProtocol {
 }
 export interface CsharpSourceProfileInputRequirements {
   readonly regexpProtocol?: true;
+  readonly regexpExecution?: true;
+  readonly sourceTypeRelations?: true;
   readonly objectShapes?: true;
 }
 export interface CsharpSourceProfileInputFacts {
+  readonly numberLikeTypes: ReadonlySet<Type>;
+  readonly identicalTypes: ReadonlyMap<Type, ReadonlySet<Type>>;
+  readonly nativeRegExpReceivers: ReadonlySet<Node>;
   readonly numericArguments: ReadonlySet<Node>;
   readonly throwableCarriers: ReadonlySet<TargetTypeRef>;
   readonly callTypeArguments: readonly TargetTypeRef[] | undefined;

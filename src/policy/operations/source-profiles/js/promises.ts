@@ -120,9 +120,8 @@ function promiseResolveMember(
   const explicit = context.source.sourceSelectedMethodTypeArguments?.[0];
   const inputResult = getCsharpTaskResultTargetType(argument);
   if (inputResult === undefined && explicit?.explicitTypeNode === undefined) {
-    const types = context.host.semantics(context.sourceFile).types;
     if (explicit === undefined || !targetTypeRefEquals(argument, task.result) &&
-      types.relationship(context.source.sourceArguments[0]!.type, explicit.selectedType) !== "identical") return undefined;
+      !context.inputs.identicalTypes.get(context.source.sourceArguments[0]!.type)?.has(explicit.selectedType)) return undefined;
   }
   const result = explicit?.explicitTypeNode === undefined
     ? inputResult ?? argument
