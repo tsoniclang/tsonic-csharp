@@ -5,7 +5,7 @@ import type { TargetPlanningSourceNavigation } from "@tsonic/target-api/analysis
 import type { CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import { planIdentifierName } from "../names/source-identifiers.js";
 import { sanitizeIdentifier } from "../../../target-model/names/identifiers.js";
-import { csharpSourceTypeArgumentNodes } from "../../../target-model/syntax/type-arguments.js";
+import { csharpSourceTypeArgumentNodes } from "../../../source/extension/type-arguments.js";
 import { failCsharpPlannerInvariant } from "../../invariants.js";
 
 export function getCsharpTypeFromProjectSourceReferenceNode(

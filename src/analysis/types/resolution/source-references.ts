@@ -6,7 +6,7 @@ import type { SourceCallableTypeEvidence, SourceFileSemantics } from "@tsonic/ta
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { classifyCsharpSourceProfileDeclaration, classifyCsharpSourceProfileType, selectedCsharpSourceProfileOwner } from "../../../policy/identities/source-types.js";
 
-import { csharpSourceTypeArgumentNodes } from "../../../target-model/syntax/type-arguments.js";
+import { csharpSourceTypeArgumentNodes } from "../../../source/extension/type-arguments.js";
 import { csharpSourceTypeParameter } from "../../../source/extension/type-parameters.js";
 
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";

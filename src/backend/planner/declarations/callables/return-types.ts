@@ -13,7 +13,7 @@ import {
 } from "../../../../target-model/types/index.js";
 import {
   csharpSourceTypeArgumentNodes,
-} from "../../../../target-model/syntax/type-arguments.js";
+} from "../../../../source/extension/type-arguments.js";
 
 export function getExplicitReturnType(
   typeNode: Node | undefined,

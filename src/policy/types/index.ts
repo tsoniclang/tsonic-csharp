@@ -7,7 +7,7 @@ export * from "./model/target-type-pattern.js";
 export * from "./storage/storage-identity.js";
 export * from "../identities/source-types.js";
 export * from "../conversions/source-literals.js";
-export * from "../../target-model/syntax/type-arguments.js";
+export * from "../../source/extension/type-arguments.js";
 export * from "../../source/extension/markers.js";
 export * from "./collections/fixed-arrays.js";
 export * from "./selected-type-evidence.js";
