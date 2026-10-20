@@ -1,7 +1,7 @@
 import type { Node, Type, SourceFile } from "@tsonic/tsts";
-import type { CsharpProviderCallSelectionHost } from "../../policy/model/provider-calls.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpSourceProfileInputFacts } from "../../target-model/records/source-profile-inputs.js";
+import type { CsharpProviderCallSelectionHost } from "../../../policy/model/provider-calls.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpSourceProfileInputFacts } from "../../../target-model/records/source-profile-inputs.js";
 export function createCsharpSourceProfileInputs(
   host: CsharpProviderCallSelectionHost, file: SourceFile,
   sourceValues: readonly { readonly expression: Node; readonly type: Type }[],
@@ -36,5 +36,5 @@ export function createCsharpSourceProfileInputs(
   if (result !== undefined) types.set(result, resultType);
   return Object.freeze({ values, types, nodes, typeArguments: Object.freeze(typeArguments), resultType, numericArguments });
 }
-import { csharpSourceHasNumericConstraint } from "../constraints/numeric-evidence.js";
-import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
+import { csharpSourceHasNumericConstraint } from "../../constraints/numeric-evidence.js";
+import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";

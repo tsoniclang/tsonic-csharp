@@ -21,7 +21,7 @@ type ResolvedSourceElementAccessInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["elementAccess"]>
 >;
 
-import { createCsharpSourceProfileInputs } from "./inputs.js";
+import { createCsharpSourceProfileInputs } from "../program/records/source-profile-inputs.js";
 import { sourceProfilePropertyIdentityMatches, sourceProfileIdentityMatches, selectExactlyOnePolicy } from "../../policy/operations/source-profiles/source-profile-policy.js";
 export function selectCsharpSourceProfileCallPolicy(
   host: CsharpProviderCallSelectionHost,
