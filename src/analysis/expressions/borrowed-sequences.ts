@@ -1,10 +1,10 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { sourceSequenceInputChoice, sourceSequenceInputIsEmpty } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { getCsharpCollectionElementTargetType } from "../../../target-model/types/carriers/collections.js";
-import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
-import { getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
-import { combineCsharpTargetUnionMembers } from "../../../target-model/types/carriers/runtime-carriers.js";
+import type { TargetTypeRef } from "../../target-model/types/model.js";
+import { getCsharpCollectionElementTargetType } from "../../target-model/types/carriers/collections.js";
+import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
+import { getCsharpGenericOptionalParts } from "../../target-model/types/projections.js";
+import { combineCsharpTargetUnionMembers } from "../../target-model/types/carriers/runtime-carriers.js";
 
 export function resolveCsharpBorrowedSequenceElement(
   ast: AstReader,
