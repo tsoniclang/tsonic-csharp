@@ -1,28 +1,5 @@
-import type {
-  TargetBindingFact,
-  TargetConstraint,
-  TargetMember,
-  TargetParameter,
-  TargetTypeRef,
-} from "../../../target-model/types/model.js";
-import type {
-  CsharpDelegateSignatureShape,
-  CsharpObjectShapeFact,
-  CsharpObjectShapeMemberFact,
-  CsharpRuntimeUnionTargetTypeRef,
-  CsharpTargetAttributeArgument,
-  CsharpTargetAttributeFact,
-  CsharpTargetAttributeValue,
-  CsharpTargetBindingFact,
-  CsharpTargetConversionOperatorFact,
-  CsharpTargetMember,
-  CsharpTargetNamedTypeRef,
-  CsharpTargetParameter,
-  CsharpTargetTypeParameter,
-  CsharpTargetTypeRenderShape,
-  CsharpTargetUnsupportedAttributeFact,
-  CsharpTaskTargetTypeRef,
-} from "../../../target-model/types/model.js";
+import type { TargetBindingFact, TargetConstraint, TargetMember, TargetParameter, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpDelegateSignatureShape, CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpRuntimeUnionTargetTypeRef, CsharpTargetAttributeArgument, CsharpTargetAttributeFact, CsharpTargetAttributeValue, CsharpTargetBindingFact, CsharpTargetConversionOperatorFact, CsharpTargetMember, CsharpTargetNamedTypeRef, CsharpTargetParameter, CsharpTargetTypeParameter, CsharpTargetTypeRenderShape, CsharpTargetUnsupportedAttributeFact, CsharpTaskTargetTypeRef } from "../../../target-model/types/model.js";
 
 export interface CsharpExternAliasSpecifier {
   readonly alias: string;
