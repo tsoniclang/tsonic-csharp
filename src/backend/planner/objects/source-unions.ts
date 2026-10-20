@@ -4,6 +4,7 @@ import type { CsharpExpression, CsharpStructDeclaration, CsharpTypeMember, Cshar
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { finalizeCsharpCompilationUnit } from "../program/compilation-unit.js";
 import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { csharpCompilationRequiresUnsafe, csharpTypeSafetyModifiers } from "../safety/explicit-safety.js";
 
 export function planCsharpSourceUnionFile(input: CsharpPlanningContext):
   { readonly source: CsharpOutputSourceFile; readonly requiresUnsafe: boolean } | undefined {
@@ -66,7 +67,7 @@ export function planCsharpSourceUnionFile(input: CsharpPlanningContext):
         kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression", receiver: comparer, name: "GetHashCode" },
         arguments: [{ kind: "Argument", expression: receiver }],
       } }] } });
-    declarations.push({ kind: "StructDeclaration", name: type.name, modifiers: ["public", "readonly"], members,
+    declarations.push({ kind: "StructDeclaration", name: type.name, modifiers: ["public", "readonly", ...csharpTypeSafetyModifiers(input, definition.storage)], members,
       typeParameters: parameters.flatMap(parameter => parameter.kind === "type-parameter" ? [{ name: parameter.name }] : []),
       interfaces: [{ kind: "IdentifierName", name: "System.IEquatable", typeArguments: [type] }],
     });
@@ -74,6 +75,6 @@ export function planCsharpSourceUnionFile(input: CsharpPlanningContext):
   if (declarations.length === 0) return undefined;
   const finalized = finalizeCsharpCompilationUnit({ kind: "CompilationUnit", usings: [],
     members: [{ kind: "NamespaceDeclaration", name: input.program.records.compilation.get().namespace, members: declarations }],
-  }, input.program.records.unsafeCompilation.get("source-unions") === true);
+  }, csharpCompilationRequiresUnsafe("source-unions", input));
   return { source: { path: "generated/TsonicSourceUnions.cs", unit: finalized.unit }, requiresUnsafe: finalized.requiresUnsafe };
 }

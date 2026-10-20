@@ -13,11 +13,13 @@ import { selectCsharpTypeEmission } from "../../policy/types/type-emission.js";
 import { selectCsharpTypeUnsafeContext } from "../../policy/safety/native-types.js";
 
 export function analyzeCsharpTypeEmission(input: { readonly ast: AstReader; readonly nodes: readonly Node[];
+  readonly languageDialect: import("../../target-model/configuration/model.js").CsharpLanguageDialect;
+  readonly extraTypes: readonly TargetTypeRef[];
   readonly evidence: CsharpSourceEvidenceIndex; readonly values: CsharpValueReadClassifications;
   readonly storage: CsharpStorageClassifications; readonly shapes: CsharpObjectShapeDemand; readonly admitted: (node: Node) => boolean }) {
   const producer = createCsharpTypeEmissionProducer();
   const issues: TargetDiagnostic[] = [];
-  const pending = [...input.evidence.targetTypes];
+  const pending = [...input.evidence.targetTypes, ...input.extraTypes];
   const admissions = new Map<string, boolean>();
   const validate = (carrier: TargetTypeRef, node: Node): void => {
     const key = targetTypeRefKey(carrier);
@@ -81,7 +83,8 @@ export function analyzeCsharpTypeEmission(input: { readonly ast: AstReader; read
       for (const child of children(carrier)) visit(child);
     };
     visit(root);
-    producer.publish(root, { objectShapes: Object.freeze([...shapes]), unsafeContext: selectCsharpTypeUnsafeContext(root) });
+    producer.publish(root, { objectShapes: Object.freeze([...shapes]),
+      unsafeContext: input.languageDialect === "csharp14" && selectCsharpTypeUnsafeContext(root) });
     pending.push(...visited);
   }
   return Object.freeze({ records: producer.seal(), issues: Object.freeze(issues) });

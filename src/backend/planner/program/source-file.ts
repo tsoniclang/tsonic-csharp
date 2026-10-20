@@ -63,9 +63,7 @@ import {
 import {
   planResourceManagedSourceFileStatements,
 } from "../statements/resource-management.js";
-import {
-  diagnoseCsharpSafetyApplications,
-} from "../safety/explicit-safety.js";
+import { csharpCompilationRequiresUnsafe, withCsharpSafetyModifiers } from "../safety/explicit-safety.js";
 
 export interface PlannedCsharpSourceFile {
   readonly fileName: string;
@@ -189,7 +187,6 @@ export function planSourceFile(
       return topLevelStatements;
     },
   );
-  diagnoseCsharpSafetyApplications(sourceFile, input, diagnostics);
   if (hasModuleInitializer) {
     const initializationStatements = [
       ...moduleInitialization.moduleInitializationDependencies.get(sourceFile)
@@ -231,7 +228,7 @@ export function planSourceFile(
       members.push({
         kind: "MethodDeclaration",
         name: csharpModuleInitializationCoreMethodName,
-        modifiers: ["private", "static", "async"],
+        modifiers: withCsharpSafetyModifiers(["private", "static", "async"], sourceFile, "declaration", input),
         returnType: taskType,
         parameters: [],
         body: {
@@ -280,7 +277,7 @@ export function planSourceFile(
       members.push({
         kind: "MethodDeclaration",
         name: csharpModuleInitializationCoreMethodName,
-        modifiers: ["private", "static"],
+        modifiers: withCsharpSafetyModifiers(["private", "static"], sourceFile, "declaration", input),
         returnType: nullableObjectType,
         parameters: [],
         body: {
@@ -340,7 +337,7 @@ export function planSourceFile(
   };
   const finalized = finalizeCsharpCompilationUnit(
     unit,
-    input.program.records.unsafeCompilation.get(sourceFile) === true,
+    csharpCompilationRequiresUnsafe(sourceFile, input),
   );
   return {
     fileName,

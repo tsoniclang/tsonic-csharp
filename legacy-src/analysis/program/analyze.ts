@@ -595,7 +595,10 @@ function analyzeCsharpTargetProgramBeforeSeal(
     factories: classFactories, projects: projectEmission.records, parameters: typeParameterEmission.records,
     operations: admittedOperations, admitted: admittedControlNode });
   if (identifierIssues.length !== 0) return rejectedTargetStage(identifierIssues);
+  const sourceUnions = analyzeCsharpSourceUnionEmission(typeDefinitions);
   const typeEmission = analyzeCsharpTypeEmission({ ast: source.ast, nodes: sourceStorage.nodes, evidence: analysis.sourceEvidence,
+    languageDialect: configuration.languageDialect,
+    extraTypes: sourceUnions.sourceUnions.get().flatMap(union => [union.carrier, union.storage, ...union.arms]),
     values: analysis.valueReads, storage: analysis.storage, shapes: objectShapeDemand, admitted: admittedControlNode });
   if (typeEmission.issues.length !== 0) return rejectedTargetStage(typeEmission.issues);
   const sourceFileEmission = analyzeCsharpSourceFileEmission({ source, identities: sourceIdentities.records,
@@ -608,7 +611,6 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const startup = analyzeCsharpStartup({ source, identities: sourceIdentities.records, modules: moduleInitialization.index,
     constructions: sourceModuleConstructions.index, outputType: configuration.outputType, driver: binaryExecutionDriver });
   if (startup.issues.length !== 0) return rejectedTargetStage(startup.issues);
-  const sourceUnions = analyzeCsharpSourceUnionEmission(typeDefinitions);
   const safetyEmission = analyzeCsharpSafetyEmission({ source, configuration, safety: safetyApplications,
     evidence: analysis.sourceEvidence, operations: admittedOperations, storage: analysis.storage,
     shapes: objectShapeDemand, unions: sourceUnions, admitted: admittedControlNode });

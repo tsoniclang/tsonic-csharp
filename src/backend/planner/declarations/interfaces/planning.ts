@@ -44,7 +44,6 @@ import { renderObjectShapeProjectionMethods } from "../../objects/closed-object-
 import {
   csharpSafetyAccessorModifiersForDeclaration,
   csharpSafetyModifiersForDeclaration,
-  diagnoseUnavailableCsharpSafetyAccessors,
 } from "../../safety/explicit-safety.js";
 
 export function planInterfaceDeclaration(
@@ -84,7 +83,7 @@ export function planInterfaceDeclaration(
   return {
     kind: "InterfaceDeclaration",
     name: requiredName(declaration.name, input, node),
-    modifiers: ["public"],
+    modifiers: ["public", ...csharpSafetyModifiersForDeclaration(node, "declaration", input)],
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], input, diagnostics),
     ...(interfaces.length === 0 && !jsonSerializable
@@ -146,12 +145,6 @@ function planInterfacePropertyDeclaration(
     input, diagnostics,
   );
   const writable = !input.program.source.ast.hasModifierKind(node, "readonly");
-  diagnoseUnavailableCsharpSafetyAccessors(
-    node,
-    writable ? ["getter", "setter"] : ["getter"],
-    input,
-    diagnostics,
-  );
   return {
     kind: "PropertyDeclaration",
     name: planCsharpAdmittedMemberName(input.program.names, declaration.name),
@@ -190,12 +183,6 @@ function planInterfaceIndexerDeclaration(
   }
   const parameterDeclaration = parameterNode === undefined ? undefined : AsParameterDeclaration(input.program.source.ast, parameterNode);
   const writable = !input.program.source.ast.hasModifierKind(node, "readonly");
-  diagnoseUnavailableCsharpSafetyAccessors(
-    node,
-    writable ? ["getter", "setter"] : ["getter"],
-    input,
-    diagnostics,
-  );
   return {
     kind: "IndexerDeclaration",
     modifiers: csharpSafetyModifiersForDeclaration(

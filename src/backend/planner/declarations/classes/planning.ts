@@ -15,7 +15,7 @@ import { csharpJsonValueInterfaceType, objectShapeRequiresJsonSerialization, ren
 import { getCsharpObjectShapeFactForNode } from "../../objects/fact-queries.js";
 import { planImplicitForwardingConstructors } from "../../project/type-constructors.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
-import { csharpSafetyModifiersForDeclaration } from "../../safety/explicit-safety.js";
+import { csharpSafetyModifiersForDeclaration, withCsharpSafetyModifiers } from "../../safety/explicit-safety.js";
 import { guardCsharpFrozenDataProperties } from "../../objects/frozen-data-properties.js";
 import { createCsharpMemberPlanningContext } from "../../context.js";
 import { classFactoryContext, completeLocalClassConstructor } from "./factories.js";
@@ -90,7 +90,7 @@ export function planClassDeclaration(
   return { constructorParameters, declaration: {
     kind: "ClassDeclaration",
     name: className,
-    modifiers: selected.abstract ? ["public", "abstract"] : ["public"],
+    modifiers: withCsharpSafetyModifiers(selected.abstract ? ["public", "abstract"] : ["public"], node, "declaration", input),
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: [
       ...planOuterTypeParameters(node, input, diagnostics),

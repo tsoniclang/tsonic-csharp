@@ -14,6 +14,7 @@ import type { Node } from "@tsonic/tsts";
 import { objectShapeArtifactKey } from "../../../target-model/records/object-shape-demand.js";
 import type { CsharpObjectShapeDeclarationEmission } from "../../../target-model/records/object-shape-emission.js";
 import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { csharpCompilationRequiresUnsafe, csharpObjectShapeSafetyModifiers } from "../safety/explicit-safety.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
@@ -119,7 +120,7 @@ export function planCsharpObjectShapeSourceFile(
   };
   const finalized = finalizeCsharpCompilationUnit(
     unit,
-    input.program.records.unsafeCompilation.get("object-shapes") === true,
+    csharpCompilationRequiresUnsafe("object-shapes", input),
   );
   return {
     source: {
@@ -154,7 +155,7 @@ function renderObjectShapeDeclaration(
       failCsharpPlannerInvariant("A structural reference contract requires exact renderable member signatures.", fact.methodImplementation?.declaration);
     }
     return { kind: "InterfaceDeclaration", name: selected.name,
-      objectShapeIdentity: selected.identity, modifiers: ["public"], typeParameters,
+      objectShapeIdentity: selected.identity, modifiers: ["public", ...csharpObjectShapeSafetyModifiers(input, fact)], typeParameters,
       interfaces: [...interfaces, ...(jsonSerializable ? [csharpJsonValueInterfaceType()] : []),
         ...(referenceIdentity ? [csharpClosedValueCarrierInterfaceType()] : [])],
       members: [...contractMembers, ...(capabilities.includes("enumerable-keys") && !inheritedEnumerableKeys ? [csharpEnumerableKeysContract(fact, input.program.records.nativeMemberHiding)] : []),
@@ -181,7 +182,7 @@ function renderObjectShapeDeclaration(
     kind: selected.representation === "struct" ? "StructDeclaration" : "ClassDeclaration",
     name: selected.name,
     ...(objectShapeIdentity === undefined ? {} : { objectShapeIdentity }),
-    modifiers: ["public"],
+    modifiers: ["public", ...csharpObjectShapeSafetyModifiers(input, fact)],
     ...(typeParameters.length === 0 ? {} : { typeParameters }),
     ...(interfaces.length === 0 && !jsonSerializable && !referenceIdentity
       ? {}

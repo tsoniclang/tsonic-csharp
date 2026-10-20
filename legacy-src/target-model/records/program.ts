@@ -61,6 +61,7 @@ export interface CsharpProgramRecords extends CsharpStatementExitRecords, Csharp
   readonly generatedHelpers: import("./generated-helpers.js").CsharpGeneratedHelperRecords["generatedHelpers"];
   readonly generatedHelper: import("./generated-helpers.js").CsharpGeneratedHelperRecords["generatedHelper"];
   readonly unsafeEmission: import("./safety-emission.js").CsharpSafetyEmissionRecords["unsafeEmission"];
+  readonly unsafeShape: import("./safety-emission.js").CsharpSafetyEmissionRecords["unsafeShape"];
   readonly unsafeCompilation: import("./safety-emission.js").CsharpSafetyEmissionRecords["unsafeCompilation"];
   readonly declarationSafety: import("./safety-emission.js").CsharpSafetyEmissionRecords["declarationSafety"];
   readonly typeParameterEmission: import("./type-parameters.js").CsharpTypeParameterEmissionRecords["typeParameterEmission"];
