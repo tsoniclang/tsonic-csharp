@@ -1,18 +1,6 @@
-import type {
-  CsharpTargetAttributeArgument,
-  CsharpTargetAttributeFact,
-  CsharpTargetAttributeValue,
-  CsharpTargetUnsupportedAttributeFact,
-} from "../../../policy/types/index.js";
-import type {
-  DotnetAttributeArgument,
-  DotnetAttributeDeclaration,
-  DotnetAttributeValue,
-  DotnetUnsupportedAttributeDeclaration,
-} from "../model/types.js";
-import {
-  dotnetTypeRefToTargetTypeRef,
-} from "./type-ref.js";
+import type { CsharpTargetAttributeArgument, CsharpTargetAttributeFact, CsharpTargetAttributeValue, CsharpTargetUnsupportedAttributeFact } from "../../../target-model/types/model.js";
+import type { DotnetAttributeArgument, DotnetAttributeDeclaration, DotnetAttributeValue, DotnetUnsupportedAttributeDeclaration } from "../model/types.js";
+import { dotnetTypeRefToTargetTypeRef } from "./index.js";
 
 export function dotnetAttributeToTargetAttribute(attribute: DotnetAttributeDeclaration): CsharpTargetAttributeFact {
   return {
