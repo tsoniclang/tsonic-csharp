@@ -1,12 +1,12 @@
 import { providerVirtualDeclarationFactKey, type Node } from "@tsonic/tsts";
 import { sourceIndexedTypeEvidence, type SourceFileSemantics } from "@tsonic/target-api/source";
-import type { CsharpTypeResolutionScope } from "./engine.js";
+import type { CsharpTypeResolutionScope } from "../../../policy/types/resolution/engine.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { csharpTargetBindingSubstitutions, substituteCsharpTargetMember } from "../callables/member-substitution.js";
+import { csharpTargetBindingSubstitutions, substituteCsharpTargetMember } from "../../../policy/types/callables/member-substitution.js";
 import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { nextState } from "./state.js";
+import { nextState } from "../../../policy/types/resolution/state.js";
 
 export function resolveCsharpProviderIndexedAccess(
   scope: CsharpTypeResolutionScope, node: Node, queries: SourceFileSemantics, state: CsharpTypeResolutionState,

@@ -9,6 +9,7 @@ import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpArrayLiteralSelection } from "../../target-model/records/array-literals.js";
 
 import type { ResolvedSourceCallInfo } from "../../target-model/records/source-calls.js";
+import type { CsharpSourceCallResult } from "../../target-model/operations/source-call-results.js";
 export interface CsharpTypeQueries {
   resolveArrayLiteral(node: Node, sourceFile: SourceFile): CsharpArrayLiteralSelection;
   nativeGuardResult(expression: Node): boolean | undefined;

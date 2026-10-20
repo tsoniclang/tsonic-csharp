@@ -2,7 +2,6 @@ import { type Node } from "@tsonic/tsts";
 import { type TargetTypeRef } from "../types/model.js";
 import { type CsharpConversionSelection } from "../conversions/selection.js";
 import { type CsharpBorrowedSequenceInput } from "./borrowed-sequences.js";
-import { type TargetTypeRef } from "../../policy/types/types/model.js";
 
 export interface CsharpArraySpreadEmission {
   readonly carrier: TargetTypeRef;
