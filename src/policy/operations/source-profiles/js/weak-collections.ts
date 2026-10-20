@@ -1,35 +1,9 @@
-import type {
-  CsharpTargetMember,
-  TargetTypeRef,
-} from "../../../types/index.js";
-import {
-  csharpJsWeakMapTargetType,
-  csharpJsWeakSetTargetType,
-  getCsharpJsWeakMapTargetTypes,
-  getCsharpJsWeakSetElementTargetType,
-} from "../../../../target-model/types/carriers/js.js";
-import {
-  csharpEnumerableTargetType,
-  csharpNullableTargetType,
-  isCsharpAbsenceTargetType,
-  csharpSourcePrimitiveTargetType,
-  getCsharpNullableElementTargetType,
-  isCsharpValueTypeTargetType,
-} from "../../../../target-model/types/index.js";
-import type {
-  CsharpSourceProfileCallPolicy,
-  CsharpSourceProfileCallPolicyContext,
-} from "../source-profile-policy.js";
+import type { CsharpTargetMember, TargetTypeRef } from "../../../types/index.js";
+import { csharpJsWeakMapTargetType, csharpJsWeakSetTargetType, getCsharpJsWeakMapTargetTypes, getCsharpJsWeakSetElementTargetType } from "../../../../target-model/types/carriers/js.js";
+import { csharpEnumerableTargetType, csharpNullableTargetType, isCsharpAbsenceTargetType, csharpSourcePrimitiveTargetType, getCsharpNullableElementTargetType, isCsharpValueTypeTargetType } from "../../../../target-model/types/index.js";
+import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext } from "../../../model/source-profiles.js";
 import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
-import {
-  instanceMethod,
-  jsCallPolicy,
-  jsConstructIdentity,
-  jsMemberIdentity,
-  jsRuntimeTargetType,
-  staticMethod,
-  targetParameter,
-} from "./common.js";
+import { instanceMethod, jsCallPolicy, jsConstructIdentity, jsMemberIdentity, jsRuntimeTargetType, staticMethod, targetParameter } from "./common.js";
 
 const boolType = csharpSourcePrimitiveTargetType("bool");
 const instanceReceiver = { kind: "instance" } as const;
@@ -177,10 +151,7 @@ function weakSetMethod(
 function weakMapConstructor(
   context: CsharpSourceProfileCallPolicyContext,
 ): CsharpTargetMember | undefined {
-  const arguments_ = context.host.types.resolveSourceCallTypeArguments(
-    context.source,
-    context.sourceFile,
-  );
+  const arguments_ = context.inputs.callTypeArguments;
   if (arguments_?.length !== 2 || isCsharpValueTypeTargetType(arguments_[0]!)) {
     return undefined;
   }
@@ -209,10 +180,7 @@ function weakMapConstructor(
 function weakSetConstructor(
   context: CsharpSourceProfileCallPolicyContext,
 ): CsharpTargetMember | undefined {
-  const arguments_ = context.host.types.resolveSourceCallTypeArguments(
-    context.source,
-    context.sourceFile,
-  );
+  const arguments_ = context.inputs.callTypeArguments;
   if (arguments_?.length !== 1 || isCsharpValueTypeTargetType(arguments_[0]!)) {
     return undefined;
   }
