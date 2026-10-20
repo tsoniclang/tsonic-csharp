@@ -1,53 +1,10 @@
-export type {
-  DotnetAssemblyReference,
-  DotnetAttributeArgument,
-  DotnetAttributeDeclaration,
-  DotnetAttributePlacement,
-  DotnetAttributeValue,
-  DotnetConstraint,
-  DotnetConversionOperatorDeclaration,
-  DotnetExportDeclaration,
-  DotnetFunctionDeclaration,
-  DotnetMemberDeclaration,
-  DotnetMemberKind,
-  DotnetModuleModel,
-  DotnetNamespaceDeclaration,
-  DotnetParameterDeclaration,
-  DotnetParameterDefaultValue,
-  DotnetProviderIdentity,
-  DotnetSignatureDeclaration,
-  DotnetTargetMember,
-  DotnetTargetParameter,
-  DotnetTypeDeclaration,
-  DotnetTypeKind,
-  DotnetTypeParameterDeclaration,
-  DotnetTypeRef,
-  DotnetUnsupportedAttributeDeclaration,
-  DotnetUnsupportedConstraintDeclaration,
-  DotnetValueDeclaration,
-  DotnetUnsupportedMemberDeclaration,
-} from "./model/index.js";
-export {
-  dotnetConstraintToTargetConstraint,
-  dotnetTypeRefToProviderType,
-  dotnetTypeRefToTargetTypeRef,
-} from "./model/index.js";
-export type {
-  DotnetBindingProviderOptions,
-  DotnetProviderDeclarationContext,
-  DotnetProviderDiagnostic,
-  DotnetProviderModuleContext,
-  DotnetProviderModuleResult,
-  DotnetProviderOwnership,
-  DotnetTypeDataProvider,
-} from "./projection/provider.js";
-export {
-  completeDotnetProviderContext,
-  completeDotnetProviderMaterialization,
-  createDotnetSourceDeclarationProvider,
-  createDotnetSourceDeclarationProviderSet,
-  emptyIncrementalDotnetProviderMaterialization,
-} from "./projection/provider.js";
+export type { DotnetAssemblyReference, DotnetAttributeArgument, DotnetAttributeDeclaration, DotnetAttributePlacement, DotnetAttributeValue, DotnetConstraint, DotnetConversionOperatorDeclaration, DotnetExportDeclaration, DotnetFunctionDeclaration, DotnetMemberDeclaration, DotnetMemberKind, DotnetModuleModel, DotnetNamespaceDeclaration, DotnetParameterDeclaration, DotnetParameterDefaultValue, DotnetProviderIdentity, DotnetSignatureDeclaration, DotnetTypeDeclaration, DotnetTypeKind, DotnetTypeParameterDeclaration, DotnetTypeRef, DotnetUnsupportedAttributeDeclaration, DotnetUnsupportedConstraintDeclaration, DotnetValueDeclaration, DotnetUnsupportedMemberDeclaration } from "./model/index.js";
+export type { DotnetTargetMember, DotnetTargetParameter } from "./projection/index.js";
+export { dotnetConstraintToTargetConstraint, dotnetTypeRefToTargetTypeRef } from "./projection/index.js";
+export type { DotnetBindingProviderOptions } from "./projection/provider.js";
+export type { DotnetProviderDeclarationContext, DotnetProviderDiagnostic, DotnetProviderModuleContext, DotnetProviderModuleResult, DotnetProviderOwnership, DotnetTypeDataProvider } from "./model/provider.js";
+export { createDotnetSourceDeclarationProvider, createDotnetSourceDeclarationProviderSet } from "./projection/provider.js";
+export { completeDotnetProviderContext, completeDotnetProviderMaterialization, emptyIncrementalDotnetProviderMaterialization } from "./model/provider.js";
 export {
   validateDotnetModuleModelContract,
   validateDotnetProviderDeclarationModelContract,
