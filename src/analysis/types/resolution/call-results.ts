@@ -1,13 +1,13 @@
 import type { CsharpTypePolicyHost } from "./model.js";
 import type { CsharpSourceCallResult } from "../../../target-model/operations/source-call-results.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { namedTargetTypeImplicitlyAccepts } from "../../conversions/carriers.js";
-import { selectCsharpConversion } from "../../conversions/core.js";
+import { namedTargetTypeImplicitlyAccepts } from "../../../policy/conversions/carriers.js";
+import { selectCsharpConversion } from "../../../policy/conversions/core.js";
 import { csharpConversionIsApplicable } from "../../../target-model/conversions/selection.js";
 import { getCsharpRuntimeUnionArms, isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { retainCsharpBroadValueCarrier } from "./selected-type-evidence.js";
+import { retainCsharpBroadValueCarrier } from "../../../policy/types/resolution/selected-type-evidence.js";
 
 export function selectCsharpSourceCallResult(
   host: CsharpTypePolicyHost,
