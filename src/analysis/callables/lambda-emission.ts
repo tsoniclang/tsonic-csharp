@@ -12,7 +12,7 @@ import type { CsharpTypeEmissionRecords } from "../../target-model/records/type-
 import type { CsharpTargetArgumentRecords } from "../../target-model/records/target-arguments.js";
 import type { CsharpNativeConstantRecords } from "../../target-model/records/native-constants.js";
 import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
-import { csharpVoidReturnCompletion } from "../../target-model/types/carriers/delegates.js";
+import { csharpVoidReturnCompletion } from "../../policy/conversions/callable-completions.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 import { createCsharpLambdaEmissionRecords } from "../program/records/lambda-emission.js";
 

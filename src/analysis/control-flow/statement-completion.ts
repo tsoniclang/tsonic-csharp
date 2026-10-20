@@ -9,7 +9,7 @@ import type { CsharpReturnCompletion } from "../../target-model/records/returns.
 import type { CsharpExpectedTypeClassifications } from "../../target-model/records/expected-types.js";
 import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
 import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
-import { csharpVoidReturnCompletion } from "../../target-model/types/carriers/delegates.js";
+import { csharpVoidReturnCompletion } from "../../policy/conversions/callable-completions.js";
 import type { CsharpCatchBinding } from "../../target-model/records/exception-flow.js";
 import type { CsharpNativeUseClassifications } from "../../target-model/records/native-demand.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";

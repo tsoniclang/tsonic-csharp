@@ -1,27 +1,11 @@
-import type {
-  TargetTypeRef,
-} from "../model.js";
-import type {
-  CsharpDelegateSignatureShape,
-  CsharpDelegateTargetTypeRef,
-  CsharpTaskTargetTypeRef,
-  CsharpTargetNamedTypeRef,
-} from "../model.js";
-import {
-  isCsharpVoidTargetType,
-} from "../identity.js";
-import { csharpCarrierAdmitsSourceAbsence } from "./runtime-carriers.js";
+import type { TargetTypeRef } from "../model.js";
+import type { CsharpDelegateSignatureShape, CsharpDelegateTargetTypeRef, CsharpTaskTargetTypeRef, CsharpTargetNamedTypeRef } from "../model.js";
+import { isCsharpVoidTargetType } from "../identity.js";
+
 import { targetTypeRefEquals } from "../equality.js";
-import {
-  csharpQualifiedTypeRenderShape,
-} from "../render-shapes.js";
-import {
-  csharpVoidTargetType,
-  isCsharpNeverTargetType,
-} from "./scalar-types.js";
-import {
-  csharpTargetNamedType,
-} from "../factories.js";
+import { csharpQualifiedTypeRenderShape } from "../render-shapes.js";
+import { csharpVoidTargetType } from "./scalar-types.js";
+import { csharpTargetNamedType } from "../factories.js";
 import { getCsharpNullableElementTargetType } from "./nullable.js";
 
 export function csharpDelegateTargetType(
@@ -81,16 +65,6 @@ export function getCsharpTaskResultTargetType(type: TargetTypeRef | undefined): 
   return type?.kind === "target-named"
     ? (type as Partial<CsharpTaskTargetTypeRef>).csharpTaskResultType
     : undefined;
-}
-
-export function csharpVoidReturnCompletion(source: TargetTypeRef | undefined, target: TargetTypeRef | undefined): "void" | "absence" | undefined {
-  if (!isCsharpVoidTargetType(source)) return undefined;
-  if (isCsharpVoidTargetType(target)) return "void";
-  return csharpCarrierAdmitsSourceAbsence(target) ? "absence" : undefined;
-}
-
-export function csharpArgumentVectorCallbackResultMatches(source: TargetTypeRef, target: TargetTypeRef): boolean {
-  return targetTypeRefEquals(source, target) || isCsharpNeverTargetType(source) && isCsharpVoidTargetType(target);
 }
 
 export function getCsharpDelegateSignature(type: TargetTypeRef | undefined): CsharpDelegateSignatureShape | undefined {

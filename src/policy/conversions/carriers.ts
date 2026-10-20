@@ -1,6 +1,7 @@
 import { csharpProviderBindingFromResolution } from "../../providers/model/relation-resolver.js";
 import { csharpBaseTargetTypeFromBinding, csharpTargetTypeFromBinding } from "../types/storage/bindings.js";
-import { csharpVoidReturnCompletion, csharpDelegateSignatureHasSupportedPassingModes, csharpDelegateSignaturesMatchNativeBinding, csharpObjectTargetType, csharpTargetBindingFact, getCsharpDelegateSignature, getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms, isCsharpJsValueTargetType, isCsharpAbsenceTargetType, isCsharpNullableReferenceTargetType, isCsharpReferenceCarrier, isCsharpSourceDelegateTargetType, isCsharpValueTypeTargetType, isCsharpVoidTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/index.js";
+import { csharpDelegateSignatureHasSupportedPassingModes, csharpDelegateSignaturesMatchNativeBinding, csharpObjectTargetType, csharpTargetBindingFact, getCsharpDelegateSignature, getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms, isCsharpJsValueTargetType, isCsharpAbsenceTargetType, isCsharpNullableReferenceTargetType, isCsharpReferenceCarrier, isCsharpSourceDelegateTargetType, isCsharpValueTypeTargetType, isCsharpVoidTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/index.js";
+import { csharpVoidReturnCompletion } from "./callable-completions.js";
 import { substituteTargetTypeParameters } from "../types/resolution/substitution.js";
 import { conversionIsImplicitlyApplicable, selectCsharpConversion } from "./core.js";
 import { csharpConversionIsApplicable } from "./applicability.js";

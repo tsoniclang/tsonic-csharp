@@ -1,5 +1,6 @@
 import type { CsharpTargetParameter, TargetTypeRef } from "../../../types/index.js";
-import { csharpQualifiedTypeRenderShape, csharpTargetNamedType, getCsharpDelegateSignature, csharpArgumentVectorCallbackResultMatches } from "../../../../target-model/types/index.js";
+import { csharpQualifiedTypeRenderShape, csharpTargetNamedType, getCsharpDelegateSignature } from "../../../../target-model/types/index.js";
+import { csharpArgumentVectorCallbackResultMatches } from "../../../conversions/callable-completions.js";
 import { jsRuntimeTargetType, targetParameter } from "./common.js";
 
 const replacementArgumentsType = jsRuntimeTargetType(
