@@ -3,7 +3,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
 
 import { csharpSourcePrimitiveTargetType, targetTypeRefEquals } from "../../../policy/types/index.js";
-import { readCsharpSourceNativePointerOperation } from "../../../policy/operations/pointers/source-native-pointers.js";
+import { readCsharpSourceNativePointerOperation } from "../../../source/extension/native-pointers.js";
 import { readCsharpSourceRawPointerIdentity } from "../../../source/extension/raw-pointers.js";
 import { csharpRuntimeRawPointerTargetType, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpNullableReferenceTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";

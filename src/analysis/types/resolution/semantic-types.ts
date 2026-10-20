@@ -19,7 +19,7 @@ import { csharpNullableReferenceTargetType, isCsharpNullableReferenceTargetType 
 import { maximumTypeResolutionDepth } from "./model.js";
 import { nextState } from "./state.js";
 import { providerVirtualDeclarationFactKey, sourcePrimitiveFactKey } from "@tsonic/tsts";
-import { readCsharpSourceNativePointerOperation } from "../../../policy/operations/pointers/source-native-pointers.js";
+import { readCsharpSourceNativePointerOperation } from "../../../source/extension/native-pointers.js";
 import { readCsharpSourceTypedLocationOperation } from "../../../policy/operations/typed-locations/source-typed-locations.js";
 import { readCsharpSourceUnsafeContext } from "../../../policy/operations/safety/explicit.js";
 import { relateTypeArguments } from "./generic-arguments.js";

@@ -1,9 +1,6 @@
 import { tsonicNativePointerOperationFactKey } from "@tsonic/source-core/facts";
 import type { TsonicNativePointerOperationFact } from "@tsonic/source-core/facts";
-import type {
-  ExtensionFactSubject,
-  ReadonlySourceFactResolver,
-} from "@tsonic/tsts";
+import type { ExtensionFactSubject, ReadonlySourceFactResolver } from "@tsonic/tsts";
 
 export type CsharpSourceNativePointerOperation =
   TsonicNativePointerOperationFact;
