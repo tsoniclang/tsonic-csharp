@@ -1,5 +1,5 @@
 import type { CsharpExpression } from "../../backend/target-ast/syntax/index.js";
-import { failUnsupportedCsharpSyntax } from "./fail-closed.js";
+import { failCsharpSyntaxInvariant } from "./invariants.js";
 
 export function csharpExpressionPrecedence(expression: CsharpExpression): number {
   switch (expression.kind) {
@@ -36,7 +36,7 @@ export function csharpExpressionPrecedence(expression: CsharpExpression): number
         case "SlashToken":
         case "PercentToken": return 13;
       }
-      return failUnsupportedCsharpSyntax(expression.operatorToken, "binary precedence");
+      return failCsharpSyntaxInvariant(expression.operatorToken, "binary precedence");
     }
     default: return 16;
   }
