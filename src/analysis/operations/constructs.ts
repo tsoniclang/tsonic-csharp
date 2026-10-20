@@ -3,15 +3,10 @@ import { classifyCsharpSourceCallArguments } from "./source-call-arguments.js";
 import { classifyCsharpUnionCall } from "./union-calls.js";
 import { classifyCsharpSourceCallee } from "../../policy/types/callables/source-callees.js";
 import { classifyCsharpBorrowedSequenceInput } from "./borrowed-sequences.js";
-import { classifyCsharpClassPropertyStorage } from "./class-property-storage.js";
+
 import { classifyTypeofComparison } from "./typeof-comparisons.js";
 import { classifyMethodTypeArgumentProjections } from "./method-type-arguments.js";
-import {
-  createCsharpOperationErasure,
-  csharpErasedExpressionStatement,
-  type CsharpOperationErasure,
-  type CsharpOperationErasureIndexes,
-} from "./statement-erasure.js";
+import { csharpErasedExpressionStatement, type CsharpOperationErasure } from "./statement-erasure.js";
 import type { CsharpAwaitCompletion } from "../../target-model/types/await-completions.js";
 import { selectCsharpAwaitCompletion } from "../../policy/operations/control-flow/await-completions.js";
 import { admitCsharpConversionSelection } from "../conversions/validation.js";
@@ -22,266 +17,51 @@ import { selectCsharpClosedTypeTestPlan } from "../../policy/operations/operator
 import { selectCsharpOperatorForm } from "../../policy/operations/operators/operator-forms.js";
 import { selectCsharpArrayTypeTest } from "../../policy/operations/source-profiles/js/type-tests.js";
 import { selectCsharpCallForm } from "../../policy/operations/members/selection/call-forms.js";
-import { getCsharpTypeofResult, type CsharpTypeofResult } from "../../target-model/types/runtime-kind.js";
+import { getCsharpTypeofResult } from "../../target-model/types/runtime-kind.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import { getCsharpClassFactory } from "../../target-model/types/carriers/class-factories.js";
 import { classifyCsharpOptionalCallCallee, classifyCsharpOptionalCallReceiver } from "./optional-calls.js";
 import { selectCsharpMemoryBinding } from "../../policy/operations/memory-bindings.js";
-import { analyzeCsharpNativeHandlers } from "./native-handlers.js";
-import type { CsharpRequiredRecord } from "../program/records/required-records.js";
+
 import { selectCsharpElementDeletion } from "../../policy/operations/collections/element-deletion.js";
 import { selectCsharpSwitch } from "../../policy/operations/control-flow/switch.js";
-import {
-  createTargetClassificationBuilder,
-  createTargetClassificationKey,
-} from "@tsonic/target-api/analysis";
-import type {
-  TargetClassificationKey,
-} from "@tsonic/target-api/analysis";
-import {
-  AsForInOrOfStatement,
-  sourceClassFieldIsTypeOnly,
-} from "@tsonic/target-api/source";
-import type {
-  Node,
-  SourceFile,
-} from "@tsonic/tsts";
-import {
-  selectCsharpJsValueCallOperation,
-  selectCsharpJsValueBinaryOperation,
-  selectCsharpJsValueReceiverExpressionOperation,
-  selectCsharpJsValueUnaryOperation,
-  selectCsharpJsTypeofOperation,
-  selectCsharpJsValueCondition,
-  selectCsharpJsValueVoidOperation,
-  selectCsharpJsObjectLiteralOperation,
-} from "../../policy/operations/js-values/index.js";
-import {
-  selectCsharpProviderValue,
-  selectCsharpTargetCall,
-  selectCsharpTargetElement,
-  selectCsharpTargetProperty,
-} from "../../policy/operations/members/index.js";
-import {
-  selectCsharpBinaryOperation,
-  selectCsharpDestructuringAssignmentOperation,
-  selectCsharpIteration,
-  selectCsharpNativePointerOperation,
-  selectCsharpResourceManagement,
-  selectCsharpSourceFlowCall,
-  selectCsharpNativeRefReturn,
-  selectCsharpTypedLocationOperation,
-  selectCsharpUnaryOperation,
-  sourceOperatorFromKindName,
-  selectCsharpJsArrayMutation,
-  selectCsharpJsStringConversion,
-  selectCsharpRegularExpressionLiteral,
-} from "../../policy/operations/index.js";
-import {
-  isCsharpThrowableType,
-} from "../../policy/types/index.js";
+import { AsForInOrOfStatement, sourceClassFieldIsTypeOnly } from "@tsonic/target-api/source";
+import type { Node, SourceFile } from "@tsonic/tsts";
+import { selectCsharpJsValueCallOperation, selectCsharpJsValueBinaryOperation, selectCsharpJsValueReceiverExpressionOperation, selectCsharpJsValueUnaryOperation, selectCsharpJsTypeofOperation, selectCsharpJsValueCondition, selectCsharpJsValueVoidOperation, selectCsharpJsObjectLiteralOperation } from "../../policy/operations/js-values/index.js";
+import { selectCsharpProviderValue, selectCsharpTargetCall, selectCsharpTargetElement, selectCsharpTargetProperty } from "../../policy/operations/members/index.js";
+import { selectCsharpBinaryOperation, selectCsharpDestructuringAssignmentOperation, selectCsharpIteration, selectCsharpNativePointerOperation, selectCsharpResourceManagement, selectCsharpSourceFlowCall, selectCsharpNativeRefReturn, selectCsharpTypedLocationOperation, selectCsharpUnaryOperation, sourceOperatorFromKindName, selectCsharpJsArrayMutation, selectCsharpJsStringConversion, selectCsharpRegularExpressionLiteral } from "../../policy/operations/index.js";
+import { isCsharpThrowableType } from "../../policy/types/index.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type { CsharpCallClassification, CsharpBinaryClassification, CsharpConstructionClassification, CsharpElementClassification, CsharpOperatorFormClassification, CsharpPropertyClassification, CsharpUnaryClassification, CsharpTargetOperationClassifications, CsharpOperationIssue } from "../../target-model/records/operations.js";
-import { composeCsharpBinaryExecutionDriver } from "../../target-model/metadata/binary-execution-drivers.js";
+import type { CsharpOperationIssue } from "../../target-model/records/operations.js";
+
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import { classifyExactUnmodifiedCatchRethrow } from "./catch-rethrow.js";
 import { selectCsharpThrownOperandCarrier } from "../../policy/conversions/program-error.js";
 import { classifySourceOwnedMember, classifySourceOwnedElementMember, classifyCsharpMemberReceiver, elementSelectedTypes } from "./member-access.js";
-import { optionalResultType } from "../../policy/operations/members/optional-results.js";
 
-const callKey = createTargetClassificationKey<CsharpCallClassification>(
-  "csharp.operation.call",
-);
-const awaitKey = createTargetClassificationKey<ReturnType<typeof selectCsharpAwaitCompletion>>("csharp.operation.await");
-const memoryBindingKey = createTargetClassificationKey<ReturnType<typeof selectCsharpMemoryBinding>>("csharp.operation.memory-binding");
-const elementDeletionKey = createTargetClassificationKey<ReturnType<typeof selectCsharpElementDeletion>>("csharp.operation.element-deletion");
-const constructionKey = createTargetClassificationKey<CsharpConstructionClassification>(
-  "csharp.operation.construction",
-);
-const propertyKey = createTargetClassificationKey<CsharpPropertyClassification>(
-  "csharp.operation.property",
-);
-const elementKey = createTargetClassificationKey<CsharpElementClassification>(
-  "csharp.operation.element",
-);
-const binaryKey = createTargetClassificationKey<CsharpBinaryClassification>(
-  "csharp.operation.binary",
-);
-const unaryKey = createTargetClassificationKey<CsharpUnaryClassification>(
-  "csharp.operation.unary",
-);
-const iterationKey = createTargetClassificationKey<ReturnType<typeof selectCsharpIteration>>(
-  "csharp.operation.iteration",
-);
-const resourceKey = createTargetClassificationKey<ReturnType<typeof selectCsharpResourceManagement>>(
-  "csharp.operation.resource",
-);
-const nativePointerKey = createTargetClassificationKey<ReturnType<typeof selectCsharpNativePointerOperation>>(
-  "csharp.operation.native-pointer",
-);
-const typedLocationKey = createTargetClassificationKey<ReturnType<typeof selectCsharpTypedLocationOperation>>(
-  "csharp.operation.typed-location",
-);
-const nativeRefReturnKey = createTargetClassificationKey<ReturnType<typeof selectCsharpNativeRefReturn>>(
-  "csharp.operation.native-ref-return",
-);
-const jsConditionKey = createTargetClassificationKey<ReturnType<typeof selectCsharpJsValueCondition>>(
-  "csharp.operation.js-condition",
-);
-const jsTypeofKey = createTargetClassificationKey<ReturnType<typeof selectCsharpJsTypeofOperation>>(
-  "csharp.operation.js-typeof",
-);
-const typeofRuntimeKindKey = createTargetClassificationKey<CsharpTypeofResult>(
-  "csharp.operation.typeof-runtime-kind",
-);
-const jsVoidKey = createTargetClassificationKey<ReturnType<typeof selectCsharpJsValueVoidOperation>>(
-  "csharp.operation.js-void",
-);
-const jsObjectLiteralKey = createTargetClassificationKey<ReturnType<typeof selectCsharpJsObjectLiteralOperation>>(
-  "csharp.operation.js-object-literal",
-);
-const jsArrayMutationKey = createTargetClassificationKey<ReturnType<typeof selectCsharpJsArrayMutation>>(
-  "csharp.operation.js-array-mutation",
-);
-const jsStringConversionKey = createTargetClassificationKey<ReturnType<typeof selectCsharpJsStringConversion>>(
-  "csharp.operation.js-string-conversion",
-);
-const switchKey = createTargetClassificationKey<ReturnType<typeof selectCsharpSwitch>>("csharp.operation.switch");
-const providerValueKey = createTargetClassificationKey<ReturnType<typeof selectCsharpProviderValue>>(
-  "csharp.operation.provider-value",
-);
-const regularExpressionKey = createTargetClassificationKey<ReturnType<typeof selectCsharpRegularExpressionLiteral>>(
-  "csharp.operation.regular-expression",
-);
-const throwableKey = createTargetClassificationKey<boolean>(
-  "csharp.operation.throwable",
-);
-const throwValueKey = createTargetClassificationKey<NonNullable<ReturnType<CsharpTargetOperationClassifications["throwValue"]["get"]>>>(
-  "csharp.operation.throw-value",
-);
-const exactCatchRethrowKey = createTargetClassificationKey<boolean>(
-  "csharp.operation.exact-catch-rethrow",
-);
-const nativeGuardResultKey = createTargetClassificationKey<boolean>("csharp.operation.native-guard-result");
-const nativeUnreachableKey = createTargetClassificationKey<boolean>("csharp.operation.native-unreachable");
-const erasedStatementKey = createTargetClassificationKey<boolean>("csharp.operation.erased-statement");
-const operatorFormKey = createTargetClassificationKey<CsharpOperatorFormClassification>("csharp.operation.operator-form");
-const borrowedSequenceKey = createTargetClassificationKey<ReturnType<typeof classifyCsharpBorrowedSequenceInput>>(
-  "csharp.operation.borrowed-sequence",
-);
-const operationResultKeyIds: ReadonlySet<string> = new Set([memoryBindingKey.id, jsArrayMutationKey.id, callKey.id,
-  constructionKey.id, propertyKey.id, elementKey.id, binaryKey.id, unaryKey.id]);
+import type { CsharpOperationProducer } from "../program/records/operations.js";
 
-export function analyzeCsharpTargetOperations(
-  policy: CsharpPolicyContext,
-  evidence: CsharpSourceEvidenceIndex,
-  erasureIndexes: CsharpOperationErasureIndexes,
-  nodes: readonly Node[],
-  requirements: CsharpRequiredRecord[],
-): CsharpTargetOperationClassifications {
-  const builder = createTargetClassificationBuilder();
-  const operationResultSubjects = new Set<Node>();
-  const producer: ReturnType<typeof createTargetClassificationBuilder> = Object.freeze({
-    ...builder,
-    set<Value>(subject: Node, key: TargetClassificationKey<Value>, value: Value) {
-      if (operationResultKeyIds.has(key.id)) operationResultSubjects.add(subject);
-      return builder.set(subject, key, value);
-    },
-  });
-  const classPropertyStorage = classifyCsharpClassPropertyStorage(policy, evidence);
-  const binaryExecutionDrivers:
-    import("../../target-model/metadata/provider-metadata.js").CsharpTargetBinaryExecutionDriver[] = [];
-  const issues: CsharpOperationIssue[] = [];
-  const erasure = createCsharpOperationErasure(policy.ast, erasureIndexes, issues);
-  for (const sourceFile of policy.sourceFiles) {
-    visit(
-      sourceFile,
-      sourceFile,
-      policy,
-      evidence,
-      erasure,
-      producer,
-      binaryExecutionDrivers,
-      issues,
-    );
-  }
-  const nativeHandler = analyzeCsharpNativeHandlers(nodes, {
-    memoryBinding: { get: node => builder.get(node, memoryBindingKey) },
-    safetyOperation: erasure.safetyApplications.safetyOperation,
-    jsStringConversion: { get: node => builder.get(node, jsStringConversionKey) },
-    nativePointer: { get: node => builder.get(node, nativePointerKey) },
-    typedLocation: { get: node => builder.get(node, typedLocationKey) },
-  }, requirements);
-  const facts = builder.seal();
-  const operationResultTypes = new WeakMap<Node, import("../../target-model/types/model.js").TargetTypeRef>();
-  for (const subject of operationResultSubjects) {
-    const type = operationResultType(facts, subject);
-    if (type !== undefined) operationResultTypes.set(subject, type);
-  }
-  const selectedBinaryExecutionDriver =
-    composeCsharpBinaryExecutionDriver(...binaryExecutionDrivers);
-  const classifications: CsharpTargetOperationClassifications = {
-    issues: Object.freeze(issues),
-    awaitCompletion: Object.freeze({ get: node => facts.get(node, awaitKey) }),
-    classPropertyStorage: Object.freeze({ get: classPropertyStorage }),
-    borrowedSequence: Object.freeze({ get: node => facts.get(node, borrowedSequenceKey) }),
-    nativeGuardResult: Object.freeze({ get: node => facts.get(node, nativeGuardResultKey) }),
-    nativeUnreachable: Object.freeze({ get: node => facts.get(node, nativeUnreachableKey) === true }),
-    erasedStatement: Object.freeze({ get: node => facts.get(node, erasedStatementKey) === true }),
-    nativeHandler,
-    operatorForm: Object.freeze({ get: node => facts.get(node, operatorFormKey)?.form, usesExpectedResultType: node => facts.get(node, operatorFormKey)?.usesExpectedResultType }),
-    binaryExecutionDriver: () => selectedBinaryExecutionDriver,
-    operationResultType: Object.freeze({ get: (node) => operationResultTypes.get(node) }),
-    selectedCall: Object.freeze({ get: (node) => facts.get(node, callKey) }),
-    selectedConstruction: Object.freeze({ get: (node) => facts.get(node, constructionKey) }),
-    selectedProperty: Object.freeze({ get: (node) => facts.get(node, propertyKey) }),
-    sourceMember: Object.freeze({ get: node => facts.get(node, propertyKey)?.sourceOwned ?? facts.get(node, elementKey)?.sourceOwned }),
-    selectedElement: Object.freeze({ get: (node) => facts.get(node, elementKey) }),
-    binaryOperation: Object.freeze({ get: (node) => facts.get(node, binaryKey) }),
-    switchStatement: Object.freeze({ get: (node) => facts.get(node, switchKey) }),
-    unaryOperation: Object.freeze({ get: (node) => facts.get(node, unaryKey) }),
-    iteration: Object.freeze({ get: (node) => facts.get(node, iterationKey) }),
-    resource: Object.freeze({ get: (node) => facts.get(node, resourceKey) }),
-    nativePointer: Object.freeze({ get: (node) => facts.get(node, nativePointerKey) }),
-    typedLocation: Object.freeze({ get: (node) => facts.get(node, typedLocationKey) }),
-    nativeRefReturn: Object.freeze({ get: (node) => facts.get(node, nativeRefReturnKey) }),
-    jsCondition: Object.freeze({ get: (node) => facts.get(node, jsConditionKey) }),
-    jsTypeof: Object.freeze({ get: (node) => facts.get(node, jsTypeofKey) }),
-    typeofRuntimeKind: Object.freeze({ get: (node) => facts.get(node, typeofRuntimeKindKey) }),
-    jsVoid: Object.freeze({ get: (node) => facts.get(node, jsVoidKey) }),
-    jsObjectLiteral: Object.freeze({ get: (node) => facts.get(node, jsObjectLiteralKey) }),
-    jsArrayMutation: Object.freeze({ get: (node) => facts.get(node, jsArrayMutationKey) }),
-    elementDeletion: Object.freeze({ get: (node) => facts.get(node, elementDeletionKey) }),
-    providerValue: Object.freeze({ get: (node) => facts.get(node, providerValueKey) }),
-    regularExpression: Object.freeze({ get: (node) => facts.get(node, regularExpressionKey) }),
-    throwable: Object.freeze({ get: (node) => facts.get(node, throwableKey) }),
-    throwValue: Object.freeze({ get: (node) => facts.get(node, throwValueKey) }),
-    exactCatchRethrow: Object.freeze({ get: (node) => facts.get(node, exactCatchRethrowKey) === true }),
-  };
-  return Object.freeze(classifications);
-}
-
-function visit(
+export function analyzeCsharpOperationConstruct(
   node: Node,
   sourceFile: SourceFile,
   policy: CsharpPolicyContext,
   evidence: CsharpSourceEvidenceIndex,
   erasure: CsharpOperationErasure,
-  builder: ReturnType<typeof createTargetClassificationBuilder>,
+  producer: CsharpOperationProducer,
   binaryExecutionDrivers:
     import("../../target-model/metadata/provider-metadata.js").CsharpTargetBinaryExecutionDriver[],
   scopeIssues: CsharpOperationIssue[] | undefined,
 ): void {
   if (evidence.compileTimeMetadata.get(node)) return;
   if (policy.types.nativeUnreachable(node)) {
-    setClassification(builder, node, nativeUnreachableKey, true);
+    producer.nativeUnreachable.selected(node, true);
     return;
   }
   const { ast } = policy;
   if (sourceClassFieldIsTypeOnly(ast, node)) return;
   const issues = erasure.demandedInvocations.has(node) ? erasure.issues : scopeIssues;
   const erased = ast.is.IsExpressionStatement(node) && csharpErasedExpressionStatement(ast, node, erasure);
-  if (erased) setClassification(builder, node, erasedStatementKey, true);
+  if (erased) producer.erasedStatement.selected(node, true);
   if (ast.is.IsAwaitExpression(node)) {
     const expression = ast.as.AsAwaitExpression(node)?.Expression;
     const completion = selectCsharpAwaitCompletion(
@@ -291,46 +71,33 @@ function visit(
     if (rejection !== undefined) {
       issues?.push(Object.freeze({ node, code: "CSHARP_AWAIT_RESULT_MAPPING_NOT_PROVEN", message: rejection }));
     }
-    setClassification(builder, node, awaitKey, rejection === undefined ? completion : undefined);
+    producer.await.selected(node, rejection === undefined ? completion : undefined);
   }
   if (ast.is.IsSpreadElement(node)) {
     const expression = ast.as.AsSpreadElement(node)?.Expression;
     if (expression !== undefined) {
-      setClassification(builder, expression, borrowedSequenceKey,
-        classifyCsharpBorrowedSequenceInput(policy, expression, sourceFile));
+      producer.borrowedSequence.selected(expression, classifyCsharpBorrowedSequenceInput(policy, expression, sourceFile));
     }
   }
   if (ast.is.IsIfStatement(node)) {
     const expression = ast.as.AsIfStatement(node)?.Expression;
     const result = expression === undefined ? undefined : policy.types.nativeGuardResult(expression);
-    if (expression !== undefined && result !== undefined) setClassification(builder, expression, nativeGuardResultKey, result);
+    if (expression !== undefined && result !== undefined) producer.nativeGuardResult.selected(expression, result);
   }
   if (ast.is.IsSwitchStatement(node)) {
-    setClassification(builder, node, switchKey, selectCsharpSwitch(policy, node, sourceFile));
+    producer.switch.selected(node, selectCsharpSwitch(policy, node, sourceFile));
   }
-  setClassification(
-    builder,
-    node,
-    jsConditionKey,
-    selectCsharpJsValueCondition(policy, node, sourceFile),
+  producer.jsCondition.selected(node, selectCsharpJsValueCondition(policy, node, sourceFile),
   );
-  setClassification(
-    builder,
-    node,
-    jsTypeofKey,
-    selectCsharpJsTypeofOperation(policy, node, sourceFile),
+  producer.jsTypeof.selected(node, selectCsharpJsTypeofOperation(policy, node, sourceFile),
   );
   if (ast.is.IsTypeOfExpression(node)) {
     const operand = ast.as.AsTypeOfExpression(node)?.Expression;
     const selected = operand === undefined ? undefined : getCsharpTypeofResult(policy.types.resolveNode(operand, sourceFile), undefined, policy.typeDefinitions);
-    if (operand !== undefined && selected !== undefined) setClassification(builder, operand, typeofRuntimeKindKey, selected);
+    if (operand !== undefined && selected !== undefined) producer.typeofRuntimeKind.selected(operand, selected);
   }
   if (ast.is.IsIdentifier(node)) {
-    setClassification(
-      builder,
-      node,
-      providerValueKey,
-      selectCsharpProviderValue(policy, node),
+    producer.providerValue.selected(node, selectCsharpProviderValue(policy, node),
     );
   }
   if (
@@ -338,57 +105,41 @@ function visit(
     ast.is.IsPropertyAccessExpression(node) ||
     ast.is.IsElementAccessExpression(node)
   ) {
-    setClassification(
-      builder,
-      node,
-      nativeRefReturnKey,
-      selectCsharpNativeRefReturn(policy, node, sourceFile),
+    producer.nativeRefReturn.selected(node, selectCsharpNativeRefReturn(policy, node, sourceFile),
     );
   }
   if (ast.is.IsRegularExpressionLiteral(node)) {
     const selection = selectCsharpRegularExpressionLiteral(policy, node, sourceFile);
     if (selection.kind === "rejected") issues?.push(Object.freeze({ node, code: selection.code, message: selection.message }));
-    setClassification(
-      builder,
-      node,
-      regularExpressionKey,
-      selection,
+    producer.regularExpression.selected(node, selection,
     );
   }
   if (ast.is.IsCallExpression(node)) {
     const memoryBinding = selectCsharpMemoryBinding(policy, node, sourceFile);
     if (memoryBinding?.kind === "rejected") issues?.push(Object.freeze({ node, code: "CSHARP_UNSUPPORTED_AST", message: memoryBinding.reason }));
-    setClassification(builder, node, memoryBindingKey, memoryBinding);
+    producer.memoryBinding.selected(node, memoryBinding);
     const stringConversion = selectCsharpJsStringConversion(policy, node, sourceFile);
     if (stringConversion.kind === "rejected") issues?.push(Object.freeze({ node, code: "CSHARP_JS_STRING_CONVERSION_REJECTED", message: stringConversion.reason }));
-    setClassification(builder, node, jsStringConversionKey, stringConversion);
+    producer.jsStringConversion.selected(node, stringConversion);
   }
   if (ast.is.IsDeleteExpression(node)) {
     const selection = selectCsharpElementDeletion(policy, node, sourceFile);
     if (selection.kind === "rejected") issues?.push(Object.freeze({ node, code: "CSHARP_UNSUPPORTED_AST", message: selection.reason }));
-    setClassification(builder, node, elementDeletionKey, selection);
+    producer.elementDeletion.selected(node, selection);
   }
   if (ast.is.IsBinaryExpression(node) ||
     ast.is.IsPrefixUnaryExpression(node) || ast.is.IsPostfixUnaryExpression(node)) {
     const arrayMutation = selectCsharpJsArrayMutation(policy, node, sourceFile);
     if (arrayMutation.kind === "rejected") issues?.push(Object.freeze({ node, code: "CSHARP_UNSUPPORTED_AST", message: arrayMutation.reason }));
-    setClassification(builder, node, jsArrayMutationKey, arrayMutation);
+    producer.jsArrayMutation.selected(node, arrayMutation);
   }
   if (ast.is.IsVoidExpression(node)) {
     const operand = ast.as.AsVoidExpression(node)?.Expression;
-    setClassification(
-      builder,
-      node,
-      jsVoidKey,
-      selectCsharpJsValueVoidOperation(policy, operand, sourceFile),
+    producer.jsVoid.selected(node, selectCsharpJsValueVoidOperation(policy, operand, sourceFile),
     );
   }
   if (ast.is.IsObjectLiteralExpression(node)) {
-    setClassification(
-      builder,
-      node,
-      jsObjectLiteralKey,
-      selectCsharpJsObjectLiteralOperation(),
+    producer.jsObjectLiteral.selected(node, selectCsharpJsObjectLiteralOperation(),
     );
   }
   const operationNode =
@@ -403,17 +154,9 @@ function visit(
     const nativePointer = selectCsharpNativePointerOperation(policy, node, sourceFile);
     if (nativePointer.kind === "rejected") issues?.push(Object.freeze({ node, code: "CSHARP_NATIVE_POINTER_OPERATION_NOT_MAPPED",
       message: `C# native-pointer '${nativePointer.operation}' is not mapped: ${nativePointer.reason}` }));
-    setClassification(
-      builder,
-      node,
-      nativePointerKey,
-      nativePointer,
+    producer.nativePointer.selected(node, nativePointer,
     );
-    setClassification(
-      builder,
-      node,
-      typedLocationKey,
-      selectCsharpTypedLocationOperation(policy, node, sourceFile),
+    producer.typedLocation.selected(node, selectCsharpTypedLocationOperation(policy, node, sourceFile),
     );
   }
   if (ast.is.IsCallExpression(node)) {
@@ -453,7 +196,7 @@ function visit(
       : classifyCsharpSourceCallee(policy, source, sourceFile);
     const sourceMethodValue = source === undefined || sourceCall?.kind !== "value" ? undefined
       : getCsharpMethodValue(policy.types.resolveNode(source.sourceCallee.expression, sourceFile));
-    setClassification(builder, node, callKey, Object.freeze({
+    producer.call.selected(node, Object.freeze({
       form,
       ...(sourceMethodValue === undefined ? {} : { sourceMethodValue }),
       ...(optionalReceiver === undefined ? {} : { optionalReceiver }),
@@ -510,7 +253,7 @@ function visit(
     const selectedResultType = jsValue.kind === "resolved"
       ? jsValue.resultType
       : policy.types.resolveNode(node, sourceFile);
-    setClassification(builder, node, constructionKey, Object.freeze({
+    producer.construction.selected(node, Object.freeze({
       jsValue,
       ...(target === undefined ? {} : { target }),
       ...(selectedResultType === undefined ? {} : { selectedResultType }),
@@ -539,11 +282,7 @@ function visit(
     const receiverIssue = csharpOperationConversionIssue(node, selectedReceiver?.conversion, "CSHARP_MEMBER_RECEIVER_CONVERSION_NOT_PROVEN");
     if (receiverIssue !== undefined) issues?.push(receiverIssue);
     const receiverProjection = receiverIssue === undefined ? selectedReceiver : undefined;
-    setClassification(
-      builder,
-      node,
-      propertyKey,
-      Object.freeze({
+    producer.property.selected(node, Object.freeze({
         selection,
         ...(receiverProjection === undefined ? {} : { receiverProjection }),
         ...(selection.kind === "source-owned"
@@ -576,7 +315,7 @@ function visit(
     const selectedTypes = source === undefined ? {} : elementSelectedTypes(policy, source, sourceFile, target);
     const elementIssue = csharpOperationConversionIssue(node, selectedTypes.flowReadConversion, "CSHARP_ELEMENT_READ_CONVERSION_NOT_PROVEN");
     if (elementIssue !== undefined) issues?.push(elementIssue);
-    setClassification(builder, node, elementKey, Object.freeze({
+    producer.element.selected(node, Object.freeze({
       jsValue,
       ...(receiverProjection === undefined ? {} : { receiverProjection }),
       ...selectedTypes,
@@ -625,11 +364,7 @@ function visit(
     const jsValue = validateCsharpJsValueOperationSelection(selectCsharpJsValueBinaryOperation(
       policy, expression?.Left, expression?.Right, sourceFile, sourceOperator));
     if (jsValue.kind === "rejected") issues?.push(Object.freeze({ node, code: "CSHARP_UNSUPPORTED_AST", message: jsValue.reason }));
-    setClassification(
-      builder,
-      node,
-      binaryKey,
-      Object.freeze({
+    producer.binary.selected(node, Object.freeze({
         jsValue,
         target: selectCsharpBinaryOperation(
           policy,
@@ -659,11 +394,7 @@ function visit(
     const sourceOperator = sourceOperatorFromKindName(
       ast.operatorKindName(node),
     ) ?? "";
-    setClassification(
-      builder,
-      node,
-      unaryKey,
-      Object.freeze({
+    producer.unary.selected(node, Object.freeze({
         jsValue: selectCsharpJsValueUnaryOperation(
           policy,
           operand,
@@ -679,21 +410,13 @@ function visit(
     ast.is.IsForInStatement(node)
   ) {
     const statement = AsForInOrOfStatement(ast, node);
-    setClassification(
-      builder,
-      node,
-      iterationKey,
-      selectCsharpIteration(policy, node, statement?.Expression, sourceFile),
+    producer.iteration.selected(node, selectCsharpIteration(policy, node, statement?.Expression, sourceFile),
     );
   }
   if (ast.is.IsVariableDeclaration(node)) {
     const resource = policy.semantics(sourceFile).operations.resourceManagement(node);
     if (resource !== undefined) {
-      setClassification(
-        builder,
-        node,
-        resourceKey,
-        selectCsharpResourceManagement(policy, node, sourceFile),
+      producer.resource.selected(node, selectCsharpResourceManagement(policy, node, sourceFile),
       );
     }
   }
@@ -701,17 +424,9 @@ function visit(
     const expression = ast.as.AsThrowStatement(node)?.Expression;
     if (expression !== undefined) {
       const sourceCarrier = policy.types.resolveNode(expression, sourceFile);
-      setClassification(
-        builder,
-        node,
-        throwValueKey,
-        Object.freeze({ expression, sourceCarrier, targetCarrier: selectCsharpThrownOperandCarrier(policy, sourceCarrier) }),
+      producer.throwValue.selected(node, Object.freeze({ expression, sourceCarrier, targetCarrier: selectCsharpThrownOperandCarrier(policy, sourceCarrier) }),
       );
-      setClassification(
-        builder,
-        node,
-        exactCatchRethrowKey,
-        classifyExactUnmodifiedCatchRethrow(policy, node, expression),
+      producer.exactCatchRethrow.selected(node, classifyExactUnmodifiedCatchRethrow(policy, node, expression),
       );
     }
   }
@@ -721,11 +436,7 @@ function visit(
       ? undefined
       : ast.name(variableDeclaration);
     if (variableName !== undefined) {
-      setClassification(
-        builder,
-        variableName,
-        throwableKey,
-        isCsharpThrowableType(
+      producer.throwable.selected(variableName, isCsharpThrowableType(
           policy,
           policy.types.resolveStorage(variableName, sourceFile),
         ),
@@ -736,13 +447,13 @@ function visit(
     node,
     (child) => {
       if (child !== undefined) {
-        visit(
+        analyzeCsharpOperationConstruct(
           child,
           sourceFile,
           policy,
           evidence,
           erasure,
-          builder,
+          producer,
           binaryExecutionDrivers,
           erased ? undefined : issues,
         );
@@ -750,70 +461,9 @@ function visit(
     },
   );
   if (ast.is.IsBinaryExpression(node) || ast.is.IsPrefixUnaryExpression(node) || ast.is.IsPostfixUnaryExpression(node)) {
-    setClassification(builder, node, operatorFormKey, selectCsharpOperatorForm(policy, node, builder.get(node, jsArrayMutationKey),
-      builder.get(node, binaryKey), builder.get(node, unaryKey), (subject) => builder.get(subject, propertyKey)));
+    producer.operatorForm.selected(node, selectCsharpOperatorForm(policy, node, producer.jsArrayMutation.get(node),
+      producer.binary.get(node), producer.unary.get(node), (subject) => producer.property.get(subject)));
   }
-}
-
-function operationResultType(
-  facts: ReturnType<ReturnType<typeof createTargetClassificationBuilder>["seal"]>,
-  node: Node,
-): import("../../target-model/types/model.js").TargetTypeRef | undefined {
-  const binding = facts.get(node, memoryBindingKey);
-  if (binding !== undefined && binding.kind !== "rejected") return binding.type;
-  const mutation = facts.get(node, jsArrayMutationKey);
-  if (mutation?.kind === "set-typed-element" || mutation?.kind === "update-typed-element") return mutation.resultType;
-  const call = facts.get(node, callKey);
-  if (call?.selectedResultType !== undefined) {
-    return call.selectedResultType;
-  }
-  const construction = facts.get(node, constructionKey);
-  if (construction?.selectedResultType !== undefined) {
-    return construction.selectedResultType;
-  }
-  const property = facts.get(node, propertyKey);
-  if (property?.selection.kind === "union-property") return property.selection.resultCarrier;
-  if (property?.selection.kind === "resolved") {
-    return optionalResultType(
-      property.selection.targetMember.returnType,
-      property.selection.source.optionalChain,
-    );
-  }
-  if (property?.sourceOwned !== undefined) {
-    return property.sourceOwned.jsValueOperation.kind === "resolved"
-      ? property.sourceOwned.jsValueOperation.resultType
-      : property.sourceOwned.selectedReadType;
-  }
-  const element = facts.get(node, elementKey);
-  if (element?.jsValue.kind === "resolved") {
-    return element.jsValue.resultType;
-  }
-  if (element?.target?.kind === "resolved") {
-    return optionalResultType(
-      element.target.targetMember.returnType,
-      element.target.source.optionalChain,
-    );
-  }
-  if (element?.selectedResultType !== undefined) {
-    return element.selectedResultType;
-  }
-  const binary = facts.get(node, binaryKey);
-  if (binary?.destructuring.kind === "resolved") {
-    return binary.destructuring.resultType;
-  }
-  if (binary?.jsValue.kind === "resolved") {
-    return binary.jsValue.resultType;
-  }
-  if (binary?.target.kind === "resolved") {
-    return binary.target.resultType;
-  }
-  const unary = facts.get(node, unaryKey);
-  if (unary?.jsValue.kind === "resolved") {
-    return unary.jsValue.resultType;
-  }
-  return unary?.target.kind === "resolved"
-    ? unary.target.resultType
-    : undefined;
 }
 
 function awaitResultMappingRejection(
@@ -827,16 +477,4 @@ function awaitResultMappingRejection(
     if (admitted.kind === "rejected") return admitted.reason;
   }
   return undefined;
-}
-
-function setClassification<Value>(
-  builder: ReturnType<typeof createTargetClassificationBuilder>,
-  subject: object,
-  key: TargetClassificationKey<Value>,
-  value: Value,
-): void {
-  const result = builder.set(subject, key, value);
-  if (result.kind === "conflict") {
-    throw new Error(`Conflicting target classification '${key.id}'.`);
-  }
 }
