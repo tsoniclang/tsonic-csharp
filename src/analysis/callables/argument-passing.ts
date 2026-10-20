@@ -8,6 +8,7 @@ import type { CsharpTargetOperationClassifications } from "../../target-model/re
 import type { CsharpElementAdmissionRecords } from "../../target-model/records/element-admission.js";
 import type { CsharpTargetParameter } from "../../target-model/types/model.js";
 import { isCsharpJsValueTargetType, csharpSourcePrimitiveTargetType } from "../../target-model/types/index.js";
+import { csharpConstructorBaseCall } from "./constructor-entry.js";
 import { createCsharpArgumentPassingRecords } from "../program/records/argument-passing.js";
 
 export function analyzeCsharpArgumentPassing(input: { readonly source: TargetSourceProgram; readonly requests: readonly CsharpNativeArgumentRequest[];
@@ -16,6 +17,18 @@ export function analyzeCsharpArgumentPassing(input: { readonly source: TargetSou
   const requests = [...input.requests];
   for (const node of input.nodes) {
     if (!input.admitted(node)) continue;
+    if (input.source.ast.is.IsConstructorDeclaration(node)) {
+      const baseCall = csharpConstructorBaseCall(input.source.ast, node);
+      const selected = baseCall === undefined ? undefined : input.operations.selectedCall.get(baseCall);
+      for (const [index, argument] of (baseCall === undefined ? [] : input.source.ast.arguments(baseCall)).entries()) {
+        if (argument === undefined) continue;
+        const target = selected?.sourceArgumentParameterTypes?.[index] ?? input.evidence.nodeTargetType.get(argument);
+        const evidence = input.evidence.sourceArgument.get(argument);
+        if (target !== undefined && evidence?.kind === "resolved") requests.push({
+          node: argument, target, passing: evidence.argument.passingMode, parameter: undefined,
+        });
+      }
+    }
     const call = input.operations.selectedCall.get(node);
     if (call?.form.kind === "type-test") {
       const argument = call.source?.sourceArguments[0]?.expression;
