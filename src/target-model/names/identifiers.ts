@@ -1,5 +1,3 @@
-import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-
 export function sanitizeIdentifier(value: string): string {
   const identifier = tryCsharpIdentifier(value);
   if (identifier === undefined) {
@@ -17,24 +15,6 @@ export function tryCsharpIdentifier(value: string): string | undefined {
 
 export function isPlainCsharpIdentifier(value: string): boolean {
   return tryCsharpIdentifier(value) === value;
-}
-
-export function requireCsharpIdentifier(
-  value: string,
-  diagnostics: TargetDiagnostic[],
-  description: string,
-): string {
-  const identifier = tryCsharpIdentifier(value);
-  if (identifier !== undefined) {
-    return identifier;
-  }
-  diagnostics.push({
-    code: "CSHARP_INVALID_IDENTIFIER",
-    category: "error",
-    source: "tsonic-csharp",
-    message: `${description} '${value}' is not a valid C# identifier. Add an explicit target name/fact instead of relying on backend name rewriting.`,
-  });
-  return "__invalid";
 }
 
 export function sanitizePathSegment(value: string): string {
