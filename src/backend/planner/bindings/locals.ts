@@ -172,10 +172,7 @@ export function planLocalDeclarationStatements(
       state,
       yieldPlan.resumeExpression,
     );
-    const targetType = input.types.classifications.resolveStorage(
-      declarationNode,
-      sourceFile,
-    );
+    const targetType = input.program.records.storageType.get(declarationNode);
     const initializer = targetType === undefined
       ? yieldPlan.resumeExpression
       : convertCsharpYieldResumeExpression(
