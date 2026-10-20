@@ -372,11 +372,11 @@ function translateSourceOwnedElement(
     if (csharpProjectTypeReceiver(selection.source.receiver, input, diagnostics) !== undefined) {
       return receiver === undefined ? undefined : composeCsharpPlannedValues(node, sourceFile, input, diagnostics,
         [planCsharpDiscardedOperand(argument)], () => translateCsharpSourceOwnedMember(
-          node, selection, member, sourceFile, input, diagnostics, receiver, false));
+          node, sourceFile, input, diagnostics, receiver, false));
     }
     const access = (target: CsharpPlannedValue): CsharpPlannedValue | undefined =>
       composeCsharpPlannedValues(node, sourceFile, input, diagnostics, [target, planCsharpDiscardedOperand(argument)],
-        values => translateCsharpSourceOwnedMember(node, selection, member, sourceFile, input, diagnostics,
+        values => translateCsharpSourceOwnedMember(node, sourceFile, input, diagnostics,
           csharpPlannedValue(target.completion.carrier, values[0]!), false),
         (carrier, operand) => captureCsharpPlannedMemberReceiver(node, sourceFile, input, diagnostics,
           selection.source.receiver.expression, carrier, operand,

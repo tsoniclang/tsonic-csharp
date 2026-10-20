@@ -21,7 +21,8 @@ export function analyzeCsharpSourceMemberNames(input: { readonly ast: AstReader;
     const element = input.operations.selectedElement.get(node);
     const selection = property?.selection ?? element?.target;
     const classification = input.operations.sourceMember.get(node);
-    if (selection?.kind !== "source-owned" || classification === undefined || classification.jsValueOperation.kind === "resolved") continue;
+    if (selection?.kind !== "source-owned" || classification === undefined || classification.jsValueOperation.kind === "resolved" ||
+      classification.runtimeUnionProperty.kind === "resolved") continue;
     const member = classification.shapeMember;
     if (member?.kind === "resolved") {
       values.set(node, { read: member.member.targetName, method: classification.objectShape === undefined ? undefined

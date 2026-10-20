@@ -79,6 +79,7 @@ export interface CsharpProgramRecordInput {
   readonly restSequences: import("../../../target-model/records/rest-sequences.js").CsharpRestSequenceRecords;
   readonly jsCalls: import("../../../target-model/records/js-value-calls.js").CsharpJsCallRecords;
   readonly callAdmission: import("../../../target-model/records/call-admission.js").CsharpCallAdmissionRecords;
+  readonly propertyAdmission: import("../../../target-model/records/property-admission.js").CsharpPropertyAdmissionRecords;
   readonly captureMethods: CsharpCaptureMethodRecords;
   readonly frozenDataProperties: CsharpFrozenDataPropertyRecords;
   readonly indexedRecords: CsharpIndexedRecordRecords;
@@ -164,6 +165,9 @@ export function createCsharpProgramRecords(
     ...input.receiverCallProperties,
     ...input.restSequences,
     ...input.jsCalls,
+    sourceMemberEmission: input.propertyAdmission.sourceMemberEmission,
+    unionPropertyProjection: input.propertyAdmission.unionPropertyProjection,
+    sourceNameIndexer: input.propertyAdmission.sourceNameIndexer,
     ...input.captureMethods,
     ...input.frozenDataProperties,
     ...input.indexedRecords,
@@ -246,7 +250,7 @@ export function createCsharpProgramRecords(
     operationResultType: input.operations.operationResultType,
     selectedCall: input.callAdmission.selectedCall,
     selectedConstruction: input.operations.selectedConstruction,
-    selectedProperty: input.operations.selectedProperty,
+    selectedProperty: input.propertyAdmission.selectedProperty,
     sourceMember: input.operations.sourceMember,
     selectedElement: input.operations.selectedElement,
     binaryOperation: input.operations.binaryOperation,

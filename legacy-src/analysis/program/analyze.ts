@@ -11,6 +11,7 @@ import { analyzeCsharpClassInitialization } from "../project-types/class-initial
 import { createCsharpProgramRecords } from "./records/create.js";
 import { analyzeCsharpSourceArtifacts } from "../source-modules/artifacts.js";
 import { analyzeCsharpArrayLiterals } from "../expressions/array-literals.js";
+import { analyzeCsharpPropertyAdmission } from "../objects/property-admission.js";
 import { analyzeCsharpLiteralAdmission } from "../expressions/literals.js";
 import { analyzeCsharpAwaitAdmission } from "../callables/await-admission.js";
 import { analyzeCsharpVoidAdmission } from "../expressions/expression-void.js";
@@ -568,6 +569,9 @@ function analyzeCsharpTargetProgramBeforeSeal(
   if (names.issues.length > 0) return rejectedTargetStage(names.issues);
   const sourceMemberNames = analyzeCsharpSourceMemberNames({ ast: source.ast, nodes: sourceStorage.nodes, operations: admittedOperations, names, admitted: admittedControlNode });
   if (sourceMemberNames.issues.length !== 0) return rejectedTargetStage(sourceMemberNames.issues);
+  const propertyAdmission = analyzeCsharpPropertyAdmission({ ast: source.ast, nodes: sourceStorage.nodes,
+    operations: admittedOperations, admitted: admittedControlNode, projectDeclaration: node => source.navigation.isProjectDeclaration(node) });
+  if (propertyAdmission.issues.length !== 0) return rejectedTargetStage(propertyAdmission.issues);
   const objectShapeDemand = publishCsharpNativeArtifactDemand(objectShapeClosure.value, names);
   const rawInterfaceIssues = admitCsharpRawInterfaceDeclarations(source.ast, sourceStorage.nodes,
     nativeDemand.nativeUse, callableAdapters.objectShapes, objectShapeDemand, analysis.storage,
@@ -742,6 +746,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     restSequences: restSequences.records,
     jsCalls: jsCalls.records,
     callAdmission: callAdmission.records,
+    propertyAdmission: propertyAdmission.records,
     typeofEmission: typeofEmission.records,
     flowReads, valueReads: analysis.valueReads,
     callableAdapters, callableCreations, typeProjections: analysis.typeProjections, classFactories, classInitialization, captureStorage,

@@ -65,8 +65,8 @@ export function translateCsharpPropertyAccess(
     case "source-owned": {
       const receiver = translateCsharpSelectedReceiver(selection.source.receiver, sourceFile, input,
         diagnostics, planExpression, classification.receiverProjection);
-      return receiver === undefined ? undefined : translateCsharpSourceOwnedMember(node, selection,
-        classification.sourceOwned, sourceFile, input, diagnostics, receiver);
+      return receiver === undefined ? undefined : translateCsharpSourceOwnedMember(node,
+        sourceFile, input, diagnostics, receiver, selection.source.optionalChain);
     }
     case "rejected":
       diagnostics.push(targetDiagnosticFromExtension(
