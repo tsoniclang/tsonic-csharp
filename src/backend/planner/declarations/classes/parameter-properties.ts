@@ -10,7 +10,7 @@ import { failCsharpPlannerInvariant } from "../../../invariants.js";
 export function planCsharpParameterPropertyAssignments(
   constructor: Node,
   input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
+  _diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
   const ast = input.program.source.ast;
