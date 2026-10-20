@@ -1,10 +1,5 @@
-import type {
-  TargetTypeRef,
-} from "./model.js";
-import type {
-  CsharpTargetMember,
-  CsharpTargetParameter,
-} from "./model.js";
+import type { TargetTypeRef } from "./model.js";
+import type { CsharpTargetMember, CsharpTargetParameter } from "./model.js";
 import { getCsharpJsArrayElementTargetType } from "./carriers/collections.js";
 
 export function targetMethod(
