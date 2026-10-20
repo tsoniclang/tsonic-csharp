@@ -176,6 +176,7 @@ export interface CsharpProgramRecords extends CsharpStatementExitRecords, Csharp
   readonly sourceMemberEmission: import("./property-admission.js").CsharpPropertyAdmissionRecords["sourceMemberEmission"];
   readonly unionPropertyProjection: import("./property-admission.js").CsharpPropertyAdmissionRecords["unionPropertyProjection"];
   readonly sourceNameIndexer: import("./property-admission.js").CsharpPropertyAdmissionRecords["sourceNameIndexer"];
+  readonly optionalCallChain: import("./optional-call-chains.js").CsharpOptionalCallChainRecords["optionalCallChain"];
   readonly sourceMember: CsharpTargetOperationClassifications["sourceMember"];
   readonly selectedElement: CsharpTargetOperationClassifications["selectedElement"];
   readonly binaryOperation: CsharpTargetOperationClassifications["binaryOperation"];

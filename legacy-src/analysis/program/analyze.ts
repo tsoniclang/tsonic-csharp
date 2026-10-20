@@ -12,6 +12,7 @@ import { createCsharpProgramRecords } from "./records/create.js";
 import { analyzeCsharpSourceArtifacts } from "../source-modules/artifacts.js";
 import { analyzeCsharpArrayLiterals } from "../expressions/array-literals.js";
 import { analyzeCsharpPropertyAdmission } from "../objects/property-admission.js";
+import { analyzeCsharpOptionalCallChains } from "../callables/optional-call-chains.js";
 import { analyzeCsharpLiteralAdmission } from "../expressions/literals.js";
 import { analyzeCsharpAwaitAdmission } from "../callables/await-admission.js";
 import { analyzeCsharpVoidAdmission } from "../expressions/expression-void.js";
@@ -507,6 +508,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const restSequences = analyzeCsharpRestSequences(sourceStorage.nodes, admittedOperations, analysis.valueReads, admittedControlNode);
   const jsCalls = analyzeCsharpJsCalls(source.ast, sourceStorage.nodes, admittedOperations, admittedControlNode);
   const callAdmission = analyzeCsharpCallAdmission(source.ast, sourceStorage.nodes, admittedOperations, analysis.valueReads, admittedControlNode);
+  const optionalCallChains = analyzeCsharpOptionalCallChains(source.ast, sourceStorage.nodes, admittedOperations, nativeDemand, admittedControlNode);
   const nonCallableIssues = [
     ...admitCsharpUnionProjections(sourceStorage.nodes, admittedOperations, typeDefinitions),
     ...admitCsharpArrayMutationArguments(sourceStorage.nodes, admittedOperations, analysis.sourceEvidence),
@@ -520,6 +522,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     ...restSequences.issues,
     ...jsCalls.issues,
     ...callAdmission.issues,
+    ...optionalCallChains.issues,
     ...analyzeCsharpConditions({ ast: source.ast, demand: nativeDemand, operations: admittedOperations, values: analysis.valueReads }),
     ...analyzeCsharpVoidAdmission({ ast: source.ast, demand: nativeDemand, values: analysis.valueReads, operations: admittedOperations }),
     ...analyzeCsharpAwaitAdmission({ ast: source.ast, demand: nativeDemand, values: analysis.valueReads, operations: admittedOperations }),
@@ -747,6 +750,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     jsCalls: jsCalls.records,
     callAdmission: callAdmission.records,
     propertyAdmission: propertyAdmission.records,
+    optionalCallChains: optionalCallChains.records,
     typeofEmission: typeofEmission.records,
     flowReads, valueReads: analysis.valueReads,
     callableAdapters, callableCreations, typeProjections: analysis.typeProjections, classFactories, classInitialization, captureStorage,
