@@ -1,23 +1,13 @@
 import type { CsharpJsArrayMutationSelection } from "../../../target-model/records/js-array-mutations.js";
-import type {
-  Node,
-  SourceFile,
-} from "@tsonic/tsts";
-import { selectCsharpTypedArrayMutation } from "./typed-array-mutations.js";
+import type { Node, SourceFile } from "@tsonic/tsts";
+import { selectCsharpTypedArrayMutation } from "../../../policy/operations/collections/typed-array-mutations.js";
 
-import type {
-  CsharpPolicyContext,
-} from "../../model/context.js";
-import {
-  csharpSourceProfileDeclarationIdentity,
-} from "../members/index.js";
-import {
-  getCsharpJsArrayMutationPolicy,
-} from "../../types/index.js";
-import {
-  sourceOperatorFromKindName,
-} from "../../../target-model/syntax/operators.js";
+import type { CsharpPolicyContext } from "../../../policy/model/context.js";
+import { csharpSourceProfileDeclarationIdentity } from "../../../policy/operations/members/index.js";
 
+import { sourceOperatorFromKindName } from "../../../target-model/syntax/operators.js";
+
+import { selectCsharpNativeArrayLengthWrite } from "../../../policy/operations/collections/js-array-mutations.js";
 export function selectCsharpJsArrayMutation(
   input: CsharpPolicyContext,
   node: Node,
@@ -67,20 +57,5 @@ function selectLengthAssignment(
   ) {
     return { kind: "not-js-array-mutation" };
   }
-  const mutation = getCsharpJsArrayMutationPolicy(
-    input.types.resolveType(source.receiver.type, sourceFile),
-  );
-  if (mutation === undefined) {
-    return {
-      kind: "rejected",
-      reason:
-        "The selected mutable JS Array length property has no closed C# mutation carrier.",
-    };
-  }
-  return {
-    kind: "set-length",
-    receiver: source.receiver.expression,
-    value,
-    targetMemberName: mutation.setLengthMemberName,
-  };
+  return selectCsharpNativeArrayLengthWrite(input.types.resolveType(source.receiver.type, sourceFile), source.receiver.expression, value);
 }
