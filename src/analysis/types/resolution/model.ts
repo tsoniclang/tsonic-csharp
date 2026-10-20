@@ -11,7 +11,7 @@ import type { CsharpSourceCallableContract } from "../../../target-model/records
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpSourceTargetTypeBinding } from "../../../target-model/types/model.js";
 import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
-import type { CsharpObjectShapePolicy } from "../../../policy/types/objects/object-shape-policy.js";
+import type { CsharpObjectShapePolicy } from "../../objects/shapes/index.js";
 import type { CsharpObjectMethodSources } from "../../../target-model/records/native-value-carriers.js";
 
 export type ResolvedSourceCallInfo = NonNullable<
