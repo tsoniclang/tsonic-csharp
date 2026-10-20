@@ -1,15 +1,6 @@
-import {
-  sourcePrimitive,
-} from "@tsonic/tsts";
-import type {
-  ProviderVirtualDeclarationFact,
-  SourceSemanticsModule,
-  SourcePrimitiveKind,
-} from "@tsonic/tsts";
-import {
-  csharpLangModule,
-  csharpTypesModule,
-} from "../../target-model/identities/source.js";
+import { sourcePrimitive } from "@tsonic/tsts";
+import type { ProviderVirtualDeclarationFact, SourceSemanticsModule, SourcePrimitiveKind } from "@tsonic/tsts";
+import { csharpLangModule, csharpTypesModule } from "../../target-model/identities/source.js";
 
 const csharpPrimitiveAliasDeclarations = [
   sourcePrimitive("bool", "bool", "boolean"),
