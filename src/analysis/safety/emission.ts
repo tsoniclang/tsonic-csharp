@@ -12,7 +12,7 @@ import type { CsharpUnsafeEmission, CsharpSafetyPlacement } from "../../target-m
 import type { CsharpTargetConfiguration } from "../../target-model/configuration/model.js";
 import { selectCsharpTypeUnsafeContext } from "../../policy/safety/native-types.js";
 import { createCsharpSafetyEmissionRecords } from "../program/records/safety-emission.js";
-import { sourceSafetyPositionIssue } from "@tsonic/target-api/analysis";
+import { sourceSafetyPositionIssue, createSourceExplicitUnsafeContextIndex } from "@tsonic/target-api/analysis";
 import type { CsharpObjectShapeFact } from "../../target-model/types/model.js";
 
 export function analyzeCsharpSafetyEmission(input: {
@@ -32,6 +32,7 @@ export function analyzeCsharpSafetyEmission(input: {
   const shapes = new Map<CsharpObjectShapeFact, boolean>();
   const issues: TargetDiagnostic[] = [];
   const { ast } = input.source;
+  const explicit = createSourceExplicitUnsafeContextIndex(ast, input.source.sourceFiles, node => input.safety.safetyOperation.get(node));
   const refuse = (code: string, message: string): void => {
     issues.push(Object.freeze({ code, category: "error", source: "tsonic-csharp", message }));
   };
@@ -84,6 +85,12 @@ export function analyzeCsharpSafetyEmission(input: {
     permission ||= contractPreview && input.safety.safetyApplication.get(node).some(application => application.contract === "requires-unsafe");
     context ||= children.some(child => child.selection.context);
     const operation = input.operations.nativePointer.get(node);
+    if (input.admitted(node) && operation?.kind === "raw-location" && operation.method === "Reinterpret" && !explicit.has(node))
+      issues.push({ code: "CSHARP_NATIVE_POINTER_UNSAFE_CONTEXT_REQUIRED", category: "error", source: "tsonic-csharp", sourceNode: node,
+        message: "Raw memory reinterpretation requires an explicit unsafecontext() source region." });
+    if (input.admitted(node) && (operation?.kind === "load" || operation?.kind === "store" || operation?.kind === "offset") && !explicit.has(node))
+      issues.push({ code: "CSHARP_NATIVE_POINTER_UNSAFE_CONTEXT_REQUIRED", category: "error", source: "tsonic-csharp", sourceNode: node,
+        message: `C# native-pointer '${operation.kind}' requires an explicit unsafecontext()/unsafe() source region.` });
     if (input.admitted(node) && operation !== undefined && operation.kind !== "not-native-pointer" && operation.kind !== "rejected" && operation.kind !== "layout-query") {
       context = true;
       if (operation.kind === "load" || operation.kind === "store") permission = true;

@@ -17,7 +17,7 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
 import { csharpRuntimeRawPointerTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
-import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 import { planCsharpNativeMemoryCall } from "./native-memory.js";
 import { mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { buildCsharpPlannedValue, planCsharpExpressionCompletion, projectCsharpPlannedValue } from "./planned-value-composition.js";
@@ -26,19 +26,8 @@ import type { CsharpNativeHandler } from "../../../target-model/records/native-h
 
 export function planCsharpNativePointerOperation(node: Node, selection: Extract<CsharpNativeHandler, { readonly kind: "native-pointer" }>["selection"], sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner, state: DestructuringPlannerState | undefined
 ): CsharpPlannedValue | undefined {
-  if (selection.kind === "rejected") {
-    diagnostics.push(nativePointerDiagnostic(
-      "CSHARP_NATIVE_POINTER_OPERATION_NOT_MAPPED",
-      `C# native-pointer '${selection.operation}' is not mapped: ${selection.reason}`,
-    ));
-    return undefined;
-  }
+  if (selection.kind === "rejected") failCsharpPlannerInvariant("A rejected native-pointer operation cannot reach planning.", node);
   if (selection.kind === "raw-location") {
-    if (selection.method === "Reinterpret" && (state?.explicitUnsafeContextDepth ?? 0) === 0) {
-      diagnostics.push(nativePointerDiagnostic("CSHARP_NATIVE_POINTER_UNSAFE_CONTEXT_REQUIRED",
-        "Raw memory reinterpretation requires an explicit unsafecontext() source region."));
-      return undefined;
-    }
     const type = csharpTypeFromTargetTypeRef(selection.inputType, input.scope.typeParameterNames);
     const value = type === undefined ? undefined : planExpression(selection.expression, sourceFile, input, diagnostics, state);
     return projectCsharpPlannedValue(node, sourceFile, input, diagnostics, value,
@@ -51,9 +40,8 @@ export function planCsharpNativePointerOperation(node: Node, selection: Extract<
       const parameterType = csharpTypeFromTargetTypeRef(argument.parameterType, input.scope.typeParameterNames);
       const expression = sourceType === undefined ? undefined : planExpression(argument.expression, sourceFile, input, diagnostics, state);
       if (expression === undefined || parameterType === undefined) return undefined;
-      const adapted = targetTypeRefEquals(argument.sourceType, argument.parameterType)
-        ? expression : mapCsharpPlannedValue(expression, argument.parameterType, value => ({ kind: "CastExpression", type: parameterType,
-          expression: { kind: "ParenthesizedExpression", expression: value } }));
+      const adapted = argument.cast ? mapCsharpPlannedValue(expression, argument.parameterType, value => ({ kind: "CastExpression", type: parameterType,
+          expression: { kind: "ParenthesizedExpression", expression: value } })) : expression;
       if (adapted === undefined) return undefined;
       arguments_.push(adapted);
     }
@@ -81,13 +69,6 @@ export function planCsharpNativePointerOperation(node: Node, selection: Extract<
         callee: { kind: "SimpleMemberAccessExpression" as const, receiver, name: selection.method },
         arguments: values.map(expression => ({ kind: "Argument" as const, expression })),
       }));
-  }
-  if ((state?.explicitUnsafeContextDepth ?? 0) === 0) {
-    diagnostics.push(nativePointerDiagnostic(
-      "CSHARP_NATIVE_POINTER_UNSAFE_CONTEXT_REQUIRED",
-      `C# native-pointer '${selection.kind}' requires an explicit unsafecontext()/unsafe() source region.`,
-    ));
-    return undefined;
   }
   const pointer = planExpression(
     selection.pointerExpression,
@@ -136,16 +117,4 @@ export function planCsharpNativePointerOperation(node: Node, selection: Extract<
               }));
     }
   }
-}
-
-function nativePointerDiagnostic(
-  code: string,
-  message: string,
-): TargetDiagnostic {
-  return {
-    code,
-    category: "error",
-    source: "tsonic-csharp",
-    message,
-  };
 }

@@ -413,11 +413,14 @@ function visit(
     ast.is.IsPrefixUnaryExpression(node) ||
     ast.is.IsPostfixUnaryExpression(node);
   if (operationNode) {
+    const nativePointer = selectCsharpNativePointerOperation(policy, node, sourceFile);
+    if (nativePointer.kind === "rejected") issues?.push(Object.freeze({ node, code: "CSHARP_NATIVE_POINTER_OPERATION_NOT_MAPPED",
+      message: `C# native-pointer '${nativePointer.operation}' is not mapped: ${nativePointer.reason}` }));
     setClassification(
       builder,
       node,
       nativePointerKey,
-      selectCsharpNativePointerOperation(policy, node, sourceFile),
+      nativePointer,
     );
     setClassification(
       builder,

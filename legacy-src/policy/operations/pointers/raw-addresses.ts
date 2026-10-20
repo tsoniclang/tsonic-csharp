@@ -7,6 +7,7 @@ import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpRuntimeRawPointerTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpNullableReferenceTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 
 export function readCsharpSourceRawAddress(
   facts: ReadonlySourceFactResolver | undefined,
@@ -50,7 +51,8 @@ export function selectCsharpRawAddress(
       : index === 0 ? raw : csharpSourcePrimitiveTargetType(
         fact.operation === "byte-offset" && fact.offsetSignedness === "unsigned" ? "uint128" : "int128");
     const sourceType = input.types.resolveSelectedValue(operand.expression, operand.type, sourceFile);
-    return sourceType === undefined ? undefined : Object.freeze({ expression: operand.expression, sourceType, parameterType });
+    return sourceType === undefined ? undefined : Object.freeze({ expression: operand.expression, sourceType, parameterType,
+      cast: !targetTypeRefEquals(sourceType, parameterType) });
   });
   if (parameters.some(parameter => parameter === undefined)) return reject("A raw address operand has no closed C# value carrier.");
   return Object.freeze({ kind: "raw-address", width: abi.addressWidth,
