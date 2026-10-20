@@ -1,4 +1,5 @@
 import type { Node, Type } from "@tsonic/tsts";
+import type { CsharpPropertyProjection } from "../../target-model/records/property-projections.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 import type { CsharpObjectShapeMemberFact, TargetTypeRef } from "../../target-model/types/model.js";
@@ -12,11 +13,6 @@ import {
   targetTypeRefKey,
 } from "../../target-model/types/index.js";
 import { csharpUnionLeaves } from "../../target-model/types/union-relations.js";
-
-export interface CsharpPropertyProjection {
-  readonly source: TargetTypeRef;
-  readonly members: readonly CsharpObjectShapeMemberFact[];
-}
 
 export function selectCsharpPropertyProjections(
   expression: Node,
