@@ -20,6 +20,7 @@ import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/
 import { directCsharpSourceYieldExpression } from "../../target-model/syntax/yield-expression.js";
 import { csharpDestructuringAssignmentSyntax } from "../../target-model/syntax/operators.js";
 import type { CsharpStatementCompletionRecords } from "../../target-model/records/statement-completion.js";
+import { createCsharpAdmittedIterationProducer } from "../program/records/iteration.js";
 
 export function admitCsharpIterationBindings(
   policy: CsharpPolicyContext,
@@ -31,7 +32,7 @@ export function admitCsharpIterationBindings(
   metadata: CsharpSourceEvidenceIndex["compileTimeMetadata"],
 ): { readonly operations: CsharpTargetOperationClassifications<CsharpAdmittedIteration>;
   readonly issues: readonly TargetDiagnostic[] } {
-  const iterations = new Map<Node, CsharpAdmittedIteration>();
+  const iterations = createCsharpAdmittedIterationProducer();
   const issues: TargetDiagnostic[] = [];
   const refuse = (node: Node, message: string): void => {
     issues.push(Object.freeze({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp",
@@ -63,7 +64,7 @@ export function admitCsharpIterationBindings(
       if (admitted.kind === "rejected") refuse(admitted.node, admitted.reason);
       else {
         const conversion = admitConversion(selected, admitted.binding);
-        if (conversion !== undefined) iterations.set(node, Object.freeze({ ...selected,
+        if (conversion !== undefined) iterations.admit(node, Object.freeze({ ...selected,
           binding: Object.freeze({ ...admitted.binding, conversion }) }));
       }
     } else {
@@ -71,13 +72,13 @@ export function admitCsharpIterationBindings(
       if (admitted.kind === "rejected") refuse(admitted.node, admitted.reason);
       else {
         const conversion = admitConversion(selected, admitted.binding);
-        if (conversion !== undefined) iterations.set(node, Object.freeze({ ...selected,
+        if (conversion !== undefined) iterations.admit(node, Object.freeze({ ...selected,
           binding: Object.freeze({ ...admitted.binding, conversion }) }));
       }
     }
   }
   return Object.freeze({ operations: Object.freeze({ ...operations,
-    iteration: Object.freeze({ get: (node: Node) => iterations.get(node) }) }), issues: Object.freeze(issues) });
+    iteration: iterations.seal() }), issues: Object.freeze(issues) });
 }
 
 export function analyzeCsharpNativeControlFlow(
