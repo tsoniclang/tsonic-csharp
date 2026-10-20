@@ -1,7 +1,7 @@
 import {
   createCsharpNativeConstructionDemandQuery,
-  type CsharpNativeConstructionDemandQueries,
 } from "../objects/native-construction-demand.js";
+import type { CsharpNativeConstructionDemandQueries } from "../../target-model/records/native-construction.js";
 import type {
   ExtensionFactSubject,
   Node,

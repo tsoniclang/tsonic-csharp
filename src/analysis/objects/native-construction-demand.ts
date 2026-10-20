@@ -2,7 +2,7 @@ import { providerVirtualDeclarationFactKey, type Node, type SourceFile, type Typ
 import type { SourceStorageQueries, SourceStorageSubject } from "@tsonic/target-api/analysis";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
-import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/model.js";
+import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpObjectShapesEqual } from "../../target-model/types/object-shape-equality.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 import { csharpNullableTargetType } from "../../target-model/types/carriers/nullable.js";
@@ -10,24 +10,9 @@ import { createCsharpMetadataBudget } from "../../target-model/metadata/immutabl
 import type { CsharpTypePolicyBaseHost } from "../../policy/types/resolution/model.js";
 import { csharpNativeConstructionMembersMatch } from "../../policy/types/objects/native-construction-members.js";
 import { createCsharpObjectShapeValueStorage } from "../../policy/types/objects/object-shape-policy/construction.js";
-import { csharpStructuralObjectShapeIdPrefix } from "../../target-model/types/object-shape-identity.js";
 
-export interface CsharpNativeConstructionIssue {
-  readonly node: Node;
-  readonly code: "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN";
-  readonly message: string;
-}
-
-export interface CsharpNativeConstructionDemandQueries {
-  readonly issues: readonly CsharpNativeConstructionIssue[];
-  constructionFor(node: Node): CsharpNativeConstructionSelection | undefined;
-}
-
-export interface CsharpNativeConstructionSelection {
-  readonly targetType: TargetTypeRef;
-  readonly shape: CsharpObjectShapeFact;
-}
-
+import type { CsharpNativeConstructionDemandQueries, CsharpNativeConstructionIssue, CsharpNativeConstructionSelection } from "../../target-model/records/native-construction.js";
+import { createCsharpNativeConstructionRecords } from "../program/records/native-construction.js";
 interface CsharpNativeConstructionDemandHost extends Pick<CsharpTypePolicyBaseHost,
   "ast" | "navigation" | "providers" | "sourceFacts" | "semantics" | "semanticsFor"> {
   resolveShape(type: Type, file: SourceFile, authoredTypeRoot?: Node): CsharpObjectShapeFact | undefined;
@@ -249,7 +234,7 @@ export function createCsharpNativeConstructionDemandQuery(
         (rest ? origin.subject !== subject : origin.subject.node !== variable?.Initializer)) continue;
       const shape = shapeForType(source.type, source.queries);
       if (shape?.targetType.kind !== "target-named" ||
-        !shape.targetType.id.startsWith(csharpStructuralObjectShapeIdPrefix)) continue;
+        (shape.targetType as CsharpTargetNamedTypeRef).csharpGeneratedStructuralStorage !== true) continue;
       const selected = host.scopedTargetType(declaration);
       if (selected !== undefined && !targetTypeRefEquals(selected, shape.targetType)) continue;
       const valueShape = createCsharpObjectShapeValueStorage(shape);
@@ -309,10 +294,5 @@ export function createCsharpNativeConstructionDemandQuery(
     issues.push(Object.freeze({ node: current.node, code: "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN",
       message: "Native construction demand exceeds its finite target metadata budget." }));
   }
-  return Object.freeze({
-    issues: Object.freeze(issues),
-    constructionFor(node: Node): CsharpNativeConstructionSelection | undefined {
-      return issues.length === 0 ? nodeConstructions.get(node) : undefined;
-    },
-  });
+  return createCsharpNativeConstructionRecords(nodeConstructions, issues);
 }

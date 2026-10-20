@@ -85,7 +85,7 @@ export function createCsharpObjectShapeValueStorage(
   shape: CsharpObjectShapeFact,
 ): CsharpObjectShapeFact | undefined {
   if (shape.targetType.kind !== "target-named" ||
-    !shape.targetType.id.startsWith(csharpStructuralObjectShapeIdPrefix) ||
+    (shape.targetType as CsharpTargetNamedTypeRef).csharpGeneratedStructuralStorage !== true ||
     shape.members.length === 0 || (shape.implements?.length ?? 0) !== 0 ||
     shape.methodImplementation !== undefined || shape.members.some(member =>
       member.memberKind !== "property" || member.optional === true || member.accessor !== undefined ||
