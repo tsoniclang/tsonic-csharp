@@ -56,7 +56,7 @@ export function planCsharpNativePointerOperation(node: Node, selection: Extract<
     }, selection.resultType);
   }
   if (selection.kind === "layout-query") {
-    return planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, { kind: "NumericLiteralExpression", value: selection.value },
+    return planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, { kind: "NumericLiteralExpression", value: selection.value.toString() },
       readCsharpNativeExpressionCarrier(input, node));
   }
   if (selection.kind === "raw-identity") {

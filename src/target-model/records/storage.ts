@@ -18,7 +18,7 @@ export interface CsharpStorageIssue {
 export interface CsharpNativeArrayStorage {
   readonly kind: "binding" | "reference" | "literal" | "element";
   readonly layout: CsharpNativeMemoryLayout;
-  readonly stride: number;
+  readonly stride: bigint;
 }
 
 export interface CsharpStorageClassifications extends CsharpStorageRepresentationClassifications {

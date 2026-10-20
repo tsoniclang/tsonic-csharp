@@ -3,21 +3,21 @@ import { targetTypeRefEquals } from "../types/equality.js";
 
 interface CsharpNativeMemoryDimensions {
   readonly pointeeType: TargetTypeRef;
-  readonly size: number;
-  readonly alignment: number;
+  readonly size: bigint;
+  readonly alignment: bigint;
   readonly width: 32 | 64;
   readonly littleEndian: boolean;
 }
 
 export type CsharpNativeMemoryLayout = CsharpNativeMemoryDimensions & (
   | { readonly kind: "scalar" | "record"; readonly fields: readonly CsharpNativeMemoryField[] }
-  | { readonly kind: "array"; readonly length: string; readonly stride: number; readonly element: CsharpNativeMemoryLayout }
+  | { readonly kind: "array"; readonly length: string; readonly stride: bigint; readonly element: CsharpNativeMemoryLayout }
 );
 
 export interface CsharpNativeMemoryField {
   readonly name: string;
-  readonly offset: number;
-  readonly alignment: number;
+  readonly offset: bigint;
+  readonly alignment: bigint;
   readonly layout: CsharpNativeMemoryLayout;
 }
 
