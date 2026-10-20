@@ -6,7 +6,6 @@ import { createCsharpMetadataBudget } from "../../target-model/metadata/immutabl
 import { csharpTypeParameterConstraintResolutionKey } from "../../target-model/types/generic-constraints.js";
 
 type TypeParameter = Extract<TargetTypeRef, { readonly kind: "type-parameter" }>;
-type TraversalBudget = ReturnType<typeof createCsharpMetadataBudget>;
 const noTypeParameters: readonly TypeParameter[] = Object.freeze([]);
 
 import type { CsharpTypeParameterConstraintResolver } from "../../target-model/types/generic-references.js";

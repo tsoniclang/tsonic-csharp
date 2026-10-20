@@ -38,7 +38,7 @@ export interface CsharpTypePolicyBaseHost {
   readonly sourceStorage: import("@tsonic/target-api/analysis").SourceStorageQueries;
   readonly errorStorageDemands: import("@tsonic/target-api/analysis").SourceErrorStorageDemandQueries;
   callOnlyAlias(declaration: Node): import("@tsonic/target-api/source").SourceCallOnlyAlias | undefined;
-  readonly typeDefinitions?: import("../../../target-model/types/source-union-definitions.js").CsharpTypeDefinitionWriter;
+  readonly typeDefinitions?: import("../../program/records/type-definitions.js").CsharpTypeDefinitionWriter;
   readonly ast: AstReader;
   readonly sourceFiles: readonly SourceFile[];
   readonly sourceFacts?: ReadonlySourceFactResolver;
