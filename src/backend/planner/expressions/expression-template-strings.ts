@@ -2,11 +2,6 @@ import type { CsharpPlanningContext } from "../context.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpInterpolatedStringPart } from "../../target-ast/syntax/index.js";
-import {
-  AsTemplateExpression,
-  AsTemplateSpan,
-  Node_Text,
-} from "@tsonic/target-api/source";
 import type {
   ExpressionPlanner,
 } from "./expression-planner-types.js";
@@ -16,6 +11,7 @@ import {
 import type { CsharpPlannedValue } from "./planned-values.js";
 import { composeCsharpPlannedValues, planCsharpExpressionCompletion } from "./planned-value-composition.js";
 import { readCsharpNativeExpressionCarrier } from "./native-uses.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 
 export function planTemplateExpression(
   node: Node,
@@ -27,23 +23,20 @@ export function planTemplateExpression(
   if (!requireCsharpStringRuntimeCarrier(node, sourceFile, input, diagnostics, "Template string emission")) {
     return undefined;
   }
-  const expression = AsTemplateExpression(input.program.source.ast, node)!;
+  const selected = input.program.records.templateString.get(node);
+  if (selected === undefined) failCsharpPlannerInvariant("An admitted template requires its sealed source substitutions.", node);
   const operands: CsharpPlannedValue[] = [];
   const parts: (CsharpInterpolatedStringPart | number)[] = [
-    { kind: "InterpolatedStringText", text: Node_Text(input.program.source.ast, expression.Head) },
+    { kind: "InterpolatedStringText", text: selected.head },
   ];
-  for (const spanNode of expression.TemplateSpans?.Nodes ?? []) {
-    if (spanNode === undefined) {
-      continue;
-    }
-    const span = AsTemplateSpan(input.program.source.ast, spanNode)!;
-    const expression = planExpression(span.Expression!, sourceFile, input, diagnostics);
+  for (const span of selected.parts) {
+    const expression = planExpression(span.expression, sourceFile, input, diagnostics);
     if (expression === undefined) {
       return undefined;
     }
     parts.push(operands.length);
     operands.push(expression);
-    parts.push({ kind: "InterpolatedStringText", text: Node_Text(input.program.source.ast, span.Literal) });
+    parts.push({ kind: "InterpolatedStringText", text: span.literal });
   }
   return composeCsharpPlannedValues(node, sourceFile, input, diagnostics, operands, expressions =>
     planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, { kind: "InterpolatedStringExpression",

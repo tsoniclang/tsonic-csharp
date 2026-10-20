@@ -13,6 +13,7 @@ import { analyzeCsharpSourceArtifacts } from "../source-modules/artifacts.js";
 import { analyzeCsharpArrayLiterals } from "../expressions/array-literals.js";
 import { analyzeCsharpLiteralAdmission } from "../expressions/literals.js";
 import { analyzeCsharpAwaitAdmission } from "../callables/await-admission.js";
+import { analyzeCsharpTemplateStrings } from "../expressions/template-strings.js";
 import { analyzeCsharpPropertyValueProjection } from "../conversions/property-value-projection.js";
 import { analyzeCsharpStructuralObjectEmission } from "../objects/structural-emission.js";
 import { analyzeCsharpAuthoredObjectMethods } from "../objects/authored-methods.js";
@@ -474,6 +475,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const admittedOperations = admittedIterations.operations;
   const literalEmission = analyzeCsharpLiteralAdmission({ ast: source.ast, demand: nativeDemand, literals: literalValues,
     exact: exactLiterals, values: analysis.valueReads });
+  const templateStrings = analyzeCsharpTemplateStrings(source.ast, nativeDemand);
   const nonCallableIssues = [
     ...literalEmission.issues,
     ...analyzeCsharpAwaitAdmission({ ast: source.ast, demand: nativeDemand, values: analysis.valueReads, operations: admittedOperations }),
@@ -634,6 +636,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     propertyValueProjection: propertyValueProjection.records,
     arrayLiterals: arrayLiterals.records,
     literalEmission: literalEmission.records,
+    templateStrings,
     sourceArtifacts: sourceArtifacts.records,
     safetyEmission: safetyEmission.records,
     startup: startup.records,

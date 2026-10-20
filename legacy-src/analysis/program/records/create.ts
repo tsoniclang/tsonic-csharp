@@ -59,6 +59,7 @@ export interface CsharpProgramRecordInput {
   readonly propertyValueProjection: import("../../../target-model/records/property-value-projection.js").CsharpPropertyValueProjectionRecords;
   readonly arrayLiterals: import("../../../target-model/records/array-literals.js").CsharpArrayLiteralRecords;
   readonly literalEmission: import("../../../target-model/records/literal-emission.js").CsharpLiteralEmissionRecords;
+  readonly templateStrings: import("../../../target-model/records/template-strings.js").CsharpTemplateStringRecords;
   readonly sourceArtifacts: import("../../../target-model/records/artifacts.js").CsharpSourceArtifactRecords;
   readonly safetyEmission: import("../../../target-model/records/safety-emission.js").CsharpSafetyEmissionRecords;
   readonly startup: import("../../../target-model/records/startup.js").CsharpStartupRecords;
@@ -130,6 +131,7 @@ export function createCsharpProgramRecords(
     ...input.propertyValueProjection,
     ...input.arrayLiterals,
     ...input.literalEmission,
+    ...input.templateStrings,
     ...input.sourceArtifacts,
     generatedHelpers: input.conversions.generatedHelpers,
     generatedHelper: input.conversions.generatedHelper,
