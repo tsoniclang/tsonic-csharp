@@ -1,4 +1,4 @@
-import type { CsharpSourceProfileCallPolicyContext } from "../../policy/operations/source-profiles/source-profile-policy.js";
+import type { CsharpSourceProfileCallPolicyContext } from "../../policy/model/source-profiles.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 
 export function resolveCsharpSourceProfileGenericResult(

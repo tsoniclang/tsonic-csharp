@@ -1,6 +1,6 @@
 import type { ResolvedSourceElementAccessInfo, ResolvedSourcePropertyAccessInfo, SourceFile } from "@tsonic/tsts";
 import type { CsharpProviderCallSelectionHost } from "../../../policy/model/provider-calls.js";
-import type { CsharpSourceProfileElementPolicyResult } from "../../../policy/operations/source-profiles/source-profile-policy.js";
+import type { CsharpSourceProfileElementPolicyResult } from "../../../policy/model/source-profiles.js";
 import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/source-profile-invocations.js";
 import { csharpSourceProfileDiagnostic } from "../../../policy/operations/source-profiles/source-profile-policy.js";
 
