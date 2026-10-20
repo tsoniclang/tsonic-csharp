@@ -21,7 +21,7 @@ import { getCsharpTypeofResult } from "../../target-model/types/runtime-kind.js"
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import { getCsharpClassFactory } from "../../target-model/types/carriers/class-factories.js";
 import { classifyCsharpOptionalCallCallee, classifyCsharpOptionalCallReceiver } from "./optional-calls.js";
-import { selectCsharpMemoryBinding } from "../../policy/operations/memory-bindings.js";
+import { selectCsharpMemoryBinding } from "./memory-bindings.js";
 
 import { selectCsharpElementDeletion } from "../../policy/operations/collections/element-deletion.js";
 import { selectCsharpSwitch } from "./control-flow/switch.js";

@@ -1,12 +1,12 @@
 import type { CsharpMemoryBindingSelection } from "../../target-model/records/memory-bindings.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { selectTsonicMemoryFieldBinding, selectTsonicMemoryRecordBinding } from "@tsonic/source-core/facts";
-import type { CsharpPolicyContext } from "../model/context.js";
+import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpObjectShapeMemberFact } from "../../target-model/types/model.js";
 import { csharpRuntimeLocationTargetType, isCsharpEmptyObjectTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/object-shape-members.js";
-import { readCsharpSourceField } from "../types/resolution/source-markers.js";
+import { readCsharpSourceField } from "../../source/extension/markers.js";
 
 export function selectCsharpMemoryBinding(
   input: CsharpPolicyContext, node: Node, file: SourceFile,
