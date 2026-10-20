@@ -183,6 +183,8 @@ export interface CsharpProgramRecords extends CsharpStatementExitRecords, Csharp
   readonly memberReceiver: import("./member-receivers.js").CsharpMemberReceiverRecords["memberReceiver"];
   readonly nativeFunctionCallee: import("./member-receivers.js").CsharpMemberReceiverRecords["nativeFunctionCallee"];
   readonly nativeMethodCallee: import("./member-receivers.js").CsharpMemberReceiverRecords["nativeMethodCallee"];
+  readonly sourceCallEmission: import("./source-call-emission.js").CsharpSourceCallEmissionRecords["sourceCallEmission"];
+  readonly sourceArgumentsEmission: import("./source-call-emission.js").CsharpSourceCallEmissionRecords["sourceArgumentsEmission"];
   readonly sourceMember: CsharpTargetOperationClassifications["sourceMember"];
   readonly selectedElement: import("./element-admission.js").CsharpElementAdmissionRecords["selectedElement"];
   readonly binaryOperation: CsharpTargetOperationClassifications["binaryOperation"];

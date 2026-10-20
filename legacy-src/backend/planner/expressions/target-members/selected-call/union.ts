@@ -1,6 +1,5 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpCallClassification } from "../../../../../target-model/records/operations.js";
 import { isCsharpVoidTargetType } from "../../../../../target-model/types/identity.js";
 import type { CsharpArgument, CsharpExpression, CsharpStatement } from "../../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
@@ -9,25 +8,22 @@ import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";
 import { planCsharpGeneratedMethodCall } from "../../../declarations/generated-methods.js";
 import { renderCsharpTargetTypeArguments } from "./helpers.js";
 import { runtimeUnionArmProjection, runtimeUnionArmTest } from "../../union-access.js";
-import { csharpSourceArgumentGroups } from "./source-argument-groups.js";
 
 export function planCsharpUnionDispatcherCall(
   node: Node,
-  classification: CsharpCallClassification,
   receiver: CsharpExpression,
   arguments_: readonly CsharpArgument[],
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
-  const union = classification.unionCall;
-  if (union.kind !== "resolved") return undefined;
+  const selected = input.program.records.sourceCallEmission.get(node);
+  if (selected?.kind !== "union") return undefined;
+  const union = selected.union;
   const methods = input.scope.generatedMethods;
   const receiverType = csharpTypeFromTargetTypeRef(union.receiverType, input.scope.typeParameterNames);
   const resultType = csharpTypeFromTargetTypeRef(union.resultType, input.scope.typeParameterNames);
-  const selectedTypeArguments = classification.sourceTypeArguments === undefined ? undefined
-    : renderCsharpTargetTypeArguments(input.scope.typeParameterNames, classification.sourceTypeArguments, node, diagnostics);
-  const groups = csharpSourceArgumentGroups(classification);
-  const argumentTypes = groups?.map(group => csharpTypeFromTargetTypeRef(group.type, input.scope.typeParameterNames));
+  const selectedTypeArguments = renderCsharpTargetTypeArguments(input.scope.typeParameterNames, selected.typeArguments, node, diagnostics);
+  const argumentTypes = selected.parameters.map(type => csharpTypeFromTargetTypeRef(type, input.scope.typeParameterNames));
   if (methods === undefined || receiverType === undefined || resultType === undefined ||
     selectedTypeArguments === undefined || argumentTypes === undefined || arguments_.length !== argumentTypes.length || argumentTypes.some(type => type === undefined)) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "A closed union dispatcher requires exact native receiver, argument, result and containing-type contracts."));
@@ -42,7 +38,7 @@ export function planCsharpUnionDispatcherCall(
       kind: "InvocationExpression",
       callee: {
         kind: "SimpleMemberAccessExpression",
-        receiver: runtimeUnionArmProjection({ kind: "IdentifierName", name: "receiver" }, index, union.receiverType),
+        receiver: runtimeUnionArmProjection({ kind: "IdentifierName", name: "receiver" }, index, union.receiverType, false, input),
         name: method.targetName,
         ...(selectedTypeArguments.length === 0 ? {} : { typeArguments: selectedTypeArguments }),
       },
@@ -54,7 +50,7 @@ export function planCsharpUnionDispatcherCall(
     if (index === union.methods.length - 1) statements.push(...branch);
     else statements.push({
       kind: "IfStatement",
-      condition: runtimeUnionArmTest({ kind: "IdentifierName", name: "receiver" }, index, union.receiverType),
+      condition: runtimeUnionArmTest({ kind: "IdentifierName", name: "receiver" }, index, union.receiverType, input),
       thenBody: { kind: "Block", statements: branch },
     });
   }

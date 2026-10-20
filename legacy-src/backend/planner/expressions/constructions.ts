@@ -336,8 +336,6 @@ function translateSourceOwnedConstruction(
   }
   const arguments_ = translateSourceOwnedArguments(
     node,
-    selection.source,
-    classification,
     sourceFile,
     input,
     diagnostics,

@@ -44,7 +44,7 @@ function translateCsharpCallExpressionCore(node: Node, sourceFile: SourceFile, i
   if (form.kind === "js-value") return planCsharpJsValueCall(node, sourceFile, input, diagnostics, planExpression);
   const selection = classification.target;
   if (selection === undefined) failCsharpPlannerInvariant("An admitted target call requires its selected native invocation.", node);
-  if (selection.kind === "source-owned") return translateSourceOwnedCall(node, selection.source, classification, sourceFile, input, diagnostics, planExpression, planCallArgument, state);
+  if (selection.kind === "source-owned") return translateSourceOwnedCall(node, sourceFile, input, diagnostics, planExpression, planCallArgument, state);
   const invocation = translateSelectedTargetCall(node, selection.source, selection.call, sourceFile, input, diagnostics, planExpression, planCallArgument);
   return invocation === undefined || classification.sourceResult === undefined ? invocation
     : convertCsharpPlannedValue(node, sourceFile, input, diagnostics, invocation, classification.sourceResult.selectedType, "explicit");
