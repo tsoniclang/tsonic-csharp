@@ -9,7 +9,7 @@ import { failCsharpPlannerInvariant } from "../../invariants.js";
 export function planCsharpSourceModuleMemberName(
   declaration: Node,
   input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
+  _diagnostics: TargetDiagnostic[],
 ): string {
   if (HasSourceKind(input.program.source.ast, declaration, KindExportAssignment)) return "@default";
   const selected = input.program.names.resolve(Node_Name(input.program.source.ast, declaration));
