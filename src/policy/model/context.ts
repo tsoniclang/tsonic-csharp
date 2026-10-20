@@ -25,6 +25,7 @@ import type {
 } from "../../source/extension/identities.js";
 
 export interface CsharpPolicyContext extends CsharpProviderCallSelectionHost {
+  readonly integerRanges: import("../../target-model/records/integer-ranges.js").CsharpIntegerRangeIndex;
   readonly literalValues: import("@tsonic/target-api/source").SourceLiteralIndex;
   callOnlyAlias(declaration: Node): import("@tsonic/target-api/source").SourceCallOnlyAlias | undefined;
   readonly typeDefinitions?: import("../../target-model/types/source-union-definitions.js").CsharpTypeDefinitions;

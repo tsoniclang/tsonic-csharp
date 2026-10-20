@@ -16,7 +16,7 @@ import { isCsharpRefLikeTargetType } from "../../target-model/types/ref-like.js"
 export function selectCsharpExpressionConversion(
   input: Pick<
     CsharpPolicyContext,
-    "ast" | "literalValues" | "typeDefinitions" | "projectTypes" | "providers" | "target" | "navigation" | "sourceFacts"
+    "integerRanges" | "ast" | "literalValues" | "typeDefinitions" | "projectTypes" | "providers" | "target" | "navigation" | "sourceFacts"
   > & CsharpConversionShapeQueries,
   expression: Node,
   source: TargetTypeRef | undefined,
@@ -87,7 +87,7 @@ export function selectCsharpExpressionConversion(
 export function selectCsharpProviderArgumentConversion(
   input: Pick<
     CsharpPolicyContext,
-    "ast" | "literalValues" | "typeDefinitions" | "projectTypes" | "providers" | "target" | "navigation" | "sourceFacts"
+    "integerRanges" | "ast" | "literalValues" | "typeDefinitions" | "projectTypes" | "providers" | "target" | "navigation" | "sourceFacts"
   > & CsharpConversionShapeQueries,
   expression: Node,
   source: TargetTypeRef | undefined,

@@ -32,6 +32,7 @@ export interface CsharpPlanningRepresentationQueries {
 }
 
 export interface CsharpTypePolicyBaseHost {
+  readonly integerRanges: import("../../../target-model/records/integer-ranges.js").CsharpIntegerRangeIndex;
   readonly objectMethodSources: CsharpObjectMethodSources;
   readonly literalValues: import("@tsonic/target-api/source").SourceLiteralIndex;
   readonly sourceStorage: import("@tsonic/target-api/analysis").SourceStorageQueries;
