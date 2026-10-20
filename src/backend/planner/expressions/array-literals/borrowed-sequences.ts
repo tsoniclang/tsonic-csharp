@@ -20,7 +20,8 @@ export function planCsharpBorrowedSequenceConsumption(node: Node, fact: CsharpBo
   const emission = input.program.records.borrowedSequenceEmission.get(fact, elementTarget);
   if (emission === undefined) failCsharpPlannerInvariant("An admitted borrowed sequence requires its exact native consumption plan.", node);
   const effect = (statements: readonly CsharpStatement[] | undefined): CsharpPlannedValue => csharpPlannedEffect(csharpVoidTargetType(),
-    statements ?? failCsharpPlannerInvariant("An admitted sequence requires its native append statements.", node));
+    statements ?? failCsharpPlannerInvariant("An admitted sequence requires its native append statements.", node))
+      ?? failCsharpPlannerInvariant("An admitted sequence requires its native effect completion.", node);
   const branch = (index: number): CsharpPlannedValue => {
     const selected = emission.inputs[index];
     if (selected === undefined || selected.kind === "empty") return effect(empty());
