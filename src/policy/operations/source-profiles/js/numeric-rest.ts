@@ -1,14 +1,15 @@
 import type { SourcePrimitiveKind } from "@tsonic/tsts";
 import { selectCsharpConversion } from "../../../conversions/index.js";
 import { csharpSourcePrimitiveTargetType, getCsharpJsArrayElementTargetType, type TargetTypeRef } from "../../../../target-model/types/index.js";
-import { resolveCsharpSelectedSourceValue, type CsharpSourceProfileCallPolicyContext } from "../source-profile-policy.js";
+import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
+import { type CsharpSourceProfileCallPolicyContext } from "../../../model/source-profiles.js";
 
 export function csharpJsNumericRestCarrier(context: CsharpSourceProfileCallPolicyContext): TargetTypeRef | undefined {
   const elements: TargetTypeRef[] = [];
   for (const argument of context.source.sourceArguments) {
     if (context.host.ast.is.IsSpreadElement(argument.expression)) {
       const operand = context.host.ast.as.AsSpreadElement(argument.expression)?.Expression;
-      const type = operand === undefined ? undefined : context.host.types.resolveNode(operand, context.sourceFile);
+      const type = operand === undefined ? undefined : context.inputs.nodes.get(operand);
       const element = type?.kind === "array" ? type.element : getCsharpJsArrayElementTargetType(type);
       const selected = type?.kind === "tuple" ? type.elements : element === undefined ? undefined : [element];
       if (selected === undefined) return undefined;
