@@ -1,11 +1,11 @@
 import type { CsharpTypeofRuntimeKind, TargetTypeRef } from "../../../target-model/types/model.js";
-import { csharpTypeofResultsEqual, getCsharpTypeofResult, type CsharpTypeofResult } from "../../../target-model/types/runtime-kind.js";
+import type { CsharpTypeofResult } from "../../../target-model/types/runtime-kind.js";
 import type { CsharpExpression, CsharpSwitchExpressionArm } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { allocateExpressionTemp, type DestructuringPlannerState } from "../bindings/binding-state.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { runtimeUnionArmProjection, runtimeUnionArmTest } from "./union-access.js";
-import { evaluatedConstant } from "./csharp-expression-builders.js";
+import { evaluatedConstant } from "./builders.js";
 
 interface CsharpRuntimeCategoryComparison {
   readonly runtimeKind: CsharpTypeofRuntimeKind;
@@ -14,14 +14,12 @@ interface CsharpRuntimeCategoryComparison {
 
 export function planCsharpRuntimeCategory(
   expression: CsharpExpression,
-  carrier: TargetTypeRef,
+  _carrier: TargetTypeRef,
   category: CsharpTypeofResult,
   input: CsharpPlanningContext,
   state: DestructuringPlannerState,
   comparison?: CsharpRuntimeCategoryComparison,
 ): CsharpExpression | undefined {
-  const expected = getCsharpTypeofResult(carrier, undefined, input.program.typeDefinitions);
-  if (expected === undefined || !csharpTypeofResultsEqual(expected, category)) return undefined;
   return planRuntimeCategory(expression, category, input, state, comparison);
 }
 
