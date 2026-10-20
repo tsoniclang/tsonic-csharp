@@ -15,12 +15,12 @@ import type {
 import {
   csharpGeneratedConversionHelperName,
   csharpGeneratedHelperNamespace,
-} from "./generated-helpers.js";
+} from "../../../target-model/records/generated-helpers.js";
 
 export function planCsharpGeneratedHelperSourceFile(
   input: CsharpPlanningContext,
 ): CsharpOutputSourceFile | undefined {
-  const helpers = input.artifacts.generatedHelpers();
+  const helpers = input.program.records.generatedHelpers.get();
   if (helpers.length === 0) {
     return undefined;
   }
