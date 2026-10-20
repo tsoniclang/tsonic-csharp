@@ -1,29 +1,12 @@
 import type { CsharpRegularExpressionLiteralSelection } from "../../../target-model/records/regexp-literal.js";
-import type {
-  AstRegularExpressionLiteralSyntax,
-  Node,
-  SourceFile,
-} from "@tsonic/tsts";
-import type { CsharpTypePolicy } from "../../types/index.js";
-import {
-  isCsharpJsRegExpTargetType,
-} from "../../types/index.js";
+import type { AstRegularExpressionLiteralSyntax } from "@tsonic/tsts";
 
-export interface CsharpRegularExpressionLiteralPolicyHost {
-  readonly ast: {
-    readonly regularExpressionLiteral: (
-      node: Node | undefined,
-    ) => AstRegularExpressionLiteralSyntax | undefined;
-  };
-  readonly types: CsharpTypePolicy;
-}
+import { isCsharpJsRegExpTargetType } from "../../types/index.js";
 
-export function selectCsharpRegularExpressionLiteral(
-  host: CsharpRegularExpressionLiteralPolicyHost,
-  node: Node,
-  sourceFile: SourceFile,
+export function selectCsharpNativeRegularExpressionLiteral(
+  literal: AstRegularExpressionLiteralSyntax | undefined,
+  targetType: import("../../../target-model/types/model.js").TargetTypeRef | undefined,
 ): CsharpRegularExpressionLiteralSelection {
-  const literal = host.ast.regularExpressionLiteral(node);
   if (literal === undefined) {
     return {
       kind: "rejected",
@@ -31,7 +14,6 @@ export function selectCsharpRegularExpressionLiteral(
       message: "The source node has no exact regular-expression literal syntax evidence.",
     };
   }
-  const targetType = host.types.resolveNode(node, sourceFile);
   if (!isCsharpJsRegExpTargetType(targetType)) {
     return {
       kind: "rejected",
