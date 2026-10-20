@@ -18,7 +18,7 @@ export function planCsharpProject(
   input: CsharpPlanningContext,
   options: { readonly allowUnsafeBlocks?: boolean } = {},
 ): CsharpProjectPlan {
-  const project = input.program.project.project;
+  const project = input.program.records.compilation.get().project.project;
   if (project.kind === "user-owned") {
     return Object.freeze({ kind: "user-owned", projectFile: project.projectFile });
   }
@@ -32,7 +32,7 @@ export function planCsharpProjectFile(
   input: CsharpPlanningContext,
   options: { readonly allowUnsafeBlocks?: boolean } = {},
 ): CsharpProjectFile {
-  const runtimeProjects = input.program.project.runtimeProjects;
+  const runtimeProjects = input.program.records.compilation.get().project.runtimeProjects;
   return Object.freeze({
     sdk: "Microsoft.NET.Sdk",
     path: `${readAssemblyName(input)}.csproj`,
