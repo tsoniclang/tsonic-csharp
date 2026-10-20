@@ -1,6 +1,6 @@
 import type { CsharpJsArrayMutationSelection } from "../../../target-model/records/js-array-mutations.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import { selectCsharpTypedArrayMutation } from "../../../policy/operations/collections/typed-array-mutations.js";
+import { selectCsharpTypedArrayMutation } from "./typed-array-mutations.js";
 
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
 import { csharpSourceProfileDeclarationIdentity } from "../../../policy/operations/members/index.js";
