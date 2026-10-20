@@ -518,6 +518,6 @@ export function analyzeCsharpNativeArtifactDemand(
     if (present !== undefined) { demandProperties(node, present); return; }
     const leaves = csharpUnionLeaves(type, input.typeDefinitions);
     if (leaves !== undefined) { for (const leaf of leaves) demandProperties(node, leaf.carrier); return; }
-    for (const member of input.conversions.propertyProjection.get(node, type) ?? []) demandPair(node, member.type, csharpTsValueTargetType());
+    for (const member of input.conversions.propertyProjection.get(node, type) ?? []) demandPair(node, member.member.type, csharpTsValueTargetType());
   }
 }
