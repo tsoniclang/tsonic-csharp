@@ -14,7 +14,7 @@ import { csharpFixedArrayRepresentationRejection } from "../../../policy/types/c
 import { readCsharpSourceDefaultValue, readCsharpSourceField, readCsharpSourceFixedArrayType, readCsharpSourceFunctionPointerType, readCsharpSourceJsStringMarker, readCsharpSourcePointerType, isCsharpSourceRawPointer } from "../../../source/extension/markers.js";
 import { classifyCsharpSourceProfileType } from "../../../policy/identities/source-types.js";
 import { csharpTargetTypeFromBinding } from "../../../policy/types/storage/bindings.js";
-import { readCsharpSourceKeepAlive } from "../../../policy/operations/flow/source-flow.js";
+import { readCsharpSourceKeepAlive } from "../../../source/extension/reachability.js";
 import { csharpNullableReferenceTargetType, isCsharpNullableReferenceTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { maximumTypeResolutionDepth } from "./model.js";
 import { nextState } from "./state.js";

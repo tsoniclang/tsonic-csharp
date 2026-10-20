@@ -1,28 +1,9 @@
 import type { CsharpSourceFlowCallSelection } from "../../../target-model/records/source-flow.js";
-import {
-  flowStateFactKey,
-} from "@tsonic/tsts";
-import type {
-  FlowStateFact,
-  ExtensionFactSubject,
-  Node,
-  ReadonlySourceFactResolver,
-} from "@tsonic/tsts";
-import type {
-  CsharpPolicyContext,
-} from "../../model/context.js";
-import { tsonicKeepAliveFactKey } from "@tsonic/source-core/facts";
+import { flowStateFactKey } from "@tsonic/tsts";
+import type { FlowStateFact, Node } from "@tsonic/tsts";
+import type { CsharpPolicyContext } from "../../model/context.js";
 
-export function readCsharpSourceKeepAlive(
-  sourceFacts: ReadonlySourceFactResolver | undefined,
-  subject: ExtensionFactSubject | undefined,
-): { readonly call: Node; readonly valueExpression: Node } | undefined {
-  const fact = sourceFacts?.getFact(subject, tsonicKeepAliveFactKey);
-  return fact === undefined ? undefined : Object.freeze({
-    call: fact.call,
-    valueExpression: fact.valueExpression,
-  });
-}
+import { readCsharpSourceKeepAlive } from "../../../source/extension/reachability.js";
 
 export function selectCsharpSourceFlowCall(
   input: CsharpPolicyContext,
