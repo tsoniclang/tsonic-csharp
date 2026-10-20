@@ -9,7 +9,7 @@ import type { CsharpExactLiteralSelectionIndex } from "../conversions/exact-lite
 import type { CsharpDeclarationClassifications } from "./declarations.js";
 import type { CsharpExpectedTypeClassifications } from "./expected-types.js";
 import type { CsharpModuleInitializationIndex } from "./module-initialization.js";
-import type { CsharpNativeParticipationInput, CsharpNativeUseClassifications } from "./native-demand.js";
+import type { CsharpNativeParticipationInput } from "./native-demand.js";
 import type { CsharpNativeUseRecords } from "./native-demand.js";
 import type { CsharpBindingPatternClassifications } from "./value-projections.js";
 import type { CsharpNumericRepresentations } from "./numeric.js";
