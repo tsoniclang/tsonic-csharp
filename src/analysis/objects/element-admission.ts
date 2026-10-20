@@ -3,8 +3,7 @@ import { targetDiagnosticFromExtension, type TargetDiagnostic } from "@tsonic/ta
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpNativeDemandAnalysis } from "../operations/native-demand-model.js";
 import type { CsharpAdmittedElementClassification, CsharpElementEmission, CsharpElementRead } from "../../target-model/records/element-admission.js";
-import type { CsharpProjectEmissionRecords } from "../../target-model/records/project-emission.js";
-import type { CsharpClassFactoryIndex } from "../../target-model/records/class-factories.js";
+import type { CsharpMemberReceiverRecords } from "../../target-model/records/member-receivers.js";
 import type { SourceProgramNavigation } from "@tsonic/target-api/source";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType, getCsharpReadOnlyIndexableCollectionElementTargetType,
   isCsharpDenseMutableCollectionTargetType, targetTypeRefEquals } from "../../target-model/types/index.js";
@@ -15,8 +14,8 @@ import { createCsharpElementAdmissionRecords } from "../program/records/element-
 
 export function analyzeCsharpElementAdmission(input: { readonly ast: AstReader; readonly nodes: readonly Node[];
   readonly operations: CsharpTargetOperationClassifications; readonly demand: CsharpNativeDemandAnalysis;
-  readonly admitted: (node: Node) => boolean; readonly projects: CsharpProjectEmissionRecords;
-  readonly factories: CsharpClassFactoryIndex; readonly navigation: SourceProgramNavigation }) {
+  readonly admitted: (node: Node) => boolean; readonly receivers: CsharpMemberReceiverRecords;
+  readonly navigation: SourceProgramNavigation }) {
   const values = new Map<Node, CsharpAdmittedElementClassification>();
   const issues: TargetDiagnostic[] = [];
   const { ast } = input;
@@ -62,10 +61,7 @@ export function analyzeCsharpElementAdmission(input: { readonly ast: AstReader; 
     } else if (selection.kind === "source-owned") {
       const receiverType = classification.receiverType;
       if (classification.sourceOwned !== undefined) {
-        const reference = selection.source.receiver.valueDeclaration === undefined ? selection.source.receiver.expression : ast.name(selection.source.receiver.valueDeclaration);
-        const declaration = reference === undefined ? undefined : input.projects.projectSourceReference.get(reference);
-        const staticReceiver = declaration !== undefined && (selection.source.receiver.valueDeclaration === undefined || declaration === selection.source.receiver.valueDeclaration) &&
-          input.factories.classFactory.get(declaration) === undefined && input.projects.projectSourceType.get(declaration) !== undefined;
+        const staticReceiver = input.receivers.memberReceiver.get(selection.source.receiver.expression, selection.source.receiver.valueDeclaration)?.kind === "type";
         const receiverUse = input.demand.nativeUse.expression(selection.source.receiver.expression)?.use;
         const present = receiverUse === undefined || receiverUse.kind === "erased" ? undefined :
           getCsharpGenericOptionalParts(receiverUse.carrier)?.element ?? getCsharpNullableElementTargetType(receiverUse.carrier) ?? receiverUse.carrier;

@@ -15,6 +15,7 @@ import { analyzeCsharpPropertyAdmission } from "../objects/property-admission.js
 import { analyzeCsharpOptionalCallChains } from "../callables/optional-call-chains.js";
 import { analyzeCsharpElementAdmission } from "../objects/element-admission.js";
 import { analyzeCsharpSourceReferences } from "../expressions/source-references.js";
+import { analyzeCsharpMemberReceivers } from "../objects/member-receivers.js";
 import { analyzeCsharpLiteralAdmission } from "../expressions/literals.js";
 import { analyzeCsharpAwaitAdmission } from "../callables/await-admission.js";
 import { analyzeCsharpVoidAdmission } from "../expressions/expression-void.js";
@@ -654,12 +655,15 @@ function analyzeCsharpTargetProgramBeforeSeal(
     evidence: analysis.sourceEvidence, factories: classFactories, captures: captureStorage, demand: nativeDemand,
     operations: admittedOperations, files: sourceOutputIdentities.records, backing: analysis.storage.nativeBacking });
   if (sourceReferences.issues.length !== 0) return rejectedTargetStage(sourceReferences.issues);
+  const memberReceivers = analyzeCsharpMemberReceivers({ source, nodes: sourceStorage.nodes, operations: admittedOperations,
+    references: sourceReferences.records, projects: projectEmission.records, factories: classFactories, admitted: admittedControlNode });
+  if (memberReceivers.issues.length !== 0) return rejectedTargetStage(memberReceivers.issues);
   const propertyAdmission = analyzeCsharpPropertyAdmission({ ast: source.ast, nodes: sourceStorage.nodes,
     operations: admittedOperations, admitted: admittedControlNode, projectDeclaration: node => source.navigation.isProjectDeclaration(node),
     modules: sourceReferences.records.sourceModuleReference });
   if (propertyAdmission.issues.length !== 0) return rejectedTargetStage(propertyAdmission.issues);
   const elementAdmission = analyzeCsharpElementAdmission({ ast: source.ast, nodes: sourceStorage.nodes, operations: admittedOperations,
-    demand: nativeDemand, admitted: admittedControlNode, projects: projectEmission.records, factories: classFactories, navigation: source.navigation });
+    demand: nativeDemand, admitted: admittedControlNode, receivers: memberReceivers.records, navigation: source.navigation });
   if (elementAdmission.issues.length !== 0) return rejectedTargetStage(elementAdmission.issues);
   const typeParameterEmission = analyzeCsharpTypeParameterEmission({ ast: source.ast, nodes: sourceStorage.nodes,
     evidence: analysis.sourceEvidence, admitted: admittedControlNode });
@@ -763,6 +767,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     optionalCallChains: optionalCallChains.records,
     elementAdmission: elementAdmission.records,
     sourceReferences: sourceReferences.records,
+    memberReceivers: memberReceivers.records,
     typeofEmission: typeofEmission.records,
     flowReads, valueReads: analysis.valueReads,
     callableAdapters, callableCreations, typeProjections: analysis.typeProjections, classFactories, classInitialization, captureStorage,

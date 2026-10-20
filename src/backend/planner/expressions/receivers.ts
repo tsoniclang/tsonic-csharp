@@ -1,4 +1,5 @@
-import type { Node, SourceFile, Type } from "@tsonic/tsts";
+import type { SourceFile } from "@tsonic/tsts";
+import type { CsharpSelectedReceiverEvidence } from "../../../target-model/records/member-receivers.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
 import type { CsharpPlanningContext } from "../context.js";
@@ -10,20 +11,12 @@ import { getCsharpTypeFromProjectSourceReferenceNode } from "../types/project-so
 import type { CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import { failCsharpPlannerInvariant } from "../../invariants.js";
 
-export interface CsharpSelectedReceiverEvidence {
-  readonly expression: Node;
-  readonly type: Type;
-  readonly valueDeclaration?: Node;
-}
-
 export function csharpProjectTypeReceiver(receiver: CsharpSelectedReceiverEvidence,
   input: CsharpPlanningContext, diagnostics: TargetDiagnostic[]): CsharpTypeNode | undefined {
-  const reference = receiver.valueDeclaration === undefined ? receiver.expression : input.program.source.ast.name(receiver.valueDeclaration);
-  if (reference === undefined) return undefined;
-  const declaration = input.program.records.projectSourceReference.get(reference);
-  if (declaration === undefined || receiver.valueDeclaration !== undefined && declaration !== receiver.valueDeclaration ||
-    input.program.records.classFactory.get(declaration) !== undefined) return undefined;
-  return getCsharpTypeFromProjectSourceReferenceNode(reference, input.program.source.ast.getSourceFile(reference), input, diagnostics);
+  const selected = input.program.records.memberReceiver.get(receiver.expression, receiver.valueDeclaration);
+  if (selected === undefined) failCsharpPlannerInvariant("An admitted member receiver requires its exact native acquisition plan.", receiver.expression);
+  return selected.kind === "value" ? undefined : getCsharpTypeFromProjectSourceReferenceNode(selected.reference,
+    input.program.source.ast.getSourceFile(selected.reference), input, diagnostics);
 }
 
 export function translateCsharpSelectedReceiver(receiver: CsharpSelectedReceiverEvidence, sourceFile: SourceFile,

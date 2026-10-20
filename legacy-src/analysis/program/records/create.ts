@@ -83,6 +83,7 @@ export interface CsharpProgramRecordInput {
   readonly optionalCallChains: import("../../../target-model/records/optional-call-chains.js").CsharpOptionalCallChainRecords;
   readonly elementAdmission: import("../../../target-model/records/element-admission.js").CsharpElementAdmissionRecords;
   readonly sourceReferences: import("../../../target-model/records/source-references.js").CsharpSourceReferenceRecords;
+  readonly memberReceivers: import("../../../target-model/records/member-receivers.js").CsharpMemberReceiverRecords;
   readonly captureMethods: CsharpCaptureMethodRecords;
   readonly frozenDataProperties: CsharpFrozenDataPropertyRecords;
   readonly indexedRecords: CsharpIndexedRecordRecords;
@@ -173,6 +174,7 @@ export function createCsharpProgramRecords(
     sourceNameIndexer: input.propertyAdmission.sourceNameIndexer,
     ...input.optionalCallChains,
     ...input.sourceReferences,
+    ...input.memberReceivers,
     ...input.captureMethods,
     ...input.frozenDataProperties,
     ...input.indexedRecords,
