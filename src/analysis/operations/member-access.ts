@@ -1,6 +1,6 @@
 import { optionalResultType } from "../../policy/operations/members/optional-results.js";
 import type { ResolvedSourceElementAccessInfo, SourceFile } from "@tsonic/tsts";
-import { readCsharpSourceField } from "../../policy/types/resolution/source-markers.js";
+import { readCsharpSourceField } from "../../source/extension/markers.js";
 import { sourceParameterIsProperty } from "@tsonic/target-api/source";
 import type { CsharpTargetElementSelection } from "../../target-model/records/member-selections.js";
 import { validateCsharpJsValueOperationSelection } from "../../policy/operations/js-values/selection.js";

@@ -1,41 +1,10 @@
-import type { CsharpSourceDefaultValue, CsharpSourceField, CsharpSourceStruct } from "../../../target-model/records/source-markers.js";
-import {
-  defaultValueFactKey,
-  fieldFactKey,
-  functionPointerFactKey,
-  pointerFactKey,
-  rawPointerFactKey,
-  sourceMarkerFactKey,
-  structFactKey,
-} from "@tsonic/tsts";
-import { selectTsonicFixedArrayFromSource, tsonicFixedArrayFactKey } from "@tsonic/source-core/facts";
-import type { TsonicFixedArrayFact, TsonicFixedArraySelection } from "@tsonic/source-core/facts";
-import type { CsharpTypePolicyBaseHost } from "./model.js";
-import type {
-  ExtensionFactSubject,
-  Node,
-  ReadonlySourceFactResolver,
-  SourceFile,
-  Type,
-} from "@tsonic/tsts";
+import type { CsharpSourceDefaultValue, CsharpSourceField, CsharpSourceStruct } from "../../target-model/records/source-markers.js";
+import { defaultValueFactKey, fieldFactKey, functionPointerFactKey, pointerFactKey, rawPointerFactKey, sourceMarkerFactKey, structFactKey } from "@tsonic/tsts";
+import { tsonicFixedArrayFactKey } from "@tsonic/source-core/facts";
 
-export interface CsharpSourcePointerType {
-  readonly kind: "csharp-typed-location";
-  readonly sourcePointee: Node;
-  readonly mutability: "readonly" | "readwrite" | "unspecified";
-}
+import type { ExtensionFactSubject, Node, ReadonlySourceFactResolver } from "@tsonic/tsts";
 
-export interface CsharpSourceFunctionPointerType {
-  readonly kind: "csharp-function-pointer";
-  readonly sourceParameters: readonly Node[];
-  readonly sourceResult: Node;
-  readonly abi: readonly string[];
-}
-
-export interface CsharpSourceFixedArrayType extends TsonicFixedArrayFact {
-  readonly kind: "csharp-fixed-array";
-}
-
+import type { CsharpSourcePointerType, CsharpSourceFunctionPointerType, CsharpSourceFixedArrayType } from "../../target-model/records/source-markers.js";
 export function readCsharpSourceJsStringMarker(
   sourceFacts: ReadonlySourceFactResolver | undefined,
   subject: ExtensionFactSubject | undefined,
@@ -141,30 +110,6 @@ export function readCsharpSourceFixedArrayType(
         kind: "csharp-fixed-array",
         ...fact,
       });
-}
-
-export function csharpFixedArrayRepresentationRejection(fact: TsonicFixedArrayFact): string | undefined {
-  if (fact.length > 2_147_483_647n) {
-    return `C# FixedArray extent ${fact.length} exceeds the implemented signed 32-bit T[].Length range (0..2147483647).`;
-  }
-  return undefined;
-}
-
-export function createCsharpFixedArrayTypeQuery(
-  host: Pick<CsharpTypePolicyBaseHost, "sourceFacts" | "semantics">,
-): (type: Type, sourceFile: SourceFile) => TsonicFixedArraySelection | undefined {
-  const selections = new WeakMap<Type, WeakMap<SourceFile, TsonicFixedArraySelection | null>>();
-  return (type, sourceFile) => {
-    if (host.sourceFacts === undefined) return undefined;
-    let byFile = selections.get(type);
-    const cached = byFile?.get(sourceFile);
-    if (cached !== undefined) return cached ?? undefined;
-    const selected = selectTsonicFixedArrayFromSource(type, host.semantics(sourceFile), host.sourceFacts);
-    byFile ??= new WeakMap();
-    byFile.set(sourceFile, selected ?? null);
-    selections.set(type, byFile);
-    return selected;
-  };
 }
 
 function csharpSourceField(

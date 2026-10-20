@@ -14,7 +14,7 @@ import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model
 import { csharpTargetBindingFact } from "../../target-model/types/model.js";
 import type { CsharpTypePolicy } from "../types/resolution/model.js";
 import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
-import { readCsharpSourceStruct } from "../../policy/types/resolution/source-markers.js";
+import { readCsharpSourceStruct } from "../../source/extension/markers.js";
 import { resolveCsharpSourceProfileBaseType } from "../../policy/types/resolution/source-profiles.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
 

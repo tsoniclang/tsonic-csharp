@@ -18,7 +18,8 @@ import type { CsharpSemanticTypeClassification, CsharpContextualTupleClassificat
 import type { CsharpSourceEvidenceResult } from "./model.js";
 import type { CsharpTypeParameterConstraintResolution } from "../../policy/constraints/index.js";
 import { selectCsharpSourceArgument } from "../../policy/operations/members/index.js";
-import { csharpFixedArrayRepresentationRejection, readCsharpSourceDefaultValue, readCsharpSourceField, readCsharpSourceFixedArrayType, readCsharpSourceStruct } from "../../policy/types/index.js";
+import { csharpFixedArrayRepresentationRejection } from "../../policy/types/collections/fixed-arrays.js";
+import { readCsharpSourceDefaultValue, readCsharpSourceField, readCsharpSourceFixedArrayType, readCsharpSourceStruct } from "../../source/extension/markers.js";
 
 const missing = Symbol("csharp.source-evidence.missing");
 import { createTsonicMemoryMetadataIndex, createTsonicPointerBackingDemands, createTsonicClosedArrayStorageQueries } from "@tsonic/source-core/facts";

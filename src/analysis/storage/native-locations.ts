@@ -1,6 +1,6 @@
 import type { CsharpNativeCellIdentity, CsharpNativeLocationReceiver, CsharpNativeLocationSelection, CsharpNativeManagedAddress } from "../../target-model/records/native-locations.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import { readCsharpSourceField } from "../../policy/types/resolution/source-markers.js";
+import { readCsharpSourceField } from "../../source/extension/markers.js";
 import { sourceDeclarationIsModuleScoped, sourceParameterIsProperty } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";

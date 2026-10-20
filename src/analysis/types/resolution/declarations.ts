@@ -4,7 +4,7 @@ import type { Node, Type } from "@tsonic/tsts";
 import { sourcePresentCallableType, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { nextState } from "./state.js";
-import { readCsharpSourceField } from "../../../policy/types/resolution/source-markers.js";
+import { readCsharpSourceField } from "../../../source/extension/markers.js";
 import { sourceRefinementOnlyRemovesNullish } from "./source-union-refinement.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { getCsharpGenericOptionalParts } from "../../../target-model/types/carriers/runtime-carriers.js";
