@@ -4,7 +4,7 @@ import type { CsharpResolvedBinaryOperation } from "../../../../target-model/rec
 import type { CsharpPlanningContext } from "../../context.js";
 import type { CsharpExpression } from "../../../target-ast/syntax/index.js";
 import { allocateExpressionTemp, type DestructuringPlannerState } from "../../bindings/binding-state.js";
-import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../../invariants.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import type { ExpressionPlanner } from "../expression-planner-types.js";
 import { planCsharpStorageIsAbsent } from "../optional-storage.js";
@@ -19,23 +19,22 @@ export function planCsharpClosedValueCoalescing(node: Node, selection: CsharpRes
   if (operation.kind !== "closed-value-coalesce") return undefined;
   const type = csharpTypeFromTargetTypeRef(selection.resultType, input.scope.typeParameterNames);
   if (state === undefined || type === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Native closed-value coalescing requires its sealed carrier and hygienic evaluation scope."));
-    return undefined;
+    failCsharpPlannerInvariant("An admitted closed-value coalescing expression requires its native carrier and name scope.", node);
   }
   let storage = selection.left;
   while (input.program.source.ast.is.IsParenthesizedExpression(storage)) {
     const nested = input.program.source.ast.as.AsParenthesizedExpression(storage)?.Expression;
-    if (nested === undefined) return undefined;
+    if (nested === undefined) failCsharpPlannerInvariant("An admitted coalescing expression requires its exact storage operand.", storage);
     storage = nested;
   }
   const left = planExpression(storage, sourceFile, { ...input, storageExpression: storage }, diagnostics, state);
   const right = planExpression(selection.right, sourceFile, input, diagnostics, state);
-  if (left === undefined || right === undefined) return undefined;
+  if (left === undefined || right === undefined) failCsharpPlannerInvariant("An admitted coalescing expression requires both native operands.", node);
   const build = (location: CsharpExpression): CsharpPlannedValue | undefined => {
     const name = allocateExpressionTemp(state);
     const current: CsharpExpression = { kind: "IdentifierName", name };
-    const absent = planCsharpStorageIsAbsent(selection.leftType, current, input.scope.typeParameterNames);
-    if (absent === undefined) return undefined;
+    const absent = planCsharpStorageIsAbsent(selection.leftType, current, input)
+      ?? failCsharpPlannerInvariant("An admitted coalescing expression requires its native absence test.", node);
     const condition: CsharpExpression = { kind: "BinaryExpression", operatorToken: { kind: "AmpersandAmpersandToken" },
         left: { kind: "IsPatternExpression", expression: location, type: { kind: "IdentifierName", name: "var" }, designation: name },
         right: absent };
