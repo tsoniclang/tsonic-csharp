@@ -88,6 +88,7 @@ export interface CsharpProgramRecordInput {
   readonly targetArguments: import("../../../target-model/records/target-arguments.js").CsharpTargetArgumentRecords;
   readonly argumentPassing: import("../../../target-model/records/argument-passing.js").CsharpArgumentPassingRecords;
   readonly targetCallEmission: import("../../../target-model/records/target-call-emission.js").CsharpTargetCallEmissionRecords;
+  readonly constructionEmission: import("../../../target-model/records/construction.js").CsharpConstructionRecords;
   readonly captureMethods: CsharpCaptureMethodRecords;
   readonly frozenDataProperties: CsharpFrozenDataPropertyRecords;
   readonly indexedRecords: CsharpIndexedRecordRecords;
@@ -183,6 +184,7 @@ export function createCsharpProgramRecords(
     ...input.targetArguments,
     ...input.argumentPassing,
     ...input.targetCallEmission,
+    ...input.constructionEmission,
     ...input.captureMethods,
     ...input.frozenDataProperties,
     ...input.indexedRecords,
