@@ -4,7 +4,7 @@ import type { CsharpProjectReference } from "../target-model/project/references.
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import { resolveDotnetFrameworkReferenceAssemblies } from "../providers/native/acquisition/framework-reference-packs.js";
-import { resolveCsharpProjectConfiguration } from "./csharp-user-project.js";
+import { resolveCsharpProjectConfiguration } from "./user-project.js";
 import { defaultCsharpTargetFramework } from "../target-model/configuration/framework.js";
 import { parseCsharpTargetFramework } from "./framework.js";
 

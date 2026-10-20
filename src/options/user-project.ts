@@ -1,8 +1,6 @@
 import { realpathSync, statSync } from "node:fs";
 import { extname, isAbsolute, relative, resolve } from "node:path";
-import type {
-  CsharpProjectConfiguration,
-} from "../target-model/configuration/model.js";
+import type { CsharpProjectConfiguration } from "../target-model/configuration/model.js";
 
 export function resolveCsharpProjectConfiguration(
   configured: string | undefined,
