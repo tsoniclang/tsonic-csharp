@@ -1,9 +1,4 @@
-import type {
-  CsharpObjectShapeFact,
-  CsharpRuntimeUnionTargetTypeRef,
-  CsharpTargetNamedTypeRef,
-  TargetTypeRef,
-} from "./model.js";
+import type { CsharpObjectShapeFact, CsharpRuntimeUnionTargetTypeRef, CsharpTargetNamedTypeRef, TargetTypeRef } from "./model.js";
 import { createCsharpMetadataBudget } from "../metadata/immutable.js";
 
 export function csharpTargetTypeComponents(
