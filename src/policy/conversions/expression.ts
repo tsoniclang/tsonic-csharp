@@ -1,5 +1,5 @@
 import { csharpExceptionTargetType, getCsharpNullableElementTargetType, getCsharpExpressionTreeDelegateType, getCsharpRuntimeUnionArms, isCsharpNullableReferenceTargetType, isCsharpIntegralTargetType, isCsharpVoidTargetType, csharpCarrierAdmitsSourceAbsence, targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/index.js";
-import { isCsharpThrowableType } from "../types/resolution/target-hierarchy.js";
+import { isCsharpThrowableType } from "../../analysis/project-types/throwable-types.js";
 import { csharpLiteralIsRepresentableAs } from "./literals.js";
 import { selectCsharpConversion } from "./core.js";
 import type { CsharpConversionMode, CsharpConversionSelection } from "../../target-model/conversions/selection.js";

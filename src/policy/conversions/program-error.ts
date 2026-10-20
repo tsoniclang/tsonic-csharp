@@ -1,7 +1,7 @@
 import type { CsharpPolicyContext } from "../model/context.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpExceptionTargetType, csharpTsValueTargetType, isCsharpClosedJsRuntimeCarrier } from "../../target-model/types/index.js";
-import { isCsharpThrowableType } from "../types/resolution/target-hierarchy.js";
+import { isCsharpThrowableType } from "../../analysis/project-types/throwable-types.js";
 import { selectCsharpConversion } from "./core.js";
 
 export function selectCsharpProgramErrorCarrier(

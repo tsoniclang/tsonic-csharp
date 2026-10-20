@@ -1,26 +1,11 @@
-import { csharpProviderBindingFromResolution } from "../../../providers/model/relation-resolver.js";
-import type {
-  CsharpProviderRelationResolver,
-} from "../../../providers/model/relation-resolver.js";
-import type {
-  CsharpProjectTypePolicy,
-} from "../project/project-types.js";
-import type {
-  CsharpTargetNamedTypeRef,
-  TargetTypeRef,
-} from "../../../target-model/types/model.js";
-import {
-  csharpTargetBindingFact,
-} from "../../../target-model/types/model.js";
-import {
-  csharpBaseTargetTypeFromBinding,
-} from "../storage/bindings.js";
-import {
-  targetTypeRefKey,
-} from "../../../target-model/types/equality.js";
-import {
-  isCsharpThrowableTargetType,
-} from "../../../target-model/types/identity.js";
+import { csharpProviderBindingFromResolution } from "../../providers/model/relation-resolver.js";
+import type { CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
+import type { CsharpProjectTypePolicy } from "../../target-model/records/project-types.js";
+import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
+import { csharpTargetBindingFact } from "../../target-model/types/model.js";
+import { csharpBaseTargetTypeFromBinding } from "../../policy/types/storage/bindings.js";
+import { targetTypeRefKey } from "../../target-model/types/equality.js";
+import { isCsharpThrowableTargetType } from "../../target-model/types/identity.js";
 
 export interface CsharpTargetTypeHierarchyHost {
   readonly projectTypes: Pick<CsharpProjectTypePolicy, "directSupertypes">;
