@@ -3,15 +3,14 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
-import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../../invariants.js";
 import type { ArrayLiteralPlanner } from "./types.js";
 import { planCsharpArraySpreadInput, type CsharpPlannedArraySpreadInput } from "./spread-source.js";
 import { planCsharpBorrowedDenseSequence } from "./borrowed-dense.js";
 import { planCsharpSequenceAppendStatements, planCsharpSequenceLength, planCsharpSequenceValue } from "../sequence-conversions.js";
-import { csharpPlannedValue, csharpPlannedExpressionIsStable, type CsharpPlannedValue } from "../planned-values.js";
+import { csharpPlannedValue, type CsharpPlannedValue } from "../planned-values.js";
 import { composeCsharpPlannedValues } from "../planned-value-composition.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
-import { csharpCollectionElementRead } from "../../../../target-model/types/carriers/collection-reads.js";
 
 interface Contribution {
   readonly node: Node;
@@ -62,12 +61,10 @@ export function planCsharpArrayConstruction(
   }
   const carrier: TargetTypeRef = construction?.carrier ?? { kind: "array", element: elementTarget };
   const type: CsharpTypeNode = construction?.type ?? { kind: "ArrayType", elementType };
-  const nativeCollection = construction === undefined && contributions.every(contribution => contribution.spread === undefined ||
-    contribution.spread.elements.every(element => element.conversion.kind === "identity") &&
-      csharpCollectionElementRead(contribution.spread.carrier)?.kind !== "method" && contribution.spread.carrier.kind !== "tuple");
+  const nativeCollection = construction === undefined && selected.nativeSpread;
   if (nativeCollection) {
     const ordered = contributions.map((contribution, index) => {
-      if (contribution.spread === undefined || !contributions.slice(index + 1).some(later => later.value.prelude.length !== 0)) return contribution.value;
+      if (contribution.spread === undefined || selected.contributions[index]?.snapshot !== true) return contribution.value;
       return planCsharpSequenceValue(contribution.node, { ...contribution.value, source: contribution.spread }, sourceFile,
         input, diagnostics, elementType, elementTarget);
     });
@@ -82,8 +79,7 @@ export function planCsharpArrayConstruction(
   const consumed: Contribution[] = [];
   for (const [index, contribution] of contributions.entries()) {
     let value = contribution.value;
-    if (contribution.spread !== undefined && contributions.slice(index + 1).some(later =>
-      later.value.prelude.length !== 0 || later.value.completion.kind !== "value" || !csharpPlannedExpressionIsStable(later.value.completion.expression))) {
+    if (contribution.spread !== undefined && selected.contributions[index]?.snapshot === true) {
       const snapshot = planCsharpSequenceValue(contribution.node, { ...value, source: contribution.spread },
         sourceFile, input, diagnostics, elementType, elementTarget);
       if (snapshot === undefined) return undefined;
@@ -110,8 +106,7 @@ export function planCsharpArrayConstruction(
     const length = contribution.spread === undefined ? { kind: "LiteralExpression" as const, value: 1 }
       : planCsharpSequenceLength(contribution.spread, value.expression);
     if (length === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(contribution.node, "Native construction requires the finalized source length."));
-      return undefined;
+      failCsharpPlannerInvariant("An admitted native collection requires its finalized source length.", contribution.node);
     }
     size = { kind: "BinaryExpression", left: size, operatorToken: { kind: "PlusToken" }, right: length };
   }
