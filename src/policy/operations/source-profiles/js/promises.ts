@@ -1,34 +1,9 @@
-import type {
-  CsharpTargetMember,
-  TargetTypeRef,
-} from "../../../types/index.js";
-import {
-  csharpDelegateTargetType,
-  csharpEnumerableTargetType,
-  csharpObjectTargetType,
-  csharpNullableTargetType,
-  csharpTaskTargetType,
-  getCsharpCollectionElementTargetType,
-  getCsharpTaskResultTargetType,
-  getCsharpDelegateSignature,
-  isCsharpVoidTargetType,
-  targetTypeRefEquals,
-} from "../../../../target-model/types/index.js";
-import type {
-  CsharpSourceProfileCallPolicy,
-  CsharpSourceProfileCallPolicyContext,
-} from "../source-profile-policy.js";
+import type { CsharpTargetMember, TargetTypeRef } from "../../../types/index.js";
+import { csharpDelegateTargetType, csharpEnumerableTargetType, csharpObjectTargetType, csharpNullableTargetType, csharpTaskTargetType, getCsharpCollectionElementTargetType, getCsharpTaskResultTargetType, getCsharpDelegateSignature, isCsharpVoidTargetType, targetTypeRefEquals } from "../../../../target-model/types/index.js";
+import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext } from "../../../model/source-profiles.js";
 import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
-import {
-  jsCallPolicy,
-  jsMemberIdentity,
-  receiverHelperMethod,
-  staticMethod,
-  targetParameter,
-} from "./common.js";
-import {
-  csharpQualifiedTypeRenderShape,
-} from "../../../../target-model/types/index.js";
+import { jsCallPolicy, jsMemberIdentity, receiverHelperMethod, staticMethod, targetParameter } from "./common.js";
+import { csharpQualifiedTypeRenderShape } from "../../../../target-model/types/index.js";
 import { csharpTargetNamedType } from "../../../../target-model/types/index.js";
 import { csharpJsEventLoopBinaryExecutionDriver } from "../../../../target-model/project/binary-execution-drivers.js";
 
@@ -96,7 +71,7 @@ function promiseContinuationMember(
     getCsharpTaskResultTargetType(callbackResults[0]) !== undefined;
   const selected = context.source.sourceSelectedMethodTypeArguments?.[0];
   const result = name === "catch" ? input : selected?.explicitTypeNode !== undefined
-    ? context.host.types.resolveSelectedType(selected.explicitTypeNode, selected.selectedType, context.sourceFile)
+    ? context.inputs.selectedType.get(selected.explicitTypeNode, selected.selectedType)
     : getCsharpTaskResultTargetType(callbackResults[0]) ?? callbackResults[0];
   if (result === undefined) return undefined;
   const callbackResult = asynchronous ? csharpTaskTargetType(result) : result;
@@ -151,7 +126,7 @@ function promiseResolveMember(
   }
   const result = explicit?.explicitTypeNode === undefined
     ? inputResult ?? argument
-    : context.host.types.resolveSelectedType(explicit.explicitTypeNode, explicit.selectedType, context.sourceFile);
+    : context.inputs.selectedType.get(explicit.explicitTypeNode, explicit.selectedType);
   if (result === undefined || inputResult !== undefined && !targetTypeRefEquals(inputResult, result)) return undefined;
   const parameter = inputResult === undefined ? result : argument;
   return staticMethod(
@@ -245,10 +220,7 @@ function promiseFinallyMember(
 function resolveResultTask(
   context: CsharpSourceProfileCallPolicyContext,
 ): { readonly task: TargetTypeRef; readonly result: TargetTypeRef } | undefined {
-  const task = context.host.types.resolveType(
-    context.source.sourceResultType,
-    context.sourceFile,
-  );
+  const task = context.inputs.types.get(context.source.sourceResultType);
   const result = getCsharpTaskResultTargetType(task);
   return task === undefined || result === undefined ? undefined : { task, result };
 }
