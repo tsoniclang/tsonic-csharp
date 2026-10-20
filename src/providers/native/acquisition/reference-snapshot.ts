@@ -2,9 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
-import type {
-  DotnetProviderTelemetry,
-} from "./telemetry.js";
+import type { DotnetProviderTelemetry } from "./telemetry.js";
 
 export interface DotnetReferenceSnapshot {
   readonly digest: string;
