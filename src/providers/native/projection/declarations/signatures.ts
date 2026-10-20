@@ -1,13 +1,7 @@
-import type {
-  ProviderParameterDeclaration,
-  ProviderSignatureDeclaration,
-} from "@tsonic/tsts";
+import type { ProviderParameterDeclaration, ProviderSignatureDeclaration } from "@tsonic/tsts";
 import type { DotnetMemberDeclaration, DotnetSignatureDeclaration } from "../../model/index.js";
 import { csharpSourcePrimitiveRuntimeKind } from "../../../../target-model/types/carriers/scalar-types.js";
-import {
-  dotnetTypeParameterToProviderTypeParameter,
-  tryDotnetTypeRefToProviderType,
-} from "../../model/index.js";
+import { dotnetTypeParameterToProviderTypeParameter, tryDotnetTypeRefToProviderType } from "./provider-conversion.js";
 import { dotnetParameterToProviderParameter } from "./parameters.js";
 
 export function dotnetSignatureToProviderSignature(
