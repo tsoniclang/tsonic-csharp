@@ -9,7 +9,7 @@ import { createTargetSafetyApplicationIndex } from "@tsonic/target-api/analysis"
 import {
   readCsharpSourceSafetyBuilder,
   readCsharpSourceUnsafeContext,
-} from "../../policy/operations/safety/explicit.js";
+} from "../../source/extension/explicit-safety.js";
 
 export interface CsharpSafetyApplicationFactIndexInput {
   readonly ast: AstReader;

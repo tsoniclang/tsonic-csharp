@@ -1,19 +1,7 @@
-import {
-  tsonicSafetyBuilderFactKey,
-  tsonicUnsafeContextFactKey,
-} from "@tsonic/source-core/facts";
-import type {
-  TsonicSafetyBuilderFact,
-  TsonicUnsafeContextFact,
-} from "@tsonic/source-core/facts";
-import type {
-  ExtensionFactSubject,
-  ReadonlySourceFactResolver,
-} from "@tsonic/tsts";
-import {
-  csharpSafetyBuilderFactKey,
-  csharpUnsafeContextFactKey,
-} from "../../../source/extension/explicit-safety.js";
+import { tsonicSafetyBuilderFactKey, tsonicUnsafeContextFactKey } from "@tsonic/source-core/facts";
+import type { TsonicSafetyBuilderFact, TsonicUnsafeContextFact } from "@tsonic/source-core/facts";
+import type { ExtensionFactSubject, ReadonlySourceFactResolver } from "@tsonic/tsts";
+import { csharpSafetyBuilderFactKey, csharpUnsafeContextFactKey } from "./explicit-safety.js";
 
 export function readCsharpSourceUnsafeContext(
   sourceFacts: ReadonlySourceFactResolver | undefined,
