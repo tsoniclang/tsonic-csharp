@@ -1,3 +1,7 @@
+import { finalizeCsharpRestSequences } from "./rest-sequences.js";
+import { sealInvocationOnlyCallableArguments } from "../../policy/operations/source-profiles/js/invocation-arguments.js";
+import { formatSourceIdentity } from "../../policy/operations/source-profiles/js/common.js";
+import { csharpSourceProfileDiagnostic } from "../../policy/operations/source-profiles/source-profile-policy.js";
 import type { CsharpSourceProfileCallPolicyResult, CsharpSourceProfileElementPolicyResult, CsharpSourceProfileCallPolicy, CsharpSourceProfilePropertyPolicy, CsharpSourceProfileElementPolicy } from "../../policy/model/source-profiles.js";
 import type { CsharpSourceProfilePropertyPolicyResult } from "../../target-model/records/source-profile-invocations.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
@@ -41,14 +45,21 @@ export function selectCsharpSourceProfileCallPolicy(
     sourceProfileIdentityMatches(policy.source, identity)
   );
   const selected = selectExactlyOnePolicy(matches, identity);
-  return selected.kind === "missing"
-    ? undefined
-    : selected.kind === "ambiguous"
-      ? { kind: "rejected", diagnostic: selected.diagnostic }
-      : selected.policy.select({ host, source, sourceFile, identity,
-        inputs: createCsharpSourceProfileInputs(host, sourceFile, source.sourceReceiver === undefined
-          ? source.sourceArguments : [source.sourceReceiver, ...source.sourceArguments], source.sourceResultType,
-          source.sourceSelectedMethodTypeArguments ?? []) });
+  if (selected.kind === "missing") return undefined;
+  if (selected.kind === "ambiguous") return { kind: "rejected", diagnostic: selected.diagnostic };
+  const context = { host, source, sourceFile, identity,
+    inputs: createCsharpSourceProfileInputs(host, sourceFile, source.sourceReceiver === undefined
+      ? source.sourceArguments : [source.sourceReceiver, ...source.sourceArguments], source.sourceResultType,
+      source.sourceSelectedMethodTypeArguments ?? []) };
+  const candidate = selected.policy.select(context);
+  if (candidate?.kind !== "resolved" || selected.policy.finalizeArguments !== true) return candidate;
+  const finalized = finalizeCsharpRestSequences(context, candidate.call);
+  const call = finalized === undefined ? undefined : sealInvocationOnlyCallableArguments(context, finalized);
+  return call === undefined ? { kind: "rejected",
+    diagnostic: csharpSourceProfileDiagnostic("CSHARP_JS_SOURCE_PROFILE_CALL_NOT_CLOSED", 9101001,
+      `The exact selected JS source-profile call '${formatSourceIdentity(selected.policy.source)}' has no closed C# target relation.`,
+      ["The selected declaration is JS source-profile-owned.",
+        "The selected source parameter slots must agree with the explicit C# target relation."]) } : { kind: "resolved", call };
 }
 
 export function selectCsharpSourceProfilePropertyPolicy(

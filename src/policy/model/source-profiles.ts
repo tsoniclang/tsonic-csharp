@@ -76,6 +76,7 @@ export type CsharpSourceProfileElementPolicyResult =
     };
 
 export interface CsharpSourceProfileCallPolicy {
+  readonly finalizeArguments?: true;
   readonly source: CsharpSourceProfileIdentitySelector;
   readonly inheritableConstructor?: CsharpTargetMember;
   select(
