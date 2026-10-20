@@ -14,7 +14,7 @@ import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 
 import { Node_Expression, Node_Type, ObjectLiteralProperty_Value } from "@tsonic/target-api/source";
 import { getCsharpCallableValueSignature } from "../../../target-model/types/carriers/delegates.js";
-import { selectCsharpObjectLiteralUnionCarrier, csharpObjectLiteralDestinationDeclarations } from "../../../policy/types/objects/object-shape-policy/union-construction.js";
+import { selectCsharpObjectLiteralUnionCarrier, csharpObjectLiteralDestinationDeclarations } from "../../objects/shapes/union-construction.js";
 import { getCsharpArrayLiteralElementTargetType } from "../../../target-model/types/carriers/collections.js";
 import { resolveTypeParameter } from "./source-evidence.js";
 import { resolveCsharpProjectionArguments } from "./projection-arguments.js";

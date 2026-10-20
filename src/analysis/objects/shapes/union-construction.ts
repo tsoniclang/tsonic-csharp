@@ -1,11 +1,11 @@
 import type { Node, ResolvedSourceObjectLiteralElementInfo } from "@tsonic/tsts";
 import { sourceObjectLiteralDestinationMember, type SourceFileSemantics } from "@tsonic/target-api/source";
-import type { CsharpObjectShapeFact, TargetTypeRef } from "../../../../target-model/types/model.js";
-import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/carriers/runtime-carriers.js";
-import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
-import type { CsharpTypeDefinitions } from "../../../../target-model/types/source-union-definitions.js";
-import { isCsharpRecordDictionaryTargetType } from "../../../../target-model/types/carriers/collections.js";
-import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
+import type { CsharpObjectShapeFact, TargetTypeRef } from "../../../target-model/types/model.js";
+import { getCsharpRuntimeUnionArms } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
+import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
+import { isCsharpRecordDictionaryTargetType } from "../../../target-model/types/carriers/collections.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 
 export function selectCsharpObjectLiteralUnionCarrier(
   target: TargetTypeRef,
