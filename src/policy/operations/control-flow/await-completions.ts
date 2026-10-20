@@ -1,7 +1,8 @@
 import type { CsharpAwaitAlternative, CsharpAwaitCompletion } from "../../../target-model/types/await-completions.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
-import { csharpUnionLeaves, csharpUnionProjectionPath, selectCsharpUnionArmMapping } from "../../../target-model/types/union-relations.js";
+import { csharpUnionLeaves } from "../../../target-model/types/union-relations.js";
+import { csharpUnionProjectionPath, selectCsharpUnionArmMapping } from "../../conversions/union-relations.js";
 import { combineCsharpTargetUnionMembers, csharpAbsenceTargetType, getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType, isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { isCsharpVoidTargetType } from "../../../target-model/types/identity.js";

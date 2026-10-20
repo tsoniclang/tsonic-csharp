@@ -3,7 +3,8 @@ import { csharpUnionReferenceImplicitlyAccepts, selectCsharpRuntimeUnionProjecti
 import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import { csharpUnionArmMappingsMatch, csharpUnionPathsEqual } from "../../target-model/types/union-relations.js";
+import { csharpUnionPathsEqual } from "../../target-model/types/union-relations.js";
+import { csharpUnionArmMappingsMatch } from "../../policy/conversions/union-relations.js";
 import { csharpMetadataDescriptors } from "../../target-model/metadata/immutable.js";
 import { csharpCarrierAdmitsSourceAbsence, getCsharpDelegateSignature, getCsharpGenericOptionalParts,
   getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType,

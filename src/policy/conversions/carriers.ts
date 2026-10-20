@@ -9,7 +9,8 @@ import { targetBindingSubstitutions } from "./provider-operators.js";
 import type { CsharpTargetNamedTypeRef, TargetConstraint, TargetTypeParameter, TargetTypeRef } from "../types/index.js";
 import type { CsharpConversionMode, CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import type { CsharpPolicyContext } from "../model/context.js";
-import { csharpUnionLeaves, csharpUnionProjectionPath, selectCsharpUnionArmMapping } from "../../target-model/types/union-relations.js";
+import { csharpUnionLeaves } from "../../target-model/types/union-relations.js";
+import { csharpUnionProjectionPath, selectCsharpUnionArmMapping } from "./union-relations.js";
 import type { CsharpConversionShapeQueries } from "./shape-queries.js";
 import { csharpNativeRepresentationMatches } from "./native-representation.js";
 
