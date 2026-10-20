@@ -355,7 +355,7 @@ function planExpressionCore(
 export function planCallArgument(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], conversionExpectedTargetType?: TargetTypeRef, state?: DestructuringPlannerState, expectedArgumentPassingMode?: CsharpTargetParameter["passingMode"], selectedTargetParameter?: CsharpTargetParameter
 ): CsharpPlannedArgument | undefined {
   return requireExpressionPlan(node, diagnostics, () => planCallArgumentCore(node, sourceFile, input, diagnostics, (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedState) =>
-      planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedState ?? state), conversionExpectedTargetType, expectedArgumentPassingMode, state, selectedTargetParameter
+      planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedState ?? state), state, selectedTargetParameter
   ));
 }
 

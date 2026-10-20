@@ -10,12 +10,14 @@ import { csharpTargetParameterValueType, getCsharpDelegateSignature, csharpArgum
 import { selectCsharpTypeEmission } from "../../policy/types/type-emission.js";
 import { csharpPositionalArgumentsAreRepresentable } from "../../policy/operations/call-arguments.js";
 import { createCsharpTargetArgumentProducer } from "../program/records/target-arguments.js";
+import type { CsharpNativeArgumentRequest } from "../../target-model/records/argument-passing.js";
 
 export function analyzeCsharpTargetArguments(input: { readonly ast: AstReader; readonly nodes: readonly Node[];
   readonly operations: CsharpTargetOperationClassifications; readonly sources: CsharpSourceCallEmissionRecords;
   readonly demand: CsharpNativeDemandAnalysis; readonly admitted: (node: Node) => boolean }) {
   const producer = createCsharpTargetArgumentProducer();
   const issues: TargetDiagnostic[] = [];
+  const requests: CsharpNativeArgumentRequest[] = [];
   const refuse = (node: Node, message: string): void => { issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message }); };
   const argument = (expression: Node, parameter: CsharpTargetParameter, form: CsharpCallArgumentForm, mapping: CsharpProviderArgumentMapping | undefined): void => {
     if (producer.records.callArgumentEmission.get(expression, parameter, form, mapping) !== undefined) return;
@@ -60,6 +62,8 @@ export function analyzeCsharpTargetArguments(input: { readonly ast: AstReader; r
         value = { kind: "convert", read: "argument", source: mapping.sourceType, target: mapping.targetType, conversion: mapping.conversion };
       } else value = { kind: "plain", target };
     }
+    if (value.kind === "plain") requests.push({ node: expression, target: value.target, passing: parameter.passingMode, parameter });
+    else if (value.kind === "argument-vector" || value.read === "argument") requests.push({ node: expression, target: value.source, passing: "by-value", parameter: undefined });
     producer.argument(expression, parameter, form, mapping, value);
   };
   const call = (node: Node, source: ResolvedSourceCallInfo, selection: CsharpSelectedTargetCall): void => {
@@ -115,5 +119,5 @@ export function analyzeCsharpTargetArguments(input: { readonly ast: AstReader; r
     const source = input.sources.sourceArgumentsEmission.get(node);
     if (source !== undefined) for (const entry of source.arguments) argument(entry.node, entry.parameter, entry.form, undefined);
   }
-  return Object.freeze({ records: producer.seal(), issues: Object.freeze(issues) });
+  return Object.freeze({ records: producer.seal(), requests: Object.freeze(requests), issues: Object.freeze(issues) });
 }

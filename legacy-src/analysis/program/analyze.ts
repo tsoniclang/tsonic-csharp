@@ -18,6 +18,7 @@ import { analyzeCsharpSourceReferences } from "../expressions/source-references.
 import { analyzeCsharpMemberReceivers } from "../objects/member-receivers.js";
 import { analyzeCsharpSourceCallEmission } from "../callables/source-call-emission.js";
 import { analyzeCsharpTargetArguments } from "../callables/target-arguments.js";
+import { analyzeCsharpArgumentPassing } from "../callables/argument-passing.js";
 import { analyzeCsharpLiteralAdmission } from "../expressions/literals.js";
 import { analyzeCsharpAwaitAdmission } from "../callables/await-admission.js";
 import { analyzeCsharpVoidAdmission } from "../expressions/expression-void.js";
@@ -47,7 +48,6 @@ import { analyzeCsharpTypeEmission } from "../types/emission.js";
 import { analyzeCsharpNativeMemoryEmission } from "../operations/native-memory-emission.js";
 import { admitCsharpUnionProjections } from "../operations/union-projections.js";
 import { analyzeCsharpUnionEquality } from "../operations/union-equality.js";
-import { admitCsharpArrayMutationArguments } from "../operations/array-mutations.js";
 import { analyzeCsharpClosedTypeTests } from "../expressions/type-tests.js";
 import { analyzeCsharpTypeofEmission } from "../expressions/typeof-emission.js";
 import { analyzeCsharpUnaryEmission } from "../expressions/expression-unary.js";
@@ -516,7 +516,6 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const optionalCallChains = analyzeCsharpOptionalCallChains(source.ast, sourceStorage.nodes, admittedOperations, nativeDemand, admittedControlNode);
   const nonCallableIssues = [
     ...admitCsharpUnionProjections(sourceStorage.nodes, admittedOperations, typeDefinitions),
-    ...admitCsharpArrayMutationArguments(sourceStorage.nodes, admittedOperations, analysis.sourceEvidence),
     ...literalEmission.issues,
     ...unionEquality.issues,
     ...closedTypeTests.issues,
@@ -710,6 +709,10 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const targetArguments = analyzeCsharpTargetArguments({ ast: source.ast, nodes: sourceStorage.nodes, operations: admittedOperations,
     sources: sourceCallEmission.records, demand: nativeDemand, admitted: admittedControlNode });
   if (targetArguments.issues.length !== 0) return rejectedTargetStage(targetArguments.issues);
+  const argumentPassing = analyzeCsharpArgumentPassing({ source, requests: targetArguments.requests, nodes: sourceStorage.nodes,
+    evidence: analysis.sourceEvidence, storage: analysis.storage, operations: admittedOperations,
+    elements: elementAdmission.records, admitted: admittedControlNode });
+  if (argumentPassing.issues.length !== 0) return rejectedTargetStage(argumentPassing.issues);
   const records = createCsharpProgramRecords({
     propertyValueProjection: propertyValueProjection.records,
     arrayLiterals: arrayLiterals.records,
@@ -778,6 +781,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     memberReceivers: memberReceivers.records,
     sourceCallEmission: sourceCallEmission.records,
     targetArguments: targetArguments.records,
+    argumentPassing: argumentPassing.records,
     typeofEmission: typeofEmission.records,
     flowReads, valueReads: analysis.valueReads,
     callableAdapters, callableCreations, typeProjections: analysis.typeProjections, classFactories, classInitialization, captureStorage,
