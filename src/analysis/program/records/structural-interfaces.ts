@@ -1,5 +1,5 @@
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { targetTypeRefKey } from "../../../target-model/types/identity.js";
+import { targetTypeRefKey } from "../../../target-model/types/equality.js";
 import type { CsharpStructuralInterfaceEmission, CsharpStructuralInterfaceRecords } from "../../../target-model/records/structural-interfaces.js";
 
 export function createCsharpStructuralInterfaceRecords(rows: readonly {
