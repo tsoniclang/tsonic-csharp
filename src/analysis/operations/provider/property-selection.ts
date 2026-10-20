@@ -3,7 +3,7 @@ import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpProviderTargetRelation, CsharpTargetReceiverRelation } from "../../../target-model/identities/provider-relations.js";
 import type { CsharpTargetMember } from "../../../policy/types/index.js";
 import { instantiateCsharpProviderBindingMember } from "./calls/binding-instantiation.js";
-import type { CsharpProviderCallSelectionHost } from "./calls/selection.js";
+import type { CsharpProviderCallSelectionHost } from "../../../policy/model/provider-calls.js";
 import { resolveCsharpProviderPropertyRelations } from "./relations.js";
 
 type ResolvedSourcePropertyAccessInfo = NonNullable<

@@ -1,6 +1,6 @@
 import type { CsharpUnionProperty } from "../../../target-model/records/union-properties.js";
 import type { ResolvedSourcePropertyAccessInfo, SourceFile } from "@tsonic/tsts";
-import type { CsharpProviderCallSelectionHost } from "./calls/selection.js";
+import type { CsharpProviderCallSelectionHost } from "../../../policy/model/provider-calls.js";
 import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/source-profile-invocations.js";
 
 import { getCsharpRuntimeUnionArms } from "../../../target-model/types/carriers/runtime-carriers.js";

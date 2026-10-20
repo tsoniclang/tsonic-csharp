@@ -2,7 +2,7 @@ import { selectTsonicProviderPointerResult } from "@tsonic/source-core/facts";
 import type { SourceProviderTypeParameterSelection } from "@tsonic/target-api/source";
 import type { ResolvedSourceCallInfo } from "../../../target-model/records/source-calls.js";
 import type { SourceFile } from "@tsonic/tsts";
-import type { CsharpProviderCallInstantiationHost } from "../../../policy/operations/members/instantiation/instantiation.js";
+import type { CsharpProviderCallInstantiationHost } from "../../../policy/model/provider-calls.js";
 import { csharpRuntimeLocationTargetType, csharpRuntimeRawPointerTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";

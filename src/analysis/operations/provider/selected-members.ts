@@ -1,7 +1,7 @@
 import type { CsharpTargetCallSelection, CsharpTargetElementSelection, CsharpTargetPropertySelection } from "../../../target-model/records/member-selections.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 
-import type { CsharpProviderCallSelectionHost } from "./calls/selection.js";
+import type { CsharpProviderCallSelectionHost } from "../../../policy/model/provider-calls.js";
 import { selectCsharpProviderCall } from "./calls/selection.js";
 import { selectCsharpProviderElement } from "./element-selection.js";
 import { selectCsharpProviderProperty } from "./property-selection.js";
