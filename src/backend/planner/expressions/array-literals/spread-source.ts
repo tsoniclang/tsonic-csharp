@@ -8,6 +8,7 @@ import type { ExpressionPlanner } from "../expression-planner-types.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import type { CsharpPlannedValue } from "../planned-values.js";
 import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import type { CsharpSequenceEmission } from "../../../../target-model/records/array-literals.js";
 
 export interface CsharpArraySpreadInput {
   readonly carrier: TargetTypeRef;
@@ -15,6 +16,7 @@ export interface CsharpArraySpreadInput {
   readonly expression: CsharpExpression;
   readonly elements: readonly { readonly carrier: TargetTypeRef; readonly type: CsharpTypeNode; readonly conversion: CsharpConversionSelection }[];
   readonly lengthMember: string | undefined;
+  readonly sequence: CsharpSequenceEmission;
 }
 
 export interface CsharpPlannedArraySpreadInput extends CsharpPlannedValue {
@@ -35,5 +37,5 @@ export function planCsharpArraySpreadInput(node: Node, expression: Node, sourceF
     ?? failCsharpPlannerInvariant("An admitted array spread requires its native value.", expression);
   if (planned.completion.kind !== "value" && planned.completion.kind !== "never")
     failCsharpPlannerInvariant("An admitted array spread requires its value or never completion.", expression);
-  return { ...planned, source: { carrier: selected.carrier, type, elements, lengthMember: selected.lengthMember } };
+  return { ...planned, source: { carrier: selected.carrier, type, elements, lengthMember: selected.lengthMember, sequence: selected.sequence } };
 }

@@ -55,6 +55,8 @@ export function planCsharpArrayConstruction(
     if (value === undefined) return undefined;
     const source = spread?.source ?? { carrier: { kind: "array" as const, element: elementTarget },
       type: { kind: "ArrayType" as const, elementType }, lengthMember: "Length",
+      sequence: { iteration: "indexed" as const, tupleMembers: [], bulkCopy: true, appendSequence: true,
+        resultCarrier: { kind: "array" as const, element: elementTarget } },
       elements: [{ carrier: elementTarget, type: elementType, conversion: { kind: "identity" as const } }],
     };
     contributions.push({ node: element, value, spread: source });
@@ -86,6 +88,8 @@ export function planCsharpArrayConstruction(
       value = snapshot;
       consumed.push({ node: contribution.node, value, spread: { carrier: { kind: "array", element: elementTarget },
         type: { kind: "ArrayType", elementType }, lengthMember: "Length",
+        sequence: { iteration: "indexed", tupleMembers: [], bulkCopy: true, appendSequence: true,
+          resultCarrier: { kind: "array", element: elementTarget } },
         elements: [{ carrier: elementTarget, type: elementType, conversion: { kind: "identity" } }],
       } });
     } else consumed.push(contribution);

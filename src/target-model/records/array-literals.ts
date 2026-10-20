@@ -8,6 +8,15 @@ export interface CsharpArraySpreadEmission {
   readonly elements: readonly { readonly carrier: TargetTypeRef; readonly conversion: CsharpConversionSelection }[];
   readonly lengthMember: string | undefined;
   readonly nativeSpread: boolean;
+  readonly sequence: CsharpSequenceEmission;
+}
+
+export interface CsharpSequenceEmission {
+  readonly iteration: "tuple" | "indexed" | "enumerable";
+  readonly tupleMembers: readonly string[];
+  readonly bulkCopy: boolean;
+  readonly appendSequence: boolean;
+  readonly resultCarrier: TargetTypeRef;
 }
 
 export interface CsharpArrayLiteralEmission {

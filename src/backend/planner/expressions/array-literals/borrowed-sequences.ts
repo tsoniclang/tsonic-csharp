@@ -40,7 +40,7 @@ export function planCsharpBorrowedSequenceConsumption(node: Node, fact: CsharpBo
       value.completion.expression, name, input) : undefined;
     if (selected.optional && guard === undefined) failCsharpPlannerInvariant("An admitted optional sequence requires its native presence projection.", selected.expression);
     const consumed = consume({ carrier: selected.presentCarrier, type, expression: guard?.value ?? receiver,
-      elements, lengthMember: selected.spread.lengthMember });
+      elements, lengthMember: selected.spread.lengthMember, sequence: selected.spread.sequence });
     if (!selected.optional) return effect([...value.prelude,
       { kind: "LocalDeclarationStatement", name, type, initializer: value.completion.expression },
       ...(consumed ?? failCsharpPlannerInvariant("An admitted sequence requires its native append statements.", selected.expression))]);

@@ -1,16 +1,12 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { TargetTypeRef } from "../../../target-model/types/index.js";
-import { csharpTupleElementMemberName, getCsharpReadOnlyIndexableCollectionElementTargetType } from "../../../target-model/types/index.js";
-import { isCsharpValueTypeTargetType } from "../../../target-model/types/identity.js";
-import { csharpCollectionElementRead } from "../../../target-model/types/carriers/collection-reads.js";
 import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
-import { unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 import { applyCsharpConversionSelection } from "./conversions.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
 import { planCsharpBorrowedSequenceConsumption } from "./array-literals/borrowed-sequences.js";
-import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { planCsharpCollectionIndexedIteration } from "./collection-reads.js";
 import { planCsharpArraySpreadInput, type CsharpArraySpreadInput } from "./array-literals/spread-source.js";
 import type { CsharpPlannedArraySpreadInput } from "./array-literals/spread-source.js";
@@ -31,14 +27,11 @@ export function planCsharpSequenceValue(
   if (planned.completion.kind === "never") return planned;
   if (planned.completion.kind !== "value") return reject(node, diagnostics, "Native sequence construction requires a selected value completion.");
   const source = planned.source;
-  if (!targetTypeRefEquals(source.carrier, planned.completion.carrier)) {
-    return reject(node, diagnostics, "Native sequence construction must retain its finalized source carrier.");
-  }
-  if (source.carrier.kind !== "tuple" && source.lengthMember === undefined) {
+  if (source.sequence.iteration !== "tuple" && source.lengthMember === undefined) {
     return reject(node, diagnostics, "Native sequence construction requires its finalized native length.");
   }
-  if (source.carrier.kind === "tuple" && source.elements.length === 0) {
-    return csharpPlannedValue({ kind: "array", element: elementTarget }, {
+  if (source.sequence.iteration === "tuple" && source.elements.length === 0) {
+    return csharpPlannedValue(source.sequence.resultCarrier, {
       kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression",
         receiver: qualifiedCsharpType("System", "Array"), name: "Empty", typeArguments: [elementType] },
       arguments: [],
@@ -51,7 +44,7 @@ export function planCsharpSequenceValue(
   const consumed = planCsharpSequenceSnapshotStatements(node, { ...source, expression: receiver }, destination,
     sourceFile, input, diagnostics, elementType, elementTarget);
   if (consumed === undefined) return undefined;
-  const resultCarrier: TargetTypeRef = { kind: "array", element: elementTarget };
+  const resultCarrier = source.sequence.resultCarrier;
   return csharpPlannedValue(resultCarrier, destination, [...planned.prelude,
     { kind: "LocalDeclarationStatement", name, type: source.type, initializer: planned.completion.expression },
     { kind: "LocalDeclarationStatement", name: destinationName, type: { kind: "ArrayType", elementType } }, ...consumed,
@@ -73,8 +66,8 @@ export function planCsharpSequenceSnapshotStatements(
   const allocation: CsharpStatement = { kind: "ExpressionStatement", expression: { kind: "AssignmentExpression",
     operatorToken: { kind: "EqualsToken" }, left: destination,
     right: { kind: "ArrayCreationExpression", elementType, elements: [], size: length } } };
-  if (source.carrier.kind === "tuple" && source.elements.length === 0) return [allocation];
-  if (source.carrier.kind === "array" && source.elements[0]?.conversion.kind === "identity") {
+  if (source.sequence.iteration === "tuple" && source.elements.length === 0) return [allocation];
+  if (source.sequence.bulkCopy) {
     return [allocation, { kind: "ExpressionStatement", expression: invoke({ kind: "QualifiedName",
       left: { kind: "IdentifierName", name: "System" }, name: "Array" }, "Copy", [source.expression, destination, length]) }];
   }
@@ -127,10 +120,7 @@ export function planCsharpJsArraySpreadAppend(
   const planned = planCsharpArraySpreadInput(node, operand, sourceFile, input, diagnostics, elementTarget, planner.planExpression);
   if (planned === undefined) return undefined;
   const source = planned.source;
-  const read = csharpCollectionElementRead(source.carrier);
-  if (read?.kind === "invalid") return reject(node, diagnostics, read.reason);
-  if (source.carrier.kind !== "tuple" && !isCsharpValueTypeTargetType(source.carrier) &&
-    read?.kind !== "method" && source.elements.every(element => element.conversion.kind === "identity")) {
+  if (source.sequence.appendSequence) {
     return composeCsharpPlannedValues(node, sourceFile, input, diagnostics, [destination, planned], values =>
       csharpPlannedValue(resultCarrier, invoke(values[0]!, "AppendSequence", [values[1]!])));
   }
@@ -170,17 +160,17 @@ export function planCsharpSequenceAppendStatements(
     return element === undefined ? undefined : applyCsharpConversionSelection(node, sourceFile, input, diagnostics,
       element.carrier, elementTarget, element.conversion, value);
   };
-  if (source.carrier.kind === "tuple") {
+  if (source.sequence.iteration === "tuple") {
     const values = source.elements.map((_, index) => convert({ kind: "SimpleMemberAccessExpression",
-      receiver, name: csharpTupleElementMemberName(index) }, index));
+      receiver, name: source.sequence.tupleMembers[index]! }, index));
     return values.some(value => value === undefined) ? undefined : values.map(value => append(value!));
   }
-  if (getCsharpReadOnlyIndexableCollectionElementTargetType(source.carrier) !== undefined && source.lengthMember !== undefined) {
+  if (source.sequence.iteration === "indexed") {
     const indexName = input.names.temporaryName("__tsonic_sequence_index");
     const loop = planCsharpCollectionIndexedIteration(source.carrier, receiver, indexName, read => {
       const value = convert(read, 0);
       return value === undefined ? undefined : [append(value)];
-    }, input.scope.typeParameterNames);
+    }, input);
     return loop === undefined ? reject(node, diagnostics, "Native sequence read lost its finalized indexed member contract.") : [loop];
   }
   const value = convert(identifier("value"), 0);
@@ -189,7 +179,7 @@ export function planCsharpSequenceAppendStatements(
 }
 
 export function planCsharpSequenceLength(source: Omit<CsharpArraySpreadInput, "expression">, receiver: CsharpExpression): CsharpExpression | undefined {
-  return source.carrier.kind === "tuple" ? { kind: "LiteralExpression", value: source.carrier.elements.length }
+  return source.sequence.iteration === "tuple" ? { kind: "LiteralExpression", value: source.sequence.tupleMembers.length }
     : source.lengthMember === undefined ? undefined : { kind: "SimpleMemberAccessExpression", receiver, name: source.lengthMember };
 }
 
@@ -200,7 +190,6 @@ function invoke(receiver: CsharpExpression, name: string, arguments_: readonly C
     arguments: arguments_.map(expression => ({ kind: "Argument", expression })) };
 }
 
-function reject(node: Node, diagnostics: TargetDiagnostic[], message: string): undefined {
-  diagnostics.push(unsupportedNodeDiagnostic(node, message));
-  return undefined;
+function reject(node: Node, _diagnostics: TargetDiagnostic[], message: string): never {
+  return failCsharpPlannerInvariant(message, node);
 }
