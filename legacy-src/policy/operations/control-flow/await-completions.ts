@@ -23,8 +23,10 @@ export function selectCsharpAwaitCompletion(
   const alternatives = leaves.map(leaf => {
     const taskResult = leaf.carrier.kind === "target-named"
       ? (leaf.carrier as { readonly csharpTaskResultType?: TargetTypeRef }).csharpTaskResultType : undefined;
+    const result = taskResult ?? leaf.carrier;
     return { carrier: leaf.carrier, sourcePath: leaf.path,
-      result: taskResult ?? leaf.carrier, task: taskResult !== undefined };
+      result, task: taskResult !== undefined,
+      resultForm: isCsharpVoidTargetType(result) ? "void" as const : isCsharpAbsenceTargetType(result) ? "absence" as const : "value" as const };
   });
   const results = alternatives.flatMap(alternative => {
     const element = getCsharpNullableElementTargetType(alternative.result);
@@ -48,6 +50,11 @@ export function selectCsharpAwaitCompletion(
       resultMapping: Object.freeze({ kind: "union-map" as const, coverage: "source" as const, arms }) });
   });
   return selected.some(alternative => alternative === undefined) ? undefined : Object.freeze({
+    form: !alternatives.some(alternative => alternative.task) ? "identity"
+      : alternatives.length === 1 && present === undefined && alternatives[0]!.sourcePath.length === 0 ? "direct"
+      : !isCsharpVoidTargetType(result) && alternatives.some(alternative => alternative.task && alternative.resultForm === "void") ? "void-branches" : "branches",
+    discard: isCsharpVoidTargetType(result),
+    excludeUnmatched: alternatives.some(alternative => alternative.sourcePath.length > 0),
     result, alternatives: Object.freeze(selected as readonly CsharpAwaitAlternative[]),
     optional: present !== undefined,
   });

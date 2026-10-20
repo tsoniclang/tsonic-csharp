@@ -3,6 +3,7 @@ import type { CsharpUnionPathStep } from "./union-relations.js";
 import type { CsharpConversionSelection } from "../conversions/selection.js";
 
 export interface CsharpAwaitAlternative {
+  readonly resultForm: "void" | "absence" | "value";
   readonly carrier: TargetTypeRef;
   readonly sourcePath: readonly CsharpUnionPathStep[];
   readonly result: TargetTypeRef;
@@ -12,6 +13,9 @@ export interface CsharpAwaitAlternative {
 }
 
 export interface CsharpAwaitCompletion {
+  readonly form: "identity" | "direct" | "void-branches" | "branches";
+  readonly discard: boolean;
+  readonly excludeUnmatched: boolean;
   readonly result: TargetTypeRef;
   readonly alternatives: readonly CsharpAwaitAlternative[];
   readonly optional: boolean;
