@@ -9,7 +9,7 @@ import type {
   CsharpTypeMember,
 } from "../../backend/target-ast/syntax/index.js";
 import type { CsharpPrintContext } from "./context.js";
-import { failUnsupportedCsharpSyntax } from "./fail-closed.js";
+import { failCsharpSyntaxInvariant } from "./invariants.js";
 import { indentLines } from "./format.js";
 import { csharpTypeParameterShadowingPragma } from "./generic-signatures.js";
 
@@ -45,7 +45,7 @@ export function printCsharpCompilationUnit(
         lines.push(...printTypeDeclarationLines(member, context));
         break;
       default:
-        failUnsupportedCsharpSyntax(member, "compilation-unit member");
+        failCsharpSyntaxInvariant(member, "compilation-unit member");
     }
   }
   return `${lines.join("\n")}\n`;
@@ -83,7 +83,7 @@ function printTypeDeclarationLines(
     ];
   }
   if (declaration.kind !== "ClassDeclaration" && declaration.kind !== "StructDeclaration") {
-    return failUnsupportedCsharpSyntax(declaration, "type declaration");
+    return failCsharpSyntaxInvariant(declaration, "type declaration");
   }
   const keyword = declaration.kind === "ClassDeclaration" ? "class" : "struct";
   return [
@@ -139,7 +139,7 @@ function printInterfaceMemberLines(
         `${printOptionalModifiers(member.modifiers)}${context.printType(member.valueType)} this[${context.printType(member.keyType)} ${member.keyName}] { ${printOptionalModifiers(member.getterModifiers)}get;${member.writable ? ` ${printOptionalModifiers(member.setterModifiers)}set;` : ""} }`,
       ];
   }
-  return failUnsupportedCsharpSyntax(member, "interface member");
+  return failCsharpSyntaxInvariant(member, "interface member");
 }
 
 function printTypeMemberLines(member: CsharpTypeMember, context: CsharpPrintContext): string[] {
@@ -161,7 +161,7 @@ function printTypeMemberLines(member: CsharpTypeMember, context: CsharpPrintCont
     case "PropertyDeclaration":
       return printPropertyLines(member, context);
   }
-  return failUnsupportedCsharpSyntax(member, "type member");
+  return failCsharpSyntaxInvariant(member, "type member");
 }
 
 function printConstructorLines(
