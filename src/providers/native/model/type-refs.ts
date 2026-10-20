@@ -1,6 +1,4 @@
-import type {
-  DotnetTypeRef,
-} from "./types.js";
+import type { DotnetTypeRef } from "./types.js";
 
 export function dotnetTypeRefKey(type: DotnetTypeRef): string {
   switch (type.kind) {
