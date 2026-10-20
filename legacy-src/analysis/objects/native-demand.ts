@@ -37,12 +37,13 @@ import {
   isCsharpEmptyObjectTargetType, isCsharpJsValueObjectShapeTargetType, isCsharpJsValueTargetType, isCsharpValueTypeTargetType,
 } from "../../target-model/types/index.js";
 import { csharpUnionLeaves } from "../../target-model/types/union-relations.js";
-import { objectShapeArtifactKey, objectShapeMaterialization } from "../../target-model/records/object-shape-demand.js";
+import { objectShapeArtifactKey } from "../program/records/object-shape-keys.js";
+import { objectShapeMaterialization } from "../../policy/objects/object-shape-materialization.js";
 import { csharpTargetTypeRenderingRejection, csharpTargetTypeRendersAsUnqualifiedIdentifier } from "../../policy/types/model/renderability.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
 import { createCsharpObjectShapeDemandEngine } from "./native-demand-requests.js";
 import type { CsharpArtifactRequestResult, CsharpObjectShapeDemandHost } from "./native-demand-batches.js";
-import type { CsharpObjectShapeDemandClosure } from "./native-demand-batches.js";
+import type { CsharpObjectShapeDemandClosure } from "../../target-model/records/object-shape-demand.js";
 export { publishCsharpNativeArtifactDemand } from "./native-demand-declarations.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 

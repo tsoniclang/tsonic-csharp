@@ -1,3 +1,4 @@
+import type { CsharpObjectShapeDeclarationNaming, CsharpPreparedObjectShapeProjection, CsharpObjectShapeArtifactClosure, CsharpObjectShapeDemandClosure, CsharpObjectShapeProjectionAdmission } from "../../target-model/records/object-shape-demand.js";
 import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpJsonObjectShapeContractResult } from "../../target-model/records/json-object-shapes.js";
 import type { CsharpCaptureStorage } from "../../target-model/records/capture-storage.js";
@@ -9,7 +10,8 @@ import type { CsharpObjectShapeArtifact, CsharpObjectShapeProjectionDeclaration 
 import type { TargetTypeRef, CsharpObjectShapeProjectionKind } from "../../target-model/types/model.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeCapability, CsharpObjectShapeProjection } from "../../target-model/types/index.js";
 import { csharpObjectShapesEqual, csharpObjectShapeMemberContractKey } from "../../target-model/types/index.js";
-import { objectShapeArtifactKey, objectShapeMaterialization } from "../../target-model/records/object-shape-demand.js";
+import { objectShapeArtifactKey } from "../program/records/object-shape-keys.js";
+import { objectShapeMaterialization } from "../../policy/objects/object-shape-materialization.js";
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
 import { isCsharpEmptyObjectTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
@@ -34,28 +36,6 @@ export interface CsharpObjectShapeDemandHost {
   readonly typeDefinitions?: CsharpTypeDefinitions;
 }
 
-export interface CsharpObjectShapeDeclarationNaming {
-  readonly parameters: readonly Extract<TargetTypeRef, { readonly kind: "type-parameter" }>[];
-  readonly reservedParameters: readonly { readonly identity: string; readonly name: string }[];
-  readonly reservedNames: readonly string[];
-}
-
-export type CsharpPreparedObjectShapeProjection = Omit<CsharpObjectShapeProjectionDeclaration, "typeParameterNames">;
-
-export interface CsharpObjectShapeArtifactClosure extends Omit<CsharpObjectShapeArtifact, "typeParameterNames" | "projections"> {
-  readonly naming: CsharpObjectShapeDeclarationNaming;
-  readonly projections: readonly CsharpPreparedObjectShapeProjection[];
-}
-
-export interface CsharpObjectShapeDemandClosure {
-  readonly artifacts: readonly CsharpObjectShapeArtifactClosure[];
-  readonly targetShapes: Readonly<Record<string, CsharpObjectShapeFact>>;
-  readonly projectionSubjects: readonly {
-    readonly subject: Node;
-    readonly projection: CsharpPreparedObjectShapeProjection;
-  }[];
-}
-
 export interface MutableObjectShapeArtifact {
   fact: CsharpObjectShapeFact;
   materialization: "source" | "synthetic";
@@ -64,12 +44,6 @@ export interface MutableObjectShapeArtifact {
   readonly receiverBoundMethodKeys: Set<string>;
   readonly dependencies: Set<string>;
   readonly dependents: Set<string>;
-}
-
-export interface CsharpObjectShapeProjectionAdmission {
-  readonly emission: CsharpObjectShapeProjectionDeclaration["emission"];
-  readonly selection: CsharpObjectShapeProjection;
-  readonly conversions: CsharpObjectShapeProjectionDeclaration["conversions"];
 }
 
 export interface JsonClosureState {

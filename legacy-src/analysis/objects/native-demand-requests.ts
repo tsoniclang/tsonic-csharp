@@ -8,8 +8,7 @@ import type {
 import type { CsharpObjectShapeDemandScope } from "./native-demand-batches.js";
 import { selectCsharpJsonObjectShapeContract } from "../../policy/objects/json-object-shapes.js";
 import type { CsharpArtifactRequestResult, CsharpObjectShapeProjectionRequestResult } from "./native-demand-batches.js";
-import type { CsharpObjectShapeArtifactClosure, CsharpObjectShapeDeclarationNaming, CsharpObjectShapeDemandClosure,
-  CsharpPreparedObjectShapeProjection } from "./native-demand-batches.js";
+import type { CsharpObjectShapeArtifactClosure, CsharpObjectShapeDeclarationNaming, CsharpObjectShapeDemandClosure, CsharpPreparedObjectShapeProjection } from "../../target-model/records/object-shape-demand.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { accepted, rejected } from "./native-demand-batches.js";
@@ -21,11 +20,12 @@ import {
   isCsharpEmptyObjectTargetType,
   isSourceDeclaredNominalShape,
 } from "../../target-model/types/index.js";
-import { objectShapeArtifactKey, objectShapeMaterialization } from "../../target-model/records/object-shape-demand.js";
-import { objectShapeProjectionKey } from "../../target-model/records/object-shape-demand.js";
+import { objectShapeArtifactKey } from "../program/records/object-shape-keys.js";
+import { objectShapeMaterialization } from "../../policy/objects/object-shape-materialization.js";
+import { objectShapeProjectionKey } from "../program/records/object-shape-keys.js";
 import { csharpObjectShapeMethodDeclaration } from "../../target-model/types/method-values.js";
 import type { CsharpObjectShapeDemandHost } from "./native-demand-batches.js";
-import type { CsharpObjectShapeProjectionAdmission } from "./native-demand-batches.js";
+import type { CsharpObjectShapeProjectionAdmission } from "../../target-model/records/object-shape-demand.js";
 import { prepareCsharpObjectShapeDeclarationNames, objectShapeProjectionConversions,
   prepareCsharpObjectShapeProjectionDeclaration } from "./native-demand-declarations.js";
 import {

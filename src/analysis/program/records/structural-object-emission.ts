@@ -1,6 +1,6 @@
 import type { CsharpStructuralObjectEmission, CsharpStructuralObjectEmissionRecords } from "../../../target-model/records/structural-object-emission.js";
 import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
-import { objectShapeArtifactKey } from "../../../target-model/records/object-shape-demand.js";
+import { objectShapeArtifactKey } from "./object-shape-keys.js";
 
 export function createCsharpStructuralObjectEmissionRecords(
   values: ReadonlyMap<string, CsharpStructuralObjectEmission>,

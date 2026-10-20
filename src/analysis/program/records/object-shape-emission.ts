@@ -1,6 +1,6 @@
 import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
 import type { CsharpObjectShapeDeclarationEmission, CsharpObjectShapeEmission, CsharpObjectShapeEmissionRecords, CsharpObjectShapeParameter } from "../../../target-model/records/object-shape-emission.js";
-import { objectShapeArtifactKey } from "../../../target-model/records/object-shape-demand.js";
+import { objectShapeArtifactKey } from "./object-shape-keys.js";
 import type { CsharpObjectShapeDisplayName } from "../../../target-model/records/object-shape-names.js";
 
 export function createCsharpObjectShapeEmissionRecords(

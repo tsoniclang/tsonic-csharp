@@ -1,8 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { CsharpJsonObjectShapeContract } from "./json-object-shapes.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeCapability, CsharpObjectShapeProjection } from "../types/model.js";
-import { targetTypeRefKey } from "../types/equality.js";
-import { isSourceDeclaredNominalShape } from "../types/object-shape-projection.js";
 import type { TargetTypeRef } from "../types/model.js";
 import type { CsharpConversionSelection } from "../conversions/selection.js";
 import type { CsharpObjectProjectionEmission } from "./closed-object-shapes.js";
@@ -42,30 +40,30 @@ export interface CsharpObjectShapeDemand {
   readonly projection: (subject: Node) => CsharpObjectShapeProjectionDeclaration | undefined;
 }
 
-export function objectShapeArtifactKey(fact: CsharpObjectShapeFact): string {
-  return `object-shape:${targetTypeRefKey(fact.targetType)}`;
+export interface CsharpObjectShapeDeclarationNaming {
+  readonly parameters: readonly Extract<TargetTypeRef, { readonly kind: "type-parameter" }>[];
+  readonly reservedParameters: readonly { readonly identity: string; readonly name: string }[];
+  readonly reservedNames: readonly string[];
 }
 
-export function objectShapeMaterialization(fact: CsharpObjectShapeFact): "source" | "synthetic" {
-  return fact.constructible === true || isSourceDeclaredNominalShape(fact) ? "source" : "synthetic";
+export type CsharpPreparedObjectShapeProjection = Omit<CsharpObjectShapeProjectionDeclaration, "typeParameterNames">;
+
+export interface CsharpObjectShapeArtifactClosure extends Omit<CsharpObjectShapeArtifact, "typeParameterNames" | "projections"> {
+  readonly naming: CsharpObjectShapeDeclarationNaming;
+  readonly projections: readonly CsharpPreparedObjectShapeProjection[];
 }
 
-export function objectShapeProjectionKey(projection: CsharpObjectShapeProjection): string {
-  return encodeContractParts(objectShapeProjectionContractParts(projection));
+export interface CsharpObjectShapeDemandClosure {
+  readonly artifacts: readonly CsharpObjectShapeArtifactClosure[];
+  readonly targetShapes: Readonly<Record<string, CsharpObjectShapeFact>>;
+  readonly projectionSubjects: readonly {
+    readonly subject: Node;
+    readonly projection: CsharpPreparedObjectShapeProjection;
+  }[];
 }
 
-export function objectShapeProjectionContractParts(projection: CsharpObjectShapeProjection): readonly string[] {
-  return [
-    projection.kind,
-    targetTypeRefKey(projection.resultType),
-    ...projection.propertyOrder,
-    ...(projection.kind === "assign" ? [
-      targetTypeRefKey(projection.sourceShape.targetType),
-      ...projection.assignments.flatMap(assignment => [assignment.sourceName, assignment.targetName]),
-    ] : []),
-  ];
-}
-
-export function encodeContractParts(parts: readonly string[]): string {
-  return parts.map(part => `${part.length}:${part}`).join("");
+export interface CsharpObjectShapeProjectionAdmission {
+  readonly emission: CsharpObjectShapeProjectionDeclaration["emission"];
+  readonly selection: CsharpObjectShapeProjection;
+  readonly conversions: CsharpObjectShapeProjectionDeclaration["conversions"];
 }

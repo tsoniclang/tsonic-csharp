@@ -1,6 +1,6 @@
 import type { CsharpObjectMemberEmission, CsharpObjectMemberRecords } from "../../../target-model/records/object-members.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../../target-model/types/model.js";
-import { objectShapeArtifactKey } from "../../../target-model/records/object-shape-demand.js";
+import { objectShapeArtifactKey } from "./object-shape-keys.js";
 import { csharpObjectShapeMemberContractKey } from "../../../target-model/types/object-shape-identity.js";
 
 export function createCsharpObjectMemberRecords(

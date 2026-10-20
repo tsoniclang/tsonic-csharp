@@ -6,7 +6,7 @@ import type { CsharpFrozenDataProperty } from "../../target-model/records/frozen
 import type { CsharpAttributeApplicationIndex } from "../../target-model/records/attributes.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
-import { objectShapeArtifactKey } from "../../target-model/records/object-shape-demand.js";
+import { objectShapeArtifactKey } from "../program/records/object-shape-keys.js";
 import { csharpFrozenStorageName, objectShapeStorageMemberName } from "../../target-model/names/object-members.js";
 import { createCsharpFrozenDataPropertyRecords } from "../program/records/frozen-data-properties.js";
 

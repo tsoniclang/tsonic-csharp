@@ -1,10 +1,9 @@
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpObjectShapeDemandHost } from "./native-demand-batches.js";
-import type { CsharpObjectShapeDeclarationNaming, CsharpObjectShapeDemandClosure,
-  CsharpPreparedObjectShapeProjection } from "./native-demand-batches.js";
+import type { CsharpObjectShapeDeclarationNaming, CsharpObjectShapeDemandClosure, CsharpPreparedObjectShapeProjection } from "../../target-model/records/object-shape-demand.js";
 import type { CsharpObjectShapeArtifact, CsharpObjectShapeDemand,
   CsharpObjectShapeProjectionDeclaration } from "../../target-model/records/object-shape-demand.js";
-import { objectShapeArtifactKey } from "../../target-model/records/object-shape-demand.js";
+import { objectShapeArtifactKey } from "../program/records/object-shape-keys.js";
 import type { CsharpNamePlan } from "../../target-model/names/model.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeProjection, TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpAuthoredTypeParameterNames, csharpGeneratedTypeParameterNames } from "../../target-model/names/type-parameters.js";

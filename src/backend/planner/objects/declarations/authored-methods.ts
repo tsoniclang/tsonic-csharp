@@ -13,7 +13,7 @@ import type { CsharpObjectCaptureField } from "../../../../target-model/records/
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
 import { getCsharpLocalBindingName } from "../../bindings/binding-state.js";
 import { csharpCapturedBindingExpression, csharpCaptureFrameExpression } from "../../bindings/capture-storage.js";
-import { objectShapeArtifactKey } from "../../../../target-model/records/object-shape-demand.js";
+import { objectShapeArtifactKey } from "../../../../analysis/program/records/object-shape-keys.js";
 import { planCsharpArtifactMemberHiding } from "../../declarations/modifiers.js";
 
 export function csharpObjectCaptureFields(shape: CsharpObjectShapeFact, input: CsharpPlanningContext): readonly CsharpObjectCaptureField[] {

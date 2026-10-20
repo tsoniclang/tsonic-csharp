@@ -24,13 +24,13 @@ import { csharpObjectShapeMethodDeclaration } from "../../target-model/types/met
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
 import { csharpTargetStorageIdentityEquals } from "../../policy/types/storage/storage-identity.js";
 import type { CsharpSourceNameResolver } from "./plan.js";
-import type { CsharpObjectShapeDemandClosure } from "../objects/native-demand-batches.js";
+import type { CsharpObjectShapeDemandClosure } from "../../target-model/records/object-shape-demand.js";
 import type { CsharpNativeValueCarriers } from "../../target-model/records/native-value-carriers.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
 import type { CsharpModuleInitializationIndex } from "../../target-model/records/module-initialization.js";
 import type { CsharpCallableContractIndex, CsharpCallableCreationIndex } from "../callables/model.js";
 import type { CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
-import { objectShapeArtifactKey } from "../../target-model/records/object-shape-demand.js";
+import { objectShapeArtifactKey } from "../program/records/object-shape-keys.js";
 import { objectShapeStorageMemberName, objectShapeBoundStorageMemberName,
   objectShapeAccessorGetterStorageMemberName, objectShapeAccessorSetterStorageMemberName,
   csharpDeferredCaptureStorageNames, csharpFrozenStorageName, csharpJsonValueProjectionMethodName,

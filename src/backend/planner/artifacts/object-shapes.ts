@@ -1,5 +1,5 @@
 import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
-import { objectShapeArtifactKey } from "../../../target-model/records/object-shape-demand.js";
+import { objectShapeArtifactKey } from "../../../analysis/program/records/object-shape-keys.js";
 import type { CsharpObjectShapeArtifact } from "../../../target-model/records/object-shape-demand.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { failCsharpPlannerInvariant } from "../../invariants.js";
