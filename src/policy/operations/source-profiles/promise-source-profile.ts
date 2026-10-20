@@ -1,9 +1,10 @@
-import type { CsharpTargetMember, TargetTypeRef } from "../../../target-model/types/index.js";
-import { csharpNullableTargetType, csharpQualifiedTypeRenderShape, csharpRuntimeUnionTargetType, csharpTargetNamedType, csharpTsValueTargetType, csharpVoidTargetType, getCsharpTaskResultTargetType, isCsharpVoidTargetType, targetTypeRefKey } from "../../../target-model/types/index.js";
+import { type CsharpTargetMember, type TargetTypeRef, csharpNullableTargetType, csharpQualifiedTypeRenderShape, csharpRuntimeUnionTargetType, csharpTargetNamedType, csharpTsValueTargetType, csharpVoidTargetType, getCsharpTaskResultTargetType, isCsharpVoidTargetType, targetTypeRefKey, csharpTaskTargetType } from "../../../target-model/types/index.js";
 import { csharpTargetId } from "../../../target-model/identities/source.js";
 import { snapshotCsharpTargetTypes } from "../../../target-model/types/snapshot.js";
-
-import type { CsharpSourceProfileOwner } from "../../identities/selected-source.js";
+import { type CsharpSourceProfileOwner } from "../../identities/selected-source.js";
+import { type CsharpSourceProfileCallPolicy, type CsharpSourceProfileCallPolicyContext, type CsharpSourceProfileCallPolicyResult } from "../../model/source-profiles.js";
+import { csharpSourceProfileCall, csharpSourceProfileDiagnostic } from "./source-profile-policy.js";
+import { resolveCsharpSourceProfileGenericResult } from "./source-profile-result.js";
 
 const owners: readonly CsharpSourceProfileOwner[] = Object.freeze([
   csharpTargetId,
@@ -87,3 +88,40 @@ function completionDelegate(
       },
     });
 }
+
+export const csharpPromiseSourceProfileCallPolicies:
+  readonly CsharpSourceProfileCallPolicy[] = Object.freeze(
+    owners.map(owner => Object.freeze({
+      source: Object.freeze({
+        owner,
+        kind: "construct" as const,
+        declaringName: "PromiseConstructor",
+      }),
+      select(
+        context: CsharpSourceProfileCallPolicyContext,
+      ): CsharpSourceProfileCallPolicyResult {
+        const taskType = context.source.sourceSelectedSignatureKind !== "resolved" ||
+          context.source.sourceSelectedSignatureParameters.length !== 1 ||
+          context.source.sourceArgumentBindings.length !== 1 ? undefined :
+          resolveCsharpSourceProfileGenericResult(context, 1, arguments_ => csharpTaskTargetType(arguments_[0]!));
+        const member = promiseConstructorMember(taskType);
+        const call = member === undefined
+          ? undefined
+          : csharpSourceProfileCall(context.source, member, noReceiver);
+        return call === undefined
+          ? {
+              kind: "rejected",
+              diagnostic: csharpSourceProfileDiagnostic(
+                "CSHARP_PROMISE_CONSTRUCTION_NOT_CLOSED",
+                9100971,
+                "The selected Promise constructor does not provide one exact native Task result and executor parameter relation.",
+                [
+                  "Native and JS Promise construction share the core Task completion owner.",
+                  "The selected result, executor and source parameter bindings must be closed before C# construction.",
+                ],
+              ),
+            }
+          : { kind: "resolved", call };
+      },
+    })),
+  );

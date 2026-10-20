@@ -8,7 +8,7 @@ import { csharpJsSourceProfileCallPolicies, csharpJsSourceProfileElementPolicies
 import { csharpNativeSourceProfileCallPolicies, csharpNativeSourceProfileElementPolicies, csharpNativeSourceProfilePropertyPolicies } from "../../policy/operations/source-profiles/native-source-profile.js";
 import { csharpGeneratorSourceProfileCallPolicies, csharpGeneratorSourceProfilePropertyPolicies } from "../../policy/operations/source-profiles/generator-source-profile.js";
 import { csharpErrorSourceProfileCallPolicies, csharpErrorSourceProfilePropertyPolicies } from "../../policy/operations/source-profiles/error-source-profile.js";
-import { csharpPromiseSourceProfileCallPolicies } from "./promise-source-profile.js";
+import { csharpPromiseSourceProfileCallPolicies } from "../../policy/operations/source-profiles/promise-source-profile.js";
 import type { CsharpSourceProfileCallPolicyResult, CsharpSourceProfileElementPolicyResult } from "../../policy/model/source-profiles.js";
 import type { CsharpSourceProfilePropertyPolicyResult } from "../../target-model/records/source-profile-invocations.js";
 import { csharpSourceProfileDeclarationIdentity } from "../../policy/identities/selected-source.js";

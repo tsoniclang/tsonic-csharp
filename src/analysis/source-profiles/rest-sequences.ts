@@ -16,7 +16,7 @@ export function finalizeCsharpRestSequences(
     if (!context.host.ast.is.IsSpreadElement(argument.expression)) continue;
     const expression = context.host.ast.as.AsSpreadElement(argument.expression)?.Expression;
     const selections = call.arguments.filter(candidate => candidate.sourceArgumentIndex === sourceArgumentIndex);
-    const sourceType = expression === undefined ? undefined : context.host.types.resolveNode(expression, context.sourceFile);
+    const sourceType = context.inputs.nodes.get(expression);
     let first = selections[0];
     if (first === undefined && sourceType?.kind === "tuple" && sourceType.elements.length === 0 &&
       context.source.sourceSelectedSignatureParameters.filter(parameter => parameter.rest).length === 1 &&

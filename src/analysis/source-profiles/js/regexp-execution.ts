@@ -4,7 +4,7 @@ import { csharpSourceProfileDeclarationIdentity } from "../../../policy/identiti
 
 export function csharpRegExpReceiverHasNativeExecution(
   receiver: Node,
-  context: { readonly host: import("../../../policy/policy/model/provider-calls.js").CsharpProviderCallSelectionHost; readonly sourceFile: import("@tsonic/tsts").SourceFile },
+  context: { readonly host: import("../../../policy/model/provider-calls.js").CsharpProviderCallSelectionHost; readonly sourceFile: import("@tsonic/tsts").SourceFile },
 ): boolean {
   const { ast, navigation } = context.host;
   let origin = receiver;

@@ -26,7 +26,7 @@ export interface CsharpSourceProfileIdentitySelector {
 }
 
 export interface CsharpSourceProfileCallPolicyContext {
-  readonly host: CsharpProviderCallSelectionHost;
+  readonly host: Omit<CsharpProviderCallSelectionHost, "types" | "objectShapes" | "semantics" | "navigation">;
   readonly inputs: import("../../target-model/records/source-profile-inputs.js").CsharpSourceProfileInputFacts;
   readonly source: ResolvedSourceCallInfo;
   readonly sourceFile: SourceFile;
@@ -34,7 +34,7 @@ export interface CsharpSourceProfileCallPolicyContext {
 }
 
 export interface CsharpSourceProfilePropertyPolicyContext {
-  readonly host: CsharpProviderCallSelectionHost;
+  readonly host: Omit<CsharpProviderCallSelectionHost, "types" | "objectShapes" | "semantics" | "navigation">;
   readonly inputs: import("../../target-model/records/source-profile-inputs.js").CsharpSourceProfileInputFacts;
   readonly source: ResolvedSourcePropertyAccessInfo;
   readonly sourceFile: SourceFile;
@@ -44,7 +44,7 @@ export interface CsharpSourceProfilePropertyPolicyContext {
 }
 
 export interface CsharpSourceProfileElementPolicyContext {
-  readonly host: CsharpProviderCallSelectionHost;
+  readonly host: Omit<CsharpProviderCallSelectionHost, "types" | "objectShapes" | "semantics" | "navigation">;
   readonly inputs: import("../../target-model/records/source-profile-inputs.js").CsharpSourceProfileInputFacts;
   readonly source: ResolvedSourceElementAccessInfo;
   readonly sourceFile: SourceFile;
