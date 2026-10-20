@@ -1,14 +1,6 @@
 import { requireNonEmptyString, requireUnique, stringProperty, supportedPassingModes, supportedTypeParameterVariance } from "./support.js";
 import { getProviderMemberSurfaceKey } from "@tsonic/tsts";
-import type {
-  ProviderExportDeclaration,
-  ProviderHeritageDeclaration,
-  ProviderMemberDeclaration,
-  ProviderParameterDeclaration,
-  ProviderSignatureDeclaration,
-  ProviderTypeExpression,
-  ProviderTypeParameterDeclaration,
-} from "@tsonic/tsts";
+import type { ProviderExportDeclaration, ProviderHeritageDeclaration, ProviderMemberDeclaration, ProviderParameterDeclaration, ProviderSignatureDeclaration, ProviderTypeExpression, ProviderTypeParameterDeclaration } from "@tsonic/tsts";
 import type { ContractCollector } from "./support.js";
 import type { DotnetTypeRef } from "../index.js";
 
