@@ -1,12 +1,13 @@
 import { selectTsonicProviderPointerResult } from "@tsonic/source-core/facts";
-import type { ResolvedSourceCallInfo, SourceProviderTypeParameterSelection } from "@tsonic/target-api/source";
+import type { SourceProviderTypeParameterSelection } from "@tsonic/target-api/source";
+import type { ResolvedSourceCallInfo } from "../../../target-model/records/source-calls.js";
 import type { SourceFile } from "@tsonic/tsts";
-import type { CsharpProviderCallInstantiationHost } from "../members/instantiation/instantiation.js";
+import type { CsharpProviderCallInstantiationHost } from "../../../policy/operations/members/instantiation/instantiation.js";
 import { csharpRuntimeLocationTargetType, csharpRuntimeRawPointerTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { csharpJsArrayTargetType } from "../../../target-model/types/carriers/js.js";
-import { selectedCsharpSourceProfileOwner } from "../../types/resolution/source-profile.js";
+import { selectedCsharpSourceProfileOwner } from "../../../policy/identities/source-types.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 
 export function selectCsharpProviderPointerResult(
