@@ -29,6 +29,7 @@ export interface CsharpExpressionConversionClassification {
 }
 
 export interface CsharpConversionClassifications extends CsharpGeneratedHelperRecords {
+  readonly propertyProjectionRoots: readonly { readonly node: Node; readonly carrier: TargetTypeRef }[];
   readonly issues: readonly CsharpConversionIssue[];
   readonly propertyProjection: { readonly get: (expression: Node, source: TargetTypeRef) => readonly CsharpClosedShapeMemberProjection[] | undefined };
   readonly delegateAdapters: { readonly get: (scope: Node) => readonly CsharpDelegateAdapterIdentity[] };

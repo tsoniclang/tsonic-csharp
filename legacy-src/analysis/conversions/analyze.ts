@@ -80,6 +80,7 @@ export function analyzeCsharpConversions(
   let delegateAdapters: ReturnType<typeof sealCsharpDelegateAdapterIdentities> = new Map();
   const issues: CsharpConversionIssue[] = [];
   const propertyProjections = new WeakMap<Node, ReadonlyMap<string, readonly CsharpClosedShapeMemberProjection[]>>();
+  const propertyProjectionRoots = new Map<Node, Map<string, TargetTypeRef>>();
   const directCallables = new WeakMap<Node, NonNullable<ReturnType<CsharpPolicyContext["navigation"]["referenceFor"]>>>();
   let classificationCount = 0;
   let closed = false;
@@ -96,6 +97,8 @@ export function analyzeCsharpConversions(
   });
 
   const openClassifications: CsharpConversionClassifications = {
+    get propertyProjectionRoots() { return Object.freeze([...propertyProjectionRoots].flatMap(([node, types]) =>
+      [...types.values()].map(carrier => Object.freeze({ node, carrier })))); },
     generatedHelpers: Object.freeze({ get: () => Object.freeze([...requiredHelpers].sort()) }),
     generatedHelper: Object.freeze({ get: (helper: CsharpGeneratedHelper) => requiredHelpers.has(helper) ? true : undefined }),
     issues,
@@ -170,6 +173,7 @@ export function analyzeCsharpConversions(
       Object.freeze(issues);
       const sealedIssues = Object.freeze([...issues]);
       const sealed: CsharpConversionClassifications = {
+        propertyProjectionRoots: openClassifications.propertyProjectionRoots,
         ...createCsharpGeneratedHelperRecords(requiredHelpers),
         issues: sealedIssues,
         propertyProjection: Object.freeze({ get: openClassifications.propertyProjection.get }),
@@ -476,6 +480,10 @@ export function analyzeCsharpConversions(
       const subject = selection.source.sourceArguments[argument.sourceArgumentIndex]?.expression;
       if (subject === undefined) continue;
       const type = valueReads.valueRead.get(subject)?.storedValue;
+      if (type !== undefined) {
+        const roots = propertyProjectionRoots.get(subject) ?? new Map<string, TargetTypeRef>();
+        roots.set(targetTypeRefKey(type), type); propertyProjectionRoots.set(subject, roots);
+      }
       const binding = selection.source.sourceArgumentBindings.find(binding =>
         binding.effectiveArgumentIndex === argument.effectiveArgumentIndex);
       const projected = binding === undefined ? undefined

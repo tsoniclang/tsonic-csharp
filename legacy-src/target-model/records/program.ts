@@ -58,6 +58,7 @@ export interface CsharpProgramRecords extends CsharpStatementExitRecords, Csharp
   readonly projectDeclaration: import("./project-emission.js").CsharpProjectEmissionRecords["projectDeclaration"];
   readonly startup: import("./startup.js").CsharpStartupRecords["startup"];
   readonly sourceArtifacts: import("./artifacts.js").CsharpSourceArtifactRecords["sourceArtifacts"];
+  readonly propertyValueProjection: import("./property-value-projection.js").CsharpPropertyValueProjectionRecords["propertyValueProjection"];
   readonly arrayLiteral: import("./array-literals.js").CsharpArrayLiteralRecords["arrayLiteral"];
   readonly arraySpread: import("./array-literals.js").CsharpArrayLiteralRecords["arraySpread"];
   readonly borrowedSequenceEmission: import("./array-literals.js").CsharpArrayLiteralRecords["borrowedSequenceEmission"];
