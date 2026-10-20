@@ -2,16 +2,15 @@ import { createHash } from "node:crypto";
 import type { SourceFile, Type } from "@tsonic/tsts";
 import { sourceNodeIdentity } from "@tsonic/target-api/source";
 import type { CsharpObjectShapePolicyHost, CsharpStructuralUnionResolution } from "./model.js";
-import type { CsharpTypeResolutionState } from "../../resolution/model.js";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../../target-model/types/model.js";
-import { csharpTargetNamedType } from "../../../../target-model/types/factories.js";
-import { csharpRuntimeUnionTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
-import { csharpStructuralObjectShapeIdPrefix } from "../../../../target-model/types/object-shape-identity.js";
-import { targetTypeRefKey } from "../../../../target-model/types/equality.js";
-import { nextState } from "../../resolution/state.js";
-import { substituteTargetTypeParameters } from "../../../../target-model/types/substitution.js";
-import { closeCsharpOwnerTypeParameterEnvironment, visitCsharpTargetTypeParameters,
-  type CsharpTypeParameterConstraintResolver } from "../../../../target-model/types/generic-references.js";
+import type { CsharpTypeResolutionState } from "../../types/resolution/model.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
+import { csharpTargetNamedType } from "../../../target-model/types/factories.js";
+import { csharpRuntimeUnionTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpStructuralObjectShapeIdPrefix } from "../../../target-model/types/object-shape-identity.js";
+import { targetTypeRefKey } from "../../../target-model/types/equality.js";
+import { nextState } from "../../types/resolution/state.js";
+import { substituteTargetTypeParameters } from "../../../target-model/types/substitution.js";
+import { closeCsharpOwnerTypeParameterEnvironment, visitCsharpTargetTypeParameters, type CsharpTypeParameterConstraintResolver } from "../../../target-model/types/generic-references.js";
 
 interface Definition {
   readonly arms: readonly TargetTypeRef[];
