@@ -1,22 +1,10 @@
-import type {
-  ExtensionDiagnostic,
-  Node,
-  SourceFile,
-} from "@tsonic/tsts";
+import type { ExtensionDiagnostic, Node, SourceFile } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
-import type { CsharpProviderTargetRelation, CsharpTargetReceiverRelation } from "../../../../target-model/identities/provider-relations.js";
-import type {
-  CsharpTargetMember,
-} from "../../../types/index.js";
-import {
-  instantiateCsharpProviderBindingMember,
-} from "../instantiation/binding-instantiation.js";
-import type {
-  CsharpProviderCallSelectionHost,
-} from "./call-selection.js";
-import {
-  resolveCsharpProviderPropertyRelations,
-} from "../providers/operations.js";
+import type { CsharpProviderTargetRelation, CsharpTargetReceiverRelation } from "../../../target-model/identities/provider-relations.js";
+import type { CsharpTargetMember } from "../../../policy/types/index.js";
+import { instantiateCsharpProviderBindingMember } from "../../../policy/operations/members/instantiation/binding-instantiation.js";
+import type { CsharpProviderCallSelectionHost } from "../../../policy/operations/members/selection/call-selection.js";
+import { resolveCsharpProviderPropertyRelations } from "./relations.js";
 
 type ResolvedSourcePropertyAccessInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["propertyAccess"]>
@@ -26,6 +14,7 @@ type CsharpProviderPropertyRelation = Extract<
   { readonly kind: "member" | "value" }
 >;
 
+import { providerReceiverMatchesProperty, csharpProviderPropertySupportsAccess } from "../../../policy/operations/members/property-selection.js";
 export interface CsharpSelectedProviderProperty {
   readonly source: ResolvedSourcePropertyAccessInfo;
   readonly relation: CsharpProviderPropertyRelation;
@@ -115,7 +104,7 @@ export function selectCsharpProviderProperty(
         : relation.receiver;
       return targetMember === undefined ||
           !providerReceiverMatchesProperty(receiver, targetMember, source) ||
-          !targetMemberSupportsAccess(targetMember, source.accessMode)
+          !csharpProviderPropertySupportsAccess(targetMember, source.accessMode)
         ? undefined
         : { source, relation, targetMember, receiver };
     })
@@ -140,39 +129,4 @@ export function selectCsharpProviderProperty(
     candidates: candidates.map((candidate) =>
       `${candidate.relation.targetBinding.id}::${candidate.targetMember.id}`),
   };
-}
-
-function providerReceiverMatchesProperty(
-  receiver: CsharpTargetReceiverRelation,
-  targetMember: CsharpTargetMember,
-  source: ResolvedSourcePropertyAccessInfo,
-): boolean {
-  switch (receiver.kind) {
-    case "instance":
-      return targetMember.static !== true;
-    case "none":
-      return targetMember.static === true;
-    case "target-parameter":
-      return source.receiver.expression !== undefined &&
-        targetMember.parameters[
-          receiver.targetParameterIndex
-        ] !== undefined;
-  }
-}
-
-function targetMemberSupportsAccess(
-  member: CsharpTargetMember,
-  accessMode: ResolvedSourcePropertyAccessInfo["accessMode"],
-): boolean {
-  if (
-    member.kind !== "property" &&
-    member.kind !== "field" &&
-    member.kind !== "event"
-  ) {
-    return false;
-  }
-  if (accessMode === "write" || accessMode === "read-write") {
-    return member.readonly !== true && member.returnType !== undefined;
-  }
-  return member.returnType !== undefined;
 }
