@@ -166,7 +166,7 @@ export function planSourceFile(
             break;
           }
           case KindVariableStatement:
-            planTopLevelVariableStatement(statement, sourceFile, input, diagnostics, appendTypeDeclaration, members, topLevelStatements, topLevelState, hasModuleInitializer);
+            planTopLevelVariableStatement(statement, sourceFile, input, diagnostics, appendTypeDeclaration, members, topLevelStatements, topLevelState);
             break;
           case KindExpressionStatement:
           case KindIfStatement:

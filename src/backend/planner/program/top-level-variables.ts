@@ -22,10 +22,9 @@ import { planLocalDeclaration, planLocalDeclarationStatements } from "../binding
 import { planStatements } from "../statements/index.js";
 import { planValueTypeDeclaration } from "../declarations/value-types.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";
-import { unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { planCsharpModuleCallable } from "./module-callables.js";
 import { planResourceRegistrationStatement } from "../statements/resource-management.js";
-import { getLambdaTargetContext, lambdaTargetContextFromTargetRef } from "../expressions/expression-lambdas.js";
-import { getCsharpTaskResultTargetType, isCsharpVoidTargetType } from "../../../target-model/types/index.js";
 import { planCsharpNativeMemberHiding } from "../declarations/modifiers.js";
 
 export function planTopLevelVariableStatement(
@@ -37,17 +36,14 @@ export function planTopLevelVariableStatement(
   moduleMembers: CsharpTypeMember[],
   topLevelStatements: CsharpStatement[],
   state: DestructuringPlannerState,
-  _executableTopLevelSourceFile: boolean,
 ): void {
   const declarationList = AsVariableStatement(input.program.source.ast, statement)!.DeclarationList;
   if (declarationList === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(statement, "Top-level variable statement requires a TSTS variable declaration list."));
-    return;
+    failCsharpPlannerInvariant("An admitted module variable statement requires its checked declaration list.", statement);
   }
   const declarationKind = input.program.source.ast.variableDeclarationKind(declarationList);
   if (declarationKind === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(statement, "Top-level variable statement requires an exact TSTS variable declaration kind."));
-    return;
+    failCsharpPlannerInvariant("An admitted module variable statement requires its checked declaration kind.", statement);
   }
   const declarations = input.program.source.ast.children(declarationList)
     .filter((declaration): declaration is Node => declaration !== undefined && input.program.source.ast.is.IsVariableDeclaration(declaration));
@@ -83,51 +79,15 @@ export function planTopLevelVariableStatement(
       continue;
     }
     const callableVisibility = input.program.records.callableVisibility.get(declaration);
-    let initializerInput = input;
     if (callableVisibility !== undefined) {
-      const initializer = variable.Initializer;
-      const carrier = initializer === undefined ? undefined
-        : getLambdaTargetContext(initializer, input)?.carrier;
-      if (initializer === undefined || carrier === undefined) {
-        diagnostics.push(unsupportedNodeDiagnostic(declaration,
-          "Direct callable planning requires its sealed implementation signature."));
-        continue;
-      }
-      initializerInput = { ...input, scope: { ...input.scope,
-        nativeCallableBody: { declaration: initializer, carrier },
-      } };
-    }
-    const planned = planLocalDeclaration(declaration, sourceFile, initializerInput, diagnostics, state);
-    const { initializer: initial, ...binding } = planned;
-    const field = { ...binding, ...(initial?.completion.kind === "value" ? { initializer: initial.completion.expression } : {}) };
-    if (callableVisibility !== undefined) {
-      const lambda = field.initializer;
-      const signature = initial?.completion.kind !== "value" ? undefined
-        : lambdaTargetContextFromTargetRef(input.scope.typeParameterNames, initial.completion.carrier)?.signature;
-      if ((initial?.prelude.length ?? 0) !== 0 || lambda?.kind !== "LambdaExpression" || signature === undefined ||
-        lambda.parameters.some(parameter => parameter.type === undefined)) {
-        diagnostics.push(unsupportedNodeDiagnostic(declaration, "Direct callable planning requires its sealed lambda signature and body."));
-        continue;
-      }
-      const expressionResult = lambda.async
-        ? getCsharpTaskResultTargetType(signature.returnTargetType)
-        : signature.returnTargetType;
-      moduleMembers.push({
-        kind: "MethodDeclaration",
-        name: field.name,
-        modifiers: [callableVisibility, "static", ...(lambda.async ? ["async" as const] : []),
-          ...planCsharpNativeMemberHiding(input.program.records.nativeMemberHiding, { kind: "source", declaration, role: "member" })],
-        returnType: signature.returnType ?? { kind: "PredefinedType", name: "void" },
-        parameters: lambda.parameters.map(parameter => ({ ...parameter, type: parameter.type! })),
-        body: lambda.body.kind === "Block" ? lambda.body : {
-          kind: "Block",
-          statements: [expressionResult !== undefined && isCsharpVoidTargetType(expressionResult)
-            ? { kind: "ExpressionStatement", expression: lambda.body }
-            : { kind: "ReturnStatement", expression: lambda.body }],
-        },
-      });
+      const callable = input.program.records.moduleCallable.get(declaration);
+      if (callable === undefined) failCsharpPlannerInvariant("An admitted native module callable requires its exact declaration plan.", declaration);
+      moduleMembers.push(planCsharpModuleCallable(callable, sourceFile, input, diagnostics));
       continue;
     }
+    const planned = planLocalDeclaration(declaration, sourceFile, input, diagnostics, state);
+    const { initializer: initial, ...binding } = planned;
+    const field = { ...binding, ...(initial?.completion.kind === "value" ? { initializer: initial.completion.expression } : {}) };
     moduleMembers.push(topLevelBindingMember(
       field.name,
       field.type,

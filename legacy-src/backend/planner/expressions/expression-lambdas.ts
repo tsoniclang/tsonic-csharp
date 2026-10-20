@@ -312,6 +312,7 @@ function planCsharpFunctionLambdaBody(
 
 export function planCsharpCapturedFunctionLambdaSyntax(
   node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
+  parentState?: DestructuringPlannerState,
 ): Extract<CsharpExpression, { readonly kind: "LambdaExpression" }> | undefined {
   const expression = AsFunctionExpression(input.program.source.ast, node);
   if (expression === undefined) return undefined;
@@ -323,7 +324,7 @@ export function planCsharpCapturedFunctionLambdaSyntax(
   const parameterNodes = expression.Parameters?.Nodes ?? [];
   const scoped = createLambdaPlanningContext(parameterNodes, input, diagnostics, targetContext);
   if (scoped === undefined) return undefined;
-  const state = createDestructuringPlannerState(node, input.program.source.ast);
+  const state = parentState ?? createDestructuringPlannerState(node, input.program.source.ast);
   const parameterPlan = planLambdaParameterStorage(parameterNodes,
     planLambdaParameters(parameterNodes, sourceFile, scoped, diagnostics, state, targetContext),
     sourceFile, scoped, diagnostics, state);

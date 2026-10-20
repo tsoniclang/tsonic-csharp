@@ -596,7 +596,9 @@ function analyzeCsharpTargetProgramBeforeSeal(
     values: analysis.valueReads, storage: analysis.storage, shapes: objectShapeDemand, admitted: admittedControlNode });
   if (typeEmission.issues.length !== 0) return rejectedTargetStage(typeEmission.issues);
   const sourceFileEmission = analyzeCsharpSourceFileEmission({ source, identities: sourceIdentities.records,
-    factories: classFactories, evidence: analysis.sourceEvidence, operations: admittedOperations });
+    factories: classFactories, evidence: analysis.sourceEvidence, operations: admittedOperations,
+    moduleInitialization: moduleInitialization.index, expectedTypes: analysis.expectedTypes,
+    declarations: callableDeclarations.records, names });
   if (sourceFileEmission.issues.length !== 0) return rejectedTargetStage(sourceFileEmission.issues);
   const records = createCsharpProgramRecords({
     sourceFileEmission: sourceFileEmission.records,

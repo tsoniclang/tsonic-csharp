@@ -82,6 +82,7 @@ export interface CsharpProgramRecords extends CsharpStatementExitRecords, Csharp
   readonly enumerableKeys: CsharpObjectShapeEmissionRecords["enumerableKeys"];
   readonly compilation: CsharpCompilationRecords["compilation"];
   readonly moduleFactories: import("./source-file-emission.js").CsharpSourceFileEmissionRecords["moduleFactories"];
+  readonly moduleCallable: import("./source-file-emission.js").CsharpSourceFileEmissionRecords["moduleCallable"];
   readonly sourceUnions: CsharpSourceUnionEmissionRecords["sourceUnions"];
   readonly classFieldDefault: CsharpClassFieldInitializationRecords["classFieldDefault"];
   readonly callableParameter: CsharpCallableParameterRecords["callableParameter"];
