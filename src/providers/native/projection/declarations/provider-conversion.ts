@@ -1,24 +1,6 @@
-import type {
-  ProviderParameterDeclaration,
-  ProviderTypeExpression,
-  ProviderTypeParameterDeclaration,
-} from "@tsonic/tsts";
-import type {
-  DotnetTypeParameterDeclaration,
-  DotnetTypeRef,
-} from "../../model/types.js";
+import type { ProviderParameterDeclaration, ProviderTypeExpression, ProviderTypeParameterDeclaration } from "@tsonic/tsts";
+import type { DotnetTypeParameterDeclaration, DotnetTypeRef } from "../../model/types.js";
 import { csharpLangModule } from "../../../../target-model/identities/source.js";
-
-export function dotnetTypeRefToProviderType(
-  type: DotnetTypeRef,
-  identityPath = "$",
-): ProviderTypeExpression {
-  const providerType = tryDotnetTypeRefToProviderType(type, identityPath);
-  if (providerType === undefined) {
-    throw unsupportedDotnetProviderType(type.kind);
-  }
-  return providerType;
-}
 
 export function tryDotnetTypeRefToProviderType(
   type: DotnetTypeRef,
@@ -185,10 +167,6 @@ export function dotnetTypeParameterToProviderTypeParameter(
     ...(constraints.length === 0 ? {} : { constraints }),
     ...(defaultType !== undefined ? { defaultType } : {}),
   };
-}
-
-function unsupportedDotnetProviderType(kind: DotnetTypeRef["kind"]): Error {
-  return new Error(`Unsupported .NET provider type '${kind}'. Add a typed TSTS provider type expression before exposing this declaration.`);
 }
 
 function tryDotnetParameterToProviderParameter(
