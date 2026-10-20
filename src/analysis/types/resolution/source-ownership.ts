@@ -1,37 +1,12 @@
-import {
-  providerVirtualDeclarationFactKey,
-} from "@tsonic/tsts";
-import type {
-  ExtensionFactSubject,
-  Node,
-  SourceFile,
-} from "@tsonic/tsts";
-import type {
-  CsharpPolicyContext,
-} from "../../model/context.js";
-import type {
-  CsharpTargetNamedTypeRef,
-  TargetTypeRef,
-} from "../../../target-model/types/model.js";
-import {
-  isCsharpJsValueTargetType,
-} from "../../../target-model/types/carriers/runtime-carriers.js";
+import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
+import type { ExtensionFactSubject, Node, SourceFile } from "@tsonic/tsts";
+import type { CsharpPolicyContext } from "../../../policy/model/context.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import { isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import { isCsharpSourceDelegateTargetType } from "../../../target-model/types/carriers/delegates.js";
 
-export function isTypeParameterTargetRef(
-  type: TargetTypeRef | undefined,
-): boolean {
-  return type?.kind === "type-parameter";
-}
-
-export function isCsharpDelegateTargetRef(
-  type: TargetTypeRef | undefined,
-): boolean {
-  return type?.kind === "target-named" &&
-    (type as CsharpTargetNamedTypeRef).csharpDelegateSignature !== undefined;
-}
-
+import { isTypeParameterTargetRef, isCsharpDelegateTargetRef } from "../../../policy/ownership/type-categories.js";
 export function isSourceOwnedCallableRuntimeCarrierSubject(
   node: Node | undefined,
   sourceFile: SourceFile,

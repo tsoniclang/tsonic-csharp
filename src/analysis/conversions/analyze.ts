@@ -3,7 +3,8 @@ import type { Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { selectCsharpConversion, selectCsharpExpressionConversion } from "../../policy/conversions/index.js";
 import type { CsharpConversionMode, CsharpConversionSelection } from "../../policy/conversions/index.js";
-import { csharpTargetBindingFact, isCsharpReferenceCarrier, isSourceOwnedCallableRuntimeCarrierSubject, isSourceOwnedProjectReference, targetTypeRefKey, targetTypeRefEquals } from "../../policy/types/index.js";
+import { csharpTargetBindingFact, isCsharpReferenceCarrier, targetTypeRefKey, targetTypeRefEquals } from "../../policy/types/index.js";
+import { isSourceOwnedCallableRuntimeCarrierSubject, isSourceOwnedProjectReference } from "../types/resolution/source-ownership.js";
 
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpClosedShapeMemberProjection } from "../../target-model/records/closed-object-shapes.js";

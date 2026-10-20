@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import { sourceBindingScope } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import { isSourceOwnedProjectReference } from "../../policy/types/resolution/source-ownership.js";
+import { isSourceOwnedProjectReference } from "../types/resolution/source-ownership.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { getCsharpNullableElementTargetType, isCsharpNullableReferenceTargetType } from "../../target-model/types/carriers/nullable.js";
 import type { CsharpConversionIssue, CsharpDelegateAdapterIdentity, CsharpExpressionConversionClassification } from "../../target-model/records/conversions.js";
