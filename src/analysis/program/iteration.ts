@@ -33,7 +33,7 @@ import type { ResolvedSourceCallInfo } from "../../target-model/records/members.
 import { analyzeCsharpAttributeApplications } from "../attributes/application-index.js";
 
 import type { CsharpTargetAnalysisRequest } from "./model.js";
-import { createCsharpSourceIdentityPolicy } from "../../policy/identities/source-nodes.js";
+import { createCsharpSourceIdentityPolicy } from "../../source/extension/identities.js";
 import { analyzeCsharpTargetOperations } from "../operations/index.js";
 import { createCsharpAnalysisPolicyContext } from "./policy-context.js";
 import { analyzeCsharpSourceEvidence } from "../source-evidence/index.js";

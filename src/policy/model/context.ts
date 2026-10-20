@@ -24,7 +24,7 @@ import type {
 } from "../types/index.js";
 import type {
   CsharpSourceIdentityPolicy,
-} from "../identities/source-nodes.js";
+} from "../../source/extension/identities.js";
 
 export interface CsharpPolicyContext extends CsharpProviderCallSelectionHost {
   readonly literalValues: import("@tsonic/target-api/source").SourceLiteralIndex;

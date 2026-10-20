@@ -16,7 +16,7 @@ import type { TargetStageResult, TargetDiagnostic } from "@tsonic/target-api/art
 import { createCsharpSourceAttributeApplicationIndex } from "../attributes/application-index.js";
 import { createCsharpSafetyApplicationFactIndex } from "../safety/application-index.js";
 import type { CsharpTargetAnalysisRequest } from "./model.js";
-import { createCsharpSourceIdentityPolicy } from "../../policy/identities/source-nodes.js";
+import { createCsharpSourceIdentityPolicy } from "../../source/extension/identities.js";
 
 import { csharpTargetRepresentationContractId } from "../../target-model/identities/identities.js";
 import { analyzeCsharpSourceModuleConstructions } from "../source-modules/index.js";

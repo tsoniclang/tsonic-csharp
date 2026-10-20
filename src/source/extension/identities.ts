@@ -1,13 +1,6 @@
-import type {
-  AstReader,
-  Node,
-} from "@tsonic/tsts";
-import type {
-  TargetSourcePackageGraph,
-} from "@tsonic/target-api";
-import {
-  projectSourceNodeIdentity,
-} from "@tsonic/target-api/source";
+import type { AstReader, Node } from "@tsonic/tsts";
+import type { TargetSourcePackageGraph } from "@tsonic/target-api";
+import { projectSourceNodeIdentity } from "@tsonic/target-api/source";
 import { relative, resolve } from "node:path";
 
 export interface CsharpSourceIdentityPolicy {

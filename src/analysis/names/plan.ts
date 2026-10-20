@@ -15,7 +15,7 @@ import {
 } from "../../target-model/names/identifiers.js";
 import type {
   CsharpSourceIdentityPolicy,
-} from "../../policy/identities/source-nodes.js";
+} from "../../source/extension/identities.js";
 import type {
   CsharpNamePlan,
   CsharpNativeMemberNames,
