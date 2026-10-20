@@ -5,7 +5,6 @@ import { targetTypeRefEquals, scopedTargetTypeRefKey } from "./equality.js";
 import { getCsharpDelegateSignature } from "./carriers/delegates.js";
 import { getCsharpNullableElementTargetType } from "./carriers/nullable.js";
 import { csharpFreeTypeParameterIdentities } from "./generic-references.js";
-import { substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
 
 export function csharpObjectShapeMethodRequiresProtocol(member: CsharpObjectShapeMemberFact): boolean {
   return member.memberKind === "method" && ((member.typeParameters?.length ?? 0) > 0 ||
@@ -70,14 +69,4 @@ export function csharpMethodValueContractsEqual(left: TargetTypeRef, right: Targ
 
 export function getCsharpMethodValue(type: TargetTypeRef | undefined): CsharpTargetNamedTypeRef["csharpMethodValue"] {
   return type?.kind === "target-named" ? (type as CsharpTargetNamedTypeRef).csharpMethodValue : undefined;
-}
-
-export function rebindCsharpMethodValueTypeParameters(
-  type: TargetTypeRef, parameters: readonly Extract<TargetTypeRef, { readonly kind: "type-parameter" }>[],
-): TargetTypeRef | undefined {
-  const value = getCsharpMethodValue(type);
-  if (value === undefined || value.typeParameters.length !== parameters.length) return undefined;
-  const substitutions = new Map(value.typeParameters.map((identity, index) => [identity, parameters[index]!]));
-  return csharpMethodValueType(value.owner, value.method, value.identity,
-    substituteTargetTypeParameters(value.contract, substitutions), parameters.map(parameter => parameter.identity));
 }

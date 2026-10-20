@@ -1,6 +1,6 @@
 import type { CsharpTargetNamedTypeRef, TargetBindingFact, TargetTypeRef } from "./model.js";
 import { csharpTargetNamedType } from "./factories.js";
-import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
+
 import { snapshotCsharpTargetTypes } from "./snapshot.js";
 import { csharpMetadataDescriptors } from "../metadata/immutable.js";
 
@@ -55,16 +55,4 @@ export function csharpSourceUnionIdentity(carrier: TargetTypeRef | undefined): s
   const identity = (carrier as CsharpTargetNamedTypeRef).csharpSourceUnionIdentity;
   return typeof identity === "string" && identity.length > 0 && carrier.id === `csharp.source-union:${identity}`
     ? identity : undefined;
-}
-
-export function instantiateCsharpSourceUnionArms(
-  definition: CsharpSourceUnionDefinition, carrier: TargetTypeRef,
-): readonly TargetTypeRef[] | undefined {
-  const identity = csharpSourceUnionIdentity(carrier);
-  if (identity === undefined || identity !== csharpSourceUnionIdentity(definition.carrier)) return undefined;
-  const parameters = definition.carrier.typeArguments ?? [];
-  const identities = new Set(parameters.flatMap(parameter => parameter.kind === "type-parameter" ? [parameter.identity] : []));
-  const bindings = inferCsharpTargetTypeParameterBindings(definition.carrier, carrier, identities);
-  return bindings === undefined ? undefined
-    : snapshotCsharpTargetTypes(definition.arms.map(arm => substituteTargetTypeParameters(arm, bindings)));
 }
