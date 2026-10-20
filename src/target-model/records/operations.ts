@@ -11,7 +11,7 @@ import type { CsharpJsArrayMutationSelection } from "./js-array-mutations.js";
 import type { CsharpJsValueObjectShapePropertyResolution } from "./js-value-object-shape-property.js";
 import type { CsharpResolvedResourceManagement } from "./management.js";
 import type { CsharpTargetCallSelection, CsharpTargetElementSelection, CsharpTargetPropertySelection } from "./member-selections.js";
-import type { ResolvedSourceCallInfo } from "./members.js";
+import type { ResolvedSourceCallInfo } from "./source-calls.js";
 import type { CsharpNativePointerOperationSelection } from "./native-pointers.js";
 import type { CsharpProjectConstructibleTypeProjection } from "./object-shapes.js";
 import type { CsharpOperationSelection, CsharpResolvedBinaryOperation, CsharpResolvedDestructuringAssignmentOperation, CsharpResolvedUnaryOperation } from "./operator-selection.js";
