@@ -1,9 +1,9 @@
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { Node, Type } from "@tsonic/tsts";
-import type { CsharpTypeResolutionScope } from "./engine.js";
+import type { CsharpTypeResolutionScope } from "../../../policy/types/resolution/engine.js";
 import type { CsharpTypeResolutionState } from "./model.js";
-import { csharpBoundSourceType, csharpSourceBindings } from "./type-bindings.js";
-import { nextState } from "./state.js";
+import { csharpBoundSourceType, csharpSourceBindings } from "../../../policy/types/resolution/type-bindings.js";
+import { nextState } from "../../../policy/types/resolution/state.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 
 export function bindCsharpSourceTypeArguments(
