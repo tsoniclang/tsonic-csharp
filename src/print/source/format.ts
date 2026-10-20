@@ -1,4 +1,5 @@
 import type { CsharpExpression } from "../../backend/target-ast/syntax/expressions.js";
+import { failCsharpSyntaxInvariant } from "./invariants.js";
 
 export function indentLines(lines: readonly string[]): string[] {
   return lines.flatMap((line) =>
@@ -38,7 +39,7 @@ function printRawStringLiteral(value: string): string {
 
 export function printNumericLiteral(value: number, suffix: "D" | undefined): string {
   if (!Number.isFinite(value)) {
-    throw new Error("C# numeric literals require finite values.");
+    return failCsharpSyntaxInvariant({ kind: "non-finite-number" }, "numeric literal");
   }
   const text = Object.is(value, -0) ? "-0" : String(value);
   if (suffix !== undefined) return `${text}${suffix}`;
@@ -56,7 +57,7 @@ export function printExactNumericLiteral(token: NonNullable<Extract<CsharpExpres
 
 export function printIntegerLiteral(value: string, suffix: "L" | "UL"): string {
   if (!/^(?:0|[1-9][0-9]*)$/u.test(value)) {
-    throw new Error("C# integer literal digits must be canonical unsigned decimal text.");
+    return failCsharpSyntaxInvariant({ kind: "noncanonical-integer-digits" }, "integer literal");
   }
   return `${value}${suffix}`;
 }
