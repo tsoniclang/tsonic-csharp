@@ -1,34 +1,17 @@
-import type { CsharpTargetCallSelection, CsharpTargetElementSelection, CsharpTargetPropertySelection } from "../../../../target-model/records/member-selections.js";
+import type { CsharpTargetCallSelection, CsharpTargetElementSelection, CsharpTargetPropertySelection } from "../../../target-model/records/member-selections.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 
-import type {
-  CsharpProviderCallSelectionHost,
-} from "./call-selection.js";
-import {
-  selectCsharpProviderCall,
-} from "./call-selection.js";
-import {
-  selectCsharpProviderElement,
-} from "./element-selection.js";
-import {
-  selectCsharpProviderProperty,
-} from "./property-selection.js";
-import {
-  selectCsharpProjectElement,
-} from "../project/project-element-selection.js";
-import {
-  selectCsharpComposedSourceProfileCall,
-  selectCsharpComposedSourceProfileElement,
-  selectCsharpComposedSourceProfileProperty,
-} from "../../source-profiles/source-profile-selection.js";
+import type { CsharpProviderCallSelectionHost } from "./calls/selection.js";
+import { selectCsharpProviderCall } from "./calls/selection.js";
+import { selectCsharpProviderElement } from "./element-selection.js";
+import { selectCsharpProviderProperty } from "./property-selection.js";
+import { selectCsharpProjectElement } from "./project-indexers.js";
+import { selectCsharpComposedSourceProfileCall, selectCsharpComposedSourceProfileElement, selectCsharpComposedSourceProfileProperty } from "../../../policy/operations/source-profiles/source-profile-selection.js";
 
-import { selectCsharpUnionProperty } from "../../union-properties.js";
+import { selectCsharpUnionProperty } from "./union-properties.js";
 
-import { selectCsharpInheritedConstructorTarget } from "./inherited-construction.js";
-import {
-  selectCsharpSourceCoreFixedArrayElement,
-  selectCsharpSourceCoreFixedArrayProperty,
-} from "../../source-profiles/source-core-fixed-array.js";
+import { selectCsharpInheritedConstructorTarget } from "./calls/implicit-super.js";
+import { selectCsharpSourceCoreFixedArrayElement, selectCsharpSourceCoreFixedArrayProperty } from "../../../policy/operations/source-profiles/source-core-fixed-array.js";
 
 export function selectCsharpTargetCall(
   host: CsharpProviderCallSelectionHost,
