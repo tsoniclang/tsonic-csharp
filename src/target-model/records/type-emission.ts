@@ -9,6 +9,7 @@ export interface CsharpTypeEmission {
   readonly completion: "value" | "void" | "never";
   readonly coalescing: "operator" | "guard";
   readonly nullable: boolean;
+  readonly nullableReference: boolean;
   readonly valueType: boolean;
   readonly unionAccess: { readonly kind: "direct" | "nullable" } | { readonly kind: "generic"; readonly operations: TargetTypeRef };
   readonly collectionRead: Exclude<CsharpCollectionElementRead, { readonly kind: "invalid" }> | undefined;

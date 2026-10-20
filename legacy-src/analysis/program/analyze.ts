@@ -736,7 +736,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
   if (locationRetentionIssues.length !== 0) return rejectedTargetStage(locationRetentionIssues);
   const targetCallEmission = analyzeCsharpTargetCallEmission({ nodes: sourceStorage.nodes, admitted: admittedControlNode, operations: admittedOperations,
     arguments: targetArguments.records, sources: sourceCallEmission.records, optional: optionalCallChains.records,
-    shapes: objectShapeDemand, demand: nativeDemand });
+    shapes: objectShapeDemand, demand: nativeDemand, expressions: expressionEmission.records });
   if (targetCallEmission.issues.length !== 0) return rejectedTargetStage(targetCallEmission.issues);
   const constructionEmission = analyzeCsharpConstructionEmission({ source, nodes: sourceStorage.nodes, admitted: admittedControlNode,
     operations: admittedOperations, values: analysis.valueReads, demand: nativeDemand, evidence: analysis.sourceEvidence,

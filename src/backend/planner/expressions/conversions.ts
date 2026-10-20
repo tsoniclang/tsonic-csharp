@@ -13,16 +13,12 @@ import type {
 import {
   csharpTsUnionTargetType,
   csharpTsValueTargetType,
-  getCsharpNullableElementTargetType,
-  getCsharpGenericOptionalParts,
-  isCsharpNullableReferenceTargetType,
   targetTypeRefKey,
 } from "../../../target-model/types/index.js";
 import type {
   CsharpExpression,
   CsharpTypeNode,
 } from "../../target-ast/syntax/index.js";
-import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { failCsharpPlannerInvariant } from "../../invariants.js";
 import {
   csharpTypeFromTargetTypeRef,
@@ -102,6 +98,7 @@ export function applyCsharpConversionSelection(
   targetType: TargetTypeRef | undefined,
   selection: CsharpConversionSelection,
   expression: CsharpExpression | undefined,
+  absenceConstant = false,
 ): CsharpExpression | undefined {
   if (expression === undefined) {
     return undefined;
@@ -134,38 +131,20 @@ export function applyCsharpConversionSelection(
         arguments: [{ kind: "Argument", expression }],
       };
     }
-    case "integer-truncation": {
-      const type = renderRequiredTargetType(input.scope.typeParameterNames, node, targetType, diagnostics);
-      if (type === undefined) return undefined;
-      if (expression.kind !== "InvocationExpression" || expression.arguments.length !== 2) {
-        return failCsharpPlannerInvariant(
-          "A native integer truncation requires its exact classified two-argument invocation.", node);
-      }
-      return {
-        kind: "CastExpression", type,
-        expression: {
-          ...expression,
-          callee: {
-            kind: "SimpleMemberAccessExpression",
-            receiver: qualifiedCsharpType("Tsonic.CSharp.Js", "BigIntOps"),
-            name: selection.signed ? "AsIntNative" : "AsUintNative",
-          },
-        },
-      };
-    }
+    case "integer-truncation":
+      return failCsharpPlannerInvariant("A native integer truncation must be emitted directly by its selected call form.", node);
     case "identity":
       return expression;
     case "absence": {
       const source = sourceType === undefined ? undefined
         : csharpTypeFromTargetTypeRef(sourceType, input.scope.typeParameterNames);
       const absent = targetType === undefined ? undefined
-        : planCsharpAbsentValue(targetType, input.scope.typeParameterNames);
+        : planCsharpAbsentValue(targetType, input);
       if (source === undefined || absent === undefined) {
         return failCsharpPlannerInvariant(
           "An admitted absence conversion requires its renderable source and destination storage contracts.", node);
       }
-      return expression.kind === "DefaultExpression" ||
-        expression.kind === "LiteralExpression" && expression.value === null ? absent : {
+      return absenceConstant ? absent : {
           kind: "SwitchExpression", expression: { kind: "CastExpression", type: source, expression },
           arms: [{ pattern: { kind: "DiscardPattern" }, expression: absent }],
         };
@@ -249,7 +228,7 @@ export function applyCsharpConversionSelection(
     }
     case "runtime-union-reference": {
       const type = renderRequiredTargetType(input.scope.typeParameterNames, node,
-        getCsharpNullableElementTargetType(selection.target) ?? selection.target, diagnostics);
+        requiredTypeEmission(input, selection.target, node).optionalStorage.present, diagnostics);
       return type === undefined ? undefined : {
         kind: "InvocationExpression",
         callee: { kind: "SimpleMemberAccessExpression", receiver: expression, name: "AsReference", typeArguments: [type] },
@@ -262,8 +241,8 @@ export function applyCsharpConversionSelection(
     }
     case "cast": {
       const type = renderRequiredTargetType(input.scope.typeParameterNames, node, targetType, diagnostics);
-      const operand = selection.proof === "nullable" && isCsharpNullableReferenceTargetType(sourceType) &&
-          getCsharpNullableElementTargetType(targetType) === undefined
+      const operand = selection.proof === "nullable" && sourceType !== undefined && targetType !== undefined &&
+          requiredTypeEmission(input, sourceType, node).nullableReference && !requiredTypeEmission(input, targetType, node).nullable
         ? { kind: "PostfixUnaryExpression" as const, operand: expression, operatorToken: { kind: "ExclamationToken" as const } }
         : expression;
       return type === undefined
@@ -450,11 +429,10 @@ function applyRuntimeUnionArmConversion(
   >,
   expression: CsharpExpression,
 ): CsharpExpression | undefined {
-  const unionType = getCsharpNullableElementTargetType(targetType) ?? targetType;
-  const optional = getCsharpGenericOptionalParts(targetType);
-  const declaringType = unionType === undefined
+  const optional = targetType === undefined ? undefined : requiredTypeEmission(input, targetType, node).optionalStorage;
+  const declaringType = optional === undefined
     ? undefined
-    : csharpTypeFromTargetTypeRef(optional?.operations ?? unionType, input.scope.typeParameterNames);
+    : csharpTypeFromTargetTypeRef(optional.kind === "generic" ? optional.operations : optional.present, input.scope.typeParameterNames);
   if (declaringType === undefined) {
     return failCsharpPlannerInvariant(
       "C# runtime-union construction requires one exact source arm and a renderable closed union carrier.",
@@ -532,4 +510,9 @@ function renderRequiredTargetType(
       node);
   }
   return type;
+}
+
+function requiredTypeEmission(input: CsharpPlanningContext, carrier: TargetTypeRef, node: Node) {
+  return input.program.records.typeEmission.get(carrier)
+    ?? failCsharpPlannerInvariant("An admitted conversion requires its sealed native carrier representation.", node);
 }

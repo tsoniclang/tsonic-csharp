@@ -66,7 +66,14 @@ export function analyzeCsharpExpressionEmission(input: { readonly source: Target
         storage = argument.argument.storageExpression;
       }
     }
-    expressions.set(node, { ...selected, physical: construction, conversion, bottom, storage });
+    const integerTruncation = conversion?.kind === "integer-truncation" && use.kind === "converted"
+      ? Object.freeze({ target: use.target, signed: conversion.signed }) : undefined;
+    if (integerTruncation !== undefined) {
+      const target = input.operations.selectedCall.get(node)?.target;
+      if (target?.kind !== "resolved" || target.source.sourceArguments.length !== 2)
+        failTargetAnalysisInvariant("tsonic-csharp", "An admitted native integer truncation requires its exact two-argument target call.", node);
+    }
+    expressions.set(node, { ...selected, physical: construction, conversion, bottom, storage, integerTruncation });
   }
   const complete = new Set<Node>();
   for (const node of expressions.keys()) {

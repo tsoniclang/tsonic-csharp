@@ -45,6 +45,7 @@ export function planCsharpNativeExpression(
   const physical = emission.physical ?? failCsharpPlannerInvariant("An admitted expression requires its physical emission use.", node);
   const planned = render(physical);
   if (planned === undefined || planned.completion.kind === "never" || selected.kind !== "converted") return planned;
+  if (emission.integerTruncation !== undefined) return planned;
   if (selected.completion.kind === "void") return csharpPlannedEffect(selected.target, planCsharpPlannedDiscard(planned));
   const conversion = emission.conversion ?? failCsharpPlannerInvariant("An admitted converted expression requires its selected native conversion.", node);
   if (planned.completion.kind === "void" && conversion.kind === "absence") {
@@ -54,7 +55,7 @@ export function planCsharpNativeExpression(
         input.program.records.nativeConstant.get(node, selected.target) === true, input.program.records.nativeAbsence.get(node, selected.target) === true);
   }
   return mapCsharpPlannedValue(planned, selected.target, expression => applyCsharpConversionSelection(
-    node, sourceFile, input, diagnostics, selected.carrier, selected.target, conversion, expression),
+    node, sourceFile, input, diagnostics, selected.carrier, selected.target, conversion, expression, planned.absent === true),
     input.program.records.nativeConstant.get(node, selected.target) === true);
 
   function render(use: Exclude<CsharpNativeUse, { readonly kind: "erased" }>): CsharpPlannedValue | undefined {

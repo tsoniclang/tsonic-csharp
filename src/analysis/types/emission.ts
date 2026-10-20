@@ -15,7 +15,7 @@ import { getCsharpGenericOptionalParts } from "../../target-model/types/projecti
 import { csharpCarrierAdmitsSourceAbsence, isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import { csharpCollectionElementRead } from "../../target-model/types/carriers/collection-reads.js";
 import { getCsharpIndexableLengthMemberName } from "../../target-model/types/carriers/collections.js";
-import { isCsharpVoidTargetType, isCsharpNeverTargetType } from "../../target-model/types/index.js";
+import { isCsharpVoidTargetType, isCsharpNeverTargetType, isCsharpNullableReferenceTargetType } from "../../target-model/types/index.js";
 import { isCsharpValueTypeTargetType } from "../../policy/types/index.js";
 
 export function analyzeCsharpTypeEmission(input: { readonly ast: AstReader; readonly nodes: readonly Node[];
@@ -97,6 +97,7 @@ export function analyzeCsharpTypeEmission(input: { readonly ast: AstReader; read
       completion: isCsharpNeverTargetType(root) ? "never" : isCsharpVoidTargetType(root) ? "void" : "value",
       coalescing: optional === undefined && !isCsharpJsValueTargetType(root) ? "operator" : "guard",
       nullable: getCsharpNullableElementTargetType(root) !== undefined,
+      nullableReference: isCsharpNullableReferenceTargetType(root),
       valueType: isCsharpValueTypeTargetType(root),
       unionAccess: optional !== undefined ? Object.freeze({ kind: "generic", operations: optional.operations })
         : Object.freeze({ kind: getCsharpNullableElementTargetType(root) === undefined ? "direct" : "nullable" }),

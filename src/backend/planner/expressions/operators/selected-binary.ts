@@ -22,7 +22,7 @@ import {
 import {
   callStatic,
   literalNumber,
-} from "../csharp-expression-builders.js";
+} from "../builders.js";
 import { planCsharpBigIntCall } from "./bigint-call.js";
 import { planCsharpClosedValueCoalescing } from "./closed-value-coalescing.js";
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";

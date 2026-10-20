@@ -5,6 +5,7 @@ import type { TargetTypeRef } from "../types/model.js";
 import type { CsharpSourceOperator } from "../syntax/operators.js";
 
 export type CsharpTargetInvocationEmission =
+  | { readonly kind: "integer-truncation"; readonly target: TargetTypeRef; readonly signed: boolean }
   | { readonly kind: "numeric"; readonly target: TargetTypeRef; readonly identity: boolean }
   | { readonly kind: "constructor"; readonly owner: TargetTypeRef }
   | { readonly kind: "array" }

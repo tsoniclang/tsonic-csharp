@@ -9,11 +9,13 @@ import type { CsharpNativeDemandAnalysis } from "../operations/native-demand-mod
 import type { CsharpTargetCallEmission } from "../../target-model/records/target-call-emission.js";
 import { selectCsharpTargetCallEmission } from "../../policy/operations/members/target-call-emission.js";
 import { createCsharpTargetCallEmissionRecords } from "../program/records/target-call-emission.js";
+import type { CsharpNativeUseRecords } from "../../target-model/records/native-demand.js";
 
 export function analyzeCsharpTargetCallEmission(input: { readonly nodes: readonly Node[]; readonly admitted: (node: Node) => boolean;
   readonly operations: CsharpTargetOperationClassifications; readonly arguments: CsharpTargetArgumentRecords;
   readonly sources: CsharpSourceCallEmissionRecords; readonly optional: CsharpOptionalCallChainRecords;
-  readonly shapes: CsharpObjectShapeDemand; readonly demand: CsharpNativeDemandAnalysis }) {
+  readonly shapes: CsharpObjectShapeDemand; readonly demand: CsharpNativeDemandAnalysis;
+  readonly expressions: Pick<CsharpNativeUseRecords, "nativeExpression"> }) {
   const values = new Map<Node, CsharpTargetCallEmission>();
   const issues: TargetDiagnostic[] = [];
   const refuse = (node: Node, message: string): void => { issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message }); };
@@ -42,7 +44,11 @@ export function analyzeCsharpTargetCallEmission(input: { readonly nodes: readonl
       optional: optional.optional && input.optional.optionalCallChain.get(node)?.kind !== "guarded", projection,
       liftedResult: use === undefined || use.kind === "erased" ? undefined : use.carrier }));
     if (result.kind === "rejected") refuse(node, result.reason);
-    else values.set(node, result.value);
+    else {
+      const truncation = input.expressions.nativeExpression.get(node)?.integerTruncation;
+      values.set(node, truncation === undefined ? result.value : Object.freeze({ ...result.value,
+        result: truncation.target, invocation: Object.freeze({ kind: "integer-truncation", ...truncation }) }));
+    }
   }
   return Object.freeze({ records: createCsharpTargetCallEmissionRecords(values), issues: Object.freeze(issues) });
 }

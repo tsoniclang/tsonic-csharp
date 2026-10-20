@@ -15,6 +15,7 @@ import type { CsharpPlannedValue } from "../../planned-values.js";
 import { planCsharpExpressionCompletion } from "../../planned-value-composition.js";
 import { composeCsharpPlannedCall } from "./planned-arguments.js";
 import type { TargetTypeRef } from "../../../../../target-model/types/model.js";
+import { qualifiedCsharpType } from "../../../types/index.js";
 
 export function translateSelectedTargetCall(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner, planCallArgument: CallArgumentPlanner): CsharpPlannedValue | undefined {
@@ -37,6 +38,10 @@ function buildSelectedTargetCall(node: Node, selected: CsharpTargetCallEmission,
   const generic = () => renderSelectedCsharpTargetMethodTypeArguments(selected.selection, node, sourceFile, input, diagnostics);
   const invocation = selected.invocation;
   switch (invocation.kind) {
+    case "integer-truncation": return { kind: "CastExpression", type: nativeType(invocation.target), expression: {
+      kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression",
+        receiver: qualifiedCsharpType("Tsonic.CSharp.Js", "BigIntOps"), name: invocation.signed ? "AsIntNative" : "AsUintNative" },
+      arguments: arguments_ } };
     case "numeric": return invocation.identity ? arguments_[0]!.expression : { kind: "CastExpression", type: nativeType(invocation.target), expression: arguments_[0]!.expression };
     case "constructor": return { kind: "ObjectCreationExpression", type: nativeType(invocation.owner), arguments: arguments_ };
     case "array": return translateArrayCreationCall(node, arguments_, input);
