@@ -7,7 +7,7 @@ import { allocateExpressionTemp, type DestructuringPlannerState } from "../bindi
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
 import { planSelectedCsharpBinaryOperation } from "./operators/selected-binary.js";
-import { unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 import { type CsharpPlannedValue } from "./planned-values.js";
 import { buildCsharpPlannedValue, composeCsharpPlannedValues, projectCsharpPlannedValue } from "./planned-value-composition.js";
 
@@ -31,8 +31,7 @@ export function planTypedArrayMutation(
     const type = csharpTypeFromTargetTypeRef(selection.resultType, input.scope.typeParameterNames);
     const indexType = csharpTypeFromTargetTypeRef(selection.indexType, input.scope.typeParameterNames);
     if (type === undefined || indexType === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(node, "Typed array update has no sealed native result type."));
-      return undefined;
+      failCsharpPlannerInvariant("An admitted typed array update requires its native result and index types.", node);
     }
     return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [receiver, index], values => ({
       kind: "InvocationExpression",
@@ -48,8 +47,7 @@ export function planTypedArrayMutation(
   }
   const type = csharpTypeFromTargetTypeRef(selection.resultType, input.scope.typeParameterNames);
   if (state === undefined || type === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Typed array mutation requires its sealed result type and hygienic scope."));
-    return undefined;
+    failCsharpPlannerInvariant("An admitted typed array mutation requires its result type and hygienic scope.", node);
   }
   const name = allocateExpressionTemp(state);
   const selected: CsharpExpression = { kind: "IdentifierName", name };
