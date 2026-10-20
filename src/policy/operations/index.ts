@@ -9,3 +9,5 @@ export * from "./numeric/promotion.js";
 export * from "./flow/source-flow.js";
 export * from "./typed-locations/selection.js";
 export * from "./syntax/typeof.js";
+
+export { getCsharpTypeofRuntimeKind } from "./syntax/runtime-kind.js";

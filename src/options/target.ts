@@ -6,7 +6,7 @@ import { isAbsolute, join, resolve } from "node:path";
 import { resolveDotnetFrameworkReferenceAssemblies } from "../providers/native/acquisition/framework-reference-packs.js";
 import { resolveCsharpProjectConfiguration } from "./user-project.js";
 import { defaultCsharpTargetFramework } from "../target-model/configuration/framework.js";
-import { parseCsharpTargetFramework } from "./framework.js";
+import { parseCsharpTargetFramework } from "../target-model/configuration/framework.js";
 
 export type {
   CsharpLanguageDialect,

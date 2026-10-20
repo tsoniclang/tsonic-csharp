@@ -17,7 +17,7 @@ import { csharpLiteralIsRepresentableAs } from "../../policy/conversions/literal
 
 import type { CsharpSourceOperator } from "../../target-model/syntax/operators.js";
 import { sourceOperatorFromKindName } from "../../target-model/syntax/operators.js";
-import { csharpDestructuringAssignmentSyntax } from "../../source/extension/operators.js";
+import { csharpDestructuringAssignmentSyntax } from "../../target-model/syntax/operators.js";
 
 import { selectCsharpNativeBinaryOperation, selectCsharpNativeUnaryOperation, rejectCsharpOperator as rejected } from "../../policy/operations/operators/rules.js";
 export type CsharpOperationTargetTypeQuery = (

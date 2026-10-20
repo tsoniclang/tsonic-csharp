@@ -3,7 +3,7 @@ import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { csharpSourceTypeArgumentNodes } from "../../../source/extension/type-arguments.js";
+import { csharpSourceTypeArgumentNodes } from "../../../target-model/syntax/type-arguments.js";
 import { definedValues } from "./source-evidence.js";
 import { nextState } from "./state.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";

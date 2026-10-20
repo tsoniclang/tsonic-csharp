@@ -9,7 +9,7 @@ import type { DotnetReferenceSnapshot } from "./reference-snapshot.js";
 import { diagnostic } from "../model/diagnostics.js";
 import { dotnetReflectionProviderCacheAbiVersion, dotnetReflectionProviderIdentity } from "./provider-identity.js";
 import { defaultCsharpTargetFramework } from "../../../target-model/configuration/framework.js";
-import { parseCsharpTargetFramework } from "../../../options/framework.js";
+import { parseCsharpTargetFramework } from "../../../target-model/configuration/framework.js";
 
 export interface DotnetReflectionCacheRequestOptions {
   readonly providerIdentity?: DotnetProviderIdentity;

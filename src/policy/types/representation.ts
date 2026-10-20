@@ -6,7 +6,7 @@ import { getCsharpNullableElementTargetType } from "../../target-model/types/car
 import { getCsharpGenericOptionalParts, isCsharpAbsenceTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import { getCsharpAwaitResultTargetType } from "../operations/control-flow/await-completions.js";
 import { isCsharpAssignmentOperator, sourceOperatorFromKindName } from "../../target-model/syntax/operators.js";
-import { isCsharpDestructuringAssignmentPattern } from "../../source/extension/operators.js";
+import { isCsharpDestructuringAssignmentPattern } from "../../target-model/syntax/operators.js";
 import { selectCsharpNumericBinaryPromotion } from "../operations/numeric/promotion.js";
 import { sourcePrimitiveImplicitlyConverts } from "../conversions/source-primitives.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";

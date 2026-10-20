@@ -36,7 +36,7 @@ import {
 } from "../statements/statement-yield.js";
 import {
   directCsharpSourceYieldExpression,
-} from "../../../source/extension/yield-expression.js";
+} from "../../../target-model/syntax/yield-expression.js";
 import { csharpPlannedValue, mapCsharpPlannedValue, type CsharpPlannedValue } from "../expressions/planned-values.js";
 import { consumeCsharpPlannedValue } from "../statements/statement-output.js";
 

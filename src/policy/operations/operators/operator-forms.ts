@@ -3,7 +3,7 @@ import type { CsharpPolicyContext } from "../../model/context.js";
 import type { CsharpJsArrayMutationSelection } from "../../../target-model/records/js-array-mutations.js";
 import type { CsharpBinaryClassification, CsharpOperatorForm, CsharpOperatorFormClassification, CsharpPropertyClassification, CsharpUnaryClassification } from "../../../target-model/records/operations.js";
 import { isCsharpAssignmentOperator, sourceOperatorFromKindName, type CsharpSourceOperator } from "../../../target-model/syntax/operators.js";
-import { csharpDestructuringAssignmentSyntax } from "../../../source/extension/operators.js";
+import { csharpDestructuringAssignmentSyntax } from "../../../target-model/syntax/operators.js";
 import { csharpBinaryOperationUsesExpectedResultType } from "./expected-result.js";
 import { targetBinaryOperator } from "./rules.js";
 

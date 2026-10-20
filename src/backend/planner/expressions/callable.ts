@@ -39,7 +39,7 @@ import {
 } from "../../../target-model/types/index.js";
 import {
   csharpSourceTypeArgumentNodes,
-} from "../../../source/extension/type-arguments.js";
+} from "../../../target-model/syntax/type-arguments.js";
 import {
   hasCsharpGeneratorPlan,
   planCsharpGeneratorFunction,

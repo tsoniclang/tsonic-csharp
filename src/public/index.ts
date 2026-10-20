@@ -8,4 +8,4 @@ export type {
 } from "../target-model/configuration/model.js";
 export type { CsharpProjectReference } from "../target-model/project/references.js";
 
-export { createTsonicPlugin } from "../compilation/plugin.js";
+export { createTsonicPlugin } from "../descriptor/plugin.js";

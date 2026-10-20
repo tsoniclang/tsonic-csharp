@@ -54,7 +54,7 @@ export type { CsharpProviderBindingTypeArgumentSource, CsharpProviderMemberSourc
 export { substituteTargetTypeParameters } from "../policy/types/resolution/substitution.js";
 export { csharpApplyExternAliasToTargetBinding } from "../providers/native/projection/extern-aliases.js";
 export { csharpProviderVersion } from "../target-model/identities/source.js";
-export { createCsharpProviderPackage } from "../compilation/provider-packages.js";
+export { createCsharpProviderPackage } from "../providers/packages/composition.js";
 export { csharpCoreRuntimeSource, csharpJsRuntimeSource, csharpRuntimeSourceContributions } from "../providers/runtime/source-projects.js";
 export type { CsharpRuntimeProjectSource } from "../target-model/project/runtime.js";
 export type {

@@ -3,7 +3,6 @@ import type { CsharpTypeofRuntimeKind, TargetTypeRef } from "../../types/index.j
 import { type CsharpTypeofResult } from "../../../target-model/types/runtime-kind.js";
 import { getCsharpTypeofResult } from "./runtime-kind.js";
 import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
-export { getCsharpTypeofRuntimeKind } from "./runtime-kind.js";
 
 export function selectCsharpTypeofComparison(
   operandType: TargetTypeRef | undefined,

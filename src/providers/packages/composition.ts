@@ -1,7 +1,7 @@
 import type { TargetCapabilityContext, TargetCapabilityImplementation, TargetSourceCompilerContributions } from "@tsonic/target-api/provider";
-import type { CsharpProviderPackageDefinition } from "../providers/packages/model.js";
-import { createCsharpPackageSourceProvider } from "../providers/packages/source-provider.js";
-import { snapshotCsharpProviderPackage } from "../providers/packages/validation.js";
+import type { CsharpProviderPackageDefinition } from "./model.js";
+import { createCsharpPackageSourceProvider } from "./source-provider.js";
+import { snapshotCsharpProviderPackage } from "./validation.js";
 
 export function createCsharpProviderPackage(
   definition: CsharpProviderPackageDefinition,
