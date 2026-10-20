@@ -1,3 +1,4 @@
+import { sealCsharpObjectShapeClassifications } from "../program/records/object-shapes.js";
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type {CsharpObjectShapeFact, TargetTypeRef} from "../../policy/types/index.js";
@@ -27,7 +28,6 @@ import { namedTargetTypeImplicitlyAccepts } from "../../policy/conversions/carri
 
 const noExpectedShape = "<none>";
 const maximumObjectShapeClassifications = 131_072;
-const noStructuralImplementations: readonly CsharpStructuralInterfaceImplementation[] = Object.freeze([]);
 
 export function analyzeCsharpObjectShapes(
   policy: CsharpPolicyContext,
@@ -56,6 +56,7 @@ export function analyzeCsharpObjectShapes(
     (source, target) => namedTargetTypeImplicitlyAccepts(conversionPolicy, source, target, new Set()));
   let classificationCount = 0;
   let sealed = false;
+  let published: CsharpObjectShapeAnalysis | undefined;
   let knownShapes: readonly CsharpObjectShapeFact[] = Object.freeze([]);
   let targetShapes: CsharpObjectShapeAnalysis["targetShapes"] = Object.freeze({});
   const structuralInterfaces = new Map<string, Map<string, {
@@ -71,7 +72,7 @@ export function analyzeCsharpObjectShapes(
   const sealedStructuralImplementations = new Map<string, readonly CsharpStructuralInterfaceImplementation[]>();
   const instantiatedShapes = new Map<string, CsharpObjectShapeFact>();
   const structuralImplementations = (type: TargetTypeRef): readonly CsharpStructuralInterfaceImplementation[] => {
-    if (sealed) return sealedStructuralImplementation(type);
+    if (published !== undefined) return published.structuralImplementations(type);
     if (type.kind !== "target-named") return [];
     return [...structuralInterfaces.get(type.id)?.values() ?? []].map(({ selected }) => {
       const parameters = new Set(selected.sourceType.kind === "target-named"
@@ -498,21 +499,24 @@ export function analyzeCsharpObjectShapes(
       ]));
       admittedShapes.clear();
       sealed = true;
-      return Object.freeze({
-        issues: Object.freeze([...declaredStructuralIssues, ...structuralIssues]),
-        propertyOrder: propertyOrders.propertyOrder,
-        assignmentSourceOrder: propertyOrders.assignmentSourceOrder,
-        structuralImplementations: sealedStructuralImplementation,
-        structuralImplementationTypes: Object.freeze(structuralImplementationTypes),
+      published = sealCsharpObjectShapeClassifications({
+        issues: [...declaredStructuralIssues, ...structuralIssues],
+        propertyOrders,
+        structuralDefinitionIds: new Set(structuralInterfaces.keys()),
+        structuralImplementations: sealedStructuralImplementations,
+        structuralImplementationTypes,
         targetShapes,
-        knownShapes: () => knownShapes,
-        methodImplementationHasCopies: classifications.methodImplementationHasCopies,
-        resolveCopyShape: (shape: CsharpObjectShapeFact) => copies.get(targetTypeRefKey(shape.targetType)),
-        resolveObjectLiteralUnionCarrier: (node: Node, type: TargetTypeRef) => literalUnionCarriers.get(node)?.get(targetTypeRefKey(type)),
-        resolveNode: (node: Node | undefined) => node === undefined ? undefined : byNode.get(node),
-        resolveTarget: completedTargetShape,
-        resolveObjectLiteralTargetShape: completedLiteralResult,
+        targets: byTarget,
+        nodes: byNode,
+        knownShapes,
+        copies,
+        copiedMethodImplementations,
+        literals: [...objectLiterals.keys()].map(literal => ({ literal,
+          results: literalResults.get(literal) ?? new Map(),
+          unions: literalUnionCarriers.get(literal) ?? new Map(),
+        })),
       });
+      return published;
     },
     resolveObjectLiteralUnionCarrier(node, type) {
       return literalUnionCarriers.get(node)?.get(targetTypeRefKey(type));
@@ -531,7 +535,7 @@ export function analyzeCsharpObjectShapes(
     },
     resolveTarget(type) {
       if (type === undefined) return undefined;
-      if (sealed) return completedTargetShape(type);
+      if (published !== undefined) return published.resolveTarget(type);
       let shape = byTarget.get(targetTypeRefKey(type));
       if (shape === undefined && !sealed) {
         shape = policy.objectShapes.resolveTarget(type);
@@ -541,7 +545,7 @@ export function analyzeCsharpObjectShapes(
       return withInterfaces(shape);
     },
     resolveObjectLiteralTargetShape(expectedShape, objectLiteral) {
-      if (sealed) return completedLiteralResult(expectedShape, objectLiteral);
+      if (published !== undefined) return published.resolveObjectLiteralTargetShape(expectedShape, objectLiteral);
       const original = expectedShape === undefined ? undefined
         : byTarget.get(targetTypeRefKey(expectedShape.targetType)) ?? expectedShape;
       const key = original === undefined
@@ -553,28 +557,6 @@ export function analyzeCsharpObjectShapes(
     },
   };
   return Object.freeze(classifications);
-
-  function completedTargetShape(type: TargetTypeRef | undefined): CsharpObjectShapeFact | undefined {
-    if (type === undefined) return undefined;
-    const key = targetTypeRefKey(getCsharpNullableElementTargetType(type) ?? type);
-    return targetShapes[key];
-  }
-
-  function sealedStructuralImplementation(type: TargetTypeRef): readonly CsharpStructuralInterfaceImplementation[] {
-    if (type.kind !== "target-named" || (structuralInterfaces.get(type.id)?.size ?? 0) === 0) return noStructuralImplementations;
-    const key = targetTypeRefKey(type);
-    const selected = sealedStructuralImplementations.get(key);
-    if (selected === undefined) {
-      throw new Error(`C# sealed object-shape reader has no structural-implementation record for '${key}'.`);
-    }
-    return selected;
-  }
-
-  function completedLiteralResult(expectedShape: CsharpObjectShapeFact | undefined, objectLiteral: Node):
-      CsharpObjectLiteralTargetShapeResolution | undefined {
-    const original = expectedShape === undefined ? undefined : byTarget.get(targetTypeRefKey(expectedShape.targetType)) ?? expectedShape;
-    return literalResults.get(objectLiteral)?.get(original === undefined ? noExpectedShape : csharpObjectShapeContractKey(original));
-  }
 
   function visit(node: Node, sourceFile: SourceFile): void {
     if (evidence.compileTimeMetadata.get(node)) return;
