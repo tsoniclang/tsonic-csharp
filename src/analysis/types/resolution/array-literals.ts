@@ -10,7 +10,7 @@ import { combineCsharpTargetUnionMembers, isCsharpJsValueTargetType } from "../.
 import { csharpJsArrayTargetType } from "../../../target-model/types/carriers/js.js";
 import { selectedCsharpSourceProfileOwner } from "../../../policy/types/resolution/source-profile.js";
 import { selectCsharpInferredNumericArrayElement } from "../../../policy/types/collections/array-elements.js";
-import { csharpSourceStorageContext } from "../../../policy/types/resolution/source-storage-projection.js";
+import { csharpSourceStorageContext } from "./source-storage-projection.js";
 import { getCsharpCallableValueSignature, getCsharpTaskResultTargetType } from "../../../target-model/types/carriers/delegates.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";

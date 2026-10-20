@@ -8,7 +8,7 @@ import { readCsharpSourceField } from "../../../policy/types/resolution/source-m
 import { sourceRefinementOnlyRemovesNullish } from "../../../policy/types/resolution/source-union-refinement.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { getCsharpGenericOptionalParts } from "../../../target-model/types/carriers/runtime-carriers.js";
-import { csharpSourceStorageContext } from "../../../policy/types/resolution/source-storage-projection.js";
+import { csharpSourceStorageContext } from "./source-storage-projection.js";
 
 export function resolveSelectedDeclarationResult(
   { declarationResultTypeNode, host, resolveAuthoredAndSelectedSourceType, resolveCallableType, resolveNodeWithState, resolveProjectEnumMemberTarget }: CsharpTypeResolutionScope,
