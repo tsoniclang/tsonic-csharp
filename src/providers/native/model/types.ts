@@ -1,7 +1,4 @@
-import type {
-  ArgumentPassingMode,
-  SourcePrimitiveKind,
-} from "@tsonic/tsts";
+import type { ArgumentPassingMode, SourcePrimitiveKind } from "@tsonic/tsts";
 
 export interface DotnetProviderIdentity {
   readonly id: string;
