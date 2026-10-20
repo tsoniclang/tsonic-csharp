@@ -24,7 +24,9 @@ import {
   validateSourceBinaryEntry,
 } from "@tsonic/target-api/source";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpModuleInitializationAnalysis, CsharpModuleInitializationIndex, CsharpModuleInitializationIssue } from "../../target-model/records/module-initialization.js";
+import type { CsharpModuleInitializationAnalysis, CsharpModuleInitializationIssue } from "../../target-model/records/module-initialization.js";
+
+import { createCsharpModuleInitializationProducer } from "../program/records/module-initialization.js";
 
 interface CsharpModuleInitializationAnalysisInput {
   readonly sourceEvidence: import("../../target-model/records/source-evidence.js").CsharpSourceEvidenceIndex;
@@ -46,8 +48,7 @@ export function analyzeCsharpModuleInitialization(
   input: CsharpModuleInitializationAnalysisInput,
 ): CsharpModuleInitializationAnalysis {
   const entries = new Map<string, ModuleInitializationEntry>();
-  const directCallables = new WeakMap<Node, "public" | "internal">();
-  const bindingInitialization = new WeakMap<Node, "declaration" | "value">();
+  const producer = createCsharpModuleInitializationProducer();
   for (const sourceFile of input.sourceFiles) {
     for (const statement of input.source.ast.statements(sourceFile)) {
       const declarations = AsVariableStatement(input.source.ast, statement)?.DeclarationList;
@@ -56,7 +57,7 @@ export function analyzeCsharpModuleInitialization(
         if (declaration === undefined || !input.source.ast.is.IsVariableDeclaration(declaration)) continue;
         const variable = AsVariableDeclaration(input.source.ast, declaration);
         const initializer = variable?.Initializer;
-        bindingInitialization.set(declaration, initializer === undefined ? "declaration" : "value");
+        producer.binding(declaration, initializer === undefined ? "declaration" : "value");
         if (initializer !== undefined && variable?.name !== undefined) recordPatternBindings(variable.name);
         if (input.source.ast.variableDeclarationKind(declarations) !== "const") continue;
         if (initializer === undefined || !input.source.ast.is.IsArrowFunction(initializer) ||
@@ -65,7 +66,7 @@ export function analyzeCsharpModuleInitialization(
         if (summary.bindingWritten || summary.memberWritten ||
           summary.uses.some(use => use.role !== "call-target" && use.kind !== "type-only" && use.kind !== "source-linkage") ||
           sourceMayReadBeforeInitialization(declaration, input.source.ast, input.source.navigation)) continue;
-        directCallables.set(declaration, summary.exported ? "public" : "internal");
+        producer.callable(declaration, summary.exported ? "public" : "internal");
       }
     }
     entries.set(normalizedFileName(input, sourceFile), Object.freeze({
@@ -97,26 +98,12 @@ export function analyzeCsharpModuleInitialization(
   if (input.outputType === "Exe" && entrySourceFile !== undefined) {
     issues.push(...validateSourceBinaryEntry(input.source, entrySourceFile));
   }
-  const index: CsharpModuleInitializationIndex = Object.freeze({
-    moduleInitializationDependencies: Object.freeze({ get(sourceFile: SourceFile) {
-      return dependenciesByFile.get(normalizedFileName(input, sourceFile)) ?? emptySourceFiles;
-    } }),
-    requiresModuleInitializer: Object.freeze({ get(sourceFile: SourceFile) {
-      return requiredByFile.get(normalizedFileName(input, sourceFile)) === true;
-    } }),
-    asyncModuleInitializer: Object.freeze({ get(sourceFile: SourceFile) {
-      return asyncByFile.get(normalizedFileName(input, sourceFile)) === true;
-    } }),
-    entrypointInitializer() {
-      return entries.get(entrypointFileName)?.sourceFile;
-    },
-    callableVisibility: Object.freeze({ get(declaration: Node) {
-      return directCallables.get(declaration);
-    } }),
-    moduleBindingInitialization: Object.freeze({ get(declaration: Node) {
-      return bindingInitialization.get(declaration);
-    } }),
-  });
+  const index = producer.seal([...entries].map(([fileName, entry]) => ({
+    sourceFile: entry.sourceFile,
+    dependencies: dependenciesByFile.get(fileName) ?? emptySourceFiles,
+    required: requiredByFile.get(fileName) === true,
+    async: asyncByFile.get(fileName) === true,
+  })), entrySourceFile);
   return Object.freeze({
     index,
     issues: Object.freeze(issues),
@@ -129,7 +116,7 @@ export function analyzeCsharpModuleInitialization(
     for (const element of ast.elements(pattern)) {
       const binding = AsBindingElement(ast, element);
       if (element === undefined || binding?.name === undefined) continue;
-      if (HasSourceKind(ast, binding.name, KindIdentifier)) bindingInitialization.set(element, "value");
+      if (HasSourceKind(ast, binding.name, KindIdentifier)) producer.binding(element, "value");
       else recordPatternBindings(binding.name);
     }
   }
