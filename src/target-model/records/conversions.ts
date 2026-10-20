@@ -66,3 +66,18 @@ export interface CsharpValueRead {
 export interface CsharpValueReadClassifications {
   readonly valueRead: { readonly get: (node: Node) => CsharpValueRead | undefined };
 }
+
+export interface CsharpConversionPublication extends CsharpGeneratedHelperRecords, CsharpDelegateContractRecords {
+  readonly propertyProjectionRoots: CsharpConversionClassifications["propertyProjectionRoots"];
+  readonly issues: readonly CsharpConversionIssue[];
+  readonly propertyProjection: CsharpConversionClassifications["propertyProjection"];
+  readonly delegateAdapters: CsharpConversionClassifications["delegateAdapters"];
+  readonly directCallableReference: CsharpConversionClassifications["directCallableReference"];
+  readonly pairSelections: ReadonlyMap<string, CsharpConversionSelection>;
+  readonly expressionSelections: ReadonlyMap<Node, ReadonlyMap<string, CsharpExpressionConversionClassification>>;
+}
+
+export const csharpUnavailableConversion: CsharpConversionSelection = Object.freeze({
+  kind: "rejected",
+  reason: "C# conversion requires closed source and target representations.",
+});
