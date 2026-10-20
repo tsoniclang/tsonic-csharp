@@ -1,6 +1,6 @@
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import type { selectCsharpBinaryOperation } from "./binary.js";
+import type { selectCsharpBinaryOperation } from "./operator-selection.js";
 
 type CsharpExpectedBinarySelection = ReturnType<typeof selectCsharpBinaryOperation> | undefined;
 
