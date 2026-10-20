@@ -1,19 +1,8 @@
-import type {
-  ProviderModuleContext,
-} from "@tsonic/tsts";
-import type {
-  DotnetProviderResolutionContext,
-} from "./module-slices.js";
-import {
-  dotnetProviderResolutionContext,
-} from "./module-slices.js";
-import {
-  dotnetModuleSpecifierPolicy,
-  parseDotnetModuleSpecifier,
-} from "./module-specifier.js";
-import type {
-  DotnetModuleSpecifierPolicy,
-} from "./module-specifier.js";
+import type { ProviderModuleContext } from "@tsonic/tsts";
+import type { DotnetProviderResolutionContext } from "./module-slices.js";
+import { dotnetProviderResolutionContext } from "./module-slices.js";
+import { dotnetModuleSpecifierPolicy, parseDotnetModuleSpecifier } from "./module-specifier.js";
+import type { DotnetModuleSpecifierPolicy } from "./module-specifier.js";
 
 export interface DotnetProviderModuleRequest {
   readonly moduleSpecifier: string;
