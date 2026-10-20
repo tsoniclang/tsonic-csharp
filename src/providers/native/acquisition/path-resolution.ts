@@ -1,17 +1,11 @@
 import { join, resolve } from "node:path";
 import { createHash } from "node:crypto";
-import {
-  dotnetProviderToolAssemblyName,
-} from "./constants.js";
-import { defaultCsharpTargetFramework, parseCsharpTargetFramework } from "../../../target-model/configuration/framework.js";
+import { dotnetProviderToolAssemblyName } from "./constants.js";
+import { defaultCsharpTargetFramework } from "../../../target-model/configuration/framework.js";
+import { parseCsharpTargetFramework } from "../../../options/framework.js";
 import { resolveDotnetProviderToolchain } from "./toolchain.js";
-import {
-  hashProviderToolSources,
-} from "./source-hash.js";
-import type {
-  DotnetProviderToolResolvedPaths,
-  DotnetProviderToolRunnerOptions,
-} from "./types.js";
+import { hashProviderToolSources } from "./source-hash.js";
+import type { DotnetProviderToolResolvedPaths, DotnetProviderToolRunnerOptions } from "./types.js";
 
 export function resolveDotnetProviderToolPaths(
   options: DotnetProviderToolRunnerOptions,
