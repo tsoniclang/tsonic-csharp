@@ -1,9 +1,8 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import { isCsharpVoidTargetType } from "../../../../../target-model/types/identity.js";
 import type { CsharpArgument, CsharpExpression, CsharpStatement } from "../../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
-import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../../../invariants.js";
 import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";
 import { planCsharpGeneratedMethodCall } from "../../../declarations/generated-methods.js";
 import { renderCsharpTargetTypeArguments } from "./helpers.js";
@@ -17,7 +16,7 @@ export function planCsharpUnionDispatcherCall(
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
   const selected = input.program.records.sourceCallEmission.get(node);
-  if (selected?.kind !== "union") return undefined;
+  if (selected?.kind !== "union") failCsharpPlannerInvariant("An admitted union dispatcher requires its exact native call plan.", node);
   const union = selected.union;
   const methods = input.scope.generatedMethods;
   const receiverType = csharpTypeFromTargetTypeRef(union.receiverType, input.scope.typeParameterNames);
@@ -26,8 +25,7 @@ export function planCsharpUnionDispatcherCall(
   const argumentTypes = selected.parameters.map(type => csharpTypeFromTargetTypeRef(type, input.scope.typeParameterNames));
   if (methods === undefined || receiverType === undefined || resultType === undefined ||
     selectedTypeArguments === undefined || argumentTypes === undefined || arguments_.length !== argumentTypes.length || argumentTypes.some(type => type === undefined)) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "A closed union dispatcher requires exact native receiver, argument, result and containing-type contracts."));
-    return undefined;
+    failCsharpPlannerInvariant("An admitted union dispatcher requires its exact native receiver, argument, result and containing-type contracts.", node);
   }
   const forwarded: readonly CsharpArgument[] = argumentTypes.map((_, index) => ({
     kind: "Argument", expression: { kind: "IdentifierName", name: `argument${index}` },
@@ -44,7 +42,7 @@ export function planCsharpUnionDispatcherCall(
       },
       arguments: forwarded,
     };
-    const branch: readonly CsharpStatement[] = isCsharpVoidTargetType(union.resultType)
+    const branch: readonly CsharpStatement[] = selected.void
       ? [{ kind: "ExpressionStatement", expression: invocation }, { kind: "ReturnStatement" }]
       : [{ kind: "ReturnStatement", expression: invocation }];
     if (index === union.methods.length - 1) statements.push(...branch);

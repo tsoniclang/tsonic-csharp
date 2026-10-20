@@ -65,7 +65,7 @@ export function analyzeCsharpSourceCallEmission(input: { readonly source: Target
     if (classification.unionCall.kind === "resolved") {
       const union = classification.unionCall;
       const grouping = classification.sourceArgumentGrouping;
-      if (grouping?.kind !== "grouped" || !selectCsharpTypeEmission({ carrier: union.receiverType }) || !selectCsharpTypeEmission({ carrier: union.resultType }) ||
+      if (grouping?.kind !== "grouped" || union.methods.length === 0 || !selectCsharpTypeEmission({ carrier: union.receiverType }) || !selectCsharpTypeEmission({ carrier: union.resultType }) ||
         grouping.groups.some(group => !selectCsharpTypeEmission({ carrier: group.type }))) {
         refuse(node, "A closed union dispatcher requires exact native receiver, argument, result and containing-type contracts."); continue;
       }
