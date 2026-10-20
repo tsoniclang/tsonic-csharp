@@ -11,7 +11,6 @@ import type {
   CsharpOutputSourceFile,
 } from "../../artifact-model/output.js";
 import type { Node } from "@tsonic/tsts";
-import { objectShapeArtifactKey } from "../../../target-model/records/object-shape-demand.js";
 import type { CsharpObjectShapeDeclarationEmission } from "../../../target-model/records/object-shape-emission.js";
 import { failCsharpPlannerInvariant } from "../../invariants.js";
 import { csharpCompilationRequiresUnsafe, csharpObjectShapeSafetyModifiers } from "../safety/explicit-safety.js";
@@ -53,7 +52,6 @@ import { csharpClosedValueCarrierInterfaceType } from "./declarations/interfaces
 import { csharpEnumerableKeysContract, renderCsharpEnumerableKeys } from "./declarations/enumerable-keys.js";
 import { renderCsharpAuthoredObjectMethods } from "./declarations/authored-methods.js";
 import { renderCsharpCaptureFrameMethods } from "./declarations/capture-methods.js";
-import type { CsharpObjectShapeProjectionDeclaration } from "../../../target-model/records/object-shape-demand.js";
 
 export function csharpTypeFromObjectShapeFact(
   input: CsharpPlanningContext,
@@ -138,7 +136,7 @@ function renderObjectShapeDeclaration(
 ): CsharpTypeDeclaration {
   const { artifact } = selected;
   const fact = artifact.fact;
-  const { capabilities, projections, receiverBoundMethodKeys } = artifact;
+  const { capabilities, projections } = artifact;
   const jsonSerializable = capabilities.includes("json-serialization");
   const referenceIdentity = capabilities.includes("reference-identity");
   const interfaces = renderObjectShapeInterfaces(input.scope.typeParameterNames, fact, undefined, undefined);
