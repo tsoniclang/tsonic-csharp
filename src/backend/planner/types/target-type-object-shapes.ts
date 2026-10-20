@@ -11,6 +11,5 @@ export function csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(
 ): CsharpTypeNode | undefined {
   const selected = input.program.records.typeEmission.get(type);
   if (selected === undefined) failCsharpPlannerInvariant("An admitted native type requires its sealed artifact dependency set.", diagnosticSubject);
-  for (const fact of selected.objectShapes) input.artifacts.objectShape(fact);
   return csharpTypeFromTargetTypeRef(type, input.scope.typeParameterNames);
 }

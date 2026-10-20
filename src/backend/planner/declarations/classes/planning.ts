@@ -1,4 +1,5 @@
 import type { CsharpPlanningContext } from "../../context.js";
+import { csharpObjectShapeArtifact } from "../../artifacts/object-shapes.js";
 import { AsClassDeclaration } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
@@ -124,7 +125,7 @@ export function planClassDeclaration(
         ? renderJsonSerializableObjectShapeMethod(objectShape, input.program.records)
         : []),
       ...(objectShape === undefined ? [] : renderObjectShapeProjectionMethods(input,
-        input.artifacts.objectShapeProjections(objectShape), diagnostics)),
+        csharpObjectShapeArtifact(input, objectShape).projections, diagnostics)),
       ...input.scope.generatedMethods!.values(),
     ],
   } };

@@ -1,4 +1,5 @@
 import type { CsharpPlanningContext } from "../../context.js";
+import { csharpObjectShapeArtifact } from "../../artifacts/object-shapes.js";
 import {
   AsIndexSignatureDeclaration,
   AsInterfaceDeclaration,
@@ -75,7 +76,7 @@ export function planInterfaceDeclaration(
         return failCsharpPlannerInvariant("An admitted interface member lost its native declaration form.", member);
     }
   });
-  if (objectShape !== undefined && input.artifacts.objectShapeHasCapability(objectShape, "method-values")) {
+  if (objectShape !== undefined && csharpObjectShapeArtifact(input, objectShape).capabilities.includes("method-values")) {
     const rendered = renderCsharpStructuralInterfaceMethodValues(input.scope.typeParameterNames, objectShape, input.program.records);
     if (rendered === undefined) failCsharpPlannerInvariant("An admitted interface method value lost its native callable storage.", node);
     members.push(...rendered);
@@ -96,7 +97,7 @@ export function planInterfaceDeclaration(
         }),
     members: [...members,
       ...(objectShape === undefined ? [] : renderObjectShapeProjectionMethods(input,
-        input.artifacts.objectShapeProjections(objectShape), diagnostics))],
+        csharpObjectShapeArtifact(input, objectShape).projections, diagnostics))],
   };
 }
 
@@ -154,7 +155,7 @@ function planInterfacePropertyDeclaration(
   return {
     kind: "PropertyDeclaration",
     name: planCsharpAdmittedMemberName(input.program.names, declaration.name),
-    modifiers: [...planCsharpNativeMemberHiding(input.program.names, { kind: "source", declaration: node, role: "member" }), ...csharpSafetyModifiersForDeclaration(
+    modifiers: [...planCsharpNativeMemberHiding(input.program.records.nativeMemberHiding, { kind: "source", declaration: node, role: "member" }), ...csharpSafetyModifiersForDeclaration(
       node,
       "declaration",
       input,

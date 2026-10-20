@@ -65,7 +65,6 @@ export function csharpTypeFromObjectShapeFact(
     "An admitted object-shape artifact must carry its renderable target type.", diagnosticSubject);
   const selected = input.program.records.objectShapeEmission.get(fact);
   if (selected === undefined) failCsharpPlannerInvariant("An admitted object shape requires its sealed native materialization selection.", diagnosticSubject);
-  if (selected.kind !== "runtime") input.artifacts.objectShape(fact);
   return targetType;
 }
 

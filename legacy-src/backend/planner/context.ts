@@ -8,12 +8,6 @@ import type { CsharpProjectTypeClassifications } from "../../target-model/record
 import type {
   CsharpObjectShapeClassifications,
 } from "../../analysis/objects/index.js";
-import type {
-  CsharpArtifactGraph,
-} from "./artifacts/index.js";
-import {
-  createCsharpArtifactGraph,
-} from "./artifacts/index.js";
 import type { CsharpNamePlan } from "../../target-model/names/model.js";
 import { createCsharpSyntheticNames } from "./names/synthetic.js";
 import type { CsharpSyntheticNames } from "./names/synthetic.js";
@@ -80,7 +74,6 @@ export interface CsharpPlanningContext {
   readonly program: CsharpTargetProgram;
   readonly host: CsharpTargetProgram["host"];
   readonly types: CsharpPlanningTypeView;
-  readonly artifacts: CsharpArtifactGraph;
   readonly names: CsharpPlanningNames;
   readonly scope: CsharpPlanningScope;
 }
@@ -89,9 +82,6 @@ export function createCsharpPlanningContext(
   program: CsharpTargetProgram,
 ): CsharpPlanningContext {
   const { objectShapes, projectTypes } = program;
-  const artifacts = createCsharpArtifactGraph({
-    objectShapeArtifacts: program.records.objectShapeArtifact,
-  });
   const classifications = createCsharpPlanningTypeClassifications(program);
   const types: CsharpPlanningTypeView = Object.freeze({
     classifications,
@@ -106,7 +96,6 @@ export function createCsharpPlanningContext(
     program,
     host: program.host,
     types,
-    artifacts,
     names,
     scope: Object.freeze({ typeParameterNames: new Map(program.names.typeParameterNames.map(parameter => [parameter.identity, parameter.name])) }),
   });
