@@ -1,37 +1,15 @@
-import type {
-  DotnetProviderDeclarationContext,
-  DotnetProviderDiagnostic,
-} from "../projection/provider.js";
-import type {
-  ProviderDeclarationMaterialization,
-} from "@tsonic/tsts";
-import type {
-  DotnetAssemblySourcePackage,
-  DotnetModuleSpecifierPolicy,
-} from "../projection/module-specifier.js";
-import {
-  normalizeDotnetAssemblySourcePackages,
-} from "../projection/module-specifier.js";
-import type {
-  DotnetProviderIdentity,
-} from "../model/index.js";
-import type {
-  DotnetProviderCacheRequest,
-} from "./cache.js";
-import type {
-  DotnetProviderToolIdentity,
-} from "./tool.js";
-import type {
-  DotnetReferenceSnapshot,
-} from "./reference-snapshot.js";
-import {
-  diagnostic,
-} from "./diagnostics.js";
-import {
-  dotnetReflectionProviderCacheAbiVersion,
-  dotnetReflectionProviderIdentity,
-} from "./provider-identity.js";
-import { defaultCsharpTargetFramework, parseCsharpTargetFramework } from "../../../target-model/configuration/framework.js";
+import type { DotnetProviderDeclarationContext, DotnetProviderDiagnostic } from "../projection/provider.js";
+import type { ProviderDeclarationMaterialization } from "@tsonic/tsts";
+import type { DotnetAssemblySourcePackage, DotnetModuleSpecifierPolicy } from "../projection/module-specifier.js";
+import { normalizeDotnetAssemblySourcePackages } from "../projection/module-specifier.js";
+import type { DotnetProviderIdentity } from "../model/index.js";
+import type { DotnetProviderCacheRequest } from "./cache.js";
+import type { DotnetProviderToolIdentity } from "./tool.js";
+import type { DotnetReferenceSnapshot } from "./reference-snapshot.js";
+import { diagnostic } from "./diagnostics.js";
+import { dotnetReflectionProviderCacheAbiVersion, dotnetReflectionProviderIdentity } from "./provider-identity.js";
+import { defaultCsharpTargetFramework } from "../../../target-model/configuration/framework.js";
+import { parseCsharpTargetFramework } from "../../../options/framework.js";
 
 export interface DotnetReflectionCacheRequestOptions {
   readonly providerIdentity?: DotnetProviderIdentity;
