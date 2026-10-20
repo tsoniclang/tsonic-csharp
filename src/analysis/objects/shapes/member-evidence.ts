@@ -1,19 +1,19 @@
 import type { Node, Type, TypePropertyInfo } from "@tsonic/tsts";
 import { ObjectLiteralProperty_Value, sourceClassFieldIsTypeOnly, sourcePropertyTypeEvidenceNodes, sourceTransformedTypeFactEvidenceNodes, sourcePresentCallableType, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpObjectShapePolicyHost } from "./model.js";
-import type { CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../../target-model/types/model.js";
-import type { CsharpTypeResolutionState } from "../../resolution/model.js";
-import { csharpNullableTargetType } from "../../../../target-model/types/carriers/nullable.js";
-import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
-import { csharpSourceMemberDisplayName } from "../../../../target-model/types/source-member-keys.js";
-import { nextState } from "../../resolution/state.js";
-import { objectShapeMemberTargetNameForKey } from "./construction.js";
-import { typeIncludesNullish } from "./source-evidence.js";
-import { resolveObjectShapeSourceMemberKey } from "./source-member-identity.js";
-import { resolveCsharpCallableTypeParameters } from "../../../constraints/callable-type-parameters.js";
-import { csharpMethodValueCoversContract, getCsharpMethodValue } from "../../../../target-model/types/method-values.js";
-import { isCsharpIntegralTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
-import type { CsharpProjectMemberTypeInstantiation } from "../../project/project-types.js";
+import type { CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpTypeResolutionState } from "../../types/resolution/model.js";
+import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { csharpSourceMemberDisplayName } from "../../../target-model/types/source-member-keys.js";
+import { nextState } from "../../types/resolution/state.js";
+import { objectShapeMemberTargetNameForKey } from "../../../policy/names/source-members.js";
+import { typeIncludesNullish } from "../../../policy/types/objects/object-shape-policy/source-evidence.js";
+import { resolveObjectShapeSourceMemberKey } from "../../../policy/types/objects/object-shape-policy/source-member-identity.js";
+import { resolveCsharpCallableTypeParameters } from "../../../policy/constraints/callable-type-parameters.js";
+import { csharpMethodValueCoversContract, getCsharpMethodValue } from "../../../target-model/types/method-values.js";
+import { isCsharpIntegralTargetType } from "../../../target-model/types/carriers/scalar-types.js";
+import type { CsharpProjectMemberTypeInstantiation } from "../../../target-model/records/project-types.js";
 
 export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePolicyHost) {
   function retainLiteralMemberEvidence(
