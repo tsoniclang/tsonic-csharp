@@ -1,7 +1,7 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { isCsharpValueTypeTargetType, resolveCsharpObjectShapeMemberBySelectedSubject, type TargetTypeRef } from "../../policy/types/index.js";
-import { selectCsharpTypedLocationStorage } from "../../policy/operations/typed-locations/typed-location-storage.js";
+import { selectCsharpTypedLocationStorage } from "../storage/typed-locations.js";
 import { type CsharpTypedLocationStorageSelection } from "../../target-model/records/typed-location-storage.js";
 
 export function classifyCsharpBoundFieldWrite(

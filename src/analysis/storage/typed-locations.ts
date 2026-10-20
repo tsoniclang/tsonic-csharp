@@ -1,22 +1,11 @@
-import type { CsharpTypedLocationStorageSelection } from "../../../target-model/records/typed-location-storage.js";
-import type {
-  Node,
-  SourceFile,
-} from "@tsonic/tsts";
+import type { CsharpTypedLocationStorageSelection } from "../../target-model/records/typed-location-storage.js";
+import type { Node, SourceFile } from "@tsonic/tsts";
 import { AsVariableDeclaration } from "@tsonic/target-api/source";
-import type {
-  CsharpPolicyContext,
-} from "../../model/context.js";
-import {
-  selectCsharpTargetElement,
-  selectCsharpTargetProperty,
-} from "../members/index.js";
-import {
-  isCsharpValueTypeTargetType,
-  targetTypeRefEquals,
-  type TargetTypeRef,
-} from "../../types/index.js";
+import type { CsharpPolicyContext } from "../../policy/model/context.js";
+import { selectCsharpTargetElement, selectCsharpTargetProperty } from "../../policy/operations/members/index.js";
+import { targetTypeRefEquals, type TargetTypeRef } from "../../policy/types/index.js";
 
+import { classifyCsharpStorageReceiver } from "../../policy/operations/typed-locations/storage.js";
 export function selectCsharpTypedLocationStorage(
   input: CsharpPolicyContext,
   expression: Node,
@@ -482,30 +471,6 @@ function selectedSourceStorageIdentity(
     category,
     identity,
   ].join("\u0000");
-}
-
-function classifyCsharpStorageReceiver(
-  type: TargetTypeRef | undefined,
-): "reference" | "value" | "unknown" {
-  if (type === undefined) {
-    return "unknown";
-  }
-  if (isCsharpValueTypeTargetType(type)) {
-    return "value";
-  }
-  switch (type.kind) {
-    case "array":
-    case "target-named":
-      return "reference";
-    case "source-primitive":
-    case "tuple":
-    case "pointer":
-    case "function-pointer":
-      return "value";
-    case "type-parameter":
-    case "opaque":
-      return "unknown";
-  }
 }
 
 function storageRejected(reason: string): CsharpTypedLocationStorageSelection {
