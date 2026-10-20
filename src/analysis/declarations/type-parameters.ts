@@ -14,7 +14,8 @@ export function analyzeCsharpTypeParameterEmission(input: { readonly ast: AstRea
     if (owner === undefined || !input.admitted(owner)) continue;
     const declaration = input.ast.as.AsTypeParameterDeclaration(node);
     const parameter = csharpSourceTypeParameter(node, input.ast);
-    if (declaration === undefined || parameter === undefined)
+    const name = input.ast.name(node);
+    if (declaration === undefined || parameter === undefined || name === undefined)
       failTargetAnalysisInvariant("tsonic-csharp", "An admitted generic parameter requires its exact checked identity.", node);
     const resolution = input.evidence.typeParameterConstraints.get(node);
     if (resolution === undefined)
@@ -28,7 +29,7 @@ export function analyzeCsharpTypeParameterEmission(input: { readonly ast: AstRea
       issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: declaration.Constraint ?? node, message: resolution.reason });
       continue;
     }
-    producer.publish(node, { identity: parameter.identity, name: declaration.name, constraints: resolution.constraints });
+    producer.publish(node, { identity: parameter.identity, name, constraints: resolution.constraints });
   }
   return Object.freeze({ records: producer.seal(), issues: Object.freeze(issues) });
 }
