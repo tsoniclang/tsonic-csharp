@@ -1,22 +1,9 @@
-import type {
-  ProviderMemberDeclaration,
-} from "@tsonic/tsts";
-import type {
-  DotnetMemberDeclaration,
-  DotnetTypeDeclaration,
-} from "../../model/index.js";
-import { tryDotnetTypeRefToProviderType } from "../../model/index.js";
+import type { ProviderMemberDeclaration } from "@tsonic/tsts";
+import type { DotnetMemberDeclaration, DotnetTypeDeclaration } from "../../model/index.js";
+import { tryDotnetTypeRefToProviderType } from "./provider-conversion.js";
 import { dotnetMemberKindToProviderKind } from "./conversions.js";
-import {
-  dotnetProviderMemberId,
-  dotnetProviderSourceMemberGroupId,
-} from "../../model/member-identity.js";
-import {
-  dotnetProviderSignatureIdsForMember,
-  dotnetSignatureToProviderSignature,
-  mergeProviderSignatures,
-  providerSignatureCallShapeKey,
-} from "./signatures.js";
+import { dotnetProviderMemberId, dotnetProviderSourceMemberGroupId } from "../../model/member-identity.js";
+import { dotnetProviderSignatureIdsForMember, dotnetSignatureToProviderSignature, mergeProviderSignatures, providerSignatureCallShapeKey } from "./signatures.js";
 
 export function mergeOwnAndBaseProviderMembers(
   ownMembers: readonly ProviderMemberDeclaration[],
@@ -133,7 +120,7 @@ export function dotnetMemberToProviderMember(
   return {
     id: providerMemberId,
     name: member.sourceName,
-    kind: member.sourceProjection === "operator-adapter"
+    kind: member.kind === "operator"
       ? "method"
       : dotnetMemberKindToProviderKind(member.kind),
     ...(member.sourceStatic !== undefined || member.static !== undefined ? { static: member.sourceStatic ?? member.static } : {}),
