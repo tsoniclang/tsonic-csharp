@@ -1,137 +1,18 @@
-import type { AstReader, Node } from "@tsonic/tsts";
+import type { CsharpObjectShapePropertyOrders, CsharpObjectShapeAuthoredOrder } from "../../target-model/records/object-shapes.js";
+import type { AstReader } from "@tsonic/tsts";
 import { orderEnumerableOwnStringProperties } from "@tsonic/target-api/source";
-import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+
 import type { CsharpObjectShapeFact, CsharpObjectShapeProjectionKind, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
 import { isSourceDeclaredNominalShape, isCsharpObjectShapeGeneratedMemberName } from "../../target-model/types/object-shape-projection.js";
-import { csharpStructuralObjectShapeIdPrefix } from "../../target-model/types/object-shape-identity.js";
+
 import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
 import { csharpFreeTypeParameterIdentities } from "../../target-model/types/generic-references.js";
 import type { CsharpObjectShapePropertyOrderSelection } from "../../target-model/records/object-shapes.js";
 
-type AuthoredOrder = CsharpObjectShapePropertyOrderSelection | { readonly kind: "empty" };
-
-interface PropertyOrders {
-  readonly projections: Readonly<Record<CsharpObjectShapeProjectionKind, AuthoredOrder>>;
-  readonly assignmentSource: CsharpObjectShapePropertyOrderSelection;
-}
-
-interface NativeImplementation {
-  readonly shape: CsharpObjectShapeFact;
-  readonly contract: TargetTypeRef;
-}
-
-const emptyOrder: CsharpObjectShapePropertyOrderSelection = Object.freeze({
-  kind: "resolved", propertyOrder: Object.freeze([]),
-});
 const emptyOccurrence = Object.freeze({ kind: "empty" as const });
 const rejected = (reason: string): CsharpObjectShapePropertyOrderSelection => Object.freeze({ kind: "rejected", reason });
 const resolved = (propertyOrder: readonly string[]): CsharpObjectShapePropertyOrderSelection =>
   Object.freeze({ kind: "resolved", propertyOrder: Object.freeze(propertyOrder) });
-const missingProjectionOrder = rejected("Object-shape projection has no exact completed own-property order proof.");
-const missingAssignmentSourceOrder = rejected("Object-shape assignment source has no exact completed own-property order proof.");
-const missingEmptyOccurrence: Readonly<Record<CsharpObjectShapeProjectionKind, CsharpObjectShapePropertyOrderSelection>> =
-  Object.freeze({
-    keys: rejected("Selected 'keys' operation has no exact authored empty-object occurrence."),
-    values: rejected("Selected 'values' operation has no exact authored empty-object occurrence."),
-    entries: rejected("Selected 'entries' operation has no exact authored empty-object occurrence."),
-    "has-own": rejected("Selected 'has-own' operation has no exact authored empty-object occurrence."),
-    assign: rejected("Selected 'assign' operation has no exact authored empty-object occurrence."),
-  });
-
-export function createCsharpObjectShapePropertyOrderIndex(
-  ast: AstReader,
-  reserveClassification: () => void,
-  completedNativeShapes: () => Iterable<CsharpObjectShapeFact>,
-  nativeImplementationAccepts: (source: TargetTypeRef, target: TargetTypeRef) => boolean,
-) {
-  if (typeof completedNativeShapes !== "function") {
-    throw new TypeError("C# own-property analysis requires its completed native shape input.");
-  }
-  if (typeof nativeImplementationAccepts !== "function") {
-    throw new TypeError("C# own-property analysis requires its canonical native implementation relation.");
-  }
-  const emptyLiterals = new WeakSet<Node>();
-  const byType = new WeakMap<TargetTypeRef, WeakMap<CsharpObjectShapeFact["members"], PropertyOrders>>();
-  const occurrences = new WeakMap<Node, {
-    readonly type: TargetTypeRef;
-    readonly members: CsharpObjectShapeFact["members"];
-    readonly orders: PropertyOrders;
-  }>();
-  let implementations: ReadonlyMap<string, readonly NativeImplementation[]> | undefined;
-  let sealed = false;
-  const record = (shape: CsharpObjectShapeFact): void => {
-    if (sealed) throw new Error("C# own-property order analysis is sealed.");
-    const byMembers = byType.get(shape.targetType) ?? new WeakMap<CsharpObjectShapeFact["members"], PropertyOrders>();
-    if (byMembers.has(shape.members)) return;
-    reserveClassification();
-    if (implementations === undefined) {
-      const selected = new Map<string, NativeImplementation[]>();
-      const seen = new Set<CsharpObjectShapeFact>();
-      const pending = [...completedNativeShapes()];
-      for (const candidate of pending) {
-        if (seen.has(candidate)) continue;
-        reserveClassification();
-        seen.add(candidate);
-        if (candidate.declarationTemplate !== undefined) pending.push(candidate.declarationTemplate);
-        if (isInterfaceShape(candidate)) continue;
-        for (const implemented of candidate.implements ?? []) {
-          reserveClassification();
-          if (implemented.kind !== "target-named") continue;
-          const values = selected.get(implemented.id) ?? [];
-          values.push({ shape: candidate, contract: implemented });
-          selected.set(implemented.id, values);
-        }
-      }
-      implementations = selected;
-    }
-    const native: CsharpObjectShapeFact[] = [];
-    let complete = true;
-    for (const implementation of shape.targetType.kind === "target-named" ? implementations.get(shape.targetType.id) ?? [] : []) {
-      reserveClassification();
-      const match = nativeInstantiationCanMatch(shape.targetType, implementation.contract, nativeImplementationAccepts);
-      if (match === undefined) complete = false;
-      else if (match) native.push(implementation.shape);
-    }
-    byMembers.set(shape.members, classifyPropertyOrders(shape, ast, complete ? native : undefined));
-    byType.set(shape.targetType, byMembers);
-  };
-  const selection = (shape: CsharpObjectShapeFact): PropertyOrders | undefined => {
-    if (!sealed) throw new Error("C# own-property order queries require completed analysis.");
-    return byType.get(shape.targetType)?.get(shape.members);
-  };
-  return Object.freeze({
-    record,
-    recordOccurrence(node: Node, authored: CsharpObjectShapeFact, completed: CsharpObjectShapeFact): void {
-      if (sealed) return failTargetAnalysisInvariant("tsonic-csharp", "C# own-property order analysis is sealed.", node);
-      const orders = byType.get(authored.targetType)?.get(authored.members);
-      if (orders === undefined || byType.get(completed.targetType)?.has(completed.members) !== true) {
-        return failTargetAnalysisInvariant("tsonic-csharp", "C# own-property occurrence requires its completed authored order.", node);
-      }
-      occurrences.set(node, Object.freeze({ type: completed.targetType, members: completed.members, orders }));
-    },
-    recordEmptyLiteral(node: Node): void {
-      if (sealed) throw new Error("C# own-property order analysis is sealed.");
-      if (emptyLiterals.has(node) || !ast.is.IsObjectLiteralExpression(node) || ast.properties(node).length !== 0) return;
-      reserveClassification();
-      emptyLiterals.add(node);
-    },
-    seal(): void { sealed = true; },
-    propertyOrder(shape: CsharpObjectShapeFact, sourceValue: Node | undefined,
-      projection: CsharpObjectShapeProjectionKind): CsharpObjectShapePropertyOrderSelection {
-      const completed = selection(shape);
-      const occurrence = sourceValue === undefined ? undefined : occurrences.get(sourceValue);
-      const selected = (occurrence !== undefined && occurrence.type === shape.targetType && occurrence.members === shape.members
-        ? occurrence.orders : completed)?.projections[projection];
-      if (selected === undefined) return missingProjectionOrder;
-      return selected.kind !== "empty" ? selected
-        : sourceValue !== undefined && emptyLiterals.has(sourceValue) ? emptyOrder
-          : missingEmptyOccurrence[projection];
-    },
-    assignmentSourceOrder(shape: CsharpObjectShapeFact): CsharpObjectShapePropertyOrderSelection {
-      return selection(shape)?.assignmentSource ?? missingAssignmentSourceOrder;
-    },
-  });
-}
 
 function isInterfaceShape(fact: CsharpObjectShapeFact): boolean {
   return fact.targetType.kind === "target-named" &&
@@ -139,7 +20,7 @@ function isInterfaceShape(fact: CsharpObjectShapeFact): boolean {
       (fact.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "interface");
 }
 
-function nativeInstantiationCanMatch(
+export function csharpNativeInstantiationCanMatch(
   target: TargetTypeRef, source: TargetTypeRef,
   nativeAccepts: (source: TargetTypeRef, target: TargetTypeRef) => boolean,
 ): boolean | undefined {
@@ -158,15 +39,14 @@ function nativeInstantiationCanMatch(
 }
 
 function hasExactNativeOwnStorage(fact: CsharpObjectShapeFact): boolean {
-  if (fact.targetType.kind !== "target-named" ||
-    !fact.targetType.id.startsWith(csharpStructuralObjectShapeIdPrefix)) return false;
+  if (fact.targetType.kind !== "target-named") return false;
   const type = fact.targetType as CsharpTargetNamedTypeRef;
-  return type.csharpRender?.kind === "named" && type.csharpStructuralContract !== true &&
+  return type.csharpGeneratedStructuralStorage === true && type.csharpRender?.kind === "named" && type.csharpStructuralContract !== true &&
     type.csharpSourceDeclarationKind === undefined && type.csharpJsValueCarrier !== true;
 }
 
-function classifyPropertyOrders(fact: CsharpObjectShapeFact, ast: AstReader,
-  implementations: readonly CsharpObjectShapeFact[] | undefined): PropertyOrders {
+export function analyzeCsharpObjectShapePropertyOrders(fact: CsharpObjectShapeFact, ast: AstReader,
+  implementations: readonly CsharpObjectShapeFact[] | undefined): CsharpObjectShapePropertyOrders {
   const stringMembers = fact.members.filter(member => member.sourceKey.kind === "property");
   const nominal = isSourceDeclaredNominalShape(fact);
   const reserved = fact.members.some(member => isCsharpObjectShapeGeneratedMemberName(member.targetName));
@@ -182,8 +62,8 @@ function classifyPropertyOrders(fact: CsharpObjectShapeFact, ast: AstReader,
     : reserved ? "conflicts with a reserved generated object-shape member name."
     : isInterfaceShape(fact) && !exactOwnSet
       ? "requires an exact own-property set for every admitted native implementation; a structural view alone is insufficient." : undefined;
-  const authored = commonReason === undefined ? classifyAuthoredOrder(fact, ast, exactOwnSet) : undefined;
-  const enumeration = (projection: "keys" | "values" | "entries"): AuthoredOrder => {
+  const authored = commonReason === undefined ? classifyCsharpObjectShapeAuthoredOrder(fact, ast, exactOwnSet) : undefined;
+  const enumeration = (projection: "keys" | "values" | "entries"): CsharpObjectShapeAuthoredOrder => {
     if (commonReason !== undefined) return rejected(`Selected '${projection}' operation ${commonReason}`);
     return authored?.kind === "rejected" ? rejected(`Selected '${projection}' operation ${authored.reason}`) : authored!;
   };
@@ -203,7 +83,7 @@ function classifyPropertyOrders(fact: CsharpObjectShapeFact, ast: AstReader,
     entries: enumeration("entries"), "has-own": hasOwn, assign }), assignmentSource });
 }
 
-function classifyAuthoredOrder(fact: CsharpObjectShapeFact, ast: AstReader, exactOwnSet: boolean): AuthoredOrder {
+function classifyCsharpObjectShapeAuthoredOrder(fact: CsharpObjectShapeFact, ast: AstReader, exactOwnSet: boolean): CsharpObjectShapeAuthoredOrder {
   if (fact.members.length === 0) return emptyOccurrence;
   const selected = fact.members.map(member => {
     const declarations = member.sourceDeclarations?.filter(declaration => {

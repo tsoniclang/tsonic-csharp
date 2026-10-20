@@ -50,3 +50,10 @@ export interface CsharpObjectShapeAnalysis extends CsharpObjectShapeClassificati
 export type CsharpObjectShapePropertyOrderSelection =
   | { readonly kind: "resolved"; readonly propertyOrder: readonly string[] }
   | { readonly kind: "rejected"; readonly reason: string };
+
+export type CsharpObjectShapeAuthoredOrder = CsharpObjectShapePropertyOrderSelection | { readonly kind: "empty" };
+
+export interface CsharpObjectShapePropertyOrders {
+  readonly projections: Readonly<Record<CsharpObjectShapeProjectionKind, CsharpObjectShapeAuthoredOrder>>;
+  readonly assignmentSource: CsharpObjectShapePropertyOrderSelection;
+}

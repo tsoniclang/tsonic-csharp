@@ -62,7 +62,7 @@ export function createStructuralObjectShapeTarget(
   const jsValueType = csharpTsValueTargetType();
   return Object.freeze(csharpTargetNamedType(`${csharpStructuralObjectShapeIdPrefix}${identity}`, typeParameters.length === 0 ? undefined : typeParameters, jsValueCarrier && jsValueType.kind === "target-named"
       ? jsValueType.csharpRender
-      : { kind: "named", name }, { ...(jsValueCarrier
+      : { kind: "named", name }, { generatedStructuralStorage: true, ...(jsValueCarrier
       ? {
           valueType: true,
           absorbsNullish: true,

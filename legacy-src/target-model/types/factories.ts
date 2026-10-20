@@ -32,6 +32,7 @@ export function csharpTargetNamedType(
     readonly sourceDeclarationKind?: CsharpTargetNamedTypeRef["csharpSourceDeclarationKind"];
     readonly baseType?: TargetTypeRef;
     readonly structuralContract?: true;
+    readonly generatedStructuralStorage?: true;
     readonly throwable?: true;
     readonly typeofRuntimeKind?: CsharpTypeofRuntimeKind;
     readonly valueType?: true;
@@ -88,6 +89,7 @@ export function csharpTargetNamedType(
     ...(metadata.sourceDeclarationKind !== undefined ? { csharpSourceDeclarationKind: metadata.sourceDeclarationKind } : {}),
     ...(metadata.baseType !== undefined ? { csharpBaseType: metadata.baseType } : {}),
     ...(metadata.structuralContract === true ? { csharpStructuralContract: true as const } : {}),
+    ...(metadata.generatedStructuralStorage === true ? { csharpGeneratedStructuralStorage: true as const } : {}),
     ...(metadata.throwable === true ? { csharpThrowable: true } : {}),
     ...(metadata.typeofRuntimeKind !== undefined ? { csharpTypeofRuntimeKind: metadata.typeofRuntimeKind } : {}),
     ...(metadata.valueType === true ? { csharpValueType: true } : {}),
