@@ -1,3 +1,4 @@
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpSourceCallableContract } from "../../target-model/records/source-callable-contract.js";
@@ -17,7 +18,7 @@ export function closeCsharpProjectCallableContracts(
     const declaration = implementation.sourceDeclaration;
     const cached = resolved.get(declaration);
     if (cached !== undefined) return cached;
-    if (active.has(declaration)) throw new Error("Checked project callable inheritance contains a cycle.");
+    if (active.has(declaration)) failTargetAnalysisInvariant("tsonic-csharp", "Checked project callable inheritance contains a cycle.", declaration);
     if (!policy.ast.is.IsMethodDeclaration(declaration) || policy.ast.hasModifierKind(declaration, "static")) return implementation;
     const owner = policy.projectTypes.catalog.definitionForDeclaration(policy.ast.parent(declaration));
     if (owner?.kind !== "class") return implementation;
