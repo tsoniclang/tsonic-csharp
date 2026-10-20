@@ -2,11 +2,7 @@ import { dotnetConversionOperatorNameMatchesKind, validateDotnetTargetIdentity, 
 import { requireNonEmptyString, requireSupportedDiscriminant, requireUnique, supportedDotnetConversionKinds, supportedDotnetConversionOperatorNames, supportedDotnetExportKinds, supportedDotnetMemberKinds, supportedDotnetTypeKinds, supportedReturnPassingModes } from "./support.js";
 import { validateDotnetConstraints, validateDotnetSignatureList, validateDotnetTypeParameters, validateUnsupportedConstraints, validateUnsupportedMembers } from "./dotnet-signatures.js";
 import { validateDotnetTypeRef, validateOptionalDotnetTypeRef } from "./dotnet-types.js";
-import type {
-  DotnetExportDeclaration,
-  DotnetMemberDeclaration,
-  DotnetTypeDeclaration,
-} from "../index.js";
+import type { DotnetExportDeclaration, DotnetMemberDeclaration, DotnetTypeDeclaration } from "../index.js";
 import type { ContractCollector } from "./support.js";
 import { validateDotnetInheritance } from "./dotnet-inheritance.js";
 
