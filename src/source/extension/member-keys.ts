@@ -1,11 +1,7 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
-import type { CsharpSourceMemberKey } from "../../../../target-model/types/model.js";
-import {
-  csharpPropertySourceMemberKey,
-  csharpSourceMemberKeysEqual,
-  csharpWellKnownSymbolSourceMemberKey,
-} from "../../../../target-model/types/source-member-keys.js";
+import type { CsharpSourceMemberKey } from "../../target-model/types/model.js";
+import { csharpPropertySourceMemberKey, csharpSourceMemberKeysEqual, csharpWellKnownSymbolSourceMemberKey } from "../../target-model/types/source-member-keys.js";
 
 export function resolveObjectShapeSourceMemberKey(
   declarations: readonly Node[],

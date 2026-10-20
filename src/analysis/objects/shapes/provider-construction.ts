@@ -11,7 +11,7 @@ import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "..
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpSourceMemberDisplayName } from "../../../target-model/types/source-member-keys.js";
-import { resolveObjectShapeSourceMemberKey } from "../../../policy/types/objects/object-shape-policy/source-member-identity.js";
+import { resolveObjectShapeSourceMemberKey } from "../../../source/extension/member-keys.js";
 import { typeIncludesNullish } from "./source-evidence.js";
 
 type CsharpProviderTypeRelation = Extract<

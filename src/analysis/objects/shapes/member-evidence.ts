@@ -9,7 +9,7 @@ import { csharpSourceMemberDisplayName } from "../../../target-model/types/sourc
 import { nextState } from "../../types/resolution/state.js";
 import { objectShapeMemberTargetNameForKey } from "../../../policy/names/source-members.js";
 import { typeIncludesNullish } from "./source-evidence.js";
-import { resolveObjectShapeSourceMemberKey } from "../../../policy/types/objects/object-shape-policy/source-member-identity.js";
+import { resolveObjectShapeSourceMemberKey } from "../../../source/extension/member-keys.js";
 import { resolveCsharpCallableTypeParameters } from "../../../policy/constraints/callable-type-parameters.js";
 import { csharpMethodValueCoversContract, getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import { isCsharpIntegralTargetType } from "../../../target-model/types/carriers/scalar-types.js";
