@@ -372,7 +372,9 @@ function visit(
     );
   }
   if (ast.is.IsDeleteExpression(node)) {
-    setClassification(builder, node, elementDeletionKey, selectCsharpElementDeletion(policy, node, sourceFile));
+    const selection = selectCsharpElementDeletion(policy, node, sourceFile);
+    if (selection.kind === "rejected") issues?.push(Object.freeze({ node, code: "CSHARP_UNSUPPORTED_AST", message: selection.reason }));
+    setClassification(builder, node, elementDeletionKey, selection);
   }
   if (ast.is.IsBinaryExpression(node) ||
     ast.is.IsPrefixUnaryExpression(node) || ast.is.IsPostfixUnaryExpression(node)) {
