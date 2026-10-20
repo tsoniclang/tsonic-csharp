@@ -1,5 +1,3 @@
-export const defaultCsharpTargetFramework = "net10.0";
-
 export function parseCsharpTargetFramework(value: string): {
   readonly major: number;
   readonly minor: number;
