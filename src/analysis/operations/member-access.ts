@@ -1,31 +1,16 @@
-import type {
-  ResolvedSourceElementAccessInfo,
-  SourceFile,
-} from "@tsonic/tsts";
+import { optionalResultType } from "../../policy/operations/members/optional-results.js";
+import type { ResolvedSourceElementAccessInfo, SourceFile } from "@tsonic/tsts";
 import { readCsharpSourceField } from "../../policy/types/resolution/source-markers.js";
 import { sourceParameterIsProperty } from "@tsonic/target-api/source";
 import type { CsharpTargetElementSelection } from "../../target-model/records/member-selections.js";
 import { validateCsharpJsValueOperationSelection } from "../../policy/operations/js-values/selection.js";
-import {
-  resolveCsharpJsValueObjectShapeProperty,
-  selectCsharpTargetProperty,
-} from "../../policy/operations/members/index.js";
-import {
-  selectCsharpJsValueReceiverExpressionOperation,
-  selectCsharpJsValueReceiverOperation,
-} from "../../policy/operations/js-values/index.js";
-import {
-  csharpNullableTargetType,
-  resolveCsharpObjectShapeMemberBySelectedSubject,
-  resolveCsharpObjectShapeMemberReadTargetType,
-  resolveCsharpRuntimeUnionObjectShapeProperty,
-} from "../../policy/types/index.js";
-import {
-  selectCsharpFlowReadConversion,
-} from "../../policy/conversions/index.js";
+import { resolveCsharpJsValueObjectShapeProperty, selectCsharpTargetProperty } from "../../policy/operations/members/index.js";
+import { selectCsharpJsValueReceiverExpressionOperation, selectCsharpJsValueReceiverOperation } from "../../policy/operations/js-values/index.js";
+import { resolveCsharpObjectShapeMemberBySelectedSubject, resolveCsharpObjectShapeMemberReadTargetType, resolveCsharpRuntimeUnionObjectShapeProperty } from "../../policy/types/index.js";
+import { selectCsharpFlowReadConversion } from "../../policy/conversions/index.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpElementClassification, CsharpPropertyClassification, CsharpMemberReceiverProjection } from "../../target-model/records/operations.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+
 import { classifyCsharpBoundFieldWrite } from "./bound-field-writes.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
@@ -211,13 +196,4 @@ export function classifySourceOwnedMember(
       selection.source.optionalChain,
     ),
   });
-}
-
-export function optionalResultType(
-  type: TargetTypeRef | undefined,
-  optional: boolean,
-): TargetTypeRef | undefined {
-  return type === undefined || !optional
-    ? type
-    : csharpNullableTargetType(type);
 }

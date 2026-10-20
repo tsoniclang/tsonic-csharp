@@ -88,13 +88,8 @@ import {
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import { classifyExactUnmodifiedCatchRethrow } from "./catch-rethrow.js";
 import { selectCsharpThrownOperandCarrier } from "../../policy/conversions/program-error.js";
-import {
-  classifySourceOwnedMember,
-  classifySourceOwnedElementMember,
-  classifyCsharpMemberReceiver,
-  elementSelectedTypes,
-  optionalResultType,
-} from "./member-access.js";
+import { classifySourceOwnedMember, classifySourceOwnedElementMember, classifyCsharpMemberReceiver, elementSelectedTypes } from "./member-access.js";
+import { optionalResultType } from "../../policy/operations/members/optional-results.js";
 
 const callKey = createTargetClassificationKey<CsharpCallClassification>(
   "csharp.operation.call",
