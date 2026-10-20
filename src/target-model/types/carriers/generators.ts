@@ -1,22 +1,6 @@
-import type {
-  CsharpGeneratorProtocol,
-  CsharpIteratorResultProtocol,
-  CsharpTargetNamedTypeRef,
-  TargetTypeRef,
-} from "../model.js";
-import {
-  csharpQualifiedTypeRenderShape,
-} from "../render-shapes.js";
-import {
-  csharpTargetNamedType,
-} from "../factories.js";
-import {
-  csharpObjectTargetType,
-  csharpUnitTargetType,
-} from "./scalar-types.js";
-import {
-  isCsharpVoidTargetType,
-} from "../identity.js";
+import type { CsharpGeneratorProtocol, CsharpIteratorResultProtocol, CsharpTargetNamedTypeRef, TargetTypeRef } from "../model.js";
+import { csharpQualifiedTypeRenderShape } from "../render-shapes.js";
+import { csharpTargetNamedType } from "../factories.js";
 
 export function csharpGeneratorTargetType(
   protocol: Omit<CsharpGeneratorProtocol, "kind">,
@@ -65,17 +49,6 @@ export function getCsharpIteratorResultProtocol(
   return type?.kind === "target-named"
     ? (type as CsharpTargetNamedTypeRef).csharpIteratorResultProtocol
     : undefined;
-}
-
-export function closeCsharpGeneratorProtocolType(
-  type: TargetTypeRef,
-): TargetTypeRef {
-  if (type.kind === "opaque" && type.id === "unknown") {
-    return csharpObjectTargetType();
-  }
-  return isCsharpVoidTargetType(type)
-    ? csharpUnitTargetType()
-    : type;
 }
 
 function generatorTargetType(

@@ -1,6 +1,7 @@
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 
-import { csharpAsyncGeneratorTargetType, csharpGeneratorTargetType, csharpIteratorResultTargetType, closeCsharpGeneratorProtocolType } from "../../../target-model/types/carriers/generators.js";
+import { csharpAsyncGeneratorTargetType, csharpGeneratorTargetType, csharpIteratorResultTargetType } from "../../../target-model/types/carriers/generators.js";
+import { closeCsharpGeneratorProtocolType } from "../../types/callables/generators.js";
 import { csharpJsArrayTargetType, csharpJsDateTargetType, csharpJsMapTargetType, csharpJsRegExpExecArrayTargetType, csharpJsRegExpIndicesArrayTargetType, csharpJsRegExpMatchArrayTargetType, csharpJsRegExpNamedGroupsTargetType, csharpJsRegExpNamedIndicesTargetType, csharpJsRegExpStringIteratorTargetType, csharpJsRegExpTargetType, csharpExactJsRegExpExecArrayTargetType, csharpExactJsRegExpIndicesArrayTargetType, csharpExactJsRegExpMatchArrayTargetType, csharpExactJsRegExpNamedGroupsTargetType, csharpExactJsRegExpNamedIndicesTargetType, csharpExactJsRegExpStringIteratorTargetType, csharpJsSetTargetType, csharpJsWeakMapTargetType, csharpJsWeakSetTargetType, csharpJsArrayBufferTargetType, csharpJsDataViewTargetType, csharpJsTypedArrayTargetType, csharpJsPromiseFulfilledResultTargetType, csharpJsPromiseRejectedResultTargetType, csharpJsIntlTargetType, type CsharpJsTypedArrayName } from "../../../target-model/types/carriers/js.js";
 import { classifyCsharpSourceProfileType } from "../../identities/source-types.js";
 
