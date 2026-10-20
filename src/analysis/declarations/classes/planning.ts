@@ -4,7 +4,8 @@ import type { CsharpClassFactoryIndex } from "../../../target-model/records/clas
 import type { CsharpCaptureStorage } from "../../../target-model/records/capture-storage.js";
 import type { CsharpProjectTypeClassifications } from "../../../target-model/records/project-types.js";
 import type { CsharpStorageClassifications } from "../../../target-model/records/storage.js";
-import type { CsharpClassCaptureEmission, CsharpNativeClassEmission } from "../../../target-model/records/class-emission.js";
+import type { CsharpClassCaptureEmission, CsharpNativeClassEmission, CsharpForwardingConstructorEmission } from "../../../target-model/records/class-emission.js";
+import { selectCsharpForwardingConstructor } from "../../../policy/declarations/forwarding-constructors.js";
 import type { CsharpNamePlan } from "../../../target-model/names/model.js";
 import { createCsharpClassEmissionRecords } from "../../program/records/class-emission.js";
 import { sourceObjectMemberDeclarations } from "@tsonic/target-api/source";
@@ -44,19 +45,23 @@ export function analyzeCsharpClassEmission(input: {
     }
     const implicit = input.projectTypes.implicitConstructorsForDeclaration(node);
     if (implicit === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted class requires its native implicit-constructor model.", node);
-    let implicitCount = 0;
+    const forwardingConstructors: CsharpForwardingConstructorEmission[] = [];
     for (const constructor of implicit) {
-      const parameters = constructor.targetMember.parameters;
-      let required = parameters.length;
-      while (required > 0 && parameters[required - 1]?.csharpOmittableOptionalArgument === true) required -= 1;
-      implicitCount += parameters.some(parameter => parameter.paramsArray === true) ? 1 : parameters.length - required + 1;
+      const selected = selectCsharpForwardingConstructor(constructor.targetMember.parameters);
+      const subject = constructor.source.declaration ?? constructor.definition.declaration;
+      if (selected.kind === "unsupported") {
+        issues.push(Object.freeze({ code: selected.code, category: "error", source: "tsonic-csharp", sourceNode: subject, message: selected.message }));
+        continue;
+      }
+      for (const parameters of selected.variants) forwardingConstructors.push(Object.freeze({ subject, parameters }));
     }
+    const implicitCount = forwardingConstructors.length;
     if (factory !== undefined && authoredConstructor === undefined && implicitCount > 1) {
       issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node,
         message: "A local class factory requires one exact planned constructor and its environment parameter." });
       continue;
     }
-    classes.set(node, Object.freeze({ name: selectedName.name, abstract: definition.abstract, staticCompanion: definition.staticCompanion,
+    classes.set(node, Object.freeze({ forwardingConstructors: Object.freeze(forwardingConstructors), name: selectedName.name, abstract: definition.abstract, staticCompanion: definition.staticCompanion,
       instanceMembers: Object.freeze(members), staticMembers: Object.freeze(staticMembers), authoredConstructor,
       factoryConstructor: authoredConstructor === undefined ? implicitCount === 0 ? "default" : "implicit" : "authored" }));
     if (factory === undefined) continue;

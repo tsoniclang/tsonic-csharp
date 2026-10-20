@@ -3,6 +3,7 @@ import type { TargetTypeRef } from "../types/model.js";
 import type { CsharpCaptureFrame } from "./capture-storage.js";
 
 export interface CsharpNativeClassEmission {
+  readonly forwardingConstructors: readonly CsharpForwardingConstructorEmission[];
   readonly name: string;
   readonly abstract: boolean;
   readonly staticCompanion: boolean;
@@ -10,6 +11,16 @@ export interface CsharpNativeClassEmission {
   readonly staticMembers: readonly Node[];
   readonly authoredConstructor: Node | undefined;
   readonly factoryConstructor: "authored" | "implicit" | "default";
+}
+
+export interface CsharpForwardingConstructorEmission {
+  readonly subject: Node;
+  readonly parameters: readonly {
+    readonly name: string;
+    readonly carrier: TargetTypeRef;
+    readonly passing: "in" | "out" | "ref" | undefined;
+    readonly paramsArray: boolean;
+  }[];
 }
 
 export type CsharpClassCaptureEmission =

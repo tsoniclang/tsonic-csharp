@@ -60,7 +60,6 @@ export function planClassDeclaration(
     node,
     className,
     input,
-    diagnostics,
   );
   const safetyDefaultConstructors = selected.authoredConstructor !== undefined ||
       implicitConstructors.length > 0
