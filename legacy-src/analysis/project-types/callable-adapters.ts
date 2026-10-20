@@ -17,7 +17,7 @@ import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-mo
 import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
 import { admitCsharpCallableParameterAdapters, admitCsharpCallableResultAdapter, type CsharpCallableConversionPolicy } from "../callables/adapters.js";
 import { csharpCallableParametersEqual, instantiateCsharpInheritedCallable } from "../callables/instantiation.js";
-import type { CsharpCallableContractIndex } from "../callables/model.js";
+import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
 import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 import { finalizeCsharpStructuralInterfaceForwarding } from "../objects/structural-forwarding.js";
 import { csharpTypeParameterConstraintsEqual, csharpTypeParameterConstraintsImply } from "../../policy/constraints/type-parameter-constraints.js";

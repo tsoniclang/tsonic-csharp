@@ -9,7 +9,8 @@ import { csharpConversionIsApplicable } from "../../target-model/conversions/sel
 import { getCsharpLambdaSignature } from "../../target-model/types/carriers/delegates.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
-import type { CsharpCallableContractIndex, CsharpCallableCreationIndex } from "./model.js";
+import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
+import type { CsharpCallableCreationIndex } from "../../target-model/records/callable-values.js";
 import { csharpCallableValueType } from "./value-type.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 

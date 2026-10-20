@@ -8,7 +8,7 @@ import type { CsharpValueReadStageIndex } from "../../target-model/records/conve
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
-import type { CsharpCallableContractIndex } from "../callables/index.js";
+import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
 import { createCsharpExpectedUseCollection } from "./collection.js";
 import { createCsharpExpectedReturnTargets } from "./return-targets.js";
 import { createCsharpExpectedConstructUses } from "./construct-uses.js";

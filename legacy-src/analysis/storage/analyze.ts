@@ -18,7 +18,7 @@ import {
 } from "../../policy/types/index.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
-import type { CsharpCallableContractIndex } from "../callables/model.js";
+import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import {
   selectCsharpSourceArgument,

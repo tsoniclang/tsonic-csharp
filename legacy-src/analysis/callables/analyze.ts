@@ -14,12 +14,13 @@ import {
   targetTypeRefEquals,
 } from "../../policy/types/index.js";
 import type { CsharpProjectForwardingConstructor } from "../../target-model/records/project-types.js";
-import type { CsharpSourceCallableArtifactIdentity, CsharpTargetParameter, TargetTypeRef } from "../../policy/types/index.js";
+import type { CsharpTargetParameter, TargetTypeRef } from "../../policy/types/index.js";
+import type { CsharpSourceCallableArtifactIdentity } from "../../target-model/records/callable-identities.js";
 import type { CsharpSourceCallableContract, CsharpSourceCallableParameterContract } from "../../target-model/records/source-callable-contract.js";
 import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
 import type { CsharpSourceNameResolver } from "../names/index.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
-import type { CsharpCallableContractIndex } from "./model.js";
+import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
 import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
 import type { CsharpGenericProjectionIndex } from "../../target-model/records/type-projections.js";
 import { closeCsharpProjectCallableContracts } from "../project-types/callable-contracts.js";

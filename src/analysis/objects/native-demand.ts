@@ -6,7 +6,7 @@ import type { TargetDiagnostic, TargetStageResult } from "@tsonic/target-api/art
 import type { TargetUseSiteRef } from "@tsonic/target-api/analysis";
 import { targetUseSiteIdentity } from "@tsonic/target-api/analysis";
 import type { CsharpNativeDemandAnalysis } from "../operations/native-demand-model.js";
-import type { CsharpCallableContractIndex } from "../callables/model.js";
+import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
 import type { CsharpCaptureFrame, CsharpCaptureStorage } from "../../target-model/records/capture-storage.js";
 import type { CsharpValueReadClassifications, CsharpConversionClassifications } from "../../target-model/records/conversions.js";
 import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";

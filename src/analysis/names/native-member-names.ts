@@ -28,7 +28,8 @@ import type { CsharpObjectShapeDemandClosure } from "../../target-model/records/
 import type { CsharpNativeValueCarriers } from "../../target-model/records/native-value-carriers.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
 import type { CsharpModuleInitializationIndex } from "../../target-model/records/module-initialization.js";
-import type { CsharpCallableContractIndex, CsharpCallableCreationIndex } from "../callables/model.js";
+import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
+import type { CsharpCallableCreationIndex } from "../../target-model/records/callable-values.js";
 import type { CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
 import { objectShapeArtifactKey } from "../program/records/object-shape-keys.js";
 import { objectShapeStorageMemberName, objectShapeBoundStorageMemberName,

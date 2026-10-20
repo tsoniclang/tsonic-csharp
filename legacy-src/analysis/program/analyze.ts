@@ -154,9 +154,7 @@ import {
   analyzeCsharpCallableContracts,
   csharpCallableContractIndexesEqual,
 } from "../callables/index.js";
-import type {
-  CsharpCallableContractIndex,
-} from "../callables/index.js";
+import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
 import {
   analyzeCsharpObjectShapes,
 } from "../objects/index.js";

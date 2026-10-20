@@ -4,7 +4,7 @@ import { HasSyntacticModifier, ModifierFlagsAsync, forEachSourceImmediateEvaluat
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpLambdaBodyEmission } from "../../target-model/records/lambda-emission.js";
 import type { CsharpCaptureStorage } from "../../target-model/records/capture-storage.js";
-import type { CsharpCallableCreationIndex } from "./model.js";
+import type { CsharpCallableCreationIndex } from "../../target-model/records/callable-values.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
 import type { CsharpExpectedTypeClassifications } from "../../target-model/records/expected-types.js";
 import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";

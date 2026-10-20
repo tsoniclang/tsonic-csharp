@@ -22,7 +22,7 @@ import type { CsharpGenericProjectionIndex } from "../../../target-model/records
 import type { CsharpProgramRecords } from "../../../target-model/records/program.js";
 import type { CsharpNativeValueCarriers } from "../../../target-model/records/native-value-carriers.js";
 import { assertCsharpRequiredRecords, type CsharpRequiredRecord } from "./required-records.js";
-import type { CsharpCallableCreationIndex } from "../../callables/model.js";
+import type { CsharpCallableCreationIndex } from "../../../target-model/records/callable-values.js";
 import type { CsharpObjectShapeDemand } from "../../../target-model/records/object-shape-demand.js";
 import type { CsharpAdmittedIteration } from "../../../target-model/records/selection.js";
 import type { CsharpStatementExitRecords } from "../../../target-model/records/statement-exits.js";

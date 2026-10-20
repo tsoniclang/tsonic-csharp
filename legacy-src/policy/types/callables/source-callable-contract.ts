@@ -12,15 +12,6 @@ export function csharpSourceCallArgumentParameter(
   return callable.parameters[restIndex < 0 ? effectiveArgumentIndex : Math.min(effectiveArgumentIndex, restIndex)];
 }
 
-export type CsharpSourceCallableArtifactIdentity =
-  | {
-      readonly kind: "declaration";
-      readonly declaration: Node;
-    }
-  | {
-      readonly kind: "project-constructor";
-      readonly targetMemberId: string;
-    };
 
 export function isCsharpSourceCallableArtifactDeclaration(
   ast: AstReader,
