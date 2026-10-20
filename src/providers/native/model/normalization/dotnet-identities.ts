@@ -1,12 +1,5 @@
 import { requireNonEmptyString, requireOptionalNonEmptyString, requireString, requireSupportedDiscriminant, supportedDotnetRenderShapeKinds } from "./support.js";
-import type {
-  DotnetAssemblyReference,
-  DotnetConversionOperatorDeclaration,
-  DotnetMemberDeclaration,
-  DotnetParameterDefaultValue,
-  DotnetUnsupportedDefaultValueDeclaration,
-  DotnetUnsupportedMemberDeclaration,
-} from "../index.js";
+import type { DotnetAssemblyReference, DotnetConversionOperatorDeclaration, DotnetMemberDeclaration, DotnetParameterDefaultValue, DotnetUnsupportedDefaultValueDeclaration, DotnetUnsupportedMemberDeclaration } from "../index.js";
 import type { ContractCollector } from "./support.js";
 import type { DotnetRenderShape } from "../types.js";
 
