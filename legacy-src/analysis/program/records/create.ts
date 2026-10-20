@@ -250,6 +250,7 @@ export function createCsharpProgramRecords(
     propertyProjection: input.conversions.propertyProjection,
     delegateAdapters: input.conversions.delegateAdapters,
     delegateAdapter: input.conversions.delegateAdapter,
+    delegateContract: input.conversions.delegateContract,
     directCallableReference: input.conversions.directCallableReference,
     conversion: input.conversions.conversion,
     expressionConversion: input.conversions.expressionConversion,

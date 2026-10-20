@@ -4,7 +4,7 @@ import type { CsharpPlanningContext } from "../../context.js";
 import type { CsharpExpression, CsharpStatement } from "../../../target-ast/syntax/index.js";
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
 import { planIdentifierExpression } from "../../expressions/expression-source-references.js";
-import { planCsharpDelegateAdaptationBody } from "../../expressions/delegate-adapters.js";
+import { planCsharpDelegateAdaptationBody } from "../../expressions/callable-conversions.js";
 import { applyCsharpConversionSelection } from "../../expressions/conversions.js";
 import { getCsharpDelegateSignature } from "../../../../target-model/types/carriers/delegates.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";

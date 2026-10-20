@@ -98,7 +98,8 @@ export function planArrowFunctionExpression(node: Node, sourceFile: SourceFile, 
     }
     if (expression?.kind !== "LambdaExpression" || input.scope.nativeCallableBody?.declaration === node ||
       creationPolicy.kind === "inline") {
-      return planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, expression, carrier);
+      const planned = planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, expression, carrier);
+      return planned === undefined || expression?.kind !== "LambdaExpression" ? planned : { ...planned, callable: { kind: "lambda", expression } };
     }
     const body: CsharpBlock = expression.body.kind === "Block" ? expression.body : {
       kind: "Block", statements: targetContext?.signature.returnTargetType !== undefined &&
@@ -109,12 +110,14 @@ export function planArrowFunctionExpression(node: Node, sourceFile: SourceFile, 
     const creation = planCsharpLocalLambdaCreation(node, input, diagnostics, targetContext,
       input.names.temporaryName(`__tsonic_callable_${input.program.source.ast.pos(node)}`),
       expression.parameters, body, expression.async === true, creationPolicy);
-    return creation === undefined ? undefined : planCsharpExpressionCompletion(
-      node, sourceFile, input, diagnostics, creation.value, carrier, [creation.method]);
+    if (creation === undefined) return undefined;
+    const planned = planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, creation.value, carrier, [creation.method]);
+    return planned === undefined || creationPolicy.kind !== "direct" ? planned : { ...planned, callable: { kind: "method" } };
   };
   if (closure !== undefined) {
-    return planCsharpExpressionCompletion(node, sourceFile, input, diagnostics,
-      planCsharpFrameClosureReference(node, input, diagnostics, state), closure.method.type);
+    const reference = planCsharpFrameClosureReference(node, input, diagnostics, state);
+    const planned = planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, reference?.expression, closure.method.type);
+    return planned === undefined ? undefined : { ...planned, callable: reference?.callable };
   }
   return complete(planCsharpArrowLambdaSyntax(node, sourceFile, input, diagnostics, planExpression, state));
 }
@@ -228,7 +231,9 @@ export function planFunctionExpression(
     planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, expression,
       closure?.method.type ?? targetContext?.carrier, prelude);
   if (closure !== undefined) {
-    return complete(planCsharpFrameClosureReference(node, input, diagnostics, state));
+    const reference = planCsharpFrameClosureReference(node, input, diagnostics, state);
+    const planned = complete(reference?.expression);
+    return planned === undefined ? undefined : { ...planned, callable: reference?.callable };
   }
   const expression = AsFunctionExpression(input.program.source.ast, node)!;
   diagnoseMissingLambdaTargetContext(node, input, diagnostics, targetContext);
@@ -263,7 +268,9 @@ export function planFunctionExpression(
   }
   const completeBody = (body: CsharpBlock, async = false): CsharpPlannedValue | undefined => {
     if (self === undefined && (input.scope.nativeCallableBody?.declaration === node || creationPolicy.kind === "inline")) {
-      return complete({ kind: "LambdaExpression", ...(async ? { async: true } : {}), parameters, body });
+      const expression = { kind: "LambdaExpression" as const, ...(async ? { async: true } : {}), parameters, body };
+      const planned = complete(expression);
+      return planned === undefined ? undefined : { ...planned, callable: { kind: "lambda", expression } };
     }
     const creation = planCsharpLocalLambdaCreation(node, input, diagnostics, targetContext,
       methodName ?? input.names.temporaryName(`__tsonic_callable_${input.program.source.ast.pos(node)}`),

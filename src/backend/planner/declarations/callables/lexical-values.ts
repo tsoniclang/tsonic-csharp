@@ -22,7 +22,7 @@ export function planCsharpLexicalFunctionValues(
       failCsharpPlannerInvariant("An admitted lexical function requires its native delegate type and method name.", declaration);
     const expression = input.program.records.captureClosure.get(declaration) === undefined
       ? { kind: "IdentifierName" as const, name: methodName }
-      : planCsharpFrameClosureReference(declaration, input, diagnostics, state);
+      : planCsharpFrameClosureReference(declaration, input, diagnostics, state)?.expression;
     if (expression === undefined) failCsharpPlannerInvariant("An admitted lexical function requires its native closure expression.", declaration);
     const initializer: CsharpExpression = { kind: "ObjectCreationExpression", type,
       arguments: [{ kind: "Argument", expression }] };

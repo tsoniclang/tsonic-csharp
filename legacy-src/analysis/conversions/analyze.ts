@@ -59,6 +59,8 @@ import { isCsharpVoidTargetType } from "../../target-model/types/identity.js";
 import { collectCsharpGeneratedHelpers } from "./generated-helpers.js";
 import { createCsharpGeneratedHelperRecords } from "../program/records/generated-helpers.js";
 import type { CsharpGeneratedHelper } from "../../target-model/records/generated-helpers.js";
+import { createCsharpDelegateContractProducer } from "../program/records/callable-conversions.js";
+import { admitCsharpDelegateEmission, admitCsharpDelegateOperand } from "./callable-emission.js";
 
 const unavailableConversion: CsharpConversionSelection = Object.freeze({
   kind: "rejected",
@@ -72,6 +74,7 @@ export function analyzeCsharpConversions(
   objectShapes: CsharpObjectShapeClassifications & CsharpStructuralInterfaceRegistration,
 ): CsharpConversionAnalysis {
   const pairSelections = new Map<string, CsharpConversionSelection>();
+  const delegateContracts = createCsharpDelegateContractProducer();
   const expressionSelections = new Map<
     Node,
     Map<string, CsharpExpressionConversionClassification>
@@ -97,6 +100,7 @@ export function analyzeCsharpConversions(
   });
 
   const openClassifications: CsharpConversionClassifications = {
+    ...delegateContracts.records,
     get propertyProjectionRoots() { return Object.freeze([...propertyProjectionRoots].flatMap(([node, types]) =>
       [...types.values()].map(carrier => Object.freeze({ node, carrier })))); },
     generatedHelpers: Object.freeze({ get: () => Object.freeze([...requiredHelpers].sort()) }),
@@ -145,12 +149,14 @@ export function analyzeCsharpConversions(
       preparedClassifications = Object.freeze({ ...classifications, exactLiteralRequests: literalRequests.seal() });
       return preparedClassifications;
     },
-    close(nativeDemand, requiredRecords) {
+    close(nativeDemand, requiredRecords, captures) {
       if (closed) return failTargetAnalysisInvariant("tsonic-csharp", "Native conversion preparation closes exactly once.");
       if (preparedClassifications === undefined || preparedOperations === undefined || preparedValueReads === undefined) failTargetAnalysisInvariant("tsonic-csharp", "Native conversion uses require completed preparation.");
       const admitted = sealCsharpConversionUses(nativeDemand, preparedOperations, (expression, source, target, mode, exactInteger, boundary, sourceCompletion) => {
         const selected = boundary === undefined ? classifyExpression(expression, source, target, mode, exactInteger, sourceCompletion) : boundary.selection;
         if (selected === undefined) return undefined;
+        admitCsharpDelegateEmission(delegateContracts, source, target, selected);
+        issues.push(...admitCsharpDelegateOperand(policy.ast, captures, delegateContracts, expression, source, target, selected));
         collectCsharpGeneratedHelpers(selected, requiredHelpers);
         if (boundary === undefined && sourceCompletion?.kind !== "void") classifyPair(source, target, mode, expression);
         const key = pairKey(source, target, mode);
@@ -169,10 +175,12 @@ export function analyzeCsharpConversions(
       }, requiredRecords, issues, callConversions);
       issues.push(...admitted.issues);
       delegateAdapters = sealCsharpDelegateAdapterIdentities(policy, preparedValueReads, admitted.expressions, issues);
+      delegateContracts.seal();
       closed = true;
       Object.freeze(issues);
       const sealedIssues = Object.freeze([...issues]);
       const sealed: CsharpConversionClassifications = {
+        ...delegateContracts.records,
         propertyProjectionRoots: openClassifications.propertyProjectionRoots,
         ...createCsharpGeneratedHelperRecords(requiredHelpers),
         issues: sealedIssues,
@@ -621,6 +629,7 @@ export function analyzeCsharpConversions(
     const selected = admitCsharpConversionSelection(conversionPolicy, source, target,
       selectCsharpConversion(conversionPolicy, source, target, mode));
     pairSelections.set(key, selected);
+    admitCsharpDelegateEmission(delegateContracts, source, target, selected);
     return selected;
   }
 
@@ -686,6 +695,7 @@ export function analyzeCsharpConversions(
       expressionSelections.set(expression, selections);
     }
     selections.set(key, Object.freeze({ source, target, selection: selected }));
+    admitCsharpDelegateEmission(delegateContracts, source, target, selected);
     return selected;
   }
 

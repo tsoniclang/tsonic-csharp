@@ -26,5 +26,5 @@ export function convertCsharpPlannedValue(node: Node, sourceFile: SourceFile, in
   }
   const conversion = readCsharpConversionClassification(node, input, diagnostics, source, target, mode);
   return conversion === undefined ? undefined : mapCsharpPlannedValue(planned, target, value =>
-    applyCsharpConversionSelection(node, sourceFile, input, diagnostics, source, target, conversion, value));
+    applyCsharpConversionSelection(node, sourceFile, input, diagnostics, source, target, conversion, value, planned.absent === true, planned.callable));
 }

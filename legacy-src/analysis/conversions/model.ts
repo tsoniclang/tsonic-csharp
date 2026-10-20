@@ -17,6 +17,7 @@ export interface CsharpConversionAnalysis {
     readonly expectedTypes: CsharpExpectedTypeClassifications;
     readonly valueReads: CsharpValueReadClassifications;
   }): CsharpPreparedConversionClassifications;
-  close(nativeDemand: CsharpNativeDemandAnalysis, requiredRecords: CsharpRequiredRecord[]): void;
+  close(nativeDemand: CsharpNativeDemandAnalysis, requiredRecords: CsharpRequiredRecord[],
+    captures: import("../../target-model/records/capture-storage.js").CsharpCaptureStorage): void;
   seal(): CsharpConversionClassifications;
 }

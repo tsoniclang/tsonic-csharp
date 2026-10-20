@@ -13,6 +13,17 @@ export interface CsharpPlannedValue {
   readonly absent?: true;
   readonly address?: CsharpPlannedAddress;
   readonly receiverIdentity?: true;
+  readonly callable?: CsharpPlannedCallable;
+}
+
+export type CsharpPlannedCallable =
+  | { readonly kind: "lambda"; readonly expression: Extract<CsharpExpression, { readonly kind: "LambdaExpression" }> }
+  | { readonly kind: "method" }
+  | { readonly kind: "captured-method"; readonly receiver: CsharpExpression; readonly name: string };
+
+export interface CsharpPlannedCallableReference {
+  readonly expression: CsharpExpression;
+  readonly callable?: CsharpPlannedCallable;
 }
 
 export interface CsharpPlannedAddressOperand {

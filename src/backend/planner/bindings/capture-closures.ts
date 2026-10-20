@@ -9,6 +9,7 @@ import { csharpTypeFromObjectShapeFact } from "../objects/planning.js";
 import { failCsharpPlannerInvariant } from "../../invariants.js";
 import { allocateExpressionTemp, getCsharpLocalBindingName } from "./binding-state.js";
 import { planThisExpression } from "../expressions/expression-this.js";
+import type { CsharpPlannedCallableReference } from "../expressions/planned-values.js";
 
 export function planCsharpNamedSelfCaptureContext(
   self: CsharpNamedSelfBinding, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], state: DestructuringPlannerState,
@@ -41,12 +42,12 @@ export function planCsharpNamedSelfCaptureContext(
 
 export function planCsharpFrameClosureReference(
   node: Node, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], state?: DestructuringPlannerState,
-): CsharpExpression | undefined {
+): CsharpPlannedCallableReference | undefined {
   const selected = input.program.records.captureClosure.get(node);
   if (selected === undefined) return undefined;
   if (selected.frame.ownership === "value") {
     const retained = input.scope.captureFrames?.get(selected.frame.scope);
-    if (retained !== undefined) return retained;
+    if (retained !== undefined) return { expression: retained };
     const type = csharpTypeFromObjectShapeFact(input, selected.frame.shape, diagnostics, node);
     if (type === undefined) failCsharpPlannerInvariant("An admitted value-owned callable requires its native environment storage.", node);
     const assignments: CsharpObjectInitializerAssignment[] = [];
@@ -78,14 +79,14 @@ export function planCsharpFrameClosureReference(
       if (expression === undefined) failCsharpPlannerInvariant("An admitted callable capture requires its exact native receiver.", node);
       assignments.push({ kind: "AssignmentExpression", name: receiver.fieldName, expression });
     }
-    return { kind: "ObjectCreationExpression", type, assignments };
+    return { expression: { kind: "ObjectCreationExpression", type, assignments } };
   }
   const receiver = csharpCaptureFrameExpression(selected.frame.scope, input, state);
   if (receiver === undefined || csharpTypeFromObjectShapeFact(input, selected.frame.shape, diagnostics, node) === undefined) {
     failCsharpPlannerInvariant("A native captured callable has no exact activation frame.", node);
   }
-  if (selected.reference === "frame") return receiver;
+  if (selected.reference === "frame") return { expression: receiver };
   const method: CsharpExpression = { kind: "SimpleMemberAccessExpression", receiver, name: selected.method.methodName };
-  return selected.reference === "method" ? method
-    : { kind: "InvocationExpression", callee: method, arguments: [] };
+  return selected.reference === "method" ? { expression: method, callable: { kind: "captured-method", receiver, name: selected.method.methodName } }
+    : { expression: { kind: "InvocationExpression", callee: method, arguments: [] } };
 }

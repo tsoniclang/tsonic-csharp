@@ -17,12 +17,21 @@ import { readCsharpNativeExpressionCarrier } from "./native-uses.js";
 
 export function planCsharpIdentifierValue(identifier: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[], state?: DestructuringPlannerState): CsharpPlannedValue | undefined {
+  const reference = input.program.records.identifierEmission.get(identifier);
+  if (reference?.kind === "frame" && getCsharpExpressionOverride(identifier, state) === undefined) {
+    const closure = planCsharpFrameClosureReference(reference.declaration, input, diagnostics, state);
+    const planned = planCsharpExpressionCompletion(identifier, sourceFile, input, diagnostics, closure?.expression,
+      readCsharpNativeExpressionCarrier(input, identifier));
+    return planned === undefined ? undefined : { ...planned, callable: closure?.callable };
+  }
   const expression = planIdentifierExpression(identifier, sourceFile, input, diagnostics, state);
   const planned = planCsharpExpressionCompletion(identifier, sourceFile, input, diagnostics, expression,
     readCsharpNativeExpressionCarrier(input, identifier));
   if (planned === undefined || planned.completion.kind !== "value") return planned;
   if (getCsharpExpressionOverride(identifier, state) !== undefined) return { ...planned, address: { kind: "root" } };
   const selected = input.program.records.identifierEmission.get(identifier);
+  if (selected?.kind === "module" && input.program.records.directCallableReference.get(identifier) !== undefined)
+    return { ...planned, address: { kind: "root" }, callable: { kind: "method" } };
   if (selected?.kind !== "local") return { ...planned, address: { kind: "root" } };
   const captured = selected.declaration === undefined ? undefined : input.program.records.capturedBinding.get(selected.declaration);
   const overridden = selected.declaration === undefined ? undefined : input.scope.capturedBindings?.get(selected.declaration);
@@ -44,7 +53,7 @@ export function planIdentifierExpression(identifier: Node, sourceFile: SourceFil
   const selected = input.program.records.identifierEmission.get(identifier);
   if (selected === undefined) failCsharpPlannerInvariant("An admitted identifier requires its sealed source-reference plan.", identifier);
   switch (selected.kind) {
-    case "frame": return planCsharpFrameClosureReference(selected.declaration, input, diagnostics, state);
+    case "frame": return planCsharpFrameClosureReference(selected.declaration, input, diagnostics, state)?.expression;
     case "class": {
       const value = input.scope.classValues?.get(selected.declaration);
       if (value !== undefined) return value;

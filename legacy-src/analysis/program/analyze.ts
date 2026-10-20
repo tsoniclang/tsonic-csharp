@@ -1061,7 +1061,7 @@ function analyzeIteration(
     nativeExpressionIssues: evidence.nativeExpressionIssues,
   }, requiredRecords);
   const bindingPatterns = admitCsharpBindingPatterns(bindingCandidates, nativeDemand.requiredBindingRoots, requiredRecords);
-  conversionAnalysis.close(nativeDemand, requiredRecords);
+  conversionAnalysis.close(nativeDemand, requiredRecords, captureStorage);
   const conversions = conversionAnalysis.seal();
   const refLikeDiagnostics = analyzeCsharpRefLikePlacements({
     source, nodes: sourceStorage.nodes, callables, captureStorage,

@@ -48,6 +48,8 @@ export function planCsharpNativeExpression(
   if (emission.integerTruncation !== undefined) return planned;
   if (selected.completion.kind === "void") return csharpPlannedEffect(selected.target, planCsharpPlannedDiscard(planned));
   const conversion = emission.conversion ?? failCsharpPlannerInvariant("An admitted converted expression requires its selected native conversion.", node);
+  if (conversion.kind === "identity") return planned.completion.kind === "value"
+    ? { ...planned, completion: { ...planned.completion, carrier: selected.target } } : planned;
   if (planned.completion.kind === "void" && conversion.kind === "absence") {
     const absent = planCsharpAbsentValue(selected.target, input);
     return absent === undefined ? failCsharpPlannerInvariant("Admitted native absence must be renderable.", node)
@@ -55,7 +57,7 @@ export function planCsharpNativeExpression(
         input.program.records.nativeConstant.get(node, selected.target) === true, input.program.records.nativeAbsence.get(node, selected.target) === true);
   }
   return mapCsharpPlannedValue(planned, selected.target, expression => applyCsharpConversionSelection(
-    node, sourceFile, input, diagnostics, selected.carrier, selected.target, conversion, expression, planned.absent === true),
+    node, sourceFile, input, diagnostics, selected.carrier, selected.target, conversion, expression, planned.absent === true, planned.callable),
     input.program.records.nativeConstant.get(node, selected.target) === true);
 
   function render(use: Exclude<CsharpNativeUse, { readonly kind: "erased" }>): CsharpPlannedValue | undefined {
@@ -93,7 +95,7 @@ export function planCsharpNativeExpression(
       const parenthesized = mapCsharpPlannedValue(value, use.carrier,
         expression => ({ kind: "ParenthesizedExpression", expression }), value?.constant === true);
       return parenthesized === undefined || value?.completion.kind !== "value" ? parenthesized : { ...parenthesized,
-        receiverIdentity: value.receiverIdentity, address: { kind: "parenthesized", operand: csharpPlannedAddressOperand(value) } };
+        receiverIdentity: value.receiverIdentity, callable: value.callable, address: { kind: "parenthesized", operand: csharpPlannedAddressOperand(value) } };
     }
     if (ast.is.IsConditionalExpression(node)) {
       const conditional = ast.as.AsConditionalExpression(node);

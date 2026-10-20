@@ -43,7 +43,8 @@ import {
 import { planCsharpEmptyRecordConversion } from "./empty-record-conversion.js";
 import { planCsharpRuntimeUnionProjection } from "./runtime-union-projections.js";
 import { planCsharpUnionMapping } from "./union-mappings.js";
-import { planCsharpDelegateAdapter } from "./delegate-adapters.js";
+import { planCsharpDelegateAdapter } from "./callable-conversions.js";
+import type { CsharpPlannedCallable } from "./planned-values.js";
 import { planCsharpAbsentValue } from "./optional-storage.js";
 
 export function readCsharpConversionClassification(
@@ -99,6 +100,7 @@ export function applyCsharpConversionSelection(
   selection: CsharpConversionSelection,
   expression: CsharpExpression | undefined,
   absenceConstant = false,
+  callable?: CsharpPlannedCallable,
 ): CsharpExpression | undefined {
   if (expression === undefined) {
     return undefined;
@@ -264,6 +266,7 @@ export function applyCsharpConversionSelection(
         selection,
         expression,
         applyCsharpConversionSelection,
+        callable,
       );
     case "provider-argument-adapter":
       return applyProviderArgumentAdapter(

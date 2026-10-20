@@ -153,6 +153,7 @@ export interface CsharpProgramRecords extends CsharpStatementExitRecords, Csharp
   readonly propertyProjection: CsharpConversionClassifications["propertyProjection"];
   readonly delegateAdapters: CsharpConversionClassifications["delegateAdapters"];
   readonly delegateAdapter: CsharpConversionClassifications["delegateAdapter"];
+  readonly delegateContract: CsharpConversionClassifications["delegateContract"];
   readonly directCallableReference: CsharpConversionClassifications["directCallableReference"];
   readonly conversion: CsharpConversionClassifications["conversion"];
   readonly expressionConversion: CsharpConversionClassifications["expressionConversion"];
