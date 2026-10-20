@@ -1,15 +1,6 @@
-import type {
-  TargetConstraint,
-  TargetTypeParameter,
-} from "../../../policy/types/index.js";
-import type {
-  DotnetConstraint,
-  DotnetTypeParameterDeclaration,
-  DotnetUnsupportedConstraintDeclaration,
-} from "../model/types.js";
-import {
-  dotnetTypeRefToTargetTypeRef,
-} from "./type-ref.js";
+import type { TargetConstraint, TargetTypeParameter } from "../../../target-model/types/model.js";
+import type { DotnetConstraint, DotnetTypeParameterDeclaration, DotnetUnsupportedConstraintDeclaration } from "../model/types.js";
+import { dotnetTypeRefToTargetTypeRef } from "./index.js";
 
 export type DotnetTargetTypeParameter = TargetTypeParameter & {
   readonly csharpAllowsRefLike: boolean;
