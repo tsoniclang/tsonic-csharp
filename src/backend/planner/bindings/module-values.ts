@@ -3,7 +3,7 @@ import { HasSourceKind, KindExportAssignment, Node_Name, type SourceProjectRefer
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
-import { qualifiedCsharpType } from "../types/csharp-type-primitives.js";
+import { qualifiedCsharpType } from "../types/primitives.js";
 import { failCsharpPlannerInvariant } from "../../invariants.js";
 
 export function planCsharpSourceModuleMemberName(

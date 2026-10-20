@@ -10,7 +10,7 @@ import { failCsharpPlannerInvariant } from "../../../invariants.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../../types/target-types.js";
-import { qualifiedCsharpType } from "../../types/csharp-type-primitives.js";
+import { qualifiedCsharpType } from "../../types/primitives.js";
 
 export function csharpClosedValueCarrierInterfaceType(): CsharpTypeNode {
   return qualifiedCsharpType("Tsonic.CSharp.Runtime", "ITsClosedValueCarrier");

@@ -8,7 +8,7 @@ import type { CsharpExpression, CsharpMethodDeclaration, CsharpStatement, Csharp
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { csharpGenericConstraintFromTargetTypeParameterConstraint } from "../types/type-parameters.js";
 import { planCsharpArtifactMemberHiding } from "../declarations/modifiers.js";
-import { qualifiedCsharpType } from "../types/csharp-type-primitives.js";
+import { qualifiedCsharpType } from "../types/primitives.js";
 import { failCsharpPlannerInvariant } from "../../invariants.js";
 
 export function renderObjectShapeProjectionMethods(
