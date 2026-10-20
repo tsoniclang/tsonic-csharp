@@ -1,21 +1,9 @@
 import { performance } from "node:perf_hooks";
-import {
-  ensureProviderToolBuilt,
-} from "./build.js";
-import {
-  runProviderToolCli,
-} from "./cli.js";
-import {
-  resolveDotnetProviderToolPaths,
-} from "./path-resolution.js";
-import type {
-  DotnetProviderToolResult,
-  DotnetProviderToolRunner,
-  DotnetProviderToolRunnerOptions,
-} from "./types.js";
-import {
-  runProviderToolWorker,
-} from "./worker.js";
+import { ensureProviderToolBuilt } from "./build.js";
+import { runProviderToolCli } from "./cli.js";
+import { resolveDotnetProviderToolPaths } from "./path-resolution.js";
+import type { DotnetProviderToolResult, DotnetProviderToolRunner, DotnetProviderToolRunnerOptions } from "./types.js";
+import { runProviderToolWorker } from "./worker.js";
 
 export type {
   DotnetProviderToolIdentity,
