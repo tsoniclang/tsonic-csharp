@@ -1,16 +1,7 @@
 import { dotnetSignatureFields, requireNonEmptyString, requireSupportedDiscriminant, requireUnique, supportedDotnetConstraintKinds, supportedDotnetMemberKinds, supportedPassingModes, supportedReturnPassingModes, supportedTypeParameterVariance } from "./support.js";
 import { validateDotnetAssemblyReference, validateDotnetTargetIdentity, validateOptionalDotnetAssemblyReference, validateOptionalDotnetParameterDefaultValue, validateOptionalDotnetUnsupportedDefaultValue } from "./dotnet-identities.js";
 import { validateDotnetTypeRef, validateOptionalDotnetTypeRef } from "./dotnet-types.js";
-import type {
-  DotnetConstraint,
-  DotnetParameterDeclaration,
-  DotnetSignatureDeclaration,
-  DotnetTypeParameterDeclaration,
-  DotnetTypeRef,
-  DotnetUnsupportedConstraintDeclaration,
-  DotnetUnsupportedExportDeclaration,
-  DotnetUnsupportedMemberDeclaration,
-} from "../index.js";
+import type { DotnetConstraint, DotnetParameterDeclaration, DotnetSignatureDeclaration, DotnetTypeParameterDeclaration, DotnetTypeRef, DotnetUnsupportedConstraintDeclaration, DotnetUnsupportedExportDeclaration, DotnetUnsupportedMemberDeclaration } from "../index.js";
 import type { ContractCollector } from "./support.js";
 
 export function validateDotnetSignatureList(
