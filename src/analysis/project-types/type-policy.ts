@@ -15,7 +15,7 @@ import { csharpTargetBindingFact } from "../../target-model/types/model.js";
 import type { CsharpTypePolicy } from "../types/resolution/model.js";
 import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
 import { readCsharpSourceStruct } from "../../source/extension/markers.js";
-import { resolveCsharpSourceProfileBaseType } from "../../policy/types/resolution/source-profiles.js";
+import { resolveCsharpSourceProfileBaseType } from "../types/resolution/source-profiles.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
 
 import type { CsharpProjectConstructorPolicy } from "../../target-model/records/project-types.js";
