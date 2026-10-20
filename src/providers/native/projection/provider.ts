@@ -303,17 +303,19 @@ function validateDotnetProviderRegistrations(
       registration.provider.identity.id,
       registration.provider.identity.version,
     ]);
-    if (!identities.add(identity)) {
+    if (identities.has(identity)) {
       throw new Error(
         `.NET source provider registration duplicates '${registration.provider.identity.id}@${registration.provider.identity.version}'.`,
       );
     }
+    identities.add(identity);
     const prefix = (registration.moduleSpecifierPolicy ?? dotnetModuleSpecifierPolicy).modulePrefix;
-    if (!prefixes.add(prefix)) {
+    if (prefixes.has(prefix)) {
       throw new Error(
         `.NET source provider registration duplicates module prefix '${prefix}'.`,
       );
     }
+    prefixes.add(prefix);
   }
 }
 
