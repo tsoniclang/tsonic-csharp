@@ -31,6 +31,7 @@ import { analyzeCsharpTypeEmission } from "../types/emission.js";
 import { analyzeCsharpIdentifierEmission } from "../names/source-identifiers.js";
 import { analyzeCsharpSourceFileEmission } from "../source-modules/emission.js";
 import { analyzeCsharpStartup } from "../source-modules/startup.js";
+import { analyzeCsharpSafetyEmission } from "../safety/emission.js";
 import { analyzeCsharpStatementExits } from "../control-flow/statement-exits.js";
 import { analyzeCsharpStatementCompletions } from "../control-flow/statement-completion.js";
 import { analyzeCsharpResourceScopes } from "../control-flow/resource-scopes.js";
@@ -606,7 +607,13 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const startup = analyzeCsharpStartup({ source, identities: sourceIdentities.records, modules: moduleInitialization.index,
     constructions: sourceModuleConstructions.index, outputType: configuration.outputType, driver: binaryExecutionDriver });
   if (startup.issues.length !== 0) return rejectedTargetStage(startup.issues);
+  const sourceUnions = analyzeCsharpSourceUnionEmission(typeDefinitions);
+  const safetyEmission = analyzeCsharpSafetyEmission({ source, configuration, safety: safetyApplications,
+    evidence: analysis.sourceEvidence, operations: admittedOperations, storage: analysis.storage,
+    shapes: objectShapeDemand, unions: sourceUnions, admitted: admittedControlNode });
+  if (safetyEmission.issues.length !== 0) return rejectedTargetStage(safetyEmission.issues);
   const records = createCsharpProgramRecords({
+    safetyEmission: safetyEmission.records,
     startup: startup.records,
     sourceFileEmission: sourceFileEmission.records,
     typeEmission: typeEmission.records,
@@ -620,7 +627,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     objectMethods: objectMethods.records,
     structuralObjectEmission: structuralObjectEmission.records,
     compilation: Object.freeze({ namespace: project.value.namespace, languageDialect: configuration.languageDialect }),
-    sourceUnions: analyzeCsharpSourceUnionEmission(typeDefinitions),
+    sourceUnions,
     objectShapeEmission: objectShapeEmission.records,
     objectShapes: createCsharpObjectShapeRecords(callableAdapters.objectShapes),
     sourceFiles: sourceIdentities.records,

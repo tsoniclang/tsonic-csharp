@@ -120,7 +120,7 @@ export function planCsharpObjectShapeSourceFile(
   };
   const finalized = finalizeCsharpCompilationUnit(
     unit,
-    input.program.records.compilation.get().languageDialect,
+    input.program.records.unsafeCompilation.get("object-shapes") === true,
   );
   return {
     source: {

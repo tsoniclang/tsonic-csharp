@@ -340,7 +340,7 @@ export function planSourceFile(
   };
   const finalized = finalizeCsharpCompilationUnit(
     unit,
-    input.program.records.compilation.get().languageDialect,
+    input.program.records.unsafeCompilation.get(sourceFile) === true,
   );
   return {
     fileName,

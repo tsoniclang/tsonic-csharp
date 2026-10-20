@@ -56,6 +56,7 @@ import type { CsharpFrozenDataPropertyRecords } from "../../../target-model/reco
 import type { CsharpCaptureMethodRecords } from "../../../target-model/records/capture-methods.js";
 
 export interface CsharpProgramRecordInput {
+  readonly safetyEmission: import("../../../target-model/records/safety-emission.js").CsharpSafetyEmissionRecords;
   readonly startup: import("../../../target-model/records/startup.js").CsharpStartupRecords;
   readonly sourceFileEmission: import("../../../target-model/records/source-file-emission.js").CsharpSourceFileEmissionRecords;
   readonly projectEmission: import("../../../target-model/records/project-emission.js").CsharpProjectEmissionRecords;
@@ -122,6 +123,7 @@ export function createCsharpProgramRecords(
   required: readonly CsharpRequiredRecord[],
 ): CsharpProgramRecords {
   const records: CsharpProgramRecords = Object.freeze({
+    ...input.safetyEmission,
     ...input.startup,
     ...input.projectEmission,
     ...input.sourceFileEmission,

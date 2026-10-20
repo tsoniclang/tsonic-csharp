@@ -1,6 +1,7 @@
 import type { TargetTypeRef, CsharpObjectShapeFact } from "../types/model.js";
 
 export interface CsharpTypeEmission {
+  readonly unsafeContext: boolean;
   readonly objectShapes: readonly CsharpObjectShapeFact[];
 }
 

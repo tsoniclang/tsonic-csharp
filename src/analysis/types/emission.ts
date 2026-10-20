@@ -10,6 +10,7 @@ import { getCsharpNullableElementTargetType, isCsharpRuntimeUnionTargetType, isC
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import { createCsharpTypeEmissionProducer } from "../program/records/type-emission.js";
 import { selectCsharpTypeEmission } from "../../policy/types/type-emission.js";
+import { selectCsharpTypeUnsafeContext } from "../../policy/safety/native-types.js";
 
 export function analyzeCsharpTypeEmission(input: { readonly ast: AstReader; readonly nodes: readonly Node[];
   readonly evidence: CsharpSourceEvidenceIndex; readonly values: CsharpValueReadClassifications;
@@ -80,7 +81,7 @@ export function analyzeCsharpTypeEmission(input: { readonly ast: AstReader; read
       for (const child of children(carrier)) visit(child);
     };
     visit(root);
-    producer.publish(root, { objectShapes: Object.freeze([...shapes]) });
+    producer.publish(root, { objectShapes: Object.freeze([...shapes]), unsafeContext: selectCsharpTypeUnsafeContext(root) });
     pending.push(...visited);
   }
   return Object.freeze({ records: producer.seal(), issues: Object.freeze(issues) });

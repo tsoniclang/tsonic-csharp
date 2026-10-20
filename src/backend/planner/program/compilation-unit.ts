@@ -1,15 +1,6 @@
 import type {
   CsharpCompilationUnit,
 } from "../../target-ast/syntax/index.js";
-import type {
-  CsharpLanguageDialect,
-} from "../../../target-model/configuration/model.js";
-import {
-  applyCsharpLanguageRequiredUnsafeContexts,
-} from "../safety/unsafe-marking.js";
-import {
-  compilationUnitRequiresUnsafe,
-} from "../safety/unsafe-requires.js";
 import {
   applyReadableCsharpStringLiterals,
 } from "../../target-ast/normalization/readable-string-literals.js";
@@ -24,17 +15,10 @@ export interface FinalizedCsharpCompilationUnit {
 
 export function finalizeCsharpCompilationUnit(
   unit: CsharpCompilationUnit,
-  dialect: CsharpLanguageDialect,
+  requiresUnsafe: boolean,
 ): FinalizedCsharpCompilationUnit {
-  const contextualizedUnit = applyCsharpLanguageRequiredUnsafeContexts(
-    unit,
-    dialect,
-  );
   const normalizedUnit = applyRequiredCsharpUsings(
-    applyReadableCsharpStringLiterals(contextualizedUnit),
-  );
-  const requiresUnsafe = compilationUnitRequiresUnsafe(
-    normalizedUnit,
+    applyReadableCsharpStringLiterals(unit),
   );
   const aliases = collectExternAliases(normalizedUnit);
   return {

@@ -57,6 +57,9 @@ import type { CsharpSourceUnionEmissionRecords } from "./source-unions.js";
 export interface CsharpProgramRecords extends CsharpStatementExitRecords, CsharpStatementCompletionRecords, CsharpResourceScopeRecords, CsharpDeclarationModifierRecords, CsharpNativeDeclarationRecords, CsharpStructuralInterfaceRecords, CsharpLexicalValueRecords, CsharpConstructorEmissionRecords, CsharpClassEmissionRecords {
   readonly projectDeclaration: import("./project-emission.js").CsharpProjectEmissionRecords["projectDeclaration"];
   readonly startup: import("./startup.js").CsharpStartupRecords["startup"];
+  readonly unsafeEmission: import("./safety-emission.js").CsharpSafetyEmissionRecords["unsafeEmission"];
+  readonly unsafeCompilation: import("./safety-emission.js").CsharpSafetyEmissionRecords["unsafeCompilation"];
+  readonly declarationSafety: import("./safety-emission.js").CsharpSafetyEmissionRecords["declarationSafety"];
   readonly typeParameterEmission: import("./type-parameters.js").CsharpTypeParameterEmissionRecords["typeParameterEmission"];
   readonly typeEmission: import("./type-emission.js").CsharpTypeEmissionRecords["typeEmission"];
   readonly projectSourceReference: import("./project-emission.js").CsharpProjectEmissionRecords["projectSourceReference"];

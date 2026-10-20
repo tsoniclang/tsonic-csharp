@@ -74,6 +74,6 @@ export function planCsharpSourceUnionFile(input: CsharpPlanningContext):
   if (declarations.length === 0) return undefined;
   const finalized = finalizeCsharpCompilationUnit({ kind: "CompilationUnit", usings: [],
     members: [{ kind: "NamespaceDeclaration", name: input.program.records.compilation.get().namespace, members: declarations }],
-  }, input.program.records.compilation.get().languageDialect);
+  }, input.program.records.unsafeCompilation.get("source-unions") === true);
   return { source: { path: "generated/TsonicSourceUnions.cs", unit: finalized.unit }, requiresUnsafe: finalized.requiresUnsafe };
 }
