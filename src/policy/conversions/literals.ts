@@ -1,20 +1,8 @@
-import { compareSourceNumericLiteralMagnitude, type SourceLiteralValue, type SourceNumericLiteralToken,
-  type SourcePropertyNameSelection } from "@tsonic/target-api/source";
+import { compareSourceNumericLiteralMagnitude, type SourceLiteralValue, type SourceNumericLiteralToken, type SourcePropertyNameSelection } from "@tsonic/target-api/source";
 import type { CsharpExactLiteralPrimitive, CsharpExactLiteralRecipe, CsharpExactLiteralSelection } from "../../target-model/conversions/exact-literals.js";
-import {
-  csharpBigIntFitsSourcePrimitive,
-  csharpNumericLiteralFitsSourcePrimitive,
-  createCsharpNumericLiteralToken,
-  type CsharpNumericLiteralToken,
-} from "../../target-model/syntax/numeric-literals.js";
-import type {
-  TargetTypeRef,
-} from "../types/index.js";
-import {
-  getCsharpArrayLiteralElementTargetType,
-  getCsharpNullableElementTargetType,
-  isCsharpStringTargetType,
-} from "../../target-model/types/index.js";
+import { csharpBigIntFitsSourcePrimitive, csharpNumericLiteralFitsSourcePrimitive, createCsharpNumericLiteralToken, type CsharpNumericLiteralToken } from "../../target-model/syntax/numeric-literals.js";
+import type { TargetTypeRef } from "../types/index.js";
+import { getCsharpArrayLiteralElementTargetType, getCsharpNullableElementTargetType, isCsharpStringTargetType } from "../../target-model/types/index.js";
 
 export function csharpLiteralIsRepresentableAs(
   value: SourceLiteralValue | undefined,
