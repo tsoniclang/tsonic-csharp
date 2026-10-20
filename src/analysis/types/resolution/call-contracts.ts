@@ -1,12 +1,13 @@
 import type { SourceFile } from "@tsonic/tsts";
 import type { CsharpSourceCallContract, CsharpSourceCallParameterContract } from "../../../target-model/records/source-callable-contract.js";
-import { classifyCsharpSourceCallee } from "../callables/source-callees.js";
+import { classifyCsharpSourceCallee } from "../../callables/source-callees.js";
 import { csharpDelegateSignatureHasSupportedPassingModes, getCsharpCallableValueSignature } from "../../../target-model/types/carriers/delegates.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
-import type { CsharpTypeResolutionScope } from "./engine.js";
-import type { ResolvedSourceCallInfo, CsharpTypeResolutionState } from "./model.js";
-import { nextState } from "./state.js";
+import type { CsharpTypeResolutionScope } from "../../../policy/types/resolution/engine.js";
+import type { CsharpTypeResolutionState } from "./model.js";
+import type { ResolvedSourceCallInfo } from "../../../target-model/records/source-calls.js";
+import { nextState } from "../../../policy/types/resolution/state.js";
 
 export type CsharpSourceCallContractSelection =
   | { readonly kind: "declaration"; readonly contract: CsharpSourceCallContract | undefined }
