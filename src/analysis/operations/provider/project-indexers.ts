@@ -1,16 +1,8 @@
-import type {
-  SourceFile,
-} from "@tsonic/tsts";
+import type { SourceFile } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
-import type {
-  TargetTypeRef,
-} from "../../../types/index.js";
-import {
-  targetTypeRefEquals,
-} from "../../../types/index.js";
-import type {
-  CsharpProviderCallSelectionHost,
-} from "../selection/call-selection.js";
+import type { TargetTypeRef } from "../../../policy/types/index.js";
+import { targetTypeRefEquals } from "../../../policy/types/index.js";
+import type { CsharpProviderCallSelectionHost } from "../../../policy/operations/members/selection/call-selection.js";
 
 type ResolvedSourceElementAccessInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["elementAccess"]>
