@@ -170,7 +170,7 @@ export interface CsharpProgramRecords extends CsharpStatementExitRecords, Csharp
   readonly nativeHandler: CsharpTargetOperationClassifications["nativeHandler"];
   readonly operatorForm: CsharpTargetOperationClassifications["operatorForm"];
   readonly operationResultType: CsharpTargetOperationClassifications["operationResultType"];
-  readonly selectedCall: CsharpTargetOperationClassifications["selectedCall"];
+  readonly selectedCall: import("./call-admission.js").CsharpCallAdmissionRecords["selectedCall"];
   readonly selectedConstruction: CsharpTargetOperationClassifications["selectedConstruction"];
   readonly selectedProperty: CsharpTargetOperationClassifications["selectedProperty"];
   readonly sourceMember: CsharpTargetOperationClassifications["sourceMember"];

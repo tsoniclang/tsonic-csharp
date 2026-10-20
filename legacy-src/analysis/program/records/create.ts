@@ -78,6 +78,7 @@ export interface CsharpProgramRecordInput {
   readonly receiverCallProperties: import("../../../target-model/records/receiver-call-property.js").CsharpReceiverCallPropertyRecords;
   readonly restSequences: import("../../../target-model/records/rest-sequences.js").CsharpRestSequenceRecords;
   readonly jsCalls: import("../../../target-model/records/js-value-calls.js").CsharpJsCallRecords;
+  readonly callAdmission: import("../../../target-model/records/call-admission.js").CsharpCallAdmissionRecords;
   readonly captureMethods: CsharpCaptureMethodRecords;
   readonly frozenDataProperties: CsharpFrozenDataPropertyRecords;
   readonly indexedRecords: CsharpIndexedRecordRecords;
@@ -243,7 +244,7 @@ export function createCsharpProgramRecords(
     nativeHandler: input.operations.nativeHandler,
     operatorForm: input.operations.operatorForm,
     operationResultType: input.operations.operationResultType,
-    selectedCall: input.operations.selectedCall,
+    selectedCall: input.callAdmission.selectedCall,
     selectedConstruction: input.operations.selectedConstruction,
     selectedProperty: input.operations.selectedProperty,
     sourceMember: input.operations.sourceMember,
