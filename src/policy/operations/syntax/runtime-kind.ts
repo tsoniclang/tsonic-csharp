@@ -1,15 +1,11 @@
-import type { CsharpTargetNamedTypeRef, CsharpTypeofRuntimeKind, TargetTypeRef } from "./model.js";
-import { getCsharpNullableElementTargetType } from "./carriers/nullable.js";
-import { getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType } from "./carriers/runtime-carriers.js";
-import { getCsharpDelegateSignature } from "./carriers/delegates.js";
-import { targetTypeRefEquals } from "./equality.js";
-import type { CsharpTypeDefinitions } from "./source-union-definitions.js";
+import type { CsharpTargetNamedTypeRef, CsharpTypeofRuntimeKind, TargetTypeRef } from "../../../target-model/types/model.js";
+import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { getCsharpDelegateSignature } from "../../../target-model/types/carriers/delegates.js";
 
-export type CsharpTypeofResult = CsharpTypeofRuntimeKind
-  | { readonly kind: "optional"; readonly sourceCarrier: TargetTypeRef; readonly element: TargetTypeRef; readonly value: CsharpTypeofResult }
-  | { readonly kind: "runtime-union"; readonly sourceCarrier: TargetTypeRef;
-      readonly arms: readonly { readonly carrier: TargetTypeRef; readonly result: CsharpTypeofResult }[] };
+import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
 
+import type { CsharpTypeofResult } from "../../../target-model/types/runtime-kind.js";
 export function getCsharpTypeofResult(
   type: TargetTypeRef | undefined,
   active: ReadonlySet<TargetTypeRef> = new Set(),
@@ -50,15 +46,4 @@ export function getCsharpTypeofRuntimeKind(
   if (type.name === "char") return "string";
   return type.name === "int64" || type.name === "uint64" || type.name === "int128" || type.name === "uint128"
     ? "bigint" : "number";
-}
-
-export function csharpTypeofResultsEqual(left: CsharpTypeofResult, right: CsharpTypeofResult): boolean {
-  if (typeof left === "string" || typeof right === "string") return left === right;
-  if (left.kind !== right.kind || !targetTypeRefEquals(left.sourceCarrier, right.sourceCarrier)) return false;
-  if (left.kind === "optional" && right.kind === "optional") {
-    return targetTypeRefEquals(left.element, right.element) && csharpTypeofResultsEqual(left.value, right.value);
-  }
-  return left.kind === "runtime-union" && right.kind === "runtime-union" &&
-    left.arms.length === right.arms.length && left.arms.every((arm, index) =>
-      targetTypeRefEquals(arm.carrier, right.arms[index]!.carrier) && csharpTypeofResultsEqual(arm.result, right.arms[index]!.result));
 }

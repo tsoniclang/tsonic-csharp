@@ -1,6 +1,7 @@
 import type { CsharpTypeofComparisonSelection } from "../../../target-model/records/typeof.js";
 import type { CsharpTypeofRuntimeKind, TargetTypeRef } from "../../types/index.js";
-import { getCsharpTypeofResult, type CsharpTypeofResult } from "../../../target-model/types/runtime-kind.js";
+import { type CsharpTypeofResult } from "../../../target-model/types/runtime-kind.js";
+import { getCsharpTypeofResult } from "./runtime-kind.js";
 import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
 export { getCsharpTypeofRuntimeKind } from "../../../target-model/types/runtime-kind.js";
 

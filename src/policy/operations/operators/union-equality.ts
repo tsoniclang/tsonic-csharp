@@ -4,7 +4,7 @@ import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpUnionLeaves } from "../../../target-model/types/union-relations.js";
 import { csharpAbsenceTargetType, getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
-import { getCsharpTypeofRuntimeKind } from "../../../target-model/types/runtime-kind.js";
+import { getCsharpTypeofRuntimeKind } from "../syntax/runtime-kind.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { selectCsharpNumericCarrierPromotion } from "../numeric/promotion.js";
 import { validateBinaryTargetSemantics } from "./operator-validation.js";

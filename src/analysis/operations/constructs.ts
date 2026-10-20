@@ -17,7 +17,7 @@ import { selectCsharpClosedTypeTestPlan } from "../../policy/operations/operator
 import { selectCsharpOperatorForm } from "../../policy/operations/operators/operator-forms.js";
 import { selectCsharpArrayTypeTest } from "../source-profiles/js/type-tests.js";
 import { selectCsharpCallForm } from "../../policy/operations/members/selection/call-forms.js";
-import { getCsharpTypeofResult } from "../../target-model/types/runtime-kind.js";
+import { getCsharpTypeofResult } from "../../policy/operations/syntax/runtime-kind.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import { getCsharpClassFactory } from "../../target-model/types/carriers/class-factories.js";
 import { classifyCsharpOptionalCallCallee, classifyCsharpOptionalCallReceiver } from "./optional-calls.js";
