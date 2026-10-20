@@ -36,7 +36,7 @@ export function planCsharpBorrowedSequenceConsumption(node: Node, fact: CsharpBo
     const name = input.names.temporaryName(`__tsonic_sequence_${input.program.source.ast.pos(selected.expression)}`);
     const receiver: CsharpExpression = { kind: "IdentifierName", name };
     const guard = selected.optional ? planCsharpPresentValueGuard(selected.carrier, selected.presentCarrier,
-      value.completion.expression, name, input.scope.typeParameterNames) : undefined;
+      value.completion.expression, name, input) : undefined;
     if (selected.optional && guard === undefined) failCsharpPlannerInvariant("An admitted optional sequence requires its native presence projection.", selected.expression);
     const consumed = consume({ carrier: selected.presentCarrier, type, expression: guard?.value ?? receiver,
       elements, lengthMember: selected.spread.lengthMember });

@@ -11,6 +11,8 @@ import { getCsharpMethodValue } from "../../target-model/types/method-values.js"
 import { createCsharpTypeEmissionProducer } from "../program/records/type-emission.js";
 import { selectCsharpTypeEmission } from "../../policy/types/type-emission.js";
 import { selectCsharpTypeUnsafeContext } from "../../policy/safety/native-types.js";
+import { getCsharpGenericOptionalParts } from "../../target-model/types/projections.js";
+import { csharpCarrierAdmitsSourceAbsence, isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 
 export function analyzeCsharpTypeEmission(input: { readonly ast: AstReader; readonly nodes: readonly Node[];
   readonly languageDialect: import("../../target-model/configuration/model.js").CsharpLanguageDialect;
@@ -83,7 +85,12 @@ export function analyzeCsharpTypeEmission(input: { readonly ast: AstReader; read
       for (const child of children(carrier)) visit(child);
     };
     visit(root);
+    const optional = getCsharpGenericOptionalParts(root);
+    if (optional !== undefined) pending.push(optional.element, optional.operations);
     producer.publish(root, { objectShapes: Object.freeze([...shapes]),
+      optionalStorage: optional === undefined ? Object.freeze({ kind: "native", present: getCsharpNullableElementTargetType(root) ?? root,
+        absence: csharpCarrierAdmitsSourceAbsence(root), jsValue: isCsharpJsValueTargetType(root) })
+        : Object.freeze({ kind: "generic", present: optional.element, operations: optional.operations }),
       unsafeContext: input.languageDialect === "csharp14" && selectCsharpTypeUnsafeContext(root) });
     pending.push(...visited);
   }

@@ -200,7 +200,7 @@ function planAssignmentPatternFromExpression(
       })) }, element.sourceNode);
     }
     if (projection?.kind === "object-shape-absence") {
-      const absent = planCsharpAbsentValue(projection.carrier, input.scope.typeParameterNames);
+      const absent = planCsharpAbsentValue(projection.carrier, input);
       if (absent === undefined) return failCsharpPlannerInvariant(
         "An admitted absent object assignment requires its native absence carrier.", element.sourceNode);
       if (element.initializer === undefined) return target(element.target, absent, element.sourceNode);

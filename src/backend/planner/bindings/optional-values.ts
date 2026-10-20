@@ -54,7 +54,7 @@ export function planCsharpBindingDefaultValue(
       csharpPlannedValue(carrier, value), resultCarrier, "implicit");
     const name = allocateExpressionTemp(state);
     const reference: CsharpExpression = { kind: "IdentifierName", name };
-    const guard = contract.optional ? planCsharpPresentValueGuard(carrier, contract.guardType, value, name, input.scope.typeParameterNames) : undefined;
+    const guard = contract.optional ? planCsharpPresentValueGuard(carrier, contract.guardType, value, name, input) : undefined;
     if (contract.optional && guard === undefined) {
       return failCsharpPlannerInvariant("An admitted native default lost its exact optional payload guard.", node);
     }

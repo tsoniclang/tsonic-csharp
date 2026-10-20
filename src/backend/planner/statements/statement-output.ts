@@ -14,6 +14,7 @@ import { csharpPlannedEffect } from "../expressions/planned-values.js";
 import { csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { failCsharpPlannerInvariant } from "../../invariants.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import type { CsharpPlanningContext } from "../context.js";
 
 export function consumeCsharpPlannedValue(
   planned: CsharpPlannedValue,
@@ -64,21 +65,21 @@ export function planCsharpDiscardedStatement(
 }
 
 export function planCsharpAbsenceReturn(
-  carrier: TargetTypeRef | undefined, typeParameterNames?: ReadonlyMap<string, string>,
+  carrier: TargetTypeRef | undefined, input: CsharpPlanningContext,
 ): CsharpStatement {
   if (isCsharpVoidTargetType(carrier)) return { kind: "ReturnStatement" };
-  const expression = carrier === undefined ? undefined : planCsharpAbsentValue(carrier, typeParameterNames);
+  const expression = carrier === undefined ? undefined : planCsharpAbsentValue(carrier, input);
   if (expression === undefined) failCsharpPlannerInvariant("An absence return requires its finalized native storage carrier.");
   return { kind: "ReturnStatement", expression };
 }
 
 export function planCsharpVoidReturn(
   planned: CsharpPlannedValue, completion: "void" | "absence",
-  carrier?: TargetTypeRef, typeParameterNames?: ReadonlyMap<string, string>,
+  carrier: TargetTypeRef | undefined, input: CsharpPlanningContext,
 ): readonly CsharpStatement[] {
   return [...planCsharpPlannedDiscard(planned), ...(
     planned.completion.kind === "never" ? [] : [
-    completion === "absence" ? planCsharpAbsenceReturn(carrier, typeParameterNames) : { kind: "ReturnStatement" },
+    completion === "absence" ? planCsharpAbsenceReturn(carrier, input) : { kind: "ReturnStatement" },
   ] as readonly CsharpStatement[])];
 }
 

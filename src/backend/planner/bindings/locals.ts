@@ -73,7 +73,7 @@ export function planLocalDeclaration(
   } else if (completion.initialization === "absence") {
     if (storageType === undefined) failCsharpPlannerInvariant(
       "An admitted local declaration requires its finalized native storage carrier.", declarationNode);
-    const expression = planCsharpAbsentValue(storageType, input.scope.typeParameterNames);
+    const expression = planCsharpAbsentValue(storageType, input);
     if (expression === undefined) failCsharpPlannerInvariant(
       "An admitted absence-bearing local requires its native absence representation.", declarationNode);
     initializer = csharpPlannedValue(storageType, expression);

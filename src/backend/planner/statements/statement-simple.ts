@@ -124,10 +124,10 @@ export function planReturnStatement(
   if (completion.kind !== "value" && statement.Expression !== undefined) {
     const value = planExpression(statement.Expression, sourceFile, input, diagnostics, state);
     if (value === undefined) failCsharpPlannerInvariant("An admitted void return requires its native operand plan.", statement.Expression);
-    return planCsharpVoidReturn(value, completion.kind, expectedReturnExpressionTargetType, input.scope.typeParameterNames);
+    return planCsharpVoidReturn(value, completion.kind, expectedReturnExpressionTargetType, input);
   }
   if (statement.Expression === undefined && completion.kind === "absence") {
-    return [planCsharpAbsenceReturn(expectedReturnExpressionTargetType, input.scope.typeParameterNames)];
+    return [planCsharpAbsenceReturn(expectedReturnExpressionTargetType, input)];
   }
   const expression = statement.Expression === undefined
     ? undefined

@@ -108,7 +108,7 @@ export function planSourceFunctionDeclaration(
       statements: [
         ...bodyStatements,
         ...(returnContract?.kind === "resolved" && returnContract.fallthroughUndefined
-          ? [planCsharpAbsenceReturn(state.currentReturnExpressionTargetType, input.scope.typeParameterNames)] : []),
+          ? [planCsharpAbsenceReturn(state.currentReturnExpressionTargetType, input)] : []),
       ],
     },
   } };
