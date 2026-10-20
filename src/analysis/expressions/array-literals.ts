@@ -67,7 +67,7 @@ export function analyzeCsharpArrayLiterals(input: { readonly source: TargetSourc
         if (selected?.kind !== "selected" || selected.elementTypes.length !== carrier.elements.length) {
           refuse(node, "Tuple literal omission requires exact contextual trailing-optional source evidence before C# emission."); continue;
         }
-        if (selected.elementTypes.some((type, index) => !targetTypeRefEquals(selected.optionalElementIndexes.includes(index)
+        if (selected.elementTypes.some((type, index) => type === undefined || !targetTypeRefEquals(selected.optionalElementIndexes.includes(index)
           ? csharpNullableTargetType(type) : type, carrier.elements[index]!))) {
           refuse(node, "Contextual tuple element evidence conflicts with its exact finalized C# tuple carrier."); continue;
         }
