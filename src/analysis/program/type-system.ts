@@ -36,7 +36,7 @@ import type {
   TargetTypeRef,
 } from "../../target-model/types/model.js";
 import { createCsharpTypeParameterEnvironment } from "../constraints/type-parameter-environment.js";
-import { resolveCsharpTypeParameterConstraints } from "../../policy/constraints/type-parameter-constraints.js";
+import { resolveCsharpTypeParameterConstraints } from "../constraints/type-parameter-constraints.js";
 
 export interface CsharpTypeSystem {
   readonly typeDefinitions: import("../../target-model/types/source-union-definitions.js").CsharpTypeDefinitions;

@@ -1,7 +1,7 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpObjectShapeMemberFact } from "../../target-model/types/model.js";
 import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
-import { resolveCsharpTypeParameterConstraints, type CsharpTypeParameterConstraintPolicyHost } from "../../policy/constraints/type-parameter-constraints.js";
+import { resolveCsharpTypeParameterConstraints, type CsharpTypeParameterConstraintPolicyHost } from "./type-parameter-constraints.js";
 import type { CsharpPlanningRepresentationQueries } from "../types/resolution/model.js";
 
 export function resolveCsharpCallableTypeParameters(
