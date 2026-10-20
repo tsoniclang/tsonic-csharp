@@ -1,10 +1,8 @@
 import type { Node } from "@tsonic/tsts";
-import { createTargetClassificationBuilder, createTargetClassificationKey } from "@tsonic/target-api/analysis";
+import { createCsharpNativeHandlerProducer } from "../program/records/native-handlers.js";
 import { selectCsharpNativeHandler } from "../../policy/operations/pointers/native-handlers.js";
 import type { CsharpNativeHandler } from "../../target-model/records/native-handlers.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
-
-const nativeHandlerKey = createTargetClassificationKey<CsharpNativeHandler>("csharp.operation.native-handler");
 
 export function analyzeCsharpNativeHandlers(
   nodes: readonly Node[],
@@ -17,15 +15,14 @@ export function analyzeCsharpNativeHandlers(
   },
   requirements: CsharpRequiredRecord[],
 ): { readonly get: (node: Node) => CsharpNativeHandler | undefined } {
-  const builder = createTargetClassificationBuilder();
+  const producer = createCsharpNativeHandlerProducer();
   for (const node of nodes) {
     const selected = selectCsharpNativeHandler(candidates.memoryBinding.get(node), candidates.safetyOperation.get(node),
       candidates.jsStringConversion.get(node), candidates.nativePointer.get(node), candidates.typedLocation.get(node));
     if (selected === undefined) continue;
     requireCsharpRecord(requirements, { family: "nativeHandler", subject: node, construct: selected.kind,
       producer: "analyzeCsharpNativeHandlers" });
-    builder.set(node, nativeHandlerKey, selected);
+    producer.selected(node, selected);
   }
-  const records = builder.seal();
-  return Object.freeze({ get: (node: Node) => records.get(node, nativeHandlerKey) });
+  return producer.seal();
 }
