@@ -50,7 +50,7 @@ export function analyzeCsharpStructuralObjectEmission(input: {
     const admit = (type: TargetTypeRef, member?: CsharpObjectShapeMemberFact): boolean => {
       const reason = csharpTargetTypeRenderingRejection(type);
       if (reason === undefined) return true;
-      refuse(reason, member);
+      refuse(`The exact C# structural member has no native type syntax (${reason.reason}).`, member);
       return false;
     };
     for (const member of shape.members) {
