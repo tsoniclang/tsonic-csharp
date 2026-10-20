@@ -10,7 +10,7 @@ import { selectCsharpNumericBinaryPromotion } from "../operations/numeric/promot
 import { sourcePrimitiveImplicitlyConverts } from "../conversions/source-primitives.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import type { CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
-import { resolveCsharpShortCircuitResult } from "./resolution/short-circuit-values.js";
+import { resolveCsharpShortCircuitResult } from "./short-circuit-values.js";
 
 export function resolveBinaryTargetRepresentation(
   ast: AstReader,
