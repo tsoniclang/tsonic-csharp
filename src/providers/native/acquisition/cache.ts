@@ -1,18 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import type {
-  DotnetModuleModel,
-} from "../model/index.js";
-import type {
-  DotnetProviderTelemetry,
-} from "./telemetry.js";
-import type {
-  DotnetProviderToolIdentity,
-} from "./tool.js";
-import type {
-  ProviderDeclarationMaterialization,
-} from "@tsonic/tsts";
+import type { DotnetModuleModel } from "../model/index.js";
+import type { DotnetProviderTelemetry } from "./telemetry.js";
+import type { DotnetProviderToolIdentity } from "./tool.js";
+import type { ProviderDeclarationMaterialization } from "@tsonic/tsts";
 
 export interface DotnetProviderCache {
   readModule(request: DotnetProviderCacheRequest): DotnetModuleModel | undefined;
