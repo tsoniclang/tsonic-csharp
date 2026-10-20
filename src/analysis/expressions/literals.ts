@@ -5,11 +5,15 @@ import type { CsharpNativeDemandAnalysis } from "../operations/native-demand-mod
 import type { CsharpExactLiteralSelectionIndex } from "../../target-model/conversions/exact-literals.js";
 import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
 import { csharpStringTargetType, csharpBigIntegerTargetType, targetTypeRefEquals } from "../../target-model/types/index.js";
+import { createCsharpLiteralEmissionProducer } from "../program/records/literal-emission.js";
+import type { CsharpLiteralEmission } from "../../target-model/records/literal-emission.js";
 
 export function analyzeCsharpLiteralAdmission(input: { readonly ast: AstReader; readonly demand: CsharpNativeDemandAnalysis;
-  readonly literals: SourceLiteralIndex; readonly exact: CsharpExactLiteralSelectionIndex; readonly values: CsharpValueReadClassifications }): readonly TargetDiagnostic[] {
+  readonly literals: SourceLiteralIndex; readonly exact: CsharpExactLiteralSelectionIndex; readonly values: CsharpValueReadClassifications }) {
   const issues: TargetDiagnostic[] = [];
   const rejected = new Set<Node>();
+  const published = new Set<Node>();
+  const producer = createCsharpLiteralEmissionProducer();
   const refuse = (node: Node, message: string): void => {
     if (rejected.has(node)) return;
     rejected.add(node);
@@ -22,18 +26,44 @@ export function analyzeCsharpLiteralAdmission(input: { readonly ast: AstReader; 
     const exact = input.exact.exactLiteral.get(node, target);
     if (exact?.kind === "rejected") { refuse(node, exact.reason); continue; }
     if (use.literal !== undefined) continue;
-    const carrier = input.values.valueRead.get(node)?.value;
-    if (input.ast.is.IsNumericLiteral(node) && input.literals.literalValue.get(node)?.number === undefined)
-      refuse(node, "Numeric literal emission requires parseable finite source literal text from TSTS.");
-    if (input.ast.is.IsBigIntLiteral(node)) {
-      if (input.literals.literalValue.get(node)?.integer === undefined)
+    const read = input.values.valueRead.get(node);
+    const carrier = read?.value;
+    if (!published.has(node) && input.ast.is.IsNumericLiteral(node)) {
+      const source = read?.source;
+      const selected = input.exact.exactLiteral.get(node, source);
+      const number = input.literals.literalValue.get(node)?.number;
+      if (source?.kind === "source-primitive" && source.name === "float64" && number !== undefined) {
+        producer.publish(node, { kind: "float64", value: number }); published.add(node);
+      } else if (selected?.kind === "resolved") {
+        producer.publish(node, { kind: "exact", recipe: selected.recipe }); published.add(node);
+      } else refuse(node, selected?.kind === "rejected" ? selected.reason : "Numeric literal emission requires parseable finite source literal text from TSTS.");
+    }
+    if (!published.has(node) && input.ast.is.IsBigIntLiteral(node)) {
+      const value = input.literals.literalValue.get(node)?.integer;
+      if (value === undefined)
         refuse(node, "BigInt literal emission requires parseable source literal text from TSTS.");
-      else if (!targetTypeRefEquals(carrier, csharpBigIntegerTargetType()))
+      else if (carrier === undefined || !targetTypeRefEquals(carrier, csharpBigIntegerTargetType()))
         refuse(node, "BigInt literal emission requires a finalized System.Numerics.BigInteger runtime carrier fact.");
+      else {
+        let storage: Extract<CsharpLiteralEmission, { readonly kind: "bigint" }>["storage"];
+        let negative = false;
+        if (value >= -(1n << 63n) && value < (1n << 63n)) storage = Object.freeze({ kind: "int64", value });
+        else {
+          negative = value < 0n;
+          let magnitude = negative ? -value : value;
+          if (magnitude < (1n << 64n)) storage = Object.freeze({ kind: "uint64", value: magnitude });
+          else {
+            const bytes: number[] = [];
+            while (magnitude !== 0n) { bytes.push(Number(magnitude & 255n)); magnitude >>= 8n; }
+            storage = Object.freeze({ kind: "bytes", bytes: Object.freeze(bytes) });
+          }
+        }
+        producer.publish(node, { kind: "bigint", carrier, negative, storage }); published.add(node);
+      }
     }
     if ((input.ast.is.IsTemplateExpression(node) || input.ast.is.IsNoSubstitutionTemplateLiteral(node)) &&
       !targetTypeRefEquals(carrier, csharpStringTargetType())) refuse(node,
         `${input.ast.is.IsTemplateExpression(node) ? "Template string emission" : "No-substitution template literal emission"} requires a finalized System.String runtime carrier fact before C# emission.`);
   }
-  return Object.freeze(issues);
+  return Object.freeze({ records: producer.seal(), issues: Object.freeze(issues) });
 }
