@@ -1,11 +1,11 @@
+import { selectCsharpFieldInitialization } from "../../policy/operations/declarations/field-initialization.js";
 import type { CsharpClassInitializationIndex, CsharpClassFieldInitialization } from "../../target-model/records/class-initialization.js";
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import { sourceExpressionUsesLexicalThis } from "@tsonic/target-api/source";
 import type { CsharpClassFactoryIndex } from "../../target-model/records/class-factories.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
-import { isCsharpValueTypeTargetType } from "../../target-model/types/identity.js";
-import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
+
 import { createCsharpClassFieldInitializationRecords } from "../program/records/class-initialization.js";
 
 export function analyzeCsharpClassFieldInitialization(input: {
@@ -18,7 +18,7 @@ export function analyzeCsharpClassFieldInitialization(input: {
     if (!input.ast.is.IsPropertyDeclaration(node)) continue;
     const carrier = input.storage.storageType.get(node);
     if (carrier === undefined) continue;
-    values.set(node, Object.freeze({ nullForgiving: !isCsharpValueTypeTargetType(carrier) && getCsharpNullableElementTargetType(carrier) === undefined }));
+    values.set(node, selectCsharpFieldInitialization(carrier));
   }
   return createCsharpClassFieldInitializationRecords(values);
 }
