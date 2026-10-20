@@ -1,20 +1,7 @@
 import { csharpJsSymbolTargetType } from "../../../../target-model/types/carriers/js.js";
-import {
-  csharpNullableTargetType,
-  csharpSourcePrimitiveTargetType,
-  csharpStringTargetType,
-  targetTypeRefEquals,
-} from "../../../../target-model/types/index.js";
-import type {
-  CsharpSourceProfileCallPolicy,
-} from "../source-profile-policy.js";
-import {
-  jsCallIdentity,
-  jsCallPolicy,
-  jsMemberIdentity,
-  staticMethod,
-  targetParameter,
-} from "./common.js";
+import { csharpNullableTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, targetTypeRefEquals } from "../../../../target-model/types/index.js";
+import type { CsharpSourceProfileCallPolicy } from "../../../model/source-profiles.js";
+import { jsCallIdentity, jsCallPolicy, jsMemberIdentity, staticMethod, targetParameter } from "./common.js";
 
 const symbolType = csharpJsSymbolTargetType();
 const stringType = csharpStringTargetType();
@@ -29,11 +16,7 @@ export const csharpJsSymbolCallPolicies:
         const argument = context.source.sourceArguments[0];
         const argumentType = argument === undefined
           ? undefined
-          : context.host.types.resolveSelectedValue(
-              argument.expression,
-              argument.type,
-              context.sourceFile,
-            );
+          : context.inputs.values.get(argument.expression)?.get(argument.type);
         const parameters = argument === undefined
           ? []
           : argumentType !== undefined && targetTypeRefEquals(argumentType, doubleType)
