@@ -1,3 +1,4 @@
+import { validateSourceBinaryEntry } from "@tsonic/target-api/analysis";
 import { relative, resolve } from "node:path";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
@@ -21,7 +22,6 @@ import {
   KindVariableStatement,
   SourceFile_FileName,
   sourceMayReadBeforeInitialization,
-  validateSourceBinaryEntry,
 } from "@tsonic/target-api/source";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpModuleInitializationAnalysis, CsharpModuleInitializationIssue } from "../../target-model/records/module-initialization.js";
