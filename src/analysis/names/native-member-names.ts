@@ -23,7 +23,7 @@ import { substituteTargetTypeParameters } from "../../target-model/types/substit
 import { csharpObjectShapeMethodDeclaration } from "../../target-model/types/method-values.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
 import { csharpTargetStorageIdentityEquals } from "../../policy/types/storage/storage-identity.js";
-import type { CsharpSourceNameResolver } from "./source-names.js";
+import type { CsharpSourceNameResolver } from "./plan.js";
 import type { CsharpObjectShapeDemandClosure } from "../objects/native-demand-batches.js";
 import type { CsharpNativeValueCarriers } from "../../target-model/records/native-value-carriers.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
