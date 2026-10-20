@@ -125,7 +125,7 @@ export const jsCarrierRegistry: readonly TargetCarrierRegistryEntry<TargetTypeRe
     id: "src/target-model/types/carriers/js.ts#csharpRegExpIndexPairTargetType",
     kinds: ["tuple"],
     declaration: { module: "src/target-model/types/carriers/js.ts", symbol: "csharpRegExpIndexPairTargetType" },
-    counterpart: { module: "src/target-model/types/model.ts", symbol: "TargetTypeRef" },
+    counterpart: { module: "src/target-model/types/model.js", symbol: "TargetTypeRef" },
     frozen: false,
   },
   {
