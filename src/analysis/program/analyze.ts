@@ -26,7 +26,7 @@ import { analyzeCsharpModuleInitialization } from "../module-initialization/inde
 import { createCsharpSourceProfileCallableAliasQuery } from "../source-profiles/callable-aliases.js";
 import { createCsharpErrorStorageDemandQuery } from "../objects/error-storage-demands.js";
 import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
-import { createCsharpSourceProfileStorageEffects } from "../../policy/operations/source-profiles/source-storage-effects.js";
+import { createCsharpSourceProfileStorageEffects } from "../source-profiles/source-storage-effects.js";
 import { analyzeCsharpGenericAdoption, analyzeCsharpPromiseResults } from "../callables/promise-results.js";
 
 import { analyzeCsharpFlowReadProjections } from "../conversions/flow-read-projections.js";

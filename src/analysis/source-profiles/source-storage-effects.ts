@@ -2,8 +2,8 @@ import type { SourceStorageEffects } from "@tsonic/target-api/analysis";
 import { createSourceGlobalCallStorageEffects } from "@tsonic/target-api/analysis";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import { selectJsSourceCallStorageEffect, jsSourceCallableParameterEffects, jsSourceNativeConstructorStorage } from "@tsonic/js-source-profile";
-import { csharpTargetId } from "../../../target-model/identities/source.js";
-import { csharpSourceProfileDeclarationIdentity } from "./source-profile-identity.js";
+import { csharpTargetId } from "../../target-model/identities/source.js";
+import { csharpSourceProfileDeclarationIdentity } from "../../policy/operations/source-profiles/source-profile-identity.js";
 
 export function createCsharpSourceProfileStorageEffects(source: TargetSourceProgram): SourceStorageEffects {
   const global = createSourceGlobalCallStorageEffects(source, (node, call) => {
