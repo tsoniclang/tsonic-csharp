@@ -8,6 +8,7 @@ import { csharpSourceTypeParameter, csharpSourceTypeParameters } from "../../tar
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
 import { csharpFreeTypeParameterIdentities } from "../../target-model/types/generic-references.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
+import { createCsharpTypeProjectionRecords } from "../program/records/type-projections.js";
 
 export function analyzeCsharpTypeProjections(
   source: TargetSourceProgram, evidence: CsharpSourceEvidenceIndex, operations: CsharpTargetOperationClassifications,
@@ -72,11 +73,7 @@ export function analyzeCsharpTypeProjections(
   const entries = [...new Set([...byDeclaration.keys(), ...outerByDeclaration.keys()])].map(declaration => Object.freeze({
     declaration, parameters: sorted(byDeclaration.get(declaration)), outerParameters: sorted(outerByDeclaration.get(declaration)),
   }));
-  const index = new Map(entries.map(entry => [entry.declaration, entry]));
-  return Object.freeze({ entries: Object.freeze(entries),
-    genericProjection: Object.freeze({ get: (declaration: Node) => index.get(declaration)?.parameters ?? [] }),
-    outerGenericProjection: Object.freeze({ get: (declaration: Node) => index.get(declaration)?.outerParameters ?? [] }),
-  });
+  return createCsharpTypeProjectionRecords(entries);
 }
 
 export function csharpTypeProjectionIndexesEqual(left: CsharpGenericProjectionIndex, right: CsharpGenericProjectionIndex): boolean {
