@@ -1,5 +1,5 @@
 import type { AstReader, Node } from "@tsonic/tsts";
-import type { ResolvedSourceCallInfo } from "../../target-model/records/members.js";
+import type { ResolvedSourceCallInfo } from "../../target-model/records/source-calls.js";
 
 export type CsharpJsValueCallShape =
   | { readonly kind: "direct"; readonly receiver?: undefined }

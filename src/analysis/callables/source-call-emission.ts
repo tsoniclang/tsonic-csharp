@@ -5,7 +5,7 @@ import type { CsharpTargetOperationClassifications, CsharpSourceCallArgumentClas
 import type { CsharpConversionClassifications } from "../../target-model/records/conversions.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
-import type { ResolvedSourceCallInfo } from "../../target-model/records/members.js";
+import type { ResolvedSourceCallInfo } from "../../target-model/records/source-calls.js";
 import type { CsharpSourceCallEmission, CsharpSourceArgumentsEmission, CsharpSourceArgumentEmissionGroup } from "../../target-model/records/source-call-emission.js";
 import { csharpAbsenceTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import { isCsharpVoidTargetType } from "../../target-model/types/identity.js";

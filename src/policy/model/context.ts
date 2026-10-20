@@ -17,7 +17,8 @@ import type {
 import type {
   CsharpProviderCallSelectionHost,
 } from "../operations/members/index.js";
-import type { CsharpObjectShapePolicy, CsharpTypePolicy } from "../types/index.js";
+import type { CsharpObjectShapePolicy } from "../types/index.js";
+import type { CsharpTypePolicy } from "../../analysis/types/resolution/model.js";
 import type { CsharpProjectTypePolicy } from "../../target-model/records/project-types.js";
 import type {
   CsharpSourceIdentityPolicy,

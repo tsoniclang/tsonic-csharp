@@ -23,11 +23,7 @@ import {
   csharpObjectShapeMemberRetainsNativeReference,
 } from "../../target-model/types/object-shape-members.js";
 import { isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
-import type {
-  CsharpPlanningRepresentationQueries,
-  CsharpTypePolicy,
-  CsharpTypePolicyBaseHost,
-} from "../../policy/types/resolution/index.js";
+import type { CsharpPlanningRepresentationQueries, CsharpTypePolicy, CsharpTypePolicyBaseHost } from "../types/resolution/model.js";
 import {
   createCsharpTypeResolutionServices,
 } from "../../policy/types/resolution/engine.js";

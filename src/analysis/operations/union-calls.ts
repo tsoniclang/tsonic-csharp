@@ -1,5 +1,6 @@
 import type { CsharpUnionCallClassification } from "../../target-model/records/union-calls.js";
-import type { Node, ResolvedSourceCallInfo, SourceFile } from "@tsonic/tsts";
+import type { Node, SourceFile } from "@tsonic/tsts";
+import type { ResolvedSourceCallInfo } from "../../target-model/records/source-calls.js";
 import { asSourceNode } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { getCsharpRuntimeUnionArms } from "../../target-model/types/carriers/runtime-carriers.js";

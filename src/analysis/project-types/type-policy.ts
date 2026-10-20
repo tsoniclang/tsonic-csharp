@@ -12,7 +12,7 @@ import type { SourceEnumConstantIndex, SourceFileSemantics, SourceProgramNavigat
 import type { CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpTargetBindingFact } from "../../target-model/types/model.js";
-import type { CsharpTypePolicy } from "../../policy/types/resolution/index.js";
+import type { CsharpTypePolicy } from "../types/resolution/model.js";
 import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
 import { readCsharpSourceStruct } from "../../policy/types/resolution/source-markers.js";
 import { resolveCsharpSourceProfileBaseType } from "../../policy/types/resolution/source-profiles.js";

@@ -1,5 +1,6 @@
 import type { Node } from "@tsonic/tsts";
-import type { CsharpSelectedTargetCall, ResolvedSourceCallInfo } from "./members.js";
+import type { CsharpSelectedTargetCall } from "./members.js";
+import type { ResolvedSourceCallInfo } from "./source-calls.js";
 import type { CsharpObjectShapeProjectionDeclaration } from "./object-shape-demand.js";
 import type { TargetTypeRef } from "../types/model.js";
 import type { CsharpSourceOperator } from "../syntax/operators.js";

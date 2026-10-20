@@ -1,5 +1,5 @@
 import type { Node, Signature } from "@tsonic/tsts";
-import type { ResolvedSourceCallInfo } from "@tsonic/target-api/source";
+import type { ResolvedSourceCallInfo } from "../../../target-model/records/source-calls.js";
 import type {
   CsharpProjectForwardingConstructor,
   CsharpProjectTypeHeritage,

@@ -7,7 +7,7 @@ import { csharpObjectShapesEqual } from "../../target-model/types/object-shape-e
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 import { csharpNullableTargetType } from "../../target-model/types/carriers/nullable.js";
 import { createCsharpMetadataBudget } from "../../target-model/metadata/immutable.js";
-import type { CsharpTypePolicyBaseHost } from "../../policy/types/resolution/model.js";
+import type { CsharpTypePolicyBaseHost } from "../types/resolution/model.js";
 import { csharpNativeConstructionMembersMatch } from "../../policy/types/objects/native-construction-members.js";
 import { createCsharpObjectShapeValueStorage } from "../../policy/types/objects/object-shape-policy/construction.js";
 

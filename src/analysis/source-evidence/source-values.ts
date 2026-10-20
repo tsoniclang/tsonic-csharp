@@ -2,7 +2,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 
-import type { CsharpTypePolicy } from "../../policy/types/index.js";
+import type { CsharpTypePolicy } from "../types/resolution/model.js";
 
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 

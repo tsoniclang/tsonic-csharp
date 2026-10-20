@@ -1,28 +1,18 @@
-import type {
-  AstReader,
-  ExtensionFactSubject,
-  Node,
-  ReadonlySourceFactResolver,
-  SourceFile,
-  Type,
-} from "@tsonic/tsts";
+import type { CsharpTypeQueries } from "../../../policy/model/type-resolution.js";
+import type { AstReader, ExtensionFactSubject, Node, ReadonlySourceFactResolver, SourceFile, Type } from "@tsonic/tsts";
 import type { TargetSelection } from "@tsonic/target-api";
-import type { TsonicFixedArraySelection, TsonicPointerReturnQueries, TsonicMemoryBindingIndex } from "@tsonic/source-core/facts";
-import type { CsharpPointerReturnContract } from "../../../target-model/records/pointer-return.js";
-import type {
-  SourceFileSemantics,
-  SourceProgramNavigation,
-} from "@tsonic/target-api/source";
-import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../project/project-types.js";
+import type { TsonicPointerReturnQueries, TsonicMemoryBindingIndex } from "@tsonic/source-core/facts";
+
+import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../../target-model/records/project-types.js";
 import type { CsharpProviderRelationResolver } from "../../../providers/model/relation-resolver.js";
 import type { CsharpSourceCallableContract } from "../../../target-model/records/source-callable-contract.js";
-import type { CsharpSourceTypedLocationOperation } from "../../operations/typed-locations/source-typed-locations.js";
+
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpSourceTargetTypeBinding } from "../../../target-model/types/model.js";
 import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
-import type { CsharpObjectShapePolicy } from "../objects/object-shape-policy.js";
+import type { CsharpObjectShapePolicy } from "../../../policy/types/objects/object-shape-policy.js";
 import type { CsharpObjectMethodSources } from "../../../target-model/records/native-value-carriers.js";
-import type { CsharpArrayLiteralSelection } from "./array-literals.js";
 
 export type ResolvedSourceCallInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["call"]>
@@ -63,7 +53,7 @@ export interface CsharpTypePolicyBaseHost {
 }
 
 export interface CsharpTypePolicyHost extends CsharpTypePolicyBaseHost {
-  readonly typeParameterConstraints: import("../../constraints/type-parameter-environment.js").CsharpTypeParameterEnvironment;
+  readonly typeParameterConstraints: import("../../../policy/constraints/type-parameter-environment.js").CsharpTypeParameterEnvironment;
   closedTypeGuard(node: Node): import("@tsonic/target-api/source").SourceNativeGuard<import("../../../target-model/operations/type-tests.js").CsharpClosedTypePredicate> | undefined;
   bindingProjection(node: Node, sourceFile: SourceFile): import("../../../target-model/records/binding-projection-policy.js").CsharpBindingProjection | undefined;
   readonly representations: CsharpPlanningRepresentationQueries;
@@ -73,7 +63,7 @@ export interface CsharpTypePolicyHost extends CsharpTypePolicyBaseHost {
   targetTypeComponents(type: TargetTypeRef): readonly TargetTypeRef[];
   readonly structuralTypes: {
     resolveReference(type: Type): TargetTypeRef | undefined;
-    resolveUnion(type: Type, sourceFile: SourceFile, state: CsharpTypeResolutionState): import("../objects/object-shape-policy/model.js").CsharpStructuralUnionResolution;
+    resolveUnion(type: Type, sourceFile: SourceFile, state: CsharpTypeResolutionState): import("../../../policy/types/objects/object-shape-policy/model.js").CsharpStructuralUnionResolution;
     resolveTarget(type: TargetTypeRef): CsharpObjectShapeFact | undefined;
     resolveNode(
       node: Node,
@@ -106,67 +96,7 @@ export type CsharpScopedTypePolicyResult =
       readonly reason: string;
     };
 
-export interface CsharpTypePolicy {
-  resolveArrayLiteral(node: Node, sourceFile: SourceFile): CsharpArrayLiteralSelection;
-  nativeGuardResult(expression: Node): boolean | undefined;
-  nativeUnreachable(node: Node): boolean;
-  nativeFlowMembers(reference: Node, sourceCarrier: TargetTypeRef): readonly TargetTypeRef[] | undefined;
-  nativeFlowTypes(reference: Node, sourceType: Type): readonly Type[] | undefined;
-  resolveBindingProjection(node: Node, sourceFile: SourceFile): import("../../../target-model/records/binding-projection-policy.js").CsharpBindingProjection | undefined;
-  selectFixedArray(type: Type, sourceFile: SourceFile): TsonicFixedArraySelection | undefined;
-  resolvePointerReturn(declaration: Node): CsharpPointerReturnContract | undefined;
-  resolveNode(node: Node | undefined, sourceFile?: SourceFile): TargetTypeRef | undefined;
-  resolveStorage(node: Node | undefined, sourceFile?: SourceFile): TargetTypeRef | undefined;
-  resolveReadStorage(node: Node | undefined, sourceFile?: SourceFile): TargetTypeRef | undefined;
-  resolveType(type: Type | undefined, sourceFile: SourceFile): TargetTypeRef | undefined;
-  resolveValue(
-    node: Node | undefined,
-    type: Type | undefined,
-    sourceFile: SourceFile,
-  ): TargetTypeRef | undefined;
-  resolveSelectedValue(
-    node: Node,
-    selectedType: Type,
-    sourceFile: SourceFile,
-  ): TargetTypeRef | undefined;
-  resolveSelectedType(
-    authoredTypeNode: Node | undefined,
-    selectedType: Type | undefined,
-    selectedSourceFile: SourceFile,
-  ): TargetTypeRef | undefined;
-  resolveSelectedResult(
-    selectedDeclaration: Node | undefined,
-    selectedType: Type | undefined,
-    selectedSourceFile: SourceFile,
-  ): TargetTypeRef | undefined;
-  resolveTypedLocationOperationPointee(
-    operation: CsharpSourceTypedLocationOperation,
-    sourceFile: SourceFile,
-  ): TargetTypeRef | undefined;
-  resolveSourceCallTypeArguments(
-    source: ResolvedSourceCallInfo,
-    sourceFile: SourceFile,
-  ): readonly TargetTypeRef[] | undefined;
-  resolveSourceCallParameter(
-    source: ResolvedSourceCallInfo,
-    parameterIndex: number,
-    sourceFile: SourceFile,
-  ): TargetTypeRef | undefined;
-  resolveSourceCallParameters(
-    source: ResolvedSourceCallInfo,
-    sourceFile: SourceFile,
-  ): readonly import("../../../target-model/types/model.js").CsharpTargetParameter[] | undefined;
-  resolveSourceCallArgumentParameter(
-    source: ResolvedSourceCallInfo,
-    binding: ResolvedSourceCallInfo["sourceArgumentBindings"][number],
-    sourceFile: SourceFile,
-    excludedSourceArgumentIndexes?: ReadonlySet<number>,
-  ): TargetTypeRef | undefined;
-  resolveSourceCallResult(
-    source: ResolvedSourceCallInfo,
-    sourceFile: SourceFile,
-    nativeType: TargetTypeRef | undefined,
-  ): CsharpSourceCallResult | undefined;
+export interface CsharpTypePolicy extends CsharpTypeQueries {
   withSourceTargetBindings(
     bindings: readonly CsharpSourceTargetTypeBinding[],
   ): CsharpScopedTypePolicyResult;

@@ -6,7 +6,7 @@ import { csharpSourceArgumentExpectedType, csharpTargetParameterValueType, getCs
 import { csharpSelectedTargetArgumentBindings, csharpSourceOwnedArgumentBindings, csharpProviderArgumentSourceCarrier } from "../../policy/operations/members/selection/native-use-arguments.js";
 import type { CsharpNativeUseSlot } from "../../target-model/records/native-demand.js";
 import type { CsharpTargetCallSelection } from "../../target-model/records/member-selections.js";
-import type { ResolvedSourceCallInfo } from "../../target-model/records/members.js";
+import type { ResolvedSourceCallInfo } from "../../target-model/records/source-calls.js";
 import type { CsharpSourceArgumentGrouping } from "../../target-model/records/operations.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpExpectedUseCollection } from "./collection.js";

@@ -28,8 +28,8 @@ import { resolvedTargetStage } from "@tsonic/target-api/artifacts";
 import type { TargetStageResult } from "@tsonic/target-api/artifacts";
 import { createCsharpTypeAnalysis } from "./type-system.js";
 import type { CsharpTypeAnalysis } from "./type-system.js";
-import type { CsharpPlanningRepresentationQueries } from "../../policy/types/index.js";
-import type { ResolvedSourceCallInfo } from "../../target-model/records/members.js";
+import type { CsharpPlanningRepresentationQueries } from "../types/resolution/model.js";
+import type { ResolvedSourceCallInfo } from "../../target-model/records/source-calls.js";
 import { analyzeCsharpAttributeApplications } from "../attributes/application-index.js";
 
 import type { CsharpTargetAnalysisRequest } from "./model.js";

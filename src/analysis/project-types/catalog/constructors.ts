@@ -8,7 +8,7 @@ import type { CsharpProviderTargetRelation } from "../../../target-model/identit
 import { resolveCsharpProviderDeclarationEvidence } from "../../../policy/operations/members/providers/evidence.js";
 import type { CsharpProjectTypeDefinition, CsharpProjectTypeHeritage, CsharpProjectTypeIssue } from "../../../target-model/records/project-types.js";
 import type { CsharpTargetMember, CsharpTargetNamedTypeRef, CsharpTargetParameter, TargetTypeRef } from "../../../target-model/types/model.js";
-import type { CsharpTypePolicy } from "../../../policy/types/resolution/index.js";
+import type { CsharpTypePolicy } from "../../types/resolution/model.js";
 import { csharpTargetBindingSubstitutions, substituteCsharpTargetMember } from "../../../policy/types/callables/member-substitution.js";
 import { targetTypeRefKey, targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { selectCsharpSourceProfileConstructor } from "../../../policy/operations/source-profiles/source-profile-selection.js";

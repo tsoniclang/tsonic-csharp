@@ -8,7 +8,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { csharpNativePropertyNameIssue } from "../objects/computed-field-names.js";
 import { selectCsharpSemanticCarrier } from "../../policy/types/semantic-types.js";
-import type { CsharpTypePolicy } from "../../policy/types/index.js";
+import type { CsharpTypePolicy } from "../types/resolution/model.js";
 import { isCsharpJsValueTargetType, isTypeParameterTargetRef, targetTypeRefEquals, targetTypeRefKey } from "../../policy/types/index.js";
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
