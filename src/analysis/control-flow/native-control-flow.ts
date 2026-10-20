@@ -18,7 +18,7 @@ import type { CsharpConversionSelection } from "../../target-model/conversions/s
 import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 import { directCsharpSourceYieldExpression } from "../../target-model/syntax/yield-expression.js";
-import { csharpDestructuringAssignmentSyntax } from "../../target-model/syntax/operators.js";
+import { csharpDestructuringAssignmentSyntax } from "../../source/extension/operators.js";
 import type { CsharpStatementCompletionRecords } from "../../target-model/records/statement-completion.js";
 import { createCsharpAdmittedIterationProducer } from "../program/records/iteration.js";
 

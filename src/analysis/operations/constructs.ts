@@ -33,7 +33,7 @@ import { selectCsharpProviderValue } from "./provider/values.js";
 import { selectCsharpTargetProperty } from "./provider/selected-members.js";
 import { selectCsharpTargetElement } from "./provider/selected-members.js";
 import { selectCsharpTargetCall } from "./provider/selected-members.js";
-import { sourceOperatorFromKindName } from "../../policy/operations/index.js";
+import { sourceOperatorFromKindName } from "../../target-model/syntax/operators.js";
 import { selectCsharpNativePointerOperation } from "./pointers/native-pointers.js";
 import { selectCsharpJsArrayMutation } from "./collections/js-array-mutations.js";
 import { selectCsharpJsStringConversion } from "./strings/explicit-js-string.js";

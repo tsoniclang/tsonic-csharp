@@ -1,5 +1,5 @@
 import { allocateDestructuringTemp } from "./binding-state.js";
-import { csharpDestructuringAssignmentSyntax } from "../../../target-model/syntax/operators.js";
+import { csharpDestructuringAssignmentSyntax } from "../../../source/extension/operators.js";
 import { getCsharpTypeForExpressionCarrier } from "./binding-patterns.js";
 import type { ExpressionPlanner } from "../expressions/expression-planner-types.js";
 import type { CsharpExpression, CsharpStatement } from "../../target-ast/syntax/index.js";

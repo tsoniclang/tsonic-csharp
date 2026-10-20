@@ -16,7 +16,8 @@ import { getCsharpNullableElementTargetType, isCsharpAbsenceTargetType, targetTy
 import { csharpLiteralIsRepresentableAs } from "../../policy/conversions/literals.js";
 
 import type { CsharpSourceOperator } from "../../target-model/syntax/operators.js";
-import { csharpDestructuringAssignmentSyntax, sourceOperatorFromKindName } from "../../target-model/syntax/operators.js";
+import { sourceOperatorFromKindName } from "../../target-model/syntax/operators.js";
+import { csharpDestructuringAssignmentSyntax } from "../../source/extension/operators.js";
 
 import { selectCsharpNativeBinaryOperation, selectCsharpNativeUnaryOperation, rejectCsharpOperator as rejected } from "../../policy/operations/operators/rules.js";
 export type CsharpOperationTargetTypeQuery = (
