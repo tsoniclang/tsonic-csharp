@@ -32,6 +32,8 @@ import { analyzeCsharpFlowReadProjections } from "../conversions/flow-read-proje
 
 import { analyzeCsharpNativeValueCarriers, analyzeCsharpObjectMethodSources } from "../objects/value-carriers.js";
 
+type CsharpAnalysisRejection = Extract<TargetStageResult<never>, { readonly kind: "rejected" }>;
+
 export function analyzeCsharpTargetProgram(
   request: CsharpTargetAnalysisRequest,
 ): TargetStageResult<CsharpTargetProgram> {
@@ -230,7 +232,6 @@ function analyzeCsharpTargetProgramBeforeSeal(
   );
   const attributes = analysis.attributes;
   if (attributes.diagnostics.length > 0) return rejectedTargetStage(attributes.diagnostics);
-  const attributeApplications = attributes.index;
   const moduleInitialization = analyzeCsharpModuleInitialization({
     sourceEvidence: analysis.sourceEvidence,
     source,
@@ -250,8 +251,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
       source: "tsonic-csharp",
     })));
   }
-  const { classFactories, captureStorage, callableCreations, nativeParticipation, classInitialization,
-    exactLiterals, nativeDemand, bindingPatterns, conversions } = analysis;
+  const { classFactories, captureStorage, nativeDemand, bindingPatterns } = analysis;
   const flowReads = analyzeCsharpFlowReadProjections({ ...callablePolicy, sourceFiles: analysis.policy.sourceFiles },
     analysis.sourceEvidence, analysis.operations, analysis.valueReads);
   if (classFactories.issues.length > 0) return rejectedTargetStage(classFactories.issues.map(issue => ({
@@ -301,5 +301,5 @@ function analyzeCsharpTargetProgramBeforeSeal(
   if (promiseResults.diagnostics.length > 0) return rejectedTargetStage(promiseResults.diagnostics);
   return finalizeCsharpNativeEmission(request, analysis, sourceStorage, safetyApplications,
     callableAdapters, sourceModuleConstructions, moduleInitialization, flowReads, promiseResults,
-    prerequisiteBinaryExecutionDriver);
+    nativeValueCarriers, prerequisiteBinaryExecutionDriver);
 }

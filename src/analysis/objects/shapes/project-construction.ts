@@ -1,4 +1,3 @@
-import { createCsharpObjectShapeMemberResolver } from "./member-evidence.js";
 
 import { createStructuralObjectShapeTarget } from "./construction.js";
 

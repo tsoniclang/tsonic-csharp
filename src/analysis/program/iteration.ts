@@ -25,7 +25,6 @@ import { createCsharpTypeDefinitionRegistry } from "../project-types/type-defini
 
 import { resolvedTargetStage } from "@tsonic/target-api/artifacts";
 
-import type { TargetStageResult } from "@tsonic/target-api/artifacts";
 import { createCsharpTypeAnalysis } from "./type-system.js";
 import type { CsharpTypeAnalysis } from "./type-system.js";
 import type { CsharpPlanningRepresentationQueries } from "../types/resolution/model.js";
@@ -65,8 +64,6 @@ export interface CsharpRepresentationContract {
   readonly storage: CsharpStorageClassifications;
 }
 
-type CsharpAnalysisRejection = Extract<TargetStageResult<never>, { readonly kind: "rejected" }>;
-
 export function analyzeCsharpRepresentationIteration(
   input: CsharpTargetAnalysisRequest["input"],
   providers: CsharpTargetAnalysisRequest["providers"],
@@ -74,7 +71,7 @@ export function analyzeCsharpRepresentationIteration(
   sourceIdentities: ReturnType<typeof createCsharpSourceIdentityPolicy>,
   nameHost: Parameters<typeof createCsharpSourceNameBuilder>[0],
   typeHost: Parameters<typeof createCsharpTypeAnalysis>[0] &
-    Pick<import("../../policy/types/project/project-types.js").CsharpProjectTypeCatalogHost, "enumConstants">,
+    Pick<import("../project-types/type-policy.js").CsharpProjectTypeCatalogHost, "enumConstants">,
   sourceStorage: SourceStorageQueries,
   statementErasure: Parameters<typeof analyzeCsharpTargetOperations>[2],
   previous: CsharpRepresentationContract | undefined,

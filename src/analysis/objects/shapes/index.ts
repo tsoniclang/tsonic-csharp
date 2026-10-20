@@ -1,7 +1,8 @@
 export {
   createCsharpObjectShapePolicy,
 } from "./api.js";
-export type {CsharpObjectShapePolicy, CsharpObjectShapePolicyHost} from "./model.js";
+export type { CsharpObjectShapePolicyHost } from "./model.js";
+export type { CsharpObjectShapePolicy } from "../../../target-model/records/object-shapes.js";
 
 export type { CsharpProjectConstructibleTypeProjection } from "../../../target-model/records/object-shapes.js";
 export {

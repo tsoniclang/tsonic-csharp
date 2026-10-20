@@ -1,4 +1,5 @@
 import { isCsharpThrowableType } from "../project-types/throwable-types.js";
+import { resolveCsharpRuntimeUnionObjectShapeProperty } from "../objects/runtime-union-shapes.js";
 import { optionalResultType } from "../../policy/operations/members/optional-results.js";
 import type { ResolvedSourceElementAccessInfo, SourceFile } from "@tsonic/tsts";
 import { readCsharpSourceField } from "../../source/extension/markers.js";
@@ -7,7 +8,7 @@ import type { CsharpTargetElementSelection } from "../../target-model/records/me
 import { validateCsharpJsValueOperationSelection } from "../../policy/operations/js-values/selection.js";
 import { resolveCsharpJsValueObjectShapeProperty, selectCsharpTargetProperty } from "../../policy/operations/members/index.js";
 import { selectCsharpJsValueReceiverExpressionOperation, selectCsharpJsValueReceiverOperation } from "../../policy/operations/js-values/index.js";
-import { resolveCsharpObjectShapeMemberBySelectedSubject, resolveCsharpObjectShapeMemberReadTargetType, resolveCsharpRuntimeUnionObjectShapeProperty } from "../../policy/types/index.js";
+import { resolveCsharpObjectShapeMemberBySelectedSubject, resolveCsharpObjectShapeMemberReadTargetType } from "../../policy/types/index.js";
 import { selectCsharpFlowReadConversion } from "../../policy/conversions/index.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpElementClassification, CsharpPropertyClassification, CsharpMemberReceiverProjection } from "../../target-model/records/operations.js";

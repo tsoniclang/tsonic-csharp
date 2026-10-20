@@ -1,6 +1,7 @@
-import type { CsharpProjectConstructibleTypeProjection } from "../../../target-model/records/object-shapes.js";
+import type { CsharpObjectShapePolicy } from "../../../target-model/records/object-shapes.js";
+
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpSourceMemberKey, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpObjectShapeFact, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../../target-model/records/project-types.js";
 import type { CsharpPlanningRepresentationQueries, CsharpRecursiveTypeResolver, CsharpTypePolicyBaseHost, CsharpTypeResolutionState } from "../../types/resolution/model.js";
 
@@ -15,39 +16,6 @@ export interface CsharpObjectShapePolicyHost extends CsharpTypePolicyBaseHost {
   readonly projectTypeCatalog: CsharpProjectTypeCatalog;
   projectTypes(): CsharpProjectTypePolicy;
   readonly typeResolver: CsharpRecursiveTypeResolver;
-}
-
-export interface CsharpObjectShapePolicy {
-  resolveCallableValue(signature: TargetTypeRef,
-    typeParameters: NonNullable<CsharpObjectShapeMemberFact["typeParameters"]>): TargetTypeRef | undefined;
-  resolveCopyShape(shape: CsharpObjectShapeFact): CsharpObjectShapeFact | undefined;
-  resolveNode(
-    node: Node | undefined,
-    sourceFile?: SourceFile,
-  ): CsharpObjectShapeFact | undefined;
-  resolveTarget(type: TargetTypeRef | undefined): CsharpObjectShapeFact | undefined;
-  resolveType(
-    type: Type | undefined,
-    sourceFile: SourceFile,
-    authoredTypeRoot?: Node,
-  ): CsharpObjectShapeFact | undefined;
-  resolveTypeMember(
-    type: Type | undefined,
-    sourceFile: SourceFile,
-    sourceKey: CsharpSourceMemberKey,
-  ): CsharpObjectShapeMemberFact | undefined;
-  resolveObjectLiteralTargetShape(
-    expectedShape: CsharpObjectShapeFact | undefined,
-    objectLiteral: Node,
-    sourceFile: SourceFile,
-  ): CsharpObjectLiteralTargetShapeResolution;
-  resolveProjectConstructibleSelectedType(
-    targetType: TargetTypeRef,
-    explicitTypeNode: Node | undefined,
-    selectedType: Type,
-    contextNode: Node,
-    sourceFile: SourceFile,
-  ): CsharpProjectConstructibleTypeProjection;
 }
 
 export interface CsharpRecursiveObjectShapePolicy extends CsharpObjectShapePolicy {
@@ -66,5 +34,3 @@ export interface CsharpRecursiveObjectShapePolicy extends CsharpObjectShapePolic
     state: CsharpTypeResolutionState,
   ): CsharpObjectShapeFact | undefined;
 }
-
-import type { CsharpObjectLiteralTargetShapeResolution } from "../../../target-model/records/object-shapes.js";

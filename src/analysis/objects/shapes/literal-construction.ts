@@ -1,8 +1,6 @@
-import { createCsharpObjectShapeMemberResolver } from "./member-evidence.js";
 
 import { createStructuralObjectShapeTarget } from "./construction.js";
 
-import { sourceSubjects } from "./source-evidence.js";
 
 import { selectSourceObjectLiteralAccessors, AsSpreadAssignment } from "@tsonic/target-api/source";
 

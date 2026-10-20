@@ -11,14 +11,13 @@ import type { CsharpSourceCallableContract } from "../../../target-model/records
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpSourceTargetTypeBinding } from "../../../target-model/types/model.js";
 import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
-import type { CsharpObjectShapePolicy } from "../../objects/shapes/index.js";
+import type { CsharpObjectShapePolicy } from "../../../target-model/records/object-shapes.js";
 import type { CsharpObjectMethodSources } from "../../../target-model/records/native-value-carriers.js";
 
 export type ResolvedSourceCallInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["call"]>
 >;
 
-import type { CsharpSourceCallResult } from "../../../target-model/operations/source-call-results.js";
 export type { CsharpSourceCallResult } from "../../../target-model/operations/source-call-results.js";
 
 export interface CsharpPlanningRepresentationQueries {
@@ -53,7 +52,7 @@ export interface CsharpTypePolicyBaseHost {
 }
 
 export interface CsharpTypePolicyHost extends CsharpTypePolicyBaseHost {
-  readonly typeParameterConstraints: import("../../../policy/constraints/type-parameter-environment.js").CsharpTypeParameterEnvironment;
+  readonly typeParameterConstraints: import("../../../target-model/records/type-parameter-constraints.js").CsharpTypeParameterEnvironment;
   closedTypeGuard(node: Node): import("@tsonic/target-api/source").SourceNativeGuard<import("../../../target-model/operations/type-tests.js").CsharpClosedTypePredicate> | undefined;
   bindingProjection(node: Node, sourceFile: SourceFile): import("../../../target-model/records/binding-projection-policy.js").CsharpBindingProjection | undefined;
   readonly representations: CsharpPlanningRepresentationQueries;

@@ -1,3 +1,4 @@
+import type { analyzeCsharpNativeValueCarriers } from "../objects/value-carriers.js";
 import type { CsharpTargetProgram } from "../../target-model/program.js";
 import type { CsharpProgramRecordInput } from "./records/create.js";
 import type { CsharpRepresentationAnalysis } from "./iteration.js";
@@ -125,6 +126,7 @@ export function finalizeCsharpNativeEmission(
   moduleInitialization: ReturnType<typeof analyzeCsharpModuleInitialization>,
   flowReads: ReturnType<typeof analyzeCsharpFlowReadProjections>,
   promiseResults: ReturnType<typeof analyzeCsharpPromiseResults>,
+  nativeValueCarriers: ReturnType<typeof analyzeCsharpNativeValueCarriers>,
   prerequisiteBinaryExecutionDriver: ReturnType<typeof composeCsharpBinaryExecutionDriver>,
 ): TargetStageResult<CsharpTargetProgram> {
   const { input, configuration, providers } = request;

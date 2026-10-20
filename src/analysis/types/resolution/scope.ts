@@ -107,13 +107,13 @@ export interface CsharpTypeResolutionScope {
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
   nativeType: TargetTypeRef | undefined,
-): import("./model.ts,tsonic-csharp/src/policy/model/type-resolution.ts,tsonic-csharp/src/target-model/records/source-calls.js").CsharpSourceCallResult | undefined;
+): import("../../../target-model/operations/source-call-results.js").CsharpSourceCallResult | undefined;
   resolveSourceCallResultWithState(
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
   nativeType: TargetTypeRef | undefined,
-): import("./model.ts,tsonic-csharp/src/policy/model/type-resolution.ts,tsonic-csharp/src/target-model/records/source-calls.js").CsharpSourceCallResult | undefined;
+): import("../../../target-model/operations/source-call-results.js").CsharpSourceCallResult | undefined;
   withSourceTargetBindings(
   bindings: readonly CsharpSourceTargetTypeBinding[],
 ): CsharpScopedTypePolicyResult;

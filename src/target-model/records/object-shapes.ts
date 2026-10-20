@@ -1,5 +1,5 @@
-import type { Node, SourceFile } from "@tsonic/tsts";
-import type { CsharpObjectShapeFact, TargetTypeRef } from "../types/model.js";
+import type { Node, SourceFile, Type } from "@tsonic/tsts";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpSourceMemberKey, TargetTypeRef } from "../types/model.js";
 
 export type CsharpProjectConstructibleTypeProjection =
   | { readonly kind: "unchanged" }
@@ -56,4 +56,37 @@ export type CsharpObjectShapeAuthoredOrder = CsharpObjectShapePropertyOrderSelec
 export interface CsharpObjectShapePropertyOrders {
   readonly projections: Readonly<Record<CsharpObjectShapeProjectionKind, CsharpObjectShapeAuthoredOrder>>;
   readonly assignmentSource: CsharpObjectShapePropertyOrderSelection;
+}
+
+export interface CsharpObjectShapePolicy {
+  resolveCallableValue(signature: TargetTypeRef,
+    typeParameters: NonNullable<CsharpObjectShapeMemberFact["typeParameters"]>): TargetTypeRef | undefined;
+  resolveCopyShape(shape: CsharpObjectShapeFact): CsharpObjectShapeFact | undefined;
+  resolveNode(
+    node: Node | undefined,
+    sourceFile?: SourceFile,
+  ): CsharpObjectShapeFact | undefined;
+  resolveTarget(type: TargetTypeRef | undefined): CsharpObjectShapeFact | undefined;
+  resolveType(
+    type: Type | undefined,
+    sourceFile: SourceFile,
+    authoredTypeRoot?: Node,
+  ): CsharpObjectShapeFact | undefined;
+  resolveTypeMember(
+    type: Type | undefined,
+    sourceFile: SourceFile,
+    sourceKey: CsharpSourceMemberKey,
+  ): CsharpObjectShapeMemberFact | undefined;
+  resolveObjectLiteralTargetShape(
+    expectedShape: CsharpObjectShapeFact | undefined,
+    objectLiteral: Node,
+    sourceFile: SourceFile,
+  ): CsharpObjectLiteralTargetShapeResolution;
+  resolveProjectConstructibleSelectedType(
+    targetType: TargetTypeRef,
+    explicitTypeNode: Node | undefined,
+    selectedType: Type,
+    contextNode: Node,
+    sourceFile: SourceFile,
+  ): CsharpProjectConstructibleTypeProjection;
 }
