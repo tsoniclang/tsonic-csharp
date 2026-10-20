@@ -26,12 +26,14 @@ export function prepareCsharpStorage(
   representations: CsharpStorageRepresentationClassifications,
 ): CsharpStoragePreparation {
   const backing = prepareCsharpNativeBacking(policy, evidence, operations);
+  const identities = new Set(representations.contracts.filter(contract => contract.typedLocationIdentity &&
+    backing.get(contract.declaration) === undefined && backing.array(contract.declaration) === undefined)
+    .map(contract => contract.declaration));
   const captures: CsharpCaptureStorageQueries = Object.freeze({
     storageType: representations.storageType,
     nativeBacking: Object.freeze({ get: backing.get }),
     nativeArray: Object.freeze({ get: backing.array }),
-    typedLocationIdentity: Object.freeze({ get: (declaration: Node) => backing.get(declaration) === undefined &&
-      backing.array(declaration) === undefined && representations.typedLocationIdentity.get(declaration) }),
+    typedLocationIdentity: Object.freeze({ get: (declaration: Node) => identities.has(declaration) }),
   });
   return Object.freeze({ captures, backing, representations });
 }
@@ -72,7 +74,7 @@ export function sealCsharpStorage(
       policy.ast.is.IsPropertyAccessExpression(node) || policy.ast.is.IsElementAccessExpression(node) ||
       policy.ast.is.IsCallExpression(node) || policy.ast.is.IsParenthesizedExpression(node))) {
       nativeLocations.set(node, classifyCsharpNativeLocation(policy, node, policy.ast.getSourceFile(node)!,
-        operations.classPropertyStorage.get, classifications));
+        operations.classPropertyStorage.get, classifications, evidence.readStorageTargetType.get));
     }
     const passing = selectCsharpSourceArgument(policy.sourceFacts, node);
     if (passing.kind === "resolved" && passing.argument.passingMode !== "by-value") {
