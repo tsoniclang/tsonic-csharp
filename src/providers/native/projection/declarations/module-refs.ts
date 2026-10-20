@@ -1,12 +1,4 @@
-import type {
-  ProviderExportDeclaration,
-  ProviderImportDeclaration,
-  ProviderMemberDeclaration,
-  ProviderParameterDeclaration,
-  ProviderSignatureDeclaration,
-  ProviderTypeExpression,
-  ProviderTypeParameterDeclaration,
-} from "@tsonic/tsts";
+import type { ProviderExportDeclaration, ProviderImportDeclaration, ProviderMemberDeclaration, ProviderParameterDeclaration, ProviderSignatureDeclaration, ProviderTypeExpression, ProviderTypeParameterDeclaration } from "@tsonic/tsts";
 import type { DotnetDeclarationContext } from "./context.js";
 
 export function qualifyProviderMemberModuleRefs(
