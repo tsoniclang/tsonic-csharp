@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import { createSourceErrorStorageDemandQuery, type SourceErrorStorageDemandQueries, type SourceStorageQueries } from "@tsonic/target-api/analysis";
-import { csharpSourceProfileDeclarationIdentity } from "../../policy/operations/source-profiles/source-profile-identity.js";
+import { csharpSourceProfileDeclarationIdentity } from "../../policy/identities/selected-source.js";
 import { csharpSourceErrorNames } from "../../target-model/identities/source-errors.js";
 
 export function createCsharpErrorStorageDemandQuery(source: TargetSourceProgram, storage: SourceStorageQueries): SourceErrorStorageDemandQueries {

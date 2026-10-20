@@ -1,14 +1,8 @@
-import type {
-  AstReader,
-  Node,
-  ReadonlySourceFactResolver,
-} from "@tsonic/tsts";
+import type { AstReader, Node, ReadonlySourceFactResolver } from "@tsonic/tsts";
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
 import { jsSourceSemanticsIdentity } from "@tsonic/js-source-profile";
 import { isTsonicSourceProfileDeclarationPath } from "@tsonic/target-api/provider";
-import {
-  csharpTargetId,
-} from "../../../target-model/identities/source.js";
+import { csharpTargetId } from "../../target-model/identities/source.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 
 export type CsharpSourceProfileOwner = typeof csharpTargetId | "js";
