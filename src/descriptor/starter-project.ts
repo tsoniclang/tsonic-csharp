@@ -1,7 +1,4 @@
-import type {
-  TargetStarterProject,
-  TargetStarterProjectContext,
-} from "@tsonic/target-api";
+import type { TargetStarterProject, TargetStarterProjectContext } from "@tsonic/target-api";
 import { toPascalCase } from "../target-model/names/identifiers.js";
 import { csharpTargetId } from "../target-model/identities/source.js";
 
