@@ -1,9 +1,4 @@
-import type {
-  ExtensionDiagnostic,
-  ExtensionEvidence,
-  ProviderExportDeclaration,
-  ProviderIdentity,
-} from "@tsonic/tsts";
+import type { ExtensionDiagnostic, ExtensionEvidence, ProviderExportDeclaration, ProviderIdentity } from "@tsonic/tsts";
 import type { TargetRuntimeContributions } from "@tsonic/target-api/artifacts";
 import type { CsharpProviderPolicyContribution } from "../../target-model/metadata/provider-metadata.js";
 
