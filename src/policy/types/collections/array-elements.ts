@@ -2,7 +2,7 @@ import { sourceNumericLiteralIsExactlyRepresentableAsBinaryFloat, type SourceLit
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
 import { isCsharpIntegralTargetType } from "../../../target-model/types/carriers/scalar-types.js";
-import { csharpBigIntFitsSourcePrimitive } from "../../../target-model/syntax/numeric-literals.js";
+import { csharpBigIntFitsSourcePrimitive } from "../../conversions/literal-range.js";
 import { csharpLiteralIsRepresentableAs } from "../../conversions/literals.js";
 import { sourcePrimitiveImplicitlyConverts } from "../../conversions/source-primitives.js";
 
