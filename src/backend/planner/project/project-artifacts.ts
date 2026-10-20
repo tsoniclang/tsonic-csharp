@@ -1,5 +1,5 @@
 import type { CsharpPlanningContext } from "../context.js";
-import type { CsharpProjectFile, CsharpProjectPlan } from "../../artifact-model/project/model.js";
+import type { CsharpProjectFile, CsharpProjectPlan } from "../../../target-model/project/emission.js";
 import {
   readAssemblyName,
   readCsharpProjectProperties,
@@ -11,7 +11,7 @@ export type {
   CsharpProjectPlan,
   CsharpProjectProperty,
   CsharpProjectReference,
-} from "../../artifact-model/project/model.js";
+} from "../../../target-model/project/emission.js";
 export { readNamespace } from "./project-options.js";
 
 export function planCsharpProject(
