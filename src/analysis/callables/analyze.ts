@@ -1,21 +1,10 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
-import {
-  AsParameterDeclaration,
-  HasSourceKind,
-  KindIdentifier,
-} from "@tsonic/target-api/source";
+import { AsParameterDeclaration, HasSourceKind, KindIdentifier } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import {
-  csharpNullableTargetType,
-  getCsharpCallableValueSignature,
-  getCsharpDelegateSignature,
-  isCsharpSourceCallableArtifactDeclaration,
-  isCsharpSourceDelegateTargetType,
-  targetTypeRefEquals,
-} from "../../policy/types/index.js";
+import { csharpNullableTargetType, getCsharpCallableValueSignature, isCsharpSourceCallableArtifactDeclaration, targetTypeRefEquals } from "../../policy/types/index.js";
 import type { CsharpProjectForwardingConstructor } from "../../target-model/records/project-types.js";
 import type { CsharpTargetParameter, TargetTypeRef } from "../../policy/types/index.js";
-import type { CsharpSourceCallableArtifactIdentity } from "../../target-model/records/callable-identities.js";
+
 import type { CsharpSourceCallableContract, CsharpSourceCallableParameterContract } from "../../target-model/records/source-callable-contract.js";
 import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
 import type { CsharpSourceNameResolver } from "../names/index.js";
@@ -41,9 +30,9 @@ export function analyzeCsharpCallableContracts(
   operations: CsharpTargetOperationClassifications,
   conversions: CsharpCallableConversionPolicy,
 ): CsharpCallableContractIndex {
-  const byDeclaration = new WeakMap<Node, CsharpSourceCallableContract>();
+  const byDeclaration = new Map<Node, CsharpSourceCallableContract>();
   const closedContexts = new WeakMap<Node, CsharpClosedCallableContext>();
-  const closedAliases = new WeakMap<Node, Node>();
+  const closedAliases = new Map<Node, Node>();
   const byProjectConstructor = new Map<string, CsharpSourceCallableContract>();
   const contracts: CsharpSourceCallableContract[] = [];
   const declarationContracts: CsharpSourceCallableContract[] = [];
@@ -81,27 +70,24 @@ export function analyzeCsharpCallableContracts(
       }
     }
   }
-  return Object.freeze({
-    contracts: Object.freeze(contracts),
-    declarationContracts: nativeDeclarations,
-    closedInputType(declaration: Node) {
-      const origin = closedAliases.get(declaration) ?? declaration;
-      const contract = byDeclaration.get(origin);
-      const context = closedContexts.get(origin);
-      if (contract === undefined || context === undefined) return undefined;
-      const nativeType = csharpCallableValueType(contract);
-      if (nativeType === undefined) return undefined;
-      if (context.invocationType !== undefined && closedInvocationMatches(nativeType, context.invocationType)) {
-        return context.invocationType;
-      }
-      return origin === declaration && context.inputTypes.some(type => type !== undefined) ? nativeType : undefined;
-    },
-    get(identity: CsharpSourceCallableArtifactIdentity) {
-      return identity.kind === "declaration"
-        ? byDeclaration.get(identity.declaration)
-        : byProjectConstructor.get(identity.targetMemberId);
-    },
-  });
+  const closedInputs = new Map<Node, TargetTypeRef>();
+  const invocationInputs = new Map<Node, TargetTypeRef>();
+  for (const [declaration, contract] of byDeclaration) {
+    const context = closedContexts.get(declaration);
+    if (context === undefined) continue;
+    const nativeType = csharpCallableValueType(contract);
+    if (nativeType === undefined) continue;
+    if (context.invocationType !== undefined && csharpClosedInvocationMatches(nativeType, context.invocationType)) {
+      closedInputs.set(declaration, context.invocationType);
+      invocationInputs.set(declaration, context.invocationType);
+    } else if (context.inputTypes.some(type => type !== undefined)) closedInputs.set(declaration, nativeType);
+  }
+  for (const [alias, origin] of closedAliases) {
+    const invocationType = invocationInputs.get(origin);
+    if (invocationType !== undefined) closedInputs.set(alias, invocationType);
+  }
+  return sealCsharpCallableContractIndex({ contracts, declarationContracts: nativeDeclarations, byDeclaration,
+    byProjectConstructor, closedInputs });
 
   function visit(node: Node, sourceFile: SourceFile): void {
     if (evidence.compileTimeMetadata.get(node)) return;
@@ -145,19 +131,6 @@ export function analyzeCsharpCallableContracts(
       }
     });
   }
-}
-
-function closedInvocationMatches(source: TargetTypeRef, destination: TargetTypeRef): boolean {
-  const sourceSignature = getCsharpDelegateSignature(source);
-  const destinationSignature = getCsharpDelegateSignature(destination);
-  if (sourceSignature === undefined || destinationSignature === undefined ||
-    !isCsharpSourceDelegateTargetType(source) || !isCsharpSourceDelegateTargetType(destination)) return false;
-  return sourceSignature.restParameterIndex === undefined && destinationSignature.restParameterIndex === undefined &&
-    (sourceSignature.optionalParameterIndexes?.length ?? 0) === 0 &&
-    (destinationSignature.optionalParameterIndexes?.length ?? 0) === 0 &&
-    sourceSignature.parameters.length <= destinationSignature.parameters.length &&
-    sourceSignature.parameters.every((type, index) => targetTypeRefEquals(type, destinationSignature.parameters[index]!)) &&
-    targetTypeRefEquals(sourceSignature.returnType, destinationSignature.returnType);
 }
 
 function sourceCallableContract(
@@ -260,6 +233,7 @@ function sourceParameterContract(
     )
     ? names.resolve(parameter.name)
     : undefined;
+  if (HasSourceKind(policy.ast, parameter.name, KindIdentifier) && resolvedName?.kind !== "resolved") return undefined;
   const name = resolvedName?.kind === "resolved"
     ? resolvedName.name
     : `__tsonic_param${parameterIndex}`;
@@ -450,3 +424,6 @@ function stringArraysEqual(
   return left.length === right.length &&
     left.every((value, index) => value === right[index]);
 }
+
+import { csharpClosedInvocationMatches } from "../../policy/types/callables/value-type.js";
+import { sealCsharpCallableContractIndex } from "../program/records/callable-values.js";
