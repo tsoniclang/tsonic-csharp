@@ -4,12 +4,8 @@ import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { performance } from "node:perf_hooks";
-import type {
-  DotnetProviderTelemetry,
-} from "./telemetry.js";
-import type {
-  DotnetProviderToolResult,
-} from "./types.js";
+import type { DotnetProviderTelemetry } from "./telemetry.js";
+import type { DotnetProviderToolResult } from "./types.js";
 
 const workerStartupTimeoutMs = 30_000;
 const workerRequestTimeoutMs = 300_000;
