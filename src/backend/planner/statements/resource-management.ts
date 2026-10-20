@@ -248,11 +248,11 @@ function runtimeUnionDisposalBody(
     kind: "Block",
     statements: arms.map((arm) => {
       const receiver: CsharpExpression = { kind: "IdentifierName", name: parameterName };
-      const projected = runtimeUnionArmProjection(receiver, arm.armIndex, resourceType);
+      const projected = runtimeUnionArmProjection(receiver, arm.armIndex, resourceType, false, input);
       const disposal = disposalInvocation(projected, arm.disposal);
       return {
         kind: "IfStatement",
-        condition: runtimeUnionArmTest(receiver, arm.armIndex, resourceType),
+        condition: runtimeUnionArmTest(receiver, arm.armIndex, resourceType, input),
         thenBody: {
           kind: "Block",
           statements: [{

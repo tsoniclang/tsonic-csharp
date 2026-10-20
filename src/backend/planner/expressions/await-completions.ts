@@ -73,7 +73,7 @@ export function planCsharpAwaitCompletion(
       arguments: [{ kind: "Argument", expression: { kind: "LiteralExpression", value: "Excluded native completion variant" } }],
     } }];
     for (const alternative of [...completion.alternatives].reverse()) {
-      const selection = planCsharpUnionPattern(receiver, alternative.sourcePath, carrier);
+      const selection = planCsharpUnionPattern(receiver, alternative.sourcePath, carrier, false, input);
       let value = selection.value;
       let condition = selection.condition;
       if (condition === undefined && completion.optional) {
@@ -100,7 +100,7 @@ export function planCsharpAwaitCompletion(
   for (const [index, alternative] of completion.alternatives.entries()) {
     const designation = input.names.temporaryName(`__tsonic_await_${input.program.source.ast.pos(node)}_${index}`);
     const receiver: CsharpExpression = { kind: "IdentifierName", name: designation };
-    const selected = planCsharpUnionPattern(receiver, alternative.sourcePath, carrier);
+    const selected = planCsharpUnionPattern(receiver, alternative.sourcePath, carrier, false, input);
     const value = projectResult(alternative, selected.value);
     if (value === undefined) return undefined;
     const presentType = alternative.sourcePath.length === 0 && completion.optional

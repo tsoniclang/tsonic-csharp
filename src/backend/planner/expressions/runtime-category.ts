@@ -49,9 +49,9 @@ function planRuntimeCategory(
       const designation = allocateExpressionTemp(state);
       const receiver: CsharpExpression = { kind: "IdentifierName", name: designation };
       const nested = typeof arm.result === "string" ? literal(arm.result)
-        : planRuntimeCategory(runtimeUnionArmProjection(receiver, index, category.sourceCarrier), arm.result, input, state, comparison);
+        : planRuntimeCategory(runtimeUnionArmProjection(receiver, index, category.sourceCarrier, false, input), arm.result, input, state, comparison);
       if (nested === undefined) return undefined;
-      arms.push({ pattern: { kind: "VarPattern", designation }, when: runtimeUnionArmTest(receiver, index, category.sourceCarrier),
+      arms.push({ pattern: { kind: "VarPattern", designation }, when: runtimeUnionArmTest(receiver, index, category.sourceCarrier, input),
         expression: nested });
     }
   }

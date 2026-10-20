@@ -33,7 +33,7 @@ export function planCsharpPropertyValueProjection(node: Node, sourceFile: Source
     const arms: CsharpSwitchExpressionArm[] = [];
     for (const [index, leaf] of selected.leaves.entries()) {
       const name = input.names.temporaryName(`__tsonic_properties_${input.program.source.ast.pos(node)}_${index}`);
-      const arm = planCsharpUnionPattern({ kind: "IdentifierName", name }, leaf.path, sourceType);
+      const arm = planCsharpUnionPattern({ kind: "IdentifierName", name }, leaf.path, sourceType, false, input);
       const projected = planCsharpPropertyValueProjection(node, sourceFile, input, diagnostics, leaf.carrier, arm.value);
       if (projected === undefined) return undefined;
       if (arm.condition === undefined) failCsharpPlannerInvariant("An admitted native union leaf requires its exact tag condition.", node);
