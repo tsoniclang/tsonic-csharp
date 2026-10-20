@@ -7,7 +7,8 @@ import type {
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpPlannedValue } from "../planned-values.js";
 
-export interface ArrayLiteralPlanner {readonly planExpression: (
+export interface ArrayLiteralPlanner {
+  readonly planExpression: (
     node: Node,
     sourceFile: SourceFile,
     input: CsharpPlanningContext,

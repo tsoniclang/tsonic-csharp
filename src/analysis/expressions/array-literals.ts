@@ -45,7 +45,7 @@ export function analyzeCsharpArrayLiterals(input: { readonly source: TargetSourc
     return value;
   };
   for (const { use } of input.demand.entries) {
-    if (use.kind === "erased" || !ast.is.IsArrayLiteralExpression(use.expression)) continue;
+    if ((use.kind !== "constructed" && use.kind !== "value") || !ast.is.IsArrayLiteralExpression(use.expression)) continue;
     const node = use.expression;
     if (producer.records.arrayLiteral.get(node, use.carrier) !== undefined) continue;
     const carrier = getCsharpNullableElementTargetType(use.carrier) ?? use.carrier;
