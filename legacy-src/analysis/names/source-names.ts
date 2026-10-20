@@ -238,6 +238,8 @@ export function createCsharpSourceNameBuilder(
       sealed = Object.freeze({ reservedNames: Object.freeze([...sourceNames]),
         typeParameterNames: Object.freeze([...typeParameterNames]),
         generatedMethodTypeParameters: Object.freeze({ get: (node: Node) => enclosing.get(node) }),
+        issues: Object.freeze(issues), resolve });
+      return sealed;
     },
   });
 
