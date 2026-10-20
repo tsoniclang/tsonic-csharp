@@ -2,7 +2,7 @@ import { jsRegExpSourceProfileIdentity } from "@tsonic/js-source-profile";
 
 import type { TargetTypeRef } from "../../../types/index.js";
 import { csharpJsRegExpIndicesArrayTargetType, csharpJsRegExpNamedGroupsTargetType } from "../../../../target-model/types/carriers/js.js";
-import { csharpNullableTargetType, csharpStringTargetType } from "../../../../target-model/types/index.js";
+import { csharpNullableTargetType } from "../../../../target-model/types/index.js";
 import type { CsharpSourceProfilePropertyPolicy } from "../../../model/source-profiles.js";
 import { jsMemberIdentity, jsPropertyPolicy, targetProperty } from "./common.js";
 
@@ -11,7 +11,6 @@ const regexpResultMembers = identity.regExpResultMembers;
 
 const indicesArrayType = csharpJsRegExpIndicesArrayTargetType();
 const namedGroupsType = csharpJsRegExpNamedGroupsTargetType();
-const stringType = csharpStringTargetType();
 const instanceReceiver = { kind: "instance" } as const;
 
 export function regexpResultPropertyPolicies(
