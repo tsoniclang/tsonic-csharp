@@ -1,3 +1,4 @@
+import type { CsharpSourceProfileIdentitySelector, CsharpSourceProfileCallPolicyContext } from "../../model/source-profiles.js";
 import type { ExtensionDiagnostic, Node, Type } from "@tsonic/tsts";
 import { type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpTargetReceiverRelation } from "../../../target-model/identities/provider-relations.js";

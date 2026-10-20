@@ -1,3 +1,4 @@
+import type { CsharpSourceProfileCallPolicyResult, CsharpSourceProfileElementPolicyResult, CsharpSourceProfileCallPolicy, CsharpSourceProfilePropertyPolicy, CsharpSourceProfileElementPolicy } from "../../policy/model/source-profiles.js";
 import type { CsharpSourceProfilePropertyPolicyResult } from "../../target-model/records/source-profile-invocations.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { selectedSourceIndexedDeclarations, selectedSourcePropertyDeclarations, type SourceFileSemantics } from "@tsonic/target-api/source";

@@ -4,7 +4,7 @@ import { csharpTargetId } from "../../target-model/identities/source.js";
 import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext, CsharpSourceProfileCallPolicyResult } from "../../policy/model/source-profiles.js";
 import { csharpSourceProfileCall, csharpSourceProfileDiagnostic } from "../../policy/operations/source-profiles/source-profile-policy.js";
 import type { CsharpSourceProfileOwner } from "../../policy/identities/selected-source.js";
-import { resolveCsharpSourceProfileGenericResult } from "./source-profile-result.js";
+import { resolveCsharpSourceProfileGenericResult } from "../../policy/operations/source-profiles/source-profile-result.js";
 
 const owners: readonly CsharpSourceProfileOwner[] = Object.freeze([
   csharpTargetId,
