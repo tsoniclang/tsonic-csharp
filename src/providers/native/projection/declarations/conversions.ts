@@ -1,14 +1,6 @@
-import type {
-  ProviderExportDeclaration,
-  ProviderHeritageDeclaration,
-  ProviderMemberDeclaration,
-} from "@tsonic/tsts";
-import type {
-  DotnetMemberDeclaration,
-  DotnetTypeDeclaration,
-  DotnetTypeRef,
-} from "../../model/index.js";
-import { tryDotnetTypeRefToProviderType } from "../../model/index.js";
+import type { ProviderExportDeclaration, ProviderHeritageDeclaration, ProviderMemberDeclaration } from "@tsonic/tsts";
+import type { DotnetMemberDeclaration, DotnetTypeDeclaration, DotnetTypeRef } from "../../model/index.js";
+import { tryDotnetTypeRefToProviderType } from "./provider-conversion.js";
 
 export function tryDotnetBaseTypeToProviderHeritage(
   baseType: DotnetTypeRef | undefined,
@@ -41,7 +33,7 @@ export function dotnetTypeKindToProviderKind(kind: DotnetTypeDeclaration["typeKi
   }
 }
 
-export function dotnetMemberKindToProviderKind(kind: DotnetMemberDeclaration["kind"]): ProviderMemberDeclaration["kind"] {
+export function dotnetMemberKindToProviderKind(kind: Exclude<DotnetMemberDeclaration["kind"], "event" | "operator">): ProviderMemberDeclaration["kind"] {
   switch (kind) {
     case "constructor":
     case "method":
@@ -49,9 +41,5 @@ export function dotnetMemberKindToProviderKind(kind: DotnetMemberDeclaration["ki
     case "field":
     case "indexer":
       return kind;
-    case "event":
-      throw new Error("C# events are target-only until source event subscription semantics are modeled.");
-    case "operator":
-      throw new Error("C# operators are target-only until source operator semantics select them explicitly.");
   }
 }
