@@ -31,7 +31,7 @@ import {
   lessThan,
   literalNumber,
   member,
-} from "../expressions/csharp-expression-builders.js";
+} from "../expressions/builders.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";

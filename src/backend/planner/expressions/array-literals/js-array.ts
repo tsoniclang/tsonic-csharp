@@ -8,7 +8,7 @@ import { failCsharpPlannerInvariant } from "../../../invariants.js";
 import type { ArrayLiteralPlanner } from "./types.js";
 import { plannedArrayElements } from "./dense-array.js";
 import { planCsharpJsArraySpreadAppend } from "../sequence-conversions.js";
-import { callStatic } from "../csharp-expression-builders.js";
+import { callStatic } from "../builders.js";
 import { csharpPlannedValue, type CsharpPlannedValue } from "../planned-values.js";
 import { buildCsharpPlannedValue } from "../planned-value-composition.js";
 
