@@ -33,6 +33,8 @@ export type CsharpTypedLocationStorage =
   | {
       readonly kind: "reference-indexed-storage";
       readonly expression: Node;
+      readonly receiver: Node;
+      readonly index: Node;
       readonly valueType: TargetTypeRef;
       readonly receiverType: TargetTypeRef;
       readonly indexType: TargetTypeRef;

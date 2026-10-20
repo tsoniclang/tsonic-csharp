@@ -233,6 +233,12 @@ function planCsharpTypedLocationStorage(
 ): CsharpPlannedValue | undefined {
   if (storage.kind === "value-property-storage") return planValuePropertyLocation(storage,
     sourceFile, input, diagnostics, planExpression, state);
+  if (storage.kind === "reference-indexed-storage") {
+    return buildCsharpPlannedValue(storage.expression, sourceFile, input, diagnostics, [
+      planExpression(storage.receiver, sourceFile, input, diagnostics),
+      planExpression(storage.index, sourceFile, input, diagnostics),
+    ], values => planCsharpIndexedLocation(storage, values[0]!, values[1]!));
+  }
   const planned = planExpression(
     storage.expression,
     sourceFile,
@@ -244,8 +250,6 @@ function planCsharpTypedLocationStorage(
   }
   return projectCsharpPlannedValue(storage.expression, sourceFile, input, diagnostics, planned, value => {
   switch (storage.kind) {
-    case "reference-indexed-storage":
-      return planCsharpIndexedLocation(storage, value, input, diagnostics);
     case "direct-storage":
       return planDirectLocation(
         storage,

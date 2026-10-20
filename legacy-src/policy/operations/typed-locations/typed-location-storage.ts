@@ -199,6 +199,7 @@ function selectCsharpElementStorage(
     );
   }
   if (receiverType.kind !== "array" || receiverKind !== "reference") {
+    const indexExpression = input.ast.as.AsElementAccessExpression(expression)?.ArgumentExpression;
     const index = selection.kind === "resolved"
       ? selection.targetMember.parameters[selection.targetParameterIndex] : undefined;
     if (receiverKind === "reference" && selection.kind === "resolved" &&
@@ -208,9 +209,10 @@ function selectCsharpElementStorage(
       selection.targetMember.readonly !== true && index !== undefined &&
       selection.targetMember.parameters.length === 1 && index.passingMode === "by-value" &&
       selection.targetMember.returnType !== undefined &&
-      targetTypeRefEquals(selection.targetMember.returnType, valueType)) {
+      targetTypeRefEquals(selection.targetMember.returnType, valueType) && indexExpression !== undefined) {
       return { kind: "resolved", storage: {
         kind: "reference-indexed-storage", expression, valueType, receiverType, indexType: index.type,
+        receiver: source.receiver.expression, index: indexExpression,
         method: selection.invocation.indexedLocationMethod,
       } };
     }
