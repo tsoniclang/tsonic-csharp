@@ -5,7 +5,7 @@ import { createStructuralObjectShapeTarget } from "./construction.js";
 import { csharpStructuralObjectShapeIdentity } from "../../../target-model/types/object-shape-identity.js";
 import { csharpObjectShapeMethodDeclaration, csharpObjectShapeMethodRequiresProtocol, csharpPresentObjectShapeMethod } from "../../../target-model/types/method-values.js";
 import type { CsharpTypeParameterConstraintResolver } from "../../../target-model/types/generic-references.js";
-import { selectCsharpCopiedMethodReceiver } from "../../../policy/ownership/copied-methods.js";
+import { selectCsharpCopiedMethodReceiver } from "../../ownership/copied-methods.js";
 
 import { csharpCopiedObjectShapeMembers } from "../../../policy/types/objects/method-environments.js";
 export function resolveCsharpCopiedObjectShape(
