@@ -5,7 +5,8 @@ import type { CsharpPlanningContext } from "../../context.js";
 import type { CsharpExpression } from "../../../target-ast/syntax/index.js";
 import type { ExpressionPlanner } from "../expression-planner-types.js";
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
-import { callStatic } from "../csharp-expression-builders.js";
+import { callStatic } from "../builders.js";
+import { failCsharpPlannerInvariant } from "../../../invariants.js";
 import { planCsharpAssignmentLocation } from "./assignment-location.js";
 import { csharpPlannedValue, type CsharpPlannedValue } from "../planned-values.js";
 import { buildCsharpPlannedValue } from "../planned-value-composition.js";
@@ -24,12 +25,12 @@ export function planCsharpBigIntCall(
   let storage = selection.left;
   while (input.program.source.ast.is.IsParenthesizedExpression(storage)) {
     const nested = input.program.source.ast.as.AsParenthesizedExpression(storage)?.Expression;
-    if (nested === undefined) return undefined;
+    if (nested === undefined) failCsharpPlannerInvariant("An admitted native integer operator requires its exact storage operand.", storage);
     storage = nested;
   }
   const left = planExpression(storage, sourceFile, operation.assignment ? { ...input, storageExpression: storage } : input, diagnostics);
   const right = planExpression(selection.right, sourceFile, input, diagnostics);
-  if (left === undefined || right === undefined) return undefined;
+  if (left === undefined || right === undefined) failCsharpPlannerInvariant("An admitted native integer operator requires both native operands.", node);
   const calculate = (values: readonly CsharpExpression[]): CsharpExpression => callStatic(
     { kind: "IdentifierName", requiredUsingNamespace: "Tsonic.CSharp.Runtime", name: "BigIntOperators" }, operation.method, values);
   if (!operation.assignment) return buildCsharpPlannedValue(node, sourceFile, input, diagnostics,
