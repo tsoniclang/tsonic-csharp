@@ -1,7 +1,4 @@
-import type {
-  DotnetMemberDeclaration,
-  DotnetTypeDeclaration,
-} from "./index.js";
+import type { DotnetMemberDeclaration, DotnetTypeDeclaration } from "./index.js";
 
 /**
  * The exact provider member identity for one .NET member.
