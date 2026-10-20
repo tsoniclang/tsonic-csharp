@@ -5,7 +5,6 @@ import type { TargetPlanningSourceNavigation } from "@tsonic/target-api/analysis
 import type { CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import { planIdentifierName } from "../names/source-identifiers.js";
 import { sanitizeIdentifier } from "../../../target-model/names/identifiers.js";
-import { invalidCsharpType } from "./primitives.js";
 import { csharpSourceTypeArgumentNodes } from "../../../target-model/syntax/type-arguments.js";
 import { failCsharpPlannerInvariant } from "../../invariants.js";
 
@@ -19,14 +18,14 @@ export function getCsharpTypeFromProjectSourceReferenceNode(
 export function getCsharpTypeFromProjectSourceTypeReferenceNode(
   node: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
   resolveCsharpType: (typeNode: Node | undefined, typeSourceFile: SourceFile, typeInput: CsharpPlanningContext,
-    errorType: CsharpTypeNode, typeDiagnostics?: TargetDiagnostic[]) => CsharpTypeNode,
+    typeDiagnostics?: TargetDiagnostic[]) => CsharpTypeNode,
   diagnostics?: TargetDiagnostic[],
 ): CsharpTypeNode | undefined {
   const referenceNode = input.program.source.ast.name(node) ?? node;
   const type = getCsharpTypeFromProjectSourceReferenceNode(referenceNode, sourceFile, input, diagnostics);
   if (type === undefined) return undefined;
   const typeArguments = csharpSourceTypeArgumentNodes(input.program.source.ast, node)
-    .map(argument => resolveCsharpType(argument, sourceFile, input, invalidCsharpType("project source type argument"), diagnostics));
+    .map(argument => resolveCsharpType(argument, sourceFile, input, diagnostics));
   return withCsharpTypeArguments(type, typeArguments);
 }
 

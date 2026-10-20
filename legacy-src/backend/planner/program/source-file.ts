@@ -421,7 +421,7 @@ function planExportAssignment(
     return undefined;
   }
   const name = sanitizeIdentifier("default");
-  const type = getCsharpTypeForNode(assignment.Expression, sourceFile, input, undefined, diagnostics);
+  const type = getCsharpTypeForNode(assignment.Expression, sourceFile, input, diagnostics);
   const planned = planExpression(assignment.Expression, sourceFile, input, diagnostics);
   if (planned === undefined) return undefined;
   statements.push(...consumeCsharpPlannedValue(planned, value => [topLevelFieldAssignment(name, value)]));

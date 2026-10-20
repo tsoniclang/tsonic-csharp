@@ -461,7 +461,7 @@ export function planLambdaParameters(
       const expectedParameterType = expectedParameterTypes[index];
       const authoredParameterType = parameter.Type === undefined
         ? undefined
-        : getCsharpTypeForNode(parameter.Type, sourceFile, input, undefined, diagnostics);
+        : getCsharpTypeForNode(parameter.Type, sourceFile, input, diagnostics);
       const sourceParameterType = authoredParameterType === undefined ||
           input.program.source.ast.questionToken(parameterNode) === undefined
         ? authoredParameterType

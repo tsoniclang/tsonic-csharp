@@ -85,9 +85,7 @@ export function planPropertyDeclaration(
   const type = getCsharpTypeForNode(
     node,
     sourceFile,
-    input,
-    undefined,
-    diagnostics,
+    input, diagnostics,
   );
   const propertyName = planCsharpAdmittedMemberName(input.program.names, declaration.name);
   const modifiers = planClassMemberModifiers(node, declaration.name, input,
@@ -188,7 +186,7 @@ function mergeGetterAccessor(
   diagnostics: TargetDiagnostic[],
 ): CsharpPropertyDeclaration {
   const declaration = AsGetAccessorDeclaration(input.program.source.ast, node)!;
-  const type = getCsharpTypeForNode(declaration.Type ?? declaration.name, sourceFile, input, undefined, diagnostics);
+  const type = getCsharpTypeForNode(declaration.Type ?? declaration.name, sourceFile, input, diagnostics);
   const state = createDestructuringPlannerState(node, input.program.source.ast);
   state.currentReturnType = type;
   state.currentReturnExpressionTargetType = input.program.records.returnContext.get(node)?.target;
@@ -245,9 +243,7 @@ function mergeSetterAccessor(
   const type = getCsharpTypeForNode(
     parameterDeclaration?.Type ?? declaration.Type ?? declaration.name,
     sourceFile,
-    input,
-    undefined,
-    diagnostics,
+    input, diagnostics,
   );
   const parameterAlias = HasSourceKind(input.program.source.ast, parameterDeclaration?.name, KindObjectBindingPattern) || HasSourceKind(input.program.source.ast, parameterDeclaration?.name, KindArrayBindingPattern)
     ? undefined

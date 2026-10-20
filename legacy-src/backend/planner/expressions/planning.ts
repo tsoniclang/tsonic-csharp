@@ -160,9 +160,7 @@ function planExpressionCore(
       type: getCsharpTypeForNode(
         defaultValue.sourceType,
         sourceFile,
-        input,
-        undefined,
-        diagnostics,
+        input, diagnostics,
       ),
     });
   }

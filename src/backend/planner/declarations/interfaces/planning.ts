@@ -142,9 +142,7 @@ function planInterfacePropertyDeclaration(
   const type = getCsharpTypeForNode(
     node,
     sourceFile,
-    input,
-    undefined,
-    diagnostics,
+    input, diagnostics,
   );
   const writable = !input.program.source.ast.hasModifierKind(node, "readonly");
   diagnoseUnavailableCsharpSafetyAccessors(
@@ -217,8 +215,8 @@ function planInterfaceIndexerDeclaration(
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     writable,
     keyName: requiredName(parameterDeclaration?.name, input, node),
-    keyType: getCsharpTypeForNode(parameterDeclaration?.Type ?? parameterDeclaration?.name, sourceFile, input, undefined, diagnostics),
-    valueType: getCsharpTypeForNode(declaration.Type, sourceFile, input, undefined, diagnostics),
+    keyType: getCsharpTypeForNode(parameterDeclaration?.Type ?? parameterDeclaration?.name, sourceFile, input, diagnostics),
+    valueType: getCsharpTypeForNode(declaration.Type, sourceFile, input, diagnostics),
   };
 }
 

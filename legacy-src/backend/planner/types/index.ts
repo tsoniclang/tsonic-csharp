@@ -11,7 +11,6 @@ export {
   sameCsharpType,
 } from "./csharp-type-equality.js";
 export {
-  invalidCsharpType,
   nullableCsharpType,
   predefined,
   qualifiedCsharpType,
