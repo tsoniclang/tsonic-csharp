@@ -67,3 +67,12 @@ export interface CsharpObjectShapeProjectionAdmission {
   readonly selection: CsharpObjectShapeProjection;
   readonly conversions: CsharpObjectShapeProjectionDeclaration["conversions"];
 }
+
+export interface CsharpObjectShapeDemandPublication {
+  readonly artifacts: readonly CsharpObjectShapeArtifact[];
+  readonly targetShapes: Readonly<Record<string, CsharpObjectShapeFact>>;
+  readonly projectionSubjects: readonly {
+    readonly subject: Node;
+    readonly projection: CsharpObjectShapeProjectionDeclaration;
+  }[];
+}

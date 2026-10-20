@@ -44,7 +44,6 @@ import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/recor
 import { createCsharpObjectShapeDemandEngine } from "./native-demand-requests.js";
 import type { CsharpArtifactRequestResult, CsharpObjectShapeDemandHost } from "./native-demand-batches.js";
 import type { CsharpObjectShapeDemandClosure } from "../../target-model/records/object-shape-demand.js";
-export { publishCsharpNativeArtifactDemand } from "./native-demand-declarations.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 
 export interface CsharpNativeArtifactDemandInput extends CsharpObjectShapeDemandHost, CsharpNativeParticipationInput {

@@ -26,8 +26,9 @@ import { objectShapeProjectionKey } from "../program/records/object-shape-keys.j
 import { csharpObjectShapeMethodDeclaration } from "../../target-model/types/method-values.js";
 import type { CsharpObjectShapeDemandHost } from "./native-demand-batches.js";
 import type { CsharpObjectShapeProjectionAdmission } from "../../target-model/records/object-shape-demand.js";
-import { prepareCsharpObjectShapeDeclarationNames, objectShapeProjectionConversions,
+import { objectShapeProjectionConversions,
   prepareCsharpObjectShapeProjectionDeclaration } from "./native-demand-declarations.js";
+import { prepareCsharpObjectShapeDeclarationNames } from "../names/object-shapes.js";
 import {
   collectShapeDependencies,
   prepareObjectShapeBatch,

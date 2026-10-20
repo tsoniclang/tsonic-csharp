@@ -207,7 +207,9 @@ import { csharpJsEventLoopBinaryExecutionDriver } from "../../target-model/proje
 import { analyzeCsharpFlowReadProjections } from "../conversions/flow-read-projections.js";
 import { analyzeCsharpValueReadStages } from "../conversions/value-read-stages.js";
 import { analyzeCsharpNativeValueCarriers, analyzeCsharpObjectMethodSources } from "../objects/value-carriers.js";
-import { analyzeCsharpNativeArtifactDemand, publishCsharpNativeArtifactDemand } from "../objects/native-demand.js";
+import { analyzeCsharpNativeArtifactDemand } from "../objects/native-demand.js";
+import { selectCsharpObjectShapePublication } from "../names/object-shapes.js";
+import { publishCsharpNativeArtifactDemand } from "./records/native-demand.js";
 
 interface CsharpRepresentationContract {
   readonly typeProjections: CsharpGenericProjectionIndex;
@@ -592,7 +594,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
   if (names.issues.length > 0) return rejectedTargetStage(names.issues);
   const sourceMemberNames = analyzeCsharpSourceMemberNames({ ast: source.ast, nodes: sourceStorage.nodes, operations: admittedOperations, names, admitted: admittedControlNode });
   if (sourceMemberNames.issues.length !== 0) return rejectedTargetStage(sourceMemberNames.issues);
-  const objectShapeDemand = publishCsharpNativeArtifactDemand(objectShapeClosure.value, names);
+  const objectShapeDemand = publishCsharpNativeArtifactDemand(selectCsharpObjectShapePublication(objectShapeClosure.value, names));
   const rawInterfaceIssues = admitCsharpRawInterfaceDeclarations(source.ast, sourceStorage.nodes,
     nativeDemand.nativeUse, callableAdapters.objectShapes, objectShapeDemand, analysis.storage,
     analysis.sourceEvidence.compileTimeMetadata, nativeParticipation.participation,
