@@ -1,8 +1,8 @@
 import type { Node } from "@tsonic/tsts";
 import { sourceIntegerLiteralValue } from "@tsonic/target-api/source";
-import type { CsharpPolicyContext } from "../../model/context.js";
-import type { TargetTypeRef } from "../../types/index.js";
-import { targetTypeRefEquals } from "../../types/index.js";
+import type { CsharpPolicyContext } from "../../../policy/model/context.js";
+import type { TargetTypeRef } from "../../../policy/types/index.js";
+import { targetTypeRefEquals } from "../../../policy/types/index.js";
 import { csharpSourceHasNumericConstraint } from "../../constraints/numeric-evidence.js";
 import type { CsharpSourceOperator } from "../../../target-model/syntax/operators.js";
 
