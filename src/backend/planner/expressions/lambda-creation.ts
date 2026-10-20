@@ -4,12 +4,12 @@ import type { CsharpPlanningContext } from "../context.js";
 import type { CsharpBlock, CsharpExpression, CsharpLambdaParameter, CsharpStatement } from "../../target-ast/syntax/index.js";
 import type { LambdaTargetContext } from "./expression-lambdas.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
-import { unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 import { withCsharpSafetyModifiers } from "../safety/explicit-safety.js";
 import type { CsharpLambdaCreation } from "../../../target-model/records/capture-storage.js";
 
 export function planCsharpLocalLambdaCreation(
-  node: Node, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
+  node: Node, input: CsharpPlanningContext, _diagnostics: TargetDiagnostic[],
   target: LambdaTargetContext | undefined, name: string,
   parameters: readonly CsharpLambdaParameter[], body: CsharpBlock,
   asynchronous: boolean, creation: CsharpLambdaCreation,
@@ -26,9 +26,7 @@ export function planCsharpLocalLambdaCreation(
           ? { defaultValue: { kind: "DefaultExpression" as const, type, nullForgiving: true } } : {}) };
   });
   if (target === undefined || returnType === undefined || nativeParameters.some(parameter => parameter === undefined)) {
-    diagnostics.push(unsupportedNodeDiagnostic(node,
-      "A native callable creation requires its exact delegate signature."));
-    return undefined;
+    failCsharpPlannerInvariant("An admitted native callable creation requires its exact delegate signature.", node);
   }
   return {
     method: { kind: "LocalFunctionStatement", name, returnType,
