@@ -1,23 +1,10 @@
-import type {
-  Node,
-  SourceFile,
-  Type,
-} from "@tsonic/tsts";
+import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { CsharpProviderTypeParameterRelation } from "../../../../target-model/identities/provider-relations.js";
-import type {
-  CsharpTargetBindingFact,
-  CsharpTargetMember,
-  CsharpTypePolicy,
-  TargetTypeRef,
-} from "../../../types/index.js";
-import {
-  csharpTargetBindingSubstitutions,
-  csharpTargetTypePatternFromBinding,
-  resolveCsharpTargetTypePatternArguments,
-  substituteCsharpTargetMember,
-  targetTypeRefEquals,
-} from "../../../types/index.js";
+import type { CsharpTargetBindingFact, CsharpTargetMember, TargetTypeRef } from "../../../../policy/types/index.js";
+import type { CsharpTypePolicy } from "../../../types/resolution/model.js";
+import { csharpTargetBindingSubstitutions, csharpTargetTypePatternFromBinding, resolveCsharpTargetTypePatternArguments, substituteCsharpTargetMember, targetTypeRefEquals } from "../../../../policy/types/index.js";
 
+import { isCompleteTypeParameterRelation } from "../../../../policy/operations/members/instantiation/binding-instantiation.js";
 export interface CsharpSourceTypeEvidence {
   readonly node?: Node;
   readonly type?: Type;
@@ -85,44 +72,4 @@ export function instantiateCsharpProviderBindingMember(
   return substitutions === undefined
     ? undefined
     : substituteCsharpTargetMember(member, substitutions);
-}
-
-export function mergeCsharpTypeParameterSubstitutions(
-  first: ReadonlyMap<string, TargetTypeRef>,
-  second: ReadonlyMap<string, TargetTypeRef>,
-): ReadonlyMap<string, TargetTypeRef> | undefined {
-  const merged = new Map(first);
-  for (const [name, type] of second) {
-    if (merged.has(name)) {
-      return undefined;
-    }
-    merged.set(name, type);
-  }
-  return merged;
-}
-
-function isCompleteTypeParameterRelation(
-  relations: readonly CsharpProviderTypeParameterRelation[],
-  targetArity: number,
-): boolean {
-  if (relations.length !== targetArity) {
-    return false;
-  }
-  const sourceIndexes = new Set<number>();
-  const targetIndexes = new Set<number>();
-  for (const relation of relations) {
-    if (
-      relation.sourceTypeParameterIndex < 0 ||
-      relation.targetTypeParameterIndex < 0 ||
-      relation.sourceTypeParameterIndex >= relations.length ||
-      relation.targetTypeParameterIndex >= targetArity ||
-      sourceIndexes.has(relation.sourceTypeParameterIndex) ||
-      targetIndexes.has(relation.targetTypeParameterIndex)
-    ) {
-      return false;
-    }
-    sourceIndexes.add(relation.sourceTypeParameterIndex);
-    targetIndexes.add(relation.targetTypeParameterIndex);
-  }
-  return true;
 }

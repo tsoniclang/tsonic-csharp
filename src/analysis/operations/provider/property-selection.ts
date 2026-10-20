@@ -2,7 +2,7 @@ import type { ExtensionDiagnostic, Node, SourceFile } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpProviderTargetRelation, CsharpTargetReceiverRelation } from "../../../target-model/identities/provider-relations.js";
 import type { CsharpTargetMember } from "../../../policy/types/index.js";
-import { instantiateCsharpProviderBindingMember } from "../../../policy/operations/members/instantiation/binding-instantiation.js";
+import { instantiateCsharpProviderBindingMember } from "./calls/binding-instantiation.js";
 import type { CsharpProviderCallSelectionHost } from "./calls/selection.js";
 import { resolveCsharpProviderPropertyRelations } from "./relations.js";
 
