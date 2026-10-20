@@ -1,17 +1,8 @@
-import { resolveActiveDotnetSdk, runDotnetSdkQuery } from "../providers/model/dotnet-sdk.js";
-import type { DotnetCommandResult } from "../providers/model/dotnet-sdk.js";
-import {
-  existsSync,
-  readdirSync,
-  statSync,
-} from "node:fs";
-import {
-  join,
-  resolve,
-} from "node:path";
-import {
-  spawnSync,
-} from "node:child_process";
+import { resolveActiveDotnetSdk, runDotnetSdkQuery } from "./sdk.js";
+import type { DotnetCommandResult } from "../model/sdk.js";
+import { existsSync, readdirSync, statSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { spawnSync } from "node:child_process";
 
 export interface DotnetFrameworkReferencePackHost {
   runDotnet(args: readonly string[], cwd: string): DotnetCommandResult;
