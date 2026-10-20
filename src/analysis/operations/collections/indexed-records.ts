@@ -1,12 +1,12 @@
-import type { ResolvedSourceElementAccessInfo, ResolvedSourcePropertyAccessInfo, SourceFile, TypeIndexInfo } from "@tsonic/tsts";
-import type { CsharpProviderCallSelectionHost } from "../members/selection/call-selection.js";
-import type { CsharpSourceProfileElementPolicyResult } from "../source-profiles/source-profile-policy.js";
+import type { ResolvedSourceElementAccessInfo, ResolvedSourcePropertyAccessInfo, SourceFile } from "@tsonic/tsts";
+import type { CsharpProviderCallSelectionHost } from "../../../policy/operations/members/selection/call-selection.js";
+import type { CsharpSourceProfileElementPolicyResult } from "../../../policy/operations/source-profiles/source-profile-policy.js";
 import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/source-profile-invocations.js";
-import { csharpSourceProfileDiagnostic } from "../source-profiles/source-profile-policy.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { getCsharpGenericOptionalParts, getCsharpNullableElementTargetType, isCsharpRecordDictionaryTargetType,
-  isCsharpJsValueTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/index.js";
+import { csharpSourceProfileDiagnostic } from "../../../policy/operations/source-profiles/source-profile-policy.js";
 
+import { isCsharpRecordDictionaryTargetType, targetTypeRefEquals } from "../../../target-model/types/index.js";
+
+import { indexedRecordMember } from "../../../policy/operations/collections/indexed-records.js";
 export function selectCsharpIndexedRecordElement(
   host: CsharpProviderCallSelectionHost,
   source: ResolvedSourceElementAccessInfo,
@@ -55,12 +55,4 @@ export function selectCsharpIndexedRecordProperty(
   const contract = indexedRecordMember(receiver, key, value, index);
   return { kind: "resolved", targetMember: contract.member, receiver: { kind: "instance" },
     invocation: { kind: "source-name-indexer", optionalRead: contract.optionalRead && source.accessMode === "read" } };
-}
-
-function indexedRecordMember(receiver: TargetTypeRef, key: TargetTypeRef, value: TargetTypeRef, index: TypeIndexInfo) {
-  return { member: { id: `tsonic.csharp.record.index:${targetTypeRefKey(receiver)}`, sourceName: "Item", targetName: "Item",
-    kind: "indexer" as const, declaringType: receiver, returnType: value, readonly: index.readonly,
-    parameters: [{ name: "key", type: key, passingMode: "by-value" as const }] },
-    optionalRead: getCsharpNullableElementTargetType(value) !== undefined ||
-      getCsharpGenericOptionalParts(value) !== undefined || isCsharpJsValueTargetType(value) };
 }
