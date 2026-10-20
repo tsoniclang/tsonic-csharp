@@ -122,7 +122,7 @@ export function translateCsharpSourceOwnedMember(
     return undefined;
   }
   const resolvedName = jsValueOperation.kind === "resolved" ? undefined
-    : planCsharpSourceMemberName(node, declaration, classification, methodValue, input, diagnostics);
+    : planCsharpSourceMemberName(node, methodValue, input);
   if (jsValueOperation.kind === "resolved" && jsValueSourceName === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,

@@ -45,6 +45,7 @@ import { analyzeCsharpClosedTypeTests } from "../expressions/type-tests.js";
 import { analyzeCsharpTypeofEmission } from "../expressions/typeof-emission.js";
 import { analyzeCsharpUnaryEmission } from "../expressions/expression-unary.js";
 import { analyzeCsharpThisEmission } from "../expressions/expression-this.js";
+import { analyzeCsharpSourceMemberNames } from "../objects/source-member-names.js";
 import { analyzeCsharpIdentifierEmission } from "../names/source-identifiers.js";
 import { analyzeCsharpSourceFileEmission } from "../source-modules/emission.js";
 import { analyzeCsharpStartup } from "../source-modules/startup.js";
@@ -487,6 +488,8 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const admittedControlNode = (node: Node): boolean => nativeDemand.nativeUse.order(node) !== undefined &&
     !analysis.sourceEvidence.compileTimeMetadata.get(node) &&
     !admittedOperations.nativeUnreachable.get(node) && nativeParticipation.participation.get(node) !== "erased";
+  const sourceMemberNames = analyzeCsharpSourceMemberNames({ ast: source.ast, nodes: sourceStorage.nodes, operations: admittedOperations, names, admitted: admittedControlNode });
+  if (sourceMemberNames.issues.length !== 0) return rejectedTargetStage(sourceMemberNames.issues);
   const literalEmission = analyzeCsharpLiteralAdmission({ ast: source.ast, demand: nativeDemand, literals: literalValues,
     exact: exactLiterals, values: analysis.valueReads });
   const templateStrings = analyzeCsharpTemplateStrings(source.ast, nativeDemand);
@@ -722,6 +725,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     jsValueBoxing: jsValueBoxing.records,
     unaryEmission: unaryEmission.records,
     thisEmission: thisEmission.records,
+    sourceMemberNames: sourceMemberNames.records,
     typeofEmission: typeofEmission.records,
     flowReads, valueReads: analysis.valueReads,
     callableAdapters, callableCreations, typeProjections: analysis.typeProjections, classFactories, classInitialization, captureStorage,

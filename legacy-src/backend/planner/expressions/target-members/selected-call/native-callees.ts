@@ -51,7 +51,7 @@ export function planCsharpNativeMethodCallee(
     diagnostics.push(unsupportedNodeDiagnostic(selected.expression, "A direct source method requires its exact sealed native member selection."));
     return undefined;
   }
-  const name = planCsharpSourceMemberName(selected.expression, selection.source.selectedDeclaration, sourceOwned, false, input, diagnostics);
+  const name = planCsharpSourceMemberName(selected.expression, false, input);
   if (name === undefined) return undefined;
   const projectType = csharpProjectTypeReceiver(selection.source.receiver, input, diagnostics);
   const projection = element?.receiverProjection ?? property?.receiverProjection;
