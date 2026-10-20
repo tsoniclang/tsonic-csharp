@@ -1,5 +1,5 @@
 import type { Node, Type } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../types/model.js";
+import type { CsharpObjectShapeFact, TargetTypeRef } from "../types/model.js";
 import type { CsharpDelegateSignatureShape } from "../types/model.js";
 export type CustomRegExpProtocolKind = "match" | "match-all" | "replace" | "search" | "split";
 export interface CsharpCustomRegExpProtocol {
@@ -18,8 +18,10 @@ export interface CsharpSourceProfileInputFacts {
   readonly parameters: readonly (TargetTypeRef | undefined)[];
   readonly regexpProtocol: { readonly get: (index: number, kind: CustomRegExpProtocolKind) => CsharpCustomRegExpProtocol | undefined };
   readonly values: ReadonlyMap<Node, ReadonlyMap<Type, TargetTypeRef | undefined>>;
-  readonly types: ReadonlyMap<Type, TargetTypeRef | undefined>;
-  readonly nodes: ReadonlyMap<Node, TargetTypeRef | undefined>;
+  readonly types: { readonly get: (type: Type | undefined) => TargetTypeRef | undefined };
+  readonly nodes: { readonly get: (node: Node | undefined) => TargetTypeRef | undefined };
+  readonly selectedType: { readonly get: (node: Node | undefined, type: Type | undefined) => TargetTypeRef | undefined };
+  readonly objectShape: { readonly get: (node: Node | undefined) => CsharpObjectShapeFact | undefined };
   readonly typeArguments: readonly { readonly node?: Node; readonly type: Type; readonly carrier?: TargetTypeRef }[];
   readonly resultType: TargetTypeRef | undefined;
 }

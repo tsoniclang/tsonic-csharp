@@ -50,7 +50,7 @@ export function selectCsharpSourceProfileCallPolicy(
   const context = { host, source, sourceFile, identity,
     inputs: createCsharpSourceProfileInputs(host, sourceFile, source.sourceReceiver === undefined
       ? source.sourceArguments : [source.sourceReceiver, ...source.sourceArguments], source.sourceResultType,
-      source.sourceSelectedMethodTypeArguments ?? []) };
+      source.sourceSelectedMethodTypeArguments ?? [], selected.policy.inputRequirements, source) };
   const candidate = selected.policy.select(context);
   if (candidate?.kind !== "resolved" || selected.policy.finalizeArguments !== true) return candidate;
   const finalized = finalizeCsharpRestSequences(context, candidate.call);

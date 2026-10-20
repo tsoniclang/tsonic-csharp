@@ -8,7 +8,7 @@ import type { CsharpProviderCallSelectionHost } from "../../../policy/model/prov
 import type { CustomRegExpProtocolKind } from "../../../target-model/records/source-profile-inputs.js";
 import { selectCsharpCustomRegExpProtocol } from "../../../policy/operations/source-profiles/js/regexp-protocol.js";
 export function analyzeCsharpCustomRegExpProtocol(
-  context: Omit<Parameters<CsharpSourceProfileCallPolicy["select"]>[0], "host"> & { readonly host: CsharpProviderCallSelectionHost },
+  context: Pick<Parameters<CsharpSourceProfileCallPolicy["select"]>[0], "source" | "sourceFile" | "inputs"> & { readonly host: CsharpProviderCallSelectionHost },
   argumentIndex: number,
   kind: CustomRegExpProtocolKind,
 ): {
