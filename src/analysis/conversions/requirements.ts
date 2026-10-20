@@ -6,7 +6,7 @@ import { csharpAbsenceTargetType, csharpTsValueTargetType, getCsharpGeneratorPro
 import { directCsharpSourceYieldExpression } from "../../source/extension/yield-expression.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpClosedShapeMemberProjection } from "../../target-model/records/closed-object-shapes.js";
-import { selectCsharpClosedShapeConversion } from "../../policy/objects/closed-object-shapes.js";
+import { selectCsharpClosedShapeConversion } from "../../policy/types/objects/closed-object-shapes.js";
 import { resolveCsharpObjectShapeMemberBySourceContract } from "../../target-model/types/index.js";
 import type { CsharpExpectedTypeClassifications } from "../../target-model/records/expected-types.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";

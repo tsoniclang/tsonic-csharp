@@ -1,11 +1,11 @@
-import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
-import type { CsharpClosedShapeConversion, CsharpObjectProjectionEmission } from "../../target-model/records/closed-object-shapes.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpObjectProjectionPolicyInput } from "../model/closed-object-shapes.js";
+import type { CsharpConversionSelection } from "../../../target-model/conversions/selection.js";
+import type { CsharpClosedShapeConversion, CsharpObjectProjectionEmission } from "../../../target-model/records/closed-object-shapes.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpObjectProjectionPolicyInput } from "../../model/closed-object-shapes.js";
 import { csharpObjectShapeAssignmentMembers, csharpObjectShapeProjectionMembers, csharpSourcePrimitiveTargetType,
-  csharpStringTargetType, csharpTsValueTargetType, getCsharpJsArrayElementTargetType, targetTypeRefEquals } from "../../target-model/types/index.js";
-import { objectShapeStorageMemberName } from "../../target-model/names/object-members.js";
-import { csharpTargetTypeRenderingRejection } from "../types/model/renderability.js";
+  csharpStringTargetType, csharpTsValueTargetType, getCsharpJsArrayElementTargetType, targetTypeRefEquals } from "../../../target-model/types/index.js";
+import { objectShapeStorageMemberName } from "../../../target-model/names/object-members.js";
+import { csharpTargetTypeRenderingRejection } from "../model/renderability.js";
 
 type Selection<T> = { readonly kind: "selected"; readonly value: T } | { readonly kind: "rejected"; readonly reason: string };
 const rejected = (reason: string): Extract<Selection<never>, { readonly kind: "rejected" }> => ({ kind: "rejected", reason });

@@ -10,7 +10,7 @@ import { closeCsharpOwnerTypeParameterEnvironment } from "../constraints/owner-e
 import { isCsharpReferenceCarrier } from "../../target-model/types/identity.js";
 import { csharpObjectShapeAssignmentMembers, csharpObjectShapeProjectionMembers, csharpObjectShapeProjectionMethodName } from "../../target-model/types/object-shape-projection.js";
 import { getCsharpJsArrayElementTargetType } from "../../target-model/types/carriers/collections.js";
-import { selectCsharpObjectProjection } from "../../policy/objects/closed-object-shapes.js";
+import { selectCsharpObjectProjection } from "../../policy/types/objects/closed-object-shapes.js";
 
 export function objectShapeProjectionConversions(
   host: CsharpObjectShapeDemandHost,
