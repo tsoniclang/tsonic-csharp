@@ -14,9 +14,7 @@ import { selectCsharpArrayTypeGuard } from "../../policy/operations/source-profi
 import type {
   CsharpRecursiveObjectShapePolicy,
 } from "../objects/shapes/model.js";
-import {
-  createCsharpObjectShapePolicy,
-} from "../../policy/types/objects/object-shape-policy.js";
+import { createCsharpObjectShapePolicy } from "../objects/shapes/api.js";
 import {
   resolveCsharpObjectShapeMemberBySelectedSubject,
   resolveCsharpObjectShapeMemberReadTargetType,
