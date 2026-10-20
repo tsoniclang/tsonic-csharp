@@ -1,41 +1,18 @@
 import { providerVirtualDeclarationFactKey, sourcePrimitiveFactKey } from "@tsonic/tsts";
-import type {
-  Node,
-  Type,
-  TypePropertyInfo,
-} from "@tsonic/tsts";
+import type { Node, Type, TypePropertyInfo } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { sourcePropertyTypeEvidenceNodes } from "@tsonic/target-api/source";
-import type { CsharpProviderTargetRelation } from "../../../../target-model/identities/provider-relations.js";
-import { canonicalProviderValue } from "../../../../target-model/metadata/canonical-value.js";
-import {
-  csharpTargetTypeFromBinding,
-} from "../../storage/bindings.js";
-import {
-  substituteTargetTypeParameters,
-} from "../../../../target-model/types/substitution.js";
-import type {
-  CsharpRecursiveTypeResolver,
-  CsharpTypePolicyBaseHost,
-  CsharpTypeResolutionState,
-} from "../../resolution/model.js";
-import {
-  csharpNullableTargetType,
-  getCsharpNullableElementTargetType,
-} from "../../../../target-model/types/carriers/nullable.js";
-import {
-  targetTypeRefEquals,
-} from "../../../../target-model/types/equality.js";
-import type {
-  CsharpObjectShapeFact,
-  CsharpObjectShapeMemberFact,
-  TargetTypeRef,
-} from "../../../../target-model/types/model.js";
-import {
-  csharpSourceMemberDisplayName,
-} from "../../../../target-model/types/source-member-keys.js";
-import { resolveObjectShapeSourceMemberKey } from "./source-member-identity.js";
-import { typeIncludesNullish } from "./source-evidence.js";
+import type { CsharpProviderTargetRelation } from "../../../target-model/identities/provider-relations.js";
+import { canonicalProviderValue } from "../../../target-model/metadata/canonical-value.js";
+import { csharpTargetTypeFromBinding } from "../../../policy/types/storage/bindings.js";
+import { substituteTargetTypeParameters } from "../../../target-model/types/substitution.js";
+import type { CsharpRecursiveTypeResolver, CsharpTypePolicyBaseHost, CsharpTypeResolutionState } from "../../types/resolution/model.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
+import { csharpSourceMemberDisplayName } from "../../../target-model/types/source-member-keys.js";
+import { resolveObjectShapeSourceMemberKey } from "../../../policy/types/objects/object-shape-policy/source-member-identity.js";
+import { typeIncludesNullish } from "../../../policy/types/objects/object-shape-policy/source-evidence.js";
 
 type CsharpProviderTypeRelation = Extract<
   CsharpProviderTargetRelation,
