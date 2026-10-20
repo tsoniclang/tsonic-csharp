@@ -1,31 +1,23 @@
-import type { CsharpTypeResolutionScope } from "./engine.js";
+import { selectCsharpParameterListCarrier } from "../../../policy/types/callables/parameter-list.js";
+import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, Type } from "@tsonic/tsts";
-import type {
-  SourceCallableTypeEvidence,
-  SourceFileSemantics,
-} from "@tsonic/target-api/source";
+import type { SourceCallableTypeEvidence, SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { classifyCsharpSourceProfileDeclaration, classifyCsharpSourceProfileType, selectedCsharpSourceProfileOwner } from "./source-profile.js";
-import { csharpJsArrayTargetType } from "../../../target-model/types/carriers/js.js";
+import { classifyCsharpSourceProfileDeclaration, classifyCsharpSourceProfileType, selectedCsharpSourceProfileOwner } from "../../../policy/identities/source-types.js";
+
 import { csharpSourceTypeArgumentNodes } from "../../../target-model/syntax/type-arguments.js";
 import { csharpSourceTypeParameter } from "../../../target-model/names/type-parameters.js";
-import { getCsharpCollectionElementTargetType } from "../../../target-model/types/carriers/collections.js";
+
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { csharpNeverTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { nextState } from "./state.js";
 import { sourceFactSubjectsForNode, definedValues, resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
 import { sourcePrimitiveFactKey } from "@tsonic/tsts";
-import {
-  sourceTransformedTypeFactEvidenceNodes,
-  sourceTupleElementTypeEvidenceNodes,
-  sourceTypeSyntaxIsCompositional,
-  sourceTypeSyntaxRoot,
-  sourceIntegerInduction,
-} from "@tsonic/target-api/source";
+import { sourceTransformedTypeFactEvidenceNodes, sourceTupleElementTypeEvidenceNodes, sourceTypeSyntaxIsCompositional, sourceTypeSyntaxRoot, sourceIntegerInduction } from "@tsonic/target-api/source";
 import { substituteTargetTypeParameters } from "../../../target-model/types/substitution.js";
 import { targetTypeRefKey, targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { reconcileCsharpSelectedTargetType, retainCsharpBroadValueCarrier } from "./selected-type-evidence.js";
+import { reconcileCsharpSelectedTargetType, retainCsharpBroadValueCarrier } from "../../../policy/types/selected-type-evidence.js";
 import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
 import { csharpBoundSourceType, csharpSourceBindings, csharpSourceTemplateState } from "./type-bindings.js";
 import { csharpConditionalDeclaration, resolveCsharpConditionalApplication } from "./conditional-types.js";
@@ -300,34 +292,8 @@ export function resolveSignatureParameterListTarget(
   parameters: SourceCallableTypeEvidence["parameters"],
   elements: readonly TargetTypeRef[],
 ): TargetTypeRef | undefined {
-  const restIndexes = parameters.flatMap((parameter, index) =>
-    parameter.parameterKind === "rest" ? [index] : []
-  );
-  if (restIndexes.length === 0) {
-    return { kind: "tuple", elements };
-  }
-  if (restIndexes.length !== 1) {
-    return undefined;
-  }
-  const restIndex = restIndexes[0]!;
-  const restElement = getCsharpCollectionElementTargetType(
-    elements[restIndex],
-  );
-  if (restElement === undefined) {
-    return undefined;
-  }
-  const homogeneous = elements.every((element, index) => {
-    const value = index === restIndex
-      ? restElement
-      : getCsharpNullableElementTargetType(element) ?? element;
-    return targetTypeRefEquals(value, restElement);
-  });
-  if (!homogeneous) {
-    return undefined;
-  }
-  return selectedCsharpSourceProfileOwner(host.target) === "js"
-    ? csharpJsArrayTargetType(restElement)
-    : { kind: "array", element: restElement };
+  const restIndexes = parameters.flatMap((parameter, index) => parameter.parameterKind === "rest" ? [index] : []);
+  return selectCsharpParameterListCarrier(elements, restIndexes, selectedCsharpSourceProfileOwner(host.target) === "js");
 }
 
 export function resolveEvidenceNodesToCommonTarget(
