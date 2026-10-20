@@ -1,18 +1,18 @@
 import type { ResolvedSourceElementAccessInfo, ResolvedSourcePropertyAccessInfo, SourceFile } from "@tsonic/tsts";
-import type { CsharpProviderCallSelectionHost } from "../../members/selection/call-selection.js";
-import type { CsharpArrayLikeUnionProjection } from "../../../../target-model/conversions/selection.js";
-import type { CsharpSourceProfileElementPolicyResult } from "../source-profile-policy.js";
-import type { CsharpSourceProfilePropertyPolicyResult } from "../../../../target-model/records/source-profile-invocations.js";
-import { sourceProfilePropertyIdentities } from "../source-profile-policy.js";
-import { csharpSourceProfileDeclarationIdentity, type CsharpSourceProfileDeclarationIdentity } from "../source-profile-identity.js";
-import { csharpArrayLikeElement, csharpArrayLikeTargetType } from "../../../../target-model/types/carriers/array-like.js";
-import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/carriers/runtime-carriers.js";
-import { csharpNullableValueTargetType } from "../../../../target-model/types/carriers/nullable.js";
-import { csharpSourcePrimitiveTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
-import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
-import { typedArrayNames } from "../../../../target-model/types/carriers/js.js";
-import { jsRuntimeTargetType, staticMethod, targetParameter, targetProperty } from "./common.js";
+import type { CsharpProviderCallSelectionHost } from "../../../policy/model/provider-calls.js";
+import type { CsharpArrayLikeUnionProjection } from "../../../target-model/conversions/selection.js";
+import type { CsharpSourceProfileElementPolicyResult } from "../../../policy/model/source-profiles.js";
+import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/source-profile-invocations.js";
+import { sourceProfilePropertyIdentities } from "../../source-profiles/policy-selection.js";
+import { csharpSourceProfileDeclarationIdentity, type CsharpSourceProfileDeclarationIdentity } from "../../../policy/identities/selected-source.js";
+import { csharpArrayLikeElement, csharpArrayLikeTargetType } from "../../../target-model/types/carriers/array-like.js";
+import { getCsharpRuntimeUnionArms } from "../../../target-model/types/carriers/runtime-carriers.js";
 
+import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { typedArrayNames } from "../../../target-model/types/carriers/js.js";
+
+import { selectCsharpArrayUnionPropertyPlan, selectCsharpArrayUnionElementPlan } from "../../../policy/operations/source-profiles/js/array-unions.js";
 const owners: ReadonlySet<string> = new Set(["Array", "ReadonlyArray", "TypedArray", ...typedArrayNames]);
 const numberType = csharpSourcePrimitiveTargetType("float64");
 
@@ -43,10 +43,7 @@ export function selectCsharpArrayUnionProperty(
   if (projection === undefined) return undefined;
   const identities = sourceProfilePropertyIdentities(host, source, sourceFile);
   if (identities.length === 0 || identities.some(identity => !owned(identity) || identity.kind !== "member" || identity.name !== "length")) return undefined;
-  return {
-    kind: "resolved", receiver: { kind: "instance" }, invocation: { kind: "array-like", projection },
-    targetMember: targetProperty("Tsonic.CSharp.Js.IArrayLike.Length", "length", "Length", projection.target, csharpSourcePrimitiveTargetType("int32"), { readonly: true }),
-  };
+  return selectCsharpArrayUnionPropertyPlan(projection);
 }
 
 export function selectCsharpArrayUnionElement(
@@ -67,10 +64,5 @@ export function selectCsharpArrayUnionElement(
     const identity = csharpSourceProfileDeclarationIdentity(host.ast, semantics, host.sourceFacts, declaration);
     return !owned(identity) || identity?.kind !== "indexer";
   })) return undefined;
-  return {
-    kind: "resolved", receiver: { kind: "instance" }, targetParameterIndex: 0,
-    invocation: { kind: "array-like", projection },
-    targetMember: staticMethod("Tsonic.CSharp.Js.ArrayLike.ReadNumber", "index", "ReadNumber", jsRuntimeTargetType("ArrayLike"),
-      [targetParameter("index", numberType)], csharpNullableValueTargetType(numberType)),
-  };
+  return selectCsharpArrayUnionElementPlan(projection);
 }

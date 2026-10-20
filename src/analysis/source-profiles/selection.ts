@@ -1,6 +1,6 @@
 import type { SourceFile, Node, AstReader, ReadonlySourceFactResolver } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import { selectCsharpArrayUnionElement, selectCsharpArrayUnionProperty } from "../../policy/operations/source-profiles/js/array-unions.js";
+import { selectCsharpArrayUnionElement, selectCsharpArrayUnionProperty } from "../operations/provider/number-array-unions.js";
 import { selectCsharpIndexedRecordElement, selectCsharpIndexedRecordProperty } from "../operations/collections/indexed-records.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpProviderCallSelectionHost } from "../../policy/model/provider-calls.js";
