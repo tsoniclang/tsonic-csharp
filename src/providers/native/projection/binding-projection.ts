@@ -5,15 +5,15 @@ import { type CsharpTargetBindingFact, csharpTargetNamedType } from "../../../ta
 import type { DotnetUnsupportedConstraintDeclaration, DotnetUnsupportedMemberDeclaration } from "../model/types.js";
 import { dotnetAttributeToTargetAttribute, dotnetUnsupportedAttributeToTargetUnsupportedAttribute } from "./attributes.js";
 import { type DotnetTargetTypeParameter, dotnetTypeParameterToTargetTypeParameter } from "./constraints.js";
-import { dotnetConstraintToTargetConstraint } from "./index.js";
+import { dotnetConstraintToTargetConstraint } from "./constraints.js";
 import { dotnetConversionOperatorToTargetConversionOperator, dotnetMemberToTargetMembers } from "./members.js";
-import { type DotnetTargetMember } from "./index.js";
+import { type DotnetTargetMember } from "./members.js";
 import { csharpTargetMetadataFromDotnetTypeDeclaration, dotnetRenderShapeToCsharpRenderShape, requireDotnetTargetId } from "./type-ref.js";
-import { dotnetTypeRefToTargetTypeRef } from "./index.js";
+import { dotnetTypeRefToTargetTypeRef } from "./type-ref.js";
 
-export { dotnetConstraintToTargetConstraint } from "./index.js";
-export { dotnetTypeRefToTargetTypeRef } from "./index.js";
-export type { DotnetTargetMember, DotnetTargetParameter } from "./index.js";
+export { dotnetConstraintToTargetConstraint } from "./constraints.js";
+export { dotnetTypeRefToTargetTypeRef } from "./type-ref.js";
+export type { DotnetTargetMember, DotnetTargetParameter } from "./members.js";
 
 export type DotnetTargetBindingFact = CsharpTargetBindingFact & {
   readonly csharpInheritance: readonly CsharpNativeInheritanceEntry[];

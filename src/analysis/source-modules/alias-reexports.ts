@@ -3,8 +3,10 @@ import { csharpLangModule, csharpSourceSemanticsExtensionId } from "../../target
 import { csharpSourceSemanticsModules } from "../../source/profiles/source-modules.js";
 import { csharpProviderExportsForModule } from "../../source/profiles/source-virtual-modules.js";
 
-export function analyzeCsharpSourceAliasReexports(ast: AstReader, sourceFiles: readonly Node[]): readonly ExtensionDiagnostic[] {
-  const diagnostics: ExtensionDiagnostic[] = [];
+type CsharpSourceAliasIssue = ExtensionDiagnostic & { readonly nodeOrSpan: Node; readonly publicCode: string };
+
+export function analyzeCsharpSourceAliasReexports(ast: AstReader, sourceFiles: readonly NonNullable<Parameters<AstReader["getFileName"]>[0]>[]): readonly CsharpSourceAliasIssue[] {
+  const diagnostics: CsharpSourceAliasIssue[] = [];
   for (const sourceFile of sourceFiles) {
     if (ast.getFileName(sourceFile).endsWith(".d.ts")) continue;
     recordUnsupportedCsharpLangReExportDiagnostics(sourceFile, ast, diagnostics);
@@ -24,7 +26,7 @@ const csharpLangExportNames = new Set(langModule === undefined ? [] : csharpProv
 function recordUnsupportedCsharpLangReExportDiagnostics(
   sourceFile: Node,
   ast: AstReader,
-  diagnostics: ExtensionDiagnostic[],
+  diagnostics: CsharpSourceAliasIssue[],
 ): void {
   let exportDeclarationIndex = 0;
   for (const statement of ast.statements(sourceFile)) {

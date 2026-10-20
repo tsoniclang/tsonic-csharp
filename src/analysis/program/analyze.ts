@@ -62,7 +62,9 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const { input, configuration, providers } = request;
   const source = input.source;
   const aliasIssues = analyzeCsharpSourceAliasReexports(source.ast, source.navigation.sourceFiles);
-  if (aliasIssues.length !== 0) return rejectedTargetStage(aliasIssues.map(diagnostic => targetDiagnosticFromExtension(source.ast, diagnostic)));
+  if (aliasIssues.length !== 0) return rejectedTargetStage(aliasIssues.map(diagnostic => ({
+    ...targetDiagnosticFromExtension(diagnostic.nodeOrSpan, diagnostic), code: diagnostic.publicCode,
+  })));
   if (source.semantics.enumConstants.issues.length !== 0) return rejectedTargetStage(source.semantics.enumConstants.issues);
   const memoryBindings = createTsonicMemoryBindingIndex(source);
   const sourceAttributeApplications = createCsharpSourceAttributeApplicationIndex(source, source.navigation.sourceFiles);
