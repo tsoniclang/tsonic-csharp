@@ -5,16 +5,11 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpPlannedValue } from "./planned-values.js";
 import { buildCsharpPlannedValue } from "./planned-value-composition.js";
-import {
-  unsupportedNodeDiagnostic,
-} from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "./expression-planner-types.js";
 import {
   csharpSourcePrimitiveTargetType,
 } from "../../../target-model/types/index.js";
-import {
-  csharpTypeFromTargetTypeRef,
-} from "../types/target-types.js";
 
 export function tryPlanJsArrayMutationExpression(
   node: Node,
@@ -27,11 +22,7 @@ export function tryPlanJsArrayMutationExpression(
 ): CsharpPlannedValue | undefined {
   const selection = input.program.records.jsArrayMutation.get(node);
   if (selection === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
-      "C# planning received an array mutation without a sealed operation classification.",
-    ));
-    return undefined;
+    failCsharpPlannerInvariant("An admitted array mutation requires its sealed native operation classification.", node);
   }
   if (selection.kind === "not-js-array-mutation") {
     return undefined;
@@ -41,8 +32,7 @@ export function tryPlanJsArrayMutationExpression(
       planExpression, state);
   }
   if (selection.kind === "rejected") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
-    return undefined;
+    failCsharpPlannerInvariant("An admitted array mutation requires its selected native operation.", node);
   }
   if (selection.kind !== "set-length") {
     return undefined;
@@ -82,18 +72,10 @@ function planMutationArgument(
   planCallArgument: CallArgumentPlanner,
 ) {
   const targetType = csharpSourcePrimitiveTargetType("float64");
-  const expectedType = csharpTypeFromTargetTypeRef(targetType, input.scope.typeParameterNames);
-  if (expectedType === undefined) {
-    throw new Error("The C# float64 mutation parameter must always be renderable.");
-  }
   const argument = planCallArgument(node, sourceFile, input, diagnostics, targetType, "by-value"
   );
   if (argument?.passing !== undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
-      "C# JS Array mutation indexes and lengths require by-value arguments.",
-    ));
-    return undefined;
+    failCsharpPlannerInvariant("An admitted JS Array mutation index or length requires its by-value argument.", node);
   }
   return argument;
 }

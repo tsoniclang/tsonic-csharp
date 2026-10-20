@@ -39,6 +39,7 @@ import { analyzeCsharpTypeEmission } from "../types/emission.js";
 import { analyzeCsharpNativeMemoryEmission } from "../operations/native-memory-emission.js";
 import { admitCsharpUnionProjections } from "../operations/union-projections.js";
 import { analyzeCsharpUnionEquality } from "../operations/union-equality.js";
+import { admitCsharpArrayMutationArguments } from "../operations/array-mutations.js";
 import { analyzeCsharpClosedTypeTests } from "../expressions/type-tests.js";
 import { analyzeCsharpTypeofEmission } from "../expressions/typeof-emission.js";
 import { analyzeCsharpIdentifierEmission } from "../names/source-identifiers.js";
@@ -492,6 +493,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     operations: admittedOperations, values: analysis.valueReads, factories: classFactories, definitions: typeDefinitions });
   const nonCallableIssues = [
     ...admitCsharpUnionProjections(sourceStorage.nodes, admittedOperations, typeDefinitions),
+    ...admitCsharpArrayMutationArguments(sourceStorage.nodes, admittedOperations, analysis.sourceEvidence),
     ...literalEmission.issues,
     ...unionEquality.issues,
     ...closedTypeTests.issues,
