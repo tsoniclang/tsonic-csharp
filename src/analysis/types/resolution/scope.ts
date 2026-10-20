@@ -6,7 +6,7 @@ import type { CsharpSourceCallContract } from "../../../target-model/records/sou
 import type { CsharpSourceCallContractSelection } from "./call-contracts.js";
 
 import type { CsharpPointerReturnContract } from "../../../target-model/records/pointer-return.js";
-import type { CsharpSourceTypedLocationOperation } from "../../../policy/operations/typed-locations/source-typed-locations.js";
+import type { CsharpSourceTypedLocationOperation } from "../../../source/extension/typed-locations.js";
 import type { CsharpTypePolicyHost, CsharpScopedTypePolicyResult, CsharpTypePolicy, CsharpTypeResolutionState } from "./model.js";
 import type { ResolvedSourceCallInfo } from "../../../target-model/records/source-calls.js";
 import type { CsharpSourceTargetTypeBinding } from "../../../target-model/types/model.js";

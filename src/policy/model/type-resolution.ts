@@ -3,7 +3,7 @@ import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { TsonicFixedArraySelection } from "@tsonic/source-core/facts";
 import type { CsharpPointerReturnContract } from "../../target-model/records/pointer-return.js";
 
-import type { CsharpSourceTypedLocationOperation } from "../operations/typed-locations/source-typed-locations.js";
+import type { CsharpSourceTypedLocationOperation } from "../../source/extension/typed-locations.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 
 import type { CsharpArrayLiteralSelection } from "../../target-model/records/array-literals.js";

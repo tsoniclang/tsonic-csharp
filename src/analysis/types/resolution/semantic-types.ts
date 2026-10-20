@@ -20,7 +20,7 @@ import { maximumTypeResolutionDepth } from "./model.js";
 import { nextState } from "./state.js";
 import { providerVirtualDeclarationFactKey, sourcePrimitiveFactKey } from "@tsonic/tsts";
 import { readCsharpSourceNativePointerOperation } from "../../../source/extension/native-pointers.js";
-import { readCsharpSourceTypedLocationOperation } from "../../../policy/operations/typed-locations/source-typed-locations.js";
+import { readCsharpSourceTypedLocationOperation } from "../../../source/extension/typed-locations.js";
 import { readCsharpSourceUnsafeContext } from "../../../source/extension/explicit-safety.js";
 import { relateTypeArguments } from "./generic-arguments.js";
 import { csharpRawAddressResultType } from "../../../policy/operations/pointers/raw-addresses.js";

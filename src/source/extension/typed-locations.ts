@@ -1,14 +1,6 @@
-import {
-  pointerOperationFactKey,
-} from "@tsonic/tsts";
+import { pointerOperationFactKey } from "@tsonic/tsts";
 import { tsonicPointerViewFactKey } from "@tsonic/source-core/facts";
-import type {
-  ExtensionFactSubject,
-  Node,
-  ReadonlySourceFactResolver,
-  Symbol,
-  Type,
-} from "@tsonic/tsts";
+import type { ExtensionFactSubject, Node, ReadonlySourceFactResolver, Symbol, Type } from "@tsonic/tsts";
 
 interface CsharpSourceTypedLocationOperationBase {
   readonly call: Node;

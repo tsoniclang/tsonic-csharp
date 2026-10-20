@@ -1,4 +1,4 @@
-import type { CsharpSourceTypedLocationOperation } from "../../../policy/operations/typed-locations/source-typed-locations.js";
+import type { CsharpSourceTypedLocationOperation } from "../../../source/extension/typed-locations.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { CsharpScopedTypePolicyResult, CsharpTypeResolutionState } from "./model.js";
