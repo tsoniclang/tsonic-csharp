@@ -1,20 +1,19 @@
-import type { CsharpConversionSelection } from "../../../analysis/conversions/index.js";
+import type { CsharpConversionSelection } from "../../../target-model/conversions/selection.js";
 import type { TargetTypeRef } from "../../../target-model/types/index.js";
-import { targetTypeRefEquals } from "../../../target-model/types/index.js";
 import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 
 export function planCsharpEmptyRecordConversion(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
   selection: Extract<CsharpConversionSelection, { readonly kind: "empty-record" }>,
-  source: TargetTypeRef | undefined,
-  target: TargetTypeRef | undefined,
+  _source: TargetTypeRef | undefined,
+  _target: TargetTypeRef | undefined,
   expression: CsharpExpression,
 ): CsharpExpression | undefined {
-  if (source === undefined || target === undefined || !targetTypeRefEquals(source, selection.source) ||
-    !targetTypeRefEquals(target, selection.target)) return undefined;
-  const type = csharpTypeFromTargetTypeRef(target, typeParameterNames);
-  return type === undefined ? undefined : {
+  const type = csharpTypeFromTargetTypeRef(selection.target, typeParameterNames);
+  if (type === undefined) failCsharpPlannerInvariant("An admitted empty-record conversion requires its native type.");
+  return {
     kind: "SimpleMemberAccessExpression",
     receiver: {
       kind: "InvocationExpression",
