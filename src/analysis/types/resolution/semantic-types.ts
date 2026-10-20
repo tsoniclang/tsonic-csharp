@@ -1,4 +1,4 @@
-import type { CsharpTypeResolutionScope } from "./engine.js";
+import type { CsharpTypeResolutionScope } from "./scope.js";
 import { resolveCsharpConstructorValueType } from "./constructors.js";
 import { sourceTypeSyntaxIsCompositional } from "@tsonic/target-api/source";
 import { csharpBoundSourceType } from "./type-bindings.js";
@@ -7,49 +7,25 @@ import type { CsharpTypeResolutionState } from "./model.js";
 import type { ExtensionFactSubject, SourceFile, Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import {
-  csharpAnyTargetType,
-  csharpEmptyObjectTargetType,
-  csharpRuntimeLocationTargetType,
-  csharpRuntimeRawPointerTargetType,
-  csharpAbsenceTargetType,
-  isCsharpAbsenceTargetType,
-  csharpTsValueTargetType,
-} from "../../../target-model/types/carriers/runtime-carriers.js";
-import {
-  csharpBigIntegerTargetType,
-  csharpObjectTargetType,
-  csharpJsStringTargetType,
-  csharpSourcePrimitiveTargetType,
-  csharpStringTargetType,
-  csharpNeverTargetType,
-  csharpVoidTargetType,
-} from "../../../target-model/types/carriers/scalar-types.js";
+import { csharpAnyTargetType, csharpEmptyObjectTargetType, csharpRuntimeLocationTargetType, csharpRuntimeRawPointerTargetType, csharpAbsenceTargetType, isCsharpAbsenceTargetType, csharpTsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpBigIntegerTargetType, csharpObjectTargetType, csharpJsStringTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpNeverTargetType, csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpJsSymbolTargetType } from "../../../target-model/types/carriers/js.js";
-import {
-  csharpFixedArrayRepresentationRejection,
-  readCsharpSourceDefaultValue,
-  readCsharpSourceField,
-  readCsharpSourceFixedArrayType,
-  readCsharpSourceFunctionPointerType,
-  readCsharpSourceJsStringMarker,
-  readCsharpSourcePointerType,
-  isCsharpSourceRawPointer,
-} from "./source-markers.js";
-import { classifyCsharpSourceProfileType } from "./source-profile.js";
-import { csharpTargetTypeFromBinding } from "../storage/bindings.js";
-import { readCsharpSourceKeepAlive } from "../../operations/flow/source-flow.js";
+import { csharpFixedArrayRepresentationRejection } from "../../../policy/types/collections/fixed-arrays.js";
+import { readCsharpSourceDefaultValue, readCsharpSourceField, readCsharpSourceFixedArrayType, readCsharpSourceFunctionPointerType, readCsharpSourceJsStringMarker, readCsharpSourcePointerType, isCsharpSourceRawPointer } from "../../../source/extension/markers.js";
+import { classifyCsharpSourceProfileType } from "../../../policy/identities/source-types.js";
+import { csharpTargetTypeFromBinding } from "../../../policy/types/storage/bindings.js";
+import { readCsharpSourceKeepAlive } from "../../../policy/operations/flow/source-flow.js";
 import { csharpNullableReferenceTargetType, isCsharpNullableReferenceTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { maximumTypeResolutionDepth } from "./model.js";
 import { nextState } from "./state.js";
 import { providerVirtualDeclarationFactKey, sourcePrimitiveFactKey } from "@tsonic/tsts";
-import { readCsharpSourceNativePointerOperation } from "../../operations/pointers/source-native-pointers.js";
-import { readCsharpSourceTypedLocationOperation } from "../../operations/typed-locations/source-typed-locations.js";
-import { readCsharpSourceUnsafeContext } from "../../operations/safety/explicit.js";
+import { readCsharpSourceNativePointerOperation } from "../../../policy/operations/pointers/source-native-pointers.js";
+import { readCsharpSourceTypedLocationOperation } from "../../../policy/operations/typed-locations/source-typed-locations.js";
+import { readCsharpSourceUnsafeContext } from "../../../policy/operations/safety/explicit.js";
 import { relateTypeArguments } from "./generic-arguments.js";
-import { readCsharpSourceRawAddress, csharpRawAddressResultType } from "../../operations/pointers/raw-addresses.js";
-import { selectCsharpLayoutObservation } from "../../operations/pointers/layout-observations.js";
-import { readCsharpRawLocation } from "../../operations/pointers/native-memory.js";
+import { readCsharpSourceRawAddress, csharpRawAddressResultType } from "../../../policy/operations/pointers/raw-addresses.js";
+import { selectCsharpLayoutObservation } from "../../../policy/operations/pointers/layout-observations.js";
+import { readCsharpRawLocation } from "../../../policy/operations/pointers/native-memory.js";
 import { resolveTypeParameter, definedValues } from "./source-evidence.js";
 import { tsonicMemoryFieldBindingFactKey, tsonicMemoryRecordBindingFactKey, selectTsonicMemoryFieldBinding, selectTsonicMemoryRecordBinding } from "@tsonic/source-core/facts";
 
