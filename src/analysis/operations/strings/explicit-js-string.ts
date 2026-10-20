@@ -1,18 +1,9 @@
 import type { CsharpJsStringConversionSelection } from "../../../target-model/records/explicit-js-string.js";
-import {
-  sourceMarkerFactKey,
-} from "@tsonic/tsts";
-import type {
-  Node,
-  SourceFile,
-} from "@tsonic/tsts";
-import type { CsharpPolicyContext } from "../../model/context.js";
-import {
-  csharpJsStringTargetType,
-  csharpStringTargetType,
-  targetTypeRefEquals,
-} from "../../types/index.js";
+import { sourceMarkerFactKey } from "@tsonic/tsts";
+import type { Node, SourceFile } from "@tsonic/tsts";
+import type { CsharpPolicyContext } from "../../../policy/model/context.js";
 
+import { selectCsharpNativeJsStringConversion } from "../../../policy/operations/strings/explicit-js-string.js";
 export function selectCsharpJsStringConversion(
   policy: CsharpPolicyContext,
   node: Node,
@@ -44,25 +35,5 @@ export function selectCsharpJsStringConversion(
   }
   const sourceType = policy.types.resolveNode(sourceValue, sourceFile);
   const resultType = policy.types.resolveNode(node, sourceFile);
-  if (
-    sourceType === undefined ||
-    !targetTypeRefEquals(sourceType, csharpStringTargetType())
-  ) {
-    return {
-      kind: "rejected",
-      reason:
-        "The exact JavaScript string conversion source is not the native string carrier selected by C#.",
-    };
-  }
-  if (
-    resultType === undefined ||
-    !targetTypeRefEquals(resultType, csharpJsStringTargetType())
-  ) {
-    return {
-      kind: "rejected",
-      reason:
-        "The exact JavaScript string conversion result is not the explicit JavaScript string carrier selected by C#.",
-    };
-  }
-  return Object.freeze({ kind: "resolved", sourceValue, resultType });
+  return selectCsharpNativeJsStringConversion(sourceValue, sourceType, resultType);
 }
