@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { SourceProjectReference } from "@tsonic/target-api/source";
+import type { SourceDeclarationReference, SourceProjectReference } from "@tsonic/target-api/source";
 import type { CsharpDelegateSignatureShape, TargetTypeRef } from "../types/model.js";
 
 export type CsharpIdentifierEmission =
@@ -14,5 +14,5 @@ export type CsharpIdentifierEmission =
 export interface CsharpSourceReferenceRecords {
   readonly identifierEmission: { readonly get: (node: Node) => CsharpIdentifierEmission | undefined };
   readonly sourceModuleReference: { readonly get: (node: Node) => SourceProjectReference | undefined };
-  readonly sourceReferenceIdentity: { readonly get: (node: Node) => { readonly value: SourceProjectReference | undefined; readonly declaration: SourceProjectReference | undefined } | undefined };
+  readonly sourceReferenceIdentity: { readonly get: (node: Node) => { readonly value: SourceProjectReference | undefined; readonly declaration: SourceDeclarationReference | undefined } | undefined };
 }

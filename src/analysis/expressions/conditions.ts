@@ -20,7 +20,7 @@ export function analyzeCsharpConditions(input: { readonly ast: AstReader; readon
     const carrier = input.values.valueRead.get(node)?.value;
     const message = selected === undefined ? "Conditional expression condition has no sealed C# condition classification."
       : selected.kind === "rejected" ? selected.reason
-      : selected.kind !== "resolved" && !targetTypeRefEquals(carrier, csharpSourcePrimitiveTargetType("bool"))
+      : selected.kind !== "resolved" && (carrier === undefined || !targetTypeRefEquals(carrier, csharpSourcePrimitiveTargetType("bool")))
         ? "Conditional expression condition requires a finalized C# bool runtime carrier; TypeScript truthiness must be resolved by TSTS/provider facts before C# emission." : undefined;
     if (message !== undefined) issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message });
   }

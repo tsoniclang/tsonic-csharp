@@ -53,7 +53,7 @@ export function translateCallArgument(expression: Node, parameter: CsharpTargetP
   const callable = csharpTypeFromTargetTypeRef(selected.source, input.scope.typeParameterNames);
   const vector = csharpTypeFromTargetTypeRef(selected.vector, input.scope.typeParameterNames);
   if (callable === undefined || vector === undefined) failCsharpPlannerInvariant("An admitted argument-vector adapter requires its native callable and vector types.", expression);
-  const capture = captureCsharpPlannedValue(expression, input, diagnostics, selected.source);
+  const capture = captureCsharpPlannedValue(expression, input, selected.source);
   if (capture === undefined) failCsharpPlannerInvariant("An admitted argument-vector adapter requires its exact native callable capture.", expression);
   const name = input.names.temporaryName(`__tsonic_ecmascriptArguments_${input.program.source.ast.pos(expression)}`);
   const receiver: CsharpExpression = { kind: "IdentifierName", name };

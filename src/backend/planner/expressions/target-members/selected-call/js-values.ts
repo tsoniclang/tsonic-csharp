@@ -36,7 +36,7 @@ export function planCsharpJsValueCall(node: Node, sourceFile: SourceFile, input:
     value => read(csharpPlannedValue(receiver.completion.carrier, value), value), operation.resultType);
   if (receiver.completion.kind === "never") return receiver;
   if (receiver.completion.kind !== "value") failCsharpPlannerInvariant("An admitted JS call receiver requires its native value completion.", selected.receiver);
-  const capture = captureCsharpPlannedValue(node, input, diagnostics, receiver.completion.carrier);
+  const capture = captureCsharpPlannedValue(node, input, receiver.completion.carrier);
   if (capture === undefined) return undefined;
   const reference: CsharpExpression = { kind: "IdentifierName", name: capture.name };
   return read(csharpPlannedValue(receiver.completion.carrier, reference, [...receiver.prelude,

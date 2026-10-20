@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
-import type { TargetSourceProgram, SourceProjectReference } from "@tsonic/target-api/source";
+import type { TargetSourceProgram, SourceDeclarationReference, SourceProjectReference } from "@tsonic/target-api/source";
 import { sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
-import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpIdentifierEmission } from "../../target-model/records/source-references.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpClassFactoryIndex } from "../../target-model/records/class-factories.js";
@@ -22,7 +22,7 @@ export function analyzeCsharpSourceReferences(input: { readonly source: TargetSo
   const { ast } = input.source;
   const identifiers = new Map<Node, CsharpIdentifierEmission>();
   const modules = new Map<Node, SourceProjectReference>();
-  const references = new Map<Node, { readonly value: SourceProjectReference | undefined; readonly declaration: SourceProjectReference | undefined }>();
+  const references = new Map<Node, { readonly value: SourceProjectReference | undefined; readonly declaration: SourceDeclarationReference | undefined }>();
   const issues: TargetDiagnostic[] = [];
   const required = new Set<Node>();
   for (const node of input.nodes) if (input.admitted(node)) {
@@ -37,9 +37,10 @@ export function analyzeCsharpSourceReferences(input: { readonly source: TargetSo
     const declarationReference = input.source.navigation.sourceReferenceFor(node);
     references.set(node, { value, declaration: declarationReference });
     const sourceFile = ast.getSourceFile(node);
+    if (sourceFile === undefined) failTargetAnalysisInvariant("tsonic-csharp", "Checked source reference requires its original source module.", node);
     const name = ast.as.AsPropertyAccessExpression(node)?.name;
     const memberReference = value ?? (name === undefined ? undefined : input.source.navigation.referenceFor(name));
-    const external = (reference: SourceProjectReference | undefined): boolean => reference !== undefined && reference.sourceFile !== sourceFile &&
+    const external = (reference: SourceProjectReference | SourceDeclarationReference | undefined): boolean => reference !== undefined && reference.sourceFile !== sourceFile &&
       (reference.sourceFile.IsDeclarationFile || input.files.providerSourceFile.get(reference.sourceFile) === true);
     if (memberReference !== undefined && !external(memberReference) && moduleStatic(memberReference.declaration)) modules.set(node, memberReference);
     if (!required.has(node) || !ast.is.IsIdentifier(node)) continue;
@@ -75,8 +76,9 @@ export function analyzeCsharpSourceReferences(input: { readonly source: TargetSo
     const sourceName = ast.text(node);
     if (external(declarationReference)) { refuse(`Declaration/provider identifier '${sourceName}' requires a selected target operation or type-position usage before C# emission.`); continue; }
     const providerDeclaration = value?.declaration ?? input.source.navigation.declarationFor(node);
+    const providerFile = providerDeclaration === undefined ? undefined : ast.getSourceFile(providerDeclaration);
     if (providerDeclaration !== undefined && (input.evidence.providerVirtualDeclaration.get(providerDeclaration) ||
-      input.files.providerSourceFile.get(ast.getSourceFile(providerDeclaration)) === true)) {
+      providerFile !== undefined && input.files.providerSourceFile.get(providerFile) === true)) {
       refuse(`Provider-owned identifier '${sourceName}' requires a selected target operation or type-position usage before C# emission.`); continue;
     }
     const module = modules.get(node);

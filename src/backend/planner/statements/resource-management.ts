@@ -187,7 +187,7 @@ export function planResourceRegistrationStatement(
   const registrationName = resourceRegistrationName(selected.registration);
   const lambdaBody = selected.registration.kind === "direct"
     ? directDisposalBody(parameterName, selected.registration.disposal)
-    : runtimeUnionDisposalBody(parameterName, selected.registration.resourceType, selected.registration.arms);
+    : runtimeUnionDisposalBody(parameterName, selected.registration.resourceType, selected.registration.arms, input);
   const asynchronousLambda = operations.some((operation) =>
     operation.kind === "async");
   return {
@@ -242,6 +242,7 @@ function runtimeUnionDisposalBody(
   parameterName: string,
   resourceType: TargetTypeRef,
   arms: readonly CsharpResourceDisposalArm[],
+  input: CsharpPlanningContext,
 ): { readonly kind: "Block"; readonly statements: readonly CsharpStatement[] } {
   const asynchronous = arms.some((arm) => arm.disposal.kind !== "sync");
   return {

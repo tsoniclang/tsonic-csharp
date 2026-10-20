@@ -283,7 +283,6 @@ export function applyCsharpConversionSelection(
       return applyLiftedProviderArgumentAdapter(
         node,
         input,
-        diagnostics,
         selection,
         expression,
       );
@@ -316,7 +315,6 @@ export function applyCsharpConversionSelection(
 function applyLiftedProviderArgumentAdapter(
   node: Node,
   input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
   selection: Extract<
     CsharpConversionSelection,
     { readonly kind: "lifted-provider-argument-adapter" }

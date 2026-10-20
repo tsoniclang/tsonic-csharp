@@ -106,7 +106,7 @@ export function planExpression(
     const planned = planSelectedExpression(node, sourceFile, input, diagnostics, state);
     const discard = input.program.records.promiseResult.get(node)?.discard;
     if (planned === undefined || planned.completion.kind !== "value" || discard === undefined) return planned;
-    const captured = captureCsharpPlannedValue(node, input, diagnostics, planned.completion.carrier);
+    const captured = captureCsharpPlannedValue(node, input, planned.completion.carrier);
     if (captured === undefined) return undefined;
     const expression: CsharpExpression = { kind: "IdentifierName", name: captured.name };
     return csharpPlannedValue(planned.completion.carrier, expression, [...planned.prelude,
@@ -330,7 +330,7 @@ function planExpressionCore(
   }
 }
 
-export function planCallArgument(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], conversionExpectedTargetType?: TargetTypeRef, state?: DestructuringPlannerState, expectedArgumentPassingMode?: CsharpTargetParameter["passingMode"], selectedTargetParameter?: CsharpTargetParameter
+export function planCallArgument(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], _conversionExpectedTargetType?: TargetTypeRef, state?: DestructuringPlannerState, _expectedArgumentPassingMode?: CsharpTargetParameter["passingMode"], selectedTargetParameter?: CsharpTargetParameter
 ): CsharpPlannedArgument | undefined {
   return requireExpressionPlan(node, () => planCallArgumentCore(node, sourceFile, input, diagnostics, (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedState) =>
       planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedState ?? state), state, selectedTargetParameter

@@ -11,7 +11,7 @@ import { applyCsharpConversionSelection } from "../conversions.js";
 import { translateCsharpSelectedReceiver } from "../receivers.js";
 import { csharpRecordOptionalRead } from "../../objects/indexed-records.js";
 import type { CsharpPlannedValue } from "../planned-values.js";
-import { buildCsharpPlannedValue, composeCsharpPlannedValues, planCsharpOptionalReceiverValue, projectCsharpPlannedValue,
+import { composeCsharpPlannedValues, planCsharpOptionalReceiverValue,
   projectCsharpPlannedMember, planCsharpExpressionCompletion } from "../planned-value-composition.js";
 import { csharpPlannedValue } from "../planned-values.js";
 import { planCsharpDiscardedOperand } from "../../statements/statement-output.js";

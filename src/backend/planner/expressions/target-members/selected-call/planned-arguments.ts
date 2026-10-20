@@ -34,7 +34,7 @@ export function composeCsharpPlannedCall(
       const captured = captureCsharpPlannedLocation(node, sourceFile, input, diagnostics, argument, argument.nativeLocation, suspends);
       if (captured === undefined || captured.completion.kind !== "value") return captured;
       if (suspends) return { ...argument, ...captured };
-      const storage = captureCsharpPlannedValue(node, input, diagnostics, argument.nativeLocation.storageType);
+      const storage = captureCsharpPlannedValue(node, input, argument.nativeLocation.storageType);
       if (storage === undefined) return undefined;
       return { ...argument, ...csharpPlannedValue(argument.nativeLocation.storageType, { kind: "IdentifierName", name: storage.name }, [
         ...captured.prelude, { kind: "LocalDeclarationStatement", ...storage, initializer: captured.completion.expression,
@@ -42,7 +42,7 @@ export function composeCsharpPlannedCall(
       ]) };
     }
     if (!arguments_.reordered || argument.completion.kind !== "value" || argument.constant === true) return argument;
-    const capture = captureCsharpPlannedValue(node, input, diagnostics, argument.completion.carrier);
+    const capture = captureCsharpPlannedValue(node, input, argument.completion.carrier);
     return capture === undefined ? undefined : csharpPlannedValue(argument.completion.carrier,
       { kind: "IdentifierName", name: capture.name }, [...argument.prelude, {
         kind: "LocalDeclarationStatement", ...capture, initializer: argument.completion.expression,
@@ -56,7 +56,7 @@ export function composeCsharpPlannedCall(
     }, (carrier, operand) => "passing" in operand && operand.passing !== undefined && "nativeLocation" in operand &&
       operand.nativeLocation !== undefined && operand.completion.kind === "value"
       ? { kind: "native-location", expression: operand.completion.expression }
-      : captureCsharpPlannedValue(node, input, diagnostics, carrier));
+      : captureCsharpPlannedValue(node, input, carrier));
 }
 
 export function csharpPlannedArgumentSyntax(

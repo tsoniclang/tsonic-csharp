@@ -24,10 +24,10 @@ export function captureCsharpPlannedMemberReceiver(
   if (operand.completion.kind !== "value") return undefined;
   const selected = input.program.records.typeEmission.get(carrier)
     ?? failCsharpPlannerInvariant("An admitted member receiver requires its native storage category.", receiver);
-  if (!selected.valueType) return captureCsharpPlannedValue(node, input, diagnostics, carrier);
+  if (!selected.valueType) return captureCsharpPlannedValue(node, input, carrier);
   const location = input.program.records.nativeLocation.get(receiver);
   if (location?.kind !== "resolved" || location.address === undefined) {
-    if (!writable) return captureCsharpPlannedValue(node, input, diagnostics, carrier);
+    if (!writable) return captureCsharpPlannedValue(node, input, carrier);
     failCsharpPlannerInvariant("An admitted mutable value-member write requires its native receiver address.", node);
   }
   const retained = captureCsharpPlannedLocation(receiver, sourceFile, input, diagnostics,

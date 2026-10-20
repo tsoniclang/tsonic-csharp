@@ -35,8 +35,8 @@ export function analyzeCsharpBinaryEmission(input: { readonly source: TargetSour
       refuse(node, "Read-modify-write requires a binding or an exact native reference-receiver location and hygienic evaluation scope."); return;
     }
     const operator = operation.kind === "operator" || operation.kind === "generic-numeric" ? operation.operator : undefined;
-    const syntax = operator === undefined ? undefined : Object.hasOwn(csharpNativeAssignmentTokens, operator) ? "assignment"
-      : Object.hasOwn(csharpNativeBinaryTokens, operator) ? "binary" : undefined;
+    const syntax = operator === undefined ? undefined : Object.prototype.hasOwnProperty.call(csharpNativeAssignmentTokens, operator) ? "assignment"
+      : Object.prototype.hasOwnProperty.call(csharpNativeBinaryTokens, operator) ? "binary" : undefined;
     if (operator !== undefined && syntax === undefined) { refuse(node, `Selected C# operator '${operator}' has no target AST token.`); return; }
     let storage = selection.left;
     while (ast.is.IsParenthesizedExpression(storage)) storage = ast.as.AsParenthesizedExpression(storage)?.Expression

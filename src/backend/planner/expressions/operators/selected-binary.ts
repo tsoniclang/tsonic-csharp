@@ -262,7 +262,7 @@ export function planSelectedCsharpBinaryOperation(node: Node, selection: CsharpR
     if (assignmentToken.kind === "QuestionQuestionEqualsToken") {
       let assigned = right;
       if (right.completion.kind === "value" && narrowedCoalescing) {
-        const result = captureCsharpPlannedValue(node, input, diagnostics, selection.resultType);
+        const result = captureCsharpPlannedValue(node, input, selection.resultType);
         if (result === undefined) return undefined;
         const reference: CsharpExpression = { kind: "IdentifierName", name: result.name };
         assigned = csharpPlannedValue(selection.resultType, reference, [...right.prelude,
@@ -284,7 +284,7 @@ export function planSelectedCsharpBinaryOperation(node: Node, selection: CsharpR
     const prelude = [...captured.prelude];
     let target = location;
     if (assignmentToken.kind !== "EqualsToken") {
-      const old = captureCsharpPlannedValue(node, input, diagnostics, selection.leftInputType);
+      const old = captureCsharpPlannedValue(node, input, selection.leftInputType);
       if (old === undefined) return undefined;
       prelude.push({ kind: "LocalDeclarationStatement", ...old, initializer: target });
       target = { kind: "IdentifierName", name: old.name };
@@ -295,7 +295,7 @@ export function planSelectedCsharpBinaryOperation(node: Node, selection: CsharpR
     if (assignmentToken.kind === "EqualsToken") return csharpPlannedValue(selection.resultType, {
       kind: "AssignmentExpression", left: target, operatorToken: assignmentToken, right: right.completion.expression,
     }, prelude);
-    const result = captureCsharpPlannedValue(node, input, diagnostics, selection.resultType);
+    const result = captureCsharpPlannedValue(node, input, selection.resultType);
     if (result === undefined) return undefined;
     const completed: CsharpExpression = { kind: "IdentifierName", name: result.name };
     return csharpPlannedValue(selection.resultType, completed, [...prelude,

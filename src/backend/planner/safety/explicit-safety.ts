@@ -49,7 +49,7 @@ export function planCsharpExplicitSafetyExpression(
   if (expression.prelude.length === 0) return csharpPlannedValue(
     expression.completion.carrier, { kind: "UnsafeExpression", expression: expression.completion.expression },
   );
-  const storage = captureCsharpPlannedValue(node, input, diagnostics, expression.completion.carrier);
+  const storage = captureCsharpPlannedValue(node, input, expression.completion.carrier);
   if (storage === undefined) return undefined;
   const reference = { kind: "IdentifierName" as const, name: storage.name };
   return csharpPlannedValue(expression.completion.carrier, reference, [

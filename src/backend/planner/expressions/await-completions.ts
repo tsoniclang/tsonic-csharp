@@ -59,8 +59,8 @@ export function planCsharpAwaitCompletion(
     return planCsharpExpressionCompletion(node, input.program.source.ast.getSourceFile(node)!, input, diagnostics, result, completion.result, planned.prelude);
   }
   if (completion.form === "void-branches") {
-    const selected = captureCsharpPlannedValue(node, input, diagnostics, carrier);
-    const result = captureCsharpPlannedValue(node, input, diagnostics, completion.result);
+    const selected = captureCsharpPlannedValue(node, input, carrier);
+    const result = captureCsharpPlannedValue(node, input, completion.result);
     const absent = planCsharpAbsentValue(completion.result, input);
     if (selected === undefined || result === undefined || absent === undefined)
       failCsharpPlannerInvariant("An admitted void await branch requires its native bindings and result absence.", node);

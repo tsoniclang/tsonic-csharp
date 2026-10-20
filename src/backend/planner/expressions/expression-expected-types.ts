@@ -21,7 +21,7 @@ import { planCsharpStorageIsAbsent } from "./optional-storage.js";
 import { csharpPlannedEffect, csharpPlannedValue, mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { planCsharpJsValueBox, translateCsharpJsValueInvocation } from "./js-value-operations.js";
 import { captureCsharpPlannedValue, planCsharpExpressionCompletion, planCsharpValueBranch } from "./planned-value-composition.js";
-import { applyCsharpConversionSelection, readCsharpExpressionConversionClassification } from "./conversions.js";
+import { applyCsharpConversionSelection } from "./conversions.js";
 import { requireCsharpNativeExpressionUse } from "./native-uses.js";
 import { planCsharpPlannedDiscard } from "../statements/statement-output.js";
 import { csharpPlannedAddressOperand } from "./planned-locations.js";
@@ -180,7 +180,7 @@ export function planCsharpNativeExpression(
         const left = planSite(recipe.left, values);
         if (left === undefined || left.completion.kind === "never") return left;
         if (left.completion.kind !== "value") return failCsharpPlannerInvariant("An admitted short-circuit condition requires its native value.", node);
-        const capture = captureCsharpPlannedValue(node, input, diagnostics, left.completion.carrier);
+        const capture = captureCsharpPlannedValue(node, input, left.completion.carrier);
         if (capture === undefined) return undefined;
         const captured = csharpPlannedValue(left.completion.carrier, { kind: "IdentifierName", name: capture.name });
         const observed = new Map(values);

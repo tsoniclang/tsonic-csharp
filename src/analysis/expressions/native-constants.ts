@@ -38,7 +38,7 @@ export function analyzeCsharpNativeConstants(input: { readonly ast: AstReader; r
     const literal = input.literals.literalValue.get(literalNode);
     const storage = input.types.typeEmission.get(carrier)?.optionalStorage;
     const absent = storage?.kind === "native" && storage.absence && !storage.jsValue &&
-      (input.ast.kind(literalNode) === KindNullKeyword || input.ast.is.IsVoidExpression(literalNode) ||
+      (input.ast.kindName(literalNode) === KindNullKeyword || input.ast.is.IsVoidExpression(literalNode) ||
         input.references.identifierEmission.get(literalNode)?.kind === "absence");
     const selected = exact?.kind === "resolved" ? constant(exact.recipe)
       : literal !== undefined && ((literal.form === "true" || literal.form === "false") && carrier.kind === "source-primitive" && carrier.name === "bool" ||

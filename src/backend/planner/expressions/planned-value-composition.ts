@@ -47,7 +47,6 @@ export function planCsharpExpressionCompletion(
 export function captureCsharpPlannedValue(
   node: Node,
   input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
   carrier: TargetTypeRef,
 ): CsharpPlannedCapture | undefined {
   const type = csharpTypeFromTargetTypeRef(carrier, input.scope.typeParameterNames);
@@ -65,7 +64,7 @@ export function composeCsharpPlannedValues(
   operands: readonly (CsharpPlannedOperand | undefined)[],
   complete: (expressions: readonly CsharpExpression[]) => CsharpPlannedValue | undefined,
   capture: (carrier: TargetTypeRef, operand: CsharpPlannedValue) => CsharpPlannedCapture | CsharpPlannedLocationCapture | undefined =
-    carrier => captureCsharpPlannedValue(node, input, diagnostics, carrier),
+    carrier => captureCsharpPlannedValue(node, input, carrier),
 ): CsharpPlannedValue | undefined {
   const selected = operands.filter((operand): operand is CsharpPlannedOperand => operand !== undefined);
   if (selected.length !== operands.length) return undefined;
@@ -134,7 +133,7 @@ export function planCsharpValueBranch(
     consequent.completion.kind !== "value" || alternative.completion.kind !== "value";
   const completion = input.program.records.typeEmission.get(carrier)?.completion ??
     failCsharpPlannerInvariant("An admitted branch requires its native completion kind.", node);
-  const capture = !statements || completion !== "value" ? undefined : captureCsharpPlannedValue(node, input, diagnostics, carrier);
+  const capture = !statements || completion !== "value" ? undefined : captureCsharpPlannedValue(node, input, carrier);
   return planCsharpPlannedBranch(condition, consequent, alternative, carrier, capture, completion);
 }
 

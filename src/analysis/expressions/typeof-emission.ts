@@ -36,7 +36,8 @@ export function analyzeCsharpTypeofEmission(input: { readonly ast: AstReader; re
         producer.predicate(node, { kind: "factory", left, right, carrier: binary.instanceFactory, method: factory.instanceTestMethodName });
       } else {
         const fact = binary?.instanceTest;
-        if (fact === undefined || !targetTypeRefEquals(input.values.valueRead.get(left)?.value, fact.sourceCarrier)) {
+        const source = input.values.valueRead.get(left)?.value;
+        if (fact === undefined || source === undefined || !targetTypeRefEquals(source, fact.sourceCarrier)) {
           refuse(node, "Nominal type test requires its exact sealed source, constructor and native payload test."); continue;
         }
         producer.predicate(node, { kind: "native", left, fact });

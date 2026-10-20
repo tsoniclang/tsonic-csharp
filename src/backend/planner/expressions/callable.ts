@@ -110,7 +110,7 @@ export function planCsharpArrowLambdaSyntax(
   const creationPolicy = input.program.records.lambdaCreation.get(node);
   const targetContext = getLambdaTargetContext(node, input);
   const expression = AsArrowFunction(input.program.source.ast, node)!;
-  const returnContext = getLambdaReturnContext(node, targetContext, input, diagnostics);
+  const returnContext = getLambdaReturnContext(node, targetContext, input);
   if (isAsyncExpression(input.program.source.ast, node) && returnContext === undefined) {
     return undefined;
   }
@@ -208,7 +208,7 @@ export function planFunctionExpression(
   const generatorSyntax = hasCsharpGeneratorPlan(node, input);
   const returnContext = generatorSyntax
     ? undefined
-    : getLambdaReturnContext(node, targetContext, input, diagnostics);
+    : getLambdaReturnContext(node, targetContext, input);
   if (!generatorSyntax && isAsyncExpression(input.program.source.ast, node) && returnContext === undefined) {
     return undefined;
   }
@@ -289,7 +289,7 @@ export function planCsharpCapturedFunctionLambdaSyntax(
   if (expression === undefined) return undefined;
   const targetContext = getLambdaTargetContext(node, input);
   const generator = hasCsharpGeneratorPlan(node, input);
-  const returnContext = generator ? undefined : getLambdaReturnContext(node, targetContext, input, diagnostics);
+  const returnContext = generator ? undefined : getLambdaReturnContext(node, targetContext, input);
   if (!generator && isAsyncExpression(input.program.source.ast, node) && returnContext === undefined) return undefined;
   const parameterNodes = expression.Parameters?.Nodes ?? [];
   const scoped = input;
@@ -353,7 +353,6 @@ function getLambdaReturnContext(
   node: Node,
   targetContext: LambdaTargetContext | undefined,
   input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
 ): LambdaReturnContext | undefined {
   if (targetContext === undefined) {
     return undefined;

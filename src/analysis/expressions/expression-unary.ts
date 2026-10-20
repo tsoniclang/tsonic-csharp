@@ -41,8 +41,8 @@ export function analyzeCsharpUnaryEmission(input: { readonly ast: AstReader; rea
     let storage: Node | undefined;
     if (selected.sourceOperator === "++" || selected.sourceOperator === "--") {
       storage = selected.operand;
-      while (input.ast.is.IsParenthesizedExpression(storage)) {
-        const inner = input.ast.as.AsParenthesizedExpression(storage)?.Expression;
+      while (storage !== undefined && input.ast.is.IsParenthesizedExpression(storage)) {
+        const inner: Node | undefined = input.ast.as.AsParenthesizedExpression(storage)?.Expression;
         if (inner === undefined) { refuse(storage, "A selected parenthesized native update location has no operand."); storage = undefined; break; }
         storage = inner;
       }

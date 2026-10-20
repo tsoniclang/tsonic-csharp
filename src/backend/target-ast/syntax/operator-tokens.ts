@@ -7,12 +7,12 @@ import type {
 import { csharpNativeAssignmentTokens, csharpNativeBinaryTokens } from "../../../target-model/syntax/native-binary.js";
 
 export function csharpBinaryOperatorTokenFromText(text: string): CsharpBinaryOperatorToken | undefined {
-  const kind = Object.hasOwn(csharpNativeBinaryTokens, text) ? csharpNativeBinaryTokens[text as keyof typeof csharpNativeBinaryTokens] : undefined;
+  const kind = Object.prototype.hasOwnProperty.call(csharpNativeBinaryTokens, text) ? csharpNativeBinaryTokens[text as keyof typeof csharpNativeBinaryTokens] : undefined;
   return kind === undefined ? undefined : { kind };
 }
 
 export function csharpAssignmentOperatorTokenFromText(text: string): CsharpAssignmentOperatorToken | undefined {
-  const kind = Object.hasOwn(csharpNativeAssignmentTokens, text) ? csharpNativeAssignmentTokens[text as keyof typeof csharpNativeAssignmentTokens] : undefined;
+  const kind = Object.prototype.hasOwnProperty.call(csharpNativeAssignmentTokens, text) ? csharpNativeAssignmentTokens[text as keyof typeof csharpNativeAssignmentTokens] : undefined;
   return kind === undefined ? undefined : { kind };
 }
 

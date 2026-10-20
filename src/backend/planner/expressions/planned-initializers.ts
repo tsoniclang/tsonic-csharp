@@ -44,7 +44,7 @@ export function planCsharpObjectInitialization(
     if (slot === undefined) {
       const selected = selectedSlots.get(assignment.name)
         ?? failCsharpPlannerInvariant("An admitted object initialization requires its selected native storage slot.", node);
-      const captured = captureCsharpPlannedValue(node, input, diagnostics, assignment.carrier);
+      const captured = captureCsharpPlannedValue(node, input, assignment.carrier);
       if (captured === undefined) return undefined;
       const absent = selected.initializeAbsence ? planCsharpAbsentValue(selected.carrier, input) : undefined;
       if (selected.initializeAbsence && absent === undefined) failCsharpPlannerInvariant("An admitted optional object slot requires its native absence initializer.", node);
@@ -70,7 +70,7 @@ export function planCsharpObjectInitialization(
     let value = group.value.completion.expression;
     const selected = group.assignments(value);
     if (selected.length !== 1 || group.presence.kind === "optional") {
-      const source = captureCsharpPlannedValue(node, input, diagnostics, group.value.completion.carrier);
+      const source = captureCsharpPlannedValue(node, input, group.value.completion.carrier);
       if (source === undefined) return undefined;
       prelude.push({ kind: "LocalDeclarationStatement", ...source, initializer: value });
       value = { kind: "IdentifierName", name: source.name };

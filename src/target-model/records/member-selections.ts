@@ -18,7 +18,11 @@ export type CsharpTargetCallSelection =
       readonly reason: string;
     }
   | {
-      readonly kind: "missing" | "conflict";
+      readonly kind: "missing";
+      readonly reason: string;
+    }
+  | {
+      readonly kind: "conflict";
       readonly reason: string;
     }
   | {
@@ -54,7 +58,11 @@ export type CsharpTargetElementSelection =
       readonly reason: string;
     }
   | {
-      readonly kind: "missing" | "conflict";
+      readonly kind: "missing";
+      readonly reason: string;
+    }
+  | {
+      readonly kind: "conflict";
       readonly reason: string;
     }
   | {
@@ -83,7 +91,11 @@ export type CsharpTargetPropertySelection =
       readonly reason: string;
     }
   | {
-      readonly kind: "missing" | "conflict";
+      readonly kind: "missing";
+      readonly reason: string;
+    }
+  | {
+      readonly kind: "conflict";
       readonly reason: string;
     }
   | {

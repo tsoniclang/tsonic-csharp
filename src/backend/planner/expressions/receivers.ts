@@ -15,8 +15,10 @@ export function csharpProjectTypeReceiver(receiver: CsharpSelectedReceiverEviden
   input: CsharpPlanningContext, diagnostics: TargetDiagnostic[]): CsharpTypeNode | undefined {
   const selected = input.program.records.memberReceiver.get(receiver.expression, receiver.valueDeclaration);
   if (selected === undefined) failCsharpPlannerInvariant("An admitted member receiver requires its exact native acquisition plan.", receiver.expression);
-  return selected.kind === "value" ? undefined : getCsharpTypeFromProjectSourceReferenceNode(selected.reference,
-    input.program.source.ast.getSourceFile(selected.reference), input, diagnostics);
+  if (selected.kind === "value") return undefined;
+  const sourceFile = input.program.source.ast.getSourceFile(selected.reference);
+  if (sourceFile === undefined) failCsharpPlannerInvariant("An admitted type receiver requires its checked source module.", selected.reference);
+  return getCsharpTypeFromProjectSourceReferenceNode(selected.reference, sourceFile, input, diagnostics);
 }
 
 export function translateCsharpSelectedReceiver(receiver: CsharpSelectedReceiverEvidence, sourceFile: SourceFile,
