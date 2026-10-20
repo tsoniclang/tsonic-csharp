@@ -8,10 +8,16 @@ export function createCsharpProjectEmissionProducer() {
   const declarations = new WeakMap<Node, CsharpProjectTypeDefinition>();
   const references = new WeakMap<Node, Node>();
   const types = new WeakMap<Node, CsharpProjectSourceType>();
+  const typeParameterNames = new WeakMap<Node, readonly (readonly [string, string])[]>();
   const requireOpen = (node: Node): void => {
     if (!open) failTargetAnalysisInvariant("tsonic-csharp", "Native project emission is written only before its seal.", node);
   };
   return Object.freeze({
+    names(node: Node, value: readonly (readonly [string, string])[]): void {
+      requireOpen(node);
+      if (typeParameterNames.has(node)) failTargetAnalysisInvariant("tsonic-csharp", "A native project generic scope has one naming owner.", node);
+      typeParameterNames.set(node, Object.freeze(value));
+    },
     declaration(node: Node, value: CsharpProjectTypeDefinition): void {
       requireOpen(node);
       if (declarations.has(node)) failTargetAnalysisInvariant("tsonic-csharp", "A native project declaration has one source owner.", node);
@@ -30,7 +36,8 @@ export function createCsharpProjectEmissionProducer() {
     seal(): CsharpProjectEmissionRecords {
       if (!open) failTargetAnalysisInvariant("tsonic-csharp", "Native project emission seals exactly once.");
       open = false;
-      return Object.freeze({ projectDeclaration: Object.freeze({ get: (node: Node | undefined) => node === undefined ? undefined : declarations.get(node) }),
+      return Object.freeze({ projectTypeParameterNames: Object.freeze({ get: (node: Node) => typeParameterNames.get(node) }),
+        projectDeclaration: Object.freeze({ get: (node: Node | undefined) => node === undefined ? undefined : declarations.get(node) }),
         projectSourceReference: Object.freeze({ get: (node: Node) => references.get(node) }),
         projectSourceType: Object.freeze({ get: (node: Node) => types.get(node) }) });
     },

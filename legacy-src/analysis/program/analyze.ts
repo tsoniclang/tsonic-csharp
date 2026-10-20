@@ -580,7 +580,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const captureMethods = analyzeCsharpCaptureMethods(source.ast, captureStorage);
   if (captureMethods.issues.length !== 0) return rejectedTargetStage(captureMethods.issues);
   const projectEmission = analyzeCsharpProjectEmission({ source, nodes: sourceStorage.nodes, projectTypes,
-    factories: classFactories, evidence: analysis.sourceEvidence });
+    factories: classFactories, evidence: analysis.sourceEvidence, names, projections: analysis.typeProjections });
   if (projectEmission.issues.length !== 0) return rejectedTargetStage(projectEmission.issues);
   const typeParameterEmission = analyzeCsharpTypeParameterEmission({ ast: source.ast, nodes: sourceStorage.nodes,
     evidence: analysis.sourceEvidence, admitted: admittedControlNode });
