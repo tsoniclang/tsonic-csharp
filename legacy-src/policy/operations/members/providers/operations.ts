@@ -7,7 +7,7 @@ import type {
 } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { SourceStorageQueries } from "@tsonic/target-api/analysis";
-import type { CsharpValueDomainCarrierQueries } from "../../../types/objects/value-domain-carrier.js";
+import type { CsharpValueDomainCarrierQueries } from "../../../../target-model/records/value-domains.js";
 import type {
   CsharpProviderRelationResolver,
 } from "../../../../providers/model/relation-resolver.js";

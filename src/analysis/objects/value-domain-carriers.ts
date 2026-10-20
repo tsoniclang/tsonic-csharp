@@ -3,7 +3,8 @@ import type { SourceStorageQueries, SourceStorageSubject } from "@tsonic/target-
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpTypePolicy } from "../../policy/types/resolution/model.js";
 import type { CsharpObjectShapePolicy } from "../../policy/types/objects/object-shape-policy/model.js";
-import type { CsharpValueDomainCarrierQueries } from "../../policy/types/objects/value-domain-carrier.js";
+import type { CsharpValueDomainCarrierAnalysis, CsharpValueDomainCarrierIssue } from "../../target-model/records/value-domains.js";
+import { createCsharpValueDomainCarrierRecords } from "../program/records/value-domains.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { getCsharpCollectionElementTargetType } from "../../target-model/types/carriers/collections.js";
@@ -17,23 +18,13 @@ export interface CsharpValueDomainAnalysisHost {
   semantics(sourceFile: SourceFile): SourceFileSemantics;
 }
 
-export interface CsharpValueDomainCarrierIssue {
-  readonly node: Node;
-  readonly code: "CSHARP_VALUE_DOMAIN_METADATA_BUDGET_EXHAUSTED";
-  readonly message: string;
-}
-
-export interface CsharpValueDomainCarrierAnalysis extends CsharpValueDomainCarrierQueries {
-  readonly issues: readonly CsharpValueDomainCarrierIssue[];
-}
-
 export function analyzeCsharpValueDomainCarriers(
   host: CsharpValueDomainAnalysisHost,
   expressions: Iterable<Node>,
   budget = createCsharpMetadataBudget(),
 ): CsharpValueDomainCarrierAnalysis {
   const storage = host.sourceStorage;
-  const carriers = new WeakMap<Node, TargetTypeRef>();
+  const carriers = new Map<Node, TargetTypeRef>();
   const originCarriers = new Map<SourceStorageSubject, TargetTypeRef | undefined>();
   const issues: CsharpValueDomainCarrierIssue[] = [];
   let complete = storage.failureReason() === undefined;
@@ -58,7 +49,7 @@ export function analyzeCsharpValueDomainCarriers(
       complete = false;
     }
   }
-  return Object.freeze({ issues: Object.freeze(issues), carrierFor: (node: Node) => complete ? carriers.get(node) : undefined });
+  return createCsharpValueDomainCarrierRecords(carriers, issues, complete);
 
   function selectDomain(node: Node): TargetTypeRef | undefined {
     const selected = storage.subjectFor(node);

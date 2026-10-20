@@ -5,7 +5,8 @@ import type { CsharpProviderRelationResolver } from "../../providers/model/relat
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpSourceIdentityPolicy } from "../../policy/identities/source-nodes.js";
 import type { CsharpTypeSystem } from "./type-system.js";
-import { analyzeCsharpValueDomainCarriers, type CsharpValueDomainCarrierIssue } from "../objects/value-domain-carriers.js";
+import { analyzeCsharpValueDomainCarriers } from "../objects/value-domain-carriers.js";
+import type { CsharpValueDomainCarrierIssue } from "../../target-model/records/value-domains.js";
 
 export interface CsharpAnalysisPolicyContextInput {
   readonly literalValues: CsharpPolicyContext["literalValues"];
