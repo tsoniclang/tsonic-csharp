@@ -1,16 +1,9 @@
-import type { CsharpProviderValueRelation, CsharpProviderValueSelection } from "../../../../target-model/records/value-selection.js";
-import type {
-  Node,
-  ReadonlySourceFactResolver,
-} from "@tsonic/tsts";
+import type { CsharpProviderValueRelation, CsharpProviderValueSelection } from "../../../target-model/records/value-selection.js";
+import type { Node, ReadonlySourceFactResolver } from "@tsonic/tsts";
 import type { SourceProgramNavigation } from "@tsonic/target-api/source";
-import type {
-  CsharpProviderRelationResolver,
-} from "../../../../providers/model/relation-resolver.js";
+import type { CsharpProviderRelationResolver } from "../../../providers/model/relation-resolver.js";
 
-import {
-  resolveCsharpProviderDeclarationEvidence,
-} from "../providers/evidence.js";
+import { resolveCsharpProviderDeclarationEvidence } from "../../../source/extension/provider-identities.js";
 
 export interface CsharpProviderValueSelectionHost {
   readonly sourceFacts?: ReadonlySourceFactResolver;
