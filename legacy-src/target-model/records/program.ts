@@ -55,6 +55,9 @@ import type { CsharpCompilationRecords } from "./compilation.js";
 import type { CsharpSourceUnionEmissionRecords } from "./source-unions.js";
 
 export interface CsharpProgramRecords extends CsharpStatementExitRecords, CsharpStatementCompletionRecords, CsharpResourceScopeRecords, CsharpDeclarationModifierRecords, CsharpNativeDeclarationRecords, CsharpStructuralInterfaceRecords, CsharpLexicalValueRecords, CsharpConstructorEmissionRecords, CsharpClassEmissionRecords {
+  readonly projectDeclaration: import("./project-emission.js").CsharpProjectEmissionRecords["projectDeclaration"];
+  readonly projectSourceReference: import("./project-emission.js").CsharpProjectEmissionRecords["projectSourceReference"];
+  readonly projectSourceType: import("./project-emission.js").CsharpProjectEmissionRecords["projectSourceType"];
   readonly indexedRecordRead: CsharpIndexedRecordRecords["indexedRecordRead"];
   readonly frozenDataProperties: CsharpFrozenDataPropertyRecords["frozenDataProperties"];
   readonly captureMethods: CsharpCaptureMethodRecords["captureMethods"];
