@@ -1,30 +1,11 @@
-import type {
-  CsharpTargetMember,
-  CsharpTargetParameter,
-  TargetTypeRef,
-} from "../../types/index.js";
-import {
-  combineCsharpTargetUnionMembers,
-  csharpIteratorResultTargetType,
-  csharpSourcePrimitiveTargetType,
-  csharpTaskTargetType,
-  getCsharpGeneratorProtocol,
-  getCsharpIteratorResultProtocol,
-} from "../../../target-model/types/index.js";
-import { isCsharpThrowableType } from "../../types/resolution/target-hierarchy.js";
-import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext, CsharpSourceProfileCallPolicyResult, CsharpSourceProfileIdentitySelector, CsharpSourceProfilePropertyPolicy, CsharpSourceProfilePropertyPolicyContext } from "./source-profile-policy.js";
+import type { CsharpTargetMember, CsharpTargetParameter, TargetTypeRef } from "../../types/index.js";
+import { combineCsharpTargetUnionMembers, csharpIteratorResultTargetType, csharpSourcePrimitiveTargetType, csharpTaskTargetType, getCsharpGeneratorProtocol, getCsharpIteratorResultProtocol } from "../../../target-model/types/index.js";
+
+import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext, CsharpSourceProfileCallPolicyResult, CsharpSourceProfileIdentitySelector, CsharpSourceProfilePropertyPolicy, CsharpSourceProfilePropertyPolicyContext } from "../../model/source-profiles.js";
 import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/source-profile-invocations.js";
-import {
-  csharpSourceProfileCall,
-  csharpSourceProfileDiagnostic,
-  resolveCsharpSelectedSourceValue,
-} from "./source-profile-policy.js";
-import type {
-  CsharpSourceProfileOwner,
-} from "./source-profile-identity.js";
-import {
-  csharpTargetId,
-} from "../../../target-model/identities/source.js";
+import { csharpSourceProfileCall, csharpSourceProfileDiagnostic, resolveCsharpSelectedSourceValue } from "./source-profile-policy.js";
+import type { CsharpSourceProfileOwner } from "../../identities/selected-source.js";
+import { csharpTargetId } from "../../../target-model/identities/source.js";
 
 const owners: readonly CsharpSourceProfileOwner[] = Object.freeze([
   csharpTargetId,
@@ -293,7 +274,7 @@ function generatorTargetParameters(
     const type = generatorParameterType(context, parameter, protocol);
     return type === undefined ||
         parameter.constraint === "throwable" &&
-          !isCsharpThrowableType(context.host, type)
+          !context.inputs.throwableCarriers.has(type)
       ? undefined
       : targetParameter(parameter.name, type);
   });
