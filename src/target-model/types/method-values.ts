@@ -5,7 +5,7 @@ import { targetTypeRefEquals, scopedTargetTypeRefKey } from "./equality.js";
 import { getCsharpDelegateSignature } from "./carriers/delegates.js";
 import { getCsharpNullableElementTargetType } from "./carriers/nullable.js";
 import { csharpFreeTypeParameterIdentities } from "./generic-references.js";
-import { substituteTargetTypeParameters } from "./substitution.js";
+import { substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
 
 export function csharpObjectShapeMethodRequiresProtocol(member: CsharpObjectShapeMemberFact): boolean {
   return member.memberKind === "method" && ((member.typeParameters?.length ?? 0) > 0 ||

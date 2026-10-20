@@ -1,7 +1,7 @@
 import type { TargetTypeRef } from "../../../policy/types/index.js";
 
 import { csharpWellKnownSymbolSourceMemberKey, getCsharpDelegateSignature } from "../../../target-model/types/index.js";
-import { substituteTargetTypeParameters } from "../../../target-model/types/substitution.js";
+import { substituteTargetTypeParameters } from "../../../policy/types/resolution/substitution.js";
 import type { CsharpSourceProfileCallPolicy } from "../../../policy/model/source-profiles.js";
 
 import type { CsharpProviderCallSelectionHost } from "../../../policy/model/provider-calls.js";

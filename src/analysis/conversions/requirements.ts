@@ -19,7 +19,7 @@ import type { CsharpValueReadClassifications } from "../../target-model/records/
 
 import type { CsharpConversionIssue } from "../../target-model/records/conversions.js";
 
-import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
+import { substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
 import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
 
 import { selectCsharpPropertyProjections } from "./property-projections.js";

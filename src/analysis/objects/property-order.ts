@@ -5,7 +5,7 @@ import { orderEnumerableOwnStringProperties } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
 import { isSourceDeclaredNominalShape, isCsharpObjectShapeGeneratedMemberName } from "../../target-model/types/object-shape-projection.js";
 
-import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
+import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
 import { csharpFreeTypeParameterIdentities } from "../../target-model/types/generic-references.js";
 import type { CsharpObjectShapePropertyOrderSelection } from "../../target-model/records/object-shapes.js";
 

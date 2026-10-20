@@ -13,7 +13,7 @@ import { csharpDelegateSignatureHasSupportedPassingModes, getCsharpDelegateSigna
 import { scopedTargetTypeRefKey, targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 import type { CsharpStructuralInterfaceImplementation, CsharpTargetNamedTypeRef, CsharpTargetParameter, TargetTypeRef } from "../../target-model/types/model.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/object-shape-members.js";
-import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
+import { substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
 import { admitCsharpCallableParameterAdapters, admitCsharpCallableResultAdapter, type CsharpCallableConversionPolicy } from "../callables/adapters.js";
 import { csharpCallableParametersEqual, instantiateCsharpInheritedCallable } from "../callables/instantiation.js";
 import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";

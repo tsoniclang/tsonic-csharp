@@ -15,7 +15,7 @@ import { nextState } from "./state.js";
 import { sourceFactSubjectsForNode, definedValues, resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
 import { sourcePrimitiveFactKey } from "@tsonic/tsts";
 import { sourceTransformedTypeFactEvidenceNodes, sourceTupleElementTypeEvidenceNodes, sourceTypeSyntaxIsCompositional, sourceTypeSyntaxRoot, sourceIntegerInduction } from "@tsonic/target-api/source";
-import { substituteTargetTypeParameters } from "../../../target-model/types/substitution.js";
+import { substituteTargetTypeParameters } from "../../../policy/types/resolution/substitution.js";
 import { targetTypeRefKey, targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { reconcileCsharpSelectedTargetType, retainCsharpBroadValueCarrier } from "../../../policy/types/selected-type-evidence.js";
 import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";

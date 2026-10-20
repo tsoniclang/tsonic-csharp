@@ -9,7 +9,7 @@ import { csharpRuntimeUnionTargetType } from "../../../target-model/types/carrie
 import { csharpStructuralObjectShapeIdPrefix } from "../../../target-model/types/object-shape-identity.js";
 import { targetTypeRefKey } from "../../../target-model/types/equality.js";
 import { nextState } from "../../types/resolution/state.js";
-import { substituteTargetTypeParameters } from "../../../target-model/types/substitution.js";
+import { substituteTargetTypeParameters } from "../../../policy/types/resolution/substitution.js";
 import { visitCsharpTargetTypeParameters, type CsharpTypeParameterConstraintResolver } from "../../../target-model/types/generic-references.js";
 import { closeCsharpOwnerTypeParameterEnvironment } from "../../constraints/owner-environment.js";
 

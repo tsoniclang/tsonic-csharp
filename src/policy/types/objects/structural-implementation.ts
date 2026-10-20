@@ -4,7 +4,7 @@ import type { CsharpObjectShapeMemberFact, CsharpStructuralInterfaceImplementati
 import type { CsharpStructuralInterfaceEvidence } from "../../../target-model/records/heritage.js";
 import { isCsharpValueTypeTargetType } from "../../../target-model/types/identity.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { inferCsharpTargetTypeParameterBindings, substituteObjectShapeMemberTargetTypeParameters, substituteTargetTypeParameters } from "../../../target-model/types/substitution.js";
+import { inferCsharpTargetTypeParameterBindings, substituteObjectShapeMemberTargetTypeParameters, substituteTargetTypeParameters } from "../resolution/substitution.js";
 import { csharpFreeTypeParameterIdentities } from "../../../target-model/types/generic-references.js";
 import { csharpVariantArgumentImplicitlyAccepts } from "../../conversions/carriers.js";
 

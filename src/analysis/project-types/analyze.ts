@@ -5,7 +5,7 @@ import type {
 import { createSourceDeclarationMembership } from "@tsonic/target-api/analysis";
 import type { CsharpProjectTypePolicy } from "../../target-model/records/project-types.js";
 import type { CsharpProjectTypeClassifications } from "../../target-model/records/project-types.js";
-import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
+import { substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
 import { snapshotCsharpTargetTypes } from "../../target-model/types/snapshot.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";

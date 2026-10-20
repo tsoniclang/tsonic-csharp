@@ -5,7 +5,7 @@ import { sourcePropertyTypeEvidenceNodes } from "@tsonic/target-api/source";
 import type { CsharpProviderTargetRelation } from "../../../target-model/identities/provider-relations.js";
 import { canonicalProviderValue } from "../../../target-model/metadata/canonical-value.js";
 import { csharpTargetTypeFromBinding } from "../../../policy/types/storage/bindings.js";
-import { substituteTargetTypeParameters } from "../../../target-model/types/substitution.js";
+import { substituteTargetTypeParameters } from "../../../policy/types/resolution/substitution.js";
 import type { CsharpRecursiveTypeResolver, CsharpTypePolicyBaseHost, CsharpTypeResolutionState } from "../../types/resolution/model.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";

@@ -9,7 +9,7 @@ import { csharpTargetBindingSubstitutions, csharpTargetParameterValueType, subst
 
 import { selectCsharpCommonImplicitTarget } from "../../../conversions/common-target.js";
 
-import { inferCsharpTargetTypeParameterBindings } from "../../../../target-model/types/substitution.js";
+import { inferCsharpTargetTypeParameterBindings } from "../../../../policy/types/resolution/substitution.js";
 
 import { resolveCsharpTargetBindingArguments } from "./binding-instantiation.js";
 

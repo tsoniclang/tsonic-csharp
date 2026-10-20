@@ -2,7 +2,7 @@ export * from "../../target-model/types/index.js";
 export * from "./callables/member-substitution.js";
 export * from "../../target-model/types/components.js";
 export * from "./storage/bindings.js";
-export * from "../../target-model/types/substitution.js";
+export * from "./resolution/substitution.js";
 export * from "./model/target-type-pattern.js";
 export * from "./storage/storage-identity.js";
 export * from "../identities/source-types.js";

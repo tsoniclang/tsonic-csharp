@@ -19,7 +19,7 @@ import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../target-model/types/model.js";
 import { csharpWellKnownSymbolTargetMemberName, getCsharpDelegateSignature, getCsharpLambdaSignature,
   getCsharpExpressionTreeDelegateType, csharpStringTargetType } from "../../target-model/types/index.js";
-import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
+import { substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
 import { csharpObjectShapeMethodDeclaration } from "../../target-model/types/method-values.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
 import { csharpTargetStorageIdentityEquals } from "../../policy/types/storage/storage-identity.js";

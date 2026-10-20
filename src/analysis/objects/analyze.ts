@@ -20,7 +20,7 @@ import { mergeCsharpObjectShapeSubjects } from "./shapes/construction.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
 import type { CsharpStructuralInterfaceImplementation, CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
-import { inferCsharpTargetTypeParameterBindings, substituteObjectShapeMemberTargetTypeParameters, substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
+import { inferCsharpTargetTypeParameterBindings, substituteObjectShapeMemberTargetTypeParameters, substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
 import { createCsharpObjectShapePropertyOrderIndex } from "./property-order.js";
 import { instantiateCsharpObjectShape } from "../../policy/types/objects/instantiation.js";
 import type { CsharpProjectTypeIssue } from "../../target-model/records/project-types.js";

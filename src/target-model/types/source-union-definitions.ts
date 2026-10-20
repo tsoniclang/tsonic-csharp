@@ -1,6 +1,6 @@
 import type { CsharpTargetNamedTypeRef, TargetBindingFact, TargetTypeRef } from "./model.js";
 import { csharpTargetNamedType } from "./factories.js";
-import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "./substitution.js";
+import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
 import { snapshotCsharpTargetTypes } from "./snapshot.js";
 import { csharpMetadataDescriptors } from "../metadata/immutable.js";
 

@@ -12,7 +12,7 @@ import type { Node, ExtensionFactSubject, SourceFile, Type } from "@tsonic/tsts"
 import type { CsharpTypeResolutionState } from "../../types/resolution/model.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { nextState } from "../../types/resolution/state.js";
-import { substituteObjectShapeMemberTargetTypeParameters } from "../../../target-model/types/substitution.js";
+import { substituteObjectShapeMemberTargetTypeParameters } from "../../../policy/types/resolution/substitution.js";
 import { isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpPropertySourceMemberKey, csharpSourceMemberKeysEqual } from "../../../target-model/types/source-member-keys.js";
 import { resolveProviderObjectLiteralShape } from "./provider-construction.js";

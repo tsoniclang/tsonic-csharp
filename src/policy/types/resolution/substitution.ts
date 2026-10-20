@@ -1,26 +1,12 @@
-import type {
-  TargetTypeRef,
-} from "./model.js";
-import type {
-  CsharpObjectShapeFact,
-  CsharpObjectShapeMemberFact,
-  CsharpRuntimeUnionTargetTypeRef,
-  CsharpTargetNamedTypeRef,
-  CsharpTaskTargetTypeRef,
-} from "./model.js";
-import {
-  csharpNullableTargetType,
-  isCsharpNullableReferenceTargetType,
-  getCsharpNullableElementTargetType,
-} from "./carriers/nullable.js";
-import { getCsharpRuntimeUnionArms, getCsharpGenericOptionalParts, isCsharpAbsenceTargetType } from "./carriers/runtime-carriers.js";
-import {
-  targetTypeRefEquals,
-} from "./equality.js";
-import { csharpTypeProjection, type CsharpOptionalTypeProjection } from "./projections.js";
-import { resolveCsharpOptionalStorage } from "./carriers/optional-storage.js";
-import { csharpFreeTypeParameterIdentities } from "./generic-references.js";
-import type { CsharpTypeParameterConstraint } from "./generic-constraints.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpRuntimeUnionTargetTypeRef, CsharpTargetNamedTypeRef, CsharpTaskTargetTypeRef } from "../../../target-model/types/model.js";
+import { csharpNullableTargetType, isCsharpNullableReferenceTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { getCsharpRuntimeUnionArms, getCsharpGenericOptionalParts, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { csharpTypeProjection, type CsharpOptionalTypeProjection } from "../../../target-model/types/projections.js";
+import { resolveCsharpOptionalStorage } from "../storage/optional-storage.js";
+import { csharpFreeTypeParameterIdentities } from "../../../target-model/types/generic-references.js";
+import type { CsharpTypeParameterConstraint } from "../../../target-model/types/generic-constraints.js";
 
 export function substituteTargetTypeParameters(
   type: TargetTypeRef,

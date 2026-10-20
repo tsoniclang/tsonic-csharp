@@ -8,7 +8,7 @@ import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpSourceArgumentPassingMode } from "../../source/extension/arguments.js";
-import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
+import { substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
 import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
 import { csharpDelegateSignatureHasSupportedPassingModes, getCsharpCallableValueSignature } from "../../target-model/types/carriers/delegates.js";
 
