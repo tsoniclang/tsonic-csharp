@@ -2,15 +2,9 @@ import type { CsharpProviderMemberSourceIdentity, CsharpProviderParameterRelatio
 
 export type { CsharpProviderArgumentAdapter } from "../../target-model/conversions/selection.js";
 import type { ProviderMemberKey, ProviderVirtualDeclarationFact } from "@tsonic/tsts";
-import type {
-  CsharpProviderSourceIdentity,
-  CsharpProviderTargetRejection,
-  CsharpProviderTargetRejectionDiagnostic,
-} from "../../target-model/identities/provider-relations.js";
+import type { CsharpProviderSourceIdentity, CsharpProviderTargetRejection, CsharpProviderTargetRejectionDiagnostic } from "../../target-model/identities/provider-relations.js";
 import type { CsharpTargetMember } from "../../target-model/types/model.js";
-import {
-  canonicalProviderValue,
-} from "../../target-model/metadata/canonical-value.js";
+import { canonicalProviderValue } from "../../target-model/metadata/canonical-value.js";
 import { isCsharpIntegralTargetType } from "../../target-model/types/carriers/scalar-types.js";
 
 export type CsharpProviderIdentityResult<
