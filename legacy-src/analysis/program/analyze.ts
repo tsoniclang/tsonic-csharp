@@ -1022,7 +1022,7 @@ function analyzeIteration(
     ...expectedTypes.constructions.propertyKeyRequests,
     ...expectedTypes.nativeUseSites.requests.flatMap(request => request.kind === "requested"
       ? [{ expression: request.expression, target: request.targetType }] : []),
-  ]);
+  ], sourceStorage.nodes);
   const bindingCandidates = analyzeCsharpBindingPatterns({
     ast: source.ast, semanticsFor: source.semantics.forNode, sourceFiles, participation: nativeParticipation.participation,
     evidence: sourceEvidence, operations, valueReads, objectShapes,
