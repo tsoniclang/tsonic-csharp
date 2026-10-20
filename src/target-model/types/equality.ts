@@ -1,6 +1,4 @@
-import type {
-  TargetTypeRef,
-} from "./model.js";
+import type { TargetTypeRef } from "./model.js";
 
 export function targetTypeRefEquals(
   left: TargetTypeRef,
