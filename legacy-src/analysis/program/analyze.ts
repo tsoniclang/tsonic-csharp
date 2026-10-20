@@ -6,6 +6,7 @@ import type {
 import { analyzeCsharpCaptureStorage } from "../callables/capture-storage.js";
 import { analyzeCsharpNativeConstants } from "../expressions/native-constants.js";
 import { analyzeCsharpBinaryEmission } from "../expressions/binary-emission.js";
+import { analyzeCsharpDictionaryLiterals } from "../objects/dictionary-literals.js";
 import { admitCsharpLocationRetention } from "../storage/location-retention.js";
 import { analyzeCsharpNativeParticipation } from "../callables/participation.js";
 import { analyzeCsharpProjectCallableAdapters } from "../project-types/callable-adapters.js";
@@ -507,6 +508,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const literalEmission = analyzeCsharpLiteralAdmission({ ast: source.ast, demand: nativeDemand, literals: literalValues,
     exact: exactLiterals, values: analysis.valueReads });
   const templateStrings = analyzeCsharpTemplateStrings(source.ast, nativeDemand);
+  const dictionaryLiterals = analyzeCsharpDictionaryLiterals(source.ast, nativeDemand);
   const unionEquality = analyzeCsharpUnionEquality(sourceStorage.nodes, admittedOperations);
   const closedTypeTests = analyzeCsharpClosedTypeTests(sourceStorage.nodes, admittedOperations, typeDefinitions);
   const jsValueBoxing = analyzeCsharpJsValueBoxing({ ast: source.ast, demand: nativeDemand, values: analysis.valueReads, exact: exactLiterals });
@@ -522,6 +524,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const nonCallableIssues = [
     ...admitCsharpUnionProjections(sourceStorage.nodes, admittedOperations, typeDefinitions),
     ...literalEmission.issues,
+    ...dictionaryLiterals.issues,
     ...unionEquality.issues,
     ...closedTypeTests.issues,
     ...jsValueBoxing.issues,
@@ -739,6 +742,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     arrayLiterals: arrayLiterals.records,
     literalEmission: literalEmission.records,
     templateStrings,
+    dictionaryLiterals: dictionaryLiterals.records,
     sourceArtifacts: sourceArtifacts.records,
     safetyEmission: safetyEmission.records,
     startup: startup.records,

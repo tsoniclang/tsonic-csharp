@@ -77,6 +77,7 @@ export interface CsharpProgramRecords extends CsharpStatementExitRecords, Csharp
   readonly nativeAbsence: import("./native-constants.js").CsharpNativeConstantRecords["nativeAbsence"];
   readonly binaryEmission: import("./binary-emission.js").CsharpBinaryEmissionRecords["binaryEmission"];
   readonly nativeBinaryEmission: import("./binary-emission.js").CsharpBinaryEmissionRecords["nativeBinaryEmission"];
+  readonly dictionaryLiteral: import("./dictionary-literals.js").CsharpDictionaryLiteralRecords["dictionaryLiteral"];
   readonly unionEquality: import("./union-equality.js").CsharpUnionEqualityRecords["unionEquality"];
   readonly closedTypeTestEmission: import("./type-tests.js").CsharpClosedTypeTestRecords["closedTypeTestEmission"];
   readonly typePredicateEmission: import("./typeof-emission.js").CsharpTypeofEmissionRecords["typePredicateEmission"];

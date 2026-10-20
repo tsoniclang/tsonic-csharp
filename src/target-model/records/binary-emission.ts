@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { CsharpResolvedBinaryOperation } from "./operator-selection.js";
-import type { CsharpJsValueInvocation } from "../operations/js-values.js";
+import type { CsharpJsValueInvocation, CsharpJsValueOperationSelection } from "../operations/js-values.js";
 import type { CsharpNativeLocationSelection } from "./native-locations.js";
 
 export interface CsharpNativeBinaryEmission {
@@ -16,7 +16,7 @@ export interface CsharpNativeBinaryEmission {
 
 export type CsharpBinaryEmission =
   | { readonly kind: "js-array-mutation" | "type-test" | "typeof-comparison" }
-  | { readonly kind: "js-value"; readonly left: Node; readonly right: Node; readonly invocation: CsharpJsValueInvocation }
+  | { readonly kind: "js-value"; readonly left: Node; readonly right: Node; readonly invocation: Extract<CsharpJsValueOperationSelection, { readonly kind: "resolved" }> }
   | { readonly kind: "property-write"; readonly receiver: Node; readonly name: string; readonly value: Node; readonly invocation: CsharpJsValueInvocation }
   | { readonly kind: "element-write"; readonly receiver: Node; readonly key: Node; readonly value: Node; readonly invocation: CsharpJsValueInvocation }
   | { readonly kind: "native"; readonly selection: CsharpResolvedBinaryOperation };
