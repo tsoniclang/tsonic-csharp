@@ -1,32 +1,11 @@
-import type {
-  CsharpTargetBindingFact,
-  TargetBindingFact,
-} from "../../../policy/types/index.js";
-import type {
-  DotnetModuleModel,
-  DotnetTypeDeclaration,
-} from "../model/index.js";
-import {
-  dotnetExportToTargetBinding,
-} from "../model/index.js";
-import type {
-  DotnetTargetBindingFact,
-} from "../projection/index.js";
-import {
-  dotnetTypeTargetMemberProjections,
-  providerSignatureProjectionKey,
-} from "../projection/target-relations.js";
-import {
-  dotnetFunctionToTargetMemberRecords,
-} from "../projection/members.js";
-import type {
-  DotnetTargetMemberProjection,
-  DotnetTargetFunctionProjection,
-  DotnetTargetRelationLookup,
-} from "../projection/target-relations.js";
-import type {
-  DotnetProviderCacheRequest,
-} from "./cache.js";
+import type { CsharpTargetBindingFact, TargetBindingFact } from "../../../target-model/types/model.js";
+import type { DotnetModuleModel, DotnetTypeDeclaration } from "../model/index.js";
+import { dotnetExportToTargetBinding } from "../model/index.js";
+import type { DotnetTargetBindingFact } from "../projection/index.js";
+import { dotnetTypeTargetMemberProjections, providerSignatureProjectionKey } from "../projection/target-relations.js";
+import { dotnetFunctionToTargetMemberRecords } from "../projection/members.js";
+import type { DotnetTargetMemberProjection, DotnetTargetFunctionProjection, DotnetTargetRelationLookup } from "../projection/target-relations.js";
+import type { DotnetProviderCacheRequest } from "./cache.js";
 import type { DotnetProviderDiagnostic } from "../projection/provider.js";
 import { dotnetTypeDeclarationIsComplete } from "./module-request-validation.js";
 import { canonicalProviderValue } from "../../../target-model/metadata/canonical-value.js";
