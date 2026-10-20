@@ -54,7 +54,7 @@ export function planForInBinding(
   binding: CsharpForInKeyBinding,
   targetType: TargetTypeRef,
   input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
+  _diagnostics: TargetDiagnostic[],
 ): PlannedForInBinding {
   const currentType = csharpTypeFromTargetTypeRef(binding.storageType, input.scope.typeParameterNames);
   if (currentType === undefined) failCsharpPlannerInvariant(
