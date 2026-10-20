@@ -33,7 +33,7 @@ export function classifyCsharpNativeLocation(
     if (reference.kind === "rejected") return reference;
     if (reference.kind === "resolved") return reference.returnType === undefined
       ? rejected("The selected native ref return has no exact physical storage type.")
-      : resolved(expression, reference.returnType, "direct", reference.returnPassing === "byref-readwrite", reference.returnPassing);
+      : Object.freeze({ ...resolved(expression, reference.returnType, "direct", reference.returnPassing === "byref-readwrite", reference.returnPassing), opaque: true as const });
     const storage = policy.semantics(sourceFile).operations.storage(expression);
     const storageType = physical.storageType.get(expression) ??
       (policy.ast.is.IsIdentifier(expression) && storage?.declaration !== undefined

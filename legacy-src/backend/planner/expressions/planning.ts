@@ -43,7 +43,7 @@ import {
   planFunctionExpression,
 } from "./expression-lambdas.js";
 import {
-  planIdentifierExpression,
+  planCsharpIdentifierValue,
 } from "./expression-source-references.js";
 import {
   planCallExpression,
@@ -259,7 +259,7 @@ function planExpressionCore(
   }
   switch (SourceKind(input.program.source.ast, node)) {
     case KindIdentifier:
-      return complete(planIdentifierExpression(node, sourceFile, input, diagnostics, state));
+      return planCsharpIdentifierValue(node, sourceFile, input, diagnostics, state);
     case KindRegularExpressionLiteral:
       return complete(planRegularExpressionLiteral(node, input, diagnostics));
     case KindTypeOfExpression:

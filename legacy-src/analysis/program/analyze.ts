@@ -5,6 +5,7 @@ import type {
 } from "@tsonic/tsts";
 import { analyzeCsharpCaptureStorage } from "../callables/capture-storage.js";
 import { analyzeCsharpNativeConstants } from "../expressions/native-constants.js";
+import { admitCsharpLocationRetention } from "../storage/location-retention.js";
 import { analyzeCsharpNativeParticipation } from "../callables/participation.js";
 import { analyzeCsharpProjectCallableAdapters } from "../project-types/callable-adapters.js";
 import { analyzeCsharpClassFactories } from "../project-types/class-factories.js";
@@ -663,7 +664,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     references: sourceReferences.records, projects: projectEmission.records, factories: classFactories, admitted: admittedControlNode });
   if (memberReceivers.issues.length !== 0) return rejectedTargetStage(memberReceivers.issues);
   const propertyAdmission = analyzeCsharpPropertyAdmission({ ast: source.ast, nodes: sourceStorage.nodes,
-    operations: admittedOperations, admitted: admittedControlNode, projectDeclaration: node => source.navigation.isProjectDeclaration(node),
+    operations: admittedOperations, admitted: admittedControlNode, projectDeclaration: node => source.navigation.isProjectDeclaration(node), receivers: memberReceivers.records,
     modules: sourceReferences.records.sourceModuleReference });
   if (propertyAdmission.issues.length !== 0) return rejectedTargetStage(propertyAdmission.issues);
   const elementAdmission = analyzeCsharpElementAdmission({ ast: source.ast, nodes: sourceStorage.nodes, operations: admittedOperations,
@@ -718,6 +719,9 @@ function analyzeCsharpTargetProgramBeforeSeal(
     evidence: analysis.sourceEvidence, storage: analysis.storage, operations: admittedOperations,
     elements: elementAdmission.records, admitted: admittedControlNode });
   if (argumentPassing.issues.length !== 0) return rejectedTargetStage(argumentPassing.issues);
+  const locationRetentionIssues = admitCsharpLocationRetention({ source, nodes: sourceStorage.nodes, operations: admittedOperations,
+    storage: analysis.storage, elements: elementAdmission.records, arguments: argumentPassing.records, admitted: admittedControlNode });
+  if (locationRetentionIssues.length !== 0) return rejectedTargetStage(locationRetentionIssues);
   const targetCallEmission = analyzeCsharpTargetCallEmission({ nodes: sourceStorage.nodes, admitted: admittedControlNode, operations: admittedOperations,
     arguments: targetArguments.records, sources: sourceCallEmission.records, optional: optionalCallChains.records,
     shapes: objectShapeDemand, demand: nativeDemand });

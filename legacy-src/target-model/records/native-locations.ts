@@ -8,6 +8,7 @@ export type CsharpNativeLocationSelection =
   | { readonly kind: "resolved"; readonly expression: Node; readonly storageType: TargetTypeRef;
       readonly assignment: CsharpAssignmentLocation; readonly writable: boolean;
       readonly address?: CsharpNativeManagedAddress; readonly receiver?: CsharpNativeLocationReceiver;
+      readonly opaque?: true;
       readonly nativeCell?: CsharpNativeCellIdentity }
   | { readonly kind: "rejected"; readonly reason: string };
 

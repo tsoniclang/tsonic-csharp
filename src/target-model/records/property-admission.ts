@@ -18,7 +18,7 @@ export type CsharpSourceMemberEmission =
   | { readonly kind: "union"; readonly flow: true }
   | { readonly kind: "js-value"; readonly flow: boolean; readonly name: string;
       readonly operation: Extract<CsharpJsValueOperationSelection, { readonly kind: "resolved" }> }
-  | { readonly kind: "member"; readonly flow: boolean; readonly methodValue: boolean };
+  | { readonly kind: "member"; readonly flow: boolean; readonly methodValue: boolean; readonly static: boolean };
 
 export interface CsharpPropertyAdmissionRecords {
   readonly selectedProperty: { readonly get: (node: Node) => CsharpAdmittedPropertyClassification | undefined };

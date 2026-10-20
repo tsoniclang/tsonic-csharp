@@ -33,8 +33,9 @@ export function planPropertyAccessExpression(
     diagnostics,
   );
   if (projectModuleMember !== undefined) {
-    return planCsharpExpressionCompletion(propertyAccess, sourceFile, input, diagnostics, projectModuleMember,
+    const planned = planCsharpExpressionCompletion(propertyAccess, sourceFile, input, diagnostics, projectModuleMember,
       readCsharpNativeExpressionCarrier(input, propertyAccess));
+    return planned === undefined ? undefined : { ...planned, address: { kind: "root" } };
   }
   return translateCsharpPropertyAccess(
     propertyAccess,

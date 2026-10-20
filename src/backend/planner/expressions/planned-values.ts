@@ -11,7 +11,21 @@ export interface CsharpPlannedValue {
   readonly completion: CsharpPlannedCompletion;
   readonly constant?: true;
   readonly absent?: true;
+  readonly address?: CsharpPlannedAddress;
+  readonly receiverIdentity?: true;
 }
+
+export interface CsharpPlannedAddressOperand {
+  readonly expression: CsharpExpression;
+  readonly address?: CsharpPlannedAddress;
+  readonly receiverIdentity?: true;
+}
+
+export type CsharpPlannedAddress =
+  | { readonly kind: "root" }
+  | { readonly kind: "member"; readonly receiver: CsharpPlannedAddressOperand; readonly name: string; readonly static: boolean }
+  | { readonly kind: "element"; readonly receiver: CsharpPlannedAddressOperand; readonly arguments: readonly CsharpExpression[] }
+  | { readonly kind: "parenthesized"; readonly operand: CsharpPlannedAddressOperand };
 
 export interface CsharpPlannedEffectOperand {
   readonly kind: "effect";

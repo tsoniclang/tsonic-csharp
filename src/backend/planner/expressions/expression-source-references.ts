@@ -8,9 +8,34 @@ import { getCsharpExpressionOverride } from "../bindings/binding-state.js";
 import { planFlowReadUseSiteProjection } from "./flow-read-projections.js";
 import { planCsharpSourceModuleValueReference } from "../bindings/module-values.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
-import { csharpCapturedBindingExpression } from "../bindings/capture-storage.js";
+import { csharpCapturedBindingExpression, csharpCaptureFrameExpression } from "../bindings/capture-storage.js";
 import { planCsharpFrameClosureReference } from "../bindings/capture-closures.js";
 import { getCsharpTypeFromProjectSourceReference } from "../types/project-source-types.js";
+import type { CsharpPlannedValue, CsharpPlannedAddressOperand } from "./planned-values.js";
+import { planCsharpExpressionCompletion } from "./planned-value-composition.js";
+import { readCsharpNativeExpressionCarrier } from "./native-uses.js";
+
+export function planCsharpIdentifierValue(identifier: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[], state?: DestructuringPlannerState): CsharpPlannedValue | undefined {
+  const expression = planIdentifierExpression(identifier, sourceFile, input, diagnostics, state);
+  const planned = planCsharpExpressionCompletion(identifier, sourceFile, input, diagnostics, expression,
+    readCsharpNativeExpressionCarrier(input, identifier));
+  if (planned === undefined || planned.completion.kind !== "value") return planned;
+  if (getCsharpExpressionOverride(identifier, state) !== undefined) return { ...planned, address: { kind: "root" } };
+  const selected = input.program.records.identifierEmission.get(identifier);
+  if (selected?.kind !== "local") return { ...planned, address: { kind: "root" } };
+  const captured = selected.declaration === undefined ? undefined : input.program.records.capturedBinding.get(selected.declaration);
+  const overridden = selected.declaration === undefined ? undefined : input.scope.capturedBindings?.get(selected.declaration);
+  let root: CsharpPlannedAddressOperand;
+  if (captured !== undefined && overridden === undefined) {
+    const receiver = csharpCaptureFrameExpression(captured.frame.scope, input, state)
+      ?? failCsharpPlannerInvariant("An admitted captured address requires its lexical frame.", identifier);
+    root = { expression: { kind: "SimpleMemberAccessExpression", receiver, name: captured.fieldName },
+      address: { kind: "member", receiver: { expression: receiver }, name: captured.fieldName, static: false } };
+  } else root = { expression: overridden ?? { kind: "IdentifierName",
+    name: getCsharpLocalBindingName(identifier, input, state) ?? requireSealedSourceReferenceName(identifier, input) }, address: { kind: "root" } };
+  return { ...planned, address: selected.backing ? { kind: "member", receiver: root, name: "Value", static: false } : root.address };
+}
 
 export function planIdentifierExpression(identifier: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[], state?: DestructuringPlannerState): CsharpExpression | undefined {

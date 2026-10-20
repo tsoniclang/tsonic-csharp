@@ -51,8 +51,12 @@ export function tryPlanSourceSyntaxExpression(node: Node, sourceFile: SourceFile
     case KindTrueKeyword: return value({ kind: "LiteralExpression", value: true });
     case KindFalseKeyword: return value({ kind: "LiteralExpression", value: false });
     case KindNullKeyword: return value({ kind: "LiteralExpression", value: null });
-    case KindThisKeyword: return value(planThisExpression(node, sourceFile, input, diagnostics));
-    case KindSuperKeyword: return value({ kind: "IdentifierName", name: "base" });
+    case KindThisKeyword:
+    case KindSuperKeyword: {
+      const selected = value(SourceKind(input.program.source.ast, node) === KindThisKeyword
+        ? planThisExpression(node, sourceFile, input, diagnostics) : { kind: "IdentifierName", name: "base" });
+      return selected === undefined ? undefined : { ...selected, receiverIdentity: true, address: { kind: "root" } };
+    }
     case KindAwaitExpression: {
       const expression = AsAwaitExpression(input.program.source.ast, node)?.Expression;
       const completion = input.program.records.awaitCompletion.get(node);

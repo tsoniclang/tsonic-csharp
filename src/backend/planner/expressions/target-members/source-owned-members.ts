@@ -6,7 +6,7 @@ import { planFlowReadUseSiteProjection } from "../flow-read-projections.js";
 import { planCsharpSourceMemberName } from "./source-member-names.js";
 import { planCsharpNativeUnionPropertyProjection } from "../union-projections.js";
 import type { CsharpPlannedValue } from "../planned-values.js";
-import { projectCsharpPlannedValue } from "../planned-value-composition.js";
+import { projectCsharpPlannedValue, projectCsharpPlannedMember } from "../planned-value-composition.js";
 import { failCsharpPlannerInvariant } from "../../../invariants.js";
 
 export function translateCsharpSourceOwnedMember(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
@@ -22,11 +22,13 @@ export function translateCsharpSourceOwnedMember(node: Node, sourceFile: SourceF
       value => planCsharpNativeUnionPropertyProjection(node, value, projection, input), projection.resultCarrier);
   } else {
     const name = selected.kind === "member" ? planCsharpSourceMemberName(node, selected.methodValue, input) : selected.name;
-    planned = projectCsharpPlannedValue(node, sourceFile, input, diagnostics, receiver, value => selected.kind === "js-value"
-      ? translateCsharpJsValueInvocation(input.scope.typeParameterNames, selected.operation, value, [{ kind: "LiteralExpression", value: selected.name }])
-      : { kind: conditional ? "ConditionalAccessExpression" : "SimpleMemberAccessExpression", receiver: value, name });
+    planned = selected.kind === "member" ? projectCsharpPlannedMember(node, sourceFile, input, diagnostics, receiver, name, conditional, selected.static)
+      : projectCsharpPlannedValue(node, sourceFile, input, diagnostics, receiver, value =>
+        translateCsharpJsValueInvocation(input.scope.typeParameterNames, selected.operation, value, [{ kind: "LiteralExpression", value: selected.name }]));
   }
   if (planned === undefined) failCsharpPlannerInvariant("An admitted source property requires its exact native read operation.", node);
-  return selected.flow ? projectCsharpPlannedValue(node, sourceFile, input, diagnostics, planned,
-    value => planFlowReadUseSiteProjection(node, value, sourceFile, input, diagnostics)) : planned;
+  if (!selected.flow) return planned;
+  const projected = projectCsharpPlannedValue(node, sourceFile, input, diagnostics, planned,
+    value => planFlowReadUseSiteProjection(node, value, sourceFile, input, diagnostics));
+  return projected === undefined ? undefined : { ...projected, address: planned.address };
 }

@@ -1,4 +1,5 @@
-import { KindNullKeyword, type AstReader, type Node } from "@tsonic/tsts";
+import type { AstReader, Node } from "@tsonic/tsts";
+import { KindNullKeyword } from "@tsonic/target-api/source";
 import type { SourceLiteralIndex } from "@tsonic/target-api/source";
 import type { CsharpNativeDemandAnalysis } from "../operations/native-demand-model.js";
 import type { CsharpExactLiteralRecipe, CsharpExactLiteralSelectionIndex } from "../../target-model/conversions/exact-literals.js";
@@ -7,7 +8,7 @@ import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpTypeEmissionRecords } from "../../target-model/records/type-emission.js";
 import type { CsharpSourceReferenceRecords } from "../../target-model/records/source-references.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
-import { isCsharpStringTargetType } from "../../target-model/types/carriers/scalar-types.js";
+import { isCsharpStringTargetType } from "../../target-model/types/identity.js";
 import { createCsharpNativeConstantRecords } from "../program/records/native-constants.js";
 
 export function analyzeCsharpNativeConstants(input: { readonly ast: AstReader; readonly demand: CsharpNativeDemandAnalysis;

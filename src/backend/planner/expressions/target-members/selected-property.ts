@@ -23,8 +23,9 @@ import {
 import { applyCsharpConversionSelection } from "../conversions.js";
 import { csharpRecordOptionalRead } from "../../objects/indexed-records.js";
 import { planCsharpUnionProperty } from "../union-properties.js";
-import type { CsharpPlannedValue } from "../planned-values.js";
-import { planCsharpExpressionCompletion, projectCsharpPlannedValue } from "../planned-value-composition.js";
+import { mapCsharpPlannedValue, type CsharpPlannedValue } from "../planned-values.js";
+import { planCsharpExpressionCompletion, projectCsharpPlannedValue, projectCsharpPlannedMember } from "../planned-value-composition.js";
+import { csharpPlannedAddressOperand } from "../planned-locations.js";
 import { readCsharpNativeExpressionCarrier } from "../native-uses.js";
 import { translateCsharpSourceOwnedMember } from "./source-owned-members.js";
 import { planCsharpReceiverCallProperty } from "./receiver-call-property.js";
@@ -98,18 +99,21 @@ function translateSelectedProperty(
       return projectCsharpPlannedValue(node, sourceFile, input, diagnostics, receiver, value => csharpRecordOptionalRead(node, value, key,
         `__tsonic_record_${input.program.source.ast.pos(node)}_${input.program.source.ast.end(node)}`, input));
     }
-    return projectCsharpPlannedValue(node, sourceFile, input, diagnostics, receiver, value => ({
+    const planned = projectCsharpPlannedValue(node, sourceFile, input, diagnostics, receiver, value => ({
       kind: conditional
         ? "ConditionalElementAccessExpression"
         : "ElementAccessExpression",
       receiver: value,
       arguments: [key],
     }));
+    return planned === undefined || receiver.completion.kind !== "value" ? planned : { ...planned,
+      address: { kind: "element", receiver: csharpPlannedAddressOperand(receiver), arguments: [key] } };
   }
   if (selection.receiver.kind === "none") {
     const receiver = targetStaticReceiver(input.scope.typeParameterNames, member, node);
-    return receiver === undefined ? undefined : planCsharpExpressionCompletion(node, sourceFile, input, diagnostics,
+    const planned = receiver === undefined ? undefined : planCsharpExpressionCompletion(node, sourceFile, input, diagnostics,
       { kind: "SimpleMemberAccessExpression", receiver, name: member.targetName }, readCsharpNativeExpressionCarrier(input, node));
+    return planned === undefined ? undefined : { ...planned, address: { kind: "root" } };
   }
   const receiver = translateCsharpSelectedReceiver(
         selection.source.receiver,
@@ -123,17 +127,10 @@ function translateSelectedProperty(
     return undefined;
   }
   const projection = selection.invocation.kind === "array-like" ? selection.invocation.projection : undefined;
-  return projectCsharpPlannedValue(node, sourceFile, input, diagnostics, receiver, value => {
-    const selectedReceiver = projection === undefined ? value : applyCsharpConversionSelection(
-      node, sourceFile, input, diagnostics, projection.source, projection.target, projection.conversion, value);
-    return selectedReceiver === undefined ? undefined : {
-    kind: conditional
-      ? "ConditionalAccessExpression"
-      : "SimpleMemberAccessExpression",
-    receiver: selectedReceiver,
-    name: member.targetName,
-    };
-  });
+  const projected = projection === undefined ? receiver : mapCsharpPlannedValue(receiver, projection.target,
+    value => applyCsharpConversionSelection(node, sourceFile, input, diagnostics, projection.source, projection.target, projection.conversion, value));
+  return projected === undefined ? undefined : projectCsharpPlannedMember(node, sourceFile, input, diagnostics,
+    projected, member.targetName, conditional);
 }
 
 function targetStaticReceiver(

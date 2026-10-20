@@ -13,6 +13,7 @@ import { createCsharpPropertyAdmissionRecords } from "../program/records/propert
 export function analyzeCsharpPropertyAdmission(input: { readonly ast: AstReader; readonly nodes: readonly Node[];
   readonly operations: CsharpTargetOperationClassifications; readonly admitted: (node: Node) => boolean;
   readonly projectDeclaration: (node: Node) => boolean;
+  readonly receivers: import("../../target-model/records/member-receivers.js").CsharpMemberReceiverRecords;
   readonly modules: import("../../target-model/records/source-references.js").CsharpSourceReferenceRecords["sourceModuleReference"] }) {
   const properties = new Map<Node, CsharpAdmittedPropertyClassification>();
   const members = new Map<Node, CsharpSourceMemberEmission>();
@@ -82,7 +83,8 @@ export function analyzeCsharpPropertyAdmission(input: { readonly ast: AstReader;
       const name = jsValueProperty.kind === "resolved" ? jsValueProperty.member.sourceName : syntax === undefined ? undefined : ast.text(syntax);
       if (name === undefined) { refuse(node, "A JS-value property read requires an exact authored property name."); return; }
       members.set(node, { kind: "js-value", name, operation: jsValueOperation, flow });
-    } else members.set(node, { kind: "member", methodValue, flow });
+    } else members.set(node, { kind: "member", methodValue, flow,
+      static: input.receivers.memberReceiver.get(selection.source.receiver.expression, selection.source.receiver.valueDeclaration)?.kind === "type" });
   };
   const required = new Set<Node>();
   for (const node of input.nodes) if (input.admitted(node)) {

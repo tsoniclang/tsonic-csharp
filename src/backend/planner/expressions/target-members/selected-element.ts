@@ -11,7 +11,8 @@ import { applyCsharpConversionSelection } from "../conversions.js";
 import { translateCsharpSelectedReceiver } from "../receivers.js";
 import { csharpRecordOptionalRead } from "../../objects/indexed-records.js";
 import type { CsharpPlannedValue } from "../planned-values.js";
-import { buildCsharpPlannedValue, composeCsharpPlannedValues, planCsharpOptionalReceiverValue, projectCsharpPlannedValue } from "../planned-value-composition.js";
+import { buildCsharpPlannedValue, composeCsharpPlannedValues, planCsharpOptionalReceiverValue, projectCsharpPlannedValue,
+  projectCsharpPlannedMember, planCsharpExpressionCompletion } from "../planned-value-composition.js";
 import { csharpPlannedValue } from "../planned-values.js";
 import { planCsharpDiscardedOperand } from "../../statements/statement-output.js";
 import { translateCsharpSourceOwnedMember } from "./source-owned-members.js";
@@ -32,8 +33,8 @@ export function translateCsharpElementAccess(node: Node, sourceFile: SourceFile,
   }
   const optional = selected.optional && input.scope.presentOptionalValues?.has(selected.receiver.expression) !== true;
   const receiver = translateCsharpSelectedReceiver(selected.receiver, sourceFile, input, diagnostics, planExpression, selected.projection);
-  if (selected.kind === "tuple") return receiver === undefined ? undefined : projectCsharpPlannedValue(node, sourceFile, input, diagnostics, receiver,
-    value => ({ kind: optional ? "ConditionalAccessExpression" : "SimpleMemberAccessExpression", receiver: value, name: selected.member }));
+  if (selected.kind === "tuple") return receiver === undefined ? undefined : projectCsharpPlannedMember(node, sourceFile, input, diagnostics, receiver,
+    selected.member, optional);
   const argument = selected.kind !== "access" || selected.indexType === undefined
     ? planExpression(selected.key, sourceFile, input, diagnostics)
     : planCallArgument(selected.key, sourceFile, input, diagnostics, selected.indexType, "by-value");
@@ -42,7 +43,8 @@ export function translateCsharpElementAccess(node: Node, sourceFile: SourceFile,
       [planCsharpDiscardedOperand(argument)], () => translateCsharpSourceOwnedMember(node, sourceFile, input, diagnostics, receiver, false));
     const access = (target: CsharpPlannedValue): CsharpPlannedValue | undefined => composeCsharpPlannedValues(node, sourceFile, input, diagnostics,
       [target, planCsharpDiscardedOperand(argument)], values => translateCsharpSourceOwnedMember(node, sourceFile, input, diagnostics,
-        csharpPlannedValue(target.completion.carrier, values[0]!), false),
+        { ...csharpPlannedValue(target.completion.carrier, values[0]!), address:
+          values[0] === (target.completion.kind === "value" ? target.completion.expression : undefined) ? target.address : { kind: "root" } }, false),
       (carrier, operand) => captureCsharpPlannedMemberReceiver(node, sourceFile, input, diagnostics, selected.receiver.expression,
         carrier, operand, selected.suspends, selected.writable));
     return optional ? planCsharpOptionalReceiverValue(node, sourceFile, input, diagnostics, receiver,
@@ -53,7 +55,7 @@ export function translateCsharpElementAccess(node: Node, sourceFile: SourceFile,
     const conversion = selected.conversion;
     return value === undefined || conversion === undefined ? value : applyCsharpConversionSelection(node, sourceFile, input, diagnostics,
       conversion.source, conversion.target, conversion.conversion, value);
-  }, selected.result);
+  }, selected.result, selected.read.kind === "index");
 }
 
 function planElementRead(node: Node, selected: CsharpElementRead, receiver: CsharpExpression, key: CsharpExpression,
@@ -83,8 +85,14 @@ function planElementRead(node: Node, selected: CsharpElementRead, receiver: Csha
 
 function planElementOperands(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
   receiver: CsharpPlannedValue | undefined, argument: CsharpPlannedValue | undefined, optional: boolean,
-  build: (receiver: CsharpExpression, argument: CsharpExpression) => CsharpExpression | undefined, carrier: TargetTypeRef): CsharpPlannedValue | undefined {
+  build: (receiver: CsharpExpression, argument: CsharpExpression) => CsharpExpression | undefined, carrier: TargetTypeRef,
+  nativeIndex = false): CsharpPlannedValue | undefined {
+  const complete = (target: CsharpExpression, key: CsharpExpression): CsharpPlannedValue | undefined => {
+    const planned = planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, build(target, key), carrier);
+    return planned === undefined || !nativeIndex ? planned : { ...planned,
+      address: { kind: "element", receiver: { expression: target }, arguments: [key] } };
+  };
   return optional ? planCsharpOptionalReceiverValue(node, sourceFile, input, diagnostics, receiver, present =>
-    buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [argument], values => build(present, values[0]!), carrier), carrier)
-    : buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [receiver, argument], values => build(values[0]!, values[1]!), carrier);
+    composeCsharpPlannedValues(node, sourceFile, input, diagnostics, [argument], values => complete(present, values[0]!)), carrier)
+    : composeCsharpPlannedValues(node, sourceFile, input, diagnostics, [receiver, argument], values => complete(values[0]!, values[1]!));
 }

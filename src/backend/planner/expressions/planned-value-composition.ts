@@ -12,6 +12,7 @@ import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { planCsharpAbsentValue, planCsharpPresentValueGuard } from "./optional-storage.js";
 import { convertCsharpPlannedValue } from "./planned-value-conversions.js";
 import { readCsharpNativeExpressionCarrier } from "./native-uses.js";
+import { csharpPlannedAddressOperand } from "./planned-locations.js";
 import {
   csharpPlannedValue, csharpPlannedEffect, sequenceCsharpPlannedValues,
   planCsharpPlannedBranch, type CsharpPlannedValue, type CsharpPlannedOperand, type CsharpPlannedCapture, type CsharpPlannedLocationCapture,
@@ -97,6 +98,24 @@ export function buildCsharpPlannedValue(
 ): CsharpPlannedValue | undefined {
   return composeCsharpPlannedValues(node, sourceFile, input, diagnostics, operands, values =>
     planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, build(values), carrier));
+}
+
+export function projectCsharpPlannedMember(
+  node: Node,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  receiver: CsharpPlannedValue,
+  name: string,
+  conditional = false,
+  staticMember = false,
+  carrier = readCsharpNativeExpressionCarrier(input, node),
+): CsharpPlannedValue | undefined {
+  const result = projectCsharpPlannedValue(node, sourceFile, input, diagnostics, receiver, value => ({
+    kind: conditional ? "ConditionalAccessExpression" : "SimpleMemberAccessExpression", receiver: value, name,
+  }), carrier);
+  if (result === undefined || result.completion.kind !== "value" || receiver.completion.kind !== "value") return result;
+  return { ...result, address: { kind: "member", receiver: csharpPlannedAddressOperand(receiver), name, static: staticMember } };
 }
 
 export function planCsharpValueBranch(

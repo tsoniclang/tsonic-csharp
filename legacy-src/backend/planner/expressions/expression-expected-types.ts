@@ -25,6 +25,7 @@ import { captureCsharpPlannedValue, planCsharpExpressionCompletion, planCsharpVa
 import { applyCsharpConversionSelection, readCsharpExpressionConversionClassification } from "./conversions.js";
 import { requireCsharpNativeExpressionUse } from "./native-uses.js";
 import { planCsharpPlannedDiscard } from "../statements/statement-output.js";
+import { csharpPlannedAddressOperand } from "./planned-locations.js";
 
 export interface CsharpNativeExpressionPlanners {
   readonly planSourceExpression: ExpressionPlanner;
@@ -98,8 +99,11 @@ export function planCsharpNativeExpression(
         : ast.is.IsAsExpression(node) ? ast.as.AsAsExpression(node)?.Expression : ast.as.AsTypeAssertion(node)?.Expression;
       if (inner === undefined) return failCsharpPlannerInvariant("A native forwarded expression requires its operand.", node);
       const value = planners.planExpression(inner, sourceFile, input, diagnostics, state);
-      return ast.is.IsParenthesizedExpression(node) ? mapCsharpPlannedValue(value, use.carrier,
-        expression => ({ kind: "ParenthesizedExpression", expression })) : value;
+      if (!ast.is.IsParenthesizedExpression(node)) return value;
+      const parenthesized = mapCsharpPlannedValue(value, use.carrier,
+        expression => ({ kind: "ParenthesizedExpression", expression }), value?.constant === true);
+      return parenthesized === undefined || value?.completion.kind !== "value" ? parenthesized : { ...parenthesized,
+        receiverIdentity: value.receiverIdentity, address: { kind: "parenthesized", operand: csharpPlannedAddressOperand(value) } };
     }
     if (ast.is.IsConditionalExpression(node)) {
       const conditional = ast.as.AsConditionalExpression(node);
