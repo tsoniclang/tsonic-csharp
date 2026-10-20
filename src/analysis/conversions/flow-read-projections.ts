@@ -1,3 +1,4 @@
+import { isCsharpThrowableType } from "../project-types/throwable-types.js";
 import { createCsharpFlowReadProjectionProducer } from "../program/records/flow-read-projections.js";
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
@@ -29,6 +30,7 @@ export function analyzeCsharpFlowReadProjections(
       const read = valueReads.valueRead.get(node);
       const selected = selectCsharpFlowReadProjection(
         policy, read?.flowReadStorage, read?.flowReadValue, evidence.valueRefinement.get(node), deferredConstructorFieldRead(policy.ast, node),
+        isCsharpThrowableType(policy, evidence.valueRefinement.get(node)?.flowReadTargetType),
       );
       const projection = selected.kind === "conversion"
         ? { ...selected, selection: admitCsharpConversionSelection(policy, selected.source, selected.target, selected.selection) }

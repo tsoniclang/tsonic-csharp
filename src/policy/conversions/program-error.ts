@@ -1,15 +1,15 @@
 import type { CsharpPolicyContext } from "../model/context.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpExceptionTargetType, csharpTsValueTargetType, isCsharpClosedJsRuntimeCarrier } from "../../target-model/types/index.js";
-import { isCsharpThrowableType } from "../../analysis/project-types/throwable-types.js";
 import { selectCsharpConversion } from "./core.js";
 
 export function selectCsharpProgramErrorCarrier(
   input: Pick<CsharpPolicyContext, "projectTypes" | "providers" | "typeDefinitions" | "target">,
   source: TargetTypeRef | undefined,
+  sourceThrowable: boolean,
 ): TargetTypeRef | undefined {
   if (source === undefined) return undefined;
-  if (isCsharpThrowableType(input, source)) return source;
+  if (sourceThrowable) return source;
   const target = csharpExceptionTargetType();
   const conversion = selectCsharpConversion(input, source, target, "implicit");
   return conversion.kind === "runtime-union-reference" || conversion.kind === "implicit" &&
@@ -19,8 +19,9 @@ export function selectCsharpProgramErrorCarrier(
 export function selectCsharpThrownOperandCarrier(
   input: Pick<CsharpPolicyContext, "projectTypes" | "providers" | "typeDefinitions" | "target" | "objectShapes">,
   source: TargetTypeRef | undefined,
+  sourceThrowable: boolean,
 ): TargetTypeRef | undefined {
-  const native = selectCsharpProgramErrorCarrier(input, source);
+  const native = selectCsharpProgramErrorCarrier(input, source, sourceThrowable);
   if (native !== undefined || source === undefined) return native;
   if (source.kind === "source-primitive" && closedThrownPrimitives.has(source.name) ||
       isCsharpClosedJsRuntimeCarrier(source)) return csharpTsValueTargetType();

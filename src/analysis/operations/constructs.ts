@@ -30,7 +30,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import { selectCsharpJsValueCallOperation, selectCsharpJsValueBinaryOperation, selectCsharpJsValueReceiverExpressionOperation, selectCsharpJsValueUnaryOperation, selectCsharpJsTypeofOperation, selectCsharpJsValueCondition, selectCsharpJsValueVoidOperation, selectCsharpJsObjectLiteralOperation } from "../../policy/operations/js-values/index.js";
 import { selectCsharpProviderValue, selectCsharpTargetCall, selectCsharpTargetElement, selectCsharpTargetProperty } from "../../policy/operations/members/index.js";
 import { selectCsharpBinaryOperation, selectCsharpDestructuringAssignmentOperation, selectCsharpIteration, selectCsharpNativePointerOperation, selectCsharpResourceManagement, selectCsharpSourceFlowCall, selectCsharpNativeRefReturn, selectCsharpTypedLocationOperation, selectCsharpUnaryOperation, sourceOperatorFromKindName, selectCsharpJsArrayMutation, selectCsharpJsStringConversion, selectCsharpRegularExpressionLiteral } from "../../policy/operations/index.js";
-import { isCsharpThrowableType } from "../../policy/types/index.js";
+import { isCsharpThrowableType } from "../project-types/throwable-types.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpOperationIssue } from "../../target-model/records/operations.js";
 
@@ -424,7 +424,7 @@ export function analyzeCsharpOperationConstruct(
     const expression = ast.as.AsThrowStatement(node)?.Expression;
     if (expression !== undefined) {
       const sourceCarrier = policy.types.resolveNode(expression, sourceFile);
-      producer.throwValue.selected(node, Object.freeze({ expression, sourceCarrier, targetCarrier: selectCsharpThrownOperandCarrier(policy, sourceCarrier) }),
+      producer.throwValue.selected(node, Object.freeze({ expression, sourceCarrier, targetCarrier: selectCsharpThrownOperandCarrier(policy, sourceCarrier, isCsharpThrowableType(policy, sourceCarrier)) }),
       );
       producer.exactCatchRethrow.selected(node, classifyExactUnmodifiedCatchRethrow(policy, node, expression),
       );

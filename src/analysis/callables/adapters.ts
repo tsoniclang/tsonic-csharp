@@ -1,3 +1,4 @@
+import { isCsharpThrowableType } from "../project-types/throwable-types.js";
 import type { CsharpCallableParameterAdapter, CsharpCallableValueAdapter } from "../../target-model/records/callable-adapters.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { csharpConversionIsApplicable, selectCsharpConversion } from "../../policy/conversions/selection.js";
@@ -28,7 +29,7 @@ export function admitCsharpCallableResultAdapter(
   const sourceContract = admitCsharpCallableValueAdapter(policy, implementation.sourceReturnType, target);
   if (sourceContract === undefined) return undefined;
   const conversion = admitCsharpConversionSelection(policy, implementation.returnType, target,
-    selectCsharpFlowReadConversion(policy, implementation.returnType, target));
+    selectCsharpFlowReadConversion(policy, implementation.returnType, target, isCsharpThrowableType(policy, target)));
   return csharpConversionIsApplicable(conversion, "explicit")
     ? Object.freeze({ source: implementation.returnType, target, conversion }) : undefined;
 }

@@ -1,3 +1,4 @@
+import { isCsharpThrowableType } from "../project-types/throwable-types.js";
 import { optionalResultType } from "../../policy/operations/members/optional-results.js";
 import type { ResolvedSourceElementAccessInfo, SourceFile } from "@tsonic/tsts";
 import { readCsharpSourceField } from "../../source/extension/markers.js";
@@ -26,7 +27,7 @@ export function classifyCsharpMemberReceiver(
   const target = optionalResultType(selected, source.optionalChain);
   if (raw === undefined || target === undefined || targetTypeRefEquals(raw, target)) return undefined;
   return Object.freeze({ source: raw, target,
-    conversion: admitCsharpConversionSelection(policy, raw, target, selectCsharpFlowReadConversion(policy, raw, target)) });
+    conversion: admitCsharpConversionSelection(policy, raw, target, selectCsharpFlowReadConversion(policy, raw, target, isCsharpThrowableType(policy, target))) });
 }
 
 export function elementSelectedTypes(
@@ -61,7 +62,7 @@ export function elementSelectedTypes(
   );
   const flowReadConversion = selection?.kind === "project-indexer" && source.accessMode === "read" && selection.selectedReadType !== undefined
     ? admitCsharpConversionSelection(policy, selection.valueType, selection.selectedReadType,
-        selectCsharpFlowReadConversion(policy, selection.valueType, selection.selectedReadType))
+        selectCsharpFlowReadConversion(policy, selection.valueType, selection.selectedReadType, isCsharpThrowableType(policy, selection.selectedReadType)))
     : undefined;
   return Object.freeze({
     ...(receiverType === undefined ? {} : { receiverType }),

@@ -1,13 +1,13 @@
 export {
   createCsharpTypePolicy,
-} from "./scope.ts,tsonic-csharp/src/analysis/types/resolution/engine.js";
+} from "./engine.js";
 export type {
   CsharpPlanningRepresentationQueries,
   CsharpScopedTypePolicyResult,
   CsharpTypePolicy,
   CsharpTypePolicyBaseHost,
   CsharpTypePolicyHost,
-} from "./model.ts,tsonic-csharp/src/policy/model/type-resolution.ts,tsonic-csharp/src/target-model/records/source-calls.js";
+} from "./model.js";
 export type {
   CsharpSourceTargetTypeBinding,
 } from "../../../target-model/types/model.js";
