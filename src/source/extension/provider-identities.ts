@@ -1,9 +1,5 @@
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
-import type {
-  ExtensionFactSubject,
-  ProviderVirtualDeclarationFact,
-  ReadonlySourceFactResolver,
-} from "@tsonic/tsts";
+import type { ExtensionFactSubject, ProviderVirtualDeclarationFact, ReadonlySourceFactResolver } from "@tsonic/tsts";
 
 export type CsharpProviderDeclarationEvidenceResolution =
   | {

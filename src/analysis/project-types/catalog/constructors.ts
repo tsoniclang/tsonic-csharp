@@ -5,7 +5,7 @@ import { sourceNodeIdentity, sourceConstructorParametersMatch } from "@tsonic/ta
 import { tryCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 import type { CsharpProviderRelationResolver } from "../../../providers/model/relation-resolver.js";
 import type { CsharpProviderTargetRelation } from "../../../target-model/identities/provider-relations.js";
-import { resolveCsharpProviderDeclarationEvidence } from "../../../policy/operations/members/providers/evidence.js";
+import { resolveCsharpProviderDeclarationEvidence } from "../../../source/extension/provider-identities.js";
 import type { CsharpProjectTypeDefinition, CsharpProjectTypeHeritage, CsharpProjectTypeIssue } from "../../../target-model/records/project-types.js";
 import type { CsharpTargetMember, CsharpTargetNamedTypeRef, CsharpTargetParameter, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpTypePolicy } from "../../types/resolution/model.js";
