@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 
-import type { CsharpNativeConstructInput } from "../../policy/operations/control-flow/native-constructs.js";
+import type { CsharpNativeConstructInput } from "./control-flow/native-constructs.js";
 import type { CsharpNativeOperandInput } from "./control-flow/native-operands.js";
 
 import type { CsharpExpectedNativeUseAdmission } from "../expected-types/model.js";
