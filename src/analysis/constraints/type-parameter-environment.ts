@@ -1,22 +1,12 @@
-import type { AstReader, Node, SourceFile, Type } from "@tsonic/tsts";
+import type { AstReader, Node } from "@tsonic/tsts";
 import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
 import { csharpTypeProjection } from "../../target-model/types/projections.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpTypeParameterConstraintResolution } from "../../target-model/types/generic-constraints.js";
 import { snapshotCsharpTargetTypes } from "../../target-model/types/snapshot.js";
 
+import type { CsharpTypeParameterEnvironment, CsharpTypeParameterSourceEvidence } from "../../target-model/records/type-parameter-constraints.js";
 type TypeParameter = Extract<TargetTypeRef, { readonly kind: "type-parameter" }>;
-
-export interface CsharpTypeParameterSourceEvidence {
-  readonly sourceFile: SourceFile;
-  readonly sourceType: Type;
-}
-
-export type CsharpTypeParameterEnvironment = (
-  parameter: TypeParameter,
-  source?: CsharpTypeParameterSourceEvidence,
-) => CsharpTypeParameterConstraintResolution;
-
 export function createCsharpTypeParameterEnvironment(
   ast: AstReader,
   resolve: (declaration: Node, parameter: TypeParameter, source?: CsharpTypeParameterSourceEvidence) =>
@@ -49,7 +39,7 @@ export function createCsharpTypeParameterEnvironment(
       reason: `Generic binder '${parameter.name}' has no sealed native constraint evidence.` });
     const finalized = snapshotCsharpTargetTypes([{ ...parameter, csharpConstraints: resolution }])[0]!;
     if (finalized.kind !== "type-parameter" || finalized.csharpConstraints === undefined) {
-      throw new TypeError("A native generic parameter requires finalized constraint evidence.");
+      failTargetAnalysisInvariant("tsonic-csharp", "A native generic parameter requires finalized constraint evidence.");
     }
     const immutable = finalized.csharpConstraints;
     cache.set(parameter.identity, immutable);

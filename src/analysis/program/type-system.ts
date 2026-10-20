@@ -35,7 +35,7 @@ import {
 import type {
   TargetTypeRef,
 } from "../../target-model/types/model.js";
-import { createCsharpTypeParameterEnvironment } from "../../policy/constraints/type-parameter-environment.js";
+import { createCsharpTypeParameterEnvironment } from "../constraints/type-parameter-environment.js";
 import { resolveCsharpTypeParameterConstraints } from "../../policy/constraints/type-parameter-constraints.js";
 
 export interface CsharpTypeSystem {
