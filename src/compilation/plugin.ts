@@ -1,6 +1,6 @@
 import { createCsharpTargetPack } from "../descriptor/target-pack.js";
 import { createCsharpStarterProject } from "../descriptor/starter-project.js";
-import { csharpTargetId } from "../target-model/identities/source.js";
+import { csharpTargetId } from "../target-model/identities/target.js";
 
 export function createTsonicPlugin() {
   return {

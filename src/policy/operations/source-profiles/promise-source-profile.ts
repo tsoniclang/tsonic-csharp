@@ -1,5 +1,5 @@
 import { type CsharpTargetMember, type TargetTypeRef, csharpNullableTargetType, csharpQualifiedTypeRenderShape, csharpRuntimeUnionTargetType, csharpTargetNamedType, csharpTsValueTargetType, csharpVoidTargetType, getCsharpTaskResultTargetType, isCsharpVoidTargetType, targetTypeRefKey, csharpTaskTargetType } from "../../../target-model/types/index.js";
-import { csharpTargetId } from "../../../target-model/identities/source.js";
+import { csharpTargetId } from "../../../target-model/identities/target.js";
 import { snapshotCsharpTargetTypes } from "../../../target-model/types/snapshot.js";
 import { type CsharpSourceProfileOwner } from "../../identities/selected-source.js";
 import { type CsharpSourceProfileCallPolicy, type CsharpSourceProfileCallPolicyContext, type CsharpSourceProfileCallPolicyResult } from "../../model/source-profiles.js";

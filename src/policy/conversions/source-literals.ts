@@ -3,7 +3,7 @@ import type { SourceLiteralValue } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpSourcePrimitiveTargetType } from "../../target-model/types/carriers/scalar-types.js";
 import { selectedCsharpSourceProfileOwner } from "../identities/source-types.js";
-import { csharpTargetId } from "../../target-model/identities/source.js";
+import { csharpTargetId } from "../../target-model/identities/target.js";
 
 export interface CsharpSourceLiteralPolicyHost {
   readonly target: TargetSelection;

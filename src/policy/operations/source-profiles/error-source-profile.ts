@@ -8,7 +8,7 @@ import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { csharpTargetNamedType } from "../../../target-model/types/factories.js";
 import { csharpQualifiedTypeRenderShape } from "../../../target-model/types/render-shapes.js";
 import type { CsharpTargetMember, TargetTypeRef } from "../../../target-model/types/model.js";
-import { csharpTargetId } from "../../../target-model/identities/source.js";
+import { csharpTargetId } from "../../../target-model/identities/target.js";
 import { csharpSourceErrorNames, type CsharpSourceErrorName } from "../../../target-model/identities/source-errors.js";
 import { snapshotCsharpMetadata } from "../../../target-model/metadata/immutable.js";
 

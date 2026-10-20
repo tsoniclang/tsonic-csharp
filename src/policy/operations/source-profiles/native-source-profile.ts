@@ -3,7 +3,7 @@ import { csharpSourcePrimitiveTargetType, csharpStringTargetType, isCsharpArrayI
 import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext, CsharpSourceProfileCallPolicyResult, CsharpSourceProfileElementPolicy, CsharpSourceProfileElementPolicyContext, CsharpSourceProfileElementPolicyResult, CsharpSourceProfileIdentitySelector, CsharpSourceProfilePropertyPolicy, CsharpSourceProfilePropertyPolicyContext } from "../../model/source-profiles.js";
 import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/source-profile-invocations.js";
 import { csharpSourceProfileCall, csharpSourceProfileDiagnostic, resolveCsharpSelectedSourceValue } from "./source-profile-policy.js";
-import { csharpTargetId } from "../../../target-model/identities/source.js";
+import { csharpTargetId } from "../../../target-model/identities/target.js";
 
 interface NativeStringMethodPolicy {
   readonly source: CsharpSourceProfileIdentitySelector;

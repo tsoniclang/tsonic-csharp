@@ -2,7 +2,7 @@ import type { AstReader, Type } from "@tsonic/tsts";
 import type { TargetSelection } from "@tsonic/target-api";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { isTsonicSourceProfileDeclarationPath } from "@tsonic/target-api/provider";
-import { csharpTargetId } from "../../target-model/identities/source.js";
+import { csharpTargetId } from "../../target-model/identities/target.js";
 import { jsRegExpSourceProfileIdentity } from "@tsonic/js-source-profile";
 import { csharpSourceBaseErrorIdentity, csharpSourceErrorIdentities, type CsharpSourceErrorName } from "../../target-model/identities/source-errors.js";
 

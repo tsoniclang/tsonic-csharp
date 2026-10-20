@@ -1,6 +1,6 @@
 export { createCsharpTargetPack } from "../descriptor/target-pack.js";
 export { createCsharpStarterProject } from "../descriptor/starter-project.js";
-export { csharpTargetId } from "../target-model/identities/source.js";
+export { csharpTargetId } from "../target-model/identities/target.js";
 export type {
   CsharpLanguageDialect,
   CsharpMemorySafetyRules,
