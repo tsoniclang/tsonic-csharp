@@ -5,7 +5,7 @@ import type {
   CsharpSwitchSection,
 } from "../../backend/target-ast/syntax/index.js";
 import type { CsharpPrintContext } from "./context.js";
-import { failUnsupportedCsharpSyntax } from "./fail-closed.js";
+import { failCsharpSyntaxInvariant } from "./invariants.js";
 import { indentLines } from "./format.js";
 import { csharpTypeParameterShadowingPragma } from "./generic-signatures.js";
 
@@ -124,7 +124,7 @@ export function printCsharpStatement(
         "}",
       ].join("\n");
   }
-  return failUnsupportedCsharpSyntax(statement, "statement");
+  return failCsharpSyntaxInvariant(statement, "statement");
 }
 
 export function printCsharpStatements(
@@ -172,12 +172,12 @@ function printCsharpForInitializer(
     case "VariableDeclaration": {
       const first = initializer.locals[0];
       if (first === undefined) {
-        return "";
+        return failCsharpSyntaxInvariant(initializer, "empty for variable declaration");
       }
       return `${context.printType(first.type)} ${initializer.locals.map((local) => printCsharpLocalDeclarator(local, context)).join(", ")}`;
     }
   }
-  return failUnsupportedCsharpSyntax(initializer, "for initializer");
+  return failCsharpSyntaxInvariant(initializer, "for initializer");
 }
 
 function printCsharpLocalDeclarator(local: CsharpLocalDeclaration, context: CsharpPrintContext): string {
