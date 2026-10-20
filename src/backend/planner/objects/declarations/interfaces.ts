@@ -19,7 +19,7 @@ export function csharpClosedValueCarrierInterfaceType(): CsharpTypeNode {
 export function renderObjectShapeInterfaces(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
   fact: CsharpObjectShapeFact,
-  diagnostics: TargetDiagnostic[] | undefined,
+  _diagnostics: TargetDiagnostic[] | undefined,
   diagnosticSubject: Node | undefined,
 ): readonly CsharpTypeNode[] | undefined {
   const rendered = (fact.implements ?? []).map((contract) => csharpTypeFromTargetTypeRef(contract, typeParameterNames));
