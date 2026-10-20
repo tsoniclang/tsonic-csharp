@@ -19,7 +19,7 @@ import type { CsharpConversionAnalysis, CsharpPreparedConversionClassifications 
 import type { CsharpConversionClassifications, CsharpConversionIssue, CsharpExpressionConversionClassification } from "../../target-model/records/conversions.js";
 import { sealCsharpDelegateAdapterIdentities } from "./delegate-identities.js";
 
-import { selectCsharpIntegerTruncationConversion } from "../../policy/conversions/integer-truncation.js";
+import { selectCsharpIntegerTruncationConversion } from "./integer-truncation.js";
 import { selectCsharpExactIntegerConversion } from "../../policy/conversions/exact-integer.js";
 import { admitCsharpConversionSelection } from "./validation.js";
 
