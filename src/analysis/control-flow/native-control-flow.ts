@@ -9,7 +9,7 @@ import type { CsharpSourceEvidenceIndex } from "../../target-model/records/sourc
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 import { csharpRuntimeLocationTargetType, csharpRuntimeNativeArrayTargetType,
   isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
-import { selectCsharpForInKeyBinding, selectCsharpForOfBinding } from "../../policy/operations/iteration/selection.js";
+import { selectCsharpForInKeyBinding, selectCsharpForOfBinding } from "../operations/iteration/bindings.js";
 import type { CsharpAdmittedIteration, CsharpForInKeyBinding, CsharpForOfBinding,
   CsharpResolvedIteration } from "../../target-model/records/selection.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
