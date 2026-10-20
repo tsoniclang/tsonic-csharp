@@ -1,7 +1,8 @@
+import { createCsharpFlowReadProjectionProducer } from "../program/records/flow-read-projections.js";
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { selectCsharpFlowReadProjection } from "../../policy/types/objects/read-projections.js";
-import type { CsharpFlowReadClassifications, CsharpFlowReadProjection, CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
+import type { CsharpFlowReadClassifications, CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
@@ -15,14 +16,11 @@ export function analyzeCsharpFlowReadProjections(
   operations: CsharpTargetOperationClassifications,
   valueReads: CsharpValueReadClassifications,
 ): CsharpFlowReadClassifications {
-  const projections = new WeakMap<Node, Exclude<CsharpFlowReadProjection, { readonly kind: "rejected" }>>();
+  const producer = createCsharpFlowReadProjectionProducer();
   const runtimeReads = new WeakMap<Node, ReadonlySet<Node>>();
   const issues: { readonly node: Node; readonly code: string; readonly message: string }[] = [];
   for (const sourceFile of policy.sourceFiles) visit(sourceFile);
-  return Object.freeze({
-    flowReadProjection: Object.freeze({ get: (node: Node) => projections.get(node) }),
-    issues: Object.freeze(issues),
-  });
+  return producer.seal(issues);
 
   function visit(node: Node): void {
     if (evidence.compileTimeMetadata.get(node) || operations.nativeUnreachable.get(node)) return;
@@ -42,7 +40,7 @@ export function analyzeCsharpFlowReadProjections(
       if (failure !== undefined) {
         issues.push(Object.freeze({ node, code: "CSHARP_FLOW_READ_PROJECTION_NOT_PROVEN", message: failure.reason }));
       } else if (projection.kind !== "rejected") {
-        projections.set(node, Object.freeze(projection));
+        producer.publish(node, projection);
       }
     }
     policy.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
