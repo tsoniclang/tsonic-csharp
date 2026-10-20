@@ -1,50 +1,13 @@
-import type { AstReader, Node } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
 import { targetUseSiteIdentity, type TargetUseSiteRef } from "@tsonic/target-api/analysis";
-import type { CsharpExactLiteralSelection } from "../../target-model/conversions/exact-literals.js";
-import type { CsharpConversionMode } from "../../target-model/conversions/selection.js";
-import {
-  csharpNativeUseSite,
-  type CsharpExpectedNativeUse,
-  type CsharpNativeCallableCreation,
-  type CsharpNativeUseSlot,
-} from "../../target-model/records/native-demand.js";
-import type { CsharpOperationSelection, CsharpResolvedBinaryOperation } from "../../target-model/records/operator-selection.js";
+
+import { csharpNativeUseSite, type CsharpExpectedNativeUse, type CsharpNativeUseSlot } from "../../target-model/records/native-demand.js";
+
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 
-export interface CsharpNativeRepresentationChild {
-  readonly site: TargetUseSiteRef;
-  readonly expression?: Node;
-  readonly target?: TargetTypeRef;
-}
-
-export interface CsharpNativeRepresentationInput {
-  readonly ast: AstReader;
-  readonly expression: Node;
-  readonly target: TargetTypeRef;
-  readonly mode: CsharpConversionMode;
-  readonly source?: TargetTypeRef;
-  readonly absent: boolean;
-  readonly projection?: "present-payload";
-  readonly literal: CsharpExactLiteralSelection | undefined;
-  readonly callable: CsharpNativeCallableCreation | undefined;
-  readonly constructionCarrier?: TargetTypeRef;
-  readonly binary: CsharpOperationSelection<CsharpResolvedBinaryOperation> | undefined;
-  readonly children: ReadonlyMap<string, CsharpNativeRepresentationChild>;
-}
-
-export type CsharpNativeRepresentationPending =
-  | "source-unresolved" | "literal-unrequested" | "literal-rejected" | "callable-creation" | "callable-discarded"
-  | "construction-unresolved" | "operation-unresolved" | "forwarding-child-unresolved";
-
-export type CsharpNativeRepresentationSelection =
-  | { readonly kind: "pending"; readonly reason: CsharpNativeRepresentationPending; readonly message?: string }
-  | { readonly kind: "selected"; readonly representation: CsharpExpectedNativeUse["representation"];
-      readonly carrier: TargetTypeRef; readonly children: readonly TargetUseSiteRef[];
-      readonly literal?: CsharpExpectedNativeUse["literal"];
-      readonly binary?: CsharpResolvedBinaryOperation;
-      readonly construction?: CsharpExpectedNativeUse["construction"] };
-
+import type { CsharpNativeRepresentationInput } from "../model/native-use-representation.js";
+import type { CsharpNativeRepresentationPending, CsharpNativeRepresentationSelection } from "../../target-model/records/native-representation.js";
 export function selectCsharpNativeUseRepresentation(input: CsharpNativeRepresentationInput): CsharpNativeRepresentationSelection {
   const { ast, expression, target } = input;
   const none: readonly TargetUseSiteRef[] = Object.freeze([]);
