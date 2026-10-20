@@ -1,24 +1,11 @@
 import type { CsharpTargetReceiverRelation } from "../../../../target-model/identities/provider-relations.js";
-import { finalizeCsharpRestSequences } from "../rest-sequences.js";
-import { jsSourceInvocationOnlyCallableParameters } from "@tsonic/js-source-profile";
-import type {
-  CsharpTargetMember,
-  CsharpTargetParameter,
-  TargetTypeRef,
-} from "../../../types/index.js";
-import {
-  csharpObjectTargetType,
-  csharpQualifiedTypeRenderShape,
-  csharpTargetNamedType,
-  getCsharpDelegateSignature,
-} from "../../../../target-model/types/index.js";
-import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext, CsharpSourceProfileCallPolicyResult, CsharpSourceProfileElementPolicy, CsharpSourceProfileElementPolicyContext, CsharpSourceProfileElementPolicyResult, CsharpSourceProfileIdentitySelector, CsharpSourceProfilePropertyPolicy, CsharpSourceProfilePropertyPolicyContext } from "../source-profile-policy.js";
+
+import type { CsharpTargetMember, CsharpTargetParameter, TargetTypeRef } from "../../../types/index.js";
+import { csharpObjectTargetType, csharpQualifiedTypeRenderShape, csharpTargetNamedType } from "../../../../target-model/types/index.js";
+import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext, CsharpSourceProfileCallPolicyResult, CsharpSourceProfileElementPolicy, CsharpSourceProfileElementPolicyContext, CsharpSourceProfileElementPolicyResult, CsharpSourceProfileIdentitySelector, CsharpSourceProfilePropertyPolicy, CsharpSourceProfilePropertyPolicyContext } from "../../../model/source-profiles.js";
 import type { CsharpSourceProfilePropertyPolicyResult, CsharpTargetPropertyInvocation } from "../../../../target-model/records/source-profile-invocations.js";
-import type { CsharpTargetElementInvocation, CsharpSelectedTargetCall, CsharpSelectedCallArgument } from "../../../../target-model/records/members.js";
-import {
-  csharpSourceProfileCall,
-  csharpSourceProfileDiagnostic,
-} from "../source-profile-policy.js";
+import type { CsharpTargetElementInvocation } from "../../../../target-model/records/members.js";
+import { csharpSourceProfileCall, csharpSourceProfileDiagnostic } from "../source-profile-policy.js";
 
 export type JsSourceProfileTargetMemberFactory = (
   context: CsharpSourceProfileCallPolicyContext,
@@ -94,6 +81,7 @@ export function jsCallPolicy(
 ): CsharpSourceProfileCallPolicy {
   return Object.freeze({
     source,
+    finalizeArguments: true,
     select(
       context: CsharpSourceProfileCallPolicyContext,
     ): CsharpSourceProfileCallPolicyResult {
@@ -119,10 +107,7 @@ export function jsCallPolicy(
               targetParameterBySourceParameter,
             },
           );
-      const finalized = selected === undefined ? undefined : finalizeCsharpRestSequences(context, selected);
-      const call = finalized === undefined ? undefined : sealInvocationOnlyCallableArguments(
-        context, finalized,
-      );
+      const call = selected;
       return call === undefined
         ? {
             kind: "rejected",
@@ -139,44 +124,6 @@ export function jsCallPolicy(
         : { kind: "resolved", call };
     },
   });
-}
-
-function sealInvocationOnlyCallableArguments(
-  context: CsharpSourceProfileCallPolicyContext,
-  call: CsharpSelectedTargetCall,
-): CsharpSelectedTargetCall | undefined {
-  if (call.origin !== "source-profile") return undefined;
-  const identity = context.identity;
-  const parameterIndexes = jsSourceInvocationOnlyCallableParameters(
-    identity.owner !== "js" || identity.kind !== "member" ||
-      identity.declaringName === undefined || identity.name === undefined ? undefined
-      : { ownerName: identity.declaringName, memberName: identity.name },
-  );
-  const argumentIndexes = new Set<number>();
-  for (const parameterIndex of parameterIndexes) {
-    const bindings = context.source.sourceArgumentBindings.filter(binding => binding.sourceParameterIndex === parameterIndex);
-    if (bindings.length === 0 && context.source.sourceSelectedSignatureParameters[parameterIndex] !== undefined &&
-      context.source.sourceSelectedSignatureParameters[parameterIndex]?.acceptsOmission !== true) return undefined;
-    for (const sourceBinding of bindings) {
-      const sourceIndex = sourceBinding.sourceArgumentIndex;
-      if (!Number.isInteger(sourceIndex) || sourceIndex < 0 || sourceIndex >= context.source.sourceArguments.length ||
-        context.source.sourceArguments[sourceIndex] === undefined) return undefined;
-      const selected: readonly CsharpSelectedCallArgument[] = call.arguments.filter(binding =>
-        binding.sourceArgumentIndex === sourceIndex && binding.effectiveArgumentIndex === sourceBinding.effectiveArgumentIndex &&
-        binding.sourceForm === sourceBinding.sourceForm && binding.spreadElementIndex === sourceBinding.spreadElementIndex);
-      const binding = selected.length === 1 ? selected[0] : undefined;
-      const parameter = binding?.targetParameter;
-      if (binding === undefined || parameter === undefined || parameter !== call.targetMember.parameters[binding.targetParameterIndex] ||
-        parameter.passingMode !== "by-value" || parameter.paramsArray === true || getCsharpDelegateSignature(parameter.type) === undefined) return undefined;
-      if (binding.sourceForm === "value" && call.arguments.filter(argument => argument.sourceArgumentIndex === sourceIndex).length === 1) {
-        if (argumentIndexes.has(sourceIndex)) return undefined;
-        argumentIndexes.add(sourceIndex);
-      }
-    }
-  }
-  return Object.freeze({ ...call, ...(parameterIndexes.length === 0 ? {} : {
-    invocationOnlyCallableArgumentIndexes: Object.freeze([...argumentIndexes]),
-  }) });
 }
 
 export function jsUnsupportedCallPolicy(
@@ -408,7 +355,7 @@ export function targetIndexer(
   });
 }
 
-function formatSourceIdentity(
+export function formatSourceIdentity(
   identity: CsharpSourceProfileIdentitySelector,
 ): string {
   return [
