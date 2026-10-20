@@ -1,15 +1,7 @@
-import type {
-  TargetTypeRef,
-} from "../model.js";
-import type {
-  CsharpTargetNamedTypeRef,
-} from "../model.js";
-import {
-  csharpQualifiedTypeRenderShape,
-} from "../render-shapes.js";
-import {
-  csharpTargetNamedType,
-} from "../factories.js";
+import type { TargetTypeRef } from "../model.js";
+import type { CsharpTargetNamedTypeRef } from "../model.js";
+import { csharpQualifiedTypeRenderShape } from "../render-shapes.js";
+import { csharpTargetNamedType } from "../factories.js";
 
 export function csharpEnumerableTargetType(elementType: TargetTypeRef): CsharpTargetNamedTypeRef {
   const constructionType = csharpListTargetType(elementType);
@@ -136,24 +128,6 @@ export function getCsharpImplicitArrayInputElementTargetType(
   return type?.kind === "target-named"
     ? (type as CsharpTargetNamedTypeRef).csharpImplicitArrayInputElementType
     : undefined;
-}
-
-export function getCsharpArrayLiteralInputCarrierTargetType(
-  expectedType: TargetTypeRef,
-  fallbackType: TargetTypeRef | undefined,
-): TargetTypeRef | undefined {
-  if (expectedType.kind === "tuple") return expectedType;
-  const implicitArrayElement =
-    getCsharpImplicitArrayInputElementTargetType(expectedType);
-  if (implicitArrayElement !== undefined) {
-    return Object.freeze({
-      kind: "array" as const,
-      element: implicitArrayElement,
-    });
-  }
-  return getCsharpArrayLiteralElementTargetType(expectedType) === undefined
-    ? fallbackType
-    : expectedType;
 }
 
 export function getCsharpIndexableLengthMemberName(
