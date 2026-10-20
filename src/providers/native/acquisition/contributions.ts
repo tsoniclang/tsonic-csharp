@@ -1,35 +1,15 @@
 import { fileURLToPath } from "node:url";
-import type {
-  TargetCapabilityContribution,
-  SelectedTargetCapabilityContributions,
-} from "@tsonic/target-api/provider";
-import type {
-  DotnetAssemblySourcePackage,
-  DotnetModuleSpecifierPolicy,
-} from "../projection/module-specifier.js";
-import {
-  createDotnetModuleSpecifierPolicy,
-  normalizeDotnetAssemblySourcePackages,
-} from "../projection/module-specifier.js";
+import type { TargetCapabilityContribution, SelectedTargetCapabilityContributions } from "@tsonic/target-api/provider";
+import type { DotnetAssemblySourcePackage, DotnetModuleSpecifierPolicy } from "../projection/module-specifier.js";
+import { createDotnetModuleSpecifierPolicy, normalizeDotnetAssemblySourcePackages } from "../projection/module-specifier.js";
 import type { DotnetProviderIdentity } from "../model/index.js";
-import {
-  createDotnetReflectionTypeDataProvider,
-} from "./provider.js";
-import type {
-  DotnetReflectionTypeDataProvider,
-} from "./provider.js";
+import { createDotnetReflectionTypeDataProvider } from "./provider.js";
+import type { DotnetReflectionTypeDataProvider } from "./provider.js";
 import { validateCsharpProviderPolicyContribution } from "../../model/provider-policy-contribution.js";
 import { composeCsharpBinaryExecutionDriver } from "../../../target-model/metadata/binary-execution-drivers.js";
-import type {
-  CsharpTargetBinaryExecutionDriver,
-  CsharpProviderPolicyContribution,
-} from "../../../target-model/metadata/provider-metadata.js";
+import type { CsharpTargetBinaryExecutionDriver, CsharpProviderPolicyContribution } from "../../../target-model/metadata/provider-metadata.js";
 import { csharpProviderPolicyContributionKind } from "../../../target-model/metadata/provider-metadata.js";
-import {
-  hasExactContributionFields,
-  isContributionRecord,
-  nonEmptyContributionString,
-} from "../../model/contribution-values.js";
+import { hasExactContributionFields, isContributionRecord, nonEmptyContributionString } from "../../model/contribution-values.js";
 
 export const csharpDotnetProviderContributionKind = "csharp-dotnet-provider";
 
