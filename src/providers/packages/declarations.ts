@@ -1,11 +1,4 @@
-import type {
-  ProviderExportDeclaration,
-  ProviderMemberDeclaration,
-  ProviderParameterDeclaration,
-  ProviderSignatureDeclaration,
-  ProviderTypeParameterDeclaration,
-  ProviderTypeExpression,
-} from "@tsonic/tsts";
+import type { ProviderExportDeclaration, ProviderMemberDeclaration, ProviderParameterDeclaration, ProviderSignatureDeclaration, ProviderTypeParameterDeclaration, ProviderTypeExpression } from "@tsonic/tsts";
 
 export function rebaseProviderExport(
   declaration: ProviderExportDeclaration,
