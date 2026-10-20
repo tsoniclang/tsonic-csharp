@@ -27,7 +27,7 @@ export function planCsharpNativeArray(typeParameterNames: ReadonlyMap<string, st
   const type = csharpTypeFromTargetTypeRef(csharpRuntimeNativeArrayTargetType(layout.pointeeType), typeParameterNames);
   const codec = planCsharpNativeLayout(typeParameterNames, layout, records);
   return type === undefined || codec === undefined ? undefined : { kind: "ObjectCreationExpression", type,
-    arguments: [initial, codec, numeric(stride)].map(expression => ({ kind: "Argument", expression })) };
+    arguments: [initial, codec, csharpNativeSizeLiteral(stride)].map(expression => ({ kind: "Argument", expression })) };
 }
 
 function planCsharpNativeLayout(typeParameterNames: ReadonlyMap<string, string> | undefined, layout: CsharpNativeMemoryLayout, records: CsharpNativeLayoutRecords): CsharpExpression | undefined {
@@ -38,8 +38,8 @@ function planCsharpNativeLayout(typeParameterNames: ReadonlyMap<string, string> 
     : csharpTypeFromTargetTypeRef(selected.owner, typeParameterNames);
   if (pointee === undefined || owner === undefined) failCsharpPlannerInvariant("An admitted native layout requires its exact pointee and owner syntax.");
   const dimensions: CsharpExpression[] = [
-    numeric(layout.size),
-    numeric(layout.alignment),
+    csharpNativeSizeLiteral(layout.size),
+    csharpNativeSizeLiteral(layout.alignment),
     { kind: "NumericLiteralExpression" as const, value: layout.width },
     { kind: "LiteralExpression" as const, value: layout.littleEndian },
   ];
@@ -48,8 +48,6 @@ function planCsharpNativeLayout(typeParameterNames: ReadonlyMap<string, string> 
   }, arguments: dimensions.map(expression => ({ kind: "Argument", expression })) };
   const read: CsharpStatement[] = [{ kind: "LocalDeclarationStatement", type: pointee,
     name: "result", ...(layout.kind === "array" ? {} : { initializer: { kind: "DefaultExpression" as const, type: pointee } }) }];
-  const nativeSize = (value: number | bigint): CsharpExpression => ({ kind: "CastExpression",
-    type: { kind: "PredefinedType", name: "nuint" }, expression: numeric(value) });
   const addOffset = (offset: CsharpExpression, value: CsharpExpression): CsharpExpression => ({ kind: "BinaryExpression",
     left: offset, operatorToken: { kind: "PlusToken" }, right: value });
   const assign = (left: CsharpExpression, right: CsharpExpression): CsharpStatement => ({ kind: "ExpressionStatement",
@@ -67,7 +65,7 @@ function planCsharpNativeLayout(typeParameterNames: ReadonlyMap<string, string> 
       const index: CsharpExpression = { kind: "IdentifierName", name: `index_${depth}` };
       const placement = addOffset(offset, { kind: "BinaryExpression",
         left: { kind: "CastExpression", type: { kind: "PredefinedType", name: "nuint" }, expression: index },
-        operatorToken: { kind: "AsteriskToken" }, right: nativeSize(current.stride) });
+        operatorToken: { kind: "AsteriskToken" }, right: csharpNativeSizeLiteral(current.stride) });
       const element = walk(current.element,
         { kind: "ElementAccessExpression", receiver: destination, arguments: [index] },
         { kind: "ElementAccessExpression", receiver: source, arguments: [index] },
@@ -100,7 +98,7 @@ function planCsharpNativeLayout(typeParameterNames: ReadonlyMap<string, string> 
         const child = walk(field.layout,
           { kind: "SimpleMemberAccessExpression", receiver: destination, name },
           { kind: "SimpleMemberAccessExpression", receiver: source, name },
-          field.offset === 0n ? offset : addOffset(offset, nativeSize(field.offset)),
+          field.offset === 0n ? offset : addOffset(offset, csharpNativeSizeLiteral(field.offset)),
           alignment < field.alignment ? alignment : field.alignment, depth + 1);
         if (child === undefined) return undefined;
         read.push(...child.read);
@@ -110,13 +108,13 @@ function planCsharpNativeLayout(typeParameterNames: ReadonlyMap<string, string> 
     }
     const access = (method: string, value?: CsharpExpression): CsharpExpression => ({ kind: "InvocationExpression", callee: {
       kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: "pointer" }, name: method, typeArguments: [type],
-    }, arguments: [offset, numeric(alignment), ...(value === undefined ? [] : [value])]
+    }, arguments: [offset, csharpNativeSizeLiteral(alignment), ...(value === undefined ? [] : [value])]
       .map(expression => ({ kind: "Argument", expression })) });
     return { read: [assign(destination, access("ReadAt"))],
       write: [{ kind: "ExpressionStatement", expression: access("WriteAt", source) }] };
   };
   const codec = walk(layout, { kind: "IdentifierName", name: "result" },
-    { kind: "IdentifierName", name: "value" }, nativeSize(0), layout.alignment, 0);
+    { kind: "IdentifierName", name: "value" }, csharpNativeSizeLiteral(0n), layout.alignment, 0);
   if (codec === undefined) return undefined;
   read.push(...codec.read);
   read.push({ kind: "ReturnStatement", expression: { kind: "IdentifierName", name: "result" } });
@@ -126,4 +124,9 @@ function planCsharpNativeLayout(typeParameterNames: ReadonlyMap<string, string> 
   ].map(expression => ({ kind: "Argument", expression })) };
 }
 
-function numeric(value: number | bigint): CsharpExpression { return { kind: "NumericLiteralExpression", value: typeof value === "bigint" ? value.toString() : value }; }
+function numeric(value: number): CsharpExpression { return { kind: "NumericLiteralExpression", value }; }
+
+export function csharpNativeSizeLiteral(value: bigint): CsharpExpression {
+  return { kind: "CastExpression", type: { kind: "PredefinedType", name: "nuint" },
+    expression: { kind: "IntegerLiteralExpression", digits: value.toString(), suffix: "UL" } };
+}
