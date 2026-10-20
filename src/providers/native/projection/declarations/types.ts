@@ -1,34 +1,12 @@
-import type {
-  ProviderExportDeclaration,
-  ProviderMemberDeclaration,
-} from "@tsonic/tsts";
+import type { ProviderExportDeclaration, ProviderMemberDeclaration } from "@tsonic/tsts";
 import type { DotnetTypeDeclaration } from "../../model/index.js";
-import {
-  dotnetTypeParameterToProviderTypeParameter,
-  tryDotnetTypeRefToProviderType,
-} from "../../model/index.js";
+import { dotnetTypeParameterToProviderTypeParameter, tryDotnetTypeRefToProviderType } from "./provider-conversion.js";
 import type { DotnetDeclarationContext } from "./context.js";
 import { dotnetProviderRefToTypeDeclaration } from "./context.js";
-import {
-  dotnetTypeKindToProviderKind,
-  tryDotnetBaseTypeToProviderHeritage,
-} from "./conversions.js";
-import {
-  dotnetMemberToProviderMember,
-  dotnetMembersToProviderMembers,
-  filterTsCompatibleProviderMembers,
-  mergeProviderMemberList,
-  providerMemberInheritanceKey,
-} from "./members.js";
-import {
-  mergeProviderSignatures,
-  normalizeProviderSignatureTypeParameterScope,
-  providerSignatureCallShapeKey,
-} from "./signatures.js";
-import {
-  getBaseTypeParameterSubstitutions,
-  substituteProviderMember,
-} from "./substitutions.js";
+import { dotnetTypeKindToProviderKind, tryDotnetBaseTypeToProviderHeritage } from "./conversions.js";
+import { dotnetMemberToProviderMember, dotnetMembersToProviderMembers, filterTsCompatibleProviderMembers, mergeProviderMemberList, providerMemberInheritanceKey } from "./members.js";
+import { mergeProviderSignatures, normalizeProviderSignatureTypeParameterScope, providerSignatureCallShapeKey } from "./signatures.js";
+import { getBaseTypeParameterSubstitutions, substituteProviderMember } from "./substitutions.js";
 
 export function dotnetTypeToProviderExport(
   declaration: DotnetTypeDeclaration,
@@ -85,9 +63,10 @@ function inheritedSourceMembers(
   context: DotnetDeclarationContext,
   visitedTargetIds: Set<string>,
 ): InheritedProviderMembers {
-  if (!visitedTargetIds.add(declaration.targetId)) {
+  if (visitedTargetIds.has(declaration.targetId)) {
     return emptyInheritedProviderMembers();
   }
+  visitedTargetIds.add(declaration.targetId);
   const membersByKey = new Map<string, ProviderMemberDeclaration[]>();
   const concreteMethodsByKey = new Map<string, ProviderMemberDeclaration[]>();
   const baseHeritage = tryDotnetBaseTypeToProviderHeritage(declaration.baseType, `${declaration.targetId}.baseType`);
