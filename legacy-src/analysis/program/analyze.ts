@@ -14,6 +14,7 @@ import { analyzeCsharpArrayLiterals } from "../expressions/array-literals.js";
 import { analyzeCsharpLiteralAdmission } from "../expressions/literals.js";
 import { analyzeCsharpAwaitAdmission } from "../callables/await-admission.js";
 import { analyzeCsharpVoidAdmission } from "../expressions/expression-void.js";
+import { analyzeCsharpConditions } from "../expressions/conditions.js";
 import { analyzeCsharpTemplateStrings } from "../expressions/template-strings.js";
 import { analyzeCsharpPropertyValueProjection } from "../conversions/property-value-projection.js";
 import { analyzeCsharpStructuralObjectEmission } from "../objects/structural-emission.js";
@@ -485,6 +486,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     ...admitCsharpUnionProjections(sourceStorage.nodes, admittedOperations, typeDefinitions),
     ...literalEmission.issues,
     ...unionEquality.issues,
+    ...analyzeCsharpConditions({ ast: source.ast, demand: nativeDemand, operations: admittedOperations, values: analysis.valueReads }),
     ...analyzeCsharpVoidAdmission({ ast: source.ast, demand: nativeDemand, values: analysis.valueReads, operations: admittedOperations }),
     ...analyzeCsharpAwaitAdmission({ ast: source.ast, demand: nativeDemand, values: analysis.valueReads, operations: admittedOperations }),
     ...admittedIterations.issues,
