@@ -1,19 +1,8 @@
-import type {
-  CsharpTargetNamedTypeRef,
-  TargetTypeRef,
-} from "../model.js";
-import {
-  csharpQualifiedTypeRenderShape,
-} from "../render-shapes.js";
-import {
-  csharpTargetNamedType,
-} from "../factories.js";
+import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../model.js";
+import { csharpQualifiedTypeRenderShape } from "../render-shapes.js";
+import { csharpTargetNamedType } from "../factories.js";
 import { csharpNullableTargetType } from "./nullable.js";
-import {
-  csharpSourcePrimitiveTargetType,
-  csharpJsStringTargetType,
-  csharpStringTargetType,
-} from "./scalar-types.js";
+import { csharpSourcePrimitiveTargetType, csharpJsStringTargetType, csharpStringTargetType } from "./scalar-types.js";
 
 export const csharpJsArrayCarrierId = "Tsonic.CSharp.Js.JSArray`1";
 
@@ -219,10 +208,8 @@ export function csharpJsTypedArrayElementTargetType(
       (type as CsharpTargetNamedTypeRef).csharpJsSurfaceKind !== "typed-array") {
     return undefined;
   }
-  const name = type.id.slice("Tsonic.CSharp.Js.".length) as CsharpJsTypedArrayName;
-  return typedArrayNames.includes(name)
-    ? csharpSourcePrimitiveTargetType(typedArrayElementNames[name])
-    : undefined;
+  const name = typedArrayNames.find(name => type.id === `Tsonic.CSharp.Js.${name}`);
+  return name === undefined ? undefined : csharpSourcePrimitiveTargetType(typedArrayElementNames[name]);
 }
 
 export function getCsharpJsMapTargetTypes(
