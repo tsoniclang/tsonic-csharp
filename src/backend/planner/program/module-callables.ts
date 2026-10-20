@@ -4,7 +4,7 @@ import type { CsharpPlanningContext } from "../context.js";
 import type { CsharpMethodDeclaration } from "../../target-ast/syntax/index.js";
 import type { CsharpModuleCallableEmission } from "../../../target-model/records/source-file-emission.js";
 import { createDestructuringPlannerState } from "../bindings/index.js";
-import { planCsharpArrowLambdaSyntax, planCsharpCapturedFunctionLambdaSyntax } from "../expressions/expression-lambdas.js";
+import { planCsharpArrowLambdaSyntax, planCsharpCapturedFunctionLambdaSyntax } from "../expressions/callable.js";
 import { planExpression } from "../expressions/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { planCsharpNativeMemberHiding } from "../declarations/modifiers.js";

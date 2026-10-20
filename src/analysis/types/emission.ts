@@ -17,6 +17,7 @@ import { csharpCollectionElementRead } from "../../target-model/types/carriers/c
 import { getCsharpIndexableLengthMemberName } from "../../target-model/types/carriers/collections.js";
 import { isCsharpVoidTargetType, isCsharpNeverTargetType, isCsharpNullableReferenceTargetType } from "../../target-model/types/index.js";
 import { isCsharpValueTypeTargetType } from "../../policy/types/index.js";
+import { getCsharpLambdaSignature, getCsharpTaskResultTargetType } from "../../target-model/types/carriers/delegates.js";
 
 export function analyzeCsharpTypeEmission(input: { readonly ast: AstReader; readonly nodes: readonly Node[];
   readonly languageDialect: import("../../target-model/configuration/model.js").CsharpLanguageDialect;
@@ -92,8 +93,12 @@ export function analyzeCsharpTypeEmission(input: { readonly ast: AstReader; read
     const optional = getCsharpGenericOptionalParts(root);
     if (optional !== undefined) pending.push(optional.element, optional.operations);
     const collectionRead = csharpCollectionElementRead(root);
+    const lambda = getCsharpLambdaSignature(root);
+    const taskResult = getCsharpTaskResultTargetType(root);
+    if (lambda !== undefined) pending.push(...lambda.parameters, lambda.returnType);
+    if (taskResult !== undefined) pending.push(taskResult);
     if (collectionRead?.kind === "method" && collectionRead.member.declaringType !== undefined) pending.push(collectionRead.member.declaringType);
-    producer.publish(root, { objectShapes: Object.freeze([...shapes]),
+    producer.publish(root, { lambda, taskResult, objectShapes: Object.freeze([...shapes]),
       completion: isCsharpNeverTargetType(root) ? "never" : isCsharpVoidTargetType(root) ? "void" : "value",
       coalescing: optional === undefined && !isCsharpJsValueTargetType(root) ? "operator" : "guard",
       nullable: getCsharpNullableElementTargetType(root) !== undefined,

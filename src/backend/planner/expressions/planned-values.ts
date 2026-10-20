@@ -14,6 +14,7 @@ export interface CsharpPlannedValue {
   readonly address?: CsharpPlannedAddress;
   readonly receiverIdentity?: true;
   readonly callable?: CsharpPlannedCallable;
+  readonly effect?: CsharpExpression;
 }
 
 export type CsharpPlannedCallable =
@@ -136,7 +137,7 @@ export function sequenceCsharpPlannedValues(
   }
   const result = complete(expressions);
   return result === undefined ? undefined : Object.freeze({
-    ...result, prelude: Object.freeze([...prelude, ...result.prelude]),
+    ...result, effect: prelude.length === 0 ? result.effect : undefined, prelude: Object.freeze([...prelude, ...result.prelude]),
   });
 }
 

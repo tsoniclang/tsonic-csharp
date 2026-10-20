@@ -5,7 +5,7 @@ import type { CsharpObjectShapeFact } from "../../../../target-model/types/model
 import type { CsharpExpression, CsharpTypeMember } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import { createCsharpMemberPlanningContext } from "../../context.js";
-import { planCsharpArrowLambdaSyntax, planCsharpCapturedFunctionLambdaSyntax } from "../../expressions/expression-lambdas.js";
+import { planCsharpArrowLambdaSyntax, planCsharpCapturedFunctionLambdaSyntax } from "../../expressions/callable.js";
 import { planExpression } from "../../expressions/index.js";
 import { planTypeParameters } from "../../types/type-parameters.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";

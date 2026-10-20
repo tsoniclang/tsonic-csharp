@@ -71,6 +71,7 @@ export interface CsharpProgramRecordInput {
   readonly nativeConstants: import("../../../target-model/records/native-constants.js").CsharpNativeConstantRecords;
   readonly binaryEmission: import("../../../target-model/records/binary-emission.js").CsharpBinaryEmissionRecords;
   readonly expressionEmission: Pick<import("../../../target-model/records/native-demand.js").CsharpNativeUseRecords, "nativeExpression" | "nativeDiscard">;
+  readonly lambdaEmission: import("../../../target-model/records/lambda-emission.js").CsharpLambdaEmissionRecords;
   readonly promiseResults: import("../../../target-model/records/promise-results.js").CsharpPromiseResultRecords;
   readonly nativeLayouts: import("../../../target-model/records/native-layout-emission.js").CsharpNativeLayoutRecords;
   readonly unionEquality: import("../../../target-model/records/union-equality.js").CsharpUnionEqualityRecords;
@@ -228,6 +229,7 @@ export function createCsharpProgramRecords(
     nativeUse: Object.freeze({ get: input.nativeDemand.nativeUse.get }),
     nativeOrder: Object.freeze({ get: input.nativeDemand.nativeUse.order }),
     ...input.expressionEmission,
+    ...input.lambdaEmission,
     ...input.promiseResults,
     bindingPatternProjection: input.bindingPatterns.bindingPatternProjection,
     attributeApplication: input.attributeApplications.attributeApplication,

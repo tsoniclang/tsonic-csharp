@@ -7,7 +7,7 @@ import type { CsharpPlanningContext } from "../../context.js";
 import { createCsharpThisBindingPlanningContext } from "../../context.js";
 import { allocateSyntheticParameter, createDestructuringPlannerState } from "../../bindings/index.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
-import { planLambdaBlockBody, planLambdaParameters, type LambdaTargetContext } from "../../expressions/expression-lambdas.js";
+import { planLambdaBlockBody, planLambdaParameters, type LambdaTargetContext } from "../../expressions/callable.js";
 import { planLambdaParameterStorage } from "../../expressions/lambda-parameter-storage.js";
 import { csharpPlannedValue } from "../../expressions/planned-values.js";
 import type { CsharpPlannedObjectInitializer } from "../../expressions/planned-initializers.js";

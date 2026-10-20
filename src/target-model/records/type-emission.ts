@@ -1,4 +1,4 @@
-import type { TargetTypeRef, CsharpObjectShapeFact } from "../types/model.js";
+import type { TargetTypeRef, CsharpObjectShapeFact, CsharpDelegateSignatureShape } from "../types/model.js";
 import type { CsharpCollectionElementRead } from "../types/carriers/collection-reads.js";
 
 export type CsharpOptionalStorageEmission =
@@ -6,6 +6,8 @@ export type CsharpOptionalStorageEmission =
   | { readonly kind: "native"; readonly present: TargetTypeRef; readonly absence: boolean; readonly jsValue: boolean };
 
 export interface CsharpTypeEmission {
+  readonly lambda: CsharpDelegateSignatureShape | undefined;
+  readonly taskResult: TargetTypeRef | undefined;
   readonly completion: "value" | "void" | "never";
   readonly coalescing: "operator" | "guard";
   readonly nullable: boolean;

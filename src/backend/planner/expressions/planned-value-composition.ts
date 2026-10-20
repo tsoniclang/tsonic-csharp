@@ -37,7 +37,8 @@ export function planCsharpExpressionCompletion(
   if (completion === "void") {
     let statement = expression;
     while (statement.kind === "ParenthesizedExpression") statement = statement.expression;
-    return csharpPlannedEffect(carrier, [...prelude, { kind: "ExpressionStatement", expression: statement }]);
+    return { ...csharpPlannedEffect(carrier, [...prelude, { kind: "ExpressionStatement", expression: statement }]),
+      ...(prelude.length === 0 ? { effect: statement } : {}) };
   }
   return csharpPlannedValue(carrier, expression, prelude, input.program.records.nativeConstant.get(node, carrier) === true,
     input.program.records.nativeAbsence.get(node, carrier) === true);

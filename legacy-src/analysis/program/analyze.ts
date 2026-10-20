@@ -8,6 +8,7 @@ import { analyzeCsharpNativeConstants } from "../expressions/native-constants.js
 import { analyzeCsharpBinaryEmission } from "../expressions/binary-emission.js";
 import { analyzeCsharpDictionaryLiterals } from "../objects/dictionary-literals.js";
 import { analyzeCsharpExpressionEmission } from "../expressions/emission.js";
+import { analyzeCsharpLambdaEmission } from "../callables/lambda-emission.js";
 import { createCsharpPromiseResultRecords } from "./records/promise-results.js";
 import { admitCsharpLocationRetention } from "../storage/location-retention.js";
 import { analyzeCsharpNativeParticipation } from "../callables/participation.js";
@@ -731,6 +732,10 @@ function analyzeCsharpTargetProgramBeforeSeal(
     evidence: analysis.sourceEvidence, storage: analysis.storage, operations: admittedOperations,
     elements: elementAdmission.records, admitted: admittedControlNode });
   if (argumentPassing.issues.length !== 0) return rejectedTargetStage(argumentPassing.issues);
+  const lambdaEmission = analyzeCsharpLambdaEmission({ source, nodes: sourceStorage.nodes, captures: captureStorage,
+    creations: callableCreations, storage: analysis.storage, expected: analysis.expectedTypes, values: analysis.valueReads,
+    types: typeEmission.records, arguments: targetArguments.records, constants: nativeConstants, demand: nativeDemand, admitted: admittedControlNode });
+  if (lambdaEmission.issues.length !== 0) return rejectedTargetStage(lambdaEmission.issues);
   const locationRetentionIssues = admitCsharpLocationRetention({ source, nodes: sourceStorage.nodes, operations: admittedOperations,
     storage: analysis.storage, elements: elementAdmission.records, arguments: argumentPassing.records, admitted: admittedControlNode });
   if (locationRetentionIssues.length !== 0) return rejectedTargetStage(locationRetentionIssues);
@@ -755,6 +760,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     typeEmission: typeEmission.records,
     nativeConstants,
     expressionEmission: expressionEmission.records,
+    lambdaEmission: lambdaEmission.records,
     promiseResults: createCsharpPromiseResultRecords(promiseResults.results),
     binaryEmission: binaryEmission.records,
     nativeLayouts: nativeLayouts.records,

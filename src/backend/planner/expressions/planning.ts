@@ -40,7 +40,7 @@ import {
 import {
   planArrowFunctionExpression,
   planFunctionExpression,
-} from "./expression-lambdas.js";
+} from "./callable.js";
 import {
   planCsharpIdentifierValue,
 } from "./expression-source-references.js";
