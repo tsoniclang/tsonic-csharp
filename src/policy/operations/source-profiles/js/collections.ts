@@ -1,46 +1,9 @@
-import type {
-  CsharpTargetMember,
-  TargetTypeRef,
-} from "../../../types/index.js";
-import {
-  csharpJsMapTargetType,
-  csharpJsSetTargetType,
-  getCsharpJsMapTargetTypes,
-  getCsharpJsSetElementTargetType,
-} from "../../../../target-model/types/carriers/js.js";
-import {
-  csharpDelegateTargetType,
-  csharpEnumerableTargetType,
-  csharpNullableTargetType,
-  csharpSourcePrimitiveTargetType,
-  csharpVoidTargetType,
-  getCsharpNullableElementTargetType,
-  isCsharpValueTypeTargetType,
-  targetTypeRefEquals,
-  targetTypeRefKey,
-} from "../../../../target-model/types/index.js";
-import type {
-  CsharpSourceProfileCallPolicy,
-  CsharpSourceProfileCallPolicyContext,
-  CsharpSourceProfileCallPolicyResult,
-  CsharpSourceProfilePropertyPolicy,
-} from "../source-profile-policy.js";
-import {
-  csharpSourceProfileCall,
-  csharpSourceProfileDiagnostic,
-  resolveCsharpSelectedSourceValue,
-} from "../source-profile-policy.js";
-import {
-  instanceMethod,
-  jsCallPolicy,
-  jsConstructIdentity,
-  jsMemberIdentity,
-  jsPropertyPolicy,
-  jsRuntimeTargetType,
-  staticMethod,
-  targetParameter,
-  targetProperty,
-} from "./common.js";
+import type { CsharpTargetMember, TargetTypeRef } from "../../../types/index.js";
+import { csharpJsMapTargetType, csharpJsSetTargetType, getCsharpJsMapTargetTypes, getCsharpJsSetElementTargetType } from "../../../../target-model/types/carriers/js.js";
+import { csharpDelegateTargetType, csharpEnumerableTargetType, csharpNullableTargetType, csharpSourcePrimitiveTargetType, csharpVoidTargetType, getCsharpNullableElementTargetType, isCsharpValueTypeTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/index.js";
+import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext, CsharpSourceProfileCallPolicyResult, CsharpSourceProfilePropertyPolicy } from "../../../model/source-profiles.js";
+import { csharpSourceProfileCall, csharpSourceProfileDiagnostic, resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
+import { instanceMethod, jsCallPolicy, jsConstructIdentity, jsMemberIdentity, jsPropertyPolicy, jsRuntimeTargetType, staticMethod, targetParameter, targetProperty } from "./common.js";
 
 const intType = csharpSourcePrimitiveTargetType("int32");
 const mapHelperType = jsRuntimeTargetType("Map");
@@ -287,10 +250,7 @@ function mapConstructorPolicy(): CsharpSourceProfileCallPolicy {
   return {
     source: jsConstructIdentity("MapConstructor"),
     select(context): CsharpSourceProfileCallPolicyResult {
-      const typeArguments = context.host.types.resolveSourceCallTypeArguments(
-        context.source,
-        context.sourceFile,
-      );
+      const typeArguments = context.inputs.callTypeArguments;
       const result = typeArguments?.length === 2
         ? csharpJsMapTargetType(typeArguments[0]!, typeArguments[1]!)
         : undefined;
@@ -334,10 +294,7 @@ function setConstructorPolicy(): CsharpSourceProfileCallPolicy {
   return {
     source: jsConstructIdentity("SetConstructor"),
     select(context): CsharpSourceProfileCallPolicyResult {
-      const typeArguments = context.host.types.resolveSourceCallTypeArguments(
-        context.source,
-        context.sourceFile,
-      );
+      const typeArguments = context.inputs.callTypeArguments;
       const result = typeArguments?.length === 1
         ? csharpJsSetTargetType(typeArguments[0]!)
         : undefined;
