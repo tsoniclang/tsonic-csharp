@@ -13,7 +13,7 @@ import { selectCsharpTypeEmission } from "../../policy/types/type-emission.js";
 import { selectCsharpTypeUnsafeContext } from "../../policy/safety/native-types.js";
 import { getCsharpGenericOptionalParts } from "../../target-model/types/projections.js";
 import { csharpCarrierAdmitsSourceAbsence, isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
-import { csharpCollectionElementRead } from "../../target-model/types/carriers/collection-reads.js";
+import { csharpCollectionElementRead } from "../../policy/operations/collections/element-reads.js";
 import { getCsharpIndexableLengthMemberName } from "../../target-model/types/carriers/collections.js";
 import { isCsharpVoidTargetType, isCsharpNeverTargetType, isCsharpNullableReferenceTargetType } from "../../target-model/types/index.js";
 import { isCsharpValueTypeTargetType } from "../../policy/types/index.js";

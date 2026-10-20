@@ -1,12 +1,8 @@
-import type { CsharpTargetMember, CsharpTargetNamedTypeRef, TargetTypeRef } from "../model.js";
-import { getCsharpReadOnlyIndexableCollectionElementTargetType } from "./collections.js";
-import { targetTypeRefEquals } from "../equality.js";
+import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
+import { getCsharpReadOnlyIndexableCollectionElementTargetType } from "../../../target-model/types/carriers/collections.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 
-export type CsharpCollectionElementRead =
-  | { readonly kind: "indexer"; readonly element: TargetTypeRef }
-  | { readonly kind: "method"; readonly element: TargetTypeRef; readonly member: CsharpTargetMember }
-  | { readonly kind: "invalid"; readonly reason: string };
-
+import type { CsharpCollectionElementRead } from "../../../target-model/types/carriers/collection-reads.js";
 export function csharpCollectionElementRead(carrier: TargetTypeRef): CsharpCollectionElementRead | undefined {
   const element = getCsharpReadOnlyIndexableCollectionElementTargetType(carrier);
   const member = carrier.kind === "target-named" ? (carrier as CsharpTargetNamedTypeRef).csharpIndexableReadMember : undefined;

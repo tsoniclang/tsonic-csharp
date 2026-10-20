@@ -8,7 +8,7 @@ import type { SourceProgramNavigation } from "@tsonic/target-api/source";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType, getCsharpReadOnlyIndexableCollectionElementTargetType,
   isCsharpDenseMutableCollectionTargetType, targetTypeRefEquals } from "../../target-model/types/index.js";
 import { getCsharpGenericOptionalParts } from "../../target-model/types/projections.js";
-import { csharpCollectionElementRead } from "../../target-model/types/carriers/collection-reads.js";
+import { csharpCollectionElementRead } from "../../policy/operations/collections/element-reads.js";
 import { selectCsharpTypeEmission } from "../../policy/types/type-emission.js";
 import { createCsharpElementAdmissionRecords } from "../program/records/element-admission.js";
 

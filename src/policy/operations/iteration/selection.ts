@@ -5,7 +5,7 @@ import type { ResolvedSourceIterationInfo } from "@tsonic/tsts";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../types/index.js";
 import { csharpStringTargetType, getCsharpCollectionElementTargetType, isCsharpRecordDictionaryTargetType, isCsharpStringTargetType, targetTypeRefEquals } from "../../types/index.js";
 import type { CsharpOperationSelection } from "../../../target-model/records/operator-selection.js";
-import { csharpCollectionElementRead } from "../../../target-model/types/carriers/collection-reads.js";
+import { csharpCollectionElementRead } from "../collections/element-reads.js";
 import { getCsharpIndexableLengthMemberName } from "../../../target-model/types/carriers/collections.js";
 
 import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";

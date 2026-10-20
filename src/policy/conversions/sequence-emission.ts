@@ -2,7 +2,7 @@ import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import type { CsharpArraySpreadEmission } from "../../target-model/records/array-literals.js";
 import { getCsharpIndexableLengthMemberName, getCsharpReadOnlyIndexableCollectionElementTargetType, csharpTupleElementMemberName } from "../../target-model/types/index.js";
-import { csharpCollectionElementRead } from "../../target-model/types/carriers/collection-reads.js";
+import { csharpCollectionElementRead } from "../operations/collections/element-reads.js";
 import { isCsharpValueTypeTargetType } from "../../target-model/types/identity.js";
 import { csharpConversionIsApplicable } from "./applicability.js";
 import { selectCsharpTypeEmission } from "../types/type-emission.js";
