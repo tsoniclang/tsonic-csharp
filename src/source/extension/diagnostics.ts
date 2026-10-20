@@ -1,7 +1,4 @@
-import type {
-  ExtensionDiagnostic,
-  ExtensionEvidence,
-} from "@tsonic/tsts";
+import type { ExtensionDiagnostic, ExtensionEvidence } from "@tsonic/tsts";
 
 export function csharpProviderDiagnostic(
   extensionId: string,
