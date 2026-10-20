@@ -9,7 +9,7 @@ import { nextState } from "./state.js";
 import { resolveBinaryTargetRepresentation, commonTargetRepresentation, getTaskResultType } from "../../../policy/types/representation.js";
 import { selectCsharpTargetCall, selectCsharpTargetElement, selectCsharpTargetProperty } from "../../../policy/operations/members/selection/target-selection.js";
 import { isCsharpAssignmentOperator, sourceOperatorFromKindName } from "../../../target-model/syntax/operators.js";
-import { selectCsharpMethodValue } from "../../../policy/types/objects/method-values.js";
+import { selectCsharpMethodValue } from "../../objects/method-values.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import { getCsharpClassFactory } from "../../../target-model/types/carriers/class-factories.js";
 import { substituteTargetTypeParameters } from "../../../target-model/types/substitution.js";
