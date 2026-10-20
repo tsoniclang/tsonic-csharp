@@ -13,6 +13,7 @@ import { csharpConversionIsApplicable } from "../../target-model/conversions/sel
 import { getCsharpNullableElementTargetType } from "../../target-model/types/index.js";
 import { selectCsharpTypeEmission } from "../../policy/types/type-emission.js";
 import { createCsharpSourceCallEmissionRecords } from "../program/records/source-call-emission.js";
+import type { TargetTypeRef } from "../../target-model/types/model.js";
 
 export function analyzeCsharpSourceCallEmission(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];
   readonly operations: CsharpTargetOperationClassifications; readonly evidence: CsharpSourceEvidenceIndex;
@@ -20,6 +21,8 @@ export function analyzeCsharpSourceCallEmission(input: { readonly source: Target
   readonly admitted: (node: Node) => boolean }) {
   const calls = new Map<Node, CsharpSourceCallEmission>();
   const arguments_ = new Map<Node, CsharpSourceArgumentsEmission>();
+  const optional = new Map<Node, { readonly optional: boolean; readonly receiver: Node | undefined }>();
+  const arrays = new Map<Node, TargetTypeRef>();
   const issues: TargetDiagnostic[] = [];
   const { ast } = input.source;
   const refuse = (node: Node, message: string): void => { issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message }); };
@@ -53,8 +56,25 @@ export function analyzeCsharpSourceCallEmission(input: { readonly source: Target
   for (const node of input.nodes) {
     if (!input.admitted(node)) continue;
     const construction = input.operations.selectedConstruction.get(node);
-    if (construction?.target?.kind === "source-owned") admitArguments(node, construction.target.source, construction);
     const classification = input.operations.selectedCall.get(node);
+    const target = classification?.target ?? construction?.target;
+    if (target?.kind === "resolved" || target?.kind === "source-owned") {
+      const source = target.source;
+      const access = source.sourceCalleeAccess?.expression;
+      optional.set(node, { receiver: source.sourceReceiver?.expression,
+        optional: access !== undefined && ast.as.AsPropertyAccessExpression(access)?.QuestionDotToken !== undefined });
+      if (target.kind === "resolved" && target.call.targetMember.csharpInvocation?.kind === "array-creation") {
+        const member = target.call.targetMember;
+        const relation = member.csharpInvocation;
+        if (relation?.kind !== "array-creation" || member.returnType?.kind !== "array" || relation.lengthParameterIndex !== 0 ||
+          target.call.arguments.length !== 1 || target.call.arguments[0]?.targetParameterIndex !== 0) {
+          refuse(node, "Selected array-creation relation does not contain one closed element type and one length argument."); continue;
+        }
+        if (!selectCsharpTypeEmission({ carrier: member.returnType.element })) { refuse(node, "Selected array-creation element type cannot be rendered in C#."); continue; }
+        arrays.set(node, member.returnType.element);
+      }
+    }
+    if (construction?.target?.kind === "source-owned") admitArguments(node, construction.target.source, construction);
     if (classification?.target?.kind !== "source-owned") continue;
     const source = classification.target.source;
     if (classification.unionCall.kind === "rejected") { refuse(node, classification.unionCall.reason); continue; }
@@ -90,5 +110,5 @@ export function analyzeCsharpSourceCallEmission(input: { readonly source: Target
     calls.set(node, { kind: "source", callee: selected, result, typeArguments,
       methodValue: classification.sourceMethodValue?.method, optionalCallee: classification.optionalCallee });
   }
-  return Object.freeze({ records: createCsharpSourceCallEmissionRecords({ calls, arguments: arguments_ }), issues: Object.freeze(issues) });
+  return Object.freeze({ records: createCsharpSourceCallEmissionRecords({ calls, arguments: arguments_, optional, arrays }), issues: Object.freeze(issues) });
 }

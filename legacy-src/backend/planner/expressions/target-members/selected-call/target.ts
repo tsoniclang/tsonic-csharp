@@ -98,13 +98,7 @@ function buildSelectedTargetCall(
     return { kind: "ObjectCreationExpression", type, arguments: arguments_ };
   }
   if (selection.targetMember.csharpInvocation?.kind === "array-creation") {
-    return translateArrayCreationCall(
-      input.scope.typeParameterNames,
-      node,
-      selection.targetMember,
-      arguments_,
-      diagnostics,
-    );
+    return translateArrayCreationCall(node, arguments_, input);
   }
   if (
     selection.targetMember.csharpInvocation?.kind ===
@@ -421,7 +415,7 @@ function translateNativeEventSubscription(
   if (
     (invocation?.kind !== "native-event-add" &&
       invocation?.kind !== "native-event-remove") ||
-    sourceCallIsOptional(input, source) ||
+    sourceCallIsOptional(input, node) ||
     arguments_.length !== 1 ||
     invocation.handlerParameterIndex !== 0 ||
     arguments_[0]?.passing !== undefined
@@ -476,7 +470,7 @@ function translateNativeIndexerCall(
       invocation?.kind !== "native-indexer-set") ||
     member.static === true ||
     sourceReceiver === undefined ||
-    sourceCallIsOptional(input, source)
+    sourceCallIsOptional(input, node)
   ) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -630,7 +624,7 @@ function translateEcmascriptProtocolDispatch(
       { kind: "Argument", expression: lambda },
     ],
   } satisfies CsharpExpression;
-  if (!sourceCallIsOptional(input, source)) {
+  if (!sourceCallIsOptional(input, node)) {
     return invocationExpression;
   }
   const receiverType = csharpTypeFromTargetTypeRef(member.parameters[0]!.type, input.scope.typeParameterNames);
@@ -760,7 +754,7 @@ function translateSelectedTargetCallee(
       return undefined;
     }
     return {
-      kind: sourceCallIsOptional(input, source)
+      kind: sourceCallIsOptional(input, node)
         ? "ConditionalAccessExpression"
         : "SimpleMemberAccessExpression",
       receiver,

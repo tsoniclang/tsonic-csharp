@@ -6,7 +6,7 @@ import {
   getCsharpJsArrayElementTargetType,
 } from "../../../../../target-model/types/index.js";
 import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";
-import { targetArgumentOrderIsRepresentable } from "./helpers.js";
+import { csharpPositionalArgumentsAreRepresentable } from "../../../../../policy/operations/call-arguments.js";
 import { planCsharpRestSequence } from "./rest-sequences.js";
 import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
 import type { CsharpSelectedCallArgument, CsharpSelectedTargetCall, CsharpProviderArgumentMapping, ResolvedSourceCallInfo } from "../../../../../target-model/records/members.js";
@@ -125,10 +125,7 @@ export function translateSelectedTargetArguments(
   const ordered = planned.map((entry, index) => ({ ...entry, index })).sort((left, right) =>
     left.parameterIndex - right.parameterIndex ||
     left.effectiveArgumentIndex - right.effectiveArgumentIndex);
-  if (!targetArgumentOrderIsRepresentable(
-    ordered.map((entry) => entry.parameterIndex),
-    selection.targetMember.parameters,
-  )) {
+  if (!csharpPositionalArgumentsAreRepresentable({ indexes: ordered.map((entry) => entry.parameterIndex), parameters: selection.targetMember.parameters })) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
       "Selected target argument relation requires a target argument reorder or omission that cannot be represented positionally.",

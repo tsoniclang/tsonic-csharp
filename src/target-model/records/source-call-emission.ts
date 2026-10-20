@@ -26,4 +26,6 @@ export type CsharpSourceCallEmission =
 export interface CsharpSourceCallEmissionRecords {
   readonly sourceCallEmission: { readonly get: (node: Node) => CsharpSourceCallEmission | undefined };
   readonly sourceArgumentsEmission: { readonly get: (node: Node) => CsharpSourceArgumentsEmission | undefined };
+  readonly callOptional: { readonly get: (node: Node) => { readonly optional: boolean; readonly receiver: Node | undefined } | undefined };
+  readonly arrayCreationCall: { readonly get: (node: Node) => TargetTypeRef | undefined };
 }
