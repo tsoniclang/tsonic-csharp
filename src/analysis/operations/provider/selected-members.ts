@@ -11,7 +11,7 @@ import { selectCsharpComposedSourceProfileCall, selectCsharpComposedSourceProfil
 import { selectCsharpUnionProperty } from "./union-properties.js";
 
 import { selectCsharpInheritedConstructorTarget } from "./calls/implicit-super.js";
-import { selectCsharpSourceCoreFixedArrayElement, selectCsharpSourceCoreFixedArrayProperty } from "../../../policy/operations/source-profiles/source-core-fixed-array.js";
+import { selectCsharpSourceCoreFixedArrayElement, selectCsharpSourceCoreFixedArrayProperty } from "../../source-profiles/source-core-fixed-array.js";
 
 export function selectCsharpTargetCall(
   host: CsharpProviderCallSelectionHost,

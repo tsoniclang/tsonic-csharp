@@ -1,26 +1,14 @@
 import { tsonicFixedArrayProviderMember } from "@tsonic/source-core/facts";
-import type {
-  SourceFile,
-} from "@tsonic/tsts";
+import type { SourceFile } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
-import {
-  resolveCsharpProviderDeclarationEvidence,
-} from "../members/providers/evidence.js";
-import { csharpFixedArrayRepresentationRejection } from "../../types/resolution/source-markers.js";
-import {
-  csharpSourcePrimitiveTargetType,
-  isCsharpArrayIndexTargetType,
-  targetTypeRefKey,
-} from "../../../target-model/types/index.js";
-import type {
-  CsharpProviderCallSelectionHost,
-} from "../members/selection/call-selection.js";
-import type { CsharpSourceProfileElementPolicyResult } from "./source-profile-policy.js";
-import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/source-profile-invocations.js";
-import {
-  csharpSourceProfileDiagnostic,
-} from "./source-profile-policy.js";
-import { csharpLiteralIsRepresentableAs } from "../../conversions/literals.js";
+import { resolveCsharpProviderDeclarationEvidence } from "../../source/extension/provider-identities.js";
+import { csharpFixedArrayRepresentationRejection } from "../../policy/types/collections/fixed-arrays.js";
+import { csharpSourcePrimitiveTargetType, isCsharpArrayIndexTargetType, targetTypeRefKey } from "../../target-model/types/index.js";
+import type { CsharpProviderCallSelectionHost } from "../../policy/model/provider-calls.js";
+import type { CsharpSourceProfileElementPolicyResult } from "../../policy/model/source-profiles.js";
+import type { CsharpSourceProfilePropertyPolicyResult } from "../../target-model/records/source-profile-invocations.js";
+import { csharpSourceProfileDiagnostic } from "../../policy/operations/source-profiles/source-profile-policy.js";
+import { csharpLiteralIsRepresentableAs } from "../../policy/conversions/literals.js";
 
 type ResolvedSourcePropertyAccessInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["propertyAccess"]>
@@ -29,8 +17,7 @@ type ResolvedSourceElementAccessInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["elementAccess"]>
 >;
 
-const instanceReceiver = { kind: "instance" } as const;
-
+import { selectCsharpFixedArrayPropertyPlan, selectCsharpFixedArrayElementPlan } from "../../policy/operations/source-profiles/source-core-fixed-array.js";
 export function selectCsharpSourceCoreFixedArrayProperty(
   host: CsharpProviderCallSelectionHost,
   source: ResolvedSourcePropertyAccessInfo,
@@ -55,21 +42,7 @@ export function selectCsharpSourceCoreFixedArrayProperty(
       "The selected FixedArray.length access does not have one exact readonly C# array receiver contract.",
     );
   }
-  return {
-    kind: "resolved",
-    targetMember: Object.freeze({
-      id: "tsonic.csharp.source-core.FixedArray.length",
-      sourceName: "length",
-      targetName: "Length",
-      kind: "property",
-      declaringType: receiver.carrier,
-      parameters: [],
-      returnType: csharpSourcePrimitiveTargetType("int32"),
-      readonly: true,
-    }),
-    receiver: instanceReceiver,
-    invocation: { kind: "member" },
-  };
+  return selectCsharpFixedArrayPropertyPlan(receiver.carrier);
 }
 
 export function selectCsharpSourceCoreFixedArrayElement(
@@ -116,25 +89,7 @@ export function selectCsharpSourceCoreFixedArrayElement(
       ],
     );
   }
-  return {
-    kind: "resolved",
-    targetMember: Object.freeze({
-      id: "tsonic.csharp.source-core.FixedArray.index",
-      sourceName: "Item",
-      targetName: "Item",
-      kind: "indexer",
-      declaringType: receiver.carrier,
-      parameters: [Object.freeze({
-        name: "index",
-        type: indexType,
-        passingMode: "by-value",
-      })],
-      returnType: receiver.carrier.element,
-    }),
-    targetParameterIndex: 0,
-    receiver: instanceReceiver,
-    invocation: { kind: "indexer" },
-  };
+  return selectCsharpFixedArrayElementPlan(receiver.carrier, indexType);
 }
 
 function fixedArrayReceiverRejection(
