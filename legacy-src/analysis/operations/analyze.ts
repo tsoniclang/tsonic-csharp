@@ -487,6 +487,7 @@ function visit(
                 target.call,
                 node,
                 sourceFile,
+                issues,
               ),
           }
         : {},
@@ -531,6 +532,7 @@ function visit(
                 target.call,
                 node,
                 sourceFile,
+                issues,
               ),
           }
         : {},
