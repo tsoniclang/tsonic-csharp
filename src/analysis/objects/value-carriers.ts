@@ -1,3 +1,4 @@
+import { createCsharpNativeValueProducer, createCsharpObjectMethodSourceProducer } from "../program/records/native-value-carriers.js";
 import { createHash } from "node:crypto";
 import type { AstReader, Node } from "@tsonic/tsts";
 import { sourceLexicalCaptures, type SourceCallOnlyAlias, type SourceFileSemantics, type SourceProgramNavigation } from "@tsonic/target-api/source";
@@ -8,9 +9,7 @@ import type { CsharpSourceEvidenceIndex } from "../../target-model/records/sourc
 import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
 import type {
   CsharpNativeValueCarriers,
-  CsharpNativeValueDeclaration,
   CsharpNativeValueField,
-  CsharpObjectMethodSource,
   CsharpObjectMethodSourceCapture,
   CsharpObjectMethodSources,
 } from "../../target-model/records/native-value-carriers.js";
@@ -28,7 +27,7 @@ export function analyzeCsharpNativeValueCarriers(
   semanticsFor: (node: Node) => SourceFileSemantics,
   requiredRecords: CsharpRequiredRecord[],
 ): CsharpNativeValueCarriers {
-  const declarations = new WeakMap<Node, CsharpNativeValueDeclaration>();
+  const producer = createCsharpNativeValueProducer();
   const issues: CsharpProjectTypeIssue[] = [];
   const refuse = (node: Node, message: string): void => {
     issues.push(Object.freeze({ node, code: "CSHARP_UNSUPPORTED_AST", message }));
@@ -99,11 +98,9 @@ export function analyzeCsharpNativeValueCarriers(
         ...(shape !== undefined && member?.bound === true ? { bound: Object.freeze({ owner: shape, member }) } : {}),
       }));
     }
-    if (issues.length === start) declarations.set(node, Object.freeze({ source, fields: Object.freeze(fields) }));
+    if (issues.length === start) producer.publish(node, Object.freeze({ source, fields: Object.freeze(fields) }));
   }
-  return Object.freeze({ issues: Object.freeze(issues),
-    nativeValueDeclaration: Object.freeze({ get: (declaration: Node) => declarations.get(declaration) }),
-  });
+  return producer.seal(issues);
 }
 
 export function analyzeCsharpObjectMethodSources(
@@ -112,13 +109,13 @@ export function analyzeCsharpObjectMethodSources(
   navigation: SourceProgramNavigation,
   callOnlyAlias: (declaration: Node) => SourceCallOnlyAlias | undefined,
 ): CsharpObjectMethodSources {
-  const literals = new WeakMap<Node, CsharpObjectMethodSource>();
+  const producer = createCsharpObjectMethodSourceProducer();
   for (const literal of nodes) {
     if (!ast.is.IsObjectLiteralExpression(literal)) continue;
     const methods = ast.properties(literal).filter((method): method is Node =>
       method !== undefined && ast.is.IsMethodDeclaration(method) && ast.body(method) !== undefined);
     if (methods.length === 0) continue;
-    const captures = new WeakMap<Node, readonly CsharpObjectMethodSourceCapture[]>();
+    const captures = new Map<Node, readonly CsharpObjectMethodSourceCapture[]>();
     for (const method of methods) {
       const lexical = sourceLexicalCaptures(literal, [method], ast, navigation, "source");
       captures.set(method, Object.freeze(lexical.captures
@@ -132,9 +129,7 @@ export function analyzeCsharpObjectMethodSources(
     const identity = createHash("sha256").update(JSON.stringify([
       ast.getFileName(file), ast.pos(literal), ast.end(literal),
     ])).digest("hex");
-    literals.set(literal, Object.freeze({ identity,
-      captures: (method: Node) => captures.get(method),
-    }));
+    producer.publish(literal, identity, captures);
   }
-  return Object.freeze({ get: (literal: Node) => literals.get(literal) });
+  return producer.seal();
 }
