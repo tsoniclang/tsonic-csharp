@@ -3,7 +3,6 @@ import type { CsharpTargetProgram } from "../../target-model/program.js";
 import { analyzeCsharpRepresentationIteration, representationContractsEqual, type CsharpRepresentationContract } from "./iteration.js";
 import { rejectCsharpAnalysisIssues } from "./issues.js";
 import { finalizeCsharpNativeEmission } from "./emission.js";
-import { CsharpProviderAcquisitionRejection } from "../../providers/model/relation-resolver.js";
 
 import { analyzeCsharpProjectCallableAdapters } from "../project-types/callable-adapters.js";
 
@@ -42,14 +41,18 @@ export function analyzeCsharpTargetProgram(
   if (references.length !== 0) {
     return rejectedTargetStage(references.map(diagnostic => targetDiagnosticFromExtension(undefined, diagnostic)));
   }
-  try {
-    return analyzeCsharpTargetProgramBeforeSeal(request);
-  } catch (error) {
-    if (error instanceof CsharpProviderAcquisitionRejection) {
-      return rejectedTargetStage([targetDiagnosticFromExtension(undefined, error.diagnostic)]);
-    }
-    throw error;
+  if (request.providerAcquisition.kind === "rejected") {
+    return rejectedTargetStage([targetDiagnosticFromExtension(undefined, request.providerAcquisition.diagnostic)]);
   }
+  const result = analyzeCsharpTargetProgramBeforeSeal(request);
+  if (result.kind === "rejected") {
+    const failures = request.providers.failures();
+    if (failures.length !== 0) return rejectedTargetStage([
+      ...result.diagnostics,
+      ...failures.map(diagnostic => targetDiagnosticFromExtension(undefined, diagnostic)),
+    ]);
+  }
+  return result;
 }
 
 function analyzeCsharpTargetProgramBeforeSeal(
@@ -301,6 +304,9 @@ function analyzeCsharpTargetProgramBeforeSeal(
     definitions: analysis.typeDefinitions, nativePlacement: analysis.refLikeDiagnostics,
     sourceCarrier: (type, file) => analysis.policy.types.resolveType(type, file) });
   if (promiseResults.diagnostics.length > 0) return rejectedTargetStage(promiseResults.diagnostics);
+  const providerFailures = providers.failures();
+  if (providerFailures.length !== 0) return rejectedTargetStage(providerFailures.map(diagnostic =>
+    targetDiagnosticFromExtension(undefined, diagnostic)));
   return finalizeCsharpNativeEmission(request, analysis, sourceStorage, safetyApplications,
     callableAdapters, sourceModuleConstructions, moduleInitialization, flowReads, promiseResults,
     nativeValueCarriers, prerequisiteBinaryExecutionDriver);
