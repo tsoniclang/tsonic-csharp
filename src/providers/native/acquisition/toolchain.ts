@@ -1,8 +1,8 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { resolveActiveDotnetSdk } from "../../model/dotnet-sdk.js";
-import { parseCsharpTargetFramework } from "../../../target-model/configuration/framework.js";
+import { resolveActiveDotnetSdk } from "./sdk.js";
+import { parseCsharpTargetFramework } from "../../../options/framework.js";
 
 export interface DotnetProviderToolchain {
   readonly projectDirectory: string;
