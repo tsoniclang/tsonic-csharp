@@ -567,12 +567,12 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const classEmission = analyzeCsharpClassEmission({ ast: source.ast, nodes: sourceStorage.nodes, projectTypes, factories: classFactories,
     captures: captureStorage, storage: analysis.storage, names, admitted: admittedControlNode });
   if (classEmission.issues.length !== 0) return rejectedTargetStage(classEmission.issues);
-  const sourceIdentities = analyzeCsharpSourceOutputIdentities({ ast: source.ast, sourceFiles, paths: input.paths,
+  const sourceOutputIdentities = analyzeCsharpSourceOutputIdentities({ ast: source.ast, sourceFiles, paths: input.paths,
     namespace: project.value.namespace, sourceFacts: source.sourceFacts,
     generatedTypeNames: [...projectTypes.declarationScopeNames, ...classFactories.factories.flatMap(factory => [
       factory.instanceScope, factory.factoryName, ...(factory.identity === undefined ? [] : [factory.identity.name]),
     ])] });
-  if (sourceIdentities.kind === "rejected") return rejectedTargetStage(sourceIdentities.diagnostics);
+  if (sourceOutputIdentities.kind === "rejected") return rejectedTargetStage(sourceOutputIdentities.diagnostics);
   const objectShapeEmission = analyzeCsharpObjectShapeEmission({ ast: source.ast, nodes: sourceStorage.nodes, nativeDemand, bindings: bindingPatterns,
     demand: objectShapeDemand, shapes: callableAdapters.objectShapes, names });
   if (objectShapeEmission.issues.length !== 0) return rejectedTargetStage(objectShapeEmission.issues);
@@ -611,14 +611,14 @@ function analyzeCsharpTargetProgramBeforeSeal(
     extraTypes: sourceUnions.sourceUnions.get().flatMap(union => [union.carrier, union.storage, ...union.arms]),
     values: analysis.valueReads, storage: analysis.storage, shapes: objectShapeDemand, admitted: admittedControlNode });
   if (typeEmission.issues.length !== 0) return rejectedTargetStage(typeEmission.issues);
-  const sourceFileEmission = analyzeCsharpSourceFileEmission({ source, identities: sourceIdentities.records,
+  const sourceFileEmission = analyzeCsharpSourceFileEmission({ source, identities: sourceOutputIdentities.records,
     factories: classFactories, evidence: analysis.sourceEvidence, operations: admittedOperations,
     moduleInitialization: moduleInitialization.index, expectedTypes: analysis.expectedTypes,
     declarations: callableDeclarations.records, names });
   if (sourceFileEmission.issues.length !== 0) return rejectedTargetStage(sourceFileEmission.issues);
   const binaryExecutionDriver = composeCsharpBinaryExecutionDriver(prerequisiteBinaryExecutionDriver,
     [...promiseResults.results.values()].some(result => result.discard !== undefined) ? csharpJsEventLoopBinaryExecutionDriver : undefined);
-  const startup = analyzeCsharpStartup({ source, identities: sourceIdentities.records, modules: moduleInitialization.index,
+  const startup = analyzeCsharpStartup({ source, identities: sourceOutputIdentities.records, modules: moduleInitialization.index,
     constructions: sourceModuleConstructions.index, outputType: configuration.outputType, driver: binaryExecutionDriver });
   if (startup.issues.length !== 0) return rejectedTargetStage(startup.issues);
   const safetyEmission = analyzeCsharpSafetyEmission({ source, configuration, safety: safetyApplications,
@@ -655,7 +655,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     sourceUnions,
     objectShapeEmission: objectShapeEmission.records,
     objectShapes: createCsharpObjectShapeRecords(callableAdapters.objectShapes),
-    sourceFiles: sourceIdentities.records,
+    sourceFiles: sourceOutputIdentities.records,
     bindingIdentities: analyzeCsharpBindingIdentities(source, sourceStorage.nodes),
     classEmission: classEmission.records,
     callableParameters: callableParameters.records,
