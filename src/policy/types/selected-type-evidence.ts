@@ -1,15 +1,10 @@
 import type { SourceTypeRelationship } from "@tsonic/target-api/source";
-import type {
-  TargetTypeRef,
-} from "../../../target-model/types/model.js";
-import {
-  targetTypeRefEquals,
-  targetTypeRefIsClosed,
-} from "../../../target-model/types/equality.js";
-import { isCsharpEmptyObjectTargetType, isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
-import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
-import { getCsharpJsArrayElementTargetType } from "../../../target-model/types/carriers/collections.js";
-import { csharpBigIntegerTargetType, csharpObjectTargetType, isCsharpIntegralTargetType } from "../../../target-model/types/carriers/scalar-types.js";
+import type { TargetTypeRef } from "../../target-model/types/model.js";
+import { targetTypeRefEquals, targetTypeRefIsClosed } from "../../target-model/types/equality.js";
+import { isCsharpEmptyObjectTargetType, isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
+import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
+import { getCsharpJsArrayElementTargetType } from "../../target-model/types/carriers/collections.js";
+import { csharpBigIntegerTargetType, csharpObjectTargetType, isCsharpIntegralTargetType } from "../../target-model/types/carriers/scalar-types.js";
 
 export function retainCsharpBroadValueCarrier(
   authored: TargetTypeRef | undefined,

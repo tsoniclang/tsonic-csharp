@@ -7,7 +7,7 @@ import { csharpConversionIsApplicable } from "../../../target-model/conversions/
 import { getCsharpRuntimeUnionArms, isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { retainCsharpBroadValueCarrier } from "../../../policy/types/resolution/selected-type-evidence.js";
+import { retainCsharpBroadValueCarrier } from "../../../policy/types/selected-type-evidence.js";
 
 export function selectCsharpSourceCallResult(
   host: CsharpTypePolicyHost,
