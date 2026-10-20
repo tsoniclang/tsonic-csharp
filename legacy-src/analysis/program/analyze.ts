@@ -9,6 +9,7 @@ import { analyzeCsharpProjectCallableAdapters } from "../project-types/callable-
 import { analyzeCsharpClassFactories } from "../project-types/class-factories.js";
 import { analyzeCsharpClassInitialization } from "../project-types/class-initialization.js";
 import { createCsharpProgramRecords } from "./records/create.js";
+import { analyzeCsharpSourceArtifacts } from "../source-modules/artifacts.js";
 import { analyzeCsharpStructuralObjectEmission } from "../objects/structural-emission.js";
 import { analyzeCsharpAuthoredObjectMethods } from "../objects/authored-methods.js";
 import { analyzeCsharpObjectMemberEmission } from "../objects/member-emission.js";
@@ -612,7 +613,10 @@ function analyzeCsharpTargetProgramBeforeSeal(
     evidence: analysis.sourceEvidence, operations: admittedOperations, storage: analysis.storage,
     shapes: objectShapeDemand, unions: sourceUnions, admitted: admittedControlNode });
   if (safetyEmission.issues.length !== 0) return rejectedTargetStage(safetyEmission.issues);
+  const sourceArtifacts = analyzeCsharpSourceArtifacts(source, sourceModuleConstructions.index);
+  if (sourceArtifacts.issues.length !== 0) return rejectedTargetStage(sourceArtifacts.issues);
   const records = createCsharpProgramRecords({
+    sourceArtifacts: sourceArtifacts.records,
     safetyEmission: safetyEmission.records,
     startup: startup.records,
     sourceFileEmission: sourceFileEmission.records,

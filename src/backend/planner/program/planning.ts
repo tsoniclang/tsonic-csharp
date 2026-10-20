@@ -10,7 +10,7 @@ import type { CsharpPlanningContext } from "../context.js";
 import type { CsharpOutputPlan } from "../../artifact-model/output.js";
 import { planCsharpStartupSourceFile } from "./startup.js";
 import { planCsharpSourceUnionFile } from "../objects/source-unions.js";
-import { reconstructCsharpSourceFiles } from "../artifacts/source-file-reconstruction.js";
+import { planCsharpSourceFiles } from "../artifacts/source-files.js";
 import { planCsharpProject } from "../project/project-artifacts.js";
 import { preserveCsharpAuthoredNames } from "../../target-ast/normalization/authored-names.js";
 import {
@@ -26,7 +26,7 @@ export type CsharpPlanningResult = TargetStageResult<CsharpOutputPlan>;
 
 export function planCsharpOutput(input: CsharpPlanningContext): CsharpPlanningResult {
   const diagnostics: TargetDiagnostic[] = [];
-  const reconstructed = reconstructCsharpSourceFiles(
+  const reconstructed = planCsharpSourceFiles(
     input,
     diagnostics,
   );
