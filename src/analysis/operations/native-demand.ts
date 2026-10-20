@@ -1,3 +1,4 @@
+import { sealCsharpNativeUseClassifications } from "../program/records/native-uses.js";
 import type { Node } from "@tsonic/tsts";
 import { targetUseSiteIdentity, type TargetUseSiteRef } from "@tsonic/target-api/analysis";
 import { failTargetAnalysisInvariant, targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
@@ -5,8 +6,7 @@ import { sourceExpressionResultDisposition, sourceTransparentExpressionOperand }
 import { selectCsharpNativeConstructSteps } from "../../policy/operations/control-flow/native-constructs.js";
 import { selectCsharpNativeOperandUses, type CsharpNativeOperandSelection, type CsharpNativeOperandStep } from "../../policy/operations/control-flow/native-operands.js";
 import { selectCsharpNativeCompletion, type CsharpNativeCompletionFlow } from "../../policy/operations/control-flow/native-completion.js";
-import { csharpNativeUseSite, type CsharpExpectedNativeUse, type CsharpNativeChildUse, type CsharpNativeCompletion,
-  type CsharpNativeEvaluation, type CsharpNativeOrderStep, type CsharpNativeUse, type CsharpNativeDiscardedPresence } from "../../target-model/records/native-demand.js";
+import { csharpNativeUseSite, type CsharpExpectedNativeUse, type CsharpNativeChildUse, type CsharpNativeCompletion, type CsharpNativeEvaluation, type CsharpNativeOrderStep, type CsharpNativeUse, type CsharpNativeDiscardedPresence } from "../../target-model/records/native-demand.js";
 import { csharpConstructorBaseCall } from "../callables/constructor-entry.js";
 import { isCsharpUnusedTupleDefault } from "../control-flow/binding-patterns.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
@@ -105,11 +105,8 @@ export function analyzeCsharpNativeDemand(
     owner.set(targetUseSiteIdentity(entry.site), entry); exactPending.set(entry.site.subject, owner);
   }
   for (const file of input.sourceFiles) visitConstruct(file);
-  return Object.freeze({ entries: Object.freeze(entries), unadmitted: Object.freeze(unadmitted),
-    requiredBindingRoots: Object.freeze([...requiredBindingRoots]),
-    requiredNativeValueDeclarations: Object.freeze([...requiredNativeValueDeclarations]),
-    nativeUse: Object.freeze({ get: (site: TargetUseSiteRef) => published.get(site.subject)?.get(targetUseSiteIdentity(site)),
-      order: (construct: Node) => orders.get(construct), expression: (node: Node) => emissions.get(node) }) });
+  return sealCsharpNativeUseClassifications({ entries, unadmitted, requiredBindingRoots: [...requiredBindingRoots],
+    requiredNativeValueDeclarations: [...requiredNativeValueDeclarations], published, orders, emissions });
 
   function publish(site: TargetUseSiteRef, use: CsharpNativeUse, presence?: CsharpNativeDiscardedPresence): VisitedUse {
     let owner = published.get(site.subject);
