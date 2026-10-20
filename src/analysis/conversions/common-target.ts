@@ -1,12 +1,9 @@
-import { conversionIsImplicitlyApplicable, selectCsharpConversion } from "./core.js";
+import { selectCsharpConversion } from "../../policy/conversions/core.js";
 import { csharpConversionIsApplicable } from "../../target-model/conversions/selection.js";
-import {
-  targetTypeRefEquals,
-  targetTypeRefKey,
-} from "../../target-model/types/index.js";
-import type { CsharpCommonImplicitTargetSelection, CsharpConversionTargetPreference } from "../../target-model/conversions/selection.js";
-import type { CsharpPolicyContext } from "../model/context.js";
-import type { TargetTypeRef } from "../types/index.js";
+import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/index.js";
+import type { CsharpCommonImplicitTargetSelection } from "../../target-model/conversions/selection.js";
+import type { CsharpPolicyContext } from "../../policy/model/context.js";
+import type { TargetTypeRef } from "../../policy/types/index.js";
 
 export function selectCsharpCommonImplicitTarget(
   input: Pick<
@@ -57,27 +54,4 @@ export function selectCsharpCommonImplicitTarget(
       ? "No exact candidate accepts every inferred C# return representation through implicit target conversions."
       : "More than one equally specific candidate accepts every inferred C# return representation.",
   };
-}
-
-export function compareCsharpImplicitConversionTargets(
-  input: Pick<
-    CsharpPolicyContext,
-    "projectTypes" | "providers" | "target"
-  >,
-  left: TargetTypeRef,
-  right: TargetTypeRef,
-): CsharpConversionTargetPreference {
-  if (targetTypeRefEquals(left, right)) {
-    return "equivalent";
-  }
-  const leftToRight = conversionIsImplicitlyApplicable(
-    selectCsharpConversion(input, left, right, "implicit"),
-  );
-  const rightToLeft = conversionIsImplicitlyApplicable(
-    selectCsharpConversion(input, right, left, "implicit"),
-  );
-  if (leftToRight === rightToLeft) {
-    return leftToRight ? "equivalent" : "incomparable";
-  }
-  return leftToRight ? "left" : "right";
 }

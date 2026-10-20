@@ -1,7 +1,6 @@
 export type { CsharpCommonImplicitTargetSelection, CsharpConversionMode, CsharpConversionSelection, CsharpConversionTargetPreference } from "../../target-model/conversions/selection.js";
 export {
   compareCsharpImplicitConversionTargets,
-  selectCsharpCommonImplicitTarget,
 } from "./common-target.js";
 export {
   selectCsharpConversion,
