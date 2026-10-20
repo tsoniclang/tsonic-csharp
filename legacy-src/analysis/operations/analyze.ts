@@ -366,12 +366,9 @@ function visit(
     const memoryBinding = selectCsharpMemoryBinding(policy, node, sourceFile);
     if (memoryBinding?.kind === "rejected") issues?.push(Object.freeze({ node, code: "CSHARP_UNSUPPORTED_AST", message: memoryBinding.reason }));
     setClassification(builder, node, memoryBindingKey, memoryBinding);
-    setClassification(
-      builder,
-      node,
-      jsStringConversionKey,
-      selectCsharpJsStringConversion(policy, node, sourceFile),
-    );
+    const stringConversion = selectCsharpJsStringConversion(policy, node, sourceFile);
+    if (stringConversion.kind === "rejected") issues?.push(Object.freeze({ node, code: "CSHARP_JS_STRING_CONVERSION_REJECTED", message: stringConversion.reason }));
+    setClassification(builder, node, jsStringConversionKey, stringConversion);
   }
   if (ast.is.IsDeleteExpression(node)) {
     const selection = selectCsharpElementDeletion(policy, node, sourceFile);
@@ -380,12 +377,9 @@ function visit(
   }
   if (ast.is.IsBinaryExpression(node) ||
     ast.is.IsPrefixUnaryExpression(node) || ast.is.IsPostfixUnaryExpression(node)) {
-    setClassification(
-      builder,
-      node,
-      jsArrayMutationKey,
-      selectCsharpJsArrayMutation(policy, node, sourceFile),
-    );
+    const arrayMutation = selectCsharpJsArrayMutation(policy, node, sourceFile);
+    if (arrayMutation.kind === "rejected") issues?.push(Object.freeze({ node, code: "CSHARP_UNSUPPORTED_AST", message: arrayMutation.reason }));
+    setClassification(builder, node, jsArrayMutationKey, arrayMutation);
   }
   if (ast.is.IsVoidExpression(node)) {
     const operand = ast.as.AsVoidExpression(node)?.Expression;
