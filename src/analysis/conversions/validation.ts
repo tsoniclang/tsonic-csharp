@@ -11,7 +11,7 @@ import { csharpCarrierAdmitsSourceAbsence, getCsharpDelegateSignature, getCsharp
 import type { CsharpConversionShapeQueries } from "../../policy/conversions/shape-queries.js";
 import { csharpUnsignedIntegerCounterpart } from "../../target-model/conversions/integer-refinement.js";
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
-import { csharpNativeRepresentationMatches } from "../../target-model/conversions/native-representation.js";
+import { csharpNativeRepresentationMatches } from "../../policy/conversions/native-representation.js";
 import type { CsharpNativeCompletion } from "../../target-model/records/native-demand.js";
 import { isCsharpVoidTargetType } from "../../target-model/types/identity.js";
 

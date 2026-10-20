@@ -10,7 +10,7 @@ import type { CsharpConversionMode, CsharpConversionSelection } from "../../targ
 import type { CsharpPolicyContext } from "../model/context.js";
 import { csharpUnionLeaves, csharpUnionProjectionPath, selectCsharpUnionArmMapping } from "../../target-model/types/union-relations.js";
 import type { CsharpConversionShapeQueries } from "./shape-queries.js";
-import { csharpNativeRepresentationMatches } from "../../target-model/conversions/native-representation.js";
+import { csharpNativeRepresentationMatches } from "./native-representation.js";
 
 export function selectJsValueConversion(
   source: TargetTypeRef,

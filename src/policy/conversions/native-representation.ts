@@ -1,8 +1,8 @@
-import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../types/model.js";
-import { targetTypeRefEquals } from "../types/equality.js";
-import { csharpTsValueTargetType, isCsharpJsValueTargetType } from "../types/carriers/runtime-carriers.js";
-import { isCsharpNullableReferenceTargetType } from "../types/carriers/nullable.js";
-import { csharpRenderShapeForTargetNamedType } from "../types/render-shapes.js";
+import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
+import { targetTypeRefEquals } from "../../target-model/types/equality.js";
+import { csharpTsValueTargetType, isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
+import { isCsharpNullableReferenceTargetType } from "../../target-model/types/carriers/nullable.js";
+import { csharpRenderShapeForTargetNamedType } from "../../target-model/types/render-shapes.js";
 
 const nativeJsValueRender = csharpTsValueTargetType().csharpRender;
 
