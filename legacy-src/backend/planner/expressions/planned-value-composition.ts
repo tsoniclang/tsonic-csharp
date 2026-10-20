@@ -8,6 +8,7 @@ import { isCsharpNeverTargetType } from "../../../target-model/types/carriers/sc
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { qualifiedCsharpType } from "../types/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 import { planCsharpNeverValue } from "./never-values.js";
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/index.js";
@@ -38,13 +39,13 @@ export function planCsharpExpressionCompletion(
   }
   if (isCsharpNeverTargetType(carrier)) return csharpPlannedEffect(carrier, [...prelude, {
     kind: "ThrowStatement", expression: planCsharpNeverValue(expression, qualifiedCsharpType("System", "Exception")),
-  }]);
+  }], "never");
   if (isCsharpVoidTargetType(carrier)) {
     let statement = expression;
     while (statement.kind === "ParenthesizedExpression") statement = statement.expression;
     return csharpPlannedEffect(carrier, [...prelude, { kind: "ExpressionStatement", expression: statement }]);
   }
-  return csharpPlannedValue(carrier, expression, prelude);
+  return csharpPlannedValue(carrier, expression, prelude, _input.program.records.nativeConstant.get(node, carrier) === true);
 }
 
 export function captureCsharpPlannedValue(
@@ -120,7 +121,9 @@ export function planCsharpValueBranch(
     consequent.completion.kind !== "value" || alternative.completion.kind !== "value";
   const capture = !statements || isCsharpVoidTargetType(carrier) || isCsharpNeverTargetType(carrier)
     ? undefined : captureCsharpPlannedValue(node, input, diagnostics, carrier);
-  return planCsharpPlannedBranch(condition, consequent, alternative, carrier, capture);
+  const completion = input.program.records.typeEmission.get(carrier)?.completion ??
+    failCsharpPlannerInvariant("An admitted branch requires its native completion kind.", node);
+  return planCsharpPlannedBranch(condition, consequent, alternative, carrier, capture, completion);
 }
 
 export function planCsharpCoalescingValue(

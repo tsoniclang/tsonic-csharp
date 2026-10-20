@@ -1,8 +1,5 @@
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { isCsharpVoidTargetType } from "../../../target-model/types/identity.js";
-import { isCsharpNeverTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import type { CsharpArgument, CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../target-ast/syntax/index.js";
-import { csharpExpressionIsNativeNumericConstant } from "../../target-ast/syntax/expressions.js";
 
 export type CsharpPlannedCompletion =
   | { readonly kind: "value"; readonly carrier: TargetTypeRef; readonly expression: CsharpExpression }
@@ -12,6 +9,7 @@ export type CsharpPlannedCompletion =
 export interface CsharpPlannedValue {
   readonly prelude: readonly CsharpStatement[];
   readonly completion: CsharpPlannedCompletion;
+  readonly constant?: true;
 }
 
 export interface CsharpPlannedEffectOperand {
@@ -42,19 +40,19 @@ export function csharpPlannedValue(
   carrier: TargetTypeRef,
   expression: CsharpExpression,
   prelude: readonly CsharpStatement[] = [],
+  constant = false,
 ): CsharpPlannedValue {
-  if (isCsharpVoidTargetType(carrier) || isCsharpNeverTargetType(carrier))
-    throw new Error("A native void or never completion cannot be planned as a value.");
   return Object.freeze({ prelude: Object.freeze([...prelude]),
+    ...(constant ? { constant: true as const } : {}),
     completion: Object.freeze({ kind: "value", carrier, expression }) });
 }
 
 export function csharpPlannedEffect(
   carrier: TargetTypeRef,
   prelude: readonly CsharpStatement[],
-): CsharpPlannedValue | undefined {
-  const kind = isCsharpNeverTargetType(carrier) ? "never" : isCsharpVoidTargetType(carrier) ? "void" : undefined;
-  return kind === undefined ? undefined : Object.freeze({ prelude: Object.freeze([...prelude]),
+  kind: "void" | "never" = "void",
+): CsharpPlannedValue {
+  return Object.freeze({ prelude: Object.freeze([...prelude]),
     completion: Object.freeze({ kind, carrier }) });
 }
 
@@ -62,12 +60,13 @@ export function mapCsharpPlannedValue(
   planned: CsharpPlannedValue | undefined,
   carrier: TargetTypeRef,
   project: (expression: CsharpExpression) => CsharpExpression | undefined,
+  constant = false,
 ): CsharpPlannedValue | undefined {
   if (planned === undefined) return undefined;
   if (planned.completion.kind === "never") return planned;
-  if (planned.completion.kind === "void") return isCsharpVoidTargetType(carrier) ? planned : undefined;
+  if (planned.completion.kind === "void") return undefined;
   const expression = project(planned.completion.expression);
-  return expression === undefined ? undefined : csharpPlannedValue(carrier, expression, planned.prelude);
+  return expression === undefined ? undefined : csharpPlannedValue(carrier, expression, planned.prelude, constant);
 }
 
 export function sequenceCsharpPlannedValues(
@@ -89,11 +88,11 @@ export function sequenceCsharpPlannedValues(
     const operand = "kind" in entry ? entry.effect : entry;
     if ("kind" in entry && operand.completion.kind === "value") return undefined;
     prelude.push(...operand.prelude);
-    if (operand.completion.kind === "never") return csharpPlannedEffect(operand.completion.carrier, prelude);
+    if (operand.completion.kind === "never") return csharpPlannedEffect(operand.completion.carrier, prelude, "never");
     if ("kind" in entry) continue;
     if (operand.completion.kind !== "value") return undefined;
     const expression = operand.completion.expression;
-    if (!preludesAfter[index] || csharpPlannedExpressionIsStable(expression)) {
+    if (!preludesAfter[index] || operand.constant === true) {
       expressions.push(expression);
       continue;
     }
@@ -109,7 +108,7 @@ export function sequenceCsharpPlannedValues(
   }
   const result = complete(expressions);
   return result === undefined ? undefined : Object.freeze({
-    prelude: Object.freeze([...prelude, ...result.prelude]), completion: result.completion,
+    ...result, prelude: Object.freeze([...prelude, ...result.prelude]),
   });
 }
 
@@ -119,6 +118,7 @@ export function planCsharpPlannedBranch(
   alternative: CsharpPlannedValue,
   carrier: TargetTypeRef,
   result: CsharpPlannedCapture | undefined,
+  completion: "value" | "void" | "never",
 ): CsharpPlannedValue | undefined {
   if (condition.completion.kind === "never") return condition;
   if (condition.completion.kind !== "value") return undefined;
@@ -127,7 +127,7 @@ export function planCsharpPlannedBranch(
     return csharpPlannedValue(carrier, { kind: "ConditionalExpression", condition: condition.completion.expression,
       whenTrue: consequent.completion.expression, whenFalse: alternative.completion.expression }, condition.prelude);
   }
-  const valued = !isCsharpVoidTargetType(carrier) && !isCsharpNeverTargetType(carrier);
+  const valued = completion === "value";
   if (valued && result === undefined) return undefined;
   const assign = (branch: CsharpPlannedValue): readonly CsharpStatement[] | undefined => {
     if (branch.completion.kind === "never") return branch.prelude;
@@ -145,24 +145,5 @@ export function planCsharpPlannedBranch(
     { kind: "IfStatement", condition: condition.completion.expression,
       thenBody: { kind: "Block", statements: thenStatements }, elseBody: { kind: "Block", statements: elseStatements } }];
   return valued ? csharpPlannedValue(carrier, { kind: "IdentifierName", name: result!.name }, prelude)
-    : csharpPlannedEffect(carrier, prelude);
-}
-
-export function csharpPlannedExpressionIsStable(expression: CsharpExpression): boolean {
-  let selected = expression;
-  let budget = 2048;
-  while (selected.kind === "ParenthesizedExpression") {
-    if (budget-- === 0) return false;
-    selected = selected.expression;
-  }
-  switch (selected.kind) {
-    case "LiteralExpression":
-    case "NumericLiteralExpression":
-    case "IntegerLiteralExpression":
-    case "CharacterLiteralExpression":
-    case "DefaultExpression":
-      return true;
-    default:
-      return csharpExpressionIsNativeNumericConstant(selected);
-  }
+    : csharpPlannedEffect(carrier, prelude, completion === "never" ? "never" : "void");
 }

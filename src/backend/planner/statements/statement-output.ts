@@ -46,7 +46,7 @@ export function expressionStatement(expression: CsharpExpression): CsharpStateme
 export function planCsharpDiscardedOperand(planned: CsharpPlannedValue | undefined): CsharpPlannedEffectOperand | undefined {
   if (planned === undefined) return undefined;
   const effect = csharpPlannedEffect(planned.completion.kind === "never" ? planned.completion.carrier : csharpVoidTargetType(),
-    planCsharpPlannedDiscard(planned));
+    planCsharpPlannedDiscard(planned), planned.completion.kind === "never" ? "never" : "void");
   return effect === undefined ? undefined : Object.freeze({ kind: "effect", effect });
 }
 

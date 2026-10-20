@@ -5,7 +5,7 @@ import type { CsharpPlanningContext } from "../../../context.js";
 import type { CsharpPlannedArgument, CsharpPlannedValue } from "../../planned-values.js";
 import { composeCsharpPlannedValues } from "../../planned-value-composition.js";
 import { captureCsharpPlannedValue } from "../../planned-value-composition.js";
-import { csharpPlannedValue, csharpPlannedExpressionIsStable } from "../../planned-values.js";
+import { csharpPlannedValue } from "../../planned-values.js";
 import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
 import { captureCsharpPlannedLocation } from "../../planned-locations.js";
 
@@ -42,7 +42,7 @@ export function composeCsharpPlannedCall(
           refKind: argument.passing === "in" ? "ref-readonly" : "ref" },
       ]) };
     }
-    if (!arguments_.reordered || argument.completion.kind !== "value" || csharpPlannedExpressionIsStable(argument.completion.expression)) return argument;
+    if (!arguments_.reordered || argument.completion.kind !== "value" || argument.constant === true) return argument;
     const capture = captureCsharpPlannedValue(node, input, diagnostics, argument.completion.carrier);
     return capture === undefined ? undefined : csharpPlannedValue(argument.completion.carrier,
       { kind: "IdentifierName", name: capture.name }, [...argument.prelude, {
