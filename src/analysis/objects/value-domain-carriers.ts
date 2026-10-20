@@ -2,7 +2,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { SourceStorageQueries, SourceStorageSubject } from "@tsonic/target-api/analysis";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpTypePolicy } from "../types/resolution/model.js";
-import type { CsharpObjectShapePolicy } from "../../policy/types/objects/object-shape-policy/model.js";
+import type { CsharpObjectShapePolicy } from "./shapes/model.js";
 import type { CsharpValueDomainCarrierAnalysis, CsharpValueDomainCarrierIssue } from "../../target-model/records/value-domains.js";
 import { createCsharpValueDomainCarrierRecords } from "../program/records/value-domains.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";

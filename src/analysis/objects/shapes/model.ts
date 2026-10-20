@@ -1,18 +1,8 @@
-import type { CsharpProjectConstructibleTypeProjection } from "../../../../target-model/records/object-shapes.js";
+import type { CsharpProjectConstructibleTypeProjection } from "../../../target-model/records/object-shapes.js";
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
-import type {
-  CsharpObjectShapeFact,
-  CsharpObjectShapeMemberFact,
-  CsharpSourceMemberKey,
-  TargetTypeRef,
-} from "../../../../target-model/types/model.js";
-import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../project/project-types.js";
-import type {
-  CsharpPlanningRepresentationQueries,
-  CsharpRecursiveTypeResolver,
-  CsharpTypePolicyBaseHost,
-  CsharpTypeResolutionState,
-} from "../../resolution/model.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpSourceMemberKey, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../../target-model/records/project-types.js";
+import type { CsharpPlanningRepresentationQueries, CsharpRecursiveTypeResolver, CsharpTypePolicyBaseHost, CsharpTypeResolutionState } from "../../types/resolution/model.js";
 
 export type CsharpStructuralUnionResolution =
   | { readonly kind: "not-applicable" }
@@ -20,7 +10,7 @@ export type CsharpStructuralUnionResolution =
   | { readonly kind: "resolved"; readonly type: TargetTypeRef };
 
 export interface CsharpObjectShapePolicyHost extends CsharpTypePolicyBaseHost {
-  readonly typeParameterConstraints: import("../../../../target-model/types/generic-references.js").CsharpTypeParameterConstraintResolver;
+  readonly typeParameterConstraints: import("../../../target-model/types/generic-references.js").CsharpTypeParameterConstraintResolver;
   readonly representations: CsharpPlanningRepresentationQueries;
   readonly projectTypeCatalog: CsharpProjectTypeCatalog;
   projectTypes(): CsharpProjectTypePolicy;
@@ -77,4 +67,4 @@ export interface CsharpRecursiveObjectShapePolicy extends CsharpObjectShapePolic
   ): CsharpObjectShapeFact | undefined;
 }
 
-import type { CsharpObjectLiteralTargetShapeResolution } from "../../../../target-model/records/object-shapes.js";
+import type { CsharpObjectLiteralTargetShapeResolution } from "../../../target-model/records/object-shapes.js";

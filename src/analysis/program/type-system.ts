@@ -13,7 +13,7 @@ import { emptyCsharpTypeDefinitions } from "../../target-model/types/source-unio
 import { selectCsharpArrayTypeGuard } from "../../policy/operations/source-profiles/js/type-tests.js";
 import type {
   CsharpRecursiveObjectShapePolicy,
-} from "../../policy/types/objects/object-shape-policy/model.js";
+} from "../objects/shapes/model.js";
 import {
   createCsharpObjectShapePolicy,
 } from "../../policy/types/objects/object-shape-policy.js";
