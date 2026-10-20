@@ -1,16 +1,7 @@
-import type {
-  SourcePrimitiveKind,
-} from "@tsonic/tsts";
-import type {
-  CsharpTargetNamedTypeRef,
-  TargetTypeRef,
-} from "../model.js";
-import {
-  csharpQualifiedTypeRenderShape,
-} from "../render-shapes.js";
-import {
-  csharpTargetNamedType,
-} from "../factories.js";
+import type { SourcePrimitiveKind } from "@tsonic/tsts";
+import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../model.js";
+import { csharpQualifiedTypeRenderShape } from "../render-shapes.js";
+import { csharpTargetNamedType } from "../factories.js";
 import type { CsharpSourceErrorName } from "../../identities/source-errors.js";
 
 export interface CsharpSourcePrimitiveMetadata {
