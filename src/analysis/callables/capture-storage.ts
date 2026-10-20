@@ -9,7 +9,7 @@ import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef 
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 import type { CsharpStorageIssue } from "../../target-model/records/storage.js";
 import type { CsharpCaptureStorageQueries } from "../storage/index.js";
-import { createStructuralObjectShapeTarget } from "../../policy/types/objects/object-shape-policy/construction.js";
+import { createStructuralObjectShapeTarget } from "../objects/shapes/construction.js";
 import { csharpRuntimeLocationTargetType, csharpRuntimeNativeArrayTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
