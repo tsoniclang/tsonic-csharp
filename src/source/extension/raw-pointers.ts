@@ -1,12 +1,7 @@
 import { rawPointerOperationFactKey } from "@tsonic/tsts";
-import type { ExtensionFactSubject, Node, ReadonlySourceFactResolver, Type } from "@tsonic/tsts";
+import type { ExtensionFactSubject, ReadonlySourceFactResolver } from "@tsonic/tsts";
 
-export interface CsharpSourceRawPointerIdentity {
-  readonly call: Node;
-  readonly operation: "equal-raw-pointer" | "hash-raw-pointer";
-  readonly arguments: readonly { readonly expression: Node; readonly type: Type }[];
-}
-
+import type { CsharpSourceRawPointerIdentity } from "../../target-model/records/raw-pointers.js";
 export function readCsharpSourceRawPointerIdentity(
   facts: ReadonlySourceFactResolver | undefined,
   subject: ExtensionFactSubject | undefined,
