@@ -1,26 +1,9 @@
-import type {
-  CsharpTargetMember,
-  CsharpTargetParameter,
-  TargetTypeRef,
-} from "../../types/index.js";
-import {
-  csharpSourcePrimitiveTargetType,
-  csharpStringTargetType,
-  isCsharpArrayIndexTargetType,
-  getCsharpReadOnlyIndexableCollectionElementTargetType,
-  getCsharpIndexableLengthMemberName,
-  targetTypeRefEquals,
-} from "../../../target-model/types/index.js";
-import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext, CsharpSourceProfileCallPolicyResult, CsharpSourceProfileElementPolicy, CsharpSourceProfileElementPolicyContext, CsharpSourceProfileElementPolicyResult, CsharpSourceProfileIdentitySelector, CsharpSourceProfilePropertyPolicy, CsharpSourceProfilePropertyPolicyContext } from "./source-profile-policy.js";
+import type { CsharpTargetMember, CsharpTargetParameter, TargetTypeRef } from "../../types/index.js";
+import { csharpSourcePrimitiveTargetType, csharpStringTargetType, isCsharpArrayIndexTargetType, getCsharpReadOnlyIndexableCollectionElementTargetType, getCsharpIndexableLengthMemberName, targetTypeRefEquals } from "../../../target-model/types/index.js";
+import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext, CsharpSourceProfileCallPolicyResult, CsharpSourceProfileElementPolicy, CsharpSourceProfileElementPolicyContext, CsharpSourceProfileElementPolicyResult, CsharpSourceProfileIdentitySelector, CsharpSourceProfilePropertyPolicy, CsharpSourceProfilePropertyPolicyContext } from "../../model/source-profiles.js";
 import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/source-profile-invocations.js";
-import {
-  csharpSourceProfileCall,
-  csharpSourceProfileDiagnostic,
-  resolveCsharpSelectedSourceValue,
-} from "./source-profile-policy.js";
-import {
-  csharpTargetId,
-} from "../../../target-model/identities/source.js";
+import { csharpSourceProfileCall, csharpSourceProfileDiagnostic, resolveCsharpSelectedSourceValue } from "./source-profile-policy.js";
+import { csharpTargetId } from "../../../target-model/identities/source.js";
 
 interface NativeStringMethodPolicy {
   readonly source: CsharpSourceProfileIdentitySelector;
@@ -58,14 +41,8 @@ export const csharpNativeSourceProfileCallPolicies:
       select(
         context: CsharpSourceProfileCallPolicyContext,
       ): CsharpSourceProfileCallPolicyResult {
-        const receiverType = context.host.types.resolveType(
-          context.source.sourceReceiver?.type,
-          context.sourceFile,
-        );
-        const resultType = context.host.types.resolveType(
-          context.source.sourceResultType,
-          context.sourceFile,
-        );
+        const receiverType = context.inputs.types.get(context.source.sourceReceiver?.type);
+        const resultType = context.inputs.types.get(context.source.sourceResultType);
         if (
           receiverType === undefined ||
           !targetTypeRefEquals(receiverType, stringType) ||
@@ -107,10 +84,7 @@ export const csharpNativeSourceProfilePropertyPolicies:
         context: CsharpSourceProfilePropertyPolicyContext,
       ): CsharpSourceProfilePropertyPolicyResult {
         const declaringType = context.receiverType;
-        const resultType = context.host.types.resolveType(
-          context.source.sourceReadType ?? context.source.sourceWriteType,
-          context.sourceFile,
-        );
+        const resultType = context.inputs.types.get(context.source.sourceReadType ?? context.source.sourceWriteType);
         const lengthName = declaringName === "String" ? "Length" : getCsharpIndexableLengthMemberName(declaringType);
         const receiverMatches = declaringType !== undefined &&
           (declaringName === "String"
@@ -156,13 +130,7 @@ export const csharpNativeSourceProfileElementPolicies:
         const elementType = getCsharpReadOnlyIndexableCollectionElementTargetType(declaringType);
         const selectedSourceResult =
           context.source.sourceReadType ?? context.source.sourceWriteType;
-        const indexType = context.host.types.resolveNode(
-          context.source.argument.expression,
-          context.sourceFile,
-        ) ?? context.host.types.resolveType(
-          context.source.argument.type,
-          context.sourceFile,
-        );
+        const indexType = context.inputs.nodes.get(context.source.argument.expression) ?? context.inputs.types.get(context.source.argument.type);
         if (
           declaringType === undefined || elementType === undefined ||
           selectedSourceResult === undefined
