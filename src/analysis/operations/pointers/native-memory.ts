@@ -1,23 +1,21 @@
 import { csharpProviderBindingFromResolution } from "../../../providers/model/relation-resolver.js";
 import type { CsharpRawLocationSelection } from "../../../target-model/records/native-memory.js";
-import type { AstReader, ExtensionFactSubject, Node, ReadonlySourceFactResolver, SourceFile } from "@tsonic/tsts";
-import { countTsonicMemoryLayoutValues, selectTsonicRawLocationOperation } from "@tsonic/source-core/facts";
-import type { TsonicMemoryLayoutFact, TsonicRawLocationSelection } from "@tsonic/source-core/facts";
+import type { Node, SourceFile } from "@tsonic/tsts";
+import { countTsonicMemoryLayoutValues } from "@tsonic/source-core/facts";
+import type { TsonicMemoryLayoutFact } from "@tsonic/source-core/facts";
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
-import { csharpFixedArrayRepresentationRejection, readCsharpSourceStruct } from "../../types/resolution/source-markers.js";
-import { csharpTargetBindingSubstitutions, substituteCsharpTargetMember } from "../../types/callables/member-substitution.js";
+import { csharpFixedArrayRepresentationRejection } from "../../../policy/types/collections/fixed-arrays.js";
+import { readCsharpSourceStruct } from "../../../source/extension/markers.js";
+import { csharpTargetBindingSubstitutions, substituteCsharpTargetMember } from "../../../policy/types/callables/member-substitution.js";
 import { csharpRuntimeLocationPointee, csharpRuntimeLocationTargetType, csharpRuntimeRawPointerTargetType, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { getCsharpNullableElementTargetType, csharpNullableReferenceTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import type { CsharpPolicyContext } from "../../model/context.js";
+import type { CsharpPolicyContext } from "../../../policy/model/context.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpTargetBindingFact } from "../../../target-model/types/model.js";
 import type { CsharpNativeMemoryLayout } from "../../../target-model/operations/native-memory.js";
 
-export function readCsharpRawLocation(ast: AstReader, facts: ReadonlySourceFactResolver | undefined, subject: ExtensionFactSubject): TsonicRawLocationSelection | undefined {
-  return facts === undefined ? undefined : selectTsonicRawLocationOperation(ast, facts, subject);
-}
-
+import { readCsharpRawLocation } from "../../../source/extension/native-memory.js";
 export function selectCsharpNativeMemoryLayout(
   input: CsharpPolicyContext, layout: TsonicMemoryLayoutFact, sourceFile: SourceFile,
   selected = new Map<TsonicMemoryLayoutFact, CsharpNativeMemoryLayout | undefined>(),

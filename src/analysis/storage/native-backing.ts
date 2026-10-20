@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import { csharpNativeArrayMemoryLayoutRejection, selectCsharpNativeMemoryLayout, selectCsharpRawLocation } from "../../policy/operations/pointers/native-memory.js";
+import { csharpNativeArrayMemoryLayoutRejection, selectCsharpNativeMemoryLayout, selectCsharpRawLocation } from "../operations/pointers/native-memory.js";
 import type { CsharpNativeMemoryLayout } from "../../target-model/operations/native-memory.js";
 import { csharpNativeMemoryLayoutsEqual } from "../../target-model/operations/native-memory.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
