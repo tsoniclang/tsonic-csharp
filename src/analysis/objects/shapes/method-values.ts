@@ -1,12 +1,13 @@
 import type { AstReader, Node } from "@tsonic/tsts";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../../target-model/types/model.js";
-import { targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/equality.js";
+import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef } from "../../../target-model/types/model.js";
+import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
 import { createStructuralObjectShapeTarget } from "./construction.js";
-import { csharpStructuralObjectShapeIdentity } from "../../../../target-model/types/object-shape-identity.js";
-import { csharpObjectShapeMethodDeclaration, csharpObjectShapeMethodRequiresProtocol, csharpPresentObjectShapeMethod } from "../../../../target-model/types/method-values.js";
-import type { CsharpTypeParameterConstraintResolver } from "../../../../target-model/types/generic-references.js";
-import { selectCsharpCopiedMethodReceiver } from "../../../ownership/copied-methods.js";
+import { csharpStructuralObjectShapeIdentity } from "../../../target-model/types/object-shape-identity.js";
+import { csharpObjectShapeMethodDeclaration, csharpObjectShapeMethodRequiresProtocol, csharpPresentObjectShapeMethod } from "../../../target-model/types/method-values.js";
+import type { CsharpTypeParameterConstraintResolver } from "../../../target-model/types/generic-references.js";
+import { selectCsharpCopiedMethodReceiver } from "../../../policy/ownership/copied-methods.js";
 
+import { csharpCopiedObjectShapeMembers } from "../../../policy/types/objects/method-environments.js";
 export function resolveCsharpCopiedObjectShape(
   shape: CsharpObjectShapeFact,
   ast: AstReader,
@@ -58,20 +59,4 @@ export function retainCsharpMethodValueContracts(
     return { ...member, methodValueContract: contract };
   });
   return { ...shape, members, ...(implemented.size === 0 ? {} : { implements: [...implemented.values()] }) };
-}
-
-export function csharpMethodEnvironment(
-  shape: CsharpObjectShapeFact, member: CsharpObjectShapeMemberFact,
-): TargetTypeRef | undefined {
-  if (member.memberKind !== "method" || member.methodValueContract === undefined) return undefined;
-  return member.methodStorageType ?? ((shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true ||
-    (shape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "interface"
-    ? member.methodValueContract : shape.methodImplementation === undefined ? undefined : shape.targetType);
-}
-
-export function csharpCopiedObjectShapeMembers(shape: CsharpObjectShapeFact): readonly CsharpObjectShapeMemberFact[] {
-  return shape.members.map(member => {
-    const storage = csharpMethodEnvironment(shape, member);
-    return storage === undefined ? member : { ...member, methodStorageType: storage };
-  });
 }
