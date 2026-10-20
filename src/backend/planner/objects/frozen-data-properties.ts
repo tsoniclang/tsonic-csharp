@@ -8,7 +8,7 @@ import { failCsharpPlannerInvariant } from "../../invariants.js";
 
 export function guardCsharpFrozenDataProperties(
   shape: CsharpObjectShapeFact, members: readonly CsharpTypeMember[],
-  input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
+  input: CsharpPlanningContext, _diagnostics: TargetDiagnostic[],
 ): readonly CsharpTypeMember[] {
   const selections = input.program.records.frozenDataProperties.get(shape);
   if (selections === undefined) return members;
