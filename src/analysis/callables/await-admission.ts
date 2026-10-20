@@ -20,7 +20,7 @@ export function analyzeCsharpAwaitAdmission(input: { readonly ast: AstReader; re
     const message = expression === undefined ? "Await expression must have an expression."
       : completion === undefined || carrier === undefined
         ? "Await expression emission requires a finalized Promise/Task target carrier fact for the awaited expression. Runtime carrier fact is missing for the awaited expression."
-      : !targetTypeRefEquals(result, completion.result)
+      : result === undefined || !targetTypeRefEquals(result, completion.result)
         ? "Await expression emission requires the finalized await-result carrier to match the awaited Promise/Task result carrier. Runtime carrier fact is missing for the await expression result."
         : undefined;
     if (message !== undefined) issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message });
