@@ -37,6 +37,7 @@ import { analyzeCsharpTypeParameterEmission } from "../declarations/type-paramet
 import { analyzeCsharpTypeEmission } from "../types/emission.js";
 import { analyzeCsharpNativeMemoryEmission } from "../operations/native-memory-emission.js";
 import { admitCsharpUnionProjections } from "../operations/union-projections.js";
+import { analyzeCsharpUnionEquality } from "../operations/union-equality.js";
 import { analyzeCsharpIdentifierEmission } from "../names/source-identifiers.js";
 import { analyzeCsharpSourceFileEmission } from "../source-modules/emission.js";
 import { analyzeCsharpStartup } from "../source-modules/startup.js";
@@ -479,9 +480,11 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const literalEmission = analyzeCsharpLiteralAdmission({ ast: source.ast, demand: nativeDemand, literals: literalValues,
     exact: exactLiterals, values: analysis.valueReads });
   const templateStrings = analyzeCsharpTemplateStrings(source.ast, nativeDemand);
+  const unionEquality = analyzeCsharpUnionEquality(sourceStorage.nodes, admittedOperations);
   const nonCallableIssues = [
     ...admitCsharpUnionProjections(sourceStorage.nodes, admittedOperations, typeDefinitions),
     ...literalEmission.issues,
+    ...unionEquality.issues,
     ...analyzeCsharpVoidAdmission({ ast: source.ast, demand: nativeDemand, values: analysis.valueReads, operations: admittedOperations }),
     ...analyzeCsharpAwaitAdmission({ ast: source.ast, demand: nativeDemand, values: analysis.valueReads, operations: admittedOperations }),
     ...admittedIterations.issues,
@@ -691,6 +694,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     objectShapeDemand,
     nativeValueCarriers,
     literalValues, exactLiterals, nativeParticipation, nativeDemand, bindingPatterns,
+    unionEquality: unionEquality.records,
     flowReads, valueReads: analysis.valueReads,
     callableAdapters, callableCreations, typeProjections: analysis.typeProjections, classFactories, classInitialization, captureStorage,
     numericRepresentations, attributeApplications, safetyApplications, operations: admittedOperations,
