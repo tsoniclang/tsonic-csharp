@@ -1,3 +1,4 @@
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { TargetBindingFact, TargetTypeRef } from "../../target-model/types/model.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
@@ -20,7 +21,7 @@ export function createCsharpTypeDefinitionRegistry(
     if (carrier.kind !== "target-named") return undefined;
     if (nativeKinds.has(carrier.id)) return nativeKinds.get(carrier.id);
     if (sealed) return undefined;
-    if (nativeKinds.size >= 1_048_576) throw new Error("C# native type definitions exceed their resource bound.");
+    if (nativeKinds.size >= 1_048_576) failTargetAnalysisInvariant("tsonic-csharp", "C# native type definitions exceed their resource bound.");
     const binding = nativeBinding(carrier.id);
     const kind = binding?.target === "csharp" && binding.id === carrier.id ? binding.kind : undefined;
     nativeKinds.set(carrier.id, kind);
@@ -37,7 +38,7 @@ export function createCsharpTypeDefinitionRegistry(
     sourceUnionArms,
     sourceUnions,
     registerSourceUnion(definition: CsharpSourceUnionDefinition) {
-      if (sealed) throw new Error("C# type definitions are sealed.");
+      if (sealed) failTargetAnalysisInvariant("tsonic-csharp", "C# type definitions are sealed.");
       try {
         definition = snapshotCsharpSourceUnionDefinition(definition);
       } catch (error) {
@@ -66,7 +67,7 @@ export function createCsharpTypeDefinitionRegistry(
         if (visited.has(key)) return;
         visited.add(key);
         if (csharpSourceUnionIdentity(carrier) !== undefined && sourceUnionArms(carrier) === undefined) {
-          throw new Error("A C# source union references an undefined or incompatible arm contract.");
+          failTargetAnalysisInvariant("tsonic-csharp", "A C# source union references an undefined or incompatible arm contract.");
         }
         for (const child of csharpTargetTypeComponents(carrier)) visit(child);
       };
