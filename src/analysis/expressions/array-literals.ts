@@ -13,11 +13,8 @@ import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { getCsharpNullableElementTargetType, csharpNullableTargetType } from "../../target-model/types/index.js";
 import { csharpCollectionUsesJsArraySemantics, getCsharpArrayLiteralElementTargetType,
   getCsharpArrayLiteralBuilder, getCsharpArrayLiteralConstructionTargetType,
-  getCsharpCollectionElementTargetType, getCsharpIndexableLengthMemberName } from "../../target-model/types/carriers/collections.js";
-import { csharpCollectionElementRead } from "../../target-model/types/carriers/collection-reads.js";
-import { csharpConversionIsApplicable } from "../../target-model/conversions/selection.js";
-import { csharpTupleElementMemberName, getCsharpReadOnlyIndexableCollectionElementTargetType } from "../../target-model/types/index.js";
-import { isCsharpValueTypeTargetType } from "../../target-model/types/identity.js";
+  getCsharpCollectionElementTargetType } from "../../target-model/types/carriers/collections.js";
+import { selectCsharpSequenceEmission } from "../../policy/conversions/sequence-emission.js";
 import { selectCsharpTypeEmission } from "../../policy/types/type-emission.js";
 import { createCsharpArrayLiteralProducer } from "../program/records/array-literals.js";
 
@@ -35,23 +32,9 @@ export function analyzeCsharpArrayLiterals(input: { readonly source: TargetSourc
     const element = getCsharpCollectionElementTargetType(carrier);
     const carriers = carrier.kind === "tuple" ? carrier.elements : element === undefined ? undefined : [element];
     const elements = carriers?.map(carrier => ({ carrier, conversion: input.conversions.conversion.get(carrier, target, "implicit") }));
-    if (elements === undefined || !selectCsharpTypeEmission({ carrier }) || elements.some(element =>
-      !selectCsharpTypeEmission({ carrier: element.carrier }) || element.conversion === undefined || !csharpConversionIsApplicable(element.conversion, "implicit"))) {
-      refuse(expression, "Array spread requires an exact native sequence and sealed destination element conversions."); return undefined;
-    }
-    const read = csharpCollectionElementRead(carrier);
-    if (read?.kind === "invalid") { refuse(expression, read.reason); return undefined; }
-    const lengthMember = getCsharpIndexableLengthMemberName(carrier);
-    const identity = elements.every(element => element.conversion?.kind === "identity");
-    const value: CsharpArraySpreadEmission = Object.freeze({ carrier,
-      elements: Object.freeze(elements.map(element => Object.freeze({ carrier: element.carrier, conversion: element.conversion! }))),
-      lengthMember, nativeSpread: carrier.kind !== "tuple" && read?.kind !== "method" && identity,
-      sequence: Object.freeze({ iteration: carrier.kind === "tuple" ? "tuple" :
-        getCsharpReadOnlyIndexableCollectionElementTargetType(carrier) !== undefined && lengthMember !== undefined ? "indexed" : "enumerable",
-        tupleMembers: Object.freeze(carrier.kind === "tuple" ? carrier.elements.map((_, index) => csharpTupleElementMemberName(index)) : []),
-        bulkCopy: carrier.kind === "array" && elements[0]?.conversion?.kind === "identity",
-        appendSequence: carrier.kind !== "tuple" && !isCsharpValueTypeTargetType(carrier) && read?.kind !== "method" && identity,
-        resultCarrier: Object.freeze({ kind: "array" as const, element: target }) }) });
+    const selected = selectCsharpSequenceEmission(carrier, target, elements);
+    if (selected.kind === "rejected") { refuse(expression, selected.reason); return undefined; }
+    const value = selected.value;
     producer.spread(expression, target, value);
     return value;
   };

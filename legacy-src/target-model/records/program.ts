@@ -82,6 +82,7 @@ export interface CsharpProgramRecords extends CsharpStatementExitRecords, Csharp
   readonly thisEmission: import("./expression-this.js").CsharpThisEmissionRecords["thisEmission"];
   readonly sourceMemberName: import("./source-member-names.js").CsharpSourceMemberNameRecords["sourceMemberName"];
   readonly receiverCallProperty: import("./receiver-call-property.js").CsharpReceiverCallPropertyRecords["receiverCallProperty"];
+  readonly restSequence: import("./rest-sequences.js").CsharpRestSequenceRecords["restSequence"];
   readonly nativeLayoutEmission: import("./native-layout-emission.js").CsharpNativeLayoutRecords["nativeLayoutEmission"];
   readonly projectSourceReference: import("./project-emission.js").CsharpProjectEmissionRecords["projectSourceReference"];
   readonly projectSourceType: import("./project-emission.js").CsharpProjectEmissionRecords["projectSourceType"];

@@ -76,6 +76,7 @@ export interface CsharpProgramRecordInput {
   readonly thisEmission: import("../../../target-model/records/expression-this.js").CsharpThisEmissionRecords;
   readonly sourceMemberNames: import("../../../target-model/records/source-member-names.js").CsharpSourceMemberNameRecords;
   readonly receiverCallProperties: import("../../../target-model/records/receiver-call-property.js").CsharpReceiverCallPropertyRecords;
+  readonly restSequences: import("../../../target-model/records/rest-sequences.js").CsharpRestSequenceRecords;
   readonly captureMethods: CsharpCaptureMethodRecords;
   readonly frozenDataProperties: CsharpFrozenDataPropertyRecords;
   readonly indexedRecords: CsharpIndexedRecordRecords;
@@ -159,6 +160,7 @@ export function createCsharpProgramRecords(
     ...input.thisEmission,
     ...input.sourceMemberNames,
     ...input.receiverCallProperties,
+    ...input.restSequences,
     ...input.captureMethods,
     ...input.frozenDataProperties,
     ...input.indexedRecords,

@@ -47,6 +47,7 @@ import { analyzeCsharpUnaryEmission } from "../expressions/expression-unary.js";
 import { analyzeCsharpThisEmission } from "../expressions/expression-this.js";
 import { analyzeCsharpSourceMemberNames } from "../objects/source-member-names.js";
 import { analyzeCsharpReceiverCallProperties } from "../operations/receiver-call-property.js";
+import { analyzeCsharpRestSequences } from "../callables/rest-sequences.js";
 import { analyzeCsharpIdentifierEmission } from "../names/source-identifiers.js";
 import { analyzeCsharpSourceFileEmission } from "../source-modules/emission.js";
 import { analyzeCsharpStartup } from "../source-modules/startup.js";
@@ -500,6 +501,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const typeofEmission = analyzeCsharpTypeofEmission({ ast: source.ast, nodes: sourceStorage.nodes, admitted: admittedControlNode,
     operations: admittedOperations, values: analysis.valueReads, factories: classFactories, definitions: typeDefinitions });
   const receiverCallProperties = analyzeCsharpReceiverCallProperties(sourceStorage.nodes, admittedOperations, admittedControlNode);
+  const restSequences = analyzeCsharpRestSequences(sourceStorage.nodes, admittedOperations, analysis.valueReads, admittedControlNode);
   const nonCallableIssues = [
     ...admitCsharpUnionProjections(sourceStorage.nodes, admittedOperations, typeDefinitions),
     ...admitCsharpArrayMutationArguments(sourceStorage.nodes, admittedOperations, analysis.sourceEvidence),
@@ -510,6 +512,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     ...unaryEmission.issues,
     ...typeofEmission.issues,
     ...receiverCallProperties.issues,
+    ...restSequences.issues,
     ...analyzeCsharpConditions({ ast: source.ast, demand: nativeDemand, operations: admittedOperations, values: analysis.valueReads }),
     ...analyzeCsharpVoidAdmission({ ast: source.ast, demand: nativeDemand, values: analysis.valueReads, operations: admittedOperations }),
     ...analyzeCsharpAwaitAdmission({ ast: source.ast, demand: nativeDemand, values: analysis.valueReads, operations: admittedOperations }),
@@ -730,6 +733,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     thisEmission: thisEmission.records,
     sourceMemberNames: sourceMemberNames.records,
     receiverCallProperties: receiverCallProperties.records,
+    restSequences: restSequences.records,
     typeofEmission: typeofEmission.records,
     flowReads, valueReads: analysis.valueReads,
     callableAdapters, callableCreations, typeProjections: analysis.typeProjections, classFactories, classInitialization, captureStorage,
