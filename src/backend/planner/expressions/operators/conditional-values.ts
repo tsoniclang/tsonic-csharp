@@ -4,20 +4,19 @@ import type { CsharpResolvedBinaryOperation } from "../../../../target-model/rec
 import type { CsharpPlanningContext } from "../../context.js";
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
 import type { ExpressionPlanner } from "../expression-planner-types.js";
-import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { csharpPlannedValue, mapCsharpPlannedValue, type CsharpPlannedValue } from "../planned-values.js";
 import { planCsharpValueBranch } from "../planned-value-composition.js";
 import { planCsharpPlannedDiscard } from "../../statements/statement-output.js";
 import { applyCsharpConversionSelection, readCsharpExpressionConversionClassification } from "../conversions.js";
-import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
+import { failCsharpPlannerInvariant } from "../../../invariants.js";
 import { csharpSourcePrimitiveTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
 
 export function planCsharpConditionalValue(node: Node, selection: CsharpResolvedBinaryOperation, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner, state?: DestructuringPlannerState
 ): CsharpPlannedValue | undefined {
   const operation = selection.targetOperation;
   if (operation.kind !== "conditional-value") return undefined;
-  const type = csharpTypeFromTargetTypeRef(selection.resultType, input.scope.typeParameterNames);
-  if (type === undefined) return undefined;
+  const emission = input.program.records.nativeBinaryEmission.get(node, selection)
+    ?? failCsharpPlannerInvariant("An admitted conditional value requires its exact native branch emission record.", node);
   const left = planExpression(selection.left, sourceFile, input, diagnostics, state);
   if (left === undefined || left.completion.kind === "never") return left;
   if (operation.branch === "left") {
@@ -30,12 +29,11 @@ export function planCsharpConditionalValue(node: Node, selection: CsharpResolved
   const right = planExpression(selection.right, sourceFile, input, diagnostics, state);
   if (right === undefined) return undefined;
   if (operation.branch === "right") return {
-    prelude: [...planCsharpPlannedDiscard(left), ...right.prelude], completion: right.completion,
+    ...right, prelude: [...planCsharpPlannedDiscard(left), ...right.prelude],
   };
   const boolean = csharpSourcePrimitiveTargetType("bool");
   if (left.completion.kind === "value" && right.completion.kind === "value" && right.prelude.length === 0 &&
-    targetTypeRefEquals(left.completion.carrier, boolean) && targetTypeRefEquals(right.completion.carrier, boolean) &&
-    targetTypeRefEquals(selection.resultType, boolean)) {
+    emission.nativeBoolean) {
     return csharpPlannedValue(boolean, { kind: "BinaryExpression", left: left.completion.expression,
       operatorToken: { kind: operation.operator === "&&" ? "AmpersandAmpersandToken" : "BarBarToken" },
       right: right.completion.expression }, left.prelude);
@@ -46,7 +44,7 @@ export function planCsharpConditionalValue(node: Node, selection: CsharpResolved
     selection.left, sourceFile, input, diagnostics, selection.leftType, selection.resultType, conversion,
     { kind: "LiteralExpression", value: operation.operator === "||" });
   if (expression === undefined) return undefined;
-  const empty = csharpPlannedValue(selection.resultType, expression);
+  const empty = csharpPlannedValue(selection.resultType, expression, [], emission.nativeBoolean);
   return planCsharpValueBranch(node, sourceFile, input, diagnostics, left,
     operation.operator === "&&" ? right : empty, operation.operator === "&&" ? empty : right, selection.resultType);
 }
