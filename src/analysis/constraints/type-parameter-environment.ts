@@ -1,4 +1,5 @@
 import type { AstReader, Node } from "@tsonic/tsts";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
 import { csharpTypeProjection } from "../../target-model/types/projections.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
