@@ -13,6 +13,7 @@ import { analyzeCsharpSourceArtifacts } from "../source-modules/artifacts.js";
 import { analyzeCsharpArrayLiterals } from "../expressions/array-literals.js";
 import { analyzeCsharpPropertyAdmission } from "../objects/property-admission.js";
 import { analyzeCsharpOptionalCallChains } from "../callables/optional-call-chains.js";
+import { analyzeCsharpElementAdmission } from "../objects/element-admission.js";
 import { analyzeCsharpLiteralAdmission } from "../expressions/literals.js";
 import { analyzeCsharpAwaitAdmission } from "../callables/await-admission.js";
 import { analyzeCsharpVoidAdmission } from "../expressions/expression-void.js";
@@ -651,6 +652,9 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const projectEmission = analyzeCsharpProjectEmission({ source, nodes: sourceStorage.nodes, projectTypes,
     factories: classFactories, evidence: analysis.sourceEvidence, names, projections: analysis.typeProjections });
   if (projectEmission.issues.length !== 0) return rejectedTargetStage(projectEmission.issues);
+  const elementAdmission = analyzeCsharpElementAdmission({ ast: source.ast, nodes: sourceStorage.nodes, operations: admittedOperations,
+    demand: nativeDemand, admitted: admittedControlNode, projects: projectEmission.records, factories: classFactories, navigation: source.navigation });
+  if (elementAdmission.issues.length !== 0) return rejectedTargetStage(elementAdmission.issues);
   const typeParameterEmission = analyzeCsharpTypeParameterEmission({ ast: source.ast, nodes: sourceStorage.nodes,
     evidence: analysis.sourceEvidence, admitted: admittedControlNode });
   if (typeParameterEmission.issues.length !== 0) return rejectedTargetStage(typeParameterEmission.issues);
@@ -751,6 +755,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     callAdmission: callAdmission.records,
     propertyAdmission: propertyAdmission.records,
     optionalCallChains: optionalCallChains.records,
+    elementAdmission: elementAdmission.records,
     typeofEmission: typeofEmission.records,
     flowReads, valueReads: analysis.valueReads,
     callableAdapters, callableCreations, typeProjections: analysis.typeProjections, classFactories, classInitialization, captureStorage,
