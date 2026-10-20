@@ -135,3 +135,15 @@ export function dotnetProviderDeclarationModelInvalidDiagnostic(
     evidence,
   );
 }
+
+export function diagnostic(
+  code: string,
+  message: string,
+  evidence: Readonly<Record<string, unknown>>,
+): DotnetProviderDiagnostic {
+  return {
+    code,
+    message,
+    evidence: [evidence],
+  };
+}

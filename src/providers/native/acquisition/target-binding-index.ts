@@ -9,7 +9,7 @@ import type { DotnetProviderCacheRequest } from "./cache.js";
 import type { DotnetProviderDiagnostic } from "../projection/provider.js";
 import { dotnetTypeDeclarationIsComplete } from "./module-request-validation.js";
 import { canonicalProviderValue } from "../../../target-model/metadata/canonical-value.js";
-import { diagnostic } from "./diagnostics.js";
+import { diagnostic } from "../model/diagnostics.js";
 import type { CsharpProviderBindingResolution } from "../../../target-model/metadata/provider-metadata.js";
 import { dotnetExtensionDiagnostic } from "../model/diagnostics.js";
 import { dotnetReflectionProviderIdentity } from "./provider-identity.js";

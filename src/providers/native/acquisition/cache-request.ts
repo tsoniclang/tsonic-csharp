@@ -6,7 +6,7 @@ import type { DotnetProviderIdentity } from "../model/index.js";
 import type { DotnetProviderCacheRequest } from "./cache.js";
 import type { DotnetProviderToolIdentity } from "./tool.js";
 import type { DotnetReferenceSnapshot } from "./reference-snapshot.js";
-import { diagnostic } from "./diagnostics.js";
+import { diagnostic } from "../model/diagnostics.js";
 import { dotnetReflectionProviderCacheAbiVersion, dotnetReflectionProviderIdentity } from "./provider-identity.js";
 import { defaultCsharpTargetFramework } from "../../../target-model/configuration/framework.js";
 import { parseCsharpTargetFramework } from "../../../options/framework.js";

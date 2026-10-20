@@ -1,7 +1,7 @@
 import type { DotnetModuleModel, DotnetTypeDeclaration } from "../model/index.js";
 import type { DotnetProviderDiagnostic } from "../projection/provider.js";
 import type { DotnetProviderCacheRequest } from "./cache.js";
-import { diagnostic } from "./diagnostics.js";
+import { diagnostic } from "../model/diagnostics.js";
 import { dotnetTypeDeclarationHasClassCarrier } from "../model/normalization/dotnet-inheritance.js";
 
 export function validateModuleSatisfiesRequest(

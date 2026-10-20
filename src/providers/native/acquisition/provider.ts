@@ -21,7 +21,7 @@ import { dotnetProviderGlobalTelemetry } from "./telemetry.js";
 import type { DotnetProviderTelemetry, DotnetProviderTelemetrySnapshot } from "./telemetry.js";
 import { createDotnetProviderToolRunner } from "./tool.js";
 import { countProviderVirtualDeclarations } from "./declaration-count.js";
-import { diagnostic, isDotnetProviderDiagnostic } from "./diagnostics.js";
+import { diagnostic, isDotnetProviderDiagnostic } from "../model/diagnostics.js";
 import { dotnetProviderDiagnosticToExtensionDiagnostic } from "../model/diagnostics.js";
 import { defaultToolProjectPath } from "./paths.js";
 import { validateModuleSatisfiesRequest } from "./module-request-validation.js";
