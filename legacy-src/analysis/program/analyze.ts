@@ -554,7 +554,8 @@ function analyzeCsharpTargetProgramBeforeSeal(
     captures: captureStorage, storage: analysis.storage, names, admitted: admittedControlNode });
   if (classEmission.issues.length !== 0) return rejectedTargetStage(classEmission.issues);
   const sourceIdentities = analyzeCsharpSourceOutputIdentities({ ast: source.ast, sourceFiles, paths: input.paths,
-    namespace: project.value.namespace, generatedTypeNames: [...projectTypes.declarationScopeNames, ...classFactories.factories.flatMap(factory => [
+    namespace: project.value.namespace, sourceFacts: source.sourceFacts,
+    generatedTypeNames: [...projectTypes.declarationScopeNames, ...classFactories.factories.flatMap(factory => [
       factory.instanceScope, factory.factoryName, ...(factory.identity === undefined ? [] : [factory.identity.name]),
     ])] });
   if (sourceIdentities.kind === "rejected") return rejectedTargetStage(sourceIdentities.diagnostics);

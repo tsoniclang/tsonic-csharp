@@ -1,5 +1,6 @@
 import { relative, resolve } from "node:path";
-import type { AstReader, SourceFile } from "@tsonic/tsts";
+import { providerVirtualDeclarationFactKey, type AstReader, type Node, type SourceFile } from "@tsonic/tsts";
+import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { TargetCompilationPaths } from "@tsonic/target-api";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpSourceFileOutputIdentity } from "../../target-model/records/source-files.js";
@@ -15,18 +16,30 @@ export interface CsharpSourceOutputIdentityPlannerHost {
   readonly sourceFiles: readonly SourceFile[];
   readonly paths: TargetCompilationPaths;
   readonly generatedTypeNames: readonly string[];
+  readonly sourceFacts: TargetSourceProgram["sourceFacts"];
 }
 
 
 export function analyzeCsharpSourceOutputIdentities(host: CsharpSourceOutputIdentityPlannerHost) {
-  const selected = buildSourceOutputIdentityPlan(host);
+  const providers = new Map<SourceFile, boolean>();
+  for (const file of host.sourceFiles) {
+    let provider = false;
+    const visit = (node: Node): void => {
+      if (host.sourceFacts.getFact(node, providerVirtualDeclarationFactKey) !== undefined) provider = true;
+      host.ast.forEachChild(node, child => { if (child !== undefined && !provider) visit(child); });
+    };
+    visit(file);
+    providers.set(file, provider);
+  }
+  const selected = buildSourceOutputIdentityPlan(host, providers);
   return selected.kind === "rejected" ? selected : Object.freeze({
-    kind: "accepted" as const, records: createCsharpSourceFileRecords(selected.identities),
+    kind: "accepted" as const, records: createCsharpSourceFileRecords(selected.identities, providers),
   });
 }
 
 function buildSourceOutputIdentityPlan(
   host: CsharpSourceOutputIdentityPlannerHost,
+  providers: ReadonlyMap<SourceFile, boolean>,
 ): CsharpSourceOutputIdentityPlan {
   const byFileName = new Map<string, CsharpSourceFileOutputIdentity>();
   const byClassName = new Map<string, string>();
@@ -36,7 +49,7 @@ function buildSourceOutputIdentityPlan(
     ...host.sourceFiles.flatMap(sourceFile => [...topLevelTypeNames(host.ast, sourceFile)])]);
   for (const sourceFile of host.sourceFiles) {
     const fileName = host.ast.getFileName(sourceFile);
-    if (sourceFile.IsDeclarationFile || fileName.startsWith("tsts-provider://")) {
+    if (sourceFile.IsDeclarationFile || providers.get(sourceFile) === true) {
       continue;
     }
     const relativeName = projectRelativeSourcePath(
