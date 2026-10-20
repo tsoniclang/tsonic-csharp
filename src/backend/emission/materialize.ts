@@ -5,7 +5,7 @@ import type {
 } from "@tsonic/target-api/artifacts";
 import type { CsharpOutputPlan } from "../artifact-model/output.js";
 import { printCsharpCompilationUnit } from "../../print/source/index.js";
-import { printCsharpProjectFile } from "../../print/project/csharp-project.js";
+import { printCsharpProjectFile } from "../../print/project/manifest.js";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
