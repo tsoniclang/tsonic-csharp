@@ -18,7 +18,7 @@ import { readCsharpSourceStruct } from "../../policy/types/resolution/source-mar
 import { resolveCsharpSourceProfileBaseType } from "../../policy/types/resolution/source-profiles.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
 
-import type { CsharpProjectConstructorPolicy } from "../../policy/types/project/project-type-constructors.js";
+import type { CsharpProjectConstructorPolicy } from "../../target-model/records/project-types.js";
 
 export interface CsharpProjectTypeCatalogHost {
   readonly ast: AstReader;

@@ -1,62 +1,22 @@
 import type { CsharpProjectForwardingConstructor } from "../../../target-model/records/project-types.js";
-import type {
-  AstReader,
-  Node,
-  ReadonlySourceFactResolver,
-  Signature,
-} from "@tsonic/tsts";
-import type {
-  SourceClassConstructorSignature,
-  SourceFileSemantics,
-  SourceProgramNavigation,
-} from "@tsonic/target-api/source";
+import type { AstReader, Node, ReadonlySourceFactResolver, Signature } from "@tsonic/tsts";
+import type { SourceClassConstructorSignature, SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
 import { sourceNodeIdentity, sourceConstructorParametersMatch } from "@tsonic/target-api/source";
-import {
-  tryCsharpIdentifier,
-} from "../../../target-model/names/identifiers.js";
-import type {
-  CsharpProviderRelationResolver,
-} from "../../../providers/model/relation-resolver.js";
+import { tryCsharpIdentifier } from "../../../target-model/names/identifiers.js";
+import type { CsharpProviderRelationResolver } from "../../../providers/model/relation-resolver.js";
 import type { CsharpProviderTargetRelation } from "../../../target-model/identities/provider-relations.js";
-import {
-  resolveCsharpProviderDeclarationEvidence,
-} from "../../operations/members/providers/evidence.js";
+import { resolveCsharpProviderDeclarationEvidence } from "../../../policy/operations/members/providers/evidence.js";
 import type { CsharpProjectTypeDefinition, CsharpProjectTypeHeritage, CsharpProjectTypeIssue } from "../../../target-model/records/project-types.js";
-import type {
-  CsharpTargetMember,
-  CsharpTargetNamedTypeRef,
-  CsharpTargetParameter,
-  TargetTypeRef,
-} from "../../../target-model/types/model.js";
-import type {
-  CsharpTypePolicy,
-} from "../resolution/index.js";
-import {
-  csharpTargetBindingSubstitutions,
-  substituteCsharpTargetMember,
-} from "../callables/member-substitution.js";
-import {
-  targetTypeRefKey,
-  targetTypeRefEquals,
-} from "../../../target-model/types/equality.js";
-import { selectCsharpSourceProfileConstructor } from "../../operations/source-profiles/source-profile-selection.js";
+import type { CsharpTargetMember, CsharpTargetNamedTypeRef, CsharpTargetParameter, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpTypePolicy } from "../../../policy/types/resolution/index.js";
+import { csharpTargetBindingSubstitutions, substituteCsharpTargetMember } from "../../../policy/types/callables/member-substitution.js";
+import { targetTypeRefKey, targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { selectCsharpSourceProfileConstructor } from "../../../policy/operations/source-profiles/source-profile-selection.js";
 
 type CsharpProviderSignatureRelation = Extract<
   CsharpProviderTargetRelation,
   { readonly kind: "signature" }
 >;
-
-export interface CsharpProjectConstructorPolicy {
-  readonly issues: readonly CsharpProjectTypeIssue[];
-  implicitConstructorsForDeclaration(
-    declaration: CsharpProjectTypeDefinition["declaration"],
-  ): readonly CsharpProjectForwardingConstructor[] | undefined;
-  implicitConstructorForSignature(
-    declaration: CsharpProjectTypeDefinition["declaration"],
-    signature: Signature,
-    parameters: import("@tsonic/target-api/source").ResolvedSourceCallInfo["sourceSelectedSignatureParameters"],
-  ): CsharpProjectForwardingConstructor | undefined;
-}
 
 export interface CsharpProjectConstructorPolicyHost {
   readonly ast: AstReader;

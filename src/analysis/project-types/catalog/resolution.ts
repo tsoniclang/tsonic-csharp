@@ -8,13 +8,8 @@ import type {
 import { projectDefinitionTargetType } from "../../../policy/types/project/declaration-carriers.js";
 import { type CsharpProjectTypeCatalog, type CsharpProjectTypePolicy } from "../../../target-model/records/project-types.js";
 import { createCsharpProjectTypePolicy, selectCsharpProjectTypeHeritage, type CsharpProjectTypePolicyHost } from "../type-policy.js";
-import {
-  csharpForwardingConstructorSignatureKey,
-  selectCsharpProjectConstructorSignature,
-  selectCsharpProjectForwardingConstructor,
-  type CsharpProjectConstructorPolicy,
-  type CsharpProjectConstructorPolicyHost,
-} from "../../../policy/types/project/project-type-constructors.js";
+import { csharpForwardingConstructorSignatureKey, selectCsharpProjectConstructorSignature, selectCsharpProjectForwardingConstructor, type CsharpProjectConstructorPolicyHost } from "./constructors.js";
+import { type CsharpProjectConstructorPolicy } from "../../../target-model/records/project-types.js";
 
 export function analyzeCsharpProjectTypePolicy(
   host: CsharpProjectTypePolicyHost,
