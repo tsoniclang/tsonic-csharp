@@ -1,9 +1,5 @@
-import type {
-  TargetTypeRef,
-} from "./model.js";
-import type {
-  CsharpTargetNamedTypeRef,
-} from "./model.js";
+import type { TargetTypeRef } from "./model.js";
+import type { CsharpTargetNamedTypeRef } from "./model.js";
 import { csharpConstraintsRequireReference } from "./generic-constraints.js";
 
 export function isCsharpThrowableTargetType(type: TargetTypeRef | undefined): boolean {
