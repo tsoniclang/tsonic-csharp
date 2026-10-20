@@ -1,4 +1,4 @@
-import { classifyCsharpProjectConfiguration } from "../options/project.js";
+import { classifyCsharpProjectConfiguration } from "./project.js";
 import { printCsharpRuntimeProject } from "../print/project/runtime.js";
 import type { TargetCompilationSession, TargetCompilationSessionContext, TargetCompileInput, TargetSourceCompilerContributions, TargetSourceProfileContributions } from "@tsonic/target-api";
 import type { TargetCompileResult, TargetRuntimeContributions } from "@tsonic/target-api/artifacts";
@@ -8,7 +8,7 @@ import { createDotnetSourceDeclarationProviderSet } from "../providers/native/pr
 import { collectCsharpCapabilityContributions, createCapabilityDotnetProviders } from "../providers/native/acquisition/contributions.js";
 import { createCsharpProviderRelationResolver } from "../providers/native/projection/relation-resolution.js";
 import { compileCsharpTarget } from "../backend/compile.js";
-import { createCsharpTargetConfiguration } from "../options/target.js";
+import { createCsharpTargetConfiguration } from "./configuration.js";
 import { createCsharpSourceSemanticsExtension } from "../source/extension/source-extension.js";
 import { csharpSourceSemanticsModules } from "../source/profiles/source-modules.js";
 import { csharpSourceProfileContributions } from "../source/profiles/declarations.js";

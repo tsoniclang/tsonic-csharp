@@ -1,10 +1,6 @@
 import type { TargetSelection } from "@tsonic/target-api";
-import type { CsharpLanguageDialect, CsharpMemorySafetyRules, CsharpOutputType, CsharpTargetConfiguration } from "../target-model/configuration/model.js";
+import type { CsharpLanguageDialect, CsharpMemorySafetyRules, CsharpOutputType } from "../target-model/configuration/model.js";
 import type { CsharpProjectReference } from "../target-model/project/references.js";
-import { existsSync, readdirSync, statSync } from "node:fs";
-import { isAbsolute, join, resolve } from "node:path";
-import { resolveDotnetFrameworkReferenceAssemblies } from "../providers/native/acquisition/framework-reference-packs.js";
-import { resolveCsharpProjectConfiguration } from "./user-project.js";
 import { defaultCsharpTargetFramework } from "../target-model/configuration/framework.js";
 import { parseCsharpTargetFramework } from "../target-model/configuration/framework.js";
 
@@ -41,7 +37,7 @@ export function validateCsharpTargetOptions(target: TargetSelection): void {
   );
 }
 
-function validateCsharpTargetOptionKeys(target: TargetSelection): void {
+export function validateCsharpTargetOptionKeys(target: TargetSelection): void {
   const options = target.options;
   if (options === undefined) {
     return;
@@ -49,7 +45,7 @@ function validateCsharpTargetOptionKeys(target: TargetSelection): void {
   rejectUnknownKeys(options, "options", supportedCsharpTargetOptionKeys);
 }
 
-function validateCsharpSafetyConfiguration(
+export function validateCsharpSafetyConfiguration(
   languageDialect: CsharpLanguageDialect,
   memorySafetyRules: CsharpMemorySafetyRules,
 ): void {
@@ -60,46 +56,6 @@ function validateCsharpSafetyConfiguration(
   }
 }
 
-export function createCsharpTargetConfiguration(
-  target: TargetSelection,
-  projectDirectory: string,
-  targetOutputRoot: string,
-): CsharpTargetConfiguration {
-  validateCsharpTargetOptionKeys(target);
-  const languageDialect = readCsharpLanguageDialect(target);
-  const memorySafetyRules = readCsharpMemorySafetyRules(target);
-  const references = readCsharpReferences(target);
-  const targetFramework = readCsharpTargetFramework(target);
-  validateCsharpSafetyConfiguration(languageDialect, memorySafetyRules);
-  return Object.freeze({
-    assemblyName: readOptionalStringOption(target, "assemblyName"),
-    implicitUsings: readOptionalBooleanOption(target, "implicitUsings"),
-    languageDialect,
-    memorySafetyRules,
-    namespace: readOptionalStringOption(target, "namespace"),
-    nullable: readOptionalBooleanOption(target, "nullable"),
-    outputType: readCsharpOutputType(target),
-    project: resolveCsharpProjectConfiguration(
-      readCsharpUserProjectFile(target),
-      projectDirectory,
-      targetOutputRoot,
-    ),
-    properties: readCsharpProperties(target),
-    publishAot: readOptionalBooleanOption(target, "publishAot"),
-    references: Object.freeze(
-      references.map((reference) => Object.freeze(reference)),
-    ),
-    reflectionReferencePaths: Object.freeze(
-      resolveCsharpReflectionReferencePaths(
-        references,
-        readCsharpProviderReferencePaths(target, projectDirectory),
-        targetFramework,
-        projectDirectory,
-      ),
-    ),
-    targetFramework,
-  });
-}
 
 export function readCsharpTargetFramework(target: TargetSelection): string {
   const value = readStringOption(target, "targetFramework", defaultCsharpTargetFramework);
@@ -189,38 +145,6 @@ export function readCsharpProperties(
   return Object.freeze(properties);
 }
 
-export function readCsharpReflectionReferencePaths(
-  target: TargetSelection,
-  projectDirectory: string,
-): readonly string[] {
-  return resolveCsharpReflectionReferencePaths(
-    readCsharpReferences(target),
-    readCsharpProviderReferencePaths(target, projectDirectory),
-    readCsharpTargetFramework(target),
-    projectDirectory,
-  );
-}
-
-function resolveCsharpReflectionReferencePaths(
-  references: readonly CsharpProjectReference[],
-  providerReferences: readonly string[],
-  targetFramework: string,
-  projectDirectory: string,
-): readonly string[] {
-  return rejectDuplicateReflectionReferencePaths([
-    ...references
-      .filter((reference): reference is Extract<CsharpProjectReference, { readonly kind: "assembly" }> => reference.kind === "assembly")
-      .map((reference) => resolveProjectPath(projectDirectory, reference.hintPath ?? reference.include)),
-    ...resolveDotnetFrameworkReferenceAssemblies(
-      references
-        .filter((reference): reference is Extract<CsharpProjectReference, { readonly kind: "framework" }> => reference.kind === "framework")
-        .map((reference) => reference.include),
-      targetFramework,
-      projectDirectory,
-    ),
-    ...providerReferences,
-  ]);
-}
 
 export function readStringOption(target: TargetSelection, key: string, defaultValue: string): string {
   return readOptionalStringOption(target, key) ?? defaultValue;
@@ -344,47 +268,17 @@ function readAssemblyReferences(raw: Readonly<Record<string, unknown>>): readonl
   });
 }
 
-function readCsharpProviderReferencePaths(
+export function readCsharpProviderReferences(
   target: TargetSelection,
-  projectDirectory: string,
-): readonly string[] {
+): { readonly assemblies: readonly string[]; readonly directories: readonly string[] } {
   const raw = target.options?.providerReferences;
-  if (raw === undefined) {
-    return [];
-  }
-  if (!isRecord(raw)) {
-    throw new Error("C# target option 'providerReferences' must be an object.");
-  }
+  if (raw === undefined) return Object.freeze({ assemblies: Object.freeze([]), directories: Object.freeze([]) });
+  if (!isRecord(raw)) throw new Error("C# target option 'providerReferences' must be an object.");
   rejectUnknownKeys(raw, "providerReferences", ["assemblies", "directories"]);
-  return [
-    ...readStringArrayProperty(raw, "assemblies").map((reference) =>
-      resolveProjectPath(projectDirectory, reference)
-    ),
-    ...readStringArrayProperty(raw, "directories").flatMap((directory, index) =>
-      readProviderReferenceDirectory(
-        resolveProjectPath(projectDirectory, directory),
-        `providerReferences.directories[${index}]`,
-      )
-    ),
-  ];
-}
-
-function readProviderReferenceDirectory(directory: string, path: string): readonly string[] {
-  if (!existsSync(directory) || !statSync(directory).isDirectory()) {
-    throw new Error(`C# target option '${path}' directory does not exist: ${directory}`);
-  }
-  const references = readdirSync(directory)
-    .filter((entry) => entry.endsWith(".dll"))
-    .sort((left, right) => left.localeCompare(right))
-    .map((entry) => join(directory, entry));
-  if (references.length === 0) {
-    throw new Error(`C# target option '${path}' directory contains no .NET assemblies: ${directory}`);
-  }
-  return references;
-}
-
-function resolveProjectPath(projectDirectory: string, path: string): string {
-  return isAbsolute(path) ? resolve(path) : resolve(projectDirectory, path);
+  return Object.freeze({
+    assemblies: Object.freeze(readStringArrayProperty(raw, "assemblies")),
+    directories: Object.freeze(readStringArrayProperty(raw, "directories")),
+  });
 }
 
 function rejectDuplicateReferences(references: readonly CsharpProjectReference[]): readonly CsharpProjectReference[] {
@@ -397,17 +291,4 @@ function rejectDuplicateReferences(references: readonly CsharpProjectReference[]
     seen.add(key);
   }
   return references;
-}
-
-function rejectDuplicateReflectionReferencePaths(references: readonly string[]): readonly string[] {
-  const seen = new Map<string, string>();
-  for (const reference of references) {
-    const resolved = resolve(reference);
-    const duplicate = seen.get(resolved);
-    if (duplicate !== undefined) {
-      throw new Error(`C# provider references contain duplicate assembly path '${duplicate}' and '${reference}'.`);
-    }
-    seen.set(resolved, reference);
-  }
-  return [...seen.values()];
 }
