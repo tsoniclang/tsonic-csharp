@@ -11,8 +11,9 @@ import type { DotnetAssemblySourcePackage, DotnetModuleSpecifierPolicy } from ".
 import type { DotnetProviderIdentity } from "../model/index.js";
 import { validateDotnetModuleModelContract } from "../model/normalization/index.js";
 import { augmentDotnetModuleWithNativeArray } from "../projection/module-native-array.js";
-import type { DotnetProviderDeclarationContext, DotnetProviderDiagnostic, DotnetProviderModuleResult, DotnetProviderOwnership, DotnetTypeDataProvider } from "../projection/provider.js";
-import { emptyIncrementalDotnetProviderMaterialization, resolveDotnetProviderDeclarationProjection } from "../projection/provider.js";
+import type { DotnetProviderDeclarationContext, DotnetProviderDiagnostic, DotnetProviderModuleResult, DotnetProviderOwnership, DotnetTypeDataProvider } from "../model/provider.js";
+import { resolveDotnetProviderDeclarationProjection } from "../projection/provider.js";
+import { emptyIncrementalDotnetProviderMaterialization } from "../model/provider.js";
 import { createDotnetProviderCache } from "./cache.js";
 import type { DotnetProviderCacheRequest } from "./cache.js";
 import type { DotnetReflectionProviderBroker } from "./broker.js";

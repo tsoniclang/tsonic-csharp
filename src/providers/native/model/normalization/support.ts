@@ -1,4 +1,4 @@
-import type { DotnetProviderDiagnostic } from "../../projection/provider.js";
+import type { DotnetProviderDiagnostic } from "../provider.js";
 
 export const supportedPassingModes = new Set([
   "by-value",

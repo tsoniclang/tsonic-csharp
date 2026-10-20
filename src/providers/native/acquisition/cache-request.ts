@@ -1,4 +1,4 @@
-import type { DotnetProviderDeclarationContext, DotnetProviderDiagnostic } from "../projection/provider.js";
+import type { DotnetProviderDeclarationContext, DotnetProviderDiagnostic } from "../model/provider.js";
 import type { ProviderDeclarationMaterialization } from "@tsonic/tsts";
 import type { DotnetAssemblySourcePackage, DotnetModuleSpecifierPolicy } from "../projection/module-specifier.js";
 import { normalizeDotnetAssemblySourcePackages } from "../projection/module-specifier.js";

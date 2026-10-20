@@ -1,5 +1,5 @@
 import type { DotnetModuleModel } from "../model/index.js";
-import type { DotnetProviderDiagnostic } from "../projection/provider.js";
+import type { DotnetProviderDiagnostic } from "../model/provider.js";
 import type { DotnetProviderCacheRequest } from "./cache.js";
 
 export interface DotnetReflectionProviderBroker {

@@ -7,10 +7,7 @@ import {
 import {
   canonicalProviderValue,
 } from "../../../target-model/metadata/canonical-value.js";
-import type {
-  DotnetProviderDiagnostic,
-  DotnetProviderModuleResult,
-} from "../projection/provider.js";
+import type { DotnetProviderDiagnostic, DotnetProviderModuleResult } from "./provider.js";
 
 export function isDotnetProviderDiagnostic(value: DotnetProviderModuleResult): value is DotnetProviderDiagnostic {
   return "code" in value && "message" in value;

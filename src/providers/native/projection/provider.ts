@@ -1,113 +1,18 @@
-import {
-  performance,
-} from "node:perf_hooks";
-import {
-  TstsSourceProviderContractVersion,
-} from "@tsonic/tsts";
-import type {
-  ExtensionDiagnostic,
-  ProviderDeclarationMaterialization,
-  ProviderDeclarationModel,
-  ProviderIdentity,
-  ProviderModuleContext,
-  ProviderModuleResolution,
-  ProviderOwnership,
-  SourceDeclarationProvider,
-} from "@tsonic/tsts";
+import { performance } from "node:perf_hooks";
+import { TstsSourceProviderContractVersion } from "@tsonic/tsts";
+import type { ExtensionDiagnostic, ProviderDeclarationMaterialization, ProviderDeclarationModel, ProviderIdentity, ProviderModuleContext, ProviderModuleResolution, ProviderOwnership, SourceDeclarationProvider } from "@tsonic/tsts";
 import { dotnetModuleToProviderDeclarationModel } from "./declarations/index.js";
-import {
-  validateDotnetProviderDeclarationModelContract,
-} from "../model/normalization/index.js";
-import type {
-  DotnetModuleModel,
-  DotnetProviderIdentity,
-  DotnetUnsupportedExportDeclaration,
-} from "../model/index.js";
-import {
-  augmentDotnetModuleWithNativeArray,
-} from "./module-native-array.js";
-import {
-  dotnetModuleSpecifierPolicy,
-} from "./module-specifier.js";
-import type {
-  DotnetModuleSpecifierPolicy,
-} from "./module-specifier.js";
-import {
-  dotnetExtensionDiagnostic,
-  dotnetProviderDeclarationModelInvalidDiagnostic,
-  dotnetProviderDiagnosticToExtensionDiagnostic,
-  dotnetProviderRequestedExportMissingDiagnostic,
-  dotnetProviderRequestedExportUnsupportedDiagnostic,
-  dotnetProviderRequestSliceRequiredDiagnostic,
-  isDotnetProviderDiagnostic,
-} from "../model/diagnostics.js";
-import {
-  dotnetProviderModuleContext,
-  dotnetProviderModuleRequest,
-  providerVirtualDeclarationFileName,
-} from "./module-request.js";
-import {
-  dotnetProviderResolutionContext,
-  missingDotnetRequestedExports,
-  sliceDotnetModuleExports,
-} from "./module-slices.js";
-import type {
-  DotnetProviderResolutionContext,
-} from "./module-slices.js";
+import { validateDotnetProviderDeclarationModelContract } from "../model/normalization/index.js";
+import type { DotnetModuleModel, DotnetUnsupportedExportDeclaration } from "../model/index.js";
+import { augmentDotnetModuleWithNativeArray } from "./module-native-array.js";
+import { dotnetModuleSpecifierPolicy } from "./module-specifier.js";
+import type { DotnetModuleSpecifierPolicy } from "./module-specifier.js";
+import { dotnetExtensionDiagnostic, dotnetProviderDeclarationModelInvalidDiagnostic, dotnetProviderDiagnosticToExtensionDiagnostic, dotnetProviderRequestedExportMissingDiagnostic, dotnetProviderRequestedExportUnsupportedDiagnostic, dotnetProviderRequestSliceRequiredDiagnostic, isDotnetProviderDiagnostic } from "../model/diagnostics.js";
+import { dotnetProviderModuleContext, dotnetProviderModuleRequest, providerVirtualDeclarationFileName } from "./module-request.js";
+import { dotnetProviderResolutionContext, missingDotnetRequestedExports, sliceDotnetModuleExports } from "./module-slices.js";
+import type { DotnetProviderResolutionContext } from "./module-slices.js";
 
-export interface DotnetTypeDataProvider {
-  readonly identity: DotnetProviderIdentity;
-  ownsModule(specifier: string, context: DotnetProviderModuleContext): DotnetProviderOwnership;
-  getModule(specifier: string, context: DotnetProviderDeclarationContext): DotnetProviderModuleResult;
-  recordVirtualDeclarationModel?(model: ProviderDeclarationModel, elapsedMs: number): void;
-}
-
-export interface DotnetProviderModuleContext {
-  readonly containingFile?: string;
-  readonly targetFramework?: string;
-  readonly requestedExports?: readonly string[];
-  readonly requestedTargetIds?: readonly string[];
-  readonly requestedMetadataNames?: readonly string[];
-  readonly assemblyName?: string;
-  readonly externAlias?: string;
-  readonly broadImport?: boolean;
-}
-
-export interface DotnetProviderDeclarationContext extends DotnetProviderModuleContext {
-  readonly materialization: ProviderDeclarationMaterialization;
-}
-
-export const completeDotnetProviderMaterialization = Object.freeze({
-  kind: "complete",
-} satisfies ProviderDeclarationMaterialization);
-
-export const emptyIncrementalDotnetProviderMaterialization = Object.freeze({
-  kind: "incremental",
-  completeExports: Object.freeze([]),
-} satisfies ProviderDeclarationMaterialization);
-
-export function completeDotnetProviderContext(
-  context: DotnetProviderModuleContext = {},
-): DotnetProviderDeclarationContext {
-  return Object.freeze({
-    ...context,
-    materialization: completeDotnetProviderMaterialization,
-  });
-}
-
-export type DotnetProviderOwnership =
-  | { readonly kind: "owned" }
-  | { readonly kind: "unowned" }
-  | { readonly kind: "rejected"; readonly diagnostic: DotnetProviderDiagnostic };
-
-export type DotnetProviderModuleResult = DotnetModuleModel | DotnetProviderDiagnostic;
-
-export interface DotnetProviderDiagnostic {
-  readonly code: string;
-  readonly message: string;
-  readonly evidence?: readonly Readonly<Record<string, unknown>>[];
-}
-
+import { type DotnetTypeDataProvider, type DotnetProviderModuleContext, type DotnetProviderDeclarationContext, type DotnetProviderOwnership } from "../model/provider.js";
 export interface DotnetBindingProviderOptions {
   readonly provider: DotnetTypeDataProvider;
   readonly moduleSpecifierPolicy?: DotnetModuleSpecifierPolicy;

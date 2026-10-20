@@ -6,7 +6,7 @@ import { dotnetTypeTargetMemberProjections, providerSignatureProjectionKey } fro
 import { dotnetFunctionToTargetMemberRecords } from "../projection/members.js";
 import type { DotnetTargetMemberProjection, DotnetTargetFunctionProjection, DotnetTargetRelationLookup } from "../projection/target-relations.js";
 import type { DotnetProviderCacheRequest } from "./cache.js";
-import type { DotnetProviderDiagnostic } from "../projection/provider.js";
+import type { DotnetProviderDiagnostic } from "../model/provider.js";
 import { dotnetTypeDeclarationIsComplete } from "./module-request-validation.js";
 import { canonicalProviderValue } from "../../../target-model/metadata/canonical-value.js";
 import { diagnostic } from "../model/diagnostics.js";
