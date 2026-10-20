@@ -1,14 +1,6 @@
-import type {
-  DotnetModuleModel,
-  DotnetTypeDeclaration,
-  DotnetTypeRef,
-} from "../model/types.js";
-import type {
-  ProviderDeclarationMaterialization,
-} from "@tsonic/tsts";
-import {
-  createDotnetModuleSpecifier,
-} from "./module-specifier.js";
+import type { DotnetModuleModel, DotnetTypeDeclaration, DotnetTypeRef } from "../model/types.js";
+import type { ProviderDeclarationMaterialization } from "@tsonic/tsts";
+import { createDotnetModuleSpecifier } from "./module-specifier.js";
 
 export const dotnetNativeArrayTypeId = "tsonic.dotnet.System.Array`1";
 export const dotnetNativeArrayCreateMemberId = `${dotnetNativeArrayTypeId}.Create(System.Int32)`;
