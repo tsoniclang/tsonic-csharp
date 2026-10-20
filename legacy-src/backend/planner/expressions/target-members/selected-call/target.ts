@@ -28,7 +28,7 @@ export function translateSelectedTargetCall(
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
 ): CsharpPlannedValue | undefined {
-  const arguments_ = translateSelectedTargetArguments(node, source, selection, sourceFile, input, diagnostics, planExpression, planCallArgument);
+  const arguments_ = translateSelectedTargetArguments(node, sourceFile, input, diagnostics, planExpression, planCallArgument);
   if (arguments_ === undefined) return undefined;
   const instance = selection.receiver.kind === "instance";
   const receiver = !instance || source.sourceReceiver === undefined ? undefined

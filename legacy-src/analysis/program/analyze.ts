@@ -17,6 +17,7 @@ import { analyzeCsharpElementAdmission } from "../objects/element-admission.js";
 import { analyzeCsharpSourceReferences } from "../expressions/source-references.js";
 import { analyzeCsharpMemberReceivers } from "../objects/member-receivers.js";
 import { analyzeCsharpSourceCallEmission } from "../callables/source-call-emission.js";
+import { analyzeCsharpTargetArguments } from "../callables/target-arguments.js";
 import { analyzeCsharpLiteralAdmission } from "../expressions/literals.js";
 import { analyzeCsharpAwaitAdmission } from "../callables/await-admission.js";
 import { analyzeCsharpVoidAdmission } from "../expressions/expression-void.js";
@@ -706,6 +707,9 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const sourceCallEmission = analyzeCsharpSourceCallEmission({ source, nodes: sourceStorage.nodes, operations: admittedOperations,
     evidence: analysis.sourceEvidence, declarations: analysis.declarations, conversions, admitted: admittedControlNode });
   if (sourceCallEmission.issues.length !== 0) return rejectedTargetStage(sourceCallEmission.issues);
+  const targetArguments = analyzeCsharpTargetArguments({ ast: source.ast, nodes: sourceStorage.nodes, operations: admittedOperations,
+    sources: sourceCallEmission.records, demand: nativeDemand, admitted: admittedControlNode });
+  if (targetArguments.issues.length !== 0) return rejectedTargetStage(targetArguments.issues);
   const records = createCsharpProgramRecords({
     propertyValueProjection: propertyValueProjection.records,
     arrayLiterals: arrayLiterals.records,
@@ -773,6 +777,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     sourceReferences: sourceReferences.records,
     memberReceivers: memberReceivers.records,
     sourceCallEmission: sourceCallEmission.records,
+    targetArguments: targetArguments.records,
     typeofEmission: typeofEmission.records,
     flowReads, valueReads: analysis.valueReads,
     callableAdapters, callableCreations, typeProjections: analysis.typeProjections, classFactories, classInitialization, captureStorage,

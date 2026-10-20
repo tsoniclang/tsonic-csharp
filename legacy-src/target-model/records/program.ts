@@ -187,6 +187,8 @@ export interface CsharpProgramRecords extends CsharpStatementExitRecords, Csharp
   readonly sourceArgumentsEmission: import("./source-call-emission.js").CsharpSourceCallEmissionRecords["sourceArgumentsEmission"];
   readonly callOptional: import("./source-call-emission.js").CsharpSourceCallEmissionRecords["callOptional"];
   readonly arrayCreationCall: import("./source-call-emission.js").CsharpSourceCallEmissionRecords["arrayCreationCall"];
+  readonly callArgumentEmission: import("./target-arguments.js").CsharpTargetArgumentRecords["callArgumentEmission"];
+  readonly targetArgumentsEmission: import("./target-arguments.js").CsharpTargetArgumentRecords["targetArgumentsEmission"];
   readonly sourceMember: CsharpTargetOperationClassifications["sourceMember"];
   readonly selectedElement: import("./element-admission.js").CsharpElementAdmissionRecords["selectedElement"];
   readonly binaryOperation: CsharpTargetOperationClassifications["binaryOperation"];

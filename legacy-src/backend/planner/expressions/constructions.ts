@@ -155,8 +155,6 @@ function translateSelectedConstruction(
   }
   const arguments_ = translateSelectedTargetArguments(
     node,
-    selection.source,
-    selection.call,
     sourceFile,
     input,
     diagnostics,
