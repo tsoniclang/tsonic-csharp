@@ -181,4 +181,5 @@ export interface CsharpNativeExpressionRecord {
   readonly physical: Exclude<CsharpNativeUse, { readonly kind: "erased" }> | undefined;
   readonly conversion: Exclude<import("../conversions/selection.js").CsharpConversionSelection, { readonly kind: "rejected" }> | undefined;
   readonly bottom: { readonly effects: readonly TargetUseSiteRef[]; readonly expression: Node } | undefined;
+  readonly storage: Node | undefined;
 }

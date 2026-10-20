@@ -12,3 +12,7 @@ export interface CsharpPromiseResult {
 }
 
 export type CsharpPromiseResults = ReadonlyMap<Node, CsharpPromiseResult>;
+
+export interface CsharpPromiseResultRecords {
+  readonly promiseResult: { readonly get: (node: Node) => CsharpPromiseResult | undefined };
+}

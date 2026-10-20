@@ -26,12 +26,11 @@ import type {
   TargetTypeRef,
 } from "../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import { sourceNodesEqual } from "@tsonic/target-api/source";
 import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";
 import { getCsharpExpressionOverride } from "../bindings/binding-state.js";
 import { getCsharpTypeForNode } from "../types/index.js";
-import { unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 import { planClassFactoryExpression } from "../declarations/classes/factories.js";
 import { planRegularExpressionLiteral } from "./regular-expression-literals.js";
 import {
@@ -103,9 +102,9 @@ export function planExpression(
   diagnostics: TargetDiagnostic[],
   state?: DestructuringPlannerState,
 ): CsharpPlannedValue | undefined {
-  return requireExpressionPlan(node, diagnostics, () => {
+  return requireExpressionPlan(node, () => {
     const planned = planSelectedExpression(node, sourceFile, input, diagnostics, state);
-    const discard = input.program.promiseResults.get(node)?.discard;
+    const discard = input.program.records.promiseResult.get(node)?.discard;
     if (planned === undefined || planned.completion.kind !== "value" || discard === undefined) return planned;
     const captured = captureCsharpPlannedValue(node, input, diagnostics, planned.completion.carrier);
     if (captured === undefined) return undefined;
@@ -145,12 +144,12 @@ function planExpressionCore(
   if (input.program.source.ast.is.IsClassExpression(node)) {
     const factory = input.program.records.classFactory.get(node);
     if (factory !== undefined) return planClassFactoryExpression(factory, sourceFile, input, diagnostics, state);
-    diagnostics.push(unsupportedNodeDiagnostic(node, "A class expression requires its sealed native factory."));
-    return undefined;
+    failCsharpPlannerInvariant("An admitted class expression requires its sealed native factory.", node);
   }
   const expressionOverride = getCsharpExpressionOverride(node, state);
   if (expressionOverride !== undefined) {
-    return complete(expressionOverride);
+    const planned = complete(expressionOverride);
+    return planned === undefined ? undefined : { ...planned, address: { kind: "root" } };
   }
   const defaultValue = input.program.records.sourceDefaultValue.get(node);
   if (defaultValue !== undefined) {
@@ -164,27 +163,11 @@ function planExpressionCore(
       ),
     });
   }
-  const argumentPassing = input.program.records.sourceArgument.get(node);
-  if (argumentPassing === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
-      "C# planning received an expression without sealed argument-passing evidence.",
-    ));
-    return undefined;
-  }
-  if (argumentPassing.kind === "rejected") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, argumentPassing.reason));
-    return undefined;
-  }
-  if (
-    !sourceNodesEqual(
-      input.program.source.ast,
-      argumentPassing.argument.storageExpression,
-      node,
-    )
-  ) {
+  const storage = input.program.records.nativeExpression.get(node)?.storage
+    ?? failCsharpPlannerInvariant("An admitted source expression requires its selected storage operand.", node);
+  if (storage !== node) {
     return planExpression(
-      argumentPassing.argument.storageExpression,
+      storage,
       sourceFile,
       input,
       diagnostics,
@@ -249,13 +232,9 @@ function planExpressionCore(
     case undefined:
       break;
   }
-  const sourceSyntaxDiagnosticsStart = diagnostics.length;
   const sourceSyntax = tryPlanSourceSyntaxExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
   if (sourceSyntax !== undefined) {
     return sourceSyntax;
-  }
-  if (diagnostics.length > sourceSyntaxDiagnosticsStart) {
-    return undefined;
   }
   switch (SourceKind(input.program.source.ast, node)) {
     case KindIdentifier:
@@ -346,15 +325,14 @@ function planExpressionCore(
       return binary;
     }
     default: {
-      diagnostics.push(unsupportedNodeDiagnostic(node, "Expression is outside the current C# planning surface."));
-      return undefined;
+      failCsharpPlannerInvariant("An admitted source expression requires its selected native renderer.", node);
     }
   }
 }
 
 export function planCallArgument(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], conversionExpectedTargetType?: TargetTypeRef, state?: DestructuringPlannerState, expectedArgumentPassingMode?: CsharpTargetParameter["passingMode"], selectedTargetParameter?: CsharpTargetParameter
 ): CsharpPlannedArgument | undefined {
-  return requireExpressionPlan(node, diagnostics, () => planCallArgumentCore(node, sourceFile, input, diagnostics, (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedState) =>
+  return requireExpressionPlan(node, () => planCallArgumentCore(node, sourceFile, input, diagnostics, (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedState) =>
       planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedState ?? state), state, selectedTargetParameter
   ));
 }

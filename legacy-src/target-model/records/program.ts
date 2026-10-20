@@ -131,6 +131,7 @@ export interface CsharpProgramRecords extends CsharpStatementExitRecords, Csharp
   readonly nativeOrder: CsharpNativeUseRecords["nativeOrder"];
   readonly nativeExpression: CsharpNativeUseRecords["nativeExpression"];
   readonly nativeDiscard: CsharpNativeUseRecords["nativeDiscard"];
+  readonly promiseResult: import("./promise-results.js").CsharpPromiseResultRecords["promiseResult"];
   readonly bindingPatternProjection: CsharpBindingPatternClassifications["bindingPatternProjection"];
   readonly attributeApplication: CsharpAttributeApplicationIndex["attributeApplication"];
   readonly callableDispatch: CsharpProjectCallableAdapters["callableDispatch"];

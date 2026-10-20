@@ -4,9 +4,16 @@ import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/targ
 import type { CsharpNativeDemandAnalysis } from "../operations/native-demand-model.js";
 import type { CsharpNativeExpressionRecord, CsharpNativeDiscardEmission } from "../../target-model/records/native-demand.js";
 import type { CsharpConversionClassifications } from "../../target-model/records/conversions.js";
+import type { TargetSourceProgram } from "@tsonic/target-api/source";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
+import type { CsharpClassFactoryIndex } from "../../target-model/records/class-factories.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import { createCsharpExpressionEmissionRecords } from "../program/records/expression-emission.js";
 
-export function analyzeCsharpExpressionEmission(nodes: readonly Node[], demand: CsharpNativeDemandAnalysis, conversions: CsharpConversionClassifications) {
+export function analyzeCsharpExpressionEmission(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];
+  readonly demand: CsharpNativeDemandAnalysis; readonly conversions: CsharpConversionClassifications;
+  readonly evidence: CsharpSourceEvidenceIndex; readonly factories: CsharpClassFactoryIndex; readonly operations: CsharpTargetOperationClassifications }) {
+  const { source, nodes, demand, conversions } = input;
   const expressions = new Map<Node, CsharpNativeExpressionRecord>();
   const discards = new Map<TargetUseSiteRef, CsharpNativeDiscardEmission>();
   const issues: TargetDiagnostic[] = [];
@@ -16,7 +23,7 @@ export function analyzeCsharpExpressionEmission(nodes: readonly Node[], demand: 
     const selected = demand.nativeUse.expression(node);
     if (selected === undefined) continue;
     const use = selected.use;
-    if (use.kind === "erased") { expressions.set(node, { ...selected, physical: undefined, conversion: undefined, bottom: undefined }); continue; }
+    if (use.kind === "erased") { expressions.set(node, { ...selected, physical: undefined, conversion: undefined, bottom: undefined, storage: undefined }); continue; }
     const construction = use.kind === "converted" && use.children.length === 1 && use.children[0]!.subject === node && use.children[0]!.role === "constructed-result"
       ? demand.nativeUse.get(use.children[0]!) ?? failTargetAnalysisInvariant("tsonic-csharp", "An admitted converted expression requires its physical construction use.", node) : use;
     if (construction.kind === "erased") failTargetAnalysisInvariant("tsonic-csharp", "An admitted native construction cannot have an erased physical use.", node);
@@ -37,7 +44,51 @@ export function analyzeCsharpExpressionEmission(nodes: readonly Node[], demand: 
     if (conversion?.kind === "rejected") {
       issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message: conversion.reason }); continue;
     }
-    expressions.set(node, { ...selected, physical: construction, conversion, bottom });
+    const ast = source.ast;
+    const core = bottom === undefined && construction.literal === undefined && construction.binary === undefined && construction.discardedPresence === undefined &&
+      !forwarded.has(ast.kindName(node));
+    let storage: Node | undefined;
+    if (core) {
+      const handler = input.operations.nativeHandler.get(node);
+      if (!sourceKinds.has(ast.kindName(node)) && handler === undefined && input.evidence.sourceDefaultValue.get(node) === undefined) {
+        issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message: "Expression is outside the current C# planning surface." }); continue;
+      }
+      if (ast.is.IsClassExpression(node) && input.factories.classFactory.get(node) === undefined) {
+        issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message: "A class expression requires its sealed native factory." }); continue;
+      }
+      if (ast.is.IsClassExpression(node) || input.evidence.sourceDefaultValue.get(node) !== undefined) storage = node;
+      else {
+        const argument = input.evidence.sourceArgument.get(node)
+          ?? failTargetAnalysisInvariant("tsonic-csharp", "An admitted source expression requires its checked argument-passing evidence.", node);
+        if (argument.kind === "rejected") {
+          issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message: argument.reason }); continue;
+        }
+        storage = argument.argument.storageExpression;
+      }
+    }
+    expressions.set(node, { ...selected, physical: construction, conversion, bottom, storage });
+  }
+  const complete = new Set<Node>();
+  for (const node of expressions.keys()) {
+    const path = new Set<Node>();
+    let current = node;
+    while (!complete.has(current)) {
+      if (path.has(current)) failTargetAnalysisInvariant("tsonic-csharp", "Source expression storage forwarding must be acyclic.", current);
+      path.add(current);
+      const storage = expressions.get(current)?.storage;
+      if (storage === undefined || storage === current) break;
+      current = storage;
+    }
+    for (const visited of path) complete.add(visited);
   }
   return Object.freeze({ records: createCsharpExpressionEmissionRecords(expressions, discards), issues: Object.freeze(issues) });
 }
+
+const forwarded = new Set(["KindVoidExpression", "KindAsExpression", "KindTypeAssertionExpression", "KindNonNullExpression",
+  "KindParenthesizedExpression", "KindSatisfiesExpression", "KindConditionalExpression", "KindArrayLiteralExpression", "KindObjectLiteralExpression"]);
+
+const sourceKinds = new Set(["KindClassExpression", "KindIdentifier", "KindRegularExpressionLiteral", "KindTypeOfExpression", "KindDeleteExpression",
+  "KindTemplateExpression", "KindPropertyAccessExpression", "KindElementAccessExpression", "KindArrowFunction", "KindFunctionExpression",
+  "KindCallExpression", "KindNewExpression", "KindPrefixUnaryExpression", "KindPostfixUnaryExpression", "KindBinaryExpression",
+  "KindStringLiteral", "KindNoSubstitutionTemplateLiteral", "KindNumericLiteral", "KindBigIntLiteral", "KindTrueKeyword", "KindFalseKeyword",
+  "KindNullKeyword", "KindThisKeyword", "KindSuperKeyword", "KindAwaitExpression"]);
