@@ -1,17 +1,17 @@
 export {
   expressionToCsharpType,
-} from "./csharp-type-expression.js";
+} from "./type-expressions.js";
 export {
   getCsharpTypeForNode,
-} from "./type-node.js";
+} from "./type-node/index.js";
 export {
   getCsharpTypeFromSemanticType,
-} from "./csharp-semantic-types.js";
+} from "./semantic-types.js";
 export {
   sameCsharpType,
-} from "./csharp-type-equality.js";
+} from "../../target-ast/inspection/type-equality.js";
 export {
   nullableCsharpType,
   predefined,
   qualifiedCsharpType,
-} from "./csharp-type-primitives.js";
+} from "./primitives.js";
