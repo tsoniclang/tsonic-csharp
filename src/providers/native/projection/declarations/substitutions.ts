@@ -1,10 +1,4 @@
-import type {
-  ProviderMemberDeclaration,
-  ProviderParameterDeclaration,
-  ProviderSignatureDeclaration,
-  ProviderTypeExpression,
-  ProviderTypeParameterDeclaration,
-} from "@tsonic/tsts";
+import type { ProviderMemberDeclaration, ProviderParameterDeclaration, ProviderSignatureDeclaration, ProviderTypeExpression, ProviderTypeParameterDeclaration } from "@tsonic/tsts";
 import type { DotnetTypeDeclaration } from "../../model/index.js";
 
 export function getBaseTypeParameterSubstitutions(
