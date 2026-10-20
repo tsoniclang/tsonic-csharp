@@ -24,7 +24,7 @@ import { classifyCsharpOptionalCallCallee, classifyCsharpOptionalCallReceiver } 
 import { selectCsharpMemoryBinding } from "../../policy/operations/memory-bindings.js";
 
 import { selectCsharpElementDeletion } from "../../policy/operations/collections/element-deletion.js";
-import { selectCsharpSwitch } from "../../policy/operations/control-flow/switch.js";
+import { selectCsharpSwitch } from "./control-flow/switch.js";
 import { AsForInOrOfStatement, sourceClassFieldIsTypeOnly } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { selectCsharpJsValueCallOperation, selectCsharpJsValueBinaryOperation, selectCsharpJsValueReceiverExpressionOperation, selectCsharpJsValueUnaryOperation, selectCsharpJsTypeofOperation, selectCsharpJsValueCondition, selectCsharpJsValueVoidOperation, selectCsharpJsObjectLiteralOperation } from "../../policy/operations/js-values/index.js";

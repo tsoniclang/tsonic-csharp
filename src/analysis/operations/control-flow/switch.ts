@@ -1,10 +1,11 @@
 import type { CsharpSwitchSelection } from "../../../target-model/records/switch.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { CsharpPolicyContext } from "../../model/context.js";
-import { csharpSourcePrimitiveTargetType, isCsharpIntegralTargetType, isCsharpStringTargetType, targetTypeRefEquals } from "../../types/index.js";
-import { selectCsharpBinaryOperands } from "../operators/operator-selection.js";
+import type { CsharpPolicyContext } from "../../../policy/model/context.js";
+import { csharpSourcePrimitiveTargetType } from "../../../policy/types/index.js";
+import { selectCsharpBinaryOperands } from "../../../policy/operations/operators/operator-selection.js";
 import { type CsharpResolvedBinaryOperation } from "../../../target-model/records/operator-selection.js";
 
+import { csharpSwitchCarrierSupportsNativeDispatch } from "../../../policy/operations/control-flow/switch.js";
 export function selectCsharpSwitch(input: CsharpPolicyContext, node: Node, sourceFile: SourceFile): CsharpSwitchSelection {
   const statement = input.ast.as.AsSwitchStatement(node);
   const expression = statement?.Expression;
@@ -15,8 +16,7 @@ export function selectCsharpSwitch(input: CsharpPolicyContext, node: Node, sourc
   if (type === undefined) return { kind: "rejected", reason: "Switch governing expression has no closed native carrier." };
   const defaults = clauses.filter(clause => input.ast.is.IsDefaultClause(clause));
   if (defaults.length > 1) return { kind: "rejected", reason: "Switch cannot contain multiple default clauses." };
-  const native = isCsharpIntegralTargetType(type) || isCsharpStringTargetType(type) ||
-    ["float32", "float64", "bool"].some(name => targetTypeRefEquals(type, csharpSourcePrimitiveTargetType(name as "float32" | "float64" | "bool")));
+  const native = csharpSwitchCarrierSupportsNativeDispatch(type);
   if (native && clauses.every(clause => input.ast.is.IsDefaultClause(clause) ||
     constantLabel(input, input.ast.as.AsCaseOrDefaultClause(clause)?.Expression))) return Object.freeze({
       kind: "native", expression, type,
