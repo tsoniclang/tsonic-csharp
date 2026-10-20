@@ -1,28 +1,10 @@
 import type { CsharpTargetMember } from "../../../types/index.js";
-import {
-  csharpJsArrayTargetType,
-  csharpJsRegExpMatchArrayTargetType,
-  csharpJsRegExpStringIteratorTargetType,
-  csharpExactJsRegExpMatchArrayTargetType,
-  csharpExactJsRegExpStringIteratorTargetType,
-  csharpJsRegExpTargetType,
-} from "../../../../target-model/types/carriers/js.js";
-import {
-  csharpJsStringTargetType,
-  csharpNullableTargetType,
-  csharpSourcePrimitiveTargetType,
-  csharpStringTargetType,
-  targetTypeRefEquals,
-} from "../../../../target-model/types/index.js";
-import type { CsharpSourceProfileCallPolicy } from "../source-profile-policy.js";
+import { csharpJsArrayTargetType, csharpJsRegExpMatchArrayTargetType, csharpJsRegExpStringIteratorTargetType, csharpExactJsRegExpMatchArrayTargetType, csharpExactJsRegExpStringIteratorTargetType, csharpJsRegExpTargetType } from "../../../../target-model/types/carriers/js.js";
+import { csharpJsStringTargetType, csharpNullableTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, targetTypeRefEquals } from "../../../../target-model/types/index.js";
+import type { CsharpSourceProfileCallPolicy } from "../../../model/source-profiles.js";
 import { jsRuntimeTargetType, receiverHelperMethod, targetParameter } from "./common.js";
 import { csharpJsReplacementCallbackParameter } from "./replacement-callback.js";
-import {
-  customProtocolTargetMember,
-  resolveCustomRegExpProtocol,
-  resolveStringOperationArgument,
-  targetTypeKey,
-} from "./regexp-protocol.js";
+import { customProtocolTargetMember, resolveCustomRegExpProtocol, resolveStringOperationArgument, targetTypeKey } from "./regexp-protocol.js";
 
 const stringType = csharpStringTargetType();
 const jsStringType = csharpJsStringTargetType();
@@ -70,11 +52,7 @@ export function exactJsStringReplacementMember(
   operation: "replace" | "replaceAll",
 ): CsharpTargetMember | undefined {
   const search = resolveStringOperationArgument(context, 0);
-  const replacement = context.host.types.resolveSourceCallParameter(
-    context.source,
-    1,
-    context.sourceFile,
-  );
+  const replacement = context.inputs.parameters[1];
   if (
     search === undefined ||
     replacement === undefined ||
@@ -178,11 +156,7 @@ export function stringReplacementMember(
   operation: "replace" | "replaceAll",
 ): CsharpTargetMember | undefined {
   const search = resolveStringOperationArgument(context, 0);
-  const replacement = context.host.types.resolveSourceCallParameter(
-    context.source,
-    1,
-    context.sourceFile,
-  );
+  const replacement = context.inputs.parameters[1];
   const custom = resolveCustomRegExpProtocol(context, 0, "replace");
   if (
     search === undefined ||
