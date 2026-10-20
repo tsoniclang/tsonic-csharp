@@ -1,5 +1,5 @@
-export interface CsharpObjectShapeNameCandidate {
+export interface CsharpObjectShapeDisplayName {
   readonly canonicalName: string;
   readonly identity: string;
-  readonly preferredStem: string;
+  readonly displayName: string;
 }

@@ -1,14 +1,14 @@
 import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
 import type { CsharpObjectShapeDeclarationEmission, CsharpObjectShapeEmission, CsharpObjectShapeEmissionRecords, CsharpObjectShapeParameter } from "../../../target-model/records/object-shape-emission.js";
 import { objectShapeArtifactKey } from "../../../target-model/records/object-shape-demand.js";
-import type { CsharpObjectShapeNameCandidate } from "../../../target-model/records/object-shape-names.js";
+import type { CsharpObjectShapeDisplayName } from "../../../target-model/records/object-shape-names.js";
 
 export function createCsharpObjectShapeEmissionRecords(
   parameters: ReadonlyMap<string, readonly CsharpObjectShapeParameter[]>,
   keys: ReadonlyMap<string, readonly string[]>,
   emissions: ReadonlyMap<string, CsharpObjectShapeEmission>,
   declarations: readonly CsharpObjectShapeDeclarationEmission[],
-  names: readonly CsharpObjectShapeNameCandidate[],
+  names: readonly CsharpObjectShapeDisplayName[],
 ): CsharpObjectShapeEmissionRecords {
   const inventory = Object.freeze(declarations);
   return Object.freeze({

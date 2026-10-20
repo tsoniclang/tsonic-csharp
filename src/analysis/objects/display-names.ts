@@ -2,18 +2,26 @@ import type {
   CsharpObjectShapeArtifact,
 } from "../../target-model/records/object-shape-demand.js";
 import type {
-  CsharpObjectShapeNameCandidate,
+  CsharpObjectShapeDisplayName,
 } from "../../target-model/records/object-shape-names.js";
 import {
   csharpRenderShapeForTargetNamedType,
   csharpStructuralObjectShapeIdentity,
   targetTypeRefKey,
 } from "../../target-model/types/index.js";
+import { selectCsharpObjectShapeDisplayNames } from "../names/object-shapes.js";
+
+export interface CsharpObjectShapeNameCandidate {
+  readonly canonicalName: string;
+  readonly identity: string;
+  readonly preferredStem: string;
+}
 
 export function analyzeCsharpObjectShapeNames(
   artifacts: readonly CsharpObjectShapeArtifact[],
-): readonly CsharpObjectShapeNameCandidate[] {
-  return artifacts.flatMap((artifact) => {
+  reservedNames: ReadonlySet<string>,
+): readonly CsharpObjectShapeDisplayName[] {
+  const candidates = artifacts.flatMap((artifact) => {
     if (
       artifact.materialization !== "synthetic" ||
       artifact.fact.targetType.kind !== "target-named"
@@ -38,6 +46,9 @@ export function analyzeCsharpObjectShapeNames(
       preferredStem: preferredObjectShapeStem(artifact),
     }];
   });
+  const names = selectCsharpObjectShapeDisplayNames(candidates, reservedNames);
+  return Object.freeze(candidates.map(candidate => Object.freeze({ canonicalName: candidate.canonicalName,
+    identity: candidate.identity, displayName: names.get(candidate.canonicalName)! })));
 }
 
 function preferredObjectShapeStem(

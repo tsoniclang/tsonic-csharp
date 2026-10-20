@@ -1,7 +1,7 @@
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../types/model.js";
 import type { CsharpTypeParameterConstraint } from "../types/generic-constraints.js";
 import type { CsharpObjectShapeArtifact } from "./object-shape-demand.js";
-import type { CsharpObjectShapeNameCandidate } from "./object-shape-names.js";
+import type { CsharpObjectShapeDisplayName } from "./object-shape-names.js";
 
 export interface CsharpObjectShapeParameter {
   readonly parameter: Extract<TargetTypeRef, { readonly kind: "type-parameter" }>;
@@ -11,7 +11,7 @@ export interface CsharpObjectShapeParameter {
 }
 
 export interface CsharpObjectShapeEmissionRecords {
-  readonly objectShapeNames: { readonly get: () => readonly CsharpObjectShapeNameCandidate[] };
+  readonly objectShapeNames: { readonly get: () => readonly CsharpObjectShapeDisplayName[] };
   readonly objectShapeEmission: { readonly get: (fact: CsharpObjectShapeFact) => CsharpObjectShapeEmission | undefined };
   readonly objectShapeDeclarations: { readonly get: () => readonly CsharpObjectShapeDeclarationEmission[] };
   readonly objectShapeParameters: { readonly get: (fact: CsharpObjectShapeFact) => readonly CsharpObjectShapeParameter[] | undefined };

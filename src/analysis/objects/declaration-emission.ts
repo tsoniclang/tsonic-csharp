@@ -148,5 +148,6 @@ export function analyzeCsharpObjectShapeEmission(input: {
   }
   return Object.freeze({ records: createCsharpObjectShapeEmissionRecords(parameters, keys, emissions,
     [...headers.values()].sort((left, right) => left.name.localeCompare(right.name)),
-    Object.freeze(analyzeCsharpObjectShapeNames(input.demand.artifacts))), issues: Object.freeze(issues) });
+    analyzeCsharpObjectShapeNames(input.demand.artifacts, new Set([...input.names.reservedNames,
+      ...headers.values()].map(value => typeof value === "string" ? value : value.name)))), issues: Object.freeze(issues) });
 }
