@@ -1,11 +1,5 @@
-import type {
-  CsharpMethodTypeArgumentProjection,
-} from "../../../policy/types/index.js";
-import type {
-  DotnetMemberDeclaration,
-  DotnetSignatureDeclaration,
-  DotnetTypeRef,
-} from "../model/types.js";
+import type { CsharpMethodTypeArgumentProjection } from "../../../target-model/types/model.js";
+import type { DotnetMemberDeclaration, DotnetSignatureDeclaration, DotnetTypeRef } from "../model/types.js";
 
 interface DotnetMethodTypeArgumentProjectionPolicy {
   readonly memberKind: "method";
