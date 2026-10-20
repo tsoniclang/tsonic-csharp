@@ -1,12 +1,12 @@
 import type { Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
-import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef } from "../../../target-model/types/model.js";
-import { resolveCsharpObjectShapeMemberBySelectedSubject, csharpObjectShapeMemberRetainsNativeReference } from "../../../target-model/types/object-shape-members.js";
-import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
-import type { CsharpTypePolicyBaseHost } from "../resolution/model.js";
-import { csharpProviderSelectsNumericStorage } from "./object-shape-policy/provider-construction.js";
-import { csharpObjectShapesEqual } from "../../../target-model/types/object-shape-equality.js";
+import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
+import { resolveCsharpObjectShapeMemberBySelectedSubject, csharpObjectShapeMemberRetainsNativeReference } from "../../target-model/types/object-shape-members.js";
+import { targetTypeRefEquals } from "../../target-model/types/equality.js";
+import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
+import type { CsharpTypePolicyBaseHost } from "../types/resolution/model.js";
+import { csharpProviderSelectsNumericStorage } from "./shapes/provider-construction.js";
+import { csharpObjectShapesEqual } from "../../target-model/types/object-shape-equality.js";
 
 export function csharpNativeConstructionMembersMatch(
   sourceType: Type,

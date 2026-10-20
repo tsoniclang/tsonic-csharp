@@ -8,7 +8,7 @@ import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/
 import { csharpNullableTargetType } from "../../target-model/types/carriers/nullable.js";
 import { createCsharpMetadataBudget } from "../../target-model/metadata/immutable.js";
 import type { CsharpTypePolicyBaseHost } from "../types/resolution/model.js";
-import { csharpNativeConstructionMembersMatch } from "../../policy/types/objects/native-construction-members.js";
+import { csharpNativeConstructionMembersMatch } from "./native-construction-members.js";
 import { createCsharpObjectShapeValueStorage } from "../../policy/types/objects/shape-carriers.js";
 
 import type { CsharpNativeConstructionDemandQueries, CsharpNativeConstructionIssue, CsharpNativeConstructionSelection } from "../../target-model/records/native-construction.js";
