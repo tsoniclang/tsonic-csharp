@@ -6,7 +6,7 @@ import { isSourceDeclaredNominalShape, isCsharpObjectShapeGeneratedMemberName } 
 import { csharpStructuralObjectShapeIdPrefix } from "../../target-model/types/object-shape-identity.js";
 import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
 import { csharpFreeTypeParameterIdentities } from "../../target-model/types/generic-references.js";
-import type { CsharpObjectShapePropertyOrderSelection } from "./model.js";
+import type { CsharpObjectShapePropertyOrderSelection } from "../../target-model/records/object-shapes.js";
 
 type AuthoredOrder = CsharpObjectShapePropertyOrderSelection | { readonly kind: "empty" };
 

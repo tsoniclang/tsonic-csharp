@@ -7,7 +7,7 @@ import { sourceClosedCallableArguments, sourceExpressionCallArgument } from "@ts
 import type { SourceLexicalValueCreation } from "@tsonic/target-api/source";
 import { createHash } from "node:crypto";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpObjectShapeClassifications } from "../objects/model.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 import type { CsharpStorageIssue } from "../../target-model/records/storage.js";
 import type { CsharpCaptureStorageQueries } from "../storage/index.js";
 import { createStructuralObjectShapeTarget } from "../../policy/types/objects/object-shape-policy/construction.js";

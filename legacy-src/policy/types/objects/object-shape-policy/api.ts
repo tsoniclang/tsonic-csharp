@@ -48,7 +48,8 @@ import { parameterizeCsharpStructuralContract } from "./structural-contracts.js"
 import { selectCsharpCopiedMethodReceiver } from "../../../ownership/copied-methods.js";
 import { retainCsharpGenericCallableValue } from "../../callables/generic-values.js";
 
-import type { CsharpObjectLiteralTargetShapeResolution, CsharpObjectShapePolicyHost, CsharpRecursiveObjectShapePolicy } from "./model.js";
+import type {CsharpObjectShapePolicyHost, CsharpRecursiveObjectShapePolicy} from "./model.js";
+import type { CsharpObjectLiteralTargetShapeResolution } from "../../../../target-model/records/object-shapes.js";
 import type { CsharpProjectConstructibleTypeProjection } from "../../../../target-model/records/object-shapes.js";
 import { instantiateCsharpObjectShape } from "./instantiation.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../../target-model/types/object-shape-members.js";

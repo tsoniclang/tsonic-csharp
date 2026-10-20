@@ -33,7 +33,7 @@ import {
   resolveCsharpObjectShapeMemberBySourceContract,
 } from "../../target-model/types/index.js";
 import type { CsharpExpectedTypeClassifications } from "../../target-model/records/expected-types.js";
-import type { CsharpObjectShapeClassifications } from "../objects/index.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 import type { CsharpStructuralInterfaceRegistration } from "../objects/structural-interfaces.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpTargetCallSelection } from "../../target-model/records/member-selections.js";

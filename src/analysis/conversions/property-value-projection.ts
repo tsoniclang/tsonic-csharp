@@ -1,5 +1,5 @@
 import type { CsharpConversionClassifications } from "../../target-model/records/conversions.js";
-import type { CsharpObjectShapeClassifications } from "../objects/index.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 import type { CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
 import type { CsharpPropertyValueProjectionEmission } from "../../target-model/records/property-value-projection.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";

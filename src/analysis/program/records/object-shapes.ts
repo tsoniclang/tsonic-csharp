@@ -1,4 +1,4 @@
-import type { CsharpObjectShapeClassifications } from "../../objects/model.js";
+import type { CsharpObjectShapeClassifications } from "../../../target-model/records/object-shapes.js";
 import type { CsharpObjectShapeRecords } from "../../../target-model/records/object-shapes.js";
 
 export function createCsharpObjectShapeRecords(sealed: Pick<CsharpObjectShapeClassifications, "resolveNode" | "resolveTarget">): CsharpObjectShapeRecords {

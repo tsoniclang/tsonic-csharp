@@ -8,7 +8,7 @@ import { isCsharpEmptyObjectTargetType } from "../../target-model/types/carriers
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
 import type { CsharpNamePlan } from "../../target-model/names/model.js";
 import { tryCsharpIdentifier } from "../../target-model/names/identifiers.js";
-import type { CsharpObjectShapeClassifications } from "./model.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 import { csharpObjectShapeTypeParameters, csharpFreeTypeParameterIdentities } from "../../target-model/types/generic-references.js";
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 import { createCsharpObjectShapeEmissionRecords } from "../program/records/object-shape-emission.js";

@@ -15,7 +15,7 @@ import type { CsharpClassFactoryIndex } from "../../target-model/records/class-f
 import type { CsharpCaptureStorage } from "../../target-model/records/capture-storage.js";
 import type { CsharpObjectShapeDemand } from "../../target-model/records/object-shape-demand.js";
 import { objectShapeArtifactKey } from "../../target-model/records/object-shape-demand.js";
-import type { CsharpObjectShapeClassifications } from "../objects/model.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 import type { CsharpObjectShapeFact } from "../../target-model/types/model.js";
 import { csharpSourceTypeParameters } from "../../target-model/names/type-parameters.js";
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";

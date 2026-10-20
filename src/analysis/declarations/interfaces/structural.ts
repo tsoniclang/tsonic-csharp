@@ -1,6 +1,6 @@
 import type { AstReader } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import type { CsharpObjectShapeClassifications } from "../../objects/model.js";
+import type { CsharpObjectShapeClassifications } from "../../../target-model/records/object-shapes.js";
 import type { CsharpFinalStructuralInterfaceImplementation } from "../../../target-model/records/heritage.js";
 import type { CsharpNamePlan } from "../../../target-model/names/model.js";
 import type { CsharpProjectTypeClassifications } from "../../../target-model/records/project-types.js";

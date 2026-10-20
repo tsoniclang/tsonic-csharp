@@ -18,9 +18,7 @@ import type { CsharpProgramRecords } from "../../target-model/records/program.js
 import type { CsharpClassFactory } from "../../target-model/records/class-factories.js";
 import type { CsharpCaptureFrame } from "../../target-model/records/capture-storage.js";
 import type { CsharpNamePlan } from "../../target-model/names/model.js";
-import type {
-  CsharpObjectShapeClassifications,
-} from "../objects/index.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 import type {
   CsharpProjectClassifications,
 } from "../project/index.js";

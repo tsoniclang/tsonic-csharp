@@ -8,7 +8,7 @@ import type { CsharpClassFactoryIndex } from "../../target-model/records/class-f
 import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
 import type { CsharpObjectMethodRecords } from "../../target-model/records/object-methods.js";
 import type { CsharpObjectLiteralRecords } from "../../target-model/records/object-literals.js";
-import type { CsharpObjectShapeClassifications } from "../objects/model.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 import { createCsharpThisEmissionProducer } from "../program/records/expression-this.js";
 
 export function analyzeCsharpThisEmission(input: {

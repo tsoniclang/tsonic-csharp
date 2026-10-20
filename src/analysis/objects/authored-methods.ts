@@ -4,7 +4,7 @@ import type { CsharpCaptureStorage } from "../../target-model/records/capture-st
 import type { CsharpObjectShapeDemand } from "../../target-model/records/object-shape-demand.js";
 import { objectShapeArtifactKey } from "../../target-model/records/object-shape-demand.js";
 import type { CsharpObjectCaptureField, CsharpAuthoredObjectMethod } from "../../target-model/records/object-methods.js";
-import type { CsharpObjectShapeClassifications } from "./model.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 import { csharpObjectShapeMethodDeclaration } from "../../target-model/types/method-values.js";
 import { objectShapeStorageMemberName } from "../../target-model/names/object-members.js";
 import { createCsharpObjectMethodRecords } from "../program/records/object-methods.js";

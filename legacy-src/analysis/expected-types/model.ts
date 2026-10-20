@@ -12,7 +12,7 @@ import type { CsharpExactLiteralSelectionIndex } from "../../target-model/conver
 import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
 import type { CsharpNativeRepresentationPending } from "../../policy/conversions/native-use-representation.js";
 import type { CsharpExpectedTypeClassifications } from "../../target-model/records/expected-types.js";
-import type { CsharpObjectShapeClassifications } from "../objects/index.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 import type { CsharpCallableContractIndex } from "../callables/index.js";
 import type { CsharpExpectedNativeUseSites } from "./native-uses.js";
 import type { CsharpExpectedTypePropagation } from "./propagation.js";

@@ -8,7 +8,7 @@ import { csharpStructuralObjectShapeIdentity } from "../../target-model/types/ob
 import type { CsharpSourceEvidenceAnalysis } from "../source-evidence/model.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpNativeArrayStorage, CsharpStorageIssue } from "../../target-model/records/storage.js";
-import type { CsharpObjectShapeClassifications } from "../objects/model.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 import { createCsharpNativeFieldBacking } from "./native-field-backing.js";
 import { createCsharpTypeParameterEnvironment } from "../../policy/constraints/type-parameter-environment.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";

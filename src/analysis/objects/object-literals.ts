@@ -8,7 +8,7 @@ import type { CsharpNativeDemandAnalysis } from "../operations/native-demand-mod
 import type { CsharpNativeUse } from "../../target-model/records/native-demand.js";
 import type { CsharpObjectLiteralEmission, CsharpObjectLiteralMemberEmission } from "../../target-model/records/object-literals.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpObjectShapeClassifications } from "./model.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpObjectMethodRecords } from "../../target-model/records/object-methods.js";
 import type { CsharpObjectMemberRecords } from "../../target-model/records/object-members.js";

@@ -77,11 +77,4 @@ export interface CsharpRecursiveObjectShapePolicy extends CsharpObjectShapePolic
   ): CsharpObjectShapeFact | undefined;
 }
 
-export type CsharpObjectLiteralTargetShapeResolution =
-  | { readonly kind: "not-applicable" }
-  | { readonly kind: "resolved"; readonly shape: CsharpObjectShapeFact }
-  | {
-      readonly kind: "rejected";
-      readonly subject: Node;
-      readonly reason: string;
-    };
+import type { CsharpObjectLiteralTargetShapeResolution } from "../../../../target-model/records/object-shapes.js";

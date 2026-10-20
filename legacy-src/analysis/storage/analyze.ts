@@ -27,9 +27,7 @@ import type { CsharpConversionClassifications } from "../../target-model/records
 import type { CsharpExpectedTypeClassifications } from "../../target-model/records/expected-types.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
-import type {
-  CsharpObjectShapeClassifications,
-} from "../objects/index.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 import type { CsharpStorageClassifications, CsharpStorageRepresentationClassifications, CsharpStorageIssue } from "../../target-model/records/storage.js";
 import { canConstructCsharpStorageLiteral } from "./literal-construction.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";

@@ -1,5 +1,5 @@
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpObjectShapeClassifications } from "./model.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 import type { CsharpObjectShapeDemand } from "../../target-model/records/object-shape-demand.js";
 import { objectShapeArtifactKey } from "../../target-model/records/object-shape-demand.js";
 import type { CsharpObjectMemberEmission } from "../../target-model/records/object-members.js";

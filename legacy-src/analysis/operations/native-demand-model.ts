@@ -5,7 +5,7 @@ import type { CsharpNativeOperandInput } from "../../policy/operations/control-f
 import type { CsharpNativeUse, CsharpNativeUseClassifications } from "../../target-model/records/native-demand.js";
 import type { CsharpExpectedNativeUseAdmission } from "../expected-types/model.js";
 import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
-import type { CsharpObjectShapeClassifications } from "../objects/model.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 import type { CsharpExactLiteralSelectionIndex, CsharpNativePropertyKeyBinding } from "../../target-model/conversions/exact-literals.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";

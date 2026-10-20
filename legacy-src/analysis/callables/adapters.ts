@@ -6,7 +6,7 @@ import { selectCsharpFlowReadConversion } from "../../policy/conversions/express
 import type { CsharpSourceCallableContract } from "../../target-model/records/source-callable-contract.js";
 import { admitCsharpConversionSelection } from "../conversions/validation.js";
 import { csharpCallableParameterConversionRequests, selectCsharpCallableParameterAdapters } from "../../policy/conversions/callable-parameters.js";
-import type { CsharpObjectShapeClassifications } from "../objects/model.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 
 export type CsharpCallableConversionPolicy = Pick<CsharpPolicyContext,
   "typeDefinitions" | "projectTypes" | "providers" | "target"> & {

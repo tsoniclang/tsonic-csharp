@@ -3,7 +3,7 @@ import type { AstReader, Node } from "@tsonic/tsts";
 import { sourceLexicalCaptures, type SourceCallOnlyAlias, type SourceFileSemantics, type SourceProgramNavigation } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { csharpNativePropertyNameIssue } from "./computed-field-names.js";
-import type { CsharpObjectShapeClassifications } from "./model.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
 import type {

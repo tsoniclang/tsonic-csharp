@@ -6,7 +6,7 @@ import { getCsharpArrayLiteralElementTargetType } from "../../target-model/types
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpConversionClassifications } from "../../target-model/records/conversions.js";
-import type { CsharpObjectShapeClassifications } from "../objects/index.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 
 export function canConstructCsharpStorageLiteral(

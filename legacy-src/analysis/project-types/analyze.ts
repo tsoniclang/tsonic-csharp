@@ -10,7 +10,7 @@ import type { CsharpProjectTypeClassifications } from "../../target-model/record
 import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
 import { snapshotCsharpTargetTypes } from "../../target-model/types/snapshot.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpObjectShapeClassifications } from "../objects/model.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 import { completeCsharpDeclarationHeritage } from "./heritage.js";
 
 export function sealCsharpProjectTypeClassifications(

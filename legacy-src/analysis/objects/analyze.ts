@@ -1,10 +1,7 @@
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type {
-  CsharpObjectLiteralTargetShapeResolution,
-  CsharpObjectShapeFact,
-  TargetTypeRef,
-} from "../../policy/types/index.js";
+import type {CsharpObjectShapeFact, TargetTypeRef} from "../../policy/types/index.js";
+import type { CsharpObjectLiteralTargetShapeResolution } from "../../target-model/records/object-shapes.js";
 import {
   csharpObjectShapeContractKey,
   csharpObjectShapesEqual,
@@ -16,7 +13,7 @@ import {
 import { selectCsharpObjectLiteralUnionCarrier, csharpObjectLiteralDestinationDeclarations } from "../../policy/types/objects/object-shape-policy/union-construction.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from "./model.js";
+import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 import { collectCsharpInheritedInterfaces, selectCsharpStructuralInterface, type CsharpStructuralInterfaceRegistration } from "./structural-interfaces.js";
 import { mergeCsharpObjectShapeSubjects } from "../../policy/types/objects/object-shape-policy/construction.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
