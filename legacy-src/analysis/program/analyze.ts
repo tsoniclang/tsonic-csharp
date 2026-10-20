@@ -36,6 +36,7 @@ import { analyzeCsharpProjectEmission } from "../project-types/emission.js";
 import { analyzeCsharpTypeParameterEmission } from "../declarations/type-parameters.js";
 import { analyzeCsharpTypeEmission } from "../types/emission.js";
 import { analyzeCsharpNativeMemoryEmission } from "../operations/native-memory-emission.js";
+import { admitCsharpUnionProjections } from "../operations/union-projections.js";
 import { analyzeCsharpIdentifierEmission } from "../names/source-identifiers.js";
 import { analyzeCsharpSourceFileEmission } from "../source-modules/emission.js";
 import { analyzeCsharpStartup } from "../source-modules/startup.js";
@@ -479,6 +480,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     exact: exactLiterals, values: analysis.valueReads });
   const templateStrings = analyzeCsharpTemplateStrings(source.ast, nativeDemand);
   const nonCallableIssues = [
+    ...admitCsharpUnionProjections(sourceStorage.nodes, admittedOperations, typeDefinitions),
     ...literalEmission.issues,
     ...analyzeCsharpVoidAdmission({ ast: source.ast, demand: nativeDemand, values: analysis.valueReads, operations: admittedOperations }),
     ...analyzeCsharpAwaitAdmission({ ast: source.ast, demand: nativeDemand, values: analysis.valueReads, operations: admittedOperations }),
