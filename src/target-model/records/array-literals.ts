@@ -1,7 +1,8 @@
-import type { Node } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../types/model.js";
-import type { CsharpConversionSelection } from "../conversions/selection.js";
-import type { CsharpBorrowedSequenceInput } from "./borrowed-sequences.js";
+import { type Node } from "@tsonic/tsts";
+import { type TargetTypeRef } from "../types/model.js";
+import { type CsharpConversionSelection } from "../conversions/selection.js";
+import { type CsharpBorrowedSequenceInput } from "./borrowed-sequences.js";
+import { type TargetTypeRef } from "../../policy/types/types/model.js";
 
 export interface CsharpArraySpreadEmission {
   readonly carrier: TargetTypeRef;
@@ -41,3 +42,9 @@ export interface CsharpArrayLiteralRecords {
   readonly arraySpread: { readonly get: (node: Node, target: TargetTypeRef) => CsharpArraySpreadEmission | undefined };
   readonly borrowedSequenceEmission: { readonly get: (input: CsharpBorrowedSequenceInput, target: TargetTypeRef) => CsharpBorrowedSequenceEmission | undefined };
 }
+
+
+export type CsharpArrayLiteralSelection =
+  | { readonly kind: "resolved"; readonly carrier: TargetTypeRef; readonly elementCarriers: readonly TargetTypeRef[] }
+  | { readonly kind: "rejected"; readonly reason: string }
+  | { readonly kind: "unavailable" };

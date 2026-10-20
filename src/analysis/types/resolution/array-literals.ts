@@ -1,25 +1,21 @@
+import type { CsharpArrayLiteralSelection } from "../../../target-model/records/array-literals.js";
 import type { Node } from "@tsonic/tsts";
 import { sourceEnclosingCallable, sourceExpressionCallArgument, type SourceClosedCallableArgument, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import type { CsharpTypeResolutionScope } from "./engine.js";
+import type { CsharpTypeResolutionScope } from "../../../policy/types/resolution/engine.js";
 import type { CsharpTypeResolutionState } from "./model.js";
-import { nextState } from "./state.js";
+import { nextState } from "../../../policy/types/resolution/state.js";
 import { getCsharpCollectionElementTargetType } from "../../../target-model/types/carriers/collections.js";
 import { combineCsharpTargetUnionMembers, isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpJsArrayTargetType } from "../../../target-model/types/carriers/js.js";
-import { selectedCsharpSourceProfileOwner } from "./source-profile.js";
-import { selectCsharpInferredNumericArrayElement } from "../collections/array-elements.js";
-import { csharpSourceStorageContext } from "./source-storage-projection.js";
+import { selectedCsharpSourceProfileOwner } from "../../../policy/types/resolution/source-profile.js";
+import { selectCsharpInferredNumericArrayElement } from "../../../policy/types/collections/array-elements.js";
+import { csharpSourceStorageContext } from "../../../policy/types/resolution/source-storage-projection.js";
 import { getCsharpCallableValueSignature, getCsharpTaskResultTargetType } from "../../../target-model/types/carriers/delegates.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { csharpFreeTypeParameterIdentities } from "../../../target-model/types/generic-references.js";
 import { csharpUnionLeaves } from "../../../target-model/types/union-relations.js";
-
-export type CsharpArrayLiteralSelection =
-  | { readonly kind: "resolved"; readonly carrier: TargetTypeRef; readonly elementCarriers: readonly TargetTypeRef[] }
-  | { readonly kind: "rejected"; readonly reason: string }
-  | { readonly kind: "unavailable" };
 
 const unavailable: CsharpArrayLiteralSelection = Object.freeze({ kind: "unavailable" });
 

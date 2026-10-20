@@ -6,7 +6,7 @@ import type { CsharpPointerReturnContract } from "../../target-model/records/poi
 import type { CsharpSourceTypedLocationOperation } from "../operations/typed-locations/source-typed-locations.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 
-import type { CsharpArrayLiteralSelection } from "../types/resolution/array-literals.js";
+import type { CsharpArrayLiteralSelection } from "../../target-model/records/array-literals.js";
 
 import type { ResolvedSourceCallInfo } from "../../target-model/records/source-calls.js";
 export interface CsharpTypeQueries {
