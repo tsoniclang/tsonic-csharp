@@ -1,13 +1,5 @@
-import type {
-  TargetPack,
-  TargetToolchain,
-  TargetToolchainContext,
-} from "@tsonic/target-api";
-import {
-  createCsharpCompilationSession,
-  csharpTargetProvider,
-  csharpTargetSurfaces,
-} from "../compilation/index.js";
+import type { TargetPack, TargetToolchain, TargetToolchainContext } from "@tsonic/target-api";
+import { createCsharpCompilationSession, csharpTargetProvider, csharpTargetSurfaces } from "../compilation/index.js";
 import { createDotnetToolchain } from "../toolchain/native.js";
 import { csharpTargetId } from "../target-model/identities/source.js";
 
