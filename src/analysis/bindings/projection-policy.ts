@@ -3,7 +3,7 @@ import type { CsharpBindingProjection } from "../../target-model/records/binding
 import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
 import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
 import { csharpNullableTargetType } from "../../target-model/types/carriers/nullable.js";
-import { csharpBindingDefaultCarrier } from "../../target-model/types/binding-normalization.js";
+import { csharpBindingDefaultCarrier } from "../../policy/types/storage/binding-normalization.js";
 import { getCsharpCollectionElementTargetType } from "../../target-model/types/carriers/collections.js";
 import { resolveCsharpObjectShapeMemberBySourceContract } from "../../target-model/types/object-shape-members.js";
 
