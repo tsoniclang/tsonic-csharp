@@ -1,12 +1,6 @@
-import {
-  csharpBigIntegerTargetType,
-  csharpStringTargetType,
-  csharpSourcePrimitiveTargetType,
-  targetTypeRefEquals,
-  type CsharpRuntimeUnionTargetTypeRef,
-  type TargetTypeRef,
-} from "../../../../target-model/types/index.js";
-import { resolveCsharpSelectedSourceValue, type CsharpSourceProfileCallPolicy } from "../source-profile-policy.js";
+import { csharpBigIntegerTargetType, csharpStringTargetType, csharpSourcePrimitiveTargetType, targetTypeRefEquals, type CsharpRuntimeUnionTargetTypeRef, type TargetTypeRef } from "../../../../target-model/types/index.js";
+import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
+import { type CsharpSourceProfileCallPolicy } from "../../../model/source-profiles.js";
 import { jsCallIdentity, jsCallPolicy, jsMemberIdentity, jsRuntimeTargetType, receiverHelperMethod, staticMethod, targetParameter } from "./common.js";
 
 const primitiveKinds = new Set([
