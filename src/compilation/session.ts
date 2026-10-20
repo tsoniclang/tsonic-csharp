@@ -1,4 +1,4 @@
-import { resolveCsharpProjectConfiguration } from "../options/project.js";
+import { classifyCsharpProjectConfiguration } from "../options/project.js";
 import { printCsharpRuntimeProject } from "../print/project/runtime.js";
 import type { TargetCompilationSession, TargetCompilationSessionContext, TargetCompileInput, TargetSourceCompilerContributions, TargetSourceProfileContributions } from "@tsonic/target-api";
 import type { TargetCompileResult, TargetRuntimeContributions } from "@tsonic/target-api/artifacts";
@@ -8,7 +8,7 @@ import { createDotnetSourceDeclarationProviderSet } from "../providers/native/pr
 import { collectCsharpCapabilityContributions, createCapabilityDotnetProviders } from "../providers/native/acquisition/contributions.js";
 import { createCsharpProviderRelationResolver } from "../providers/native/projection/relation-resolution.js";
 import { compileCsharpTarget } from "../backend/compile.js";
-import { createCsharpTargetConfiguration } from "../options/csharp-target-options.js";
+import { createCsharpTargetConfiguration } from "../options/target.js";
 import { createCsharpSourceSemanticsExtension } from "../source/extension/source-extension.js";
 import { csharpSourceSemanticsModules } from "../source/profiles/source-modules.js";
 import { csharpSourceProfileContributions } from "../source/profiles/declarations.js";
@@ -106,7 +106,7 @@ export function createCsharpCompilationSession(
     compile(input: TargetCompileInput): TargetCompileResult {
       requireState(state, "runtime-contributed", "compile");
       state = "compiled";
-      const project = resolveCsharpProjectConfiguration(configuration, input.runtimeReferences, input.paths.cacheRoot);
+      const project = classifyCsharpProjectConfiguration(configuration, input.runtimeReferences, input.paths.cacheRoot);
       if (project.kind === "rejected") return project;
       const providerAcquisition = relationResolver.prepareRuntimeSources({
         sources: project.value.runtimeSources,

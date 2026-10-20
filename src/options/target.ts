@@ -1,28 +1,12 @@
 import type { TargetSelection } from "@tsonic/target-api";
-import type {
-  CsharpLanguageDialect,
-  CsharpMemorySafetyRules,
-  CsharpOutputType,
-  CsharpTargetConfiguration,
-} from "../target-model/configuration/model.js";
+import type { CsharpLanguageDialect, CsharpMemorySafetyRules, CsharpOutputType, CsharpTargetConfiguration } from "../target-model/configuration/model.js";
 import type { CsharpProjectReference } from "../target-model/project/references.js";
-import {
-  existsSync,
-  readdirSync,
-  statSync,
-} from "node:fs";
-import {
-  isAbsolute,
-  join,
-  resolve,
-} from "node:path";
-import {
-  resolveDotnetFrameworkReferenceAssemblies,
-} from "./dotnet-framework-reference-packs.js";
-import {
-  resolveCsharpProjectConfiguration,
-} from "./csharp-user-project.js";
-import { defaultCsharpTargetFramework, parseCsharpTargetFramework } from "../target-model/configuration/framework.js";
+import { existsSync, readdirSync, statSync } from "node:fs";
+import { isAbsolute, join, resolve } from "node:path";
+import { resolveDotnetFrameworkReferenceAssemblies } from "./dotnet-framework-reference-packs.js";
+import { resolveCsharpProjectConfiguration } from "./csharp-user-project.js";
+import { defaultCsharpTargetFramework } from "../target-model/configuration/framework.js";
+import { parseCsharpTargetFramework } from "./framework.js";
 
 export type {
   CsharpLanguageDialect,

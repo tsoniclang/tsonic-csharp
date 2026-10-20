@@ -36,7 +36,7 @@ const targetOwnedProjectProperties = new Set([
   "TargetFramework",
 ]);
 
-export function resolveCsharpProjectConfiguration(
+export function classifyCsharpProjectConfiguration(
   configuration: CsharpTargetConfiguration,
   runtimeReferences: readonly TargetRuntimeReference[],
   cacheRoot: string,
