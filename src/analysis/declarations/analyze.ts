@@ -36,7 +36,8 @@ import { selectCsharpDefaultValueContract } from "../../policy/types/objects/bin
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpValueReadStageIndex } from "../../target-model/records/conversions.js";
-import type { CsharpDeclarationClassifications, CsharpDefaultParameterContract, CsharpReturnTargetContract } from "../../target-model/records/declarations.js";
+import type { CsharpDeclarationClassifications, CsharpReturnTargetContract } from "../../target-model/records/declarations.js";
+import { createCsharpDeclarationProducer } from "../program/records/declarations.js";
 
 export function analyzeCsharpDeclarations(
   policy: CsharpPolicyContext,
@@ -44,19 +45,11 @@ export function analyzeCsharpDeclarations(
   operations: CsharpTargetOperationClassifications,
   valueReadStages: CsharpValueReadStageIndex,
 ): CsharpDeclarationClassifications {
-  const returnContracts = new WeakMap<Node, CsharpReturnTargetContract>();
-  const runtimeDefaults = new WeakMap<Node, CsharpDefaultParameterContract>();
-  const methodWrites = new WeakMap<Node, { readonly type: TargetTypeRef; readonly storageName: string; readonly implementationName: string }>();
+  const declarations = createCsharpDeclarationProducer();
   for (const sourceFile of policy.sourceFiles) {
     visit(sourceFile);
   }
-  return Object.freeze({
-    runtimeDefault: Object.freeze({ get(node: Node) { return runtimeDefaults.get(node); } }),
-    methodWrite: Object.freeze({ get(node: Node) { return methodWrites.get(node); } }),
-    returnContract: Object.freeze({ get(node: Node) {
-      return returnContracts.get(node);
-    } }),
-  });
+  return declarations.seal();
 
   function visit(node: Node): void {
     if (evidence.compileTimeMetadata.get(node)) return;
@@ -65,7 +58,7 @@ export function analyzeCsharpDeclarations(
       const declaration = property.selection.source.selectedDeclaration;
       const selectedType = property.sourceOwned?.rawReadType;
       if (declaration !== undefined && policy.ast.is.IsMethodDeclaration(declaration) &&
-        selectedType !== undefined && getCsharpDelegateSignature(selectedType) !== undefined && !methodWrites.has(declaration)) {
+        selectedType !== undefined && getCsharpDelegateSignature(selectedType) !== undefined && declarations.records.methodWrite.get(declaration) === undefined) {
         const owner = policy.ast.parent(declaration);
         if (owner !== undefined && (policy.ast.is.IsClassDeclaration(owner) || policy.ast.is.IsClassExpression(owner))) {
           const reserved = new Set(policy.ast.members(owner).map(member => {
@@ -81,7 +74,7 @@ export function analyzeCsharpDeclarations(
             reserved.add(name);
             return name;
           };
-          methodWrites.set(declaration, { type: selectedType,
+          declarations.methodWrite(declaration, { type: selectedType,
             storageName: allocate("__tsonic_method_slot_"), implementationName: allocate("__tsonic_method_body_") });
         }
       }
@@ -111,13 +104,13 @@ export function analyzeCsharpDeclarations(
             ?.parameters.find(parameter => parameter.declaration === node);
           if (slot === undefined) throw new Error("A native parameter default requires its exact checked declaration slot.");
           const native = selectCsharpDefaultValueContract(runtimeDefault.parameterType, runtimeDefault.valueType, false);
-          runtimeDefaults.set(node, Object.freeze({ ...runtimeDefault, acceptsOmission: slot.acceptsOmission, native,
+          declarations.runtimeDefault(node, Object.freeze({ ...runtimeDefault, acceptsOmission: slot.acceptsOmission, native,
             passthrough: native.kind === "value" && !native.normalize && targetTypeRefEquals(native.source, native.target) }));
         }
       }
     }
     if (isCallableDeclaration(policy, node)) {
-      returnContracts.set(
+      declarations.returnContract(
         node,
         withAbsenceCompletion(policy, evidence, node, classifyReturnContract(policy, evidence, valueReadStages, node)),
       );
