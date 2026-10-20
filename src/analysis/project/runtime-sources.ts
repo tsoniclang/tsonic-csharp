@@ -67,42 +67,12 @@ export function instantiateCsharpRuntimeSources(
       sourceProperties: source.propertiesPath,
       framework,
       dependencies,
-      text: runtimeProjectText(source, framework, dependencies),
     });
     planned.set(sourcePath, project);
     return project;
   };
   for (const path of byPath.keys()) visit(path);
   return Object.freeze([...planned.values()]);
-}
-
-function runtimeProjectText(
-  source: CsharpRuntimeSourceProject,
-  framework: string,
-  dependencies: Readonly<Record<string, string>>,
-): string {
-  return [
-    "<Project>",
-    "  <PropertyGroup>",
-    `    <TargetFramework>${xmlValue(framework)}</TargetFramework>`,
-    `    <DirectoryBuildPropsPath>${pathValue(source.propertiesPath)}</DirectoryBuildPropsPath>`,
-    "    <TsonicRuntimeArtifactsPath>$(MSBuildThisFileDirectory)artifacts/</TsonicRuntimeArtifactsPath>",
-    ...Object.entries(dependencies).map(([name, path]) => `    <${name}>${pathValue(path)}</${name}>`),
-    "  </PropertyGroup>",
-    `  <Import Project="${pathValue(source.projectPath)}" />`,
-    "</Project>",
-    "",
-  ].join("\n");
-}
-
-function pathValue(value: string): string {
-  return xmlValue(value.replace(/[%$@();'?*]/gu, character =>
-    `%${character.charCodeAt(0).toString(16).toUpperCase()}`));
-}
-
-function xmlValue(value: string): string {
-  const entities: Readonly<Record<string, string>> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" };
-  return value.replace(/[&<>"']/gu, character => entities[character]!);
 }
 
 function validatePath(value: unknown, extension: string): asserts value is string {

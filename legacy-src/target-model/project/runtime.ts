@@ -16,5 +16,4 @@ export interface CsharpRuntimeProjectInstance {
   readonly sourceProperties: string;
   readonly framework: string;
   readonly dependencies: Readonly<Record<string, string>>;
-  readonly text: string;
 }
