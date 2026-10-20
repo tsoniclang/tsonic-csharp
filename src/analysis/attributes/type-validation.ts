@@ -1,7 +1,8 @@
+import { nativeConstantConversion } from "../../policy/attributes/constant-conversions.js";
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
+
 import type { CsharpConversionClassifications, CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import { getCsharpTypeofRuntimeKind } from "../../target-model/types/runtime-kind.js";
@@ -172,19 +173,5 @@ export function admitCsharpAttributeArguments(
     const targetType = valueReads.valueRead.get(target)?.value;
     const selection = conversions.expressionConversion.get(expression, sourceType, targetType, mode);
     return selection !== undefined && nativeConstantConversion(selection);
-  }
-}
-
-function nativeConstantConversion(conversion: CsharpConversionSelection): boolean {
-  switch (conversion.kind) {
-    case "identity":
-      return true;
-    case "implicit":
-      return conversion.proof === "literal" || conversion.proof === "numeric" ||
-        conversion.proof === "reference" || conversion.proof === "nullable";
-    case "cast":
-      return conversion.proof === "numeric" || conversion.proof === "reference" || conversion.proof === "nullable";
-    default:
-      return false;
   }
 }
