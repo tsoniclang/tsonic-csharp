@@ -1,20 +1,8 @@
-import type {
-  ExtensionDiagnostic,
-  ProviderMemberKey,
-  ProviderVirtualDeclarationFact,
-} from "@tsonic/tsts";
+import type { ExtensionDiagnostic, ProviderMemberKey, ProviderVirtualDeclarationFact } from "@tsonic/tsts";
 import type { CsharpProviderTargetRelation } from "../../../target-model/identities/provider-relations.js";
-import {
-  providerMemberSourceIdentity,
-  providerSignatureSourceIdentity,
-  providerTypeSourceIdentity,
-} from "../../model/provider-relations.js";
-import type {
-  DotnetProviderTargetRelationTemplate,
-} from "./target-relations.js";
-import type {
-  DotnetReflectionTypeDataProvider,
-} from "../acquisition/provider.js";
+import { providerMemberSourceIdentity, providerSignatureSourceIdentity, providerTypeSourceIdentity } from "../../model/provider-relations.js";
+import type { DotnetProviderTargetRelationTemplate } from "./target-relations.js";
+import type { DotnetReflectionTypeDataProvider } from "../acquisition/provider.js";
 
 export type DotnetProviderTargetRelationResolution =
   | {
