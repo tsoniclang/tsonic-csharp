@@ -35,7 +35,7 @@ import type { CsharpStructuralInterfaceRecords } from "../../../target-model/rec
 import type { CsharpLexicalValueRecords } from "../../../target-model/records/lexical-values.js";
 import type { CsharpCallableParameterRecords } from "../../../target-model/records/parameter-emission.js";
 import type { CsharpCallableDeclarationRecords } from "../../../target-model/records/callable-emission.js";
-import type { CsharpNativeMemberNames } from "../../../target-model/names/model.js";
+import type { CsharpNativeMemberNames } from "../../../target-model/records/native-member-names.js";
 import { createCsharpNativeMemberHidingRecords } from "./native-member-names.js";
 import type { CsharpMethodEmissionRecords } from "../../../target-model/records/method-emission.js";
 import type { CsharpClassEmissionRecords } from "../../../target-model/records/class-emission.js";
@@ -57,7 +57,8 @@ import type { CsharpFrozenDataPropertyRecords } from "../../../target-model/reco
 import type { CsharpCaptureMethodRecords } from "../../../target-model/records/capture-methods.js";
 
 export interface CsharpProgramRecordInput {
-  readonly names: import("../../../target-model/names/model.js").CsharpNamePlan;
+  readonly constructors: import("../../../target-model/records/constructor-emission.js").CsharpConstructorEmissionRecords;
+  readonly names: import("../../../target-model/records/native-member-names.js").CsharpNamePlan;
   readonly propertyValueProjection: import("../../../target-model/records/property-value-projection.js").CsharpPropertyValueProjectionRecords;
   readonly arrayLiterals: import("../../../target-model/records/array-literals.js").CsharpArrayLiteralRecords;
   readonly literalEmission: import("../../../target-model/records/literal-emission.js").CsharpLiteralEmissionRecords;
@@ -159,6 +160,7 @@ export function createCsharpProgramRecords(
   required: readonly CsharpRequiredRecord[],
 ): CsharpProgramRecords {
   const records: CsharpProgramRecords = Object.freeze({
+    ...input.constructors,
     ...input.propertyValueProjection,
     ...input.arrayLiterals,
     ...input.literalEmission,
