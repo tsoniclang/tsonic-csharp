@@ -220,6 +220,10 @@ type CsharpAnalysisRejection = Extract<TargetStageResult<never>, { readonly kind
 export function analyzeCsharpTargetProgram(
   request: CsharpTargetAnalysisRequest,
 ): TargetStageResult<CsharpTargetProgram> {
+  const references = request.providers.validateReferences();
+  if (references.length !== 0) {
+    return rejectedTargetStage(references.map(diagnostic => targetDiagnosticFromExtension(undefined, diagnostic)));
+  }
   try {
     return analyzeCsharpTargetProgramBeforeSeal(request);
   } catch (error) {
@@ -751,6 +755,8 @@ function analyzeCsharpTargetProgramBeforeSeal(
     operations: admittedOperations, values: analysis.valueReads, demand: nativeDemand, evidence: analysis.sourceEvidence,
     modules: sourceModuleConstructions.index.sourceModuleConstruction, files: sourceOutputIdentities.records, arguments: targetArguments.records });
   if (constructionEmission.issues.length !== 0) return rejectedTargetStage(constructionEmission.issues);
+  const references = providers.validateReferences();
+  if (references.length !== 0) return rejectedTargetStage(references.map(diagnostic => targetDiagnosticFromExtension(undefined, diagnostic)));
   const records = createCsharpProgramRecords({
     propertyValueProjection: propertyValueProjection.records,
     arrayLiterals: arrayLiterals.records,

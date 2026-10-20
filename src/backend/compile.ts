@@ -1,8 +1,4 @@
-import {
-  rejectedTargetStage,
-  runTargetCompilationStages,
-  targetDiagnosticFromExtension,
-} from "@tsonic/target-api/artifacts";
+import { runTargetCompilationStages } from "@tsonic/target-api/artifacts";
 import type {
   TargetCompilationObserver,
   TargetCompileResult,
@@ -25,18 +21,9 @@ export function compileCsharpTarget(
     Extract<ReturnType<typeof planCsharpOutput>, { readonly kind: "resolved" }>["value"]
   >,
 ): TargetCompileResult {
-  const before = request.providers.validateReferences();
-  if (before.length !== 0) {
-    return rejectedTargetStage(before.map(diagnostic => targetDiagnosticFromExtension(undefined, diagnostic)));
-  }
-  const result = runTargetCompilationStages({
+  return runTargetCompilationStages({
     analyze: () => analyzeCsharpTargetProgram(request),
     plan: (program) => planCsharpOutput(createCsharpPlanningContext(program)),
     materialize: materializeCsharpOutputPlan,
   }, observer);
-  const after = request.providers.validateReferences();
-  return after.length === 0 ? result : rejectedTargetStage([
-    ...result.diagnostics,
-    ...after.map(diagnostic => targetDiagnosticFromExtension(undefined, diagnostic)),
-  ]);
 }
