@@ -1,9 +1,6 @@
 import type { TargetCapabilityContribution } from "@tsonic/target-api/provider";
 import type { ExtensionDiagnostic } from "@tsonic/tsts";
-import type {
-  CsharpProviderTargetRejection,
-  CsharpProviderTargetRelation,
-} from "../identities/provider-relations.js";
+import type { CsharpProviderTargetRejection, CsharpProviderTargetRelation } from "../identities/provider-relations.js";
 import type { CsharpTargetBindingFact, TargetTypeRef } from "../types/model.js";
 import type { TargetBindingFact } from "../types/model.js";
 import type { CsharpNativeTargetBindingFact } from "../types/native-inheritance.js";
