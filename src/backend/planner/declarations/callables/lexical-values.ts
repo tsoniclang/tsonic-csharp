@@ -9,7 +9,7 @@ import { failCsharpPlannerInvariant } from "../../../invariants.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 
 export function planCsharpLexicalFunctionValues(
-  children: readonly Node[], sourceFile: SourceFile, input: CsharpPlanningContext,
+  children: readonly Node[], _sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[], state: DestructuringPlannerState,
 ): ReadonlyMap<Node, readonly CsharpStatement[]> {
   const statements = new Map<Node, CsharpStatement[]>();
