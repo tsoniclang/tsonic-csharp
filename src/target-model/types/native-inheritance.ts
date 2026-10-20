@@ -1,10 +1,5 @@
 import type { ArgumentPassingMode } from "@tsonic/tsts";
-import type {
-  CsharpTargetBindingFact,
-  CsharpTargetNamedTypeRef,
-  TargetBindingFact,
-  TargetTypeRef,
-} from "./model.js";
+import type { CsharpTargetBindingFact, CsharpTargetNamedTypeRef, TargetBindingFact, TargetTypeRef } from "./model.js";
 
 export type CsharpNativeInheritanceLookup =
   | { readonly kind: "target-id"; readonly targetId: string }
