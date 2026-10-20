@@ -1,18 +1,19 @@
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { csharpCollectionElementRead } from "../../../target-model/types/carriers/collection-reads.js";
-import { getCsharpIndexableLengthMemberName } from "../../../target-model/types/carriers/collections.js";
 import type { CsharpExpression, CsharpStatement } from "../../target-ast/syntax/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import type { CsharpPlanningContext } from "../context.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 
 export function planCsharpCollectionElementRead(
   carrier: TargetTypeRef, receiver: CsharpExpression, index: CsharpExpression,
-  typeParameterNames?: ReadonlyMap<string, string>,
+  input: CsharpPlanningContext,
 ): CsharpExpression | undefined {
-  const selection = csharpCollectionElementRead(carrier);
-  if (selection === undefined || selection.kind === "invalid") return undefined;
+  const selection = input.program.records.typeEmission.get(carrier)?.collectionRead;
+  if (selection === undefined) failCsharpPlannerInvariant("An admitted collection read requires its exact sealed native access.");
   if (selection.kind === "indexer") return { kind: "ElementAccessExpression", receiver, arguments: [index] };
-  const owner = csharpTypeFromTargetTypeRef(selection.member.declaringType!, typeParameterNames);
-  return owner === undefined ? undefined : { kind: "InvocationExpression",
+  const owner = csharpTypeFromTargetTypeRef(selection.member.declaringType!, input.scope.typeParameterNames)
+    ?? failCsharpPlannerInvariant("An admitted collection read requires its native member owner.");
+  return { kind: "InvocationExpression",
     callee: { kind: "SimpleMemberAccessExpression", receiver: owner, name: selection.member.targetName },
     arguments: [{ kind: "Argument", expression: receiver,
       ...(selection.member.parameters[0]!.passingMode === "byref-readonly" ? { passing: "in" as const } : {}) },
@@ -24,12 +25,12 @@ export function planCsharpCollectionIndexedIteration(
   receiver: CsharpExpression,
   indexName: string,
   consume: (value: CsharpExpression) => readonly CsharpStatement[] | undefined,
-  typeParameterNames?: ReadonlyMap<string, string>,
+  input: CsharpPlanningContext,
 ): CsharpStatement | undefined {
-  const length = getCsharpIndexableLengthMemberName(carrier);
-  if (length === undefined) return undefined;
+  const length = input.program.records.typeEmission.get(carrier)?.collectionLength;
+  if (length === undefined) failCsharpPlannerInvariant("An admitted indexed iteration requires its selected native length member.");
   const index: CsharpExpression = { kind: "IdentifierName", name: indexName };
-  const value = planCsharpCollectionElementRead(carrier, receiver, index, typeParameterNames);
+  const value = planCsharpCollectionElementRead(carrier, receiver, index, input);
   const statements = value === undefined ? undefined : consume(value);
   if (statements === undefined) return undefined;
   return { kind: "ForStatement",

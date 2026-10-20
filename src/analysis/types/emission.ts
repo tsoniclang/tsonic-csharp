@@ -13,6 +13,8 @@ import { selectCsharpTypeEmission } from "../../policy/types/type-emission.js";
 import { selectCsharpTypeUnsafeContext } from "../../policy/safety/native-types.js";
 import { getCsharpGenericOptionalParts } from "../../target-model/types/projections.js";
 import { csharpCarrierAdmitsSourceAbsence, isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
+import { csharpCollectionElementRead } from "../../target-model/types/carriers/collection-reads.js";
+import { getCsharpIndexableLengthMemberName } from "../../target-model/types/carriers/collections.js";
 
 export function analyzeCsharpTypeEmission(input: { readonly ast: AstReader; readonly nodes: readonly Node[];
   readonly languageDialect: import("../../target-model/configuration/model.js").CsharpLanguageDialect;
@@ -87,7 +89,11 @@ export function analyzeCsharpTypeEmission(input: { readonly ast: AstReader; read
     visit(root);
     const optional = getCsharpGenericOptionalParts(root);
     if (optional !== undefined) pending.push(optional.element, optional.operations);
+    const collectionRead = csharpCollectionElementRead(root);
+    if (collectionRead?.kind === "method" && collectionRead.member.declaringType !== undefined) pending.push(collectionRead.member.declaringType);
     producer.publish(root, { objectShapes: Object.freeze([...shapes]),
+      collectionRead: collectionRead?.kind === "invalid" ? undefined : collectionRead,
+      collectionLength: getCsharpIndexableLengthMemberName(root),
       optionalStorage: optional === undefined ? Object.freeze({ kind: "native", present: getCsharpNullableElementTargetType(root) ?? root,
         absence: csharpCarrierAdmitsSourceAbsence(root), jsValue: isCsharpJsValueTargetType(root) })
         : Object.freeze({ kind: "generic", present: optional.element, operations: optional.operations }),
