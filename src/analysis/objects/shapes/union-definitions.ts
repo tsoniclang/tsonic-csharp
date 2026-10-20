@@ -10,7 +10,8 @@ import { csharpStructuralObjectShapeIdPrefix } from "../../../target-model/types
 import { targetTypeRefKey } from "../../../target-model/types/equality.js";
 import { nextState } from "../../types/resolution/state.js";
 import { substituteTargetTypeParameters } from "../../../target-model/types/substitution.js";
-import { closeCsharpOwnerTypeParameterEnvironment, visitCsharpTargetTypeParameters, type CsharpTypeParameterConstraintResolver } from "../../../target-model/types/generic-references.js";
+import { visitCsharpTargetTypeParameters, type CsharpTypeParameterConstraintResolver } from "../../../target-model/types/generic-references.js";
+import { closeCsharpOwnerTypeParameterEnvironment } from "../../constraints/owner-environment.js";
 
 interface Definition {
   readonly arms: readonly TargetTypeRef[];
