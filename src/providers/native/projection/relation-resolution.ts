@@ -62,9 +62,9 @@ export function createCsharpProviderRelationResolver(
   >();
   let runtimePrepared = false;
   const failures = new Map<string, ExtensionDiagnostic>();
-  const retained = <Value extends { readonly kind: string }>(result: Value): Value => {
-    if (result.kind === "rejected" && "diagnostic" in result) {
-      const diagnostic = result.diagnostic as ExtensionDiagnostic;
+  const retained = <Value extends CsharpProviderBindingResolution | CsharpProviderRelationResolution | CsharpProviderRuntimeAcquisition>(result: Value): Value => {
+    if (result.kind === "rejected") {
+      const diagnostic = result.diagnostic;
       failures.set(canonicalProviderValue(diagnostic), diagnostic);
     }
     return result;
