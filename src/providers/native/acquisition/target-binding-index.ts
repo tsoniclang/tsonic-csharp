@@ -1,6 +1,6 @@
 import type { CsharpTargetBindingFact, TargetBindingFact } from "../../../target-model/types/model.js";
 import type { DotnetModuleModel, DotnetTypeDeclaration } from "../model/index.js";
-import { dotnetExportToTargetBinding } from "../model/index.js";
+import { dotnetExportToTargetBinding } from "../projection/index.js";
 import type { DotnetTargetBindingFact } from "../projection/index.js";
 import { dotnetTypeTargetMemberProjections, providerSignatureProjectionKey } from "../projection/target-relations.js";
 import { dotnetFunctionToTargetMemberRecords } from "../projection/members.js";
