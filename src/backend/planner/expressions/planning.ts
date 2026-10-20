@@ -76,7 +76,7 @@ import {
 import {
   planCsharpTypedLocationOperation,
   planCsharpProjectedFieldWrite,
-} from "./expression-typed-locations.js";
+} from "./typed-locations.js";
 import {
   planCsharpExplicitSafetyExpression,
 } from "../safety/explicit-safety.js";
@@ -226,7 +226,7 @@ function planExpressionCore(
       }
     case "typed-location":
       {
-        return planCsharpTypedLocationOperation(node, nativeHandler.selection, sourceFile, input, diagnostics, scopedPlanExpression, state
+        return planCsharpTypedLocationOperation(node, sourceFile, input, diagnostics, scopedPlanExpression, state
         );
       }
     case undefined:

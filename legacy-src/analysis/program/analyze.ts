@@ -9,6 +9,7 @@ import { analyzeCsharpBinaryEmission } from "../expressions/binary-emission.js";
 import { analyzeCsharpDictionaryLiterals } from "../objects/dictionary-literals.js";
 import { analyzeCsharpExpressionEmission } from "../expressions/emission.js";
 import { analyzeCsharpLambdaEmission } from "../callables/lambda-emission.js";
+import { analyzeCsharpTypedLocationEmission } from "../storage/typed-location-emission.js";
 import { createCsharpPromiseResultRecords } from "./records/promise-results.js";
 import { admitCsharpLocationRetention } from "../storage/location-retention.js";
 import { analyzeCsharpNativeParticipation } from "../callables/participation.js";
@@ -686,9 +687,12 @@ function analyzeCsharpTargetProgramBeforeSeal(
   if (identifierIssues.length !== 0) return rejectedTargetStage(identifierIssues);
   const sourceUnions = analyzeCsharpSourceUnionEmission(typeDefinitions);
   const nativeLayouts = analyzeCsharpNativeMemoryEmission({ nodes: sourceStorage.nodes, storage: analysis.storage, operations: admittedOperations });
+  const typedLocationEmission = analyzeCsharpTypedLocationEmission({ source, nodes: sourceStorage.nodes,
+    storage: analysis.storage, operations: admittedOperations, members: objectMembers.records, admitted: admittedControlNode });
+  if (typedLocationEmission.issues.length !== 0) return rejectedTargetStage(typedLocationEmission.issues);
   const typeEmission = analyzeCsharpTypeEmission({ ast: source.ast, nodes: sourceStorage.nodes, evidence: analysis.sourceEvidence,
     languageDialect: configuration.languageDialect,
-    extraTypes: [...nativeLayouts.carriers, ...nativeDemand.entries.flatMap(({ use }) => use.kind === "erased" ? []
+    extraTypes: [...typedLocationEmission.carriers, ...nativeLayouts.carriers, ...nativeDemand.entries.flatMap(({ use }) => use.kind === "erased" ? []
       : use.kind === "converted" ? [use.carrier, use.target] : [use.carrier]),
       ...sourceUnions.sourceUnions.get().flatMap(union => [union.carrier, union.storage, ...union.arms])],
     values: analysis.valueReads, storage: analysis.storage, shapes: objectShapeDemand, admitted: admittedControlNode });
@@ -761,6 +765,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     nativeConstants,
     expressionEmission: expressionEmission.records,
     lambdaEmission: lambdaEmission.records,
+    typedLocationEmission: typedLocationEmission.records,
     promiseResults: createCsharpPromiseResultRecords(promiseResults.results),
     binaryEmission: binaryEmission.records,
     nativeLayouts: nativeLayouts.records,

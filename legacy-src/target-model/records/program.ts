@@ -155,6 +155,8 @@ export interface CsharpProgramRecords extends CsharpStatementExitRecords, Csharp
   readonly delegateAdapter: CsharpConversionClassifications["delegateAdapter"];
   readonly delegateContract: CsharpConversionClassifications["delegateContract"];
   readonly lambdaBody: import("./lambda-emission.js").CsharpLambdaEmissionRecords["lambdaBody"];
+  readonly typedLocationEmission: import("./typed-location-emission.js").CsharpTypedLocationEmissionRecords["typedLocationEmission"];
+  readonly typedStorageEmission: import("./typed-location-emission.js").CsharpTypedLocationEmissionRecords["typedStorageEmission"];
   readonly directCallableReference: CsharpConversionClassifications["directCallableReference"];
   readonly conversion: CsharpConversionClassifications["conversion"];
   readonly expressionConversion: CsharpConversionClassifications["expressionConversion"];
