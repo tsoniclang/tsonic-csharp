@@ -193,6 +193,7 @@ export interface CsharpProgramRecords extends CsharpStatementExitRecords, Csharp
   readonly argumentProjection: import("./argument-passing.js").CsharpArgumentPassingRecords["argumentProjection"];
   readonly targetCallEmission: import("./target-call-emission.js").CsharpTargetCallEmissionRecords["targetCallEmission"];
   readonly constructionEmission: import("./construction.js").CsharpConstructionRecords["constructionEmission"];
+  readonly lambdaParameterEntry: import("./parameter-emission.js").CsharpCallableParameterRecords["lambdaParameterEntry"];
   readonly sourceMember: CsharpTargetOperationClassifications["sourceMember"];
   readonly selectedElement: import("./element-admission.js").CsharpElementAdmissionRecords["selectedElement"];
   readonly binaryOperation: CsharpTargetOperationClassifications["binaryOperation"];

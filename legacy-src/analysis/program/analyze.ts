@@ -613,7 +613,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     captures: captureStorage, values: analysis.valueReads, metadata: analysis.sourceEvidence });
   if (lexicalValues.issues.length !== 0) return rejectedTargetStage(lexicalValues.issues);
   const callableParameters = analyzeCsharpCallableParameterEmission({ ast: source.ast, nodes: sourceStorage.nodes,
-    declarations: analysis.declarations, values: analysis.valueReads, storage: analysis.storage, literals: literalValues,
+    declarations: analysis.declarations, values: analysis.valueReads, storage: analysis.storage, conversions, literals: literalValues,
     exact: exactLiterals, admitted: admittedControlNode, required: analysis.requiredRecords });
   if (callableParameters.issues.length !== 0) return rejectedTargetStage(callableParameters.issues);
   const classEmission = analyzeCsharpClassEmission({ ast: source.ast, nodes: sourceStorage.nodes, projectTypes, factories: classFactories,

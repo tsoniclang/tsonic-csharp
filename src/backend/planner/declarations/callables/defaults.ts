@@ -7,7 +7,6 @@ import { planExpression } from "../../expressions/index.js";
 import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../../types/target-type-object-shapes.js";
 import type { CsharpPlannedValue } from "../../expressions/planned-values.js";
 import { planCsharpBindingDefaultValue } from "../../bindings/optional-values.js";
-import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import type { CsharpDefaultParameterContract } from "../../../../target-model/records/declarations.js";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { failCsharpPlannerInvariant } from "../../../invariants.js";
@@ -27,16 +26,12 @@ export function planCsharpRuntimeParameterDefault(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
-  selectedParameterType?: TargetTypeRef,
 ): CsharpRuntimeParameterDefaultPlan {
   const contract = input.program.records.runtimeDefault.get(node);
   if (contract === undefined) {
     return failCsharpPlannerInvariant("A runtime parameter default requires its sealed contract.", node);
   }
-  const incomingType = selectedParameterType ?? contract.parameterType;
-  if (!targetTypeRefEquals(incomingType, contract.native.source)) return failCsharpPlannerInvariant(
-    "A runtime default requires its admitted native incoming parameter carrier.", node);
-  return planRuntimeParameterDefault(node, contract, incomingType, incomingName, sourceFile, input, diagnostics, state);
+  return planRuntimeParameterDefault(node, contract, contract.native.source, incomingName, sourceFile, input, diagnostics, state);
 }
 
 function planRuntimeParameterDefault(
