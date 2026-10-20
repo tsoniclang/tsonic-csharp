@@ -6,7 +6,7 @@ import type {
   CsharpTypeParameter,
 } from "../../backend/target-ast/syntax/index.js";
 import type { CsharpPrintContext } from "./context.js";
-import { failUnsupportedCsharpSyntax } from "./fail-closed.js";
+import { failCsharpSyntaxInvariant } from "./invariants.js";
 
 export function printCsharpAttributes(
   attributes: readonly CsharpAttribute[] | undefined,
@@ -80,5 +80,5 @@ function printGenericConstraint(
     case "ConstructorConstraint":
       return "new()";
   }
-  return failUnsupportedCsharpSyntax(constraint, "generic constraint");
+  return failCsharpSyntaxInvariant(constraint, "generic constraint");
 }
