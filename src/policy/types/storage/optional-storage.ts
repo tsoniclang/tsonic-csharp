@@ -1,17 +1,12 @@
-import type { TargetTypeRef } from "../model.js";
-import type { CsharpOptionalTypeProjection } from "../projections.js";
-import { csharpProjectedType } from "../projections.js";
-import { csharpTargetNamedType } from "../factories.js";
-import { csharpQualifiedTypeRenderShape } from "../render-shapes.js";
-import { isCsharpValueTypeTargetType } from "../identity.js";
-import { getCsharpNullableElementTargetType } from "./nullable.js";
-import { csharpConstraintsRequireReference } from "../generic-constraints.js";
-import {
-  combineCsharpTargetUnionMembers,
-  csharpAbsenceTargetType,
-  isCsharpAbsenceTargetType,
-  isCsharpJsValueTargetType,
-} from "./runtime-carriers.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpOptionalTypeProjection } from "../../../target-model/types/projections.js";
+import { csharpProjectedType } from "../../../target-model/types/projections.js";
+import { csharpTargetNamedType } from "../../../target-model/types/factories.js";
+import { csharpQualifiedTypeRenderShape } from "../../../target-model/types/render-shapes.js";
+import { isCsharpValueTypeTargetType } from "../../../target-model/types/identity.js";
+import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { csharpConstraintsRequireReference } from "../../../target-model/types/generic-constraints.js";
+import { combineCsharpTargetUnionMembers, csharpAbsenceTargetType, isCsharpAbsenceTargetType, isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 
 export function resolveCsharpOptionalStorage(
   contract: CsharpOptionalTypeProjection,
