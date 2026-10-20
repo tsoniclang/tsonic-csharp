@@ -1,17 +1,6 @@
-import {
-  createDotnetModuleSpecifier,
-  dotnetPackageName,
-  dotnetModuleSpecifierPolicy,
-} from "./module-specifier.js";
-import type {
-  DotnetModuleSpecifierPolicy,
-} from "./module-specifier.js";
-import {
-  dotnetNativeArrayCreateMemberId,
-  dotnetNativeArrayIndexerMemberId,
-  dotnetNativeArrayLengthMemberId,
-  dotnetNativeArrayTypeId,
-} from "./module-native-array.js";
+import { createDotnetModuleSpecifier, dotnetPackageName, dotnetModuleSpecifierPolicy } from "./module-specifier.js";
+import type { DotnetModuleSpecifierPolicy } from "./module-specifier.js";
+import { dotnetNativeArrayCreateMemberId, dotnetNativeArrayIndexerMemberId, dotnetNativeArrayLengthMemberId, dotnetNativeArrayTypeId } from "./module-native-array.js";
 
 const syntheticTargetModules = new Map<string, string>([
   [dotnetNativeArrayTypeId, createDotnetModuleSpecifier("System")],
