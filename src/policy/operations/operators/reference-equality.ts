@@ -5,10 +5,7 @@ import type { CsharpReferenceEquality } from "../../../target-model/operations/b
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import { namedTargetTypesAreRelated, selectDelegateConversion } from "../../conversions/carriers.js";
 import { isCsharpSourceDelegateTargetType } from "../../../target-model/types/carriers/delegates.js";
-import {
-  getCsharpNullableElementTargetType, isCsharpStringTargetType, isCsharpValueTypeTargetType,
-  targetTypeRefEquals, type TargetTypeRef,
-} from "../../../target-model/types/index.js";
+import { getCsharpNullableElementTargetType, isCsharpStringTargetType, isCsharpValueTypeTargetType, targetTypeRefEquals, type TargetTypeRef } from "../../../target-model/types/index.js";
 
 export function selectCsharpReferenceEquality(
   operator: CsharpSourceOperator,
