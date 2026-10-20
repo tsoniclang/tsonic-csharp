@@ -363,7 +363,9 @@ function visit(
     );
   }
   if (ast.is.IsCallExpression(node)) {
-    setClassification(builder, node, memoryBindingKey, selectCsharpMemoryBinding(policy, node, sourceFile));
+    const memoryBinding = selectCsharpMemoryBinding(policy, node, sourceFile);
+    if (memoryBinding?.kind === "rejected") issues?.push(Object.freeze({ node, code: "CSHARP_UNSUPPORTED_AST", message: memoryBinding.reason }));
+    setClassification(builder, node, memoryBindingKey, memoryBinding);
     setClassification(
       builder,
       node,
