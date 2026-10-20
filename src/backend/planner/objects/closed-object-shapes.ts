@@ -12,7 +12,7 @@ import { qualifiedCsharpType } from "../types/primitives.js";
 import { failCsharpPlannerInvariant } from "../../invariants.js";
 
 export function renderObjectShapeProjectionMethods(
-  input: CsharpPlanningContext, projections: readonly CsharpObjectShapeProjectionDeclaration[], diagnostics: TargetDiagnostic[],
+  input: CsharpPlanningContext, projections: readonly CsharpObjectShapeProjectionDeclaration[], _diagnostics: TargetDiagnostic[],
 ): readonly CsharpMethodDeclaration[] {
   return projections.map(projection => renderObjectShapeProjectionMethod(input.scope.typeParameterNames, projection, input.program.records.nativeMemberHiding));
 }
