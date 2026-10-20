@@ -1,6 +1,4 @@
-import type {
-  ProviderDeclarationMaterialization,
-} from "@tsonic/tsts";
+import type { ProviderDeclarationMaterialization } from "@tsonic/tsts";
 
 export interface DotnetProviderTelemetrySnapshot {
   readonly providerInstances: number;
