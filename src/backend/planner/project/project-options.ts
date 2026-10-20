@@ -12,22 +12,22 @@ export function readCsharpProjectProperties(
 ): readonly CsharpProjectProperty[] {
   return options.allowUnsafeBlocks === true
     ? Object.freeze([
-        ...input.program.project.properties,
+        ...input.program.records.compilation.get().project.properties,
         Object.freeze({ name: "AllowUnsafeBlocks", value: "true" }),
       ])
-    : input.program.project.properties;
+    : input.program.records.compilation.get().project.properties;
 }
 
 export function readReferencesOption(
   input: CsharpPlanningContext,
 ): readonly CsharpProjectReference[] {
-  return input.program.project.references;
+  return input.program.records.compilation.get().project.references;
 }
 
 export function readNamespace(input: CsharpPlanningContext): string {
-  return input.program.project.namespace;
+  return input.program.records.compilation.get().namespace;
 }
 
 export function readAssemblyName(input: CsharpPlanningContext): string {
-  return input.program.project.assemblyName;
+  return input.program.records.compilation.get().project.assemblyName;
 }
