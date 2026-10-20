@@ -1,8 +1,8 @@
 import { createSourceCallOnlyAliasQuery } from "@tsonic/target-api/source";
 import type { SourceCallOnlyAlias, TargetSourceProgram } from "@tsonic/target-api/source";
 import { isTsonicSourceProfileDeclarationPath } from "@tsonic/target-api/provider";
-import type { CsharpPolicyContext } from "../../model/context.js";
-import { csharpSourceProfileDeclarationIdentity } from "./source-profile-identity.js";
+import type { CsharpPolicyContext } from "../../policy/model/context.js";
+import { csharpSourceProfileDeclarationIdentity } from "../../policy/operations/source-profiles/source-profile-identity.js";
 
 export function createCsharpSourceProfileCallableAliasQuery(source: TargetSourceProgram):
   (declaration: import("@tsonic/tsts").Node) => SourceCallOnlyAlias | undefined {

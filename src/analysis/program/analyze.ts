@@ -23,7 +23,7 @@ import { csharpTargetRepresentationContractId } from "../../target-model/identit
 import { analyzeCsharpSourceModuleConstructions } from "../source-modules/index.js";
 import { composeCsharpBinaryExecutionDriver } from "../../target-model/metadata/binary-execution-drivers.js";
 import { analyzeCsharpModuleInitialization } from "../module-initialization/index.js";
-import { createCsharpSourceProfileCallableAliasQuery } from "../../policy/operations/source-profiles/callable-aliases.js";
+import { createCsharpSourceProfileCallableAliasQuery } from "../source-profiles/callable-aliases.js";
 import { createCsharpErrorStorageDemandQuery } from "../objects/error-storage-demands.js";
 import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 import { createCsharpSourceProfileStorageEffects } from "../../policy/operations/source-profiles/source-storage-effects.js";
