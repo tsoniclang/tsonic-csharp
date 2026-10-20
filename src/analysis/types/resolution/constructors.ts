@@ -1,10 +1,10 @@
 import type { Type } from "@tsonic/tsts";
 import { sourceCallableParameterEvidence, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import type { CsharpTypeResolutionScope } from "./engine.js";
+import type { CsharpTypeResolutionScope } from "../../../policy/types/resolution/engine.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import { csharpClassFactoryTargetType } from "../../../target-model/types/carriers/class-factories.js";
-import { nextState } from "./state.js";
+import { nextState } from "../../../policy/types/resolution/state.js";
 
 export function resolveCsharpConstructorValueType(
   scope: CsharpTypeResolutionScope,
