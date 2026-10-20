@@ -17,7 +17,7 @@ export {
   csharpVoidTargetType,
 } from "../target-model/types/carriers/scalar-types.js";
 export { csharpQualifiedTypeRenderShape } from "../target-model/types/render-shapes.js";
-export { targetParameter } from "../target-model/types/member-facts.js";
+export { targetParameter } from "../policy/operations/source-profiles/js/common.js";
 export {
   csharpDelegateTargetType,
   csharpTaskTargetType,
@@ -47,13 +47,14 @@ export {
   createCsharpProviderRejectionCatalog,
   createCsharpProviderRelationCatalog,
 } from "../providers/model/provider-relations.js";
-export type { CsharpProviderArgumentAdapter, CsharpProviderIdentityResult } from "../providers/model/provider-relations.js";
+export type { CsharpProviderIdentityResult } from "../providers/model/provider-relations.js";
+export type { CsharpProviderArgumentAdapter } from "../target-model/conversions/selection.js";
 export type { CsharpProviderSourceIdentity, CsharpProviderTargetRejection, CsharpProviderTargetRejectionDiagnostic } from "../target-model/identities/provider-relations.js";
 export type { CsharpProviderBindingTypeArgumentSource, CsharpProviderMemberSourceIdentity, CsharpProviderObjectLiteralConstruction, CsharpProviderParameterRelation, CsharpProviderSignatureSourceIdentity, CsharpProviderSourceIdentityBase, CsharpProviderTargetRelation, CsharpProviderTypeParameterRelation, CsharpProviderTypeSourceIdentity, CsharpProviderValueSourceIdentity, CsharpTargetReceiverRelation } from "../target-model/identities/provider-relations.js";
-export { substituteTargetTypeParameters } from "../target-model/types/substitution.js";
-export { csharpApplyExternAliasToTargetBinding } from "../policy/types/project/extern-aliases.js";
+export { substituteTargetTypeParameters } from "../policy/types/resolution/substitution.js";
+export { csharpApplyExternAliasToTargetBinding } from "../providers/native/projection/extern-aliases.js";
 export { csharpProviderVersion } from "../target-model/identities/source.js";
-export { createCsharpProviderPackage } from "../providers/packages/package.js";
+export { createCsharpProviderPackage } from "../compilation/provider-packages.js";
 export { csharpCoreRuntimeSource, csharpJsRuntimeSource, csharpRuntimeSourceContributions } from "../providers/runtime/source-projects.js";
 export type { CsharpRuntimeProjectSource } from "../target-model/project/runtime.js";
 export type {
