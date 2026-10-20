@@ -30,6 +30,7 @@ export function planCsharpExactLiteralConversion(
     return failCsharpPlannerInvariant(
       "C# literal planning requires the sealed exact-literal selection of its requested target.", node);
   }
+  if (selection.kind === "rejected") failCsharpPlannerInvariant("A rejected exact literal cannot reach native planning.", node);
   return selection.kind === "resolved" ? planCsharpExactLiteralRecipe(input.scope.typeParameterNames, selection.recipe) : selection;
 }
 
@@ -74,12 +75,8 @@ export function planCsharpExactLiteralRecipe(
     }
     case "integer": {
       const expression = planIntegerLiteral(typeParameterNames, recipe.value, recipe.target);
-      return expression === undefined
-        ? {
-            kind: "rejected",
-            reason: `Source bigint literal has no exact renderable '${recipe.width}' target representation.`,
-          }
-        : { kind: "resolved", expression };
+      if (expression === undefined) failCsharpPlannerInvariant("An admitted integer literal requires its exact native representation.");
+      return { kind: "resolved", expression };
     }
   }
 }
