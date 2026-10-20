@@ -43,6 +43,7 @@ import { analyzeCsharpUnionEquality } from "../operations/union-equality.js";
 import { admitCsharpArrayMutationArguments } from "../operations/array-mutations.js";
 import { analyzeCsharpClosedTypeTests } from "../expressions/type-tests.js";
 import { analyzeCsharpTypeofEmission } from "../expressions/typeof-emission.js";
+import { analyzeCsharpUnaryEmission } from "../expressions/expression-unary.js";
 import { analyzeCsharpIdentifierEmission } from "../names/source-identifiers.js";
 import { analyzeCsharpSourceFileEmission } from "../source-modules/emission.js";
 import { analyzeCsharpStartup } from "../source-modules/startup.js";
@@ -491,6 +492,8 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const unionEquality = analyzeCsharpUnionEquality(sourceStorage.nodes, admittedOperations);
   const closedTypeTests = analyzeCsharpClosedTypeTests(sourceStorage.nodes, admittedOperations, typeDefinitions);
   const jsValueBoxing = analyzeCsharpJsValueBoxing({ ast: source.ast, demand: nativeDemand, values: analysis.valueReads, exact: exactLiterals });
+  const unaryEmission = analyzeCsharpUnaryEmission({ ast: source.ast, nodes: sourceStorage.nodes, admitted: admittedControlNode,
+    operations: admittedOperations, literals: literalValues, exact: exactLiterals });
   const typeofEmission = analyzeCsharpTypeofEmission({ ast: source.ast, nodes: sourceStorage.nodes, admitted: admittedControlNode,
     operations: admittedOperations, values: analysis.valueReads, factories: classFactories, definitions: typeDefinitions });
   const nonCallableIssues = [
@@ -500,6 +503,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     ...unionEquality.issues,
     ...closedTypeTests.issues,
     ...jsValueBoxing.issues,
+    ...unaryEmission.issues,
     ...typeofEmission.issues,
     ...analyzeCsharpConditions({ ast: source.ast, demand: nativeDemand, operations: admittedOperations, values: analysis.valueReads }),
     ...analyzeCsharpVoidAdmission({ ast: source.ast, demand: nativeDemand, values: analysis.valueReads, operations: admittedOperations }),
@@ -711,6 +715,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     unionEquality: unionEquality.records,
     closedTypeTests: closedTypeTests.records,
     jsValueBoxing: jsValueBoxing.records,
+    unaryEmission: unaryEmission.records,
     typeofEmission: typeofEmission.records,
     flowReads, valueReads: analysis.valueReads,
     callableAdapters, callableCreations, typeProjections: analysis.typeProjections, classFactories, classInitialization, captureStorage,

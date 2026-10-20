@@ -72,6 +72,7 @@ export interface CsharpProgramRecordInput {
   readonly closedTypeTests: import("../../../target-model/records/type-tests.js").CsharpClosedTypeTestRecords;
   readonly typeofEmission: import("../../../target-model/records/typeof-emission.js").CsharpTypeofEmissionRecords;
   readonly jsValueBoxing: import("../../../target-model/records/js-value-boxing.js").CsharpJsValueBoxingRecords;
+  readonly unaryEmission: import("../../../target-model/records/expression-unary.js").CsharpUnaryEmissionRecords;
   readonly captureMethods: CsharpCaptureMethodRecords;
   readonly frozenDataProperties: CsharpFrozenDataPropertyRecords;
   readonly indexedRecords: CsharpIndexedRecordRecords;
@@ -151,6 +152,7 @@ export function createCsharpProgramRecords(
     ...input.closedTypeTests,
     ...input.typeofEmission,
     ...input.jsValueBoxing,
+    ...input.unaryEmission,
     ...input.captureMethods,
     ...input.frozenDataProperties,
     ...input.indexedRecords,
