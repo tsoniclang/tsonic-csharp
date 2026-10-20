@@ -1,10 +1,10 @@
 import type { CsharpProviderCallSelectionHost } from "../../../../policy/model/provider-calls.js";
 import type { ExtensionDiagnostic, Node, SourceFile } from "@tsonic/tsts";
-import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpProviderOperationResolution } from "../relations.js";
-import type { CsharpProviderOperationHost } from "../../../../policy/model/provider-calls.js";
+
 import { resolveCsharpProviderCallRelations } from "../relations.js";
-import type { CsharpProviderCallInstantiationHost } from "../../../../policy/model/provider-calls.js";
+
 import type { CsharpInstantiatedProviderCall, CsharpProviderCallInstantiation } from "./instantiation.js";
 import { compareInstantiatedProviderCalls, instantiateCsharpProviderCall } from "./instantiation.js";
 import { selectCsharpInheritedConstructorTarget } from "./implicit-super.js";
@@ -41,7 +41,6 @@ export type CsharpProviderCallSelection =
       readonly kind: "rejected";
       readonly diagnostic: ExtensionDiagnostic;
     };
-
 
 export function selectCsharpProviderCall(
   host: CsharpProviderCallSelectionHost,

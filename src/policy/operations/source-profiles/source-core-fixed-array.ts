@@ -1,16 +1,7 @@
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
-
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/index.js";
 
 import type { CsharpSourceProfileElementPolicyResult } from "../../model/source-profiles.js";
 import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/source-profile-invocations.js";
-
-type ResolvedSourcePropertyAccessInfo = NonNullable<
-  ReturnType<SourceFileSemantics["operations"]["propertyAccess"]>
->;
-type ResolvedSourceElementAccessInfo = NonNullable<
-  ReturnType<SourceFileSemantics["operations"]["elementAccess"]>
->;
 
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 const instanceReceiver = { kind: "instance" } as const;

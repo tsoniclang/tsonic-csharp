@@ -1,19 +1,12 @@
 import type { CsharpSourceProfileIdentitySelector, CsharpSourceProfileCallPolicyContext } from "../../model/source-profiles.js";
 import type { ExtensionDiagnostic, Node, Type } from "@tsonic/tsts";
-import { type SourceFileSemantics } from "@tsonic/target-api/source";
+
 import type { CsharpTargetReceiverRelation } from "../../../target-model/identities/provider-relations.js";
 import type { CsharpTargetMember, TargetTypeRef } from "../../types/index.js";
 
 import type { CsharpSourceProfileDeclarationIdentity } from "../../identities/selected-source.js";
 import type { CsharpSelectedCallArgument, CsharpSelectedTargetCall } from "../../../target-model/records/members.js";
 import type { ResolvedSourceCallInfo } from "../../../target-model/records/source-calls.js";
-
-type ResolvedSourcePropertyAccessInfo = NonNullable<
-  ReturnType<SourceFileSemantics["operations"]["propertyAccess"]>
->;
-type ResolvedSourceElementAccessInfo = NonNullable<
-  ReturnType<SourceFileSemantics["operations"]["elementAccess"]>
->;
 
 export function resolveCsharpSelectedSourceValue(
   context: Pick<

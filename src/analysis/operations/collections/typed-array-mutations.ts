@@ -1,7 +1,7 @@
 import type { CsharpTypedArrayMutation, CsharpTypedArrayUpdate } from "../../../target-model/records/typed-array-mutations.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
-import { csharpSourceProfileDeclarationIdentity } from "../../../policy/operations/members/index.js";
+import { csharpSourceProfileDeclarationIdentity } from "../../../policy/identities/selected-source.js";
 import { csharpJsTypedArrayElementTargetType } from "../../../policy/types/index.js";
 import { isCsharpAssignmentOperator, sourceOperatorFromKindName, type CsharpSourceOperator } from "../../../target-model/syntax/operators.js";
 import { selectCsharpBinaryOperands } from "../operators.js";

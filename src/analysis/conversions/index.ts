@@ -5,6 +5,4 @@ export type {
   CsharpConversionMode,
   CsharpConversionSelection,
 } from "../../target-model/conversions/selection.js";
-export {
-  csharpConversionIsApplicable,
-} from "../../target-model/conversions/selection.js";
+export { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";

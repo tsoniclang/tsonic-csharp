@@ -15,7 +15,6 @@ const boolType = csharpSourcePrimitiveTargetType("bool");
 const stringType = csharpStringTargetType();
 const voidType = csharpVoidTargetType();
 const arrayHelperType = jsRuntimeTargetType("Array");
-const arrayStaticsType = jsRuntimeTargetType("JSArrayStatics");
 const instanceReceiver = { kind: "instance" } as const;
 const noReceiver = { kind: "none" } as const;
 const firstParameterReceiver = {

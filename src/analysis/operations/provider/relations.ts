@@ -1,9 +1,6 @@
 import type { CsharpProviderOperationHost } from "../../../policy/model/provider-calls.js";
-import type { ExtensionDiagnostic, Node, ProviderVirtualDeclarationFact, ReadonlySourceFactResolver, SourceFile } from "@tsonic/tsts";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
-import type { SourceStorageQueries } from "@tsonic/target-api/analysis";
-import type { CsharpValueDomainCarrierQueries } from "../../../target-model/records/value-domains.js";
-import type { CsharpProviderRelationResolver } from "../../../providers/model/relation-resolver.js";
+import type { ExtensionDiagnostic, Node, ProviderVirtualDeclarationFact, SourceFile } from "@tsonic/tsts";
+
 import type { CsharpProviderTargetRelation } from "../../../target-model/identities/provider-relations.js";
 import { resolveCsharpProviderDeclarationEvidence, resolveCsharpProviderDeclarationEvidenceKinds } from "../../../source/extension/provider-identities.js";
 
@@ -26,7 +23,6 @@ export type CsharpProviderOperationResolution =
       readonly kind: "rejected";
       readonly diagnostic: ExtensionDiagnostic;
     };
-
 
 export function resolveCsharpProviderCallRelations(
   host: CsharpProviderOperationHost,

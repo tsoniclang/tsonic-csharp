@@ -18,7 +18,7 @@ import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpSemanticTypeClassification, CsharpContextualTupleClassification, CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpSourceEvidenceResult } from "./model.js";
 import type { CsharpTypeParameterConstraintResolution } from "../../policy/constraints/index.js";
-import { selectCsharpSourceArgument } from "../../policy/operations/members/index.js";
+import { selectCsharpSourceArgument } from "../../source/extension/arguments.js";
 import { csharpFixedArrayRepresentationRejection } from "../../policy/types/collections/fixed-arrays.js";
 import { readCsharpSourceDefaultValue, readCsharpSourceField, readCsharpSourceFixedArrayType, readCsharpSourceStruct } from "../../source/extension/markers.js";
 

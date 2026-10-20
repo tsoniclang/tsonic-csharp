@@ -15,6 +15,7 @@ export interface CsharpProviderOperationHost {
   semantics(sourceFile: SourceFile): SourceFileSemantics;
 }
 export interface CsharpProviderCallInstantiationHost extends CsharpProviderOperationHost {
+  readonly integerRanges: import("../../target-model/records/integer-ranges.js").CsharpIntegerRangeIndex;
   readonly ast: AstReader;
   readonly literalValues: SourceLiteralIndex;
   readonly navigation: SourceProgramNavigation;

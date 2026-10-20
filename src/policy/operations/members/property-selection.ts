@@ -1,13 +1,9 @@
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
-import type { CsharpProviderTargetRelation, CsharpTargetReceiverRelation } from "../../../target-model/identities/provider-relations.js";
+import type { CsharpTargetReceiverRelation } from "../../../target-model/identities/provider-relations.js";
 import type { CsharpTargetMember } from "../../types/index.js";
 
 type ResolvedSourcePropertyAccessInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["propertyAccess"]>
->;
-type CsharpProviderPropertyRelation = Extract<
-  CsharpProviderTargetRelation,
-  { readonly kind: "member" | "value" }
 >;
 
 export function providerReceiverMatchesProperty(

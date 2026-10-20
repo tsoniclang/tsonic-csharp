@@ -2,7 +2,7 @@ import type { CsharpElementDeletionSelection } from "../../../target-model/recor
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
 
-import { csharpSourceProfileDeclarationIdentity } from "../../../policy/operations/members/index.js";
+import { csharpSourceProfileDeclarationIdentity } from "../../../policy/identities/selected-source.js";
 
 import { selectCsharpNativeElementDeletion } from "../../../policy/operations/collections/element-deletion.js";
 export function selectCsharpElementDeletion(

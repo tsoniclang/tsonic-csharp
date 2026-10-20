@@ -1,13 +1,13 @@
 import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
 import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../policy/types/index.js";
-import type { CsharpTypePolicy } from "../types/resolution/model.js";
+import type { CsharpTypeQueries } from "../../policy/model/type-resolution.js";
 import { targetTypeRefEquals } from "../../policy/types/index.js";
 import { resolveCsharpTypeParameterConstraints } from "./type-parameter-constraints.js";
 
 export interface CsharpNumericConstraintEvidenceHost {
   readonly ast: AstReader;
-  readonly types: CsharpTypePolicy;
+  readonly types: Pick<CsharpTypeQueries, "resolveSelectedValue" | "resolveNode">;
   readonly navigation: SourceProgramNavigation;
   semantics(file: SourceFile): SourceFileSemantics;
 }

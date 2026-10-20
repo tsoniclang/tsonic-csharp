@@ -2,7 +2,7 @@ import type { CsharpNativeRefReturnSelection, CsharpTypedLocationOperationSelect
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import { AsVariableDeclaration } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import { selectCsharpTargetCall, selectCsharpTargetElement, selectCsharpTargetProperty } from "../../policy/operations/members/index.js";
+import { selectCsharpTargetCall, selectCsharpTargetElement, selectCsharpTargetProperty } from "./provider/selected-members.js";
 import { csharpRuntimeLocationPointee, getCsharpDelegateSignature, targetTypeRefEquals, targetTypeRefKey, type TargetTypeRef } from "../../policy/types/index.js";
 import { readCsharpSourceTypedLocationOperation } from "../../source/extension/typed-locations.js";
 
@@ -61,7 +61,7 @@ export function selectCsharpTypedLocationOperation(
     case "location-allocate": selected(source.initialExpression, source.initialType); break;
     case "location-load": case "location-store":
       if (native?.kind !== "resolved") selected(source.locationExpression, source.locationType);
-      if (source.kind === "location-store" && native?.kind !== "rejected" &&
+      if (source.kind === "location-store" && true &&
         !(native?.kind === "resolved" && native.returnPassing === "byref-readonly")) {
         selected(source.valueExpression, source.valueType);
       }

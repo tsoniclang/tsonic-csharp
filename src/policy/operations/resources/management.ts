@@ -11,7 +11,7 @@ export function selectCsharpNativeResourceManagement(
   source: ResolvedSourceResourceManagementInfo,
   storageType: TargetTypeRef,
   alternatives: readonly { readonly targetType: TargetTypeRef; readonly disposal: CsharpResourceDisposalOperation }[],
-  definitions: CsharpTypeDefinitions,
+  definitions: CsharpTypeDefinitions | undefined,
 ): CsharpOperationSelection<CsharpResolvedResourceManagement> {
   const canonical = canonicalDisposalAlternatives(
     alternatives as readonly {

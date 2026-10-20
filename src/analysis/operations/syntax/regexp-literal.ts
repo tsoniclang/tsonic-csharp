@@ -1,6 +1,6 @@
 import type { CsharpRegularExpressionLiteralSelection } from "../../../target-model/records/regexp-literal.js";
 import type { AstRegularExpressionLiteralSyntax, Node, SourceFile } from "@tsonic/tsts";
-import type { CsharpTypePolicy } from "../../types/resolution/model.js";
+import type { CsharpTypeQueries } from "../../../policy/model/type-resolution.js";
 
 import { selectCsharpNativeRegularExpressionLiteral } from "../../../policy/operations/syntax/regexp-literal.js";
 export interface CsharpRegularExpressionLiteralPolicyHost {
@@ -9,7 +9,7 @@ export interface CsharpRegularExpressionLiteralPolicyHost {
       node: Node | undefined,
     ) => AstRegularExpressionLiteralSyntax | undefined;
   };
-  readonly types: CsharpTypePolicy;
+  readonly types: Pick<CsharpTypeQueries, "resolveNode">;
 }
 
 export function selectCsharpRegularExpressionLiteral(

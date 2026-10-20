@@ -64,6 +64,7 @@ export function analyzeCsharpConversions(
   const requiredHelpers = new Set<CsharpGeneratedHelper>();
   const literalRequests = createCsharpExactLiteralRequestCollector(policy.literalValues);
   const conversionPolicy = Object.freeze({
+    integerRanges: policy.integerRanges,
     ast: policy.ast, literalValues: policy.literalValues, typeDefinitions: policy.typeDefinitions,
     projectTypes: policy.projectTypes, providers: policy.providers, target: policy.target,
     navigation: policy.navigation, sourceFacts: policy.sourceFacts, objectShapes,

@@ -3,7 +3,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import { selectCsharpTypedArrayMutation } from "./typed-array-mutations.js";
 
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
-import { csharpSourceProfileDeclarationIdentity } from "../../../policy/operations/members/index.js";
+import { csharpSourceProfileDeclarationIdentity } from "../../../policy/identities/selected-source.js";
 
 import { sourceOperatorFromKindName } from "../../../target-model/syntax/operators.js";
 

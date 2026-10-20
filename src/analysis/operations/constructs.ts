@@ -29,8 +29,12 @@ import { AsForInOrOfStatement, sourceClassFieldIsTypeOnly } from "@tsonic/target
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { selectCsharpJsObjectLiteralOperation } from "../../policy/operations/js-values/selection.js";
 import { selectCsharpJsValueCallOperation, selectCsharpJsValueBinaryOperation, selectCsharpJsValueReceiverExpressionOperation, selectCsharpJsValueUnaryOperation, selectCsharpJsTypeofOperation, selectCsharpJsValueCondition, selectCsharpJsValueVoidOperation } from "./js-values.js";
-import { selectCsharpProviderValue, selectCsharpTargetCall, selectCsharpTargetElement, selectCsharpTargetProperty } from "../../policy/operations/members/index.js";
-import { selectCsharpNativePointerOperation, sourceOperatorFromKindName } from "../../policy/operations/index.js";
+import { selectCsharpProviderValue } from "./provider/values.js";
+import { selectCsharpTargetProperty } from "./provider/selected-members.js";
+import { selectCsharpTargetElement } from "./provider/selected-members.js";
+import { selectCsharpTargetCall } from "./provider/selected-members.js";
+import { sourceOperatorFromKindName } from "../../policy/operations/index.js";
+import { selectCsharpNativePointerOperation } from "./pointers/native-pointers.js";
 import { selectCsharpJsArrayMutation } from "./collections/js-array-mutations.js";
 import { selectCsharpJsStringConversion } from "./strings/explicit-js-string.js";
 import { selectCsharpNativeRefReturn, selectCsharpTypedLocationOperation } from "./typed-locations.js";

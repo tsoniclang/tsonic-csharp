@@ -310,7 +310,7 @@ function selectNullishResultType(
   return undefined;
 }
 
-function nullishValueType(
+export function nullishValueType(
   type: TargetTypeRef | undefined,
   definitions?: import("../../../target-model/types/source-union-definitions.js").CsharpTypeDefinitions,
 ): TargetTypeRef | undefined {

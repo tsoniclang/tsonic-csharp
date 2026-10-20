@@ -1,7 +1,7 @@
 import { csharpJsStringTargetType, csharpNullableTargetType, csharpNullableValueTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../../target-model/types/index.js";
 import type { CsharpSourceProfileCallPolicy } from "../../../model/source-profiles.js";
 import { jsCallPolicy, jsMemberIdentity, jsRuntimeTargetType, receiverHelperMethod, targetParameter } from "./common.js";
-import { jsRegExpSourceProfileIdentity, jsSourceSemanticsIdentity } from "@tsonic/js-source-profile";
+import { jsSourceSemanticsIdentity } from "@tsonic/js-source-profile";
 import { exactJsStringRegExpMember, exactJsStringReplacementMember } from "./string-regexp-members.js";
 
 const stringType = csharpStringTargetType();
@@ -10,12 +10,8 @@ const intType = csharpSourcePrimitiveTargetType("int32");
 const doubleType = csharpSourcePrimitiveTargetType("float64");
 const boolType = csharpSourcePrimitiveTargetType("bool");
 const stringHelperType = jsRuntimeTargetType("String");
-const globalsType = jsRuntimeTargetType("Globals");
 
 const stringReceiver = { kind: "target-parameter", targetParameterIndex: 0 } as const;
-const noReceiver = { kind: "none" } as const;
-const regexpStringMembers = jsRegExpSourceProfileIdentity.stringMembers;
-const stringOwner = jsRegExpSourceProfileIdentity.owners.string;
 const jsStringOwner = jsSourceSemanticsIdentity.typeExport;
 
 export function exactJsStringCallPolicies(): readonly CsharpSourceProfileCallPolicy[] {
