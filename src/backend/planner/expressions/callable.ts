@@ -318,7 +318,7 @@ export function planLambdaBlockBody(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState | undefined,
   targetContext: LambdaTargetContext | undefined,
-  returnContext: LambdaReturnContext | undefined = getLambdaReturnContext(lambdaNode, targetContext, input, diagnostics),
+  returnContext: LambdaReturnContext | undefined = getLambdaReturnContext(lambdaNode, targetContext, input),
   entryPrelude: readonly CsharpStatement[] = [],
 ): CsharpBlock | undefined {
   if (isAsyncExpression(input.program.source.ast, lambdaNode) && returnContext === undefined) {

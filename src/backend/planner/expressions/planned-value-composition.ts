@@ -60,7 +60,7 @@ export function composeCsharpPlannedValues(
   node: Node,
   _sourceFile: SourceFile,
   input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
+  _diagnostics: TargetDiagnostic[],
   operands: readonly (CsharpPlannedOperand | undefined)[],
   complete: (expressions: readonly CsharpExpression[]) => CsharpPlannedValue | undefined,
   capture: (carrier: TargetTypeRef, operand: CsharpPlannedValue) => CsharpPlannedCapture | CsharpPlannedLocationCapture | undefined =
@@ -122,7 +122,7 @@ export function planCsharpValueBranch(
   node: Node,
   _sourceFile: SourceFile,
   input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
+  _diagnostics: TargetDiagnostic[],
   condition: CsharpPlannedValue | undefined,
   consequent: CsharpPlannedValue | undefined,
   alternative: CsharpPlannedValue | undefined,

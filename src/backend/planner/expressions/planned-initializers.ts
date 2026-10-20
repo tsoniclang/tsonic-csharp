@@ -20,7 +20,7 @@ export interface CsharpPlannedObjectInitializer {
 }
 
 export function planCsharpObjectInitialization(
-  node: Node, file: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
+  node: Node, file: SourceFile, input: CsharpPlanningContext, _diagnostics: TargetDiagnostic[],
   carrier: TargetTypeRef, type: CsharpTypeNode,
   initialization: CsharpObjectInitialization,
   initial: readonly CsharpPlannedObjectAssignment[], groups: readonly CsharpPlannedObjectInitializer[],
