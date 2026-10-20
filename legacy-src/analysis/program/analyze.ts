@@ -26,6 +26,7 @@ import { analyzeCsharpCallableDeclarationEmission } from "../callables/declarati
 import { analyzeCsharpMethodEmission } from "../declarations/classes/methods.js";
 import { analyzeCsharpClassEmission } from "../declarations/classes/planning.js";
 import { analyzeCsharpProjectEmission } from "../project-types/emission.js";
+import { analyzeCsharpTypeParameterEmission } from "../declarations/type-parameters.js";
 import { analyzeCsharpStatementExits } from "../control-flow/statement-exits.js";
 import { analyzeCsharpStatementCompletions } from "../control-flow/statement-completion.js";
 import { analyzeCsharpResourceScopes } from "../control-flow/resource-scopes.js";
@@ -580,7 +581,11 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const projectEmission = analyzeCsharpProjectEmission({ source, nodes: sourceStorage.nodes, projectTypes,
     factories: classFactories, evidence: analysis.sourceEvidence });
   if (projectEmission.issues.length !== 0) return rejectedTargetStage(projectEmission.issues);
+  const typeParameterEmission = analyzeCsharpTypeParameterEmission({ ast: source.ast, nodes: sourceStorage.nodes,
+    evidence: analysis.sourceEvidence, admitted: admittedControlNode });
+  if (typeParameterEmission.issues.length !== 0) return rejectedTargetStage(typeParameterEmission.issues);
   const records = createCsharpProgramRecords({
+    typeParameterEmission: typeParameterEmission.records,
     projectEmission: projectEmission.records,
     captureMethods: captureMethods.records,
     frozenDataProperties: frozenDataProperties.records,
