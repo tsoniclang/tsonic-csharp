@@ -1,6 +1,6 @@
-import { csharpDelegateTargetType, isCsharpVoidTargetType } from "../../policy/types/index.js";
-import type { CsharpSourceCallableContract } from "../../target-model/records/source-callable-contract.js";
-import type { TargetTypeRef } from "../../policy/types/index.js";
+import { csharpDelegateTargetType, isCsharpVoidTargetType } from "../index.js";
+import type { CsharpSourceCallableContract } from "../../../target-model/records/source-callable-contract.js";
+import type { TargetTypeRef } from "../index.js";
 
 export function csharpCallableValueType(
   callable: CsharpSourceCallableContract,

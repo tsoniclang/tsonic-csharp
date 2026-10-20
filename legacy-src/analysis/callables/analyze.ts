@@ -26,7 +26,7 @@ import type { CsharpGenericProjectionIndex } from "../../target-model/records/ty
 import { closeCsharpProjectCallableContracts } from "../project-types/callable-contracts.js";
 import { selectCsharpClosedCallableContext } from "./contextual-inputs.js";
 import type { CsharpClosedCallableContext } from "./contextual-inputs.js";
-import { csharpCallableValueType } from "./value-type.js";
+import { csharpCallableValueType } from "../../policy/types/callables/value-type.js";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpCallableConversionPolicy } from "./adapters.js";

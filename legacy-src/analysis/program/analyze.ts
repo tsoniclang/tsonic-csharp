@@ -87,7 +87,7 @@ import { analyzeCsharpExactLiteralSelections } from "../conversions/literal-plan
 import { analyzeCsharpNativeControlFlow, admitCsharpStatementBindings, admitCsharpIterationBindings, admitCsharpNativeStorageBindings } from "../control-flow/native-control-flow.js";
 import { analyzeCsharpTypeProjections, csharpTypeProjectionIndexesEqual } from "../declarations/type-projections.js";
 import { type CsharpGenericProjectionIndex } from "../../target-model/records/type-projections.js";
-import { csharpCallableValueType } from "../callables/value-type.js";
+import { csharpCallableValueType } from "../../policy/types/callables/value-type.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { isCsharpStringTargetType } from "../../target-model/types/identity.js";
 import { isCsharpNeverTargetType } from "../../target-model/types/carriers/scalar-types.js";

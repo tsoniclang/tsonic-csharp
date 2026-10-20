@@ -1,6 +1,6 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { isSourceCallableBodyBoundary } from "@tsonic/target-api/source";
-import { csharpCallableValueType } from "../callables/value-type.js";
+import { csharpCallableValueType } from "../../policy/types/callables/value-type.js";
 import { csharpSourceArgumentExpectedType, csharpTargetParameterValueType, getCsharpGeneratorProtocol,
   resolveCsharpObjectShapeMemberBySelectedSubject } from "../../policy/types/index.js";
 import { csharpSelectedTargetArgumentBindings, csharpSourceOwnedArgumentBindings, csharpProviderArgumentSourceCarrier } from "../../policy/operations/members/selection/native-use-arguments.js";

@@ -11,7 +11,7 @@ import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
 import type { CsharpCallableCreationIndex } from "../../target-model/records/callable-values.js";
-import { csharpCallableValueType } from "./value-type.js";
+import { csharpCallableValueType } from "../../policy/types/callables/value-type.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 
 export interface CsharpCallableCreationInput {

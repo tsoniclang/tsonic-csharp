@@ -6,7 +6,7 @@ import {
   KindBlock,
   ModifierFlagsAsync,
 } from "@tsonic/target-api/source";
-import { csharpCallableValueType } from "../callables/value-type.js";
+import { csharpCallableValueType } from "../../policy/types/callables/value-type.js";
 import {
   getCsharpLambdaSignature,
   getCsharpDelegateSignature,
