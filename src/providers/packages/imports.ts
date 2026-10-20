@@ -1,9 +1,4 @@
-import type {
-  ProviderExportDeclaration,
-  ProviderImportDeclaration,
-  ProviderRequestedExport,
-  ProviderTypeExpression,
-} from "@tsonic/tsts";
+import type { ProviderExportDeclaration, ProviderImportDeclaration, ProviderRequestedExport, ProviderTypeExpression } from "@tsonic/tsts";
 
 interface ModuleImportRequests {
   readonly named: Map<string, ProviderRequestedExport>;
