@@ -1,8 +1,7 @@
 import type { CsharpCaptureFrame, CsharpCaptureStorage, CsharpCapturedBinding, CsharpLambdaCreation } from "../../target-model/records/capture-storage.js";
 import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import { sourceCallableDefinitionIsDiscarded, sourceBindingScope, sourceBindingHasSingleCaptureOwner, sourceNodeIdentity, sourceBindingCapturedBeforeInitialization,
-  sourceLexicalFunctionValueCreation, sourceLexicalFunctionValueOrder } from "@tsonic/target-api/source";
+import { sourceCallableDefinitionIsDiscarded, sourceBindingScope, sourceBindingHasSingleCaptureOwner, sourceNodeIdentity, sourceBindingCapturedBeforeInitialization, sourceLexicalFunctionValueCreation, sourceLexicalFunctionValueOrder } from "@tsonic/target-api/source";
 import { sourceClosedCallableArguments, sourceExpressionCallArgument } from "@tsonic/target-api/source";
 import type { SourceLexicalValueCreation } from "@tsonic/target-api/source";
 import { createHash } from "node:crypto";
@@ -29,8 +28,6 @@ import type { CsharpExpectedTypeClassifications } from "../../target-model/recor
 import { getCsharpExpressionTreeDelegateType } from "../../target-model/types/carriers/delegates.js";
 import { HasSyntacticModifier, ModifierFlagsAsync } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-
-const unknownLambdaCreation: CsharpLambdaCreation = Object.freeze({ kind: "fresh", staticBody: false });
 
 export function analyzeCsharpCaptureStorage(
   source: TargetSourceProgram,
@@ -161,7 +158,7 @@ export function analyzeCsharpCaptureStorage(
     }));
     const selectedType = createStructuralObjectShapeTarget(members, implementations, environment);
     const identity = sourceNodeIdentity(source.ast, scope);
-    if (identity === undefined || selectedType.kind !== "target-named") throw new Error("A native capture frame requires an exact named source identity.");
+    if (identity === undefined || selectedType.kind !== "target-named") failTargetAnalysisInvariant("tsonic-csharp", "A native capture frame requires an exact named source identity.", scope);
     const digest = createHash("sha256").update(identity).digest("hex");
     const type = csharpTargetNamedType(`tsonic.shape:capture_${digest}`, selectedType.typeArguments, { kind: "named", name: `__TsonicCapture_${digest}` }, { allowsRefLikeTypeArguments: (selectedType.typeArguments ?? []).map(() => false),});
     const frame: CsharpCaptureFrame = Object.freeze({ scope, ownership: "activation", bindings, parents, methods, receivers, shape: Object.freeze({
@@ -278,7 +275,6 @@ export function analyzeCsharpCaptureStorage(
     source.ast.forEachChild(node, child => { if (child !== undefined) visitValues(child); });
   };
   source.navigation.sourceFiles.forEach(visitValues);
-  const empty: readonly Node[] = Object.freeze([]);
   const scheduledValues = new Map<Node, readonly Node[]>();
   for (const [statement, values] of valueDeclarations) {
     const ordered = sourceLexicalFunctionValueOrder(values, source.ast, source.navigation, "source",
@@ -288,21 +284,9 @@ export function analyzeCsharpCaptureStorage(
   }
   const frames = Object.freeze([...byScope.values(), ...valueFrames]);
   const helperMembers = csharpCapturedMemberAccess(source, frames);
-  return Object.freeze({ issues: Object.freeze(issues), frames, lexicalCaptures: frameClosures.lexicalCaptures,
-    captureFrame: Object.freeze({ get: (scope: Node) => byScope.get(scope) }), capturedBinding: Object.freeze({ get: (declaration: Node) => byBinding.get(declaration) }),
-    physicalStorageType: Object.freeze({ get(declaration: Node, logicalType: TargetTypeRef): TargetTypeRef {
-      const selected = physicalTypes.get(declaration);
-      if (selected === undefined) throw new Error("A physical capture read requires its completed analysis decision.");
-      return selected ?? logicalType;
-    } }),
-    captureClosure: Object.freeze({ get: (declaration: Node) => byClosure.get(declaration) }), captureFrameShape: Object.freeze({ get: (type: TargetTypeRef) => byShape.get(targetTypeRefKey(type)) }),
-    namedSelf: Object.freeze({ get: (declaration: Node) => namedSelfBindings.get(declaration) }),
-    lambdaCreation: Object.freeze({ get: (declaration: Node) => lambdaCreations.get(declaration) ?? unknownLambdaCreation }),
-    helperAccess: Object.freeze({ get: (declaration: Node) => helperMembers.has(declaration) }),
-    lexicalValueDeclarations: Object.freeze({ get: (statement: Node) => scheduledValues.get(statement) ?? empty }),
-    lexicalValueCreation: Object.freeze({ get: (declaration: Node) => valueCreations.get(declaration) }),
-    lexicalValueName: Object.freeze({ get: (declaration: Node) => valueNames.get(declaration) }),
-  });
+  return sealCsharpCaptureStorage({ issues, frames, lexicalCaptures: frameClosures.lexicalCaptures,
+    byScope, byBinding, byClosure, byShape, physicalTypes, namedSelfBindings, lambdaCreations,
+    helperMembers, scheduledValues, valueCreations, valueNames });
 }
 
 function hasOnlyInvocationArguments(
@@ -337,3 +321,5 @@ function hasSingleCaptureOwner(source: TargetSourceProgram, declaration: Node, s
   return sourceBindingHasSingleCaptureOwner(declaration, implementation.declaration,
     methods, source.ast, source.navigation, use => use.role !== "value");
 }
+
+import { sealCsharpCaptureStorage } from "../program/records/capture-storage.js";

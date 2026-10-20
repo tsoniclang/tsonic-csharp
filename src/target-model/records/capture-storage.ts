@@ -68,3 +68,20 @@ export interface CsharpNamedSelfBinding {
   readonly captures: readonly Node[];
   readonly capturesReceiver: boolean;
 }
+
+export interface CsharpCaptureStoragePublication {
+  readonly issues: readonly CsharpStorageIssue[];
+  readonly frames: readonly CsharpCaptureFrame[];
+  readonly lexicalCaptures: CsharpCaptureStorage["lexicalCaptures"];
+  readonly byScope: ReadonlyMap<Node, CsharpCaptureFrame>;
+  readonly byBinding: ReadonlyMap<Node, CsharpCapturedBinding>;
+  readonly byClosure: ReadonlyMap<Node, CsharpCaptureClosure>;
+  readonly byShape: ReadonlyMap<string, CsharpCaptureFrame>;
+  readonly physicalTypes: Pick<WeakMap<Node, TargetTypeRef | null>, "get">;
+  readonly namedSelfBindings: ReadonlyMap<Node, CsharpNamedSelfBinding>;
+  readonly lambdaCreations: ReadonlyMap<Node, CsharpLambdaCreation>;
+  readonly helperMembers: ReadonlySet<Node>;
+  readonly scheduledValues: ReadonlyMap<Node, readonly Node[]>;
+  readonly valueCreations: ReadonlyMap<Node, SourceLexicalValueCreation>;
+  readonly valueNames: ReadonlyMap<Node, string>;
+}
