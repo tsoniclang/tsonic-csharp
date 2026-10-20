@@ -1,10 +1,5 @@
-import type {
-  ProviderModuleContext,
-} from "@tsonic/tsts";
-import type {
-  DotnetModuleModel,
-  DotnetExportDeclaration,
-} from "../model/index.js";
+import type { ProviderModuleContext } from "@tsonic/tsts";
+import type { DotnetModuleModel, DotnetExportDeclaration } from "../model/index.js";
 
 export interface DotnetProviderResolutionContext {
   readonly broadImport?: true;
