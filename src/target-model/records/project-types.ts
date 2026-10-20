@@ -1,7 +1,6 @@
 import { type CsharpTargetMember, type TargetTypeRef, type CsharpTargetNamedTypeRef } from "../types/model.js";
 import { type SourceClassConstructorSignature, type SourceEnumIntegerWidthSelection } from "@tsonic/target-api/source";
 import { type Node, type SourceFile } from "@tsonic/tsts";
-import { type CsharpProjectTypeDefinition, type CsharpProjectTypeHeritage, type CsharpProjectTypeIssue, type CsharpProjectForwardingConstructor } from "./project-types.js";
 
 export interface CsharpProjectTypeClassifications {
   readonly issues: readonly CsharpProjectTypeIssue[];
@@ -63,15 +62,6 @@ export interface CsharpProjectForwardingConstructor {
   readonly targetMember: CsharpTargetMember;
   readonly baseMemberId?: string;
 }
-
-
-
-
-
-
-
-
-
 
 export interface CsharpProjectTypeCatalog {
   readonly definitions: readonly CsharpProjectTypeDefinition[];

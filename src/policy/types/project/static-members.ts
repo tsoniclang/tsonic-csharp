@@ -1,7 +1,7 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { SourceProgramNavigation } from "@tsonic/target-api/source";
-import type { CsharpProjectTypeCatalog } from "./project-types.js";
-import { projectDefinitionTargetType } from "./project-types.js";
+import type { CsharpProjectTypeCatalog } from "../../../target-model/records/project-types.js";
+import { projectDefinitionTargetType } from "./declaration-carriers.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 
 export function resolveCsharpStaticMemberReceiver(
