@@ -6,33 +6,25 @@ import type { ExpressionPlanner } from "../expression-planner-types.js";
 import type { CsharpExpression } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlannedValue } from "../planned-values.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
-import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../../invariants.js";
 import { translateCsharpSelectedReceiver } from "../receivers.js";
 import { planCsharpExpressionCompletion, planCsharpOptionalReceiverValue, projectCsharpPlannedValue } from "../planned-value-composition.js";
 import { readCsharpNativeExpressionCarrier } from "../native-uses.js";
 
 export function planCsharpReceiverCallProperty(
   node: Node,
-  selection: Extract<CsharpTargetPropertySelection, { readonly kind: "resolved" }>,
+  _selection: Extract<CsharpTargetPropertySelection, { readonly kind: "resolved" }>,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpPlannedValue | undefined {
+  const selected = input.program.records.receiverCallProperty.get(node)
+    ?? failCsharpPlannerInvariant("An admitted computed property requires its exact native receiver-call relation.", node);
+  const { selection } = selected;
   const member = selection.targetMember;
-  const parameter = member.parameters[0];
-  const type = member.declaringType === undefined ? undefined
-    : csharpTypeFromTargetTypeRef(member.declaringType, input.scope.typeParameterNames);
-  if (selection.invocation.kind !== "receiver-call" || member.kind !== "method" || member.static !== true ||
-      (member.typeParameters?.length ?? 0) !== 0 ||
-      member.returnType === undefined || type === undefined || member.parameters.length !== 1 ||
-      parameter?.passingMode !== "by-value" || parameter.optional === true || parameter.paramsArray === true ||
-      selection.receiver.kind !== "target-parameter" || selection.receiver.targetParameterIndex !== 0 ||
-      selection.source.accessMode !== "read") {
-    diagnostics.push(unsupportedNodeDiagnostic(node,
-      "A computed native property requires its exact read-only static receiver-call relation."));
-    return undefined;
-  }
+  const type = csharpTypeFromTargetTypeRef(selected.owner, input.scope.typeParameterNames);
+  if (type === undefined) failCsharpPlannerInvariant("An admitted computed property requires its renderable native declaring type.", node);
   const receiver = translateCsharpSelectedReceiver(selection.source.receiver, sourceFile, input, diagnostics,
     planExpression, input.program.records.selectedProperty.get(node)?.receiverProjection);
   const invoke = (value: CsharpExpression): CsharpExpression => ({

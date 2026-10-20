@@ -46,6 +46,7 @@ import { analyzeCsharpTypeofEmission } from "../expressions/typeof-emission.js";
 import { analyzeCsharpUnaryEmission } from "../expressions/expression-unary.js";
 import { analyzeCsharpThisEmission } from "../expressions/expression-this.js";
 import { analyzeCsharpSourceMemberNames } from "../objects/source-member-names.js";
+import { analyzeCsharpReceiverCallProperties } from "../operations/receiver-call-property.js";
 import { analyzeCsharpIdentifierEmission } from "../names/source-identifiers.js";
 import { analyzeCsharpSourceFileEmission } from "../source-modules/emission.js";
 import { analyzeCsharpStartup } from "../source-modules/startup.js";
@@ -488,8 +489,6 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const admittedControlNode = (node: Node): boolean => nativeDemand.nativeUse.order(node) !== undefined &&
     !analysis.sourceEvidence.compileTimeMetadata.get(node) &&
     !admittedOperations.nativeUnreachable.get(node) && nativeParticipation.participation.get(node) !== "erased";
-  const sourceMemberNames = analyzeCsharpSourceMemberNames({ ast: source.ast, nodes: sourceStorage.nodes, operations: admittedOperations, names, admitted: admittedControlNode });
-  if (sourceMemberNames.issues.length !== 0) return rejectedTargetStage(sourceMemberNames.issues);
   const literalEmission = analyzeCsharpLiteralAdmission({ ast: source.ast, demand: nativeDemand, literals: literalValues,
     exact: exactLiterals, values: analysis.valueReads });
   const templateStrings = analyzeCsharpTemplateStrings(source.ast, nativeDemand);
@@ -500,6 +499,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     operations: admittedOperations, literals: literalValues, exact: exactLiterals });
   const typeofEmission = analyzeCsharpTypeofEmission({ ast: source.ast, nodes: sourceStorage.nodes, admitted: admittedControlNode,
     operations: admittedOperations, values: analysis.valueReads, factories: classFactories, definitions: typeDefinitions });
+  const receiverCallProperties = analyzeCsharpReceiverCallProperties(sourceStorage.nodes, admittedOperations, admittedControlNode);
   const nonCallableIssues = [
     ...admitCsharpUnionProjections(sourceStorage.nodes, admittedOperations, typeDefinitions),
     ...admitCsharpArrayMutationArguments(sourceStorage.nodes, admittedOperations, analysis.sourceEvidence),
@@ -509,6 +509,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     ...jsValueBoxing.issues,
     ...unaryEmission.issues,
     ...typeofEmission.issues,
+    ...receiverCallProperties.issues,
     ...analyzeCsharpConditions({ ast: source.ast, demand: nativeDemand, operations: admittedOperations, values: analysis.valueReads }),
     ...analyzeCsharpVoidAdmission({ ast: source.ast, demand: nativeDemand, values: analysis.valueReads, operations: admittedOperations }),
     ...analyzeCsharpAwaitAdmission({ ast: source.ast, demand: nativeDemand, values: analysis.valueReads, operations: admittedOperations }),
@@ -556,6 +557,8 @@ function analyzeCsharpTargetProgramBeforeSeal(
   if (nativeMemberNames.issues.length > 0) return rejectedTargetStage(nativeMemberNames.issues);
   const names = analysis.names.seal(nativeDemand.requiredBindingRoots, nativeMemberNames);
   if (names.issues.length > 0) return rejectedTargetStage(names.issues);
+  const sourceMemberNames = analyzeCsharpSourceMemberNames({ ast: source.ast, nodes: sourceStorage.nodes, operations: admittedOperations, names, admitted: admittedControlNode });
+  if (sourceMemberNames.issues.length !== 0) return rejectedTargetStage(sourceMemberNames.issues);
   const objectShapeDemand = publishCsharpNativeArtifactDemand(objectShapeClosure.value, names);
   const rawInterfaceIssues = admitCsharpRawInterfaceDeclarations(source.ast, sourceStorage.nodes,
     nativeDemand.nativeUse, callableAdapters.objectShapes, objectShapeDemand, analysis.storage,
@@ -726,6 +729,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     unaryEmission: unaryEmission.records,
     thisEmission: thisEmission.records,
     sourceMemberNames: sourceMemberNames.records,
+    receiverCallProperties: receiverCallProperties.records,
     typeofEmission: typeofEmission.records,
     flowReads, valueReads: analysis.valueReads,
     callableAdapters, callableCreations, typeProjections: analysis.typeProjections, classFactories, classInitialization, captureStorage,

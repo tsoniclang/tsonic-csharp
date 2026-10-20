@@ -10,18 +10,25 @@ export function analyzeCsharpSourceMemberNames(input: { readonly ast: AstReader;
   readonly operations: CsharpTargetOperationClassifications; readonly names: CsharpNamePlan; readonly admitted: (node: Node) => boolean }) {
   const values = new Map<Node, CsharpSourceMemberName>();
   const issues: TargetDiagnostic[] = [];
-  for (const node of input.nodes) {
-    if (!input.admitted(node)) continue;
+  const required = new Set<Node>();
+  for (const node of input.nodes) if (input.admitted(node)) {
+    required.add(node);
+    const callee = input.operations.selectedCall.get(node)?.source?.sourceCallee.expression;
+    if (callee !== undefined) required.add(callee);
+  }
+  for (const node of required) {
     const property = input.operations.selectedProperty.get(node);
-    const classification = property?.sourceOwned;
-    if (property?.selection.kind !== "source-owned" || classification === undefined || classification.jsValueOperation.kind === "resolved") continue;
+    const element = input.operations.selectedElement.get(node);
+    const selection = property?.selection ?? element?.target;
+    const classification = input.operations.sourceMember.get(node);
+    if (selection?.kind !== "source-owned" || classification === undefined || classification.jsValueOperation.kind === "resolved") continue;
     const member = classification.shapeMember;
     if (member?.kind === "resolved") {
       values.set(node, { read: member.member.targetName, method: classification.objectShape === undefined ? undefined
         : objectShapeStorageMemberName(classification.objectShape, member.member) });
       continue;
     }
-    const declaration = property.selection.source.selectedDeclaration;
+    const declaration = selection.source.selectedDeclaration;
     const name = input.ast.name(declaration) ?? input.ast.as.AsPropertyAccessExpression(node)?.name;
     const selected = name === undefined ? undefined : input.names.resolve(name, declaration);
     if (selected?.kind === "resolved") { values.set(node, { read: selected.name, method: undefined }); continue; }
