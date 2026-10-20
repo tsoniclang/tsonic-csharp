@@ -1,7 +1,6 @@
 import type { CsharpBlock } from "./statements.js";
 import type { CsharpTypeNode } from "./types.js";
 import type { CsharpNumericLiteralToken } from "../../../target-model/syntax/numeric-literals.js";
-import { csharpBigIntFitsSourcePrimitive } from "../../../target-model/syntax/numeric-literals.js";
 
 export type CsharpExpression =
   | CsharpTypeNode
@@ -153,27 +152,3 @@ export interface CsharpArgument {
   readonly passing?: "in" | "out" | "ref";
 }
 
-export function csharpExpressionIsNativeNumericConstant(expression: CsharpExpression): boolean {
-  if (expression.kind === "PrefixUnaryExpression") {
-    return (expression.operatorToken.kind === "PlusToken" || expression.operatorToken.kind === "MinusToken") &&
-      expression.operand.kind === "NumericLiteralExpression" &&
-      (expression.operand.suffix === "F" || expression.operand.suffix === "M" || expression.operand.suffix === "D");
-  }
-  if (expression.kind !== "CastExpression" || expression.type.kind !== "PredefinedType" ||
-    expression.expression.kind !== "LiteralExpression" || typeof expression.expression.value !== "number" ||
-    !Number.isFinite(expression.expression.value) || !Number.isInteger(expression.expression.value)) return false;
-  switch (expression.type.name) {
-    case "sbyte":
-      return csharpBigIntFitsSourcePrimitive(BigInt(expression.expression.value), "int8");
-    case "byte":
-      return csharpBigIntFitsSourcePrimitive(BigInt(expression.expression.value), "uint8");
-    case "short":
-      return csharpBigIntFitsSourcePrimitive(BigInt(expression.expression.value), "int16");
-    case "ushort":
-      return csharpBigIntFitsSourcePrimitive(BigInt(expression.expression.value), "uint16");
-    case "uint":
-      return csharpBigIntFitsSourcePrimitive(BigInt(expression.expression.value), "uint32");
-    default:
-      return false;
-  }
-}
