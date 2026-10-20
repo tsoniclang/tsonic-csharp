@@ -1,11 +1,10 @@
+import { sealCsharpClassPropertyStorage } from "../program/records/class-property-storage.js";
+import { csharpReadonlyFieldPreservesStorage } from "../../policy/ownership/class-properties.js";
 import type { CsharpClassPropertyStorage } from "../../target-model/records/class-property-storage.js";
 import type { Node } from "@tsonic/tsts";
 import { sourceObjectMemberDeclarations, sourceParameterIsProperty } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
-import { isCsharpValueTypeTargetType } from "../../target-model/types/identity.js";
-import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
 
 export function classifyCsharpClassPropertyStorage(
   policy: CsharpPolicyContext,
@@ -13,7 +12,7 @@ export function classifyCsharpClassPropertyStorage(
 ): (declaration: Node) => CsharpClassPropertyStorage | undefined {
   const selections = new WeakMap<Node, CsharpClassPropertyStorage>();
   for (const sourceFile of policy.sourceFiles) visit(sourceFile);
-  return declaration => selections.get(declaration);
+  return sealCsharpClassPropertyStorage(selections);
 
   function visit(node: Node): void {
     if (evidence.compileTimeMetadata.get(node)) return;
@@ -38,14 +37,9 @@ export function classifyCsharpClassPropertyStorage(
         const type = kind === "field" && sourceReadonly && field === undefined
           ? policy.types.resolveStorage(member, policy.ast.getSourceFile(member)) : undefined;
         selections.set(member, Object.freeze({ kind, readonly: sourceReadonly &&
-          (kind === "property" || field !== undefined || type !== undefined && readonlyFieldPreservesStorage(type)) }));
+          (kind === "property" || field !== undefined || type !== undefined && csharpReadonlyFieldPreservesStorage(type)) }));
       }
     }
     policy.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   }
-}
-
-function readonlyFieldPreservesStorage(type: TargetTypeRef): boolean {
-  const selected = getCsharpNullableElementTargetType(type) ?? type;
-  return selected.kind !== "type-parameter" && (selected.kind === "source-primitive" || !isCsharpValueTypeTargetType(selected));
 }
