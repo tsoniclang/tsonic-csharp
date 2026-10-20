@@ -15,7 +15,7 @@ import { csharpExceptionTargetType, csharpRuntimeErrorTargetType } from "../../.
 import { csharpTargetTypeFromBinding } from "../../../policy/types/storage/bindings.js";
 import { definedValues } from "./source-evidence.js";
 import { nextState } from "./state.js";
-import { csharpRuntimeParameterDefault } from "../../../target-model/types/parameter-defaults.js";
+import { csharpRuntimeParameterDefault } from "../../../policy/types/storage/parameter-defaults.js";
 import { resolveCsharpCallableTypeParameters } from "../../constraints/callable-type-parameters.js";
 import type { SourceStorageSubject } from "@tsonic/target-api/analysis";
 import { csharpSourceStorageContext } from "./source-storage-projection.js";

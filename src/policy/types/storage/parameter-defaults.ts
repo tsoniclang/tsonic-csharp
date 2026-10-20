@@ -1,15 +1,10 @@
-import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "./model.js";
-import { isCsharpVoidTargetType } from "./identity.js";
-import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "./carriers/nullable.js";
-import { isCsharpJsValueTargetType } from "./carriers/runtime-carriers.js";
-import { targetTypeRefEquals } from "./equality.js";
+import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
+import { isCsharpVoidTargetType } from "../../../target-model/types/identity.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 
-export type CsharpRuntimeParameterDefault = {
-  readonly kind: "nullable" | "closed-value";
-  readonly valueType: TargetTypeRef;
-  readonly parameterType: TargetTypeRef;
-};
-
+import type { CsharpRuntimeParameterDefault } from "../../../target-model/types/parameter-defaults.js";
 export function csharpRuntimeParameterDefault(type: TargetTypeRef, incomingType?: TargetTypeRef): CsharpRuntimeParameterDefault | undefined {
   if (getCsharpNullableElementTargetType(type) !== undefined) {
     return incomingType === undefined || targetTypeRefEquals(type, incomingType)
