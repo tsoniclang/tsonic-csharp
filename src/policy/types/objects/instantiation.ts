@@ -1,6 +1,6 @@
-import type { CsharpObjectShapeFact, TargetTypeRef } from "../../../../target-model/types/model.js";
-import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
-import { inferCsharpTargetTypeParameterBindings, substituteObjectShapeFactTargetTypeParameters } from "../../../../target-model/types/substitution.js";
+import type { CsharpObjectShapeFact, TargetTypeRef } from "../../../target-model/types/model.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { inferCsharpTargetTypeParameterBindings, substituteObjectShapeFactTargetTypeParameters } from "../../../target-model/types/substitution.js";
 
 export function instantiateCsharpObjectShape(
   template: CsharpObjectShapeFact,
