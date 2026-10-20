@@ -1,5 +1,5 @@
 import type { CsharpNumericRepresentations } from "../../target-model/records/numeric.js";
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { SourceFile } from "@tsonic/tsts";
 import { analyzeSourceIntegerRanges } from "@tsonic/target-api/source";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
