@@ -10,7 +10,7 @@ import { resolveCsharpObjectShapeMemberBySourceContract } from "../../target-mod
 import type { CsharpRecursiveObjectShapePolicy } from "../objects/shapes/model.js";
 import type { CsharpRecursiveTypeResolver, CsharpTypeResolutionState } from "../types/resolution/model.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import { csharpArrayBindingProjectionTarget, resolveCsharpArrayBindingCarrier } from "../../target-model/types/carriers/binding-array-carrier.js";
+import { csharpArrayBindingProjectionTarget, resolveCsharpArrayBindingCarrier } from "../../policy/types/collections/binding-array-carrier.js";
 import { nextState } from "../types/resolution/state.js";
 
 export interface CsharpBindingProjectionPolicyHost {

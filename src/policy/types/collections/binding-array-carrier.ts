@@ -1,30 +1,7 @@
-import type {
-  TargetTypeRef,
-} from "../model.js";
-import {
-  csharpListTargetType,
-  csharpCollectionUsesJsArraySemantics,
-  getCsharpIndexableLengthMemberName,
-  getCsharpReadOnlyIndexableCollectionElementTargetType,
-} from "./collections.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import { csharpListTargetType, csharpCollectionUsesJsArraySemantics, getCsharpIndexableLengthMemberName, getCsharpReadOnlyIndexableCollectionElementTargetType } from "../../../target-model/types/carriers/collections.js";
 
-export type CsharpArrayBindingCarrier =
-  | {
-      readonly kind: "array";
-      readonly carrier: TargetTypeRef;
-      readonly element: TargetTypeRef;
-      readonly lengthMember: string;
-      readonly restSlice:
-        | "runtime-array-helper"
-        | "instance-slice"
-        | "js-array-helper";
-      readonly restCarrier: TargetTypeRef;
-    }
-  | {
-      readonly kind: "tuple";
-      readonly elements: readonly TargetTypeRef[];
-    };
-
+import type { CsharpArrayBindingCarrier } from "../../../target-model/types/carriers/binding-array-carrier.js";
 export function resolveCsharpArrayBindingCarrier(
   sourceCarrier: TargetTypeRef | undefined,
 ): CsharpArrayBindingCarrier | undefined {

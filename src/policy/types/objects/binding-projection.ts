@@ -8,7 +8,8 @@ import { csharpAbsenceTargetType, getCsharpGenericOptionalParts, isCsharpAbsence
 import { tryCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 
 import type { TargetTypeRef, CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../../target-model/types/model.js";
-import { csharpArrayBindingProjectionTarget, resolveCsharpArrayBindingCarrier, type CsharpArrayBindingCarrier } from "../../../target-model/types/carriers/binding-array-carrier.js";
+import { type CsharpArrayBindingCarrier } from "../../../target-model/types/carriers/binding-array-carrier.js";
+import { csharpArrayBindingProjectionTarget, resolveCsharpArrayBindingCarrier } from "../collections/binding-array-carrier.js";
 
 type BindingPatternProjectionRequest =
   | { readonly kind: "array-source"; readonly carrier: TargetTypeRef | undefined }
