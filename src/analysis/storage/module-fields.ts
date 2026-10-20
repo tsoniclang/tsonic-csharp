@@ -1,3 +1,4 @@
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { Node } from "@tsonic/tsts";
 import { IsTypeSyntaxNode, sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
@@ -19,7 +20,7 @@ export function classifyCsharpModuleFieldDemand(
       if (declaration !== undefined && (policy.ast.is.IsVariableDeclaration(declaration) ||
         policy.ast.is.IsBindingElement(declaration)) && sourceDeclarationIsModuleScoped(declaration, policy.ast)) {
         if (fields.size >= 131_072 && !fields.has(declaration))
-          throw new Error("Native module-field demand exceeded its finite storage budget.");
+          failTargetAnalysisInvariant("tsonic-csharp", "Native module-field demand exceeded its finite storage budget.", node);
         fields.add(declaration);
       }
     }
