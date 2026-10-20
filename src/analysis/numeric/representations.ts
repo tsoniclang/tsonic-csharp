@@ -5,6 +5,7 @@ import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
+import { createCsharpNumericRepresentationRecords } from "../program/records/numeric.js";
 
 export function analyzeCsharpNumericRepresentations(input: {
   readonly source: TargetSourceProgram;
@@ -18,13 +19,13 @@ export function analyzeCsharpNumericRepresentations(input: {
     sourceFiles: input.sourceFiles,
     isNumber: expression => isFloat64(input.evidence.nodeTargetType.get(expression)),
   });
-  const selected = new WeakSet(ranges.exactInt32Remainders.filter(expression => {
+  const selected = ranges.exactInt32Remainders.filter(expression => {
     const operation = input.operations.binaryOperation.get(expression)?.target;
     return operation?.kind === "resolved" && operation.sourceOperator === "%" &&
       operation.targetOperation.kind === "operator" && operation.targetOperation.operator === "%" &&
       isFloat64(operation.leftInputType) && isFloat64(operation.rightInputType) && isFloat64(operation.resultType);
-  }));
-  return Object.freeze({ int32Remainder: Object.freeze({ get: (expression: Node) => selected.has(expression) }) });
+  });
+  return createCsharpNumericRepresentationRecords(selected);
 }
 
 function isFloat64(type: TargetTypeRef | undefined): boolean {
