@@ -11,6 +11,7 @@ import { analyzeCsharpClassInitialization } from "../project-types/class-initial
 import { createCsharpProgramRecords } from "./records/create.js";
 import { analyzeCsharpSourceArtifacts } from "../source-modules/artifacts.js";
 import { analyzeCsharpArrayLiterals } from "../expressions/array-literals.js";
+import { analyzeCsharpLiteralAdmission } from "../expressions/literals.js";
 import { analyzeCsharpPropertyValueProjection } from "../conversions/property-value-projection.js";
 import { analyzeCsharpStructuralObjectEmission } from "../objects/structural-emission.js";
 import { analyzeCsharpAuthoredObjectMethods } from "../objects/authored-methods.js";
@@ -471,6 +472,8 @@ function analyzeCsharpTargetProgramBeforeSeal(
     nativeParticipation.participation, analysis.sourceEvidence.compileTimeMetadata);
   const admittedOperations = admittedIterations.operations;
   const nonCallableIssues = [
+    ...analyzeCsharpLiteralAdmission({ ast: source.ast, demand: nativeDemand, literals: literalValues,
+      exact: exactLiterals, values: analysis.valueReads }),
     ...admittedIterations.issues,
     ...admitCsharpStatementBindings(source.ast, sourceStorage.nodes, nativeDemand.nativeUse,
       admittedOperations, analysis.storage, analysis.sourceEvidence.generator,
