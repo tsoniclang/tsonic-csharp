@@ -1,18 +1,8 @@
 import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext, CsharpSourceProfileCallPolicyResult, CsharpSourceProfileIdentitySelector, CsharpSourceProfilePropertyPolicy, CsharpSourceProfilePropertyPolicyContext } from "./source-profile-policy.js";
 import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/source-profile-invocations.js";
-import {
-  csharpSourceProfileCall,
-  csharpSourceProfileDiagnostic,
-} from "./source-profile-policy.js";
-import type {
-  CsharpSourceProfileOwner,
-} from "./source-profile-identity.js";
-import {
-  csharpRuntimeErrorTargetType,
-  csharpExceptionTargetType,
-  csharpStringTargetType,
-  csharpVoidTargetType,
-} from "../../../target-model/types/carriers/scalar-types.js";
+import { csharpSourceProfileCall, csharpSourceProfileDiagnostic } from "./source-profile-policy.js";
+import type { CsharpSourceProfileOwner } from "../../identities/selected-source.js";
+import { csharpRuntimeErrorTargetType, csharpExceptionTargetType, csharpStringTargetType, csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { csharpTargetNamedType } from "../../../target-model/types/factories.js";
