@@ -48,7 +48,7 @@ import {
   csharpModuleInitMethodName,
 } from "./module-initialization-names.js";
 import { planClassDeclaration, planEnumDeclaration, planFunctionDeclaration, planInterfaceDeclaration } from "../declarations/index.js";
-import { unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 import { planExpression } from "../expressions/index.js";
 import { planClassFactoryDeclaration, planClassFactoryIdentity } from "../declarations/classes/factories.js";
 import { sanitizeIdentifier } from "../../../target-model/names/identifiers.js";
@@ -103,7 +103,7 @@ export function planSourceFile(
   const scopedTypeMembers = new Map<string, CsharpTypeDeclaration[]>();
   const localTypeScopes: CsharpCompilationUnit["members"][number][] = [];
   const appendTypeDeclaration = (node: Node, declaration: CsharpTypeDeclaration): void => {
-    const scopeName = input.types.projectTypes.definitionContainingDeclaration(node)?.scopeName;
+    const scopeName = input.program.records.projectDeclaration.get(node)?.scopeName;
     if (scopeName === undefined) {
       namespaceMembers.push(declaration);
     } else {
@@ -112,8 +112,9 @@ export function planSourceFile(
       scopedTypeMembers.set(scopeName, declarations);
     }
   };
-  for (const factory of input.program.classFactories) {
-    if (factory.sourceFile !== sourceFile) continue;
+  const factories = input.program.records.moduleFactories.get(sourceFile);
+  if (factories === undefined) failCsharpPlannerInvariant("An admitted source module requires its sealed local class inventory.", sourceFile);
+  for (const factory of factories) {
     const instance = planClassDeclaration(factory.declaration, sourceFile, input, diagnostics);
     localTypeScopes.push({ kind: "NamespaceDeclaration", name: `${readNamespace(input)}.${factory.instanceScope}`,
       members: [instance.declaration] });
@@ -182,8 +183,7 @@ export function planSourceFile(
             topLevelStatements.push(...planStatements(statement, sourceFile, input, diagnostics, topLevelState));
             break;
           default:
-            diagnostics.push(unsupportedNodeDiagnostic(statement, "Top-level statement is outside the current C# planning surface."));
-            break;
+            failCsharpPlannerInvariant("An admitted native source module contains an unplanned top-level statement.", statement);
         }
       }
       return topLevelStatements;
@@ -340,7 +340,7 @@ export function planSourceFile(
   };
   const finalized = finalizeCsharpCompilationUnit(
     unit,
-    input.program.configuration.languageDialect,
+    input.program.records.compilation.get().languageDialect,
   );
   return {
     fileName,
@@ -413,12 +413,10 @@ function planExportAssignment(
 ): CsharpTypeMember | undefined {
   const assignment = AsExportAssignment(input.program.source.ast, node)!;
   if (assignment.IsExportEquals) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Export equals requires finalized TSTS CommonJS module-export facts before C# emission."));
-    return undefined;
+    failCsharpPlannerInvariant("An admitted default export requires native module-export syntax.", node);
   }
   if (assignment.Expression === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Default export assignment must have an expression."));
-    return undefined;
+    failCsharpPlannerInvariant("An admitted default export requires its checked expression.", node);
   }
   const name = sanitizeIdentifier("default");
   const type = getCsharpTypeForNode(assignment.Expression, sourceFile, input, diagnostics);

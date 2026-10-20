@@ -29,6 +29,7 @@ import { analyzeCsharpProjectEmission } from "../project-types/emission.js";
 import { analyzeCsharpTypeParameterEmission } from "../declarations/type-parameters.js";
 import { analyzeCsharpTypeEmission } from "../types/emission.js";
 import { analyzeCsharpIdentifierEmission } from "../names/source-identifiers.js";
+import { analyzeCsharpSourceFileEmission } from "../source-modules/emission.js";
 import { analyzeCsharpStatementExits } from "../control-flow/statement-exits.js";
 import { analyzeCsharpStatementCompletions } from "../control-flow/statement-completion.js";
 import { analyzeCsharpResourceScopes } from "../control-flow/resource-scopes.js";
@@ -594,7 +595,11 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const typeEmission = analyzeCsharpTypeEmission({ ast: source.ast, nodes: sourceStorage.nodes, evidence: analysis.sourceEvidence,
     values: analysis.valueReads, storage: analysis.storage, shapes: objectShapeDemand, admitted: admittedControlNode });
   if (typeEmission.issues.length !== 0) return rejectedTargetStage(typeEmission.issues);
+  const sourceFileEmission = analyzeCsharpSourceFileEmission({ source, identities: sourceIdentities.records,
+    factories: classFactories, evidence: analysis.sourceEvidence, operations: admittedOperations });
+  if (sourceFileEmission.issues.length !== 0) return rejectedTargetStage(sourceFileEmission.issues);
   const records = createCsharpProgramRecords({
+    sourceFileEmission: sourceFileEmission.records,
     typeEmission: typeEmission.records,
     typeParameterEmission: typeParameterEmission.records,
     projectEmission: projectEmission.records,
