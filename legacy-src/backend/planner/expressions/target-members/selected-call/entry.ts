@@ -95,7 +95,7 @@ function translateCsharpCallExpressionCore(
       diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
       return undefined;
     }
-    return planCsharpJsValueCall(node, sourceFile, input, diagnostics, jsValueOperation, sourceCall, planExpression);
+    return planCsharpJsValueCall(node, sourceFile, input, diagnostics, planExpression);
   }
   const selection = classification.target;
   if (selection === undefined) {
