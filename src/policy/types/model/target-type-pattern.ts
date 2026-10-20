@@ -1,13 +1,6 @@
-import type {
-  TargetTypeParameter,
-  TargetTypeRef,
-} from "../../../target-model/types/model.js";
-import {
-  targetTypeRefEquals,
-} from "../../../target-model/types/equality.js";
-import {
-  isCsharpNullableReferenceTargetType,
-} from "../../../target-model/types/carriers/nullable.js";
+import type { TargetTypeParameter, TargetTypeRef } from "../../../target-model/types/model.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { isCsharpNullableReferenceTargetType } from "../../../target-model/types/carriers/nullable.js";
 
 export function resolveCsharpTargetTypePatternArguments(
   pattern: TargetTypeRef,
