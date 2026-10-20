@@ -48,6 +48,7 @@ export function createCsharpExactLiteralRequestCollector(literalValues: SourceLi
       targets = new Set();
       requestedTargets.set(expression, targets);
     }
+    if (targets.has(key)) return;
     targets.add(key);
     requests.push(Object.freeze({ expression, ...(target === undefined ? {} : { target }) }));
   }
