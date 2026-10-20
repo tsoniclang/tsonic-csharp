@@ -11,7 +11,7 @@ import { csharpPlannedArgumentSyntax } from "../../expressions/target-members/se
 
 export function planCsharpConstructorInitializerArgument(
   node: Node, planned: CsharpPlannedArgument, parameters: readonly CsharpParameter[],
-  input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], expectedCarrier?: TargetTypeRef,
+  input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], _expectedCarrier?: TargetTypeRef,
 ): CsharpArgument | undefined {
   const selected = input.program.records.constructorArgument.get(node);
   if (selected === undefined || selected.kind === "packet") failCsharpPlannerInvariant("An admitted direct base argument requires its native initializer transport.", node);
