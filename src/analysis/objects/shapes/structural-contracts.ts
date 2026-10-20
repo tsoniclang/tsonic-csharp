@@ -1,7 +1,8 @@
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../../target-model/types/model.js";
-import { canonicalCsharpObjectShapeMembers } from "../../../../target-model/types/object-shape-identity.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
+import { canonicalCsharpObjectShapeMembers } from "../../../target-model/types/object-shape-identity.js";
 import { createStructuralObjectShapeTarget } from "./construction.js";
-import type { CsharpTypeParameterConstraintResolver } from "../../../../target-model/types/generic-references.js";
+import type { CsharpTypeParameterConstraintResolver } from "../../../target-model/types/generic-references.js";
 
 export function parameterizeCsharpStructuralContract(shape: CsharpObjectShapeFact, environment: CsharpTypeParameterConstraintResolver): CsharpObjectShapeFact {
   if (shape.targetType.kind !== "target-named" || (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract !== true || shape.members.length === 0 ||
@@ -16,7 +17,7 @@ export function parameterizeCsharpStructuralContract(shape: CsharpObjectShapeFac
   }));
   const templateMembers: CsharpObjectShapeMemberFact[] = members.map((member, index) => ({ ...member, type: parameters[index]! }));
   const targetType = createStructuralObjectShapeTarget(templateMembers, undefined, environment, true);
-  if (targetType.kind !== "target-named") throw new Error("A nonempty structural contract lost its native interface identity.");
+  if (targetType.kind !== "target-named") failTargetAnalysisInvariant("tsonic-csharp", "A nonempty structural contract lost its native interface identity.");
   const covariantTypeParameterIdentities = templateMembers.flatMap(member =>
     (member.readonly === true || member.accessor?.setter === false) && member.type.kind === "type-parameter"
       ? [member.type.identity] : []);
