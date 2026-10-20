@@ -2,15 +2,12 @@ import type { Node, Type } from "@tsonic/tsts";
 import { selectSourceGuardedValueMembers, selectSourceGuardedTypeMembers, selectSourceNativeGuardResult, selectSourceNativeValueGuard, type SourceNativeGuard, type SourceNativeValueGuard } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpUnionLeaves } from "../../../target-model/types/union-relations.js";
-import { getCsharpTypeofRuntimeKind } from "../../../target-model/types/runtime-kind.js";
-import { getCsharpJsArrayElementTargetType } from "../../../target-model/types/carriers/collections.js";
-import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import type { CsharpClosedTypePredicate } from "../../../target-model/operations/type-tests.js";
-import { selectCsharpClosedTypeTestPlan } from "../../operations/operators/type-tests.js";
+
 import type { CsharpTypePolicyHost } from "./model.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
-import { csharpAbsenceTargetType, csharpCarrierAdmitsSourceAbsence, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 
+import { selectCsharpNativeCarrierPredicate, type CsharpNativeFlowPredicate } from "../../../policy/operations/flow/native-predicates.js";
 export function selectCsharpNativeFlowMembers(
   host: CsharpTypePolicyHost,
   reference: Node,
@@ -24,12 +21,8 @@ export function selectCsharpNativeFlowMembers(
     : [...payloads, csharpAbsenceTargetType()];
   return selectSourceGuardedValueMembers(host, reference, members,
     expression => selectNativeGuard(host, expression, resolveNominal),
-    (member, predicate) => testNativeCarrier(host, member, predicate));
+    (member, predicate) => selectCsharpNativeCarrierPredicate(host.typeDefinitions, member, predicate));
 }
-
-type Predicate = CsharpClosedTypePredicate | { readonly kind: "typeof"; readonly value: string; readonly negated: boolean }
-  | Extract<SourceNativeValueGuard, { readonly kind: "literal" }>
-  | { readonly kind: "absence"; readonly negated: boolean };
 
 export function selectCsharpNativeGuardResult(
   host: CsharpTypePolicyHost,
@@ -47,7 +40,7 @@ export function selectCsharpNativeGuardResult(
     return guard?.kind === "typeof" || guard?.kind === "absence"
       ? { sourceOperand: guard.sourceOperand, predicate: guard } : undefined;
   },
-    (member, predicate) => testNativeCarrier(host, member, predicate));
+    (member, predicate) => selectCsharpNativeCarrierPredicate(host.typeDefinitions, member, predicate));
 }
 
 export function selectCsharpNativeFlowTypeMembers(
@@ -61,7 +54,7 @@ export function selectCsharpNativeFlowTypeMembers(
     expression => selectNativeGuard(host, expression, resolveNominal),
     (type, predicate) => {
       const carrier = resolveCarrier(type);
-      return carrier === undefined ? undefined : testNativeCarrier(host, carrier, predicate);
+      return carrier === undefined ? undefined : selectCsharpNativeCarrierPredicate(host.typeDefinitions, carrier, predicate);
     });
 }
 
@@ -69,7 +62,7 @@ function selectNativeGuard(
   host: CsharpTypePolicyHost,
   expression: Node,
   resolveNominal: (guard: Extract<SourceNativeValueGuard, { readonly kind: "nominal" }>) => TargetTypeRef | undefined,
-): SourceNativeGuard<Predicate> | undefined {
+): SourceNativeGuard<CsharpNativeFlowPredicate> | undefined {
   const native = selectSourceNativeValueGuard(host, expression);
   if (native?.kind === "absence") return { sourceOperand: native.sourceOperand, predicate: native };
   if (native?.kind === "typeof") return { sourceOperand: native.sourceOperand, predicate: native };
@@ -79,27 +72,4 @@ function selectNativeGuard(
     if (targetCarrier !== undefined) return { sourceOperand: native.sourceOperand, predicate: { kind: "nominal", targetCarrier } };
   }
   return host.closedTypeGuard(expression);
-}
-
-function testNativeCarrier(host: CsharpTypePolicyHost, member: TargetTypeRef, predicate: Predicate): boolean | undefined {
-  if (predicate.kind === "absence") {
-    if (isCsharpAbsenceTargetType(member)) return !predicate.negated;
-    if (csharpCarrierAdmitsSourceAbsence(member)) return undefined;
-    return getCsharpTypeofRuntimeKind(member, host.typeDefinitions) === undefined ? undefined : predicate.negated;
-  }
-  const category = getCsharpTypeofRuntimeKind(member, host.typeDefinitions);
-  if (predicate.kind === "literal") {
-    if (isCsharpAbsenceTargetType(member)) return predicate.negated;
-    const numeric = (category === "number" || category === "bigint") &&
-      (predicate.category === "number" || predicate.category === "bigint");
-    return category === undefined || category === predicate.category || numeric ? undefined : predicate.negated;
-  }
-  if (predicate.kind === "typeof") return category === undefined ? undefined : (category === predicate.value) !== predicate.negated;
-  if (predicate.kind === "nominal") {
-    if (targetTypeRefEquals(member, predicate.targetCarrier)) return true;
-    if (member.kind === "array" || getCsharpJsArrayElementTargetType(member) !== undefined ||
-      category !== undefined && category !== "object") return false;
-  }
-  const test = selectCsharpClosedTypeTestPlan(member, predicate, undefined, host.typeDefinitions);
-  return test?.kind === "constant" ? test.value : undefined;
 }
