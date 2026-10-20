@@ -1,18 +1,7 @@
-import type {
-  ProviderDeclarationModel,
-  ProviderExportDeclaration,
-  ProviderMemberDeclaration,
-  ProviderSignatureDeclaration,
-} from "@tsonic/tsts";
-import type {
-  DotnetExportDeclaration,
-  DotnetModuleModel,
-} from "../../model/index.js";
-import { tryDotnetTypeRefToProviderType } from "../../model/index.js";
-import type {
-  DotnetDeclarationContext,
-  DotnetProviderDeclarationModelOptions,
-} from "./context.js";
+import type { ProviderDeclarationModel, ProviderExportDeclaration, ProviderMemberDeclaration, ProviderSignatureDeclaration } from "@tsonic/tsts";
+import type { DotnetExportDeclaration, DotnetModuleModel } from "../../model/index.js";
+import { tryDotnetTypeRefToProviderType } from "./provider-conversion.js";
+import type { DotnetDeclarationContext, DotnetProviderDeclarationModelOptions } from "./context.js";
 import { createDotnetDeclarationContext } from "./context.js";
 import { providerImportsForExternalRefs, qualifyProviderExportModuleRefs } from "./module-refs.js";
 import { dotnetExportToNamespaceMember } from "./namespace-members.js";
