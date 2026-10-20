@@ -19,6 +19,7 @@ export function classifyCsharpNativeLocation(
   sourceFile: SourceFile,
   classProperty: (declaration: Node) => CsharpClassPropertyStorage | undefined,
   physical: Pick<CsharpStorageClassifications, "nativeBacking" | "nativeField" | "nativeArray" | "nativeModuleField" | "storageType">,
+  readStorage: (expression: Node) => TargetTypeRef | undefined,
   active = new WeakSet<Node>(),
 ): CsharpNativeLocationSelection {
   if (active.has(expression)) return rejected("The selected native storage contains a receiver cycle.");
@@ -27,7 +28,7 @@ export function classifyCsharpNativeLocation(
     if (policy.ast.is.IsParenthesizedExpression(expression)) {
       const nested = policy.ast.as.AsParenthesizedExpression(expression)?.Expression;
       return nested === undefined ? rejected("The parenthesized native storage has no operand.")
-        : classifyCsharpNativeLocation(policy, nested, sourceFile, classProperty, physical, active);
+        : classifyCsharpNativeLocation(policy, nested, sourceFile, classProperty, physical, readStorage, active);
     }
     const reference = selectCsharpNativeRefReturn(policy, expression, sourceFile);
     if (reference.kind === "rejected") return reference;
@@ -37,7 +38,7 @@ export function classifyCsharpNativeLocation(
     const storage = policy.semantics(sourceFile).operations.storage(expression);
     const storageType = physical.storageType.get(expression) ??
       (policy.ast.is.IsIdentifier(expression) && storage?.declaration !== undefined
-        ? physical.storageType.get(storage.declaration) : undefined) ?? policy.types.resolveReadStorage(expression, sourceFile);
+        ? physical.storageType.get(storage.declaration) : undefined) ?? readStorage(expression);
     if (storage === undefined || storageType === undefined) return rejected("The expression has no exact native storage and carrier evidence.");
     const assignment = selectCsharpAssignmentLocation(policy, expression, node => policy.types.resolveNode(node, sourceFile));
     const localBacking = storage.declaration === undefined ? undefined : physical.nativeBacking.get(storage.declaration);
@@ -100,7 +101,7 @@ export function classifyCsharpNativeLocation(
         : moduleField || declaration !== undefined && policy.ast.hasModifierKind(declaration, "static");
       if (!isStatic && receiverType === undefined) return resolved(expression, storageType, assignment, storage.writable);
       if (!isStatic && receiverType !== undefined && isCsharpValueTypeTargetType(receiverType)) {
-        const receiver = classifyCsharpNativeLocation(policy, receiverExpression, sourceFile, classProperty, physical, active);
+        const receiver = classifyCsharpNativeLocation(policy, receiverExpression, sourceFile, classProperty, physical, readStorage, active);
         if (receiver.kind !== "resolved" || receiver.address === undefined ||
           !targetTypeRefEquals(receiver.storageType, receiverType)) return resolved(expression, storageType, assignment, storage.writable);
         return resolved(expression, storageType, assignment, storage.writable,
