@@ -1,8 +1,6 @@
-import type { CsharpSourceProfileCallPolicyContext } from "../source-profile-policy.js";
+import type { CsharpSourceProfileCallPolicyContext } from "../../../model/source-profiles.js";
 import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
-import {
-  getCsharpJsArrayElementTargetType,
-} from "../../../../target-model/types/index.js";
+import { getCsharpJsArrayElementTargetType } from "../../../../target-model/types/index.js";
 import type { TargetTypeRef } from "../../../types/index.js";
 import { csharpArrayLikeElement, csharpArrayLikeTargetType } from "../../../../target-model/types/carriers/array-like.js";
 import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/carriers/runtime-carriers.js";
