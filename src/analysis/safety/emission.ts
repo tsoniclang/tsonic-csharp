@@ -54,7 +54,7 @@ export function analyzeCsharpSafetyEmission(input: {
         (application.applicationPlacement === "getter" || application.applicationPlacement === "setter")) {
         const field = input.evidence.sourceField.get([declaration]);
         const property = input.operations.classPropertyStorage.get(declaration);
-        const signature = ast.is.IsPropertySignature(declaration) || ast.is.IsIndexSignatureDeclaration(declaration);
+        const signature = ast.kindName(declaration) === "KindPropertySignature" || ast.is.IsIndexSignatureDeclaration(declaration);
         const hasAccessors = field === undefined && property?.kind !== "field";
         const writable = signature ? !ast.hasModifierKind(declaration, "readonly") : property?.readonly !== true;
         if ((ast.is.IsPropertyDeclaration(declaration) || signature || ast.is.IsParameterDeclaration(declaration)) &&
@@ -113,8 +113,8 @@ export function analyzeCsharpSafetyEmission(input: {
     subjects.set(node, value);
     const placements = new Map<CsharpSafetyPlacement, readonly "unsafe"[]>();
     const typeDeclaration = ast.is.IsClassDeclaration(node) || ast.is.IsClassExpression(node) || ast.is.IsInterfaceDeclaration(node);
-    const headerContext = children.some(child => !ast.is.IsMethodDeclaration(child.node) && !ast.is.IsMethodSignature(child.node) &&
-      !ast.is.IsPropertyDeclaration(child.node) && !ast.is.IsPropertySignature(child.node) &&
+    const headerContext = children.some(child => !ast.is.IsMethodDeclaration(child.node) && ast.kindName(child.node) !== "KindMethodSignature" &&
+      !ast.is.IsPropertyDeclaration(child.node) && ast.kindName(child.node) !== "KindPropertySignature" &&
       !ast.is.IsGetAccessorDeclaration(child.node) && !ast.is.IsSetAccessorDeclaration(child.node) &&
       !ast.is.IsConstructorDeclaration(child.node) && child.selection.context);
     const constructorContext = children.some(child => (ast.is.IsConstructorDeclaration(child.node) ||
