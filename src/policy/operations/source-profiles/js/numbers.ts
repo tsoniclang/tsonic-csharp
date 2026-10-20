@@ -1,37 +1,9 @@
-import type {
-  CsharpTargetMember,
-  TargetTypeRef,
-} from "../../../types/index.js";
+import type { CsharpTargetMember, TargetTypeRef } from "../../../types/index.js";
 import { csharpJsNumericArgument, csharpJsParsingParameters } from "./numeric-argument.js";
-import {
-  csharpBigIntegerTargetType,
-  csharpObjectTargetType,
-  csharpSourcePrimitiveTargetType,
-  csharpStringTargetType,
-  getCsharpRuntimeUnionArms,
-  targetTypeRefEquals,
-} from "../../../../target-model/types/index.js";
-import type {
-  CsharpSourceProfileCallPolicy,
-  CsharpSourceProfilePropertyPolicy,
-} from "../source-profile-policy.js";
-import {
-  resolveCsharpSelectedSourceValue,
-} from "../source-profile-policy.js";
-import {
-  closedObjectParameter,
-  jsCallIdentity,
-  jsCallPolicy,
-  jsConstructIdentity,
-  jsMemberIdentity,
-  jsPropertyPolicy,
-  jsRuntimeTargetType,
-  jsUnsupportedCallPolicy,
-  receiverHelperMethod,
-  staticMethod,
-  targetParameter,
-  targetProperty,
-} from "./common.js";
+import { csharpBigIntegerTargetType, csharpObjectTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, getCsharpRuntimeUnionArms, targetTypeRefEquals } from "../../../../target-model/types/index.js";
+import type { CsharpSourceProfileCallPolicy, CsharpSourceProfilePropertyPolicy } from "../../../model/source-profiles.js";
+import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
+import { closedObjectParameter, jsCallIdentity, jsCallPolicy, jsConstructIdentity, jsMemberIdentity, jsPropertyPolicy, jsRuntimeTargetType, jsUnsupportedCallPolicy, receiverHelperMethod, staticMethod, targetParameter, targetProperty } from "./common.js";
 
 const numberType = csharpSourcePrimitiveTargetType("float64");
 const intType = csharpSourcePrimitiveTargetType("int32");
