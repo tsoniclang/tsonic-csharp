@@ -1,25 +1,11 @@
-import type {
-  ExtensionDiagnostic,
-  Node,
-  SourceFile,
-} from "@tsonic/tsts";
+import type { ExtensionDiagnostic, Node, SourceFile } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
-import type { CsharpProviderTargetRelation } from "../../../../target-model/identities/provider-relations.js";
-import type {
-  CsharpTargetMember,
-} from "../../../types/index.js";
-import {
-  targetTypeRefEquals,
-} from "../../../types/index.js";
-import {
-  instantiateCsharpProviderBindingMember,
-} from "../instantiation/binding-instantiation.js";
-import type {
-  CsharpProviderCallSelectionHost,
-} from "./call-selection.js";
-import {
-  resolveCsharpProviderElementRelations,
-} from "../providers/operations.js";
+import type { CsharpProviderTargetRelation } from "../../../target-model/identities/provider-relations.js";
+import type { CsharpTargetMember } from "../../../policy/types/index.js";
+import { targetTypeRefEquals } from "../../../policy/types/index.js";
+import { instantiateCsharpProviderBindingMember } from "../../../policy/operations/members/instantiation/binding-instantiation.js";
+import type { CsharpProviderCallSelectionHost } from "../../../policy/operations/members/selection/call-selection.js";
+import { resolveCsharpProviderElementRelations } from "./relations.js";
 
 type ResolvedSourceElementAccessInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["elementAccess"]>
@@ -29,6 +15,7 @@ type CsharpProviderSignatureRelation = Extract<
   { readonly kind: "signature" }
 >;
 
+import { providerReceiverMatchesElement, csharpProviderElementSupportsAccess } from "../../../policy/operations/members/element-selection.js";
 export interface CsharpSelectedProviderElement {
   readonly source: ResolvedSourceElementAccessInfo;
   readonly relation: CsharpProviderSignatureRelation;
@@ -164,7 +151,7 @@ function instantiateProviderElement(
     targetParameter === undefined ||
     targetParameter.passingMode !== parameterRelation.targetPassingMode ||
     !providerReceiverMatchesElement(relation, source) ||
-    !targetMemberSupportsAccess(targetMember, source.accessMode)
+    !csharpProviderElementSupportsAccess(targetMember, source.accessMode)
   ) {
     return undefined;
   }
@@ -187,32 +174,4 @@ function instantiateProviderElement(
     targetMember,
     targetParameterIndex: parameterRelation.targetParameterIndex,
   };
-}
-
-function providerReceiverMatchesElement(
-  relation: CsharpProviderSignatureRelation,
-  _source: ResolvedSourceElementAccessInfo,
-): boolean {
-  switch (relation.receiver.kind) {
-    case "instance":
-      return relation.targetMember.static !== true;
-    case "none":
-      return relation.targetMember.static === true;
-    case "target-parameter":
-      return relation.targetMember.parameters[
-        relation.receiver.targetParameterIndex
-      ] !== undefined;
-  }
-}
-
-function targetMemberSupportsAccess(
-  member: CsharpTargetMember,
-  accessMode: ResolvedSourceElementAccessInfo["accessMode"],
-): boolean {
-  if (member.returnType === undefined) {
-    return false;
-  }
-  return accessMode === "read" ||
-    (accessMode === "write" || accessMode === "read-write") &&
-      member.readonly !== true;
 }
