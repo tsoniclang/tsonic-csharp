@@ -1,15 +1,11 @@
-import type { CsharpPointerReturnContract } from "../../../target-model/records/pointer-return.js";
+import type { CsharpPointerReturnContract } from "../../target-model/records/pointer-return.js";
 import type { Node } from "@tsonic/tsts";
-import type { CsharpTypeResolutionScope } from "../resolution/engine.js";
-import type { CsharpTypeResolutionState } from "../resolution/model.js";
-import { nextState } from "../resolution/state.js";
+import type { CsharpTypeResolutionScope } from "../../policy/types/resolution/engine.js";
+import type { CsharpTypeResolutionState } from "../../policy/types/resolution/model.js";
+import { nextState } from "../../policy/types/resolution/state.js";
 
-import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import {
-  combineCsharpTargetUnionMembers,
-  csharpRuntimeLocationTargetType,
-  csharpRuntimeLocationPointee,
-} from "../../../target-model/types/carriers/runtime-carriers.js";
+import { targetTypeRefEquals } from "../../target-model/types/equality.js";
+import { combineCsharpTargetUnionMembers, csharpRuntimeLocationTargetType, csharpRuntimeLocationPointee } from "../../target-model/types/carriers/runtime-carriers.js";
 
 export function resolveCsharpPointerReturnContract(
   { host, resolveAuthoredAndSelectedSourceType, resolveDirectSourceFacts, resolveTypeWithState }: CsharpTypeResolutionScope,
