@@ -2,10 +2,8 @@ import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { TargetBindingFact, TargetTypeRef } from "../../target-model/types/model.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
-import { csharpSourceUnionIdentity, instantiateCsharpSourceUnionArms,
-  snapshotCsharpSourceUnionDefinition,
-  type CsharpSourceUnionDefinition, type CsharpTypeDefinitions,
-  type CsharpTypeDefinitionWriter } from "../../target-model/types/source-union-definitions.js";
+import { csharpSourceUnionIdentity, instantiateCsharpSourceUnionArms, snapshotCsharpSourceUnionDefinition, type CsharpSourceUnionDefinition, type CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
+import { type CsharpTypeDefinitionWriter } from "../program/records/type-definitions.js";
 
 export interface CsharpTypeDefinitionRegistry extends CsharpTypeDefinitionWriter {
   seal(): CsharpTypeDefinitions;

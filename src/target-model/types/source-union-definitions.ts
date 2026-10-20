@@ -15,10 +15,6 @@ export interface CsharpTypeDefinitions {
   sourceUnions(): readonly CsharpSourceUnionDefinition[];
 }
 
-export interface CsharpTypeDefinitionWriter extends CsharpTypeDefinitions {
-  registerSourceUnion(definition: CsharpSourceUnionDefinition): boolean;
-}
-
 export function snapshotCsharpSourceUnionDefinition(value: CsharpSourceUnionDefinition): CsharpSourceUnionDefinition {
   if (value === null || typeof value !== "object" || Array.isArray(value)) throw new TypeError("A C# source union requires a data record.");
   const fields = csharpMetadataDescriptors(value);
