@@ -1,8 +1,4 @@
-import type {
-  CsharpObjectShapeFact,
-  CsharpObjectShapeMemberFact,
-  TargetTypeRef,
-} from "./model.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "./model.js";
 
 export const csharpStructuralObjectShapeIdPrefix = "tsonic.shape:";
 
@@ -14,10 +10,7 @@ export function csharpStructuralObjectShapeIdentity(
     ? type.id.slice(csharpStructuralObjectShapeIdPrefix.length)
     : undefined;
 }
-import {
-  targetTypeRefKey,
-  scopedTargetTypeRefKey,
-} from "./equality.js";
+import { targetTypeRefKey, scopedTargetTypeRefKey } from "./equality.js";
 import { csharpSourceMemberKeyParts } from "./source-member-keys.js";
 import { csharpOwnerTypeParameterConstraintKey } from "./generic-constraints.js";
 
