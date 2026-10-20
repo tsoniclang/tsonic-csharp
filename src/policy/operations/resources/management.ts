@@ -1,54 +1,18 @@
 import type { CsharpResolvedResourceManagement, CsharpResourceDisposalOperation } from "../../../target-model/records/management.js";
-import type { Node, SourceFile } from "@tsonic/tsts";
-import type {
-  CsharpPolicyContext,
-} from "../../model/context.js";
-import type {
-  TargetTypeRef,
-} from "../../types/index.js";
-import {
-  getCsharpRuntimeUnionArms,
-  getCsharpNullableElementTargetType,
-  isCsharpAbsenceTargetType,
-  targetTypeRefEquals,
-} from "../../types/index.js";
+
+import type { TargetTypeRef } from "../../types/index.js";
+import { getCsharpRuntimeUnionArms, getCsharpNullableElementTargetType, isCsharpAbsenceTargetType, targetTypeRefEquals } from "../../types/index.js";
 import type { CsharpOperationSelection } from "../../../target-model/records/operator-selection.js";
 
-export function selectCsharpResourceManagement(
-  input: CsharpPolicyContext,
-  declaration: Node,
-  sourceFile: SourceFile,
+import type { ResolvedSourceResourceManagementInfo } from "@tsonic/tsts";
+import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
+
+export function selectCsharpNativeResourceManagement(
+  source: ResolvedSourceResourceManagementInfo,
+  storageType: TargetTypeRef,
+  alternatives: readonly { readonly targetType: TargetTypeRef; readonly disposal: CsharpResourceDisposalOperation }[],
+  definitions: CsharpTypeDefinitions,
 ): CsharpOperationSelection<CsharpResolvedResourceManagement> {
-  const source = input.semantics(sourceFile)
-    .operations.resourceManagement(declaration);
-  if (source === undefined) {
-    return rejected(
-      "TSTS did not retain exact checked resource-management evidence for this declaration.",
-    );
-  }
-  if (source.disposal.kind !== "selected") {
-    return rejected(
-      "Untyped dynamic resource disposal has no closed C# target operation.",
-    );
-  }
-  const storageType = input.types.resolveStorage(declaration, sourceFile);
-  if (storageType === undefined) {
-    return rejected(
-      "The exact selected resource has no closed C# storage and disposal carrier.",
-    );
-  }
-  const alternatives = source.disposal.alternatives.map((alternative) => {
-    const targetType = input.types.resolveType(alternative.sourceType, sourceFile);
-    const disposal = resolveDisposalOperation(alternative.kind);
-    return targetType === undefined
-      ? undefined
-      : { targetType, disposal };
-  });
-  if (alternatives.some((alternative) => alternative === undefined)) {
-    return rejected(
-      "An exact selected resource alternative has no closed C# disposal operation.",
-    );
-  }
   const canonical = canonicalDisposalAlternatives(
     alternatives as readonly {
       readonly targetType: TargetTypeRef;
@@ -76,7 +40,7 @@ export function selectCsharpResourceManagement(
       },
     };
   }
-  const storageArms = getCsharpRuntimeUnionArms(directResourceType, input.typeDefinitions);
+  const storageArms = getCsharpRuntimeUnionArms(directResourceType, definitions);
   if (storageArms === undefined) {
     return rejected(
       "Multiple selected resource alternatives require one exact C# runtime-union storage carrier.",
@@ -117,14 +81,6 @@ export function selectCsharpResourceManagement(
         left.armIndex - right.armIndex)),
     },
   };
-}
-
-function resolveDisposalOperation(
-  sourceKind: "sync" | "async",
-): CsharpResourceDisposalOperation {
-  return sourceKind === "sync"
-    ? { kind: "sync", targetName: "Dispose" }
-    : { kind: "async", targetName: "DisposeAsync" };
 }
 
 function canonicalDisposalAlternatives(
