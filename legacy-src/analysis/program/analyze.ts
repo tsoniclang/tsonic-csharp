@@ -7,6 +7,7 @@ import { analyzeCsharpCaptureStorage } from "../callables/capture-storage.js";
 import { analyzeCsharpNativeConstants } from "../expressions/native-constants.js";
 import { analyzeCsharpBinaryEmission } from "../expressions/binary-emission.js";
 import { analyzeCsharpDictionaryLiterals } from "../objects/dictionary-literals.js";
+import { analyzeCsharpExpressionEmission } from "../expressions/emission.js";
 import { admitCsharpLocationRetention } from "../storage/location-retention.js";
 import { analyzeCsharpNativeParticipation } from "../callables/participation.js";
 import { analyzeCsharpProjectCallableAdapters } from "../project-types/callable-adapters.js";
@@ -692,6 +693,8 @@ function analyzeCsharpTargetProgramBeforeSeal(
   if (typeEmission.issues.length !== 0) return rejectedTargetStage(typeEmission.issues);
   const nativeConstants = analyzeCsharpNativeConstants({ ast: source.ast, demand: nativeDemand, literals: literalValues,
     exact: exactLiterals, values: analysis.valueReads, types: typeEmission.records, references: sourceReferences.records });
+  const expressionEmission = analyzeCsharpExpressionEmission(sourceStorage.nodes, nativeDemand, conversions);
+  if (expressionEmission.issues.length !== 0) return rejectedTargetStage(expressionEmission.issues);
   const binaryEmission = analyzeCsharpBinaryEmission({ source, nodes: sourceStorage.nodes, operations: admittedOperations,
     demand: nativeDemand, storage: analysis.storage, constants: nativeConstants, admitted: admittedControlNode });
   if (binaryEmission.issues.length !== 0) return rejectedTargetStage(binaryEmission.issues);
@@ -749,6 +752,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     sourceFileEmission: sourceFileEmission.records,
     typeEmission: typeEmission.records,
     nativeConstants,
+    expressionEmission: expressionEmission.records,
     binaryEmission: binaryEmission.records,
     nativeLayouts: nativeLayouts.records,
     typeParameterEmission: typeParameterEmission.records,

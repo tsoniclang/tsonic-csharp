@@ -70,6 +70,7 @@ export interface CsharpProgramRecordInput {
   readonly typeEmission: import("../../../target-model/records/type-emission.js").CsharpTypeEmissionRecords;
   readonly nativeConstants: import("../../../target-model/records/native-constants.js").CsharpNativeConstantRecords;
   readonly binaryEmission: import("../../../target-model/records/binary-emission.js").CsharpBinaryEmissionRecords;
+  readonly expressionEmission: Pick<import("../../../target-model/records/native-demand.js").CsharpNativeUseRecords, "nativeExpression" | "nativeDiscard">;
   readonly nativeLayouts: import("../../../target-model/records/native-layout-emission.js").CsharpNativeLayoutRecords;
   readonly unionEquality: import("../../../target-model/records/union-equality.js").CsharpUnionEqualityRecords;
   readonly closedTypeTests: import("../../../target-model/records/type-tests.js").CsharpClosedTypeTestRecords;
@@ -225,7 +226,7 @@ export function createCsharpProgramRecords(
     nativeParticipation: input.nativeParticipation.participation,
     nativeUse: Object.freeze({ get: input.nativeDemand.nativeUse.get }),
     nativeOrder: Object.freeze({ get: input.nativeDemand.nativeUse.order }),
-    nativeExpression: Object.freeze({ get: input.nativeDemand.nativeUse.expression }),
+    ...input.expressionEmission,
     bindingPatternProjection: input.bindingPatterns.bindingPatternProjection,
     attributeApplication: input.attributeApplications.attributeApplication,
     callableDispatch: input.callableAdapters.callableDispatch,

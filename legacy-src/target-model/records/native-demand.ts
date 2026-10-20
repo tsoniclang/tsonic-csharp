@@ -167,5 +167,18 @@ export interface CsharpNativeUseClassifications {
 export interface CsharpNativeUseRecords {
   readonly nativeUse: { readonly get: (site: TargetUseSiteRef) => CsharpNativeUse | undefined };
   readonly nativeOrder: { readonly get: (construct: Node) => readonly CsharpNativeOrderStep[] | undefined };
-  readonly nativeExpression: { readonly get: (node: Node) => { readonly site: TargetUseSiteRef; readonly use: CsharpNativeUse } | undefined };
+  readonly nativeExpression: { readonly get: (node: Node) => CsharpNativeExpressionRecord | undefined };
+  readonly nativeDiscard: { readonly get: (site: TargetUseSiteRef) => CsharpNativeDiscardEmission | undefined };
+}
+
+export type CsharpNativeDiscardEmission =
+  | { readonly kind: "effect"; readonly expression: Node }
+  | { readonly kind: "sequence"; readonly steps: readonly TargetUseSiteRef[] };
+
+export interface CsharpNativeExpressionRecord {
+  readonly site: TargetUseSiteRef;
+  readonly use: CsharpNativeUse;
+  readonly physical: Exclude<CsharpNativeUse, { readonly kind: "erased" }> | undefined;
+  readonly conversion: Exclude<import("../conversions/selection.js").CsharpConversionSelection, { readonly kind: "rejected" }> | undefined;
+  readonly bottom: { readonly effects: readonly TargetUseSiteRef[]; readonly expression: Node } | undefined;
 }

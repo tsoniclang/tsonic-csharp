@@ -18,7 +18,6 @@ import { planCsharpExactLiteralRecipe } from "./literal-conversions.js";
 import { planVoidExpression } from "./expression-void.js";
 import { planCsharpAbsentValue } from "./optional-storage.js";
 import { planCsharpStorageIsAbsent } from "./optional-storage.js";
-import { isCsharpRecordDictionaryTargetType } from "../../../target-model/types/carriers/collections.js";
 import { csharpPlannedEffect, csharpPlannedValue, mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { planCsharpJsValueBox, translateCsharpJsValueInvocation } from "./js-value-operations.js";
 import { captureCsharpPlannedValue, planCsharpExpressionCompletion, planCsharpValueBranch } from "./planned-value-composition.js";
@@ -40,46 +39,36 @@ export function planCsharpNativeExpression(
   planners: CsharpNativeExpressionPlanners,
   state?: DestructuringPlannerState,
 ): CsharpPlannedValue | undefined {
-  const selected = requireCsharpNativeExpressionUse(input, node).use;
+  const emission = requireCsharpNativeExpressionUse(input, node);
+  const selected = emission.use;
   if (selected.kind === "erased") return csharpPlannedEffect(csharpVoidTargetType(), []);
-  const construction = selected.kind === "converted" && selected.children.length === 1 &&
-      selected.children[0]!.subject === node && selected.children[0]!.role === "constructed-result"
-    ? input.program.records.nativeUse.get(selected.children[0]!) ?? failCsharpPlannerInvariant(
-      "A native conversion requires its admitted physical construction stage.", node) : undefined;
-  const physical = construction ?? selected;
-  if (physical.kind === "erased") return failCsharpPlannerInvariant("Native construction cannot be erased.", node);
+  const physical = emission.physical ?? failCsharpPlannerInvariant("An admitted expression requires its physical emission use.", node);
   const planned = render(physical);
   if (planned === undefined || planned.completion.kind === "never" || selected.kind !== "converted") return planned;
   if (selected.completion.kind === "void") return csharpPlannedEffect(selected.target, planCsharpPlannedDiscard(planned));
-  const conversion = readCsharpExpressionConversionClassification(node, input, diagnostics,
-    selected.carrier, selected.target, selected.mode);
-  if (conversion === undefined) return undefined;
+  const conversion = emission.conversion ?? failCsharpPlannerInvariant("An admitted converted expression requires its selected native conversion.", node);
   if (planned.completion.kind === "void" && conversion.kind === "absence") {
-    const absent = planCsharpAbsentValue(selected.target, input.scope.typeParameterNames);
+    const absent = planCsharpAbsentValue(selected.target, input);
     return absent === undefined ? failCsharpPlannerInvariant("Admitted native absence must be renderable.", node)
-      : { prelude: planned.prelude, completion: { kind: "value", carrier: selected.target, expression: absent } };
+      : csharpPlannedValue(selected.target, absent, planned.prelude,
+        input.program.records.nativeConstant.get(node, selected.target) === true, input.program.records.nativeAbsence.get(node, selected.target) === true);
   }
   return mapCsharpPlannedValue(planned, selected.target, expression => applyCsharpConversionSelection(
-    node, sourceFile, input, diagnostics, selected.carrier, selected.target, conversion, expression));
+    node, sourceFile, input, diagnostics, selected.carrier, selected.target, conversion, expression),
+    input.program.records.nativeConstant.get(node, selected.target) === true);
 
   function render(use: Exclude<CsharpNativeUse, { readonly kind: "erased" }>): CsharpPlannedValue | undefined {
     const complete = (expression: Parameters<typeof planCsharpExpressionCompletion>[4]) =>
       planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, expression, use.carrier);
-    if (use.completion.kind === "never" && use.evaluation.kind === "sequence") {
-      const stop = use.evaluation.steps.findIndex(step => step.guard === undefined &&
-        input.program.records.nativeUse.get(step.site)?.kind !== "erased" &&
-        nativeUse(step.site).completion.kind === "never");
-      if (stop >= 0) {
+    if (emission.bottom !== undefined) {
         const prelude: CsharpStatement[] = [];
-        for (const step of use.evaluation.steps.slice(0, stop)) {
-          const discarded = discardUse(step.site);
+        for (const step of emission.bottom.effects) {
+          const discarded = discardUse(step);
           if (discarded === undefined) return undefined;
           prelude.push(...discarded);
         }
-        const last = nativeUse(use.evaluation.steps[stop]!.site);
-        const value = planners.planExpression(last.expression, sourceFile, input, diagnostics, state);
+        const value = planners.planExpression(emission.bottom.expression, sourceFile, input, diagnostics, state);
         return value === undefined ? undefined : { prelude: [...prelude, ...value.prelude], completion: value.completion };
-      }
     }
     if (use.literal !== undefined) {
       const literal = planCsharpExactLiteralRecipe(input.scope.typeParameterNames, use.literal);
@@ -128,7 +117,7 @@ export function planCsharpNativeExpression(
     if (ast.is.IsObjectLiteralExpression(node)) {
       const type = csharpTypeFromTargetTypeRef(use.carrier, input.scope.typeParameterNames);
       if (type === undefined) return failCsharpPlannerInvariant("A native object construction requires a renderable carrier.", node);
-      return isCsharpRecordDictionaryTargetType(use.carrier)
+      return input.program.records.dictionaryLiteral.get(node, use.carrier) !== undefined
         ? tryPlanRecordDictionaryLiteralWithCarrier(node, sourceFile, input, diagnostics, planners.planExpression, use.carrier)
         : planObjectLiteralExpression(node, sourceFile, input, diagnostics, planners.planExpression, state);
     }
@@ -169,7 +158,7 @@ export function planCsharpNativeExpression(
         const value = planSite(recipe.site, values);
         if (value === undefined || value.completion.kind === "never") return value;
         if (value.completion.kind !== "value") return failCsharpPlannerInvariant("An observed discarded presence requires its native value.", node);
-        const absent = planCsharpStorageIsAbsent(value.completion.carrier, value.completion.expression, input.scope.typeParameterNames);
+        const absent = planCsharpStorageIsAbsent(value.completion.carrier, value.completion.expression, input);
         if (absent === undefined) return failCsharpPlannerInvariant("An admitted nullable presence requires its native absence test.", node);
         return csharpPlannedValue(csharpSourcePrimitiveTargetType("bool"),
           { kind: "PrefixUnaryExpression", operatorToken: { kind: "ExclamationToken" }, operand: { kind: "ParenthesizedExpression", expression: absent } }, value.prelude);
@@ -249,7 +238,7 @@ export function planCsharpNativeExpression(
   }
 
   function presenceLiteral(present: boolean): CsharpPlannedValue {
-    return csharpPlannedValue(csharpSourcePrimitiveTargetType("bool"), { kind: "LiteralExpression", value: present });
+    return csharpPlannedValue(csharpSourcePrimitiveTargetType("bool"), { kind: "LiteralExpression", value: present }, [], true);
   }
 
   function effectBranch(condition: CsharpPlannedValue | undefined, consequent: CsharpPlannedValue | undefined,
@@ -272,18 +261,18 @@ export function planCsharpNativeExpression(
   }
 
   function discardUse(site: TargetUseSiteRef): readonly CsharpStatement[] | undefined {
-    if (input.program.records.nativeUse.get(site)?.kind === "erased") return [];
-    const use = nativeUse(site);
-    if (use.kind === "location") {
+    const selected = input.program.records.nativeDiscard.get(site)
+      ?? failCsharpPlannerInvariant("An admitted discarded use requires its exact source-owned effect recipe.", node);
+    if (selected.kind === "sequence") {
       const statements: CsharpStatement[] = [];
-      for (const child of use.children) {
+      for (const child of selected.steps) {
         const discarded = discardUse(child);
         if (discarded === undefined) return undefined;
         statements.push(...discarded);
       }
       return statements;
     }
-    const value = planners.planExpression(use.expression, sourceFile, input, diagnostics, state);
+    const value = planners.planExpression(selected.expression, sourceFile, input, diagnostics, state);
     return value === undefined ? undefined : planCsharpPlannedDiscard(value);
   }
 }
