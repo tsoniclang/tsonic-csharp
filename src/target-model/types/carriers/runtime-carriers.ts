@@ -1,25 +1,9 @@
-import type {
-  CsharpObjectShapeFact,
-  CsharpTargetNamedTypeRef,
-  TargetTypeRef,
-} from "../model.js";
-import type {
-  CsharpRuntimeUnionTargetTypeRef,
-} from "../model.js";
-import {
-  csharpQualifiedTypeRenderShape,
-} from "../render-shapes.js";
-import {
-  csharpTargetNamedType,
-} from "../factories.js";
-import {
-  targetTypeRefKey,
-} from "../equality.js";
-import {
-  csharpNullableTargetType,
-  csharpNullableReferenceTargetType,
-  getCsharpNullableElementTargetType,
-} from "./nullable.js";
+import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../model.js";
+import type { CsharpRuntimeUnionTargetTypeRef } from "../model.js";
+import { csharpQualifiedTypeRenderShape } from "../render-shapes.js";
+import { csharpTargetNamedType } from "../factories.js";
+import { targetTypeRefKey } from "../equality.js";
+import { csharpNullableTargetType, csharpNullableReferenceTargetType, getCsharpNullableElementTargetType } from "./nullable.js";
 import { getCsharpGenericOptionalParts } from "../projections.js";
 import { isCsharpVoidTargetType } from "../identity.js";
 import { emptyCsharpTypeDefinitions, type CsharpTypeDefinitions } from "../source-union-definitions.js";
