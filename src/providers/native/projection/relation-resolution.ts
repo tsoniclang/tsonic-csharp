@@ -1,43 +1,17 @@
-import type {
-  ProviderVirtualDeclarationFact,
-} from "@tsonic/tsts";
-import type {
-  TargetBindingFact,
-} from "../../../target-model/types/model.js";
-import type {
-  DotnetReflectionTypeDataProvider,
-} from "../acquisition/provider.js";
-import {
-  resolveDotnetProviderTargetRelations,
-} from "./target-relation-resolver.js";
+import type { ExtensionDiagnostic, ProviderVirtualDeclarationFact } from "@tsonic/tsts";
+import type { TargetBindingFact } from "../../../target-model/types/model.js";
+import type { DotnetReflectionTypeDataProvider } from "../acquisition/provider.js";
+import { resolveDotnetProviderTargetRelations } from "./target-relation-resolver.js";
 import type { CsharpProviderTargetRelation } from "../../../target-model/identities/provider-relations.js";
-import {
-  assertCsharpProviderPolicyIsNonContradictory,
-  createCsharpProviderRejectionCatalog,
-  createCsharpProviderRelationCatalog,
-  providerMemberSourceIdentity,
-  providerSignatureSourceIdentity,
-  providerTypeSourceIdentity,
-  providerValueSourceIdentity,
-} from "../../model/provider-relations.js";
-import type {
-  CsharpProviderPolicyContribution,
-  CsharpProviderBindingResolution,
-  CsharpProviderBindingLookupPurpose,
-  CsharpProviderNativeBindingResolution,
-} from "../../../target-model/metadata/provider-metadata.js";
+import { assertCsharpProviderPolicyIsNonContradictory, createCsharpProviderRejectionCatalog, createCsharpProviderRelationCatalog, providerMemberSourceIdentity, providerSignatureSourceIdentity, providerTypeSourceIdentity, providerValueSourceIdentity } from "../../model/provider-relations.js";
+import type { CsharpProviderPolicyContribution, CsharpProviderBindingResolution, CsharpProviderBindingLookupPurpose, CsharpProviderNativeBindingResolution } from "../../../target-model/metadata/provider-metadata.js";
 import { dotnetExtensionDiagnostic } from "../model/diagnostics.js";
 import { dotnetReflectionProviderIdentity } from "../acquisition/provider-identity.js";
 import { canonicalProviderValue } from "../../../target-model/metadata/canonical-value.js";
-import {
-  csharpBuiltInProviderPolicies,
-} from "../../builtins/source-semantic-relations.js";
-import type {
-  CsharpProviderRelationResolution,
-  CsharpProviderRelationResolver,
-} from "../../model/relation-resolver.js";
+import { csharpBuiltInProviderPolicies } from "../../builtins/source-types.js";
+import type { CsharpProviderRelationResolution, CsharpProviderRelationResolver } from "../../model/relation-resolver.js";
 import { assertCsharpProviderLookupPurpose } from "../../model/relation-resolver.js";
-import type { CsharpProviderRuntimePreparation } from "../../model/relation-resolver.js";
+import type { CsharpProviderRuntimePreparation, CsharpProviderRuntimeAcquisition } from "../../model/relation-resolver.js";
 import { csharpNativeTargetBindingFact } from "../../../target-model/types/native-inheritance.js";
 import { findUniqueTargetBinding } from "../acquisition/target-binding-index.js";
 
@@ -87,6 +61,14 @@ export function createCsharpProviderRelationResolver(
     Map<CsharpProviderTargetRelation["kind"], CsharpProviderRelationResolution>
   >();
   let runtimePrepared = false;
+  const failures = new Map<string, ExtensionDiagnostic>();
+  const retained = <Value extends { readonly kind: string }>(result: Value): Value => {
+    if (result.kind === "rejected" && "diagnostic" in result) {
+      const diagnostic = result.diagnostic as ExtensionDiagnostic;
+      failures.set(canonicalProviderValue(diagnostic), diagnostic);
+    }
+    return result;
+  };
   const inheritance = new Map<string, CsharpProviderNativeBindingResolution>();
   const acquiring = new Set<string>();
   const bindingCandidates = (
@@ -143,15 +125,15 @@ export function createCsharpProviderRelationResolver(
   function findTargetBindingByTargetId(targetId: string, purpose: CsharpProviderBindingLookupPurpose): CsharpProviderBindingResolution;
   function findTargetBindingByTargetId(targetId: string, purpose: CsharpProviderBindingLookupPurpose): CsharpProviderBindingResolution {
     assertCsharpProviderLookupPurpose(purpose);
-    return purpose === "inheritance" ? inheritanceQuery(targetId, "id")
-      : findUniqueTargetBinding(bindingCandidates(targetId, "id"), targetId);
+    return retained(purpose === "inheritance" ? inheritanceQuery(targetId, "id")
+      : findUniqueTargetBinding(bindingCandidates(targetId, "id"), targetId));
   }
   function findTargetBindingByMetadataName(metadataName: string, purpose: "inheritance"): CsharpProviderNativeBindingResolution;
   function findTargetBindingByMetadataName(metadataName: string, purpose: CsharpProviderBindingLookupPurpose): CsharpProviderBindingResolution;
   function findTargetBindingByMetadataName(metadataName: string, purpose: CsharpProviderBindingLookupPurpose): CsharpProviderBindingResolution {
     assertCsharpProviderLookupPurpose(purpose);
-    return purpose === "inheritance" ? inheritanceQuery(metadataName, "metadata")
-      : findUniqueTargetBinding(bindingCandidates(metadataName, "metadata"), metadataName);
+    return retained(purpose === "inheritance" ? inheritanceQuery(metadataName, "metadata")
+      : findUniqueTargetBinding(bindingCandidates(metadataName, "metadata"), metadataName));
   }
   const resolve = (
     declaration: ProviderVirtualDeclarationFact | undefined,
@@ -232,7 +214,7 @@ export function createCsharpProviderRelationResolver(
     let kinds = resolutions.get(declaration);
     const existing = kinds?.get(kind);
     if (existing !== undefined) return existing;
-    const result = resolve(declaration, kind);
+    const result = retained(resolve(declaration, kind));
     if (kinds === undefined) {
       kinds = new Map();
       resolutions.set(declaration, kinds);
@@ -241,10 +223,14 @@ export function createCsharpProviderRelationResolver(
     return result;
   };
   return Object.freeze({
-    prepareRuntimeSources(preparation: CsharpProviderRuntimePreparation): void {
-      if (runtimePrepared) throw new TypeError("C# native runtime acquisition inputs are prepared exactly once per analysis.");
-      providers[0]?.prepareRuntimeSources(preparation);
+    failures(): readonly ExtensionDiagnostic[] {
+      return Object.freeze([...failures.values()]);
+    },
+    prepareRuntimeSources(preparation: CsharpProviderRuntimePreparation): CsharpProviderRuntimeAcquisition {
+      if (runtimePrepared) throw new TypeError("C# native runtime acquisition is prepared exactly once before analysis.");
       runtimePrepared = true;
+      return retained(providers[0]?.prepareRuntimeSources(preparation) ??
+        Object.freeze({ kind: "resolved", references: Object.freeze([]) }));
     },
     validateReferences() {
       return Object.freeze(providers.flatMap((provider) => {
