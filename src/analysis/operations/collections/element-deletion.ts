@@ -1,11 +1,10 @@
 import type { CsharpElementDeletionSelection } from "../../../target-model/records/element-deletion.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { CsharpPolicyContext } from "../../model/context.js";
+import type { CsharpPolicyContext } from "../../../policy/model/context.js";
 
-import { csharpSourcePrimitiveTargetType, isCsharpRecordDictionaryTargetType } from "../../../target-model/types/index.js";
-import { csharpSourceProfileDeclarationIdentity } from "../members/index.js";
-import { getCsharpJsArrayMutationPolicy } from "../../types/index.js";
+import { csharpSourceProfileDeclarationIdentity } from "../../../policy/operations/members/index.js";
 
+import { selectCsharpNativeElementDeletion } from "../../../policy/operations/collections/element-deletion.js";
 export function selectCsharpElementDeletion(
   input: CsharpPolicyContext,
   node: Node,
@@ -22,15 +21,7 @@ export function selectCsharpElementDeletion(
   if (member?.kind !== "index" || member.index.readonly) {
     return { kind: "rejected", reason: "Deletion requires one exact mutable checked index signature." };
   }
-  if (isCsharpRecordDictionaryTargetType(receiver) && receiver.typeArguments?.length === 2) {
-    return { kind: "resolved", receiver: source.receiver.expression, index: source.argument.expression,
-      keyType: receiver.typeArguments[0]!, targetMemberName: "Remove" };
-  }
   const identity = csharpSourceProfileDeclarationIdentity(input.ast, semantics, input.sourceFacts, source.selectedDeclaration);
-  const mutation = getCsharpJsArrayMutationPolicy(receiver);
-  if (identity?.owner === "js" && identity.kind === "indexer" && identity.declaringName === "Array" && mutation !== undefined) {
-    return { kind: "resolved", receiver: source.receiver.expression, index: source.argument.expression,
-      keyType: csharpSourcePrimitiveTargetType("float64"), targetMemberName: mutation.deleteAtMemberName };
-  }
-  return { kind: "rejected", reason: "Deletion requires an exact native indexed-record or JS Array deletion contract." };
+  return selectCsharpNativeElementDeletion(receiver, source.receiver.expression, source.argument.expression,
+    identity?.owner === "js" && identity.kind === "indexer" && identity.declaringName === "Array");
 }

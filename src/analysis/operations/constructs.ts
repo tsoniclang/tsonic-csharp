@@ -23,7 +23,7 @@ import { getCsharpClassFactory } from "../../target-model/types/carriers/class-f
 import { classifyCsharpOptionalCallCallee, classifyCsharpOptionalCallReceiver } from "./optional-calls.js";
 import { selectCsharpMemoryBinding } from "./memory-bindings.js";
 
-import { selectCsharpElementDeletion } from "../../policy/operations/collections/element-deletion.js";
+import { selectCsharpElementDeletion } from "./collections/element-deletion.js";
 import { selectCsharpSwitch } from "./control-flow/switch.js";
 import { AsForInOrOfStatement, sourceClassFieldIsTypeOnly } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
