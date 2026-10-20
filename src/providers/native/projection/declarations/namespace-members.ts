@@ -1,9 +1,6 @@
-import type {
-  ProviderMemberDeclaration,
-  ProviderSignatureDeclaration,
-} from "@tsonic/tsts";
+import type { ProviderMemberDeclaration, ProviderSignatureDeclaration } from "@tsonic/tsts";
 import type { DotnetExportDeclaration } from "../../model/index.js";
-import { tryDotnetTypeRefToProviderType } from "../../model/index.js";
+import { tryDotnetTypeRefToProviderType } from "./provider-conversion.js";
 import { dotnetSignatureToProviderSignature } from "./signatures.js";
 
 export function dotnetExportToNamespaceMember(declaration: DotnetExportDeclaration): ProviderMemberDeclaration | undefined {
