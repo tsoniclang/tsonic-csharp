@@ -82,7 +82,7 @@ import {
 } from "../safety/explicit-safety.js";
 import {
   planCsharpNativePointerOperation,
-} from "./expression-native-pointers.js";
+} from "./native-pointers.js";
 import {
   planCsharpJsStringConversion,
 } from "./expression-js-string-conversion.js";
