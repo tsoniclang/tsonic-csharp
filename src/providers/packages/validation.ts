@@ -1,14 +1,7 @@
-import {
-  nonEmptyContributionString,
-} from "../model/contribution-values.js";
+import { nonEmptyContributionString } from "../model/contribution-values.js";
 import { snapshotCsharpMetadata } from "../../target-model/metadata/immutable.js";
-import {
-  validateCsharpProviderPolicyContribution,
-} from "../model/provider-policy-contribution.js";
-import {
-  csharpProviderPolicyContributionKind,
-  type CsharpProviderPolicyContribution,
-} from "../../target-model/metadata/provider-metadata.js";
+import { validateCsharpProviderPolicyContribution } from "../model/provider-policy-contribution.js";
+import { csharpProviderPolicyContributionKind, type CsharpProviderPolicyContribution } from "../../target-model/metadata/provider-metadata.js";
 import type { CsharpProviderPackageDefinition } from "./model.js";
 
 export function snapshotCsharpProviderPackage(
