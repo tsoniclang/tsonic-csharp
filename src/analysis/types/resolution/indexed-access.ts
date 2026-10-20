@@ -1,6 +1,6 @@
 import { providerVirtualDeclarationFactKey, type Node } from "@tsonic/tsts";
 import { sourceIndexedTypeEvidence, type SourceFileSemantics } from "@tsonic/target-api/source";
-import type { CsharpTypeResolutionScope } from "../../../policy/types/resolution/engine.js";
+import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpTargetBindingSubstitutions, substituteCsharpTargetMember } from "../../../policy/types/callables/member-substitution.js";

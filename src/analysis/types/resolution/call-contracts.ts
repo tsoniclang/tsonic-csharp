@@ -4,7 +4,7 @@ import { classifyCsharpSourceCallee } from "../../callables/source-callees.js";
 import { csharpDelegateSignatureHasSupportedPassingModes, getCsharpCallableValueSignature } from "../../../target-model/types/carriers/delegates.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
-import type { CsharpTypeResolutionScope } from "../../../policy/types/resolution/engine.js";
+import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { ResolvedSourceCallInfo } from "../../../target-model/records/source-calls.js";
 import { nextState } from "./state.js";

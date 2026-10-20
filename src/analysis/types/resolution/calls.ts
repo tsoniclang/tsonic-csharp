@@ -1,6 +1,6 @@
 import type { CsharpSourceCallContract } from "../../../target-model/records/source-callable-contract.js";
 import { csharpSourceCallArgumentParameter } from "../../../policy/types/callables/source-callable-contract.js";
-import type { CsharpTypeResolutionScope } from "../../../policy/types/resolution/engine.js";
+import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { ResolvedSourceCallInfo } from "../../../target-model/records/source-calls.js";

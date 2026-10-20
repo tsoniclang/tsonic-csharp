@@ -24,9 +24,7 @@ import {
 } from "../../target-model/types/object-shape-members.js";
 import { isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import type { CsharpPlanningRepresentationQueries, CsharpTypePolicy, CsharpTypePolicyBaseHost } from "../types/resolution/model.js";
-import {
-  createCsharpTypeResolutionServices,
-} from "../../policy/types/resolution/engine.js";
+import { createCsharpTypeResolutionServices } from "../types/resolution/engine.js";
 import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../target-model/records/project-types.js";
 import {
   analyzeCsharpProjectTypePolicy,

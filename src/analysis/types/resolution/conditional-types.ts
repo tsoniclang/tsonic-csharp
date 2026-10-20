@@ -3,7 +3,7 @@ import { sourceNodeIdentity, sourceTransformedTypeFactEvidenceNodes, type Source
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpProjectedType } from "../../../target-model/types/projections.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import type { CsharpTypeResolutionScope } from "../../../policy/types/resolution/engine.js";
+import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import { csharpBoundSourceType, csharpSourceBindings } from "./type-bindings.js";
 import { nextState } from "./state.js";

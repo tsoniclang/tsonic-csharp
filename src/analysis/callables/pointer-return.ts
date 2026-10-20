@@ -1,6 +1,6 @@
 import type { CsharpPointerReturnContract } from "../../target-model/records/pointer-return.js";
 import type { Node } from "@tsonic/tsts";
-import type { CsharpTypeResolutionScope } from "../../policy/types/resolution/engine.js";
+import type { CsharpTypeResolutionScope } from "../types/resolution/scope.js";
 import type { CsharpTypeResolutionState } from "../types/resolution/model.js";
 import { nextState } from "../types/resolution/state.js";
 

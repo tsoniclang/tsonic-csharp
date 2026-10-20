@@ -2,7 +2,7 @@ import type { CsharpArrayLiteralSelection } from "../../../target-model/records/
 import type { Node } from "@tsonic/tsts";
 import { sourceEnclosingCallable, sourceExpressionCallArgument, type SourceClosedCallableArgument, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import type { CsharpTypeResolutionScope } from "../../../policy/types/resolution/engine.js";
+import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import { nextState } from "./state.js";
 import { getCsharpCollectionElementTargetType } from "../../../target-model/types/carriers/collections.js";
