@@ -1,12 +1,5 @@
-import type {
-  ProviderMemberDeclaration,
-  ProviderDeclarationMaterialization,
-  ProviderTypeExpression,
-} from "@tsonic/tsts";
-import type {
-  DotnetModuleModel,
-  DotnetTypeDeclaration,
-} from "../../model/index.js";
+import type { ProviderMemberDeclaration, ProviderDeclarationMaterialization, ProviderTypeExpression } from "@tsonic/tsts";
+import type { DotnetModuleModel, DotnetTypeDeclaration } from "../../model/index.js";
 
 export interface DotnetProviderDeclarationModelOptions {
   readonly providerModuleId?: string;
