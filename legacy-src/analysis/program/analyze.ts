@@ -19,6 +19,7 @@ import { analyzeCsharpMemberReceivers } from "../objects/member-receivers.js";
 import { analyzeCsharpSourceCallEmission } from "../callables/source-call-emission.js";
 import { analyzeCsharpTargetArguments } from "../callables/target-arguments.js";
 import { analyzeCsharpArgumentPassing } from "../callables/argument-passing.js";
+import { analyzeCsharpTargetCallEmission } from "../callables/target-call-emission.js";
 import { analyzeCsharpLiteralAdmission } from "../expressions/literals.js";
 import { analyzeCsharpAwaitAdmission } from "../callables/await-admission.js";
 import { analyzeCsharpVoidAdmission } from "../expressions/expression-void.js";
@@ -713,6 +714,10 @@ function analyzeCsharpTargetProgramBeforeSeal(
     evidence: analysis.sourceEvidence, storage: analysis.storage, operations: admittedOperations,
     elements: elementAdmission.records, admitted: admittedControlNode });
   if (argumentPassing.issues.length !== 0) return rejectedTargetStage(argumentPassing.issues);
+  const targetCallEmission = analyzeCsharpTargetCallEmission({ nodes: sourceStorage.nodes, admitted: admittedControlNode, operations: admittedOperations,
+    arguments: targetArguments.records, sources: sourceCallEmission.records, optional: optionalCallChains.records,
+    shapes: objectShapeDemand, demand: nativeDemand });
+  if (targetCallEmission.issues.length !== 0) return rejectedTargetStage(targetCallEmission.issues);
   const records = createCsharpProgramRecords({
     propertyValueProjection: propertyValueProjection.records,
     arrayLiterals: arrayLiterals.records,
@@ -782,6 +787,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     sourceCallEmission: sourceCallEmission.records,
     targetArguments: targetArguments.records,
     argumentPassing: argumentPassing.records,
+    targetCallEmission: targetCallEmission.records,
     typeofEmission: typeofEmission.records,
     flowReads, valueReads: analysis.valueReads,
     callableAdapters, callableCreations, typeProjections: analysis.typeProjections, classFactories, classInitialization, captureStorage,
