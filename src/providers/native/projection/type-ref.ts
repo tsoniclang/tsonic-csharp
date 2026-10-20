@@ -1,23 +1,7 @@
-import type {
-  TargetTypeRef,
-} from "../../../policy/types/index.js";
-import type {
-  DotnetRenderShape,
-  DotnetTypeDeclaration,
-  DotnetTypeRef,
-} from "../model/types.js";
-import {
-  csharpBigIntegerTargetType,
-  csharpBooleanTargetType,
-  csharpDelegateTargetType,
-  type CsharpDelegateSignatureShape,
-  csharpNullableValueTargetType,
-  csharpNullableReferenceTargetType,
-  type CsharpTargetTypeRenderShape,
-  csharpStringTargetType,
-  csharpTargetNamedType,
-  csharpVoidTargetType,
-} from "../../../policy/types/index.js";
+import type { TargetTypeRef } from "../../../target-model/types/index.js";
+import type { DotnetRenderShape, DotnetTypeDeclaration, DotnetTypeRef } from "../model/types.js";
+import { csharpBigIntegerTargetType, csharpBooleanTargetType, type CsharpDelegateSignatureShape, csharpNullableValueTargetType, csharpNullableReferenceTargetType, type CsharpTargetTypeRenderShape, csharpStringTargetType, csharpTargetNamedType, csharpVoidTargetType } from "../../../target-model/types/index.js";
+import { csharpDelegateTargetType } from "../../../target-model/types/carriers/delegates.js";
 import { dotnetCallableRepresentationIssue } from "../model/callable-representations.js";
 
 export function dotnetTypeRefToTargetTypeRef(type: DotnetTypeRef): TargetTypeRef {
