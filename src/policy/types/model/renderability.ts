@@ -1,13 +1,5 @@
-import type {
-  CsharpTargetTypeRenderShape,
-  TargetTypeRef,
-} from "../../../target-model/types/index.js";
-import {
-  csharpRenderShapeForTargetNamedType,
-  csharpSourcePrimitiveCsharpRender,
-  isCsharpNeverTargetType,
-  isCsharpNullableReferenceTargetType,
-} from "../../../target-model/types/index.js";
+import type { CsharpTargetTypeRenderShape, TargetTypeRef } from "../../../target-model/types/index.js";
+import { csharpRenderShapeForTargetNamedType, csharpSourcePrimitiveCsharpRender, isCsharpNeverTargetType, isCsharpNullableReferenceTargetType } from "../../../target-model/types/index.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import { tryCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 import { csharpFunctionPointerCallingConvention } from "../../../target-model/syntax/function-pointer-conventions.js";
