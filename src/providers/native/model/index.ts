@@ -31,17 +31,3 @@ export type {
   DotnetUnsupportedTypeFamilyExportDeclaration,
   DotnetValueDeclaration,
 } from "./types.js";
-export {
-  dotnetTypeParameterToProviderTypeParameter,
-  dotnetTypeRefToProviderType,
-  tryDotnetTypeRefToProviderType,
-} from "../projection/declarations/provider-conversion.js";
-export {
-  dotnetConstraintToTargetConstraint,
-  dotnetExportToTargetBinding,
-  dotnetTypeRefToTargetTypeRef,
-} from "../projection/index.js";
-export type {
-  DotnetTargetMember,
-  DotnetTargetParameter,
-} from "../projection/index.js";
