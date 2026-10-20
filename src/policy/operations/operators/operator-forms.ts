@@ -1,21 +1,10 @@
 import type { Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../model/context.js";
 import type { CsharpJsArrayMutationSelection } from "../../../target-model/records/js-array-mutations.js";
-import type {
-  CsharpBinaryClassification,
-  CsharpOperatorForm,
-  CsharpOperatorFormClassification,
-  CsharpPropertyClassification,
-  CsharpUnaryClassification,
-} from "../../../target-model/records/operations.js";
-import {
-  csharpDestructuringAssignmentSyntax,
-  isCsharpAssignmentOperator,
-  sourceOperatorFromKindName,
-  type CsharpSourceOperator,
-} from "../../../target-model/syntax/operators.js";
+import type { CsharpBinaryClassification, CsharpOperatorForm, CsharpOperatorFormClassification, CsharpPropertyClassification, CsharpUnaryClassification } from "../../../target-model/records/operations.js";
+import { csharpDestructuringAssignmentSyntax, isCsharpAssignmentOperator, sourceOperatorFromKindName, type CsharpSourceOperator } from "../../../target-model/syntax/operators.js";
 import { csharpBinaryOperationUsesExpectedResultType } from "./expected-result.js";
-import { targetBinaryOperator } from "./operator-selection.js";
+import { targetBinaryOperator } from "./rules.js";
 
 export function selectCsharpOperatorForm(
   input: CsharpPolicyContext,
