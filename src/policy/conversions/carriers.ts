@@ -1,39 +1,11 @@
 import { csharpProviderBindingFromResolution } from "../../providers/model/relation-resolver.js";
-import {
-  csharpBaseTargetTypeFromBinding,
-  csharpTargetTypeFromBinding,
-} from "../types/storage/bindings.js";
-import {
-  csharpVoidReturnCompletion,
-  csharpDelegateSignatureHasSupportedPassingModes,
-  csharpDelegateSignaturesMatchNativeBinding,
-  csharpObjectTargetType,
-  csharpTargetBindingFact,
-  getCsharpDelegateSignature,
-  getCsharpNullableElementTargetType,
-  getCsharpRuntimeUnionArms,
-  isCsharpJsValueTargetType,
-  isCsharpAbsenceTargetType,
-  isCsharpNullableReferenceTargetType,
-  isCsharpReferenceCarrier,
-  isCsharpSourceDelegateTargetType,
-  isCsharpValueTypeTargetType,
-  isCsharpVoidTargetType,
-  targetTypeRefEquals,
-  targetTypeRefKey,
-} from "../../target-model/types/index.js";
-import {
-  substituteTargetTypeParameters,
-} from "../../target-model/types/substitution.js";
+import { csharpBaseTargetTypeFromBinding, csharpTargetTypeFromBinding } from "../types/storage/bindings.js";
+import { csharpVoidReturnCompletion, csharpDelegateSignatureHasSupportedPassingModes, csharpDelegateSignaturesMatchNativeBinding, csharpObjectTargetType, csharpTargetBindingFact, getCsharpDelegateSignature, getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms, isCsharpJsValueTargetType, isCsharpAbsenceTargetType, isCsharpNullableReferenceTargetType, isCsharpReferenceCarrier, isCsharpSourceDelegateTargetType, isCsharpValueTypeTargetType, isCsharpVoidTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/index.js";
+import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
 import { conversionIsImplicitlyApplicable, selectCsharpConversion } from "./core.js";
 import { csharpConversionIsApplicable } from "../../target-model/conversions/selection.js";
 import { targetBindingSubstitutions } from "./provider-operators.js";
-import type {
-  CsharpTargetNamedTypeRef,
-  TargetConstraint,
-  TargetTypeParameter,
-  TargetTypeRef,
-} from "../types/index.js";
+import type { CsharpTargetNamedTypeRef, TargetConstraint, TargetTypeParameter, TargetTypeRef } from "../types/index.js";
 import type { CsharpConversionMode, CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import type { CsharpPolicyContext } from "../model/context.js";
 import { csharpUnionLeaves, csharpUnionProjectionPath, selectCsharpUnionArmMapping } from "../../target-model/types/union-relations.js";
