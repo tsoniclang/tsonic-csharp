@@ -10,7 +10,7 @@ import type {
 import type { CsharpTargetMember } from "../../target-model/types/model.js";
 import {
   canonicalProviderValue,
-} from "./canonical-value.js";
+} from "../../target-model/metadata/canonical-value.js";
 import { isCsharpIntegralTargetType } from "../../target-model/types/carriers/scalar-types.js";
 
 export type CsharpProviderIdentityResult<

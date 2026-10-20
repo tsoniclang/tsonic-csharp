@@ -18,10 +18,8 @@ import {
 import type {
   DotnetReflectionTypeDataProvider,
 } from "./provider.js";
-import {
-  composeCsharpBinaryExecutionDriver,
-  validateCsharpProviderPolicyContribution,
-} from "../../model/provider-policy-contribution.js";
+import { validateCsharpProviderPolicyContribution } from "../../model/provider-policy-contribution.js";
+import { composeCsharpBinaryExecutionDriver } from "../../../target-model/metadata/binary-execution-drivers.js";
 import type {
   CsharpTargetBinaryExecutionDriver,
   CsharpProviderPolicyContribution,

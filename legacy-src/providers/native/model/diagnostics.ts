@@ -6,7 +6,7 @@ import {
 } from "node:crypto";
 import {
   canonicalProviderValue,
-} from "../../model/canonical-value.js";
+} from "../../../target-model/metadata/canonical-value.js";
 import type {
   DotnetProviderDiagnostic,
   DotnetProviderModuleResult,

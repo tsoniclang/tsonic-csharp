@@ -185,9 +185,7 @@ import {
 import {
   analyzeCsharpSourceModuleConstructions,
 } from "../source-modules/index.js";
-import {
-  composeCsharpBinaryExecutionDriver,
-} from "../../providers/model/provider-policy-contribution.js";
+import { composeCsharpBinaryExecutionDriver } from "../../target-model/metadata/binary-execution-drivers.js";
 import {
   analyzeCsharpModuleInitialization,
 } from "../module-initialization/index.js";

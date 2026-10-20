@@ -28,7 +28,7 @@ import type {
 } from "../../../target-model/metadata/provider-metadata.js";
 import { dotnetExtensionDiagnostic } from "../model/diagnostics.js";
 import { dotnetReflectionProviderIdentity } from "../acquisition/provider-identity.js";
-import { canonicalProviderValue } from "../../model/canonical-value.js";
+import { canonicalProviderValue } from "../../../target-model/metadata/canonical-value.js";
 import {
   csharpBuiltInProviderPolicies,
 } from "../../builtins/source-semantic-relations.js";

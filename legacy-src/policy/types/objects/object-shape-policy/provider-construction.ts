@@ -7,7 +7,7 @@ import type {
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { sourcePropertyTypeEvidenceNodes } from "@tsonic/target-api/source";
 import type { CsharpProviderTargetRelation } from "../../../../target-model/identities/provider-relations.js";
-import { canonicalProviderValue } from "../../../../providers/model/canonical-value.js";
+import { canonicalProviderValue } from "../../../../target-model/metadata/canonical-value.js";
 import {
   csharpTargetTypeFromBinding,
 } from "../../storage/bindings.js";

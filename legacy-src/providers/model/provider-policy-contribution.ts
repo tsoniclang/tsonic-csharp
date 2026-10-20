@@ -1,49 +1,10 @@
 import type { TargetCapabilityContribution } from "@tsonic/target-api/provider";
 import type { CsharpProviderTargetRejection } from "../../target-model/identities/provider-relations.js";
 import type { CsharpProviderTargetRelation } from "../../target-model/identities/provider-relations.js";
-import type {
-  CsharpTargetBindingFact,
-} from "../../target-model/types/model.js";
-import {
-  csharpProviderPolicyContributionKind,
-  type CsharpTargetBinaryExecutionDriver,
-  type CsharpProviderPolicyContribution,
-} from "../../target-model/metadata/provider-metadata.js";
-import {
-  hasExactContributionFields,
-  isContributionRecord,
-  nonEmptyContributionString,
-} from "./contribution-values.js";
+import type { CsharpTargetBindingFact } from "../../target-model/types/model.js";
+import { csharpProviderPolicyContributionKind, type CsharpTargetBinaryExecutionDriver, type CsharpProviderPolicyContribution } from "../../target-model/metadata/provider-metadata.js";
+import { hasExactContributionFields, isContributionRecord, nonEmptyContributionString } from "./contribution-values.js";
 import { snapshotCsharpMetadata } from "../../target-model/metadata/immutable.js";
-import {
-  canonicalProviderValue,
-} from "./canonical-value.js";
-
-export function composeCsharpBinaryExecutionDriver(
-  ...drivers: readonly (CsharpTargetBinaryExecutionDriver | undefined)[]
-): CsharpTargetBinaryExecutionDriver | undefined {
-  const byId = new Map<string, CsharpTargetBinaryExecutionDriver>();
-  for (const driver of drivers) {
-    if (driver === undefined) continue;
-    const existing = byId.get(driver.id);
-    if (existing === undefined) {
-      byId.set(driver.id, driver);
-      continue;
-    }
-    if (canonicalProviderValue(existing) !== canonicalProviderValue(driver)) {
-      throw new Error(
-        `C# target capabilities supplied contradictory binary execution drivers for identity '${driver.id}'.`,
-      );
-    }
-  }
-  if (byId.size > 1) {
-    throw new Error(
-      `C# target capabilities supplied multiple binary execution drivers: ${[...byId.keys()].sort().join(", ")}.`,
-    );
-  }
-  const driver = byId.values().next().value;
-  return driver === undefined ? undefined : Object.freeze(driver);
-}
 
 export function csharpProviderPolicyContribution(
   input: {

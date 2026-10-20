@@ -82,9 +82,7 @@ import {
 } from "../../policy/types/index.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpCallClassification, CsharpBinaryClassification, CsharpConstructionClassification, CsharpElementClassification, CsharpOperatorFormClassification, CsharpPropertyClassification, CsharpUnaryClassification, CsharpTargetOperationClassifications, CsharpOperationIssue } from "../../target-model/records/operations.js";
-import {
-  composeCsharpBinaryExecutionDriver,
-} from "../../providers/model/provider-policy-contribution.js";
+import { composeCsharpBinaryExecutionDriver } from "../../target-model/metadata/binary-execution-drivers.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import { classifyExactUnmodifiedCatchRethrow } from "./catch-rethrow.js";
 import { selectCsharpThrownOperandCarrier } from "../../policy/conversions/program-error.js";

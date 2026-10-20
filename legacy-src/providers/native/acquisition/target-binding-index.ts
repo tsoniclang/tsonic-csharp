@@ -29,7 +29,7 @@ import type {
 } from "./cache.js";
 import type { DotnetProviderDiagnostic } from "../projection/provider.js";
 import { dotnetTypeDeclarationIsComplete } from "./module-request-validation.js";
-import { canonicalProviderValue } from "../../model/canonical-value.js";
+import { canonicalProviderValue } from "../../../target-model/metadata/canonical-value.js";
 import { diagnostic } from "./diagnostics.js";
 import type { CsharpProviderBindingResolution } from "../../../target-model/metadata/provider-metadata.js";
 import { dotnetExtensionDiagnostic } from "../model/diagnostics.js";
