@@ -62,7 +62,7 @@ export function analyzeCsharpLiteralAdmission(input: { readonly ast: AstReader; 
       }
     }
     if ((input.ast.is.IsTemplateExpression(node) || input.ast.is.IsNoSubstitutionTemplateLiteral(node)) &&
-      !targetTypeRefEquals(carrier, csharpStringTargetType())) refuse(node,
+      (carrier === undefined || !targetTypeRefEquals(carrier, csharpStringTargetType()))) refuse(node,
         `${input.ast.is.IsTemplateExpression(node) ? "Template string emission" : "No-substitution template literal emission"} requires a finalized System.String runtime carrier fact before C# emission.`);
   }
   return Object.freeze({ records: producer.seal(), issues: Object.freeze(issues) });
