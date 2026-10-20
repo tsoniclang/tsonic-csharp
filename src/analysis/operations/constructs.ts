@@ -12,7 +12,7 @@ import { selectCsharpAwaitCompletion } from "../../policy/operations/control-flo
 import { admitCsharpConversionSelection } from "../conversions/validation.js";
 import { csharpOperationConversionIssue, csharpSelectedCallConversionIssue } from "./conversion-admission.js";
 import { validateCsharpJsValueOperationSelection } from "../../policy/operations/js-values/selection.js";
-import { resolveCsharpInstanceType } from "../../policy/types/resolution/instance-tests.js";
+import { resolveCsharpInstanceType } from "../types/resolution/instance-tests.js";
 import { selectCsharpClosedTypeTestPlan } from "../../policy/operations/operators/type-tests.js";
 import { selectCsharpOperatorForm } from "../../policy/operations/operators/operator-forms.js";
 import { selectCsharpArrayTypeTest } from "../../policy/operations/source-profiles/js/type-tests.js";
