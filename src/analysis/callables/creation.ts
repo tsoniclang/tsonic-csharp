@@ -1,7 +1,7 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { CsharpCaptureStorage } from "../../target-model/records/capture-storage.js";
 import type { CsharpExpectedTypeClassifications } from "../../target-model/records/expected-types.js";
-import type { CsharpNativeCallableCreation } from "../../target-model/records/native-demand.js";
+
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
 import type { CsharpConversionClassifications } from "../../target-model/records/conversions.js";
@@ -26,13 +26,13 @@ export interface CsharpCallableCreationInput {
 }
 
 export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInput): CsharpCallableCreationIndex {
-  const creations = new WeakMap<Node, CsharpNativeCallableCreation>();
+  const producer = createCsharpCallableCreationProducer();
   for (const node of input.nodes) {
     if (input.evidence.compileTimeMetadata.get(node) ||
       !input.ast.is.IsArrowFunction(node) && !input.ast.is.IsFunctionExpression(node)) continue;
     const allocation = input.captures.lambdaCreation.get(node);
     if (allocation.kind === "discarded") {
-      creations.set(node, Object.freeze({ kind: "discarded" }));
+      producer.publish(node, Object.freeze({ kind: "discarded" }));
       continue;
     }
     const closure = input.captures.captureClosure.get(node);
@@ -44,11 +44,11 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
     const carrier = closure !== undefined ? closure.method.type : observedSelf || getCsharpMethodValue(sourceCarrier) !== undefined ? sourceCarrier
       : contextualCarrier !== undefined && matches(contextualCarrier) ? contextualCarrier : native;
     if (carrier === undefined) {
-      creations.set(node, Object.freeze({ kind: "pending" }));
+      producer.publish(node, Object.freeze({ kind: "pending" }));
       continue;
     }
     const valid = getCsharpMethodValue(sourceCarrier) !== undefined && carrier === sourceCarrier || matches(carrier);
-    creations.set(node, valid
+    producer.publish(node, valid
       ? Object.freeze({ kind: "selected", carrier })
       : Object.freeze({ kind: "pending" }));
 
@@ -70,11 +70,7 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
       return completion !== undefined && csharpConversionIsApplicable(completion, "implicit");
     }
   }
-  return Object.freeze({
-    callableCreation: Object.freeze({ get: (expression: Node) => creations.get(expression) }),
-    callableTarget: Object.freeze({ get: (expression: Node) => {
-      const creation = creations.get(expression);
-      return creation?.kind === "selected" ? creation.carrier : undefined;
-    } }),
-  });
+  return producer.seal();
 }
+
+import { createCsharpCallableCreationProducer } from "../program/records/callable-creations.js";
