@@ -1,11 +1,11 @@
-import type { CsharpUnionProperty } from "../../target-model/records/union-properties.js";
+import type { CsharpUnionProperty } from "../../../target-model/records/union-properties.js";
 import type { ResolvedSourcePropertyAccessInfo, SourceFile } from "@tsonic/tsts";
-import type { CsharpProviderCallSelectionHost } from "./members/selection/call-selection.js";
-import type { CsharpSourceProfilePropertyPolicyResult } from "../../target-model/records/source-profile-invocations.js";
+import type { CsharpProviderCallSelectionHost } from "../../../policy/operations/members/selection/call-selection.js";
+import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/source-profile-invocations.js";
 
-import { getCsharpRuntimeUnionArms } from "../../target-model/types/carriers/runtime-carriers.js";
-import { targetTypeRefEquals } from "../../target-model/types/equality.js";
-import { selectCsharpSourceProfilePropertyForCarrier } from "./source-profiles/source-profile-selection.js";
+import { getCsharpRuntimeUnionArms } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { selectCsharpSourceProfilePropertyForCarrier } from "../../../policy/operations/source-profiles/source-profile-selection.js";
 
 export function selectCsharpUnionProperty(
   host: CsharpProviderCallSelectionHost,
