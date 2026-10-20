@@ -1,40 +1,17 @@
-import type {
-  TargetCompilationSession,
-  TargetCompilationSessionContext,
-  TargetCompileInput,
-  TargetSourceCompilerContributions,
-  TargetSourceProfileContributions,
-} from "@tsonic/target-api";
-import type {
-  TargetCompileResult,
-  TargetRuntimeContributions,
-} from "@tsonic/target-api/artifacts";
+import { resolveCsharpProjectConfiguration } from "../options/project.js";
+import { printCsharpRuntimeProject } from "../print/project/runtime.js";
+import type { TargetCompilationSession, TargetCompilationSessionContext, TargetCompileInput, TargetSourceCompilerContributions, TargetSourceProfileContributions } from "@tsonic/target-api";
+import type { TargetCompileResult, TargetRuntimeContributions } from "@tsonic/target-api/artifacts";
 import { resolve } from "node:path";
-import {
-  createDotnetReflectionTypeDataProvider,
-  createDotnetSourceDeclarationProviderSet,
-  dotnetModuleSpecifierPolicy,
-} from "../providers/native/index.js";
-import {
-  collectCsharpCapabilityContributions,
-  createCapabilityDotnetProviders,
-} from "../providers/native/acquisition/contributions.js";
-import {
-  createCsharpProviderRelationResolver,
-} from "../providers/native/projection/relation-resolution.js";
+import { createDotnetReflectionTypeDataProvider, dotnetModuleSpecifierPolicy } from "../providers/native/index.js";
+import { createDotnetSourceDeclarationProviderSet } from "../providers/native/projection/provider.js";
+import { collectCsharpCapabilityContributions, createCapabilityDotnetProviders } from "../providers/native/acquisition/contributions.js";
+import { createCsharpProviderRelationResolver } from "../providers/native/projection/relation-resolution.js";
 import { compileCsharpTarget } from "../backend/compile.js";
-import {
-  createCsharpTargetConfiguration,
-} from "../options/csharp-target-options.js";
-import {
-  createCsharpSourceSemanticsExtension,
-} from "../source/extension/csharp-source-semantics-extension.js";
-import {
-  csharpSourceSemanticsModules,
-} from "../source/profiles/source-modules.js";
-import {
-  csharpSourceProfileContributions,
-} from "../source/profiles/source-profile-declarations.js";
+import { createCsharpTargetConfiguration } from "../options/csharp-target-options.js";
+import { createCsharpSourceSemanticsExtension } from "../source/extension/source-extension.js";
+import { csharpSourceSemanticsModules } from "../source/profiles/source-modules.js";
+import { csharpSourceProfileContributions } from "../source/profiles/declarations.js";
 import { csharpCoreRuntimeSource, csharpRuntimeSourceContributions } from "../providers/runtime/source-projects.js";
 import { resolveDotnetProviderToolchain } from "../providers/native/acquisition/toolchain.js";
 
@@ -129,7 +106,18 @@ export function createCsharpCompilationSession(
     compile(input: TargetCompileInput): TargetCompileResult {
       requireState(state, "runtime-contributed", "compile");
       state = "compiled";
+      const project = resolveCsharpProjectConfiguration(configuration, input.runtimeReferences, input.paths.cacheRoot);
+      if (project.kind === "rejected") return project;
+      const providerAcquisition = relationResolver.prepareRuntimeSources({
+        sources: project.value.runtimeSources,
+        projects: project.value.runtimeProjects.map(project => ({ ...project, text: printCsharpRuntimeProject(project) })),
+        project: configuration.project,
+        properties: project.value.properties,
+        cacheRoot: input.paths.cacheRoot,
+      });
       return compileRequest(Object.freeze({
+        project: project.value,
+        providerAcquisition,
         input,
         configuration,
         providers: relationResolver,

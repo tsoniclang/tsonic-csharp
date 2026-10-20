@@ -9,21 +9,21 @@ import {
 } from "@tsonic/target-api/artifacts";
 import type {
   CsharpTargetConfiguration,
-} from "../../target-model/configuration/model.js";
+} from "../target-model/configuration/model.js";
 import {
   sanitizeIdentifier,
-} from "../../target-model/names/identifiers.js";
+} from "../target-model/names/identifiers.js";
 import type {
   CsharpProjectProperty,
-} from "../../target-model/project/model.js";
+} from "../target-model/project/model.js";
 import type {
   CsharpProjectReference,
-} from "../../target-model/project/references.js";
+} from "../target-model/project/references.js";
 import type {
   CsharpProjectClassifications,
-} from "../../target-model/project/plan.js";
-import type { CsharpRuntimeSourceProject } from "../../target-model/project/runtime.js";
-import { classifyCsharpRuntimeSource, instantiateCsharpRuntimeSources, validateCsharpRuntimeSources } from "./runtime-sources.js";
+} from "../target-model/project/plan.js";
+import type { CsharpRuntimeSourceProject } from "../target-model/project/runtime.js";
+import { classifyCsharpRuntimeSource, instantiateCsharpRuntimeSources, validateCsharpRuntimeSources } from "../providers/runtime/projects.js";
 
 const targetOwnedProjectProperties = new Set([
   "AllowUnsafeBlocks",
@@ -36,7 +36,7 @@ const targetOwnedProjectProperties = new Set([
   "TargetFramework",
 ]);
 
-export function analyzeCsharpProject(
+export function resolveCsharpProjectConfiguration(
   configuration: CsharpTargetConfiguration,
   runtimeReferences: readonly TargetRuntimeReference[],
   cacheRoot: string,
