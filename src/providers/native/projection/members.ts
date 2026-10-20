@@ -1,33 +1,10 @@
-import type {
-  TargetTypeRef,
-} from "../../../policy/types/index.js";
-import type {
-  CsharpTargetConversionOperatorFact,
-  CsharpTargetMember,
-  CsharpTargetParameter,
-} from "../../../policy/types/index.js";
-import type {
-  DotnetConversionOperatorDeclaration,
-  DotnetFunctionDeclaration,
-  DotnetMemberDeclaration,
-  DotnetParameterDeclaration,
-  DotnetSignatureDeclaration,
-  DotnetTypeRef,
-} from "../model/types.js";
-import {
-  dotnetAttributeToTargetAttribute,
-  dotnetUnsupportedAttributeToTargetUnsupportedAttribute,
-} from "./attributes.js";
-import {
-  type DotnetTargetTypeParameter,
-  dotnetTypeParameterToTargetTypeParameter,
-} from "./constraints.js";
-import {
-  dotnetTypeRefToTargetTypeRef,
-} from "./type-ref.js";
-import {
-  dotnetMethodTypeArgumentProjections,
-} from "./method-type-argument-policy.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpTargetConversionOperatorFact, CsharpTargetMember, CsharpTargetParameter } from "../../../target-model/types/model.js";
+import type { DotnetConversionOperatorDeclaration, DotnetFunctionDeclaration, DotnetMemberDeclaration, DotnetParameterDeclaration, DotnetSignatureDeclaration, DotnetTypeRef } from "../model/types.js";
+import { dotnetAttributeToTargetAttribute, dotnetUnsupportedAttributeToTargetUnsupportedAttribute } from "./attributes.js";
+import { type DotnetTargetTypeParameter, dotnetTypeParameterToTargetTypeParameter } from "./constraints.js";
+import { dotnetTypeRefToTargetTypeRef } from "./index.js";
+import { dotnetMethodTypeArgumentProjections } from "./method-type-argument-policy.js";
 
 export type DotnetTargetParameter = CsharpTargetParameter;
 
