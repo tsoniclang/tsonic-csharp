@@ -7,7 +7,7 @@ import type { AstReader, Node, ReadonlySourceFactResolver } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { sourceNodeIdentity, sourceCallableInterface } from "@tsonic/target-api/source";
 import { csharpFreeTypeParameterIdentities, visitCsharpTargetTypeParameters } from "../../target-model/types/generic-references.js";
-import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
+import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
 import type { SourceEnumConstantIndex, SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
 import type { CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";

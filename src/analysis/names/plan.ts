@@ -21,7 +21,7 @@ import type {
   CsharpNativeMemberNames,
   CsharpSourceNameResolution,
 } from "../../target-model/names/model.js";
-import { csharpSourceTypeParameter, csharpSourceTypeParameters } from "../../target-model/names/type-parameters.js";
+import { csharpSourceTypeParameter, csharpSourceTypeParameters } from "../../source/extension/type-parameters.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 
 export interface CsharpSourceNameResolver {

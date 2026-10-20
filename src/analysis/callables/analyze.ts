@@ -10,7 +10,7 @@ import type { CsharpDeclarationClassifications } from "../../target-model/record
 import type { CsharpSourceNameResolver } from "../names/index.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
-import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
+import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
 import type { CsharpGenericProjectionIndex } from "../../target-model/records/type-projections.js";
 import { closeCsharpProjectCallableContracts } from "../project-types/callable-contracts.js";
 import { selectCsharpClosedCallableContext } from "./contextual-inputs.js";

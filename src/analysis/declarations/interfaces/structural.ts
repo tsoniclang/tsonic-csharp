@@ -5,7 +5,7 @@ import type { CsharpFinalStructuralInterfaceImplementation } from "../../../targ
 import type { CsharpNamePlan } from "../../../target-model/names/model.js";
 import type { CsharpProjectTypeClassifications } from "../../../target-model/records/project-types.js";
 import type { CsharpGenericProjectionIndex } from "../../../target-model/records/type-projections.js";
-import { csharpAuthoredTypeParameterNames, csharpGeneratedTypeParameterNames, csharpSourceTypeParameter } from "../../../target-model/names/type-parameters.js";
+import { csharpAuthoredTypeParameterNames, csharpGeneratedTypeParameterNames, csharpSourceTypeParameter } from "../../../source/extension/type-parameters.js";
 import { createCsharpStructuralInterfaceRecords } from "../../program/records/structural-interfaces.js";
 
 export function analyzeCsharpStructuralInterfaceEmission(input: {

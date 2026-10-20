@@ -1,6 +1,6 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { sourceNodeIdentity } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/model.js";
 
 const typeParameterOwnerKinds = new Set([
   "KindClassDeclaration", "KindClassExpression", "KindInterfaceDeclaration", "KindTypeAliasDeclaration",

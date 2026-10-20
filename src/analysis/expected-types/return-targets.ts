@@ -18,7 +18,7 @@ import {
 } from "../../policy/types/index.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { getCsharpMethodValue, rebindCsharpMethodValueTypeParameters } from "../../target-model/types/method-values.js";
-import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
+import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
 import type { CsharpReturnContext } from "../../target-model/records/return-contexts.js";
 import { selectCsharpAccessorReturnContext, selectCsharpCallableReturnContext } from "../../policy/types/callables/return-contexts.js";
 import type { CsharpExpectedUseCollection } from "./collection.js";

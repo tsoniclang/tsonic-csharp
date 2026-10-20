@@ -1,6 +1,6 @@
 import { csharpProviderBindingFromResolution } from "../../providers/model/relation-resolver.js";
 import type { AstReader, SourceFile, Type } from "@tsonic/tsts";
-import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
+import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
 import type { CsharpTargetBindingFact, CsharpTargetMember, CsharpTargetTypeParameter, TargetConstraint, TargetTypeRef } from "../../target-model/types/model.js";

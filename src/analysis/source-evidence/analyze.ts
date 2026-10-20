@@ -13,7 +13,7 @@ import { isCsharpJsValueTargetType, targetTypeRefEquals, targetTypeRefKey } from
 import { isTypeParameterTargetRef } from "../../policy/ownership/type-categories.js";
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
+import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpSemanticTypeClassification, CsharpContextualTupleClassification, CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpSourceEvidenceResult } from "./model.js";

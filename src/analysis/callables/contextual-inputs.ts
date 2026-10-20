@@ -6,7 +6,7 @@ import type { CsharpTargetOperationClassifications } from "../../target-model/re
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { getCsharpDelegateSignature, getCsharpNullableElementTargetType, isCsharpSourceDelegateTargetType, targetTypeRefEquals } from "../../policy/types/index.js";
 import { csharpFreeTypeParameterIdentities } from "../../target-model/types/generic-references.js";
-import { csharpSourceTypeParameter, csharpSourceTypeParameters } from "../../target-model/names/type-parameters.js";
+import { csharpSourceTypeParameter, csharpSourceTypeParameters } from "../../source/extension/type-parameters.js";
 import { createCsharpMetadataBudget } from "../../target-model/metadata/immutable.js";
 
 export interface CsharpClosedCallableContext {

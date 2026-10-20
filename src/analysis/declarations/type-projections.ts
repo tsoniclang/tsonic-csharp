@@ -4,7 +4,7 @@ import { IsTypeSyntaxNode, type TargetSourceProgram } from "@tsonic/target-api/s
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
 import { csharpTypeProjection, getCsharpGenericOptionalParts, type CsharpProjectedType } from "../../target-model/types/projections.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import { csharpSourceTypeParameter, csharpSourceTypeParameters } from "../../target-model/names/type-parameters.js";
+import { csharpSourceTypeParameter, csharpSourceTypeParameters } from "../../source/extension/type-parameters.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
 import { csharpFreeTypeParameterIdentities } from "../../target-model/types/generic-references.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";

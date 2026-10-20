@@ -17,7 +17,7 @@ import type { CsharpObjectShapeDemand } from "../../target-model/records/object-
 import { objectShapeArtifactKey } from "../program/records/object-shape-keys.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 import type { CsharpObjectShapeFact } from "../../target-model/types/model.js";
-import { csharpSourceTypeParameters } from "../../target-model/names/type-parameters.js";
+import { csharpSourceTypeParameters } from "../../source/extension/type-parameters.js";
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 import { csharpBigIntegerTargetType, csharpCarrierAdmitsSourceAbsence, csharpNullableTargetType,
   csharpRuntimeLocationTargetType, getCsharpDelegateSignature, getCsharpGenericOptionalParts,

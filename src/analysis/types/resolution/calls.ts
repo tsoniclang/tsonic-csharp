@@ -19,7 +19,7 @@ import { getCsharpArrayLiteralElementTargetType } from "../../../target-model/ty
 import { resolveTypeParameter } from "./source-evidence.js";
 import { resolveCsharpProjectionArguments } from "./projection-arguments.js";
 import { getCsharpClassFactory } from "../../../target-model/types/carriers/class-factories.js";
-import { csharpSourceTypeParameter } from "../../../target-model/names/type-parameters.js";
+import { csharpSourceTypeParameter } from "../../../source/extension/type-parameters.js";
 import { bindCsharpSourceTypeArguments } from "./generic-arguments.js";
 
 export function resolveSourceCallInstantiation(
