@@ -9,7 +9,7 @@ import type { TargetTypeRef } from "../../../../target-model/types/index.js";
 export function getArrayBoundaryCoreCarrierForExpression(
   input: CsharpPlanningContext,
   node: Node | undefined,
-  sourceFile: SourceFile,
+  _sourceFile: SourceFile,
 ): TargetTypeRef | undefined {
-  return input.types.classifications.resolveNode(node, sourceFile);
+  return node === undefined ? undefined : input.program.records.valueRead.get(node)?.value;
 }

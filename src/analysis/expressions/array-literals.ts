@@ -132,6 +132,17 @@ export function analyzeCsharpArrayLiterals(input: { readonly source: TargetSourc
         nativeSpread &&= selected?.nativeSpread === true;
       }
     }
+    if (element !== undefined && (kind === "collection" || kind === "array" && !nativeSpread)) {
+      for (const contribution of contributions) {
+        if (!contribution.spread) continue;
+        const borrowed = input.operations.borrowedSequence.get(contribution.expression);
+        const branches = borrowed === undefined ? [producer.records.arraySpread.get(contribution.expression, element)]
+          : producer.records.borrowedSequenceEmission.get(borrowed, element)?.inputs.flatMap(branch =>
+            branch.kind === "empty" ? [] : [branch.spread]) ?? [];
+        if (branches.some(branch => branch !== undefined && branch.carrier.kind !== "tuple" && branch.lengthMember === undefined))
+          refuse(contribution.node, "Native construction requires the finalized source length.");
+      }
+    }
     producer.literal(node, use.carrier, { kind, carrier, element, construction, omitted: Object.freeze(omitted),
       contributions: Object.freeze(contributions), nativeSpread });
   }
