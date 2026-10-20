@@ -1,21 +1,7 @@
+import type { DotnetCommandResult, DotnetSdkQueryHost, DotnetSdkInstallation } from "../model/sdk.js";
 import { resolve } from "node:path";
 
-export interface DotnetCommandResult {
-  readonly status: number | null;
-  readonly stdout: string;
-  readonly stderr: string;
-}
-
-export interface DotnetSdkQueryHost {
-  runDotnet(args: readonly string[], cwd: string): DotnetCommandResult;
-}
-
 const dotnetSdkVersionPattern = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/u;
-
-export interface DotnetSdkInstallation {
-  readonly version: string;
-  readonly root: string;
-}
 
 export function resolveActiveDotnetSdk(
   projectDirectory: string,
