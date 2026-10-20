@@ -72,9 +72,7 @@ export function translateSourceOwnedArguments(node: Node, sourceFile: SourceFile
       })) } });
       else if (group.kind === "value") arguments_.push(csharpPlannedArgumentSyntax(planned[group.index]!, values[group.index]!));
       else {
-        const absent = planCsharpSourceUndefinedValue(node, group.type, sourceFile, input, diagnostics, group.conversion);
-        if (absent.kind !== "resolved") failCsharpPlannerInvariant("An admitted omitted parameter requires its exact native absence representation.", node);
-        arguments_.push({ kind: "Argument", expression: absent.expression });
+        arguments_.push({ kind: "Argument", expression: planCsharpSourceUndefinedValue(node, group, sourceFile, input, diagnostics) });
       }
     }
     return arguments_;

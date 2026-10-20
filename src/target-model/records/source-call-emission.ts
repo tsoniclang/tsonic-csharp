@@ -9,7 +9,7 @@ import type { CsharpUnionCallClassification } from "./union-calls.js";
 export type CsharpSourceArgumentEmissionGroup =
   | { readonly kind: "collect"; readonly arguments: readonly { readonly index: number; readonly spread: boolean }[] }
   | { readonly kind: "value"; readonly index: number }
-  | { readonly kind: "absence"; readonly type: TargetTypeRef; readonly conversion: CsharpConversionSelection };
+  | { readonly kind: "absence"; readonly type: TargetTypeRef; readonly conversion: CsharpConversionSelection; readonly literal: boolean };
 
 export interface CsharpSourceArgumentsEmission {
   readonly arguments: readonly { readonly node: Node; readonly parameter: CsharpSourceArgumentGroupingEntry["parameter"]; readonly form: CsharpSourceArgumentGroupingEntry["sourceForm"] }[];

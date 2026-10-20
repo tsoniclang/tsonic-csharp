@@ -10,6 +10,7 @@ import type { CsharpSourceCallEmission, CsharpSourceArgumentsEmission, CsharpSou
 import { csharpAbsenceTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import { isCsharpVoidTargetType } from "../../target-model/types/identity.js";
 import { csharpConversionIsApplicable } from "../../target-model/conversions/selection.js";
+import { getCsharpNullableElementTargetType } from "../../target-model/types/index.js";
 import { selectCsharpTypeEmission } from "../../policy/types/type-emission.js";
 import { createCsharpSourceCallEmissionRecords } from "../program/records/source-call-emission.js";
 
@@ -45,7 +46,7 @@ export function analyzeCsharpSourceCallEmission(input: { readonly source: Target
       if (conversion === undefined || !csharpConversionIsApplicable(conversion, "implicit")) {
         refuse(node, `Omitted source-owned selected parameter ${group.parameterIndex} has no exact C# representation for source undefined.`); return;
       }
-      groups.push({ kind: "absence", type: group.type, conversion });
+      groups.push({ kind: "absence", type: group.type, conversion, literal: getCsharpNullableElementTargetType(group.type) !== undefined });
     }
     arguments_.set(node, { arguments: Object.freeze(operands), groups: Object.freeze(groups.map(group => Object.freeze(group))) });
   };
