@@ -6,6 +6,7 @@ export type CsharpOptionalStorageEmission =
   | { readonly kind: "native"; readonly present: TargetTypeRef; readonly absence: boolean; readonly jsValue: boolean };
 
 export interface CsharpTypeEmission {
+  readonly completion: "value" | "void" | "never";
   readonly collectionRead: Exclude<CsharpCollectionElementRead, { readonly kind: "invalid" }> | undefined;
   readonly collectionLength: string | undefined;
   readonly optionalStorage: CsharpOptionalStorageEmission;

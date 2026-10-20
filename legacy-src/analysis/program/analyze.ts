@@ -13,6 +13,7 @@ import { analyzeCsharpSourceArtifacts } from "../source-modules/artifacts.js";
 import { analyzeCsharpArrayLiterals } from "../expressions/array-literals.js";
 import { analyzeCsharpLiteralAdmission } from "../expressions/literals.js";
 import { analyzeCsharpAwaitAdmission } from "../callables/await-admission.js";
+import { analyzeCsharpVoidAdmission } from "../expressions/expression-void.js";
 import { analyzeCsharpTemplateStrings } from "../expressions/template-strings.js";
 import { analyzeCsharpPropertyValueProjection } from "../conversions/property-value-projection.js";
 import { analyzeCsharpStructuralObjectEmission } from "../objects/structural-emission.js";
@@ -479,6 +480,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const templateStrings = analyzeCsharpTemplateStrings(source.ast, nativeDemand);
   const nonCallableIssues = [
     ...literalEmission.issues,
+    ...analyzeCsharpVoidAdmission({ ast: source.ast, demand: nativeDemand, values: analysis.valueReads, operations: admittedOperations }),
     ...analyzeCsharpAwaitAdmission({ ast: source.ast, demand: nativeDemand, values: analysis.valueReads, operations: admittedOperations }),
     ...admittedIterations.issues,
     ...admitCsharpStatementBindings(source.ast, sourceStorage.nodes, nativeDemand.nativeUse,
@@ -610,7 +612,9 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const nativeLayouts = analyzeCsharpNativeMemoryEmission({ nodes: sourceStorage.nodes, storage: analysis.storage, operations: admittedOperations });
   const typeEmission = analyzeCsharpTypeEmission({ ast: source.ast, nodes: sourceStorage.nodes, evidence: analysis.sourceEvidence,
     languageDialect: configuration.languageDialect,
-    extraTypes: [...nativeLayouts.carriers, ...sourceUnions.sourceUnions.get().flatMap(union => [union.carrier, union.storage, ...union.arms])],
+    extraTypes: [...nativeLayouts.carriers, ...nativeDemand.entries.flatMap(({ use }) => use.kind === "erased" ? []
+      : use.kind === "converted" ? [use.carrier, use.target] : [use.carrier]),
+      ...sourceUnions.sourceUnions.get().flatMap(union => [union.carrier, union.storage, ...union.arms])],
     values: analysis.valueReads, storage: analysis.storage, shapes: objectShapeDemand, admitted: admittedControlNode });
   if (typeEmission.issues.length !== 0) return rejectedTargetStage(typeEmission.issues);
   const sourceFileEmission = analyzeCsharpSourceFileEmission({ source, identities: sourceOutputIdentities.records,
