@@ -69,6 +69,7 @@ export interface CsharpProgramRecordInput {
   readonly typeEmission: import("../../../target-model/records/type-emission.js").CsharpTypeEmissionRecords;
   readonly nativeLayouts: import("../../../target-model/records/native-layout-emission.js").CsharpNativeLayoutRecords;
   readonly unionEquality: import("../../../target-model/records/union-equality.js").CsharpUnionEqualityRecords;
+  readonly closedTypeTests: import("../../../target-model/records/type-tests.js").CsharpClosedTypeTestRecords;
   readonly captureMethods: CsharpCaptureMethodRecords;
   readonly frozenDataProperties: CsharpFrozenDataPropertyRecords;
   readonly indexedRecords: CsharpIndexedRecordRecords;
@@ -145,6 +146,7 @@ export function createCsharpProgramRecords(
     ...input.typeEmission,
     ...input.nativeLayouts,
     ...input.unionEquality,
+    ...input.closedTypeTests,
     ...input.captureMethods,
     ...input.frozenDataProperties,
     ...input.indexedRecords,

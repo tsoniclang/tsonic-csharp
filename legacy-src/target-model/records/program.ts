@@ -74,6 +74,7 @@ export interface CsharpProgramRecords extends CsharpStatementExitRecords, Csharp
   readonly typeParameterEmission: import("./type-parameters.js").CsharpTypeParameterEmissionRecords["typeParameterEmission"];
   readonly typeEmission: import("./type-emission.js").CsharpTypeEmissionRecords["typeEmission"];
   readonly unionEquality: import("./union-equality.js").CsharpUnionEqualityRecords["unionEquality"];
+  readonly closedTypeTestEmission: import("./type-tests.js").CsharpClosedTypeTestRecords["closedTypeTestEmission"];
   readonly nativeLayoutEmission: import("./native-layout-emission.js").CsharpNativeLayoutRecords["nativeLayoutEmission"];
   readonly projectSourceReference: import("./project-emission.js").CsharpProjectEmissionRecords["projectSourceReference"];
   readonly projectSourceType: import("./project-emission.js").CsharpProjectEmissionRecords["projectSourceType"];
