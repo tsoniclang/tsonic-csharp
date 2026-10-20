@@ -1,32 +1,8 @@
-import type {
-  CsharpObjectShapeFact,
-  CsharpObjectShapeMemberFact,
-  CsharpTargetNamedTypeRef,
-  TargetTypeRef,
-} from "./model.js";
-import {
-  csharpTsValueTargetType,
-  isCsharpJsValueTargetType,
-} from "./carriers/runtime-carriers.js";
-import {
-  resolveCsharpObjectShapeMemberBySelectedSubject,
-} from "./object-shape-members.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
+import { csharpTsValueTargetType, isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target-model/types/object-shape-members.js";
 
-export type CsharpJsValueObjectShapeMemberResolution =
-  | { readonly kind: "not-js-value-object-shape" }
-  | {
-      readonly kind: "resolved";
-      readonly member: CsharpObjectShapeMemberFact;
-    }
-  | { readonly kind: "rejected"; readonly reason: string };
-
-export type CsharpJsValueObjectLiteralShapeProjection =
-  | {
-      readonly kind: "resolved";
-      readonly shape: CsharpObjectShapeFact;
-    }
-  | { readonly kind: "rejected"; readonly reason: string };
-
+import { isCsharpJsValueObjectShapeTargetType, type CsharpJsValueObjectShapeMemberResolution, type CsharpJsValueObjectLiteralShapeProjection } from "../../../target-model/types/js-value-object-shapes.js";
 export function canUseCsharpJsValueObjectShapeCarrier(
   members: readonly CsharpObjectShapeMemberFact[],
   implemented: readonly TargetTypeRef[] | undefined,
@@ -68,14 +44,6 @@ export function projectCsharpJsValueObjectLiteralShape(
       })),
     },
   };
-}
-
-export function isCsharpJsValueObjectShapeTargetType(
-  type: TargetTypeRef | undefined,
-): type is CsharpTargetNamedTypeRef {
-  return type?.kind === "target-named" &&
-    (type as CsharpTargetNamedTypeRef).csharpJsObjectShape === true &&
-    isCsharpJsValueTargetType(type);
 }
 
 export function validateCsharpJsValueObjectShapeCarrier(

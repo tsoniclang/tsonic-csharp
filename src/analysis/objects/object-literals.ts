@@ -12,9 +12,8 @@ import type { CsharpObjectShapeClassifications } from "../../target-model/record
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpObjectMethodRecords } from "../../target-model/records/object-methods.js";
 import type { CsharpObjectMemberRecords } from "../../target-model/records/object-members.js";
-import { csharpPropertySourceMemberKey, csharpWellKnownSymbolSourceMemberKey, resolveCsharpObjectShapeMemberBySourceKey,
-  csharpObjectShapeMemberLookupFailureMessage, isCsharpJsValueObjectShapeTargetType, validateCsharpJsValueObjectShapeCarrier,
-  csharpDelegateTargetType, csharpStringTargetType, getCsharpNullableElementTargetType, targetTypeRefEquals } from "../../target-model/types/index.js";
+import { csharpPropertySourceMemberKey, csharpWellKnownSymbolSourceMemberKey, resolveCsharpObjectShapeMemberBySourceKey, csharpObjectShapeMemberLookupFailureMessage, isCsharpJsValueObjectShapeTargetType, csharpDelegateTargetType, csharpStringTargetType, getCsharpNullableElementTargetType, targetTypeRefEquals } from "../../target-model/types/index.js";
+import { validateCsharpJsValueObjectShapeCarrier } from "../../policy/types/objects/js-value-shapes.js";
 import { getCsharpGenericOptionalParts } from "../../target-model/types/projections.js";
 import { csharpObjectShapeMethodDeclaration } from "../../target-model/types/method-values.js";
 import { objectShapeStorageMemberName, objectShapeAccessorGetterStorageMemberName, objectShapeAccessorSetterStorageMemberName } from "../../target-model/names/object-members.js";

@@ -1,7 +1,7 @@
 import type { CsharpJsValueObjectShapePropertyResolution } from "../../../../target-model/records/js-value-object-shape-property.js";
 import type { ExtensionFactSubject } from "@tsonic/tsts";
 import type { CsharpObjectShapeFact } from "../../../types/index.js";
-import { resolveCsharpJsValueObjectShapeMember } from "../../../types/index.js";
+import { resolveCsharpJsValueObjectShapeMember } from "../../../types/objects/js-value-shapes.js";
 
 export function resolveCsharpJsValueObjectShapeProperty(
   shape: CsharpObjectShapeFact | undefined,

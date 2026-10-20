@@ -1,5 +1,5 @@
 import { csharpObjectShapeMemberContractParts, csharpStructuralObjectShapeIdPrefix } from "../../../target-model/types/object-shape-identity.js";
-import { canUseCsharpJsValueObjectShapeCarrier } from "../../../target-model/types/js-value-object-shapes.js";
+import { canUseCsharpJsValueObjectShapeCarrier } from "./js-value-shapes.js";
 import { createHash } from "node:crypto";
 import { csharpTargetNamedType } from "../../../target-model/types/factories.js";
 import { csharpTsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";

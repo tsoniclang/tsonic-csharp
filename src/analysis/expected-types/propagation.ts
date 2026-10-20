@@ -3,19 +3,8 @@ import type { TargetUseSiteRef } from "@tsonic/target-api/analysis";
 import { ObjectLiteralProperty_SourceName } from "@tsonic/target-api/source";
 import { selectCsharpArrayLiteralCarrier } from "../../policy/types/collections/literal-construction.js";
 import { getCsharpRuntimeUnionArms } from "../../target-model/types/carriers/runtime-carriers.js";
-import {
-  getCsharpNullableElementTargetType,
-  getCsharpArrayLiteralElementTargetType,
-  isCsharpJsValueTargetType,
-  isCsharpRecordDictionaryTargetType,
-  csharpPropertySourceMemberKey,
-  csharpWellKnownSymbolSourceMemberKey,
-  resolveCsharpObjectShapeMemberBySourceKey,
-  projectCsharpJsValueObjectLiteralShape,
-  csharpObjectTargetType,
-  targetTypeRefEquals,
-  targetTypeRefKey,
-} from "../../policy/types/index.js";
+import { getCsharpNullableElementTargetType, getCsharpArrayLiteralElementTargetType, isCsharpJsValueTargetType, isCsharpRecordDictionaryTargetType, csharpPropertySourceMemberKey, csharpWellKnownSymbolSourceMemberKey, resolveCsharpObjectShapeMemberBySourceKey, csharpObjectTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../policy/types/index.js";
+import { projectCsharpJsValueObjectLiteralShape } from "../../policy/types/objects/js-value-shapes.js";
 import type { selectCsharpBinaryOperation } from "../operations/operators.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpNativeUseSlot } from "../../target-model/records/native-demand.js";
