@@ -35,7 +35,7 @@ import type {
   CsharpBindingProjectionFact,
   CsharpDestructuringAssignmentPattern,
 } from "../../target-model/records/value-projections.js";
-import { selectCsharpBindingPatternProjection, selectCsharpDefaultValueContract } from "../../policy/types/objects/binding-projection-policy.js";
+import { selectCsharpBindingPatternProjection, selectCsharpDefaultValueContract } from "../../policy/types/objects/binding-projection.js";
 import { csharpBindingDefaultCarrier } from "../../target-model/types/binding-normalization.js";
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 import {

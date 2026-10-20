@@ -3,7 +3,7 @@ import { AsBinaryExpression, AsObjectLiteralExpression, AsPropertyAssignment, As
   AsSpreadAssignment, AsSpreadElement, HasSourceKind, KindArrayLiteralExpression, KindBinaryExpression, KindEqualsToken,
   KindIdentifier, KindObjectLiteralExpression, KindOmittedExpression, KindPropertyAssignment, KindShorthandPropertyAssignment,
   KindSpreadAssignment, KindSpreadElement, Node_Expression } from "@tsonic/target-api/source";
-import { selectCsharpBindingPatternProjection } from "../../policy/types/objects/binding-projection-policy.js";
+import { selectCsharpBindingPatternProjection } from "../../policy/types/objects/binding-projection.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/index.js";
 import type { CsharpBindingElementProjection, CsharpBindingPatternSource, CsharpBindingProjectionFact,
   CsharpDestructuringAssignmentArrayElement, CsharpDestructuringAssignmentObjectElement,

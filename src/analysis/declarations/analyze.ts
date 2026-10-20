@@ -29,7 +29,7 @@ import {
 } from "../../policy/types/index.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpRuntimeParameterDefault } from "../../target-model/types/parameter-defaults.js";
-import { selectCsharpDefaultValueContract } from "../../policy/types/objects/binding-projection-policy.js";
+import { selectCsharpDefaultValueContract } from "../../policy/types/objects/binding-projection.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpValueReadStageIndex } from "../../target-model/records/conversions.js";

@@ -27,12 +27,8 @@ import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../ta
 import {
   analyzeCsharpProjectTypePolicy,
 } from "../project-types/catalog/resolution.js";
-import type {
-  CsharpBindingProjectionPolicy,
-} from "../../policy/types/objects/binding-projection-policy.js";
-import {
-  createCsharpBindingProjectionPolicy,
-} from "../../policy/types/objects/binding-projection-policy.js";
+import type { CsharpBindingProjectionPolicy } from "../bindings/projection-policy.js";
+import { createCsharpBindingProjectionPolicy } from "../bindings/projection-policy.js";
 import {
   csharpTargetTypeComponents,
 } from "../../target-model/types/components.js";
