@@ -1,7 +1,8 @@
 import type { Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
-import { resolveCsharpObjectShapeMemberBySelectedSubject, csharpObjectShapeMemberRetainsNativeReference } from "../../target-model/types/object-shape-members.js";
+import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/object-shape-members.js";
+import { csharpObjectShapeMemberRetainsNativeReference } from "../../policy/types/objects/member-reads.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import type { CsharpTypePolicyBaseHost } from "../types/resolution/model.js";

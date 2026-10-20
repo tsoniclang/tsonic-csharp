@@ -10,7 +10,8 @@ import { resolveCsharpJsValueObjectShapeProperty } from "../../policy/operations
 import { selectCsharpTargetProperty } from "./provider/selected-members.js";
 import { selectCsharpJsValueReceiverOperation } from "../../policy/operations/js-values/selection.js";
 import { selectCsharpJsValueReceiverExpressionOperation } from "./js-values.js";
-import { resolveCsharpObjectShapeMemberBySelectedSubject, resolveCsharpObjectShapeMemberReadTargetType } from "../../policy/types/index.js";
+import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../policy/types/index.js";
+import { resolveCsharpObjectShapeMemberReadTargetType } from "./provider/object-shape-members.js";
 import { selectCsharpFlowReadConversion } from "../../policy/conversions/index.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpElementClassification, CsharpPropertyClassification, CsharpMemberReceiverProjection } from "../../target-model/records/operations.js";

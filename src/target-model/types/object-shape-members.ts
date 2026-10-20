@@ -1,19 +1,5 @@
-import type {
-  Type,
-} from "@tsonic/tsts";
-import type {
-  CsharpObjectShapeFact,
-  CsharpObjectShapeMemberFact,
-  CsharpSourceMemberKey,
-  TargetTypeRef,
-} from "./model.js";
-import {
-  csharpPropertySourceMemberKey,
-  csharpSourceMemberDisplayName,
-  csharpSourceMemberKeysEqual,
-} from "./source-member-keys.js";
-import { isCsharpStringTargetType } from "./identity.js";
-import { isCsharpJsValueTargetType } from "./carriers/runtime-carriers.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpSourceMemberKey } from "./model.js";
+import { csharpPropertySourceMemberKey, csharpSourceMemberDisplayName, csharpSourceMemberKeysEqual } from "./source-member-keys.js";
 
 export type CsharpObjectShapeMemberLookupProvenance =
   | "checked-property-access"
@@ -119,29 +105,6 @@ export function resolveCsharpObjectShapeMemberBySelectedSubject(
           ? "not-in-finalized-shape"
           : "ambiguous-finalized-shape-member",
       );
-}
-
-export function resolveCsharpObjectShapeMemberReadTargetType(
-  member: CsharpObjectShapeMemberFact,
-  selectedSourceType: Type | undefined,
-  sourceTypesAgree: (left: Type, right: Type) => boolean =
-    (left, right) => left === right,
-  selectedTargetType?: TargetTypeRef,
-): TargetTypeRef | undefined {
-  return selectedSourceType !== undefined &&
-      member.sourceTypes?.some((sourceType) =>
-        sourceTypesAgree(sourceType, selectedSourceType)
-      ) === true
-    ? csharpObjectShapeMemberRetainsNativeReference(selectedTargetType, member.type)
-      ? selectedTargetType : member.type
-    : undefined;
-}
-
-export function csharpObjectShapeMemberRetainsNativeReference(
-  source: TargetTypeRef | undefined,
-  storage: TargetTypeRef,
-): boolean {
-  return isCsharpStringTargetType(source) && isCsharpJsValueTargetType(storage);
 }
 
 export function csharpObjectShapeMemberLookupFailureMessage(

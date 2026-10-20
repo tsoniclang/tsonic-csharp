@@ -15,11 +15,9 @@ import type {
   CsharpRecursiveObjectShapePolicy,
 } from "../objects/shapes/model.js";
 import { createCsharpObjectShapePolicy } from "../objects/shapes/api.js";
-import {
-  resolveCsharpObjectShapeMemberBySelectedSubject,
-  resolveCsharpObjectShapeMemberReadTargetType,
-  csharpObjectShapeMemberRetainsNativeReference,
-} from "../../target-model/types/object-shape-members.js";
+import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/object-shape-members.js";
+import { csharpObjectShapeMemberRetainsNativeReference } from "../../policy/types/objects/member-reads.js";
+import { resolveCsharpObjectShapeMemberReadTargetType } from "../operations/provider/object-shape-members.js";
 import { isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import type { CsharpPlanningRepresentationQueries, CsharpTypePolicy, CsharpTypePolicyBaseHost } from "../types/resolution/model.js";
 import { createCsharpTypeResolutionServices } from "../types/resolution/engine.js";
