@@ -4,8 +4,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmdirSync, writeFileSy
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import type { ExtensionDiagnostic } from "@tsonic/tsts";
-import type { CsharpProviderRuntimePreparation } from "../../model/relation-resolver.js";
-import type { CsharpProviderBindingResolution } from "../../../target-model/metadata/provider-metadata.js";
+import type { CsharpProviderRuntimePreparation, CsharpProviderRuntimeAcquisition } from "../../model/relation-resolver.js";
 import type { CsharpRuntimeProjectInstance } from "../../../target-model/project/runtime.js";
 import { dotnetExtensionDiagnostic } from "../model/diagnostics.js";
 import { dotnetReflectionProviderIdentity } from "./provider-identity.js";
@@ -38,11 +37,10 @@ const projectItems = "Compile,EmbeddedResource,AdditionalFiles,Analyzer,EditorCo
 export function acquireCsharpRuntimeSources(
   preparation: CsharpProviderRuntimePreparation,
   toolchain: DotnetProviderToolchain,
-  visit: (references: readonly string[]) => CsharpProviderBindingResolution,
-): CsharpProviderBindingResolution {
+): CsharpProviderRuntimeAcquisition {
   if (preparation.project.kind === "user-owned") {
     const acquired = acquireUserReferences(preparation.project.projectFile, preparation, toolchain);
-    return acquired.kind === "rejected" ? acquired : visit(acquired.value);
+    return acquired.kind === "rejected" ? acquired : { kind: "resolved", references: acquired.value };
   }
   const references = new Set<string>();
   for (const project of preparation.projects) {
@@ -50,11 +48,11 @@ export function acquireCsharpRuntimeSources(
     if (acquired.kind === "rejected") return acquired;
     for (const reference of acquired.value) references.add(reference);
   }
-  return visit(Object.freeze([...references]));
+  return { kind: "resolved", references: Object.freeze([...references]) };
 }
 
 function acquireGeneratedProject(
-  project: CsharpRuntimeProjectInstance,
+  project: CsharpRuntimeProjectInstance & { readonly text: string },
   preparation: CsharpProviderRuntimePreparation,
   toolchain: DotnetProviderToolchain,
 ): NativeResult<readonly string[]> {
