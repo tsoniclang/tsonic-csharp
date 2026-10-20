@@ -1,8 +1,4 @@
-import type {
-  ProviderDeclarationModel,
-  ProviderExportDeclaration,
-  ProviderMemberDeclaration,
-} from "@tsonic/tsts";
+import type { ProviderDeclarationModel, ProviderExportDeclaration, ProviderMemberDeclaration } from "@tsonic/tsts";
 
 export function countProviderVirtualDeclarations(model: ProviderDeclarationModel): number {
   return model.exports.reduce((count, declaration) => count + countProviderExportDeclaration(declaration), 0);
