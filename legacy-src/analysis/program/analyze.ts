@@ -44,6 +44,7 @@ import { admitCsharpArrayMutationArguments } from "../operations/array-mutations
 import { analyzeCsharpClosedTypeTests } from "../expressions/type-tests.js";
 import { analyzeCsharpTypeofEmission } from "../expressions/typeof-emission.js";
 import { analyzeCsharpUnaryEmission } from "../expressions/expression-unary.js";
+import { analyzeCsharpThisEmission } from "../expressions/expression-this.js";
 import { analyzeCsharpIdentifierEmission } from "../names/source-identifiers.js";
 import { analyzeCsharpSourceFileEmission } from "../source-modules/emission.js";
 import { analyzeCsharpStartup } from "../source-modules/startup.js";
@@ -614,6 +615,10 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const objectLiterals = analyzeCsharpObjectLiterals({ source: sourceSyntax, demand: nativeDemand, shapes: callableAdapters.objectShapes,
     operations: admittedOperations, methods: objectMethods.records, members: objectMembers.records, storage: analysis.storage });
   if (objectLiterals.issues.length !== 0) return rejectedTargetStage(objectLiterals.issues);
+  const thisEmission = analyzeCsharpThisEmission({ ast: source.ast, nodes: sourceStorage.nodes, admitted: admittedControlNode,
+    captures: captureStorage, initialization: classInitialization, factories: classFactories, values: analysis.valueReads,
+    shapes: callableAdapters.objectShapes, methods: objectMethods.records, literals: objectLiterals.records });
+  if (thisEmission.issues.length !== 0) return rejectedTargetStage(thisEmission.issues);
   const indexedRecords = analyzeCsharpIndexedRecords(sourceStorage.nodes, admittedOperations);
   if (indexedRecords.issues.length !== 0) return rejectedTargetStage(indexedRecords.issues);
   const frozenDataProperties = analyzeCsharpFrozenDataProperties({ ast: source.ast, demand: objectShapeDemand, members: objectMembers.records,
@@ -716,6 +721,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     closedTypeTests: closedTypeTests.records,
     jsValueBoxing: jsValueBoxing.records,
     unaryEmission: unaryEmission.records,
+    thisEmission: thisEmission.records,
     typeofEmission: typeofEmission.records,
     flowReads, valueReads: analysis.valueReads,
     callableAdapters, callableCreations, typeProjections: analysis.typeProjections, classFactories, classInitialization, captureStorage,

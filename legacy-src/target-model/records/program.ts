@@ -79,6 +79,7 @@ export interface CsharpProgramRecords extends CsharpStatementExitRecords, Csharp
   readonly typeofEmission: import("./typeof-emission.js").CsharpTypeofEmissionRecords["typeofEmission"];
   readonly jsValueBoxing: import("./js-value-boxing.js").CsharpJsValueBoxingRecords["jsValueBoxing"];
   readonly unaryEmission: import("./expression-unary.js").CsharpUnaryEmissionRecords["unaryEmission"];
+  readonly thisEmission: import("./expression-this.js").CsharpThisEmissionRecords["thisEmission"];
   readonly nativeLayoutEmission: import("./native-layout-emission.js").CsharpNativeLayoutRecords["nativeLayoutEmission"];
   readonly projectSourceReference: import("./project-emission.js").CsharpProjectEmissionRecords["projectSourceReference"];
   readonly projectSourceType: import("./project-emission.js").CsharpProjectEmissionRecords["projectSourceType"];
