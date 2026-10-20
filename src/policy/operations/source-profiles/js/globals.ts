@@ -1,39 +1,11 @@
-import type {
-  CsharpTargetMember,
-  CsharpTargetParameter,
-  TargetTypeRef,
-} from "../../../types/index.js";
+import type { CsharpTargetMember, CsharpTargetParameter, TargetTypeRef } from "../../../types/index.js";
 import { csharpJsNumericArgument, csharpJsParsingParameters } from "./numeric-argument.js";
-import {
-  csharpSourcePrimitiveTargetType,
-  csharpStringTargetType,
-  csharpVoidTargetType,
-} from "../../../../target-model/types/index.js";
-import type {
-  CsharpSourceProfileCallPolicy,
-  CsharpSourceProfilePropertyPolicy,
-} from "../source-profile-policy.js";
-import {
-  resolveCsharpSelectedSourceValue,
-} from "../source-profile-policy.js";
-import {
-  closedObjectParameter,
-  jsGlobalCallIdentity,
-  jsCallPolicy,
-  jsMemberIdentity,
-  jsPropertyPolicy,
-  jsRuntimeTargetType,
-  jsUnsupportedCallPolicy,
-  staticMethod,
-  targetParameter,
-  targetProperty,
-} from "./common.js";
-import {
-  csharpJsArgumentVectorCallbackParameter,
-} from "./replacement-callback.js";
-import {
-  csharpJsEventLoopBinaryExecutionDriver,
-} from "../../../../target-model/project/binary-execution-drivers.js";
+import { csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpVoidTargetType } from "../../../../target-model/types/index.js";
+import type { CsharpSourceProfileCallPolicy, CsharpSourceProfilePropertyPolicy } from "../../../model/source-profiles.js";
+import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
+import { closedObjectParameter, jsGlobalCallIdentity, jsCallPolicy, jsMemberIdentity, jsPropertyPolicy, jsRuntimeTargetType, jsUnsupportedCallPolicy, staticMethod, targetParameter, targetProperty } from "./common.js";
+import { csharpJsArgumentVectorCallbackParameter } from "./replacement-callback.js";
+import { csharpJsEventLoopBinaryExecutionDriver } from "../../../../target-model/project/binary-execution-drivers.js";
 
 const doubleType = csharpSourcePrimitiveTargetType("float64");
 const intType = csharpSourcePrimitiveTargetType("int32");
