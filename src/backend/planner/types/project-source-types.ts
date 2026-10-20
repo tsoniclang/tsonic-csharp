@@ -36,7 +36,7 @@ export function getCsharpTypeFromProjectSourceReference(
   return reference === undefined ? undefined : renderProjectSourceType(reference.declaration, input, diagnostics);
 }
 
-function renderProjectSourceType(declaration: Node, input: CsharpPlanningContext, diagnostics?: TargetDiagnostic[]): CsharpTypeNode | undefined {
+function renderProjectSourceType(declaration: Node, input: CsharpPlanningContext, _diagnostics?: TargetDiagnostic[]): CsharpTypeNode | undefined {
   const selected = input.program.records.projectSourceType.get(declaration);
   if (selected === undefined) return undefined;
   const factory = input.program.records.classFactory.get(declaration);
