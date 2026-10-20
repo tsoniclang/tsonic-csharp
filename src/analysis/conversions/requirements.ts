@@ -3,7 +3,7 @@ import type { CsharpPolicyContext } from "../../policy/model/context.js";
 
 import type { CsharpConversionMode, CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import { csharpAbsenceTargetType, csharpTsValueTargetType, getCsharpGeneratorProtocol, getCsharpArrayLiteralElementTargetType, getCsharpCollectionElementTargetType, targetTypeRefKey } from "../../policy/types/index.js";
-import { directCsharpSourceYieldExpression } from "../../target-model/syntax/yield-expression.js";
+import { directCsharpSourceYieldExpression } from "../../source/extension/yield-expression.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpClosedShapeMemberProjection } from "../../target-model/records/closed-object-shapes.js";
 import { selectCsharpClosedShapeConversion } from "../../policy/objects/closed-object-shapes.js";

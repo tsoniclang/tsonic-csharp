@@ -52,7 +52,7 @@ import {
 } from "./statement-yield.js";
 import {
   directCsharpSourceYieldExpression,
-} from "../../../target-model/syntax/yield-expression.js";
+} from "../../../source/extension/yield-expression.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
