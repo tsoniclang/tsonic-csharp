@@ -1,3 +1,3 @@
 export {
   getCsharpTypeForNode,
-} from "./type-node/index.js";
+} from "./resolution.js";

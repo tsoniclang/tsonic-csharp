@@ -4,7 +4,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
-import { getCsharpTypeForNode } from "./type-node.js";
+import { getCsharpTypeForNode } from "./type-node/index.js";
 import { failCsharpPlannerInvariant } from "../../invariants.js";
 
 export function expressionToCsharpType(
