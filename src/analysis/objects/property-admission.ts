@@ -12,7 +12,8 @@ import { createCsharpPropertyAdmissionRecords } from "../program/records/propert
 
 export function analyzeCsharpPropertyAdmission(input: { readonly ast: AstReader; readonly nodes: readonly Node[];
   readonly operations: CsharpTargetOperationClassifications; readonly admitted: (node: Node) => boolean;
-  readonly projectDeclaration: (node: Node) => boolean }) {
+  readonly projectDeclaration: (node: Node) => boolean;
+  readonly modules: import("../../target-model/records/source-references.js").CsharpSourceReferenceRecords["sourceModuleReference"] }) {
   const properties = new Map<Node, CsharpAdmittedPropertyClassification>();
   const members = new Map<Node, CsharpSourceMemberEmission>();
   const unions = new Map<Node, CsharpUnionPropertyProjection>();
@@ -92,7 +93,7 @@ export function analyzeCsharpPropertyAdmission(input: { readonly ast: AstReader;
   for (const node of required) {
     const element = input.operations.selectedElement.get(node);
     if (element?.target?.kind === "source-owned" && element.sourceOwned !== undefined) admitMember(node, element.target, element.sourceOwned);
-    if (!ast.is.IsPropertyAccessExpression(node)) continue;
+    if (!ast.is.IsPropertyAccessExpression(node) || input.modules.get(node) !== undefined) continue;
     const classification = input.operations.selectedProperty.get(node);
     if (classification === undefined) { refuse(node, "C# planning received a property access without a sealed target classification.", "CSHARP_TARGET_PROPERTY_CLASSIFICATION_MISSING"); continue; }
     const selection = classification.selection;

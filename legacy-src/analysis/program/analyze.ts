@@ -14,6 +14,7 @@ import { analyzeCsharpArrayLiterals } from "../expressions/array-literals.js";
 import { analyzeCsharpPropertyAdmission } from "../objects/property-admission.js";
 import { analyzeCsharpOptionalCallChains } from "../callables/optional-call-chains.js";
 import { analyzeCsharpElementAdmission } from "../objects/element-admission.js";
+import { analyzeCsharpSourceReferences } from "../expressions/source-references.js";
 import { analyzeCsharpLiteralAdmission } from "../expressions/literals.js";
 import { analyzeCsharpAwaitAdmission } from "../callables/await-admission.js";
 import { analyzeCsharpVoidAdmission } from "../expressions/expression-void.js";
@@ -573,9 +574,6 @@ function analyzeCsharpTargetProgramBeforeSeal(
   if (names.issues.length > 0) return rejectedTargetStage(names.issues);
   const sourceMemberNames = analyzeCsharpSourceMemberNames({ ast: source.ast, nodes: sourceStorage.nodes, operations: admittedOperations, names, admitted: admittedControlNode });
   if (sourceMemberNames.issues.length !== 0) return rejectedTargetStage(sourceMemberNames.issues);
-  const propertyAdmission = analyzeCsharpPropertyAdmission({ ast: source.ast, nodes: sourceStorage.nodes,
-    operations: admittedOperations, admitted: admittedControlNode, projectDeclaration: node => source.navigation.isProjectDeclaration(node) });
-  if (propertyAdmission.issues.length !== 0) return rejectedTargetStage(propertyAdmission.issues);
   const objectShapeDemand = publishCsharpNativeArtifactDemand(objectShapeClosure.value, names);
   const rawInterfaceIssues = admitCsharpRawInterfaceDeclarations(source.ast, sourceStorage.nodes,
     nativeDemand.nativeUse, callableAdapters.objectShapes, objectShapeDemand, analysis.storage,
@@ -652,6 +650,14 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const projectEmission = analyzeCsharpProjectEmission({ source, nodes: sourceStorage.nodes, projectTypes,
     factories: classFactories, evidence: analysis.sourceEvidence, names, projections: analysis.typeProjections });
   if (projectEmission.issues.length !== 0) return rejectedTargetStage(projectEmission.issues);
+  const sourceReferences = analyzeCsharpSourceReferences({ source, nodes: sourceStorage.nodes, admitted: admittedControlNode,
+    evidence: analysis.sourceEvidence, factories: classFactories, captures: captureStorage, demand: nativeDemand,
+    operations: admittedOperations, files: sourceOutputIdentities.records, backing: analysis.storage.nativeBacking });
+  if (sourceReferences.issues.length !== 0) return rejectedTargetStage(sourceReferences.issues);
+  const propertyAdmission = analyzeCsharpPropertyAdmission({ ast: source.ast, nodes: sourceStorage.nodes,
+    operations: admittedOperations, admitted: admittedControlNode, projectDeclaration: node => source.navigation.isProjectDeclaration(node),
+    modules: sourceReferences.records.sourceModuleReference });
+  if (propertyAdmission.issues.length !== 0) return rejectedTargetStage(propertyAdmission.issues);
   const elementAdmission = analyzeCsharpElementAdmission({ ast: source.ast, nodes: sourceStorage.nodes, operations: admittedOperations,
     demand: nativeDemand, admitted: admittedControlNode, projects: projectEmission.records, factories: classFactories, navigation: source.navigation });
   if (elementAdmission.issues.length !== 0) return rejectedTargetStage(elementAdmission.issues);
@@ -756,6 +762,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     propertyAdmission: propertyAdmission.records,
     optionalCallChains: optionalCallChains.records,
     elementAdmission: elementAdmission.records,
+    sourceReferences: sourceReferences.records,
     typeofEmission: typeofEmission.records,
     flowReads, valueReads: analysis.valueReads,
     callableAdapters, callableCreations, typeProjections: analysis.typeProjections, classFactories, classInitialization, captureStorage,
