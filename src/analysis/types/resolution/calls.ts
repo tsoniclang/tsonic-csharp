@@ -1,128 +1,26 @@
 import type { CsharpSourceCallContract } from "../../../target-model/records/source-callable-contract.js";
-import { csharpSourceCallArgumentParameter } from "../callables/source-callable-contract.js";
-import type { CsharpTypeResolutionScope } from "./engine.js";
+import { csharpSourceCallArgumentParameter } from "../../../policy/types/callables/source-callable-contract.js";
+import type { CsharpTypeResolutionScope } from "../../../policy/types/resolution/engine.js";
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
-import type { ResolvedSourceCallInfo, CsharpTypeResolutionState } from "./model.js";
+import type { CsharpTypeResolutionState } from "./model.js";
+import type { ResolvedSourceCallInfo } from "../../../target-model/records/source-calls.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { combineCsharpTargetUnionMembers } from "../../../target-model/types/carriers/runtime-carriers.js";
+
 import { csharpTargetParameterValueType } from "../../../target-model/types/member-facts.js";
 import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../../target-model/types/substitution.js";
 import { nextState } from "./state.js";
-import { reconcileCsharpSelectedTargetType } from "./selected-type-evidence.js";
+
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { selectCsharpAuthoredUnionRefinement, sourceRefinementOnlyRemovesNullish } from "./source-union-refinement.js";
+
 import { Node_Expression, Node_Type, ObjectLiteralProperty_Value } from "@tsonic/target-api/source";
 import { getCsharpCallableValueSignature } from "../../../target-model/types/carriers/delegates.js";
-import { selectCsharpObjectLiteralUnionCarrier, csharpObjectLiteralDestinationDeclarations } from "../objects/object-shape-policy/union-construction.js";
+import { selectCsharpObjectLiteralUnionCarrier, csharpObjectLiteralDestinationDeclarations } from "../../../policy/types/objects/object-shape-policy/union-construction.js";
 import { getCsharpArrayLiteralElementTargetType } from "../../../target-model/types/carriers/collections.js";
-import { resolveTypeParameter, resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
+import { resolveTypeParameter } from "./source-evidence.js";
 import { resolveCsharpProjectionArguments } from "./projection-arguments.js";
 import { getCsharpClassFactory } from "../../../target-model/types/carriers/class-factories.js";
 import { csharpSourceTypeParameter } from "../../../target-model/names/type-parameters.js";
 import { bindCsharpSourceTypeArguments } from "./generic-arguments.js";
-import { csharpSourceStorageContext } from "./source-storage-projection.js";
-
-export function resolveAuthoredAndSelectedSourceType(
-  scope: CsharpTypeResolutionScope,
-  authoredTypeNode: Node | undefined,
-  authoredSourceFile: SourceFile,
-  selectedType: Type | undefined,
-  selectedSourceFile: SourceFile,
-  state: CsharpTypeResolutionState,
-): TargetTypeRef | undefined {
-  const { host, resolveNodeWithState, resolveTypeWithState } = scope;
-  state = csharpSourceStorageContext(host, state, authoredTypeNode);
-  const authoredQueries = host.hasSemantics(authoredSourceFile)
-    ? host.semantics(authoredSourceFile)
-    : undefined;
-  const authored = authoredQueries === undefined
-    ? undefined
-    : resolveNodeWithState(
-        authoredTypeNode,
-        authoredSourceFile,
-        nextState(state),
-      );
-  if (
-    authored === undefined ||
-    authoredQueries === undefined ||
-    authoredTypeNode === undefined ||
-    selectedType === undefined
-  ) {
-    return authored ?? resolveTypeWithState(
-      selectedType,
-      selectedSourceFile,
-      nextState(state),
-    );
-  }
-  const selectedQueries = host.semantics(selectedSourceFile);
-  const authoredSemanticType = selectedQueries.types.authoredType(
-    authoredTypeNode,
-  );
-  if (authoredSemanticType === undefined) {
-    return resolveTypeWithState(
-      selectedType,
-      selectedSourceFile,
-      nextState(state),
-    );
-  }
-  const unionRefinement = selectCsharpAuthoredUnionRefinement(
-    authored, authoredSemanticType, selectedType, selectedQueries,
-    type => resolveCsharpUnionMemberCarrier(scope, authored, type, selectedQueries, state),
-    host.structuralTypes.resolveTarget,
-    host.typeDefinitions,
-  );
-  if (unionRefinement.kind !== "not-applicable") {
-    return unionRefinement.kind === "resolved" ? unionRefinement.type : undefined;
-  }
-  const authoredSelection = selectedQueries.types.authoredSelection(
-    authoredTypeNode,
-    selectedType,
-  );
-  if (authoredSelection.kind === "authored-members") {
-    const onlyAddedAbsence = authoredSelection.selectedNullishTypes.length > 0 &&
-      sourceRefinementOnlyRemovesNullish(selectedType, authoredSemanticType, selectedQueries);
-    const selectedMembers = authoredSelection.nodes.map((node) =>
-      node === authoredTypeNode
-        ? onlyAddedAbsence ? authored : reconcileCsharpSelectedTargetType(authored,
-            resolveTypeWithState(selectedType, selectedSourceFile, nextState(state)),
-            selectedQueries.types.relationship(authoredSemanticType, selectedType))
-        : resolveNodeWithState(
-            node,
-            authoredSourceFile,
-            nextState(state),
-          )
-    );
-    const selectedNullishMembers = authoredSelection.selectedNullishTypes.map(
-      (type) =>
-        resolveTypeWithState(
-          type,
-          selectedSourceFile,
-          nextState(state),
-        ),
-    );
-    const selectedTargets = [
-      ...selectedMembers,
-      ...selectedNullishMembers,
-    ];
-    return selectedTargets.some((member) => member === undefined)
-      ? undefined
-      : combineCsharpTargetUnionMembers(
-          selectedTargets as readonly TargetTypeRef[],
-        );
-  }
-  if (authoredSelection.kind === "ambiguous") {
-    return undefined;
-  }
-  return reconcileCsharpSelectedTargetType(
-    authored,
-    resolveTypeWithState(
-      selectedType,
-      selectedSourceFile,
-      nextState(state),
-    ),
-    selectedQueries.types.relationship(authoredSemanticType, selectedType),
-  );
-}
 
 export function resolveSourceCallInstantiation(
   scope: CsharpTypeResolutionScope,
