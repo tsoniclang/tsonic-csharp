@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import { csharpConversionIsApplicable } from "../../policy/conversions/index.js";
+import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
 import { selectCsharpArrayLiteralCarrier } from "../../policy/types/collections/literal-construction.js";
 import { getCsharpArrayLiteralElementTargetType } from "../../target-model/types/carriers/collections.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";

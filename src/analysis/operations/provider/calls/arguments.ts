@@ -4,7 +4,8 @@ import type { CsharpProviderTargetRelation } from "../../../../target-model/iden
 import type { CsharpTargetMember } from "../../../../policy/types/index.js";
 
 import { csharpTargetParameterValueType, csharpTargetStorageIdentityEquals, targetTypeRefKey } from "../../../../policy/types/index.js";
-import { csharpConversionIsApplicable, selectCsharpProviderArgumentConversion } from "../../../../policy/conversions/index.js";
+import { selectCsharpProviderArgumentConversion } from "../../../../policy/conversions/index.js";
+import { csharpConversionIsApplicable } from "../../../../policy/conversions/applicability.js";
 
 import { selectCsharpSourceArgument } from "../../../../source/extension/arguments.js";
 import type { CsharpSelectedCallArgument, CsharpProviderArgumentMapping } from "../../../../target-model/records/members.js";

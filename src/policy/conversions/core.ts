@@ -1,5 +1,5 @@
 import { csharpEnumerableTargetType, csharpReadOnlyListTargetType, getCsharpJsArrayElementTargetType, getCsharpCollectionElementTargetType, getCsharpImplicitArrayInputElementTargetType, getCsharpTaskResultTargetType, isCsharpNeverTargetType, isCsharpVoidTargetType, isCsharpAbsenceTargetType, csharpCarrierAdmitsSourceAbsence, targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/index.js";
-import { csharpConversionIsApplicable } from "../../target-model/conversions/selection.js";
+import { csharpConversionIsApplicable } from "./applicability.js";
 import { csharpObjectShapeImplicitlyAccepts, namedTargetTypeImplicitlyAccepts, namedTargetTypesAreRelated, selectDelegateConversion, selectJsValueConversion, selectNullableConversion, selectRuntimeUnionConversion } from "./carriers.js";
 import { selectProviderConversionOperator } from "./provider-operators.js";
 import { sourcePrimitiveImplicitlyConverts } from "./source-primitives.js";

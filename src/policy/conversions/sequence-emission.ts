@@ -4,7 +4,7 @@ import type { CsharpArraySpreadEmission } from "../../target-model/records/array
 import { getCsharpIndexableLengthMemberName, getCsharpReadOnlyIndexableCollectionElementTargetType, csharpTupleElementMemberName } from "../../target-model/types/index.js";
 import { csharpCollectionElementRead } from "../../target-model/types/carriers/collection-reads.js";
 import { isCsharpValueTypeTargetType } from "../../target-model/types/identity.js";
-import { csharpConversionIsApplicable } from "../../target-model/conversions/selection.js";
+import { csharpConversionIsApplicable } from "./applicability.js";
 import { selectCsharpTypeEmission } from "../types/type-emission.js";
 
 export function selectCsharpSequenceEmission(carrier: TargetTypeRef, target: TargetTypeRef,

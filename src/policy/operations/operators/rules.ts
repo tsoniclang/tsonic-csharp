@@ -7,7 +7,8 @@ import { sourceBooleanShortCircuitBranch as csharpBooleanShortCircuitBranch } fr
 
 import { selectCsharpReferenceEquality } from "./reference-equality.js";
 import { selectCsharpUnionEquality } from "./union-equality.js";
-import { csharpConversionIsApplicable, selectCsharpExpressionConversion } from "../../conversions/selection.js";
+import { selectCsharpExpressionConversion } from "../../conversions/selection.js";
+import { csharpConversionIsApplicable } from "../../conversions/applicability.js";
 import type { Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../model/context.js";
 import type { TargetTypeRef } from "../../types/index.js";

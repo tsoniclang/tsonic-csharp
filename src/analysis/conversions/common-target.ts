@@ -1,5 +1,5 @@
 import { selectCsharpConversion } from "../../policy/conversions/core.js";
-import { csharpConversionIsApplicable } from "../../target-model/conversions/selection.js";
+import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/index.js";
 import type { CsharpCommonImplicitTargetSelection } from "../../target-model/conversions/selection.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";

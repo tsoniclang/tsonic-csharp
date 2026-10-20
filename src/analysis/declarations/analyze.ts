@@ -10,7 +10,8 @@ import {
   Node_Type,
 } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import { csharpConversionIsApplicable, selectCsharpConversion } from "../../policy/conversions/index.js";
+import { selectCsharpConversion } from "../../policy/conversions/index.js";
+import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
 import { selectCsharpCommonImplicitTarget } from "../conversions/common-target.js";
 import {
   csharpAbsenceTargetType,

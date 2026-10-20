@@ -2,7 +2,7 @@ import type { Node } from "@tsonic/tsts";
 import { IsTypeSyntaxNode } from "@tsonic/target-api/source";
 
 import { conversionIsImplicitlyApplicable } from "../../policy/conversions/core.js";
-import { csharpConversionIsApplicable } from "../../policy/conversions/index.js";
+import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
 import { getCsharpCallableValueSignature, getCsharpLambdaSignature, getCsharpNullableElementTargetType, csharpNullableReferenceTargetType, csharpNullableTargetType, csharpTargetStorageIdentityEquals, csharpDelegateSignaturesMatchNativeBinding, targetTypeRefEquals, targetTypeRefKey } from "../../policy/types/index.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";

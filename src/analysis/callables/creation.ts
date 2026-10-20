@@ -5,7 +5,7 @@ import type { CsharpExpectedTypeClassifications } from "../../target-model/recor
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
 import type { CsharpConversionClassifications } from "../../target-model/records/conversions.js";
-import { csharpConversionIsApplicable } from "../../target-model/conversions/selection.js";
+import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
 import { getCsharpLambdaSignature } from "../../target-model/types/carriers/delegates.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";

@@ -2,7 +2,7 @@ import { csharpProviderBindingFromResolution } from "../../providers/model/relat
 import type { Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { selectCsharpConversion, selectCsharpExpressionConversion } from "../../policy/conversions/index.js";
-import type { CsharpConversionMode, CsharpConversionSelection } from "../../policy/conversions/index.js";
+import type { CsharpConversionMode, CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import { csharpTargetBindingFact, isCsharpReferenceCarrier, targetTypeRefKey, targetTypeRefEquals } from "../../policy/types/index.js";
 import { isSourceOwnedCallableRuntimeCarrierSubject, isSourceOwnedProjectReference } from "../types/resolution/source-ownership.js";
 

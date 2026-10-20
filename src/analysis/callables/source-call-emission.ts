@@ -9,7 +9,7 @@ import type { ResolvedSourceCallInfo } from "../../target-model/records/source-c
 import type { CsharpSourceCallEmission, CsharpSourceArgumentsEmission, CsharpSourceArgumentEmissionGroup } from "../../target-model/records/source-call-emission.js";
 import { csharpAbsenceTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import { isCsharpVoidTargetType } from "../../target-model/types/identity.js";
-import { csharpConversionIsApplicable } from "../../target-model/conversions/selection.js";
+import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/index.js";
 import { selectCsharpTypeEmission } from "../../policy/types/type-emission.js";
 import { createCsharpSourceCallEmissionRecords } from "../program/records/source-call-emission.js";

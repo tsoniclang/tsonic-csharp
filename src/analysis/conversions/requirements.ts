@@ -1,7 +1,7 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 
-import type { CsharpConversionMode, CsharpConversionSelection } from "../../policy/conversions/index.js";
+import type { CsharpConversionMode, CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import { csharpAbsenceTargetType, csharpTsValueTargetType, getCsharpGeneratorProtocol, getCsharpArrayLiteralElementTargetType, getCsharpCollectionElementTargetType, targetTypeRefKey } from "../../policy/types/index.js";
 import { directCsharpSourceYieldExpression } from "../../target-model/syntax/yield-expression.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";

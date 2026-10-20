@@ -3,7 +3,7 @@ import type { CsharpSourceCallResult } from "../../../target-model/operations/so
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { namedTargetTypeImplicitlyAccepts } from "../../../policy/conversions/carriers.js";
 import { selectCsharpConversion } from "../../../policy/conversions/core.js";
-import { csharpConversionIsApplicable } from "../../../target-model/conversions/selection.js";
+import { csharpConversionIsApplicable } from "../../../policy/conversions/applicability.js";
 import { getCsharpRuntimeUnionArms, isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
