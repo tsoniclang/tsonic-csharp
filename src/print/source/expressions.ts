@@ -13,7 +13,7 @@ import type {
   CsharpTypeNode,
 } from "../../backend/target-ast/syntax/index.js";
 import type { CsharpPrintContext } from "./context.js";
-import { failUnsupportedCsharpSyntax } from "./fail-closed.js";
+import { failCsharpSyntaxInvariant } from "./invariants.js";
 import {
   escapeCsharpInterpolatedStringText,
   indentLines,
@@ -106,9 +106,8 @@ export function printCsharpExpression(
       return `throw ${context.printExpression(expression.expression)}`;
     case "ArrayCreationExpression": {
       if (expression.size !== undefined) {
-        return expression.elementType === undefined
-          ? `new[] { }`
-          : `new ${printAllocatedArrayType(expression.elementType, `[${context.printExpression(expression.size)}]`, context)}`;
+        if (expression.elementType === undefined) return failCsharpSyntaxInvariant(expression, "sized array without an exact native element type");
+        return `new ${printAllocatedArrayType(expression.elementType, `[${context.printExpression(expression.size)}]`, context)}`;
       }
       const elements = expression.elements.map(context.printExpression).join(", ");
       const initializer = elements.length === 0 ? "{ }" : `{ ${elements} }`;
@@ -125,7 +124,7 @@ export function printCsharpExpression(
     case "LambdaExpression":
       return printCsharpLambda(expression, context);
   }
-  return failUnsupportedCsharpSyntax(expression, "expression");
+  return failCsharpSyntaxInvariant(expression, "expression");
 }
 
 function printOperand(expression: CsharpExpression, precedence: number, equal: boolean, context: CsharpPrintContext): string {
@@ -214,7 +213,7 @@ function printCsharpPattern(pattern: CsharpPattern, context: CsharpPrintContext)
     case "VarPattern": return `var ${pattern.designation}`;
     case "DiscardPattern": return "_";
   }
-  return failUnsupportedCsharpSyntax(pattern, "pattern");
+  return failCsharpSyntaxInvariant(pattern, "pattern");
 }
 
 function printMemberName(
@@ -270,7 +269,7 @@ function printCsharpBinaryOperatorToken(token: CsharpBinaryOperatorToken): strin
     case "PercentToken":
       return "%";
   }
-  return failUnsupportedCsharpSyntax(token, "binary operator token");
+  return failCsharpSyntaxInvariant(token, "binary operator token");
 }
 
 function printCsharpAssignmentOperatorToken(token: CsharpAssignmentOperatorToken): string {
@@ -302,7 +301,7 @@ function printCsharpAssignmentOperatorToken(token: CsharpAssignmentOperatorToken
     case "GreaterThanGreaterThanGreaterThanEqualsToken":
       return ">>>=";
   }
-  return failUnsupportedCsharpSyntax(token, "assignment operator token");
+  return failCsharpSyntaxInvariant(token, "assignment operator token");
 }
 
 function printCsharpPrefixUnaryOperatorToken(token: CsharpPrefixUnaryOperatorToken): string {
@@ -322,7 +321,7 @@ function printCsharpPrefixUnaryOperatorToken(token: CsharpPrefixUnaryOperatorTok
     case "MinusMinusToken":
       return "--";
   }
-  return failUnsupportedCsharpSyntax(token, "prefix unary operator token");
+  return failCsharpSyntaxInvariant(token, "prefix unary operator token");
 }
 
 function printCsharpPostfixUnaryOperatorToken(token: CsharpPostfixUnaryOperatorToken): string {
@@ -334,7 +333,7 @@ function printCsharpPostfixUnaryOperatorToken(token: CsharpPostfixUnaryOperatorT
     case "MinusMinusToken":
       return "--";
   }
-  return failUnsupportedCsharpSyntax(token, "postfix unary operator token");
+  return failCsharpSyntaxInvariant(token, "postfix unary operator token");
 }
 
 function printCsharpObjectInitializer(
@@ -380,7 +379,7 @@ function printCsharpCollectionInitializerElement(
     case "IndexerInitializer":
       return `[${initializer.arguments.map(context.printExpression).join(", ")}] = ${context.printExpression(initializer.expression)},`;
   }
-  return failUnsupportedCsharpSyntax(initializer, "collection initializer element");
+  return failCsharpSyntaxInvariant(initializer, "collection initializer element");
 }
 
 function printAllocatedArrayType(element: CsharpTypeNode, dimensions: string, context: CsharpPrintContext): string {
@@ -453,7 +452,7 @@ function printInterpolatedString(
       case "Interpolation":
         return `{${printInterpolationExpression(part.expression, context)}}`;
     }
-    return failUnsupportedCsharpSyntax(part, "interpolated string part");
+    return failCsharpSyntaxInvariant(part, "interpolated string part");
   }).join("");
   return `$"${body}"`;
 }
