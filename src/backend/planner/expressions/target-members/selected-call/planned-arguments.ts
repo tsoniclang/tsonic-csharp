@@ -6,7 +6,7 @@ import type { CsharpPlannedArgument, CsharpPlannedValue } from "../../planned-va
 import { composeCsharpPlannedValues } from "../../planned-value-composition.js";
 import { captureCsharpPlannedValue } from "../../planned-value-composition.js";
 import { csharpPlannedValue } from "../../planned-values.js";
-import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../../../invariants.js";
 import { captureCsharpPlannedLocation } from "../../planned-locations.js";
 
 export interface CsharpPlannedCallArguments {
@@ -28,8 +28,7 @@ export function composeCsharpPlannedCall(
     const later = arguments_.operands.slice(index + 1);
     if (argument.passing !== undefined && (arguments_.reordered || later.some(value => value.prelude.length !== 0 || value.completion.kind !== "value"))) {
       if (argument.nativeLocation === undefined) {
-        diagnostics.push(unsupportedNodeDiagnostic(node, "Ordered native by-reference arguments require their sealed physical location authority."));
-        return undefined;
+        failCsharpPlannerInvariant("An admitted ordered native by-reference argument requires its physical location authority.", node);
       }
       const suspends = later.some(value => value.suspends === true);
       const captured = captureCsharpPlannedLocation(node, sourceFile, input, diagnostics, argument, argument.nativeLocation, suspends);
