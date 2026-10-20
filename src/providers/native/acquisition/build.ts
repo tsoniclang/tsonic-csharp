@@ -2,9 +2,7 @@ import { existsSync, mkdirSync, rmdirSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
-import type {
-  DotnetProviderTelemetry,
-} from "./telemetry.js";
+import type { DotnetProviderTelemetry } from "./telemetry.js";
 import type { DotnetProviderToolchain } from "./toolchain.js";
 
 export function ensureProviderToolBuilt(
