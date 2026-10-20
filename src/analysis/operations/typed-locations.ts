@@ -61,7 +61,7 @@ export function selectCsharpTypedLocationOperation(
     case "location-allocate": selected(source.initialExpression, source.initialType); break;
     case "location-load": case "location-store":
       if (native?.kind !== "resolved") selected(source.locationExpression, source.locationType);
-      if (source.kind === "location-store" && true &&
+      if (source.kind === "location-store" &&
         !(native?.kind === "resolved" && native.returnPassing === "byref-readonly")) {
         selected(source.valueExpression, source.valueType);
       }
