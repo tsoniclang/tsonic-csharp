@@ -29,7 +29,8 @@ import { AsForInOrOfStatement, sourceClassFieldIsTypeOnly } from "@tsonic/target
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { selectCsharpJsValueCallOperation, selectCsharpJsValueBinaryOperation, selectCsharpJsValueReceiverExpressionOperation, selectCsharpJsValueUnaryOperation, selectCsharpJsTypeofOperation, selectCsharpJsValueCondition, selectCsharpJsValueVoidOperation, selectCsharpJsObjectLiteralOperation } from "../../policy/operations/js-values/index.js";
 import { selectCsharpProviderValue, selectCsharpTargetCall, selectCsharpTargetElement, selectCsharpTargetProperty } from "../../policy/operations/members/index.js";
-import { selectCsharpBinaryOperation, selectCsharpDestructuringAssignmentOperation, selectCsharpNativePointerOperation, selectCsharpResourceManagement, selectCsharpSourceFlowCall, selectCsharpNativeRefReturn, selectCsharpTypedLocationOperation, selectCsharpUnaryOperation, sourceOperatorFromKindName, selectCsharpJsArrayMutation, selectCsharpJsStringConversion, selectCsharpRegularExpressionLiteral } from "../../policy/operations/index.js";
+import { selectCsharpNativePointerOperation, selectCsharpResourceManagement, selectCsharpSourceFlowCall, selectCsharpNativeRefReturn, selectCsharpTypedLocationOperation, sourceOperatorFromKindName, selectCsharpJsArrayMutation, selectCsharpJsStringConversion, selectCsharpRegularExpressionLiteral } from "../../policy/operations/index.js";
+import { selectCsharpBinaryOperation, selectCsharpDestructuringAssignmentOperation, selectCsharpUnaryOperation } from "./operators.js";
 import { selectCsharpIteration } from "./iteration/selection.js";
 import { isCsharpThrowableType } from "../project-types/throwable-types.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";

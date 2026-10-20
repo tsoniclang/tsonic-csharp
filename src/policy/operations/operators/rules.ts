@@ -1,136 +1,65 @@
-import type { CsharpOperationSelection, CsharpResolvedBinaryOperation, CsharpResolvedDestructuringAssignmentOperation, CsharpResolvedUnaryOperation, CsharpTargetBinaryOperation } from "../../../target-model/records/operator-selection.js";
+import type { CsharpOperationSelection, CsharpResolvedBinaryOperation, CsharpResolvedUnaryOperation, CsharpTargetBinaryOperation } from "../../../target-model/records/operator-selection.js";
 import { validateBinaryTargetSemantics, validateUnaryTargetSemantics, isEquality, isRelational, isShift, isBitwise, isArithmetic } from "./operator-validation.js";
-import { selectCsharpAssignmentLocation } from "./assignment-location.js";
 
 import { selectCsharpGuardedIntegerPromotion } from "../numeric/guarded.js";
-import { selectCsharpGenericNumericOperation } from "../numeric/generic.js";
-import { resolveCsharpContextualLiteralCarrier } from "../../types/resolution/contextual-literals.js";
+
 import { sourceBooleanShortCircuitBranch as csharpBooleanShortCircuitBranch } from "@tsonic/target-api/source";
 
 import { selectCsharpReferenceEquality } from "./reference-equality.js";
 import { selectCsharpUnionEquality } from "./union-equality.js";
 import { csharpConversionIsApplicable, selectCsharpExpressionConversion } from "../../conversions/selection.js";
-import type {
-  Node,
-  SourceFile,
-} from "@tsonic/tsts";
-import type {
-  CsharpPolicyContext,
-} from "../../model/context.js";
-import type {
-  TargetTypeRef,
-} from "../../types/index.js";
-import {
-  csharpSourcePrimitiveTargetType,
-  csharpBigIntegerTargetType,
-  getCsharpNullableElementTargetType,
-  getCsharpRuntimeUnionArms,
-  isCsharpIntegralTargetType,
-  isCsharpAbsenceTargetType,
-  isCsharpStringTargetType,
-  isCsharpJsValueTargetType,
-  isCsharpReferenceCarrier,
-  targetTypeRefEquals,
-} from "../../types/index.js";
-import {
-  csharpUnaryNumericPromotion,
-  selectCsharpNumericBinaryPromotion,
-} from "../numeric/promotion.js";
-import {
-  csharpLiteralIsRepresentableAs,
-} from "../../conversions/literals.js";
+import type { Node } from "@tsonic/tsts";
+import type { CsharpPolicyContext } from "../../model/context.js";
+import type { TargetTypeRef } from "../../types/index.js";
+import { csharpSourcePrimitiveTargetType, csharpBigIntegerTargetType, getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms, isCsharpIntegralTargetType, isCsharpAbsenceTargetType, isCsharpStringTargetType, isCsharpJsValueTargetType, isCsharpReferenceCarrier, targetTypeRefEquals } from "../../types/index.js";
+import { csharpUnaryNumericPromotion, selectCsharpNumericBinaryPromotion } from "../numeric/promotion.js";
+import { csharpLiteralIsRepresentableAs } from "../../conversions/literals.js";
 import { csharpJsArrayCarrierId } from "../../../target-model/types/carriers/js.js";
-import type {
-  CsharpSourceOperator,
-} from "../../../target-model/syntax/operators.js";
-import {
-  csharpDestructuringAssignmentSyntax,
-  isCsharpAssignmentOperator,
-  sourceOperatorFromKindName,
-} from "../../../target-model/syntax/operators.js";
+import type { CsharpSourceOperator } from "../../../target-model/syntax/operators.js";
+import { isCsharpAssignmentOperator } from "../../../target-model/syntax/operators.js";
 
-export type CsharpOperationTargetTypeQuery = (
-  node: Node,
-) => TargetTypeRef | undefined;
-
-export function selectCsharpBinaryOperation(
-  input: CsharpPolicyContext,
-  node: Node,
-  targetTypeFor: CsharpOperationTargetTypeQuery,
-  expectedResultType?: TargetTypeRef,
-): CsharpOperationSelection<CsharpResolvedBinaryOperation> {
-  if (!input.ast.is.IsBinaryExpression(node)) {
-    return rejected("C# binary-operation policy requires a binary expression.");
-  }
-  const expression = input.ast.as.AsBinaryExpression(node);
-  const left = expression?.Left;
-  const right = expression?.Right;
-  const sourceOperator = sourceOperatorFromKindName(
-    input.ast.operatorKindName(node),
-  );
-  if (left === undefined || right === undefined || sourceOperator === undefined) {
-    return rejected(
-      "The checked binary expression has incomplete exact AST operator evidence.",
-    );
-  }
-  return selectCsharpBinaryOperands(input, left, right, sourceOperator,
-    targetTypeFor(node), targetTypeFor, expectedResultType);
+export interface CsharpBinaryOperands {
+  readonly left: Node;
+  readonly right: Node;
+  readonly sourceOperator: CsharpSourceOperator;
+  readonly leftType: TargetTypeRef;
+  readonly rightType: TargetTypeRef;
+  readonly resultType: TargetTypeRef;
+  readonly leftStorage: TargetTypeRef | undefined;
+  readonly rightStorage: TargetTypeRef | undefined;
+  readonly genericNumeric: Extract<CsharpTargetBinaryOperation, { readonly kind: "generic-numeric" }> | undefined;
+  readonly resultUse: ReturnType<CsharpPolicyContext["navigation"]["expressionResultUse"]>;
+  readonly assignmentLocation: import("../../../target-model/operations/assignment-locations.js").CsharpAssignmentLocation;
 }
 
-export function selectCsharpBinaryOperands(
+export function selectCsharpNativeBinaryOperation(
   input: CsharpPolicyContext,
-  left: Node,
-  right: Node,
-  sourceOperator: CsharpSourceOperator,
-  selectedResultType: TargetTypeRef | undefined,
-  targetTypeFor: CsharpOperationTargetTypeQuery,
-  expectedResultType?: TargetTypeRef,
+  facts: CsharpBinaryOperands,
+  expectedResultType: TargetTypeRef | undefined,
 ): CsharpOperationSelection<CsharpResolvedBinaryOperation> {
-  let leftType = sourceOperator === "=" || sourceOperator === "??="
-    ? input.types.resolveReadStorage(left)
-    : resolveBinaryOperandType(input, left, targetTypeFor);
-  const nullishRightExpectation = sourceOperator === "??"
-    ? expectedResultType ?? nullishValueType(leftType, input.typeDefinitions)
-    : sourceOperator === "??=" ? nullishValueType(leftType, input.typeDefinitions)
-    : sourceOperator === "," || sourceOperator === "&&" || sourceOperator === "||"
-      ? expectedResultType ?? selectedResultType : undefined;
-  let rightType = resolveBinaryOperandType(
-    input,
-    right,
-    targetTypeFor,
-    nullishRightExpectation,
-  );
-  const resultType = (sourceOperator === "," || sourceOperator === "&&" || sourceOperator === "||"
-    ? expectedResultType ?? selectedResultType ?? (sourceOperator === "," ? rightType : undefined) : selectedResultType) ??
-    (sourceOperator === "??" || sourceOperator === "??="
-      ? nullishValueType(leftType, input.typeDefinitions) : undefined);
-  if (leftType === undefined || rightType === undefined || resultType === undefined) {
-    return rejected(
-      "The checked binary expression has no closed C# representation for every operand and result.",
-    );
-  }
-  const genericNumeric = selectCsharpGenericNumericOperation(input, sourceOperator, left, right, leftType, rightType);
+  const { left, right, sourceOperator, resultType, genericNumeric } = facts;
+  let { leftType, rightType } = facts;
   if (genericNumeric !== undefined) return {
     kind: "resolved", sourceOperator, targetOperation: genericNumeric,
     left, right, leftType, rightType, leftInputType: leftType, rightInputType: rightType, resultType,
   };
   if (sourceOperator === ",") return {
     kind: "resolved", sourceOperator, targetOperation: {
-      kind: "sequence", resultUse: input.navigation.expressionResultUse(right),
+      kind: "sequence", resultUse: facts.resultUse,
     },
     left, right, leftType, rightType, leftInputType: leftType, rightInputType: rightType, resultType,
   };
   if (sourceOperator === "&&" || sourceOperator === "||") {
     const boolean = csharpSourcePrimitiveTargetType("bool");
-    if (!targetTypeRefEquals(leftType, boolean)) return rejected("C# conditional-value operators require an exact bool condition.");
+    if (!targetTypeRefEquals(leftType, boolean)) return rejectCsharpOperator("C# conditional-value operators require an exact bool condition.");
     const branch = csharpBooleanShortCircuitBranch(input.ast, left, sourceOperator);
     if (branch !== "left" && !csharpConversionIsApplicable(
       selectCsharpExpressionConversion(input, right, rightType, resultType, "implicit"), "implicit")) {
-      return rejected("C# conditional-value selection requires exact admission of the selected right-hand completion.");
+      return rejectCsharpOperator("C# conditional-value selection requires exact admission of the selected right-hand completion.");
     }
     if (branch !== "right" && !csharpConversionIsApplicable(
       selectCsharpExpressionConversion(input, left, leftType, resultType, "implicit"), "implicit")) {
-      return rejected("C# conditional-value selection requires exact admission of its short-circuit bool result.");
+      return rejectCsharpOperator("C# conditional-value selection requires exact admission of its short-circuit bool result.");
     }
     return { kind: "resolved", sourceOperator,
       targetOperation: { kind: "conditional-value", operator: sourceOperator, branch },
@@ -138,21 +67,21 @@ export function selectCsharpBinaryOperands(
   }
   if ((sourceOperator === "??" || sourceOperator === "??=") && isCsharpJsValueTargetType(leftType)) {
     if (!csharpConversionIsApplicable(selectCsharpExpressionConversion(input, right, rightType, leftType, "implicit"), "implicit")) {
-      return rejected("Closed-value coalescing requires an exact native right-hand admission.");
+      return rejectCsharpOperator("Closed-value coalescing requires an exact native right-hand admission.");
     }
     return {
       kind: "resolved", sourceOperator,
       targetOperation: { kind: "closed-value-coalesce", assignment: sourceOperator === "??=",
-        location: selectCsharpAssignmentLocation(input, left, targetTypeFor) },
+        location: facts.assignmentLocation },
       left, right, leftType, rightType, leftInputType: leftType, rightInputType: leftType, resultType: leftType,
     };
   }
   if (isEquality(sourceOperator)) {
     if (isCsharpAbsenceTargetType(rightType)) {
-      leftType = resolveNullishOperandStorage(input, left, leftType);
+      leftType = selectNullishOperandStorage(facts.leftStorage, leftType, input.typeDefinitions);
     }
     if (isCsharpAbsenceTargetType(leftType)) {
-      rightType = resolveNullishOperandStorage(input, right, rightType);
+      rightType = selectNullishOperandStorage(facts.rightStorage, rightType, input.typeDefinitions);
     }
     const leftNullable = getCsharpNullableElementTargetType(leftType);
     const rightNullable = getCsharpNullableElementTargetType(rightType);
@@ -173,7 +102,7 @@ export function selectCsharpBinaryOperands(
       return {
         kind: "resolved", sourceOperator,
         targetOperation: { kind: "bigint-call", method, assignment: isCsharpAssignmentOperator(sourceOperator),
-          location: selectCsharpAssignmentLocation(input, left, targetTypeFor) },
+          location: facts.assignmentLocation },
         left, right, leftType, rightType, leftInputType: leftType, rightInputType: rightType,
         resultType: leftType,
       };
@@ -196,7 +125,7 @@ export function selectCsharpBinaryOperands(
     (getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(leftType) ?? leftType, input.typeDefinitions) !== undefined ||
       getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(rightType) ?? rightType, input.typeDefinitions) !== undefined)) {
     const arms = selectCsharpUnionEquality(leftType, rightType, input);
-    if (arms === undefined) return rejected("Union equality requires exact native comparison evidence for every leaf pair.");
+    if (arms === undefined) return rejectCsharpOperator("Union equality requires exact native comparison evidence for every leaf pair.");
     const resultType = csharpSourcePrimitiveTargetType("bool");
     return Object.freeze({ kind: "resolved", sourceOperator,
       targetOperation: Object.freeze({ kind: "union-equality", negated: sourceOperator === "!==", arms }),
@@ -220,7 +149,7 @@ export function selectCsharpBinaryOperands(
     stringRelational === undefined &&
     targetOperator === undefined
   ) {
-    return rejected(
+    return rejectCsharpOperator(
       `Source operator '${sourceOperator}' requires a dedicated C# translation policy.`,
     );
   }
@@ -230,7 +159,7 @@ export function selectCsharpBinaryOperands(
     rightType,
   );
   if (numericPromotionRequired && numericPromotion === undefined) {
-    return rejected(
+    return rejectCsharpOperator(
       `Source operator '${sourceOperator}' has no exact predefined C# numeric promotion for the selected operand types.`,
     );
   }
@@ -238,7 +167,7 @@ export function selectCsharpBinaryOperands(
     ? selectNullishResultType(input, leftType, rightType, right)
     : undefined;
   if ((sourceOperator === "??" || sourceOperator === "??=") && nullishResultType === undefined) {
-    return rejected(
+    return rejectCsharpOperator(
       "Source nullish coalescing has no exact C# result relation for the selected target operand types.",
     );
   }
@@ -279,40 +208,7 @@ export function selectCsharpBinaryOperands(
         rightType,
         ...operationTypes,
       }
-    : rejected(incompatibility);
-}
-
-export function selectCsharpDestructuringAssignmentOperation(
-  input: CsharpPolicyContext,
-  node: Node,
-  sourceFile: SourceFile,
-): CsharpOperationSelection<CsharpResolvedDestructuringAssignmentOperation> {
-  const syntax = csharpDestructuringAssignmentSyntax(input.ast, node);
-  if (syntax === undefined) {
-    return rejected(
-      "C# destructuring-assignment policy requires an array or object binding pattern.",
-    );
-  }
-  const sourceType = input.types.resolveNode(syntax.source, sourceFile);
-  const resultType = input.types.resolveNode(node, sourceFile);
-  if (
-    sourceType === undefined ||
-    resultType === undefined ||
-    !targetTypeRefEquals(sourceType, resultType)
-  ) {
-    return rejected(
-      "The checked destructuring assignment requires one exact C# representation for its source and result value.",
-    );
-  }
-  return {
-    kind: "resolved",
-    sourceOperator: "=",
-    targetOperation: { kind: "operator", operator: "=" },
-    pattern: syntax.pattern,
-    source: syntax.source,
-    sourceType,
-    resultType,
-  };
+    : rejectCsharpOperator(incompatibility);
 }
 
 function selectBinaryOperationTypes(
@@ -382,57 +278,13 @@ function selectBinaryOperationTypes(
   };
 }
 
-function resolveNullishOperandStorage(
-  input: CsharpPolicyContext,
-  node: Node,
+function selectNullishOperandStorage(
+  storage: TargetTypeRef | undefined,
   selected: TargetTypeRef,
+  definitions: CsharpPolicyContext["typeDefinitions"],
 ): TargetTypeRef {
-  const storage = input.types.resolveReadStorage(node);
-  return storage !== undefined &&
-    (getCsharpNullableElementTargetType(storage) !== undefined ||
-      getCsharpRuntimeUnionArms(storage, input.typeDefinitions)?.some(isCsharpAbsenceTargetType))
-    ? storage
-    : selected;
-}
-
-function resolveBinaryOperandType(
-  input: CsharpPolicyContext,
-  node: Node,
-  targetTypeFor: CsharpOperationTargetTypeQuery,
-  expectedType?: TargetTypeRef,
-): TargetTypeRef | undefined {
-  if (input.ast.is.IsBinaryExpression(node)) {
-    const nested = selectCsharpBinaryOperation(
-      input,
-      node,
-      targetTypeFor,
-      expectedType,
-    );
-    if (nested.kind === "resolved") {
-      return nested.resultType;
-    }
-  }
-  const selected = targetTypeFor(node);
-  if (isCsharpAbsenceTargetType(selected)) {
-    const storage = input.types.resolveReadStorage(node);
-    if (getCsharpNullableElementTargetType(storage) !== undefined) return storage;
-  }
-  const contextual = resolveCsharpContextualLiteralCarrier(input, node, expectedType);
-  if (contextual !== undefined) return contextual;
-  return adaptLiteralToExpectedType(input, node, selected, expectedType);
-}
-
-function adaptLiteralToExpectedType(
-  input: CsharpPolicyContext,
-  node: Node,
-  selected: TargetTypeRef | undefined,
-  expected: TargetTypeRef | undefined,
-): TargetTypeRef | undefined {
-  return selected !== undefined &&
-      expected !== undefined &&
-      csharpLiteralIsRepresentableAs(input.literalValues.literalValue.get(node), expected)
-    ? expected
-    : selected;
+  return storage !== undefined && (getCsharpNullableElementTargetType(storage) !== undefined ||
+    getCsharpRuntimeUnionArms(storage, definitions)?.some(isCsharpAbsenceTargetType)) ? storage : selected;
 }
 
 function selectNullishResultType(
@@ -569,64 +421,6 @@ function selectStringRelational(
   };
 }
 
-export function selectCsharpUnaryOperation(
-  input: CsharpPolicyContext,
-  node: Node,
-  sourceFile: SourceFile,
-): CsharpOperationSelection<CsharpResolvedUnaryOperation> {
-  const prefix = input.ast.is.IsPrefixUnaryExpression(node);
-  const postfix = input.ast.is.IsPostfixUnaryExpression(node);
-  if (!prefix && !postfix) {
-    return rejected("C# unary-operation policy requires an update expression.");
-  }
-  const operand = prefix
-    ? input.ast.as.AsPrefixUnaryExpression(node)?.Operand
-    : input.ast.as.AsPostfixUnaryExpression(node)?.Operand;
-  const sourceOperator = sourceOperatorFromKindName(
-    input.ast.operatorKindName(node),
-  );
-  if (
-    operand === undefined ||
-    (
-      sourceOperator !== "!" &&
-      sourceOperator !== "~" &&
-      sourceOperator !== "+" &&
-      sourceOperator !== "-" &&
-      sourceOperator !== "++" &&
-      sourceOperator !== "--"
-    )
-  ) {
-    return rejected(
-      "The checked update expression has incomplete exact AST operator evidence.",
-    );
-  }
-  const update = sourceOperator === "++" || sourceOperator === "--";
-  const operandType = update
-    ? input.types.resolveReadStorage(operand, sourceFile)
-    : input.types.resolveNode(operand, sourceFile);
-  const resultType = update ? operandType : input.types.resolveNode(node, sourceFile);
-  if (operandType === undefined || resultType === undefined) {
-    return rejected(
-      "The checked update expression has no closed C# representation for its operand and result.",
-    );
-  }
-  const incompatibility = validateUnaryTargetSemantics(
-    sourceOperator,
-    operandType,
-    input,
-  );
-  return incompatibility === undefined
-    ? {
-        kind: "resolved",
-        sourceOperator,
-        targetOperator: sourceOperator,
-        operand,
-        operandType,
-        resultType,
-      }
-    : rejected(incompatibility);
-}
-
 export function targetBinaryOperator(
   source: CsharpSourceOperator,
 ): string | undefined {
@@ -672,8 +466,31 @@ export function targetBinaryOperator(
   }
 }
 
-function rejected(
+export function rejectCsharpOperator(
   reason: string,
 ): { readonly kind: "rejected"; readonly reason: string } {
   return { kind: "rejected", reason };
+}
+export function selectCsharpNativeUnaryOperation(
+  input: CsharpPolicyContext,
+  sourceOperator: Extract<CsharpSourceOperator, "!" | "~" | "+" | "-" | "++" | "--">,
+  operand: Node,
+  operandType: TargetTypeRef,
+  resultType: TargetTypeRef,
+): CsharpOperationSelection<CsharpResolvedUnaryOperation> {
+  const incompatibility = validateUnaryTargetSemantics(
+    sourceOperator,
+    operandType,
+    input,
+  );
+  return incompatibility === undefined
+    ? {
+        kind: "resolved",
+        sourceOperator,
+        targetOperator: sourceOperator,
+        operand,
+        operandType,
+        resultType,
+      }
+    : rejectCsharpOperator(incompatibility);
 }

@@ -2,7 +2,7 @@ import type { CsharpSwitchSelection } from "../../../target-model/records/switch
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
 import { csharpSourcePrimitiveTargetType } from "../../../policy/types/index.js";
-import { selectCsharpBinaryOperands } from "../../../policy/operations/operators/operator-selection.js";
+import { selectCsharpBinaryOperands } from "../operators.js";
 import { type CsharpResolvedBinaryOperation } from "../../../target-model/records/operator-selection.js";
 
 import { csharpSwitchCarrierSupportsNativeDispatch } from "../../../policy/operations/control-flow/switch.js";

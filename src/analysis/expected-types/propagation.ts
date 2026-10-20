@@ -16,7 +16,7 @@ import {
   targetTypeRefEquals,
   targetTypeRefKey,
 } from "../../policy/types/index.js";
-import type { selectCsharpBinaryOperation } from "../../policy/operations/index.js";
+import type { selectCsharpBinaryOperation } from "../operations/operators.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpNativeUseSlot } from "../../target-model/records/native-demand.js";
 import type { CsharpConversionMode } from "../../target-model/conversions/selection.js";
