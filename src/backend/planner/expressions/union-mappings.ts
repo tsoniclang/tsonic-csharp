@@ -1,10 +1,9 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpConversionSelection } from "../../../analysis/conversions/index.js";
-import { getCsharpNullableElementTargetType, type TargetTypeRef } from "../../../target-model/types/index.js";
+import type { CsharpConversionSelection } from "../../../target-model/conversions/selection.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpExpression, CsharpSwitchExpressionArm } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
-import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { failCsharpPlannerInvariant } from "../../invariants.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { planCsharpUnionPattern } from "./union-patterns.js";
@@ -16,40 +15,40 @@ export function planCsharpUnionMapping(
   target: TargetTypeRef | undefined,
   selection: Extract<CsharpConversionSelection, { readonly kind: "union-map" }>,
   input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
+  _diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
-  const sourceElement = getCsharpNullableElementTargetType(source);
-  const targetElement = getCsharpNullableElementTargetType(target);
-  const sourceUnion = sourceElement ?? source;
-  const targetUnion = targetElement ?? target;
-  if (sourceUnion === undefined || targetUnion === undefined) {
+  if (source === undefined || target === undefined) {
     return failCsharpPlannerInvariant(
       "Union conversion requires exact sealed arm coverage and native absence correspondence.", node);
   }
-  const resultType = target === undefined ? undefined : csharpTypeFromTargetTypeRef(target, input.scope.typeParameterNames);
+  const sourceEmission = input.program.records.typeEmission.get(source)
+    ?? failCsharpPlannerInvariant("An admitted union conversion requires its source storage form.", node);
+  const targetEmission = input.program.records.typeEmission.get(target)
+    ?? failCsharpPlannerInvariant("An admitted union conversion requires its target storage form.", node);
+  const sourceOptional = sourceEmission.unionAccess.kind === "nullable";
+  const targetOptional = targetEmission.unionAccess.kind === "nullable";
+  const resultType = csharpTypeFromTargetTypeRef(target, input.scope.typeParameterNames);
   if (resultType === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node,
-      "Union conversion requires exact sealed arm coverage and native absence correspondence."));
-    return undefined;
+    failCsharpPlannerInvariant("An admitted union conversion requires its exact native result type.", node);
   }
   const arms: CsharpSwitchExpressionArm[] = [];
   for (const [index, mapping] of selection.arms.entries()) {
     const designation = input.names.temporaryName(`__tsonic_union_${input.program.source.ast.pos(node)}_${input.program.source.ast.end(node)}_${index}`);
     const receiver: CsharpExpression = { kind: "IdentifierName", name: designation };
-    const projection = planCsharpUnionPattern(receiver, mapping.source, source);
+    const projection = planCsharpUnionPattern(receiver, mapping.source, source, false, input);
     let value = projection.value;
     const when = projection.condition;
     for (const step of [...mapping.target].reverse()) {
       const type = csharpTypeFromTargetTypeRef(step.union, input.scope.typeParameterNames);
-      if (type === undefined) return undefined;
+      if (type === undefined) failCsharpPlannerInvariant("An admitted union conversion requires its native target-arm type.", node);
       value = { kind: "InvocationExpression",
         callee: { kind: "SimpleMemberAccessExpression", receiver: type, name: `From${step.index + 1}` },
         arguments: [{ kind: "Argument", expression: value }] };
     }
     arms.push({ pattern: { kind: "VarPattern", designation }, when,
-      expression: targetElement === undefined ? value : { kind: "CastExpression", type: resultType, expression: value } });
+      expression: !targetOptional ? value : { kind: "CastExpression", type: resultType, expression: value } });
   }
-  if (sourceElement !== undefined && targetElement !== undefined) arms.push({
+  if (sourceOptional && targetOptional) arms.push({
     pattern: { kind: "ConstantPattern", expression: { kind: "LiteralExpression", value: null } },
     expression: { kind: "DefaultExpression", type: resultType },
   });
