@@ -3,15 +3,11 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import { targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
 import type { CsharpTargetPropertySelection } from "../../../../target-model/records/member-selections.js";
 import type {
   CsharpExpression,
 } from "../../../target-ast/syntax/index.js";
-import {
-  targetPolicyDiagnostic,
-  unsupportedNodeDiagnostic,
-} from "../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../../invariants.js";
 import type {
   ExpressionPlanner,
 } from "../expression-planner-types.js";
@@ -42,12 +38,7 @@ export function translateCsharpPropertyAccess(
 ): CsharpPlannedValue | undefined {
   const classification = input.program.records.selectedProperty.get(node);
   if (classification === undefined) {
-    diagnostics.push(targetPolicyDiagnostic(
-      node,
-      "CSHARP_TARGET_PROPERTY_CLASSIFICATION_MISSING",
-      "C# planning received a property access without a sealed target classification.",
-    ));
-    return undefined;
+    failCsharpPlannerInvariant("An admitted property access requires its sealed target classification.", node);
   }
   const selection = classification.selection;
   switch (selection.kind) {
@@ -66,37 +57,9 @@ export function translateCsharpPropertyAccess(
       const receiver = translateCsharpSelectedReceiver(selection.source.receiver, sourceFile, input,
         diagnostics, planExpression, classification.receiverProjection);
       return receiver === undefined ? undefined : translateCsharpSourceOwnedMember(node,
-        sourceFile, input, diagnostics, receiver, selection.source.optionalChain);
+        sourceFile, input, diagnostics, receiver, selection.source.optionalChain &&
+          input.scope.presentOptionalValues?.has(selection.source.receiver.expression) !== true);
     }
-    case "rejected":
-      diagnostics.push(targetDiagnosticFromExtension(
-        node,
-        selection.diagnostic,
-      ));
-      return undefined;
-    case "missing":
-      diagnostics.push(targetPolicyDiagnostic(
-        node,
-        "CSHARP_TARGET_PROPERTY_NOT_CLOSED",
-        selection.reason,
-      ));
-      return undefined;
-    case "conflict":
-      diagnostics.push(targetPolicyDiagnostic(
-        node,
-        "CSHARP_TARGET_PROPERTY_IDENTITY_CONFLICT",
-        selection.reason,
-      ));
-      return undefined;
-    case "ambiguous":
-      diagnostics.push(targetPolicyDiagnostic(
-        node,
-        "CSHARP_TARGET_PROPERTY_AMBIGUOUS",
-        selection.reason,
-        selection.candidates.map((candidate) =>
-          `candidate=${candidate}`),
-      ));
-      return undefined;
   }
 }
 
@@ -112,33 +75,13 @@ function translateSelectedProperty(
   planExpression: ExpressionPlanner,
 ): CsharpPlannedValue | undefined {
   const member = selection.targetMember;
+  const conditional = selection.source.optionalChain && input.scope.presentOptionalValues?.has(selection.source.receiver.expression) !== true;
   if (selection.invocation.kind === "receiver-call") {
     return planCsharpReceiverCallProperty(node, selection, sourceFile, input, diagnostics, planExpression);
   }
   if (selection.invocation.kind === "source-name-indexer") {
-    if (member.kind !== "indexer") {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        node,
-        `Checked source-name index access selected C# ${member.kind} '${member.id}'.`,
-      ));
-      return undefined;
-    }
-    if (selection.receiver.kind !== "instance") {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        node,
-        "A source-name index access requires an exact instance receiver relation.",
-      ));
-      return undefined;
-    }
-    const access = input.program.source.ast.as.AsPropertyAccessExpression(node);
-    const sourceName = access?.name;
-    if (sourceName === undefined || !input.program.source.ast.is.IsIdentifier(sourceName)) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        node,
-        "The exact selected source index signature has no authored identifier key.",
-      ));
-      return undefined;
-    }
+    const sourceName = input.program.records.sourceNameIndexer.get(node);
+    if (sourceName === undefined) failCsharpPlannerInvariant("An admitted source-name indexer requires its exact authored key.", node);
     const receiver = translateCsharpSelectedReceiver(
       selection.source.receiver,
       sourceFile,
@@ -150,39 +93,21 @@ function translateSelectedProperty(
     if (receiver === undefined) {
       return undefined;
     }
-    const key: CsharpExpression = { kind: "LiteralExpression", value: input.program.source.ast.text(sourceName) };
+    const key: CsharpExpression = { kind: "LiteralExpression", value: sourceName };
     if (selection.invocation.optionalRead) {
       return projectCsharpPlannedValue(node, sourceFile, input, diagnostics, receiver, value => csharpRecordOptionalRead(node, value, key,
         `__tsonic_record_${input.program.source.ast.pos(node)}_${input.program.source.ast.end(node)}`, input));
     }
     return projectCsharpPlannedValue(node, sourceFile, input, diagnostics, receiver, value => ({
-      kind: selection.source.optionalChain
+      kind: conditional
         ? "ConditionalElementAccessExpression"
         : "ElementAccessExpression",
       receiver: value,
       arguments: [key],
     }));
   }
-  if (
-    member.kind !== "property" &&
-    member.kind !== "field" &&
-    member.kind !== "event"
-  ) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
-      `Checked property access selected C# ${member.kind} '${member.id}'.`,
-    ));
-    return undefined;
-  }
-  if (selection.receiver.kind === "target-parameter") {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
-      "A source property cannot lower to a target-parameter receiver without an explicit target invocation relation.",
-    ));
-    return undefined;
-  }
   if (selection.receiver.kind === "none") {
-    const receiver = targetStaticReceiver(input.scope.typeParameterNames, member, node, diagnostics);
+    const receiver = targetStaticReceiver(input.scope.typeParameterNames, member, node);
     return receiver === undefined ? undefined : planCsharpExpressionCompletion(node, sourceFile, input, diagnostics,
       { kind: "SimpleMemberAccessExpression", receiver, name: member.targetName }, readCsharpNativeExpressionCarrier(input, node));
   }
@@ -202,7 +127,7 @@ function translateSelectedProperty(
     const selectedReceiver = projection === undefined ? value : applyCsharpConversionSelection(
       node, sourceFile, input, diagnostics, projection.source, projection.target, projection.conversion, value);
     return selectedReceiver === undefined ? undefined : {
-    kind: selection.source.optionalChain
+    kind: conditional
       ? "ConditionalAccessExpression"
       : "SimpleMemberAccessExpression",
     receiver: selectedReceiver,
@@ -218,22 +143,14 @@ function targetStaticReceiver(
     { readonly kind: "resolved" }
   >["targetMember"],
   node: Node,
-  diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
   const declaringType = member.declaringType;
   if (declaringType === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
-      `Selected static target property '${member.id}' has no declaring type.`,
-    ));
-    return undefined;
+    failCsharpPlannerInvariant("An admitted static target property requires its declaring type.", node);
   }
   const receiver = csharpTypeFromTargetTypeRef(declaringType, typeParameterNames);
   if (receiver === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
-      `Selected static target property '${member.id}' has no renderable declaring type.`,
-    ));
+    failCsharpPlannerInvariant("An admitted static target property requires its renderable declaring type.", node);
   }
   return receiver;
 }
