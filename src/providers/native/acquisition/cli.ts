@@ -1,11 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
-import type {
-  DotnetProviderTelemetry,
-} from "./telemetry.js";
-import type {
-  DotnetProviderToolResult,
-} from "./types.js";
+import type { DotnetProviderTelemetry } from "./telemetry.js";
+import type { DotnetProviderToolResult } from "./types.js";
 
 export function runProviderToolCli(
   dllPath: string,
