@@ -1,15 +1,5 @@
-import type {
-  ProviderExportDeclaration,
-  ProviderMemberDeclaration,
-  ProviderSignatureDeclaration,
-  ProviderTypeParameterDeclaration,
-} from "@tsonic/tsts";
-import {
-  normalizeProviderSignatureTypeParameterScope,
-  renameProviderParameterTypeParameters,
-  renameProviderTypeExpressionTypeParameters,
-  renameProviderTypeParameter,
-} from "./signatures.js";
+import type { ProviderExportDeclaration, ProviderMemberDeclaration, ProviderSignatureDeclaration, ProviderTypeParameterDeclaration } from "@tsonic/tsts";
+import { normalizeProviderSignatureTypeParameterScope, renameProviderParameterTypeParameters, renameProviderTypeExpressionTypeParameters, renameProviderTypeParameter } from "./signatures.js";
 
 export function normalizeProviderTypeFamilyParameters(
   exports: readonly ProviderExportDeclaration[],
