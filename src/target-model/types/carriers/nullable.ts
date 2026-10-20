@@ -1,16 +1,7 @@
-import type {
-  TargetTypeRef,
-} from "../model.js";
-import type {
-  CsharpNullableReferenceTargetTypeRef,
-  CsharpTargetNamedTypeRef,
-} from "../model.js";
-import {
-  isCsharpValueTypeTargetType,
-} from "../identity.js";
-import {
-  csharpTargetNamedType,
-} from "../factories.js";
+import type { TargetTypeRef } from "../model.js";
+import type { CsharpNullableReferenceTargetTypeRef, CsharpTargetNamedTypeRef } from "../model.js";
+import { isCsharpValueTypeTargetType } from "../identity.js";
+import { csharpTargetNamedType } from "../factories.js";
 import { csharpOptionalStorageProjection, getCsharpGenericOptionalParts } from "../projections.js";
 import { csharpConstraintsRequireReference } from "../generic-constraints.js";
 
