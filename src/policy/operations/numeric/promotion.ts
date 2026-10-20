@@ -1,19 +1,8 @@
-import type {
-  Node,
-  SourcePrimitiveKind,
-} from "@tsonic/tsts";
-import type {
-  CsharpPolicyContext,
-} from "../../model/context.js";
-import {
-  csharpLiteralIsRepresentableAs,
-} from "../../conversions/literals.js";
-import type {
-  TargetTypeRef,
-} from "../../types/index.js";
-import {
-  csharpSourcePrimitiveTargetType,
-} from "../../types/index.js";
+import type { Node, SourcePrimitiveKind } from "@tsonic/tsts";
+import type { CsharpPolicyContext } from "../../model/context.js";
+import { csharpLiteralIsRepresentableAs } from "../../conversions/literals.js";
+import type { TargetTypeRef } from "../../types/index.js";
+import { csharpSourcePrimitiveTargetType } from "../../types/index.js";
 
 export interface CsharpNumericBinaryPromotion {
   readonly leftType: TargetTypeRef;
