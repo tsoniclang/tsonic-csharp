@@ -43,7 +43,7 @@ function renderProjectSourceType(declaration: Node, input: CsharpPlanningContext
   if (factory !== undefined) return { kind: "QualifiedName",
     left: { kind: "IdentifierName", name: sanitizeIdentifier(factory.instanceScope) }, name: sanitizeIdentifier(factory.instanceName) };
   if (selected.name === undefined) failCsharpPlannerInvariant("An admitted native source type requires its exact declaration name.", declaration);
-  const name = planIdentifierName(selected.name, "InvalidProjectSourceTypeReference", input, diagnostics ?? [], "Project source type reference");
+  const name = planIdentifierName(selected.name, input, "Project source type reference");
   return selected.scopeName === undefined ? { kind: "IdentifierName", name }
     : { kind: "QualifiedName", left: { kind: "IdentifierName", name: sanitizeIdentifier(selected.scopeName) }, name };
 }

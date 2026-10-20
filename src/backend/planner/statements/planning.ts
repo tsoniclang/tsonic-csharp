@@ -209,7 +209,7 @@ export function planStatements(
         return failCsharpPlannerInvariant("An admitted local class lost its native capture values.", node);
       }
       return consumeCsharpPlannedValue(initializer, expression => [{ kind: "LocalDeclarationStatement", type, initializer: expression,
-        name: planIdentifierName(input.program.source.ast.name(node), "Class", input, diagnostics, "Local class") }]);
+        name: planIdentifierName(input.program.source.ast.name(node), input, "Local class") }]);
     }
     case KindVariableStatement: {
       const declarationList = AsVariableStatement(input.program.source.ast, node)!.DeclarationList;

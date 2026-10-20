@@ -28,6 +28,7 @@ import { analyzeCsharpClassEmission } from "../declarations/classes/planning.js"
 import { analyzeCsharpProjectEmission } from "../project-types/emission.js";
 import { analyzeCsharpTypeParameterEmission } from "../declarations/type-parameters.js";
 import { analyzeCsharpTypeEmission } from "../types/emission.js";
+import { analyzeCsharpIdentifierEmission } from "../names/source-identifiers.js";
 import { analyzeCsharpStatementExits } from "../control-flow/statement-exits.js";
 import { analyzeCsharpStatementCompletions } from "../control-flow/statement-completion.js";
 import { analyzeCsharpResourceScopes } from "../control-flow/resource-scopes.js";
@@ -585,6 +586,10 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const typeParameterEmission = analyzeCsharpTypeParameterEmission({ ast: source.ast, nodes: sourceStorage.nodes,
     evidence: analysis.sourceEvidence, admitted: admittedControlNode });
   if (typeParameterEmission.issues.length !== 0) return rejectedTargetStage(typeParameterEmission.issues);
+  const identifierIssues = analyzeCsharpIdentifierEmission({ ast: source.ast, nodes: sourceStorage.nodes, names,
+    factories: classFactories, projects: projectEmission.records, parameters: typeParameterEmission.records,
+    operations: admittedOperations, admitted: admittedControlNode });
+  if (identifierIssues.length !== 0) return rejectedTargetStage(identifierIssues);
   const typeEmission = analyzeCsharpTypeEmission({ ast: source.ast, nodes: sourceStorage.nodes, evidence: analysis.sourceEvidence,
     values: analysis.valueReads, storage: analysis.storage, shapes: objectShapeDemand, admitted: admittedControlNode });
   if (typeEmission.issues.length !== 0) return rejectedTargetStage(typeEmission.issues);

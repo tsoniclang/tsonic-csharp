@@ -60,7 +60,7 @@ export function planForInBinding(
   if (currentType === undefined) failCsharpPlannerInvariant(
     "An admitted for-in binding lost its finalized native storage rendering.", binding.node);
   return { kind: binding.kind === "assignment" ? "assignment" : "LocalDeclarationStatement",
-    name: planIdentifierName(binding.name, "ForInBinding", input, diagnostics, "For-in binding"),
+    name: planIdentifierName(binding.name, input, "For-in binding"),
     node: binding.node, declaration: binding.declaration, currentType,
     storageType: binding.storageType, sourceType: targetType, conversion: binding.conversion,
     ...(binding.kind === "declaration" ? { declarationKind: binding.declarationKind } : {}) };

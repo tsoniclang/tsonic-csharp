@@ -42,7 +42,7 @@ export function planTypeParameter(node: Node, input: CsharpPlanningContext, diag
   const selected = input.program.records.typeParameterEmission.get(node);
   if (selected === undefined) failCsharpPlannerInvariant("An admitted native generic parameter requires its sealed identity and constraints.", node);
   const scopedName = input.scope.typeParameterNames?.get(selected.identity);
-  const name = scopedName === undefined ? planIdentifierName(selected.name, "T", input, diagnostics, "Type parameter name")
+  const name = scopedName === undefined ? planIdentifierName(selected.name, input, "Type parameter name")
     : sanitizeIdentifier(scopedName);
   const constraints = selected.constraints.map(constraint =>
     csharpGenericConstraintFromTargetTypeParameterConstraint(input.scope.typeParameterNames, constraint, node, diagnostics));
