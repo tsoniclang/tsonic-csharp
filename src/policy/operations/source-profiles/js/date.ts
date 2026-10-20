@@ -1,26 +1,8 @@
-import type {
-  CsharpTargetMember,
-  TargetTypeRef,
-} from "../../../types/index.js";
+import type { CsharpTargetMember, TargetTypeRef } from "../../../types/index.js";
 import { csharpJsDateTargetType } from "../../../../target-model/types/carriers/js.js";
-import {
-  csharpNullableTargetType,
-  csharpSourcePrimitiveTargetType,
-  csharpStringTargetType,
-} from "../../../../target-model/types/index.js";
-import type {
-  CsharpSourceProfileCallPolicy,
-  CsharpSourceProfileCallPolicyContext,
-} from "../source-profile-policy.js";
-import {
-  instanceMethod,
-  jsCallIdentity,
-  jsCallPolicy,
-  jsConstructIdentity,
-  jsMemberIdentity,
-  staticMethod,
-  targetParameter,
-} from "./common.js";
+import { csharpNullableTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../../target-model/types/index.js";
+import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext } from "../../../model/source-profiles.js";
+import { instanceMethod, jsCallIdentity, jsCallPolicy, jsConstructIdentity, jsMemberIdentity, staticMethod, targetParameter } from "./common.js";
 
 const dateType = csharpJsDateTargetType();
 const stringType = csharpStringTargetType();
@@ -213,11 +195,7 @@ function dateConstructor(
   const argument = context.source.sourceArguments[0];
   const argumentType = argument === undefined
     ? undefined
-    : context.host.types.resolveSelectedValue(
-        argument.expression,
-        argument.type,
-        context.sourceFile,
-      );
+    : context.inputs.values.get(argument.expression)?.get(argument.type);
   if (
     context.source.sourceArguments.length > 1 ||
     argument !== undefined && argumentType === undefined
