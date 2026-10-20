@@ -1,113 +1,39 @@
 import { performance } from "node:perf_hooks";
 import { isAbsolute } from "node:path";
-import type {
-  ExtensionDiagnostic,
-  ProviderDeclarationMaterialization,
-  ProviderDeclarationModel,
-} from "@tsonic/tsts";
+import type { ExtensionDiagnostic, ProviderDeclarationMaterialization, ProviderDeclarationModel } from "@tsonic/tsts";
 import type { CsharpProviderBindingLookupPurpose, CsharpProviderBindingResolution } from "../../../target-model/metadata/provider-metadata.js";
 import { assertCsharpProviderLookupPurpose } from "../../model/relation-resolver.js";
-import type { CsharpProviderRuntimePreparation } from "../../model/relation-resolver.js";
+import type { CsharpProviderRuntimePreparation, CsharpProviderRuntimeAcquisition } from "../../model/relation-resolver.js";
 import { acquireCsharpRuntimeSources } from "./runtime-sources.js";
-import type {
-  DotnetModuleModel,
-  DotnetTypeDeclaration,
-} from "../model/index.js";
-import {
-  dotnetModuleSpecifierPolicy,
-  normalizeDotnetAssemblySourcePackages,
-  parseDotnetModuleSpecifier,
-} from "../projection/module-specifier.js";
-import type {
-  DotnetAssemblySourcePackage,
-  DotnetModuleSpecifierPolicy,
-} from "../projection/module-specifier.js";
-import type {
-  DotnetProviderIdentity,
-} from "../model/index.js";
-import {
-  validateDotnetModuleModelContract,
-} from "../model/normalization/index.js";
-import {
-  augmentDotnetModuleWithNativeArray,
-} from "../projection/module-native-array.js";
-import type {
-  DotnetProviderDeclarationContext,
-  DotnetProviderDiagnostic,
-  DotnetProviderModuleResult,
-  DotnetProviderOwnership,
-  DotnetTypeDataProvider,
-} from "../projection/provider.js";
-import {
-  emptyIncrementalDotnetProviderMaterialization,
-  resolveDotnetProviderDeclarationProjection,
-} from "../projection/provider.js";
-import {
-  createDotnetProviderCache,
-} from "./cache.js";
-import type {
-  DotnetProviderCacheRequest,
-} from "./cache.js";
-import type {
-  DotnetReflectionProviderBroker,
-} from "./broker.js";
-import {
-  dotnetModuleSpecifierForMetadataName,
-  dotnetModuleSpecifierForTargetId,
-} from "../projection/module-lookup.js";
-import {
-  dotnetProviderGlobalTelemetry,
-} from "./telemetry.js";
-import type {
-  DotnetProviderTelemetry,
-  DotnetProviderTelemetrySnapshot,
-} from "./telemetry.js";
-import {
-  createDotnetProviderToolRunner,
-} from "./tool.js";
-import {
-  countProviderVirtualDeclarations,
-} from "./declaration-count.js";
-import {
-  diagnostic,
-  isDotnetProviderDiagnostic,
-} from "./diagnostics.js";
-import {
-  dotnetProviderDiagnosticToExtensionDiagnostic,
-} from "../model/diagnostics.js";
-import {
-  defaultToolProjectPath,
-} from "./paths.js";
-import {
-  validateModuleSatisfiesRequest,
-} from "./module-request-validation.js";
-import {
-  missingDotnetSameModuleProviderRefExports,
-} from "../projection/module-slices.js";
-import {
-  createDotnetTargetBindingIndex,
-  findUniqueTargetBinding,
-} from "./target-binding-index.js";
-import {
-  dotnetProviderTargetRelationTemplates,
-} from "../projection/target-relations.js";
-import type {
-  DotnetProviderTargetRelationTemplate,
-} from "../projection/target-relations.js";
-import {
-  createDotnetReflectionCacheRequest,
-  moduleMemoryCacheKey,
-  pushDotnetReflectionReferenceArgs,
-  validateDotnetReflectionTargetFramework,
-} from "./cache-request.js";
-import {
-  dotnetReflectionProviderIdentity,
-} from "./provider-identity.js";
+import type { DotnetModuleModel, DotnetTypeDeclaration } from "../model/index.js";
+import { dotnetModuleSpecifierPolicy, normalizeDotnetAssemblySourcePackages, parseDotnetModuleSpecifier } from "../projection/module-specifier.js";
+import type { DotnetAssemblySourcePackage, DotnetModuleSpecifierPolicy } from "../projection/module-specifier.js";
+import type { DotnetProviderIdentity } from "../model/index.js";
+import { validateDotnetModuleModelContract } from "../model/normalization/index.js";
+import { augmentDotnetModuleWithNativeArray } from "../projection/module-native-array.js";
+import type { DotnetProviderDeclarationContext, DotnetProviderDiagnostic, DotnetProviderModuleResult, DotnetProviderOwnership, DotnetTypeDataProvider } from "../projection/provider.js";
+import { emptyIncrementalDotnetProviderMaterialization, resolveDotnetProviderDeclarationProjection } from "../projection/provider.js";
+import { createDotnetProviderCache } from "./cache.js";
+import type { DotnetProviderCacheRequest } from "./cache.js";
+import type { DotnetReflectionProviderBroker } from "./broker.js";
+import { dotnetModuleSpecifierForMetadataName, dotnetModuleSpecifierForTargetId } from "../projection/module-lookup.js";
+import { dotnetProviderGlobalTelemetry } from "./telemetry.js";
+import type { DotnetProviderTelemetry, DotnetProviderTelemetrySnapshot } from "./telemetry.js";
+import { createDotnetProviderToolRunner } from "./tool.js";
+import { countProviderVirtualDeclarations } from "./declaration-count.js";
+import { diagnostic, isDotnetProviderDiagnostic } from "./diagnostics.js";
+import { dotnetProviderDiagnosticToExtensionDiagnostic } from "../model/diagnostics.js";
+import { defaultToolProjectPath } from "./paths.js";
+import { validateModuleSatisfiesRequest } from "./module-request-validation.js";
+import { missingDotnetSameModuleProviderRefExports } from "../projection/module-slices.js";
+import { createDotnetTargetBindingIndex, findUniqueTargetBinding } from "./target-binding-index.js";
+import { dotnetProviderTargetRelationTemplates } from "../projection/target-relations.js";
+import type { DotnetProviderTargetRelationTemplate } from "../projection/target-relations.js";
+import { createDotnetReflectionCacheRequest, moduleMemoryCacheKey, pushDotnetReflectionReferenceArgs, validateDotnetReflectionTargetFramework } from "./cache-request.js";
+import { dotnetReflectionProviderIdentity } from "./provider-identity.js";
 import { defaultCsharpTargetFramework } from "../../../target-model/configuration/framework.js";
 import { resolveDotnetProviderToolchain, type DotnetProviderToolchain } from "./toolchain.js";
-import {
-  createDotnetReferenceSnapshot,
-} from "./reference-snapshot.js";
+import { createDotnetReferenceSnapshot } from "./reference-snapshot.js";
 
 export interface DotnetReflectionProviderStorage {
   readonly toolBuildRoot: string;
@@ -132,7 +58,7 @@ export interface DotnetReflectionTypeDataProviderOptions {
 
 export interface DotnetReflectionTypeDataProvider extends DotnetTypeDataProvider {
   validateReferences(): ExtensionDiagnostic | undefined;
-  prepareRuntimeSources(preparation: CsharpProviderRuntimePreparation): void;
+  prepareRuntimeSources(preparation: CsharpProviderRuntimePreparation): CsharpProviderRuntimeAcquisition;
   findTargetBindingByTargetId(targetId: string, purpose: CsharpProviderBindingLookupPurpose): CsharpProviderBindingResolution;
   findTargetBindingByMetadataName(metadataName: string, purpose: CsharpProviderBindingLookupPurpose): CsharpProviderBindingResolution;
   resolveTargetRelations(
@@ -194,7 +120,7 @@ export function createDotnetReflectionTypeDataProvider(
     references: options.references ?? [],
     telemetry,
   });
-  let runtimePreparation: CsharpProviderRuntimePreparation | undefined;
+  let runtimePrepared = false;
   let runtimeProvider: DotnetReflectionTypeDataProvider | undefined;
 
   function loadModule(specifier: string, context: DotnetProviderDeclarationContext): DotnetProviderModuleResult {
@@ -421,9 +347,20 @@ export function createDotnetReflectionTypeDataProvider(
       const result = validateReferenceSnapshot();
       return result === undefined ? runtimeProvider?.validateReferences() : dotnetProviderDiagnosticToExtensionDiagnostic(providerIdentity.id, result);
     },
-    prepareRuntimeSources(preparation: CsharpProviderRuntimePreparation): void {
-      if (runtimePreparation !== undefined) throw new TypeError("Native runtime acquisition inputs are prepared exactly once before analysis queries.");
-      runtimePreparation = preparation;
+    prepareRuntimeSources(preparation: CsharpProviderRuntimePreparation): CsharpProviderRuntimeAcquisition {
+      if (runtimePrepared) throw new TypeError("Native runtime metadata is prepared exactly once before analysis queries.");
+      runtimePrepared = true;
+      const acquired = preparation.project.kind !== "user-owned" && preparation.sources.length === 0
+        ? Object.freeze({ kind: "resolved" as const, references: Object.freeze([]) })
+        : acquireCsharpRuntimeSources(preparation, toolchain);
+      if (acquired.kind === "rejected") return acquired;
+      if (acquired.references.length !== 0) {
+        runtimeProvider = createDotnetReflectionTypeDataProvider({
+          ...options, toolchain,
+          references: Object.freeze([...new Set([...(options.references ?? []), ...acquired.references])]),
+        });
+      }
+      return acquired;
     },
     ownsModule(specifier: string): DotnetProviderOwnership {
       return parseDotnetModuleSpecifier(specifier, moduleSpecifierPolicy) === undefined ? { kind: "unowned" } : { kind: "owned" };
@@ -522,20 +459,7 @@ export function createDotnetReflectionTypeDataProvider(
     query: (provider: DotnetReflectionTypeDataProvider) => CsharpProviderBindingResolution,
   ): CsharpProviderBindingResolution {
     if (purpose === "ordinary" || selected.kind !== "missing") return selected;
-    if (runtimeProvider !== undefined) {
-      const current = query(runtimeProvider);
-      if (current.kind !== "missing") return current;
-    }
-    if (runtimePreparation === undefined || runtimePreparation.sources.length === 0) return selected;
-    const acquired = acquireCsharpRuntimeSources(runtimePreparation, toolchain, references => {
-      const provider = createDotnetReflectionTypeDataProvider({
-        ...options, toolchain, references: Object.freeze([...new Set([...(options.references ?? []), ...references])]),
-      });
-      const result = query(provider);
-      if (result.kind === "resolved") runtimeProvider = provider;
-      return result;
-    });
-    return acquired.kind === "missing" ? selected : acquired;
+    return runtimeProvider === undefined ? selected : query(runtimeProvider);
   }
 
   function findTargetBinding(
