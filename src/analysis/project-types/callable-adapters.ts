@@ -1,5 +1,4 @@
-import { failTargetAnalysisInvariant, rejectedTargetStage, resolvedTargetStage, targetDiagnosticFromExtension,
-  type TargetDiagnostic, type TargetStageResult } from "@tsonic/target-api/artifacts";
+import { failTargetAnalysisInvariant, rejectedTargetStage, resolvedTargetStage, targetDiagnosticFromExtension, type TargetDiagnostic, type TargetStageResult } from "@tsonic/target-api/artifacts";
 import type { Node } from "@tsonic/tsts";
 import { sourceObjectMemberDeclarations, sourceParameterIsProperty } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
@@ -28,8 +27,7 @@ import type { CsharpSourceNameResolver } from "../names/plan.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
 import type { CsharpNativeUseClassifications } from "../../target-model/records/native-demand.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpNativeInheritedDispatchSlot, CsharpNativeInheritedMember,
-  CsharpNativeTargetBindingFact } from "../../target-model/types/native-inheritance.js";
+import type { CsharpNativeInheritedDispatchSlot, CsharpNativeInheritedMember, CsharpNativeTargetBindingFact } from "../../target-model/types/native-inheritance.js";
 import { csharpNativeInheritanceLookup } from "../../target-model/types/native-inheritance.js";
 import { csharpTargetStorageIdentityEquals } from "../../policy/types/storage/storage-identity.js";
 
@@ -65,7 +63,7 @@ export function analyzeCsharpProjectCallableAdapters(
 }> {
   if (typeof native?.names.resolve !== "function" || typeof native.storage.storageType.get !== "function" ||
     typeof native.nativeUse.order !== "function" || typeof native.classPropertyStorage.get !== "function") {
-    throw new TypeError("Native callable dispatch requires the open authored-name lookup and completed storage and participation inputs.");
+    failTargetAnalysisInvariant("tsonic-csharp", "Native callable dispatch requires the open authored-name lookup and completed storage and participation inputs.");
   }
   const byDeclaration = new Map<Node, CsharpProjectCallableDispatch>();
   const requests = new Map<string, { readonly type: TargetTypeRef; readonly interfaces: Map<string, MethodRequest> }>();
