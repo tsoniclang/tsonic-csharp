@@ -1,10 +1,4 @@
-import {
-  type ArgumentPassingMode,
-  argumentPassingFactKey,
-  type ExtensionFactSubject,
-  type Node,
-  type ReadonlySourceFactResolver,
-} from "@tsonic/tsts";
+import { type ArgumentPassingMode, argumentPassingFactKey, type ExtensionFactSubject, type Node, type ReadonlySourceFactResolver } from "@tsonic/tsts";
 
 export interface CsharpSourceArgumentSelection {
   readonly passingMode: ArgumentPassingMode;

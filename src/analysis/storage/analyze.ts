@@ -8,7 +8,7 @@ import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
 import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import { selectCsharpSourceArgument } from "../../policy/operations/members/selection/argument-selection.js";
+import { selectCsharpSourceArgument } from "../../source/extension/arguments.js";
 import type { CsharpConversionClassifications } from "../../target-model/records/conversions.js";
 import type { CsharpExpectedTypeClassifications } from "../../target-model/records/expected-types.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
