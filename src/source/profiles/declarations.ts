@@ -1,15 +1,7 @@
-import {
-  targetSourceProfileDeclaration,
-  typescriptNoLibUtilityDeclarations,
-} from "@tsonic/target-api/provider";
-import type {
-  TargetCompilationSessionContext,
-  TargetSourceProfileContributions,
-} from "@tsonic/target-api/provider";
+import { targetSourceProfileDeclaration, typescriptNoLibUtilityDeclarations } from "@tsonic/target-api/provider";
+import type { TargetCompilationSessionContext, TargetSourceProfileContributions } from "@tsonic/target-api/provider";
 import { jsStandardSourceProfileDeclarations, sourceErrorDeclarations } from "@tsonic/js-source-profile";
-import {
-  csharpTargetId,
-} from "../../target-model/identities/source.js";
+import { csharpTargetId } from "../../target-model/identities/source.js";
 import { csharpSourceErrorNames } from "../../target-model/identities/source-errors.js";
 
 export const csharpSourceProfileOwnerId = csharpTargetId;

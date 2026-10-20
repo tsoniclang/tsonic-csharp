@@ -1,4 +1,5 @@
 import { createCsharpIntegerRangeIndex } from "./records/integer-ranges.js";
+import { analyzeCsharpSourceAliasReexports } from "../source-modules/alias-reexports.js";
 import type { CsharpTargetProgram } from "../../target-model/program.js";
 import { analyzeCsharpRepresentationIteration, representationContractsEqual, type CsharpRepresentationContract } from "./iteration.js";
 import { rejectCsharpAnalysisIssues } from "./issues.js";
@@ -60,6 +61,8 @@ function analyzeCsharpTargetProgramBeforeSeal(
 ): TargetStageResult<CsharpTargetProgram> {
   const { input, configuration, providers } = request;
   const source = input.source;
+  const aliasIssues = analyzeCsharpSourceAliasReexports(source.ast, source.navigation.sourceFiles);
+  if (aliasIssues.length !== 0) return rejectedTargetStage(aliasIssues.map(diagnostic => targetDiagnosticFromExtension(source.ast, diagnostic)));
   if (source.semantics.enumConstants.issues.length !== 0) return rejectedTargetStage(source.semantics.enumConstants.issues);
   const memoryBindings = createTsonicMemoryBindingIndex(source);
   const sourceAttributeApplications = createCsharpSourceAttributeApplicationIndex(source, source.navigation.sourceFiles);
