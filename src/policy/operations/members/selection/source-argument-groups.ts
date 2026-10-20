@@ -1,5 +1,5 @@
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
-import type { ResolvedSourceCallInfo } from "../../../../target-model/records/members.js";
+import type { ResolvedSourceCallInfo } from "../../../../target-model/records/source-calls.js";
 import type { CsharpSourceArgumentGroup, CsharpSourceArgumentGrouping, CsharpSourceArgumentGroupingEntry } from "../../../../target-model/records/operations.js";
 import type { CsharpTargetParameter, TargetTypeRef } from "../../../../target-model/types/model.js";
 
