@@ -7,7 +7,7 @@ import type { CsharpTypeResolutionScope } from "../../../policy/types/resolution
 import type { CsharpTypeResolutionState } from "./model.js";
 import { csharpBoundSourceType, csharpSourceBindings } from "../../../policy/types/resolution/type-bindings.js";
 import { resolveCsharpConditionalApplication } from "./conditional-types.js";
-import { nextState } from "../../../policy/types/resolution/state.js";
+import { nextState } from "./state.js";
 import { resolveCsharpOptionalStorage } from "../../../target-model/types/carriers/optional-storage.js";
 import { csharpTargetTypeComponents } from "../../../target-model/types/components.js";
 import { csharpTypeProjection } from "../../../target-model/types/projections.js";

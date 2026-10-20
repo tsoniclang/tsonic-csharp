@@ -6,7 +6,7 @@ import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpTargetBindingSubstitutions, substituteCsharpTargetMember } from "../../../policy/types/callables/member-substitution.js";
 import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { nextState } from "../../../policy/types/resolution/state.js";
+import { nextState } from "./state.js";
 
 export function resolveCsharpProviderIndexedAccess(
   scope: CsharpTypeResolutionScope, node: Node, queries: SourceFileSemantics, state: CsharpTypeResolutionState,

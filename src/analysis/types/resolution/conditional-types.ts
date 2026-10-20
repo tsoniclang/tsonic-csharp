@@ -6,7 +6,7 @@ import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import type { CsharpTypeResolutionScope } from "../../../policy/types/resolution/engine.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import { csharpBoundSourceType, csharpSourceBindings } from "../../../policy/types/resolution/type-bindings.js";
-import { nextState } from "../../../policy/types/resolution/state.js";
+import { nextState } from "./state.js";
 
 export function resolveCsharpConditionalApplication(
   scope: CsharpTypeResolutionScope,

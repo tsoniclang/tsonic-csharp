@@ -4,7 +4,7 @@ import { sourceEnclosingCallable, sourceExpressionCallArgument, type SourceClose
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpTypeResolutionScope } from "../../../policy/types/resolution/engine.js";
 import type { CsharpTypeResolutionState } from "./model.js";
-import { nextState } from "../../../policy/types/resolution/state.js";
+import { nextState } from "./state.js";
 import { getCsharpCollectionElementTargetType } from "../../../target-model/types/carriers/collections.js";
 import { combineCsharpTargetUnionMembers, isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpJsArrayTargetType } from "../../../target-model/types/carriers/js.js";

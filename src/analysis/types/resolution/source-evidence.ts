@@ -4,7 +4,7 @@ import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpSourceTypeParameter } from "../../../target-model/names/type-parameters.js";
 import type { CsharpTypeResolutionScope } from "../../../policy/types/resolution/engine.js";
 import type { CsharpTypeResolutionState } from "./model.js";
-import { nextState } from "../../../policy/types/resolution/state.js";
+import { nextState } from "./state.js";
 
 export function resolveCsharpUnionMemberCarrier(
   scope: CsharpTypeResolutionScope,

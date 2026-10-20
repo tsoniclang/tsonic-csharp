@@ -7,7 +7,7 @@ import { getCsharpNullableElementTargetType } from "../../../target-model/types/
 import type { CsharpTypeResolutionScope } from "../../../policy/types/resolution/engine.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { ResolvedSourceCallInfo } from "../../../target-model/records/source-calls.js";
-import { nextState } from "../../../policy/types/resolution/state.js";
+import { nextState } from "./state.js";
 
 export type CsharpSourceCallContractSelection =
   | { readonly kind: "declaration"; readonly contract: CsharpSourceCallContract | undefined }

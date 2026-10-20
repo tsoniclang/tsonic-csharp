@@ -3,7 +3,7 @@ import type { Node, Type } from "@tsonic/tsts";
 import type { CsharpTypeResolutionScope } from "../../../policy/types/resolution/engine.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import { csharpBoundSourceType, csharpSourceBindings } from "../../../policy/types/resolution/type-bindings.js";
-import { nextState } from "../../../policy/types/resolution/state.js";
+import { nextState } from "./state.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 
 export function bindCsharpSourceTypeArguments(
