@@ -1,4 +1,4 @@
-import type { CsharpObjectShapeDeclarationNaming, CsharpPreparedObjectShapeProjection, CsharpObjectShapeArtifactClosure, CsharpObjectShapeDemandClosure, CsharpObjectShapeProjectionAdmission } from "../../target-model/records/object-shape-demand.js";
+import type { CsharpObjectShapeArtifactClosure, CsharpObjectShapeProjectionAdmission } from "../../target-model/records/object-shape-demand.js";
 import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpJsonObjectShapeContractResult } from "../../target-model/records/json-object-shapes.js";
 import type { CsharpCaptureStorage } from "../../target-model/records/capture-storage.js";
@@ -6,7 +6,7 @@ import type { CsharpConversionClassifications } from "../../target-model/records
 import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 import type { CsharpProjectTypeClassifications } from "../../target-model/records/project-types.js";
 import type { CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
-import type { CsharpObjectShapeArtifact, CsharpObjectShapeProjectionDeclaration } from "../../target-model/records/object-shape-demand.js";
+
 import type { TargetTypeRef, CsharpObjectShapeProjectionKind } from "../../target-model/types/model.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeCapability, CsharpObjectShapeProjection } from "../../target-model/types/index.js";
 import { csharpObjectShapesEqual, csharpObjectShapeMemberContractKey } from "../../target-model/types/index.js";

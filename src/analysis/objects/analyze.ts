@@ -21,7 +21,7 @@ import { getCsharpNullableElementTargetType } from "../../target-model/types/car
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
 import type { CsharpStructuralInterfaceImplementation, CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
 import { inferCsharpTargetTypeParameterBindings, substituteObjectShapeMemberTargetTypeParameters, substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
-import { createCsharpObjectShapePropertyOrderIndex } from "../program/records/property-order.js";
+import { createCsharpObjectShapePropertyOrderIndex } from "./property-order.js";
 import { instantiateCsharpObjectShape } from "../../policy/types/objects/object-shape-policy/instantiation.js";
 import type { CsharpProjectTypeIssue } from "../../target-model/records/project-types.js";
 import { namedTargetTypeImplicitlyAccepts } from "../../policy/conversions/carriers.js";

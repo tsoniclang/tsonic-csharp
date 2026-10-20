@@ -24,7 +24,7 @@ import { csharpTypeParameterConstraintsEqual, csharpTypeParameterConstraintsImpl
 import type { CsharpTypeParameterConstraint } from "../../target-model/types/generic-constraints.js";
 import type { CsharpGenericProjectionIndex } from "../../target-model/records/type-projections.js";
 import { csharpProjectedType, csharpTypeProjection } from "../../target-model/types/projections.js";
-import type { CsharpSourceNameResolver } from "../names/source-names.js";
+import type { CsharpSourceNameResolver } from "../names/plan.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
 import type { CsharpNativeUseClassifications } from "../../target-model/records/native-demand.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";

@@ -19,7 +19,7 @@ import { type CsharpFrameClosure } from "../../target-model/records/capture-stor
 import { csharpTargetNamedType } from "../../target-model/types/factories.js";
 import { selectCsharpGenericFrameClosures } from "./generic-closures.js";
 import { getCsharpMethodValue, csharpObjectShapeMethodDeclaration } from "../../target-model/types/method-values.js";
-import type { CsharpSourceNameResolver } from "../names/source-names.js";
+import type { CsharpSourceNameResolver } from "../names/plan.js";
 import { createCsharpTypeParameterEnvironment } from "../../policy/constraints/type-parameter-environment.js";
 
 import { csharpCapturedMemberAccess } from "./captured-member-access.js";

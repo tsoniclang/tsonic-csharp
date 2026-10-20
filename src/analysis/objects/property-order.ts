@@ -1,8 +1,8 @@
 import type { CsharpObjectShapePropertyOrders, CsharpObjectShapeAuthoredOrder } from "../../target-model/records/object-shapes.js";
-import type { AstReader } from "@tsonic/tsts";
+import type { AstReader, Node } from "@tsonic/tsts";
 import { orderEnumerableOwnStringProperties } from "@tsonic/target-api/source";
 
-import type { CsharpObjectShapeFact, CsharpObjectShapeProjectionKind, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
+import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
 import { isSourceDeclaredNominalShape, isCsharpObjectShapeGeneratedMemberName } from "../../target-model/types/object-shape-projection.js";
 
 import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
@@ -132,4 +132,60 @@ function classifyCsharpObjectShapeAuthoredOrder(fact: CsharpObjectShapeFact, ast
   const authored = [...entries].filter(entry => entry.member.sourceKey.kind === "property")
     .sort((left, right) => left.start - right.start).map(entry => entry.member);
   return resolved(orderEnumerableOwnStringProperties(authored, member => member.sourceName).map(member => member.sourceName));
+}
+
+import { createCsharpObjectShapePropertyOrderProducer } from "../program/records/property-order.js";
+
+export function createCsharpObjectShapePropertyOrderIndex(
+  ast: AstReader,
+  reserveClassification: () => void,
+  completedNativeShapes: () => Iterable<CsharpObjectShapeFact>,
+  nativeImplementationAccepts: (source: TargetTypeRef, target: TargetTypeRef) => boolean,
+) {
+  const producer = createCsharpObjectShapePropertyOrderProducer();
+  let implementations: ReadonlyMap<string, readonly { readonly shape: CsharpObjectShapeFact; readonly contract: TargetTypeRef }[]> | undefined;
+  return Object.freeze({
+    record(shape: CsharpObjectShapeFact): void {
+      if (producer.contains(shape)) return;
+      reserveClassification();
+      if (implementations === undefined) {
+        const selected = new Map<string, { readonly shape: CsharpObjectShapeFact; readonly contract: TargetTypeRef }[]>();
+        const seen = new Set<CsharpObjectShapeFact>();
+        const pending = [...completedNativeShapes()];
+        for (const candidate of pending) {
+          if (seen.has(candidate)) continue;
+          reserveClassification();
+          seen.add(candidate);
+          if (candidate.declarationTemplate !== undefined) pending.push(candidate.declarationTemplate);
+          if (isInterfaceShape(candidate)) continue;
+          for (const implemented of candidate.implements ?? []) {
+            reserveClassification();
+            if (implemented.kind !== "target-named") continue;
+            const values = selected.get(implemented.id) ?? [];
+            values.push({ shape: candidate, contract: implemented });
+            selected.set(implemented.id, values);
+          }
+        }
+        implementations = selected;
+      }
+      const native: CsharpObjectShapeFact[] = [];
+      let complete = true;
+      for (const implementation of shape.targetType.kind === "target-named" ? implementations.get(shape.targetType.id) ?? [] : []) {
+        reserveClassification();
+        const match = csharpNativeInstantiationCanMatch(shape.targetType, implementation.contract, nativeImplementationAccepts);
+        if (match === undefined) complete = false;
+        else if (match) native.push(implementation.shape);
+      }
+      producer.record(shape, analyzeCsharpObjectShapePropertyOrders(shape, ast, complete ? native : undefined));
+    },
+    recordOccurrence: producer.recordOccurrence,
+    recordEmptyLiteral(node: Node): void {
+      if (producer.hasEmptyLiteral(node) || !ast.is.IsObjectLiteralExpression(node) || ast.properties(node).length !== 0) return;
+      reserveClassification();
+      producer.recordEmptyLiteral(node);
+    },
+    seal: producer.seal,
+    propertyOrder: producer.propertyOrder,
+    assignmentSourceOrder: producer.assignmentSourceOrder,
+  });
 }

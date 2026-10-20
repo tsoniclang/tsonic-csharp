@@ -6,7 +6,7 @@ import type { CsharpSourceEvidenceIndex } from "../../target-model/records/sourc
 import type { CsharpStorageClassifications, CsharpStorageIssue } from "../../target-model/records/storage.js";
 
 import { getCsharpClassFactory } from "../../target-model/types/carriers/class-factories.js";
-import type { CsharpSourceNameResolver } from "../names/source-names.js";
+import type { CsharpSourceNameResolver } from "../names/plan.js";
 import { csharpTargetNamedType } from "../../target-model/types/factories.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
 
