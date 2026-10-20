@@ -1,26 +1,9 @@
-import type {
-  ProviderDeclarationModel,
-  ProviderImportDeclaration,
-  SourceDeclarationProvider,
-} from "@tsonic/tsts";
-import {
-  createSourceSemanticsVirtualModuleProvider,
-  nativePointerProviderDeclaration,
-  providerExportDeclarationsForSemanticsModule,
-  safetyProviderDeclarations,
-  unsafeContextProviderDeclaration,
-} from "@tsonic/source-core/extension";
+import type { ProviderDeclarationModel, ProviderImportDeclaration, SourceDeclarationProvider } from "@tsonic/tsts";
+import { createSourceSemanticsVirtualModuleProvider, nativePointerProviderDeclaration, providerExportDeclarationsForSemanticsModule, safetyProviderDeclarations, unsafeContextProviderDeclaration } from "@tsonic/source-core/extension";
 import { tsonicCoreLangModule } from "@tsonic/source-core/facts";
-import {
-  csharpLangModule,
-  csharpProviderVersion,
-  csharpSourceVirtualModulesProviderId,
-} from "../../target-model/identities/source.js";
+import { csharpLangModule, csharpProviderVersion, csharpSourceVirtualModulesProviderId } from "../../target-model/identities/source.js";
 import { csharpSourceSemanticsModules } from "./source-modules.js";
-import {
-  csharpNativePointerExport,
-  csharpSafetyProviderNames,
-} from "../extension/explicit-safety.js";
+import { csharpNativePointerExport, csharpSafetyProviderNames } from "../extension/explicit-safety.js";
 import { csharpRankedArrayDescriptors } from "./ranked-arrays.js";
 
 export function createCsharpSourceVirtualModulesProvider(): SourceDeclarationProvider {
