@@ -1,14 +1,14 @@
-import type { CsharpTypeResolutionScope } from "./engine.js";
+import type { CsharpTypeResolutionScope } from "../../../policy/types/resolution/engine.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, Type } from "@tsonic/tsts";
 import { sourcePresentCallableType, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { nextState } from "./state.js";
-import { readCsharpSourceField } from "./source-markers.js";
-import { sourceRefinementOnlyRemovesNullish } from "./source-union-refinement.js";
+import { nextState } from "../../../policy/types/resolution/state.js";
+import { readCsharpSourceField } from "../../../policy/types/resolution/source-markers.js";
+import { sourceRefinementOnlyRemovesNullish } from "../../../policy/types/resolution/source-union-refinement.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { getCsharpGenericOptionalParts } from "../../../target-model/types/carriers/runtime-carriers.js";
-import { csharpSourceStorageContext } from "./source-storage-projection.js";
+import { csharpSourceStorageContext } from "../../../policy/types/resolution/source-storage-projection.js";
 
 export function resolveSelectedDeclarationResult(
   { declarationResultTypeNode, host, resolveAuthoredAndSelectedSourceType, resolveCallableType, resolveNodeWithState, resolveProjectEnumMemberTarget }: CsharpTypeResolutionScope,
