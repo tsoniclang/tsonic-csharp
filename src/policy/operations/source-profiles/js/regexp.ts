@@ -1,58 +1,12 @@
+import { regexpResultPropertyPolicies } from "./regexp-results.js";
 import { jsRegExpSourceProfileIdentity } from "@tsonic/js-source-profile";
-import type { Node } from "@tsonic/tsts";
-import { csharpSourceProfileDeclarationIdentity } from "../source-profile-identity.js";
-import type {
-  CsharpTargetMember,
-  TargetTypeRef,
-} from "../../../types/index.js";
-import {
-  csharpJsRegExpExecArrayTargetType,
-  csharpJsArrayTargetType,
-  csharpJsRegExpIndicesArrayTargetType,
-  csharpRegExpIndexPairTargetType,
-  csharpJsRegExpMatchArrayTargetType,
-  csharpJsRegExpNamedGroupsTargetType,
-  csharpJsRegExpNamedIndicesTargetType,
-  csharpJsRegExpStringIteratorTargetType,
-  csharpJsRegExpTargetType,
-  csharpExactJsRegExpExecArrayTargetType,
-  csharpExactJsRegExpIndicesArrayTargetType,
-  csharpExactJsRegExpMatchArrayTargetType,
-  csharpExactJsRegExpNamedGroupsTargetType,
-  csharpExactJsRegExpNamedIndicesTargetType,
-  csharpExactJsRegExpStringIteratorTargetType,
-} from "../../../../target-model/types/carriers/js.js";
-import {
-  csharpJsStringTargetType,
-  csharpNullableTargetType,
-  csharpAbsenceTargetType,
-  csharpSourcePrimitiveTargetType,
-  csharpStringTargetType,
-  targetTypeRefEquals,
-} from "../../../../target-model/types/index.js";
-import type {
-  CsharpSourceProfileCallPolicy,
-  CsharpSourceProfileCallPolicyContext,
-  CsharpSourceProfileElementPolicy,
-  CsharpSourceProfilePropertyPolicy,
-} from "../source-profile-policy.js";
-import {
-  instanceMethod,
-  jsCallIdentity,
-  jsCallPolicy,
-  jsConstructIdentity,
-  jsElementPolicy,
-  jsIndexerIdentity,
-  jsMemberIdentity,
-  jsPropertyPolicy,
-  staticMethod,
-  targetIndexer,
-  targetParameter,
-  targetProperty,
-} from "./common.js";
-import {
-  csharpJsReplacementCallbackParameter,
-} from "./replacement-callback.js";
+
+import type { CsharpTargetMember, TargetTypeRef } from "../../../types/index.js";
+import { csharpJsRegExpExecArrayTargetType, csharpJsArrayTargetType, csharpJsRegExpIndicesArrayTargetType, csharpRegExpIndexPairTargetType, csharpJsRegExpMatchArrayTargetType, csharpJsRegExpNamedGroupsTargetType, csharpJsRegExpNamedIndicesTargetType, csharpJsRegExpStringIteratorTargetType, csharpJsRegExpTargetType, csharpExactJsRegExpExecArrayTargetType, csharpExactJsRegExpIndicesArrayTargetType, csharpExactJsRegExpMatchArrayTargetType, csharpExactJsRegExpNamedGroupsTargetType, csharpExactJsRegExpNamedIndicesTargetType, csharpExactJsRegExpStringIteratorTargetType } from "../../../../target-model/types/carriers/js.js";
+import { csharpJsStringTargetType, csharpNullableTargetType, csharpAbsenceTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, targetTypeRefEquals } from "../../../../target-model/types/index.js";
+import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext, CsharpSourceProfileElementPolicy, CsharpSourceProfilePropertyPolicy } from "../../../model/source-profiles.js";
+import { instanceMethod, jsCallIdentity, jsCallPolicy, jsConstructIdentity, jsElementPolicy, jsIndexerIdentity, jsMemberIdentity, jsPropertyPolicy, staticMethod, targetIndexer, targetParameter, targetProperty } from "./common.js";
+import { csharpJsReplacementCallbackParameter } from "./replacement-callback.js";
 
 const identity = jsRegExpSourceProfileIdentity;
 const regexpOwner = identity.owners.regExp;
@@ -456,11 +410,7 @@ function resolveArgumentType(
   const argument = context.source.sourceArguments[index];
   return argument === undefined
     ? undefined
-    : context.host.types.resolveSelectedValue(
-        argument.expression,
-        argument.type,
-        context.sourceFile,
-      );
+    : context.inputs.values.get(argument.expression)?.get(argument.type);
 }
 
 function regexpConstructionParameterMapping(
@@ -513,7 +463,7 @@ function regexpInputMember(
     : wellKnown[operation === "matchAll" ? "matchAll" : operation];
   const receiver = context.source.sourceReceiver?.expression;
   const nativeTest = operation === "test" && !exact && receiver !== undefined &&
-    regexpReceiverHasNativeExecution(receiver, context);
+    context.inputs.nativeRegExpReceivers.has(receiver);
   const targetName = nativeTest ? "testNative" : operation;
   const resultType = operation === "test"
     ? boolType
@@ -533,38 +483,6 @@ function regexpInputMember(
     targetName,
     operation === "split" ? { optionalIndexes: [1] } : {},
   );
-}
-
-function regexpReceiverHasNativeExecution(
-  receiver: Node,
-  context: CsharpSourceProfileCallPolicyContext,
-): boolean {
-  const { ast, navigation } = context.host;
-  let origin = receiver;
-  while (ast.is.IsParenthesizedExpression(origin)) {
-    const inner = ast.as.AsParenthesizedExpression(origin)?.Expression;
-    if (inner === undefined) return false;
-    origin = inner;
-  }
-  if (ast.is.IsIdentifier(origin)) {
-    const declaration = navigation.sourceReferenceFor(origin)?.declaration;
-    const initializer = declaration === undefined || !ast.is.IsVariableDeclaration(declaration)
-      ? undefined : ast.as.AsVariableDeclaration(declaration)?.Initializer;
-    if (initializer === undefined || navigation.declarationUseSummary(declaration!).bindingWritten) return false;
-    const flow = navigation.expressionValueFlow(initializer);
-    if (flow.escapes || flow.hasUnclassifiedUse || flow.memberWritten || flow.bindingAliased) return false;
-    origin = initializer;
-  }
-  if (ast.kindName(origin) === "KindRegularExpressionLiteral") return true;
-  if (!ast.is.IsNewExpression(origin)) return false;
-  const semantics = context.host.semantics(ast.getSourceFile(origin) ?? context.sourceFile);
-  const selected = semantics.operations.call(origin);
-  const identity = selected === undefined ? undefined : csharpSourceProfileDeclarationIdentity(
-    ast, semantics, context.host.sourceFacts,
-    semantics.declarations.signatureDeclaration(selected.selectedSignature),
-  );
-  return identity?.owner === "js" && identity.kind === "construct" &&
-    identity.declaringName === regexpConstructorOwner;
 }
 
 function regexpReplacementMember(
@@ -618,70 +536,6 @@ function regexpProperty(
     type,
     { readonly },
   );
-}
-
-function regexpResultPropertyPolicies(
-  owner: string,
-  declaringType: TargetTypeRef,
-  indexType: TargetTypeRef,
-  inputType: TargetTypeRef,
-  groupsType: TargetTypeRef = namedGroupsType,
-  indicesType: TargetTypeRef = indicesArrayType,
-): readonly CsharpSourceProfilePropertyPolicy[] {
-  return [
-    jsPropertyPolicy(
-      jsMemberIdentity(owner, regexpResultMembers.index),
-      () =>
-        targetProperty(
-          `Tsonic.CSharp.Js.${owner}.index`,
-          regexpResultMembers.index,
-          regexpResultMembers.index,
-          declaringType,
-          indexType,
-          { readonly: true },
-        ),
-      instanceReceiver,
-    ),
-    jsPropertyPolicy(
-      jsMemberIdentity(owner, regexpResultMembers.input),
-      () =>
-        targetProperty(
-          `Tsonic.CSharp.Js.${owner}.input`,
-          regexpResultMembers.input,
-          regexpResultMembers.input,
-          declaringType,
-          inputType,
-          { readonly: true },
-        ),
-      instanceReceiver,
-    ),
-    jsPropertyPolicy(
-      jsMemberIdentity(owner, regexpResultMembers.groups),
-      () =>
-        targetProperty(
-          `Tsonic.CSharp.Js.${owner}.groups`,
-          regexpResultMembers.groups,
-          regexpResultMembers.groups,
-          declaringType,
-          csharpNullableTargetType(groupsType),
-          { readonly: true },
-        ),
-      instanceReceiver,
-    ),
-    jsPropertyPolicy(
-      jsMemberIdentity(owner, regexpResultMembers.indices),
-      () =>
-        targetProperty(
-          `Tsonic.CSharp.Js.${owner}.indices`,
-          regexpResultMembers.indices,
-          regexpResultMembers.indices,
-          declaringType,
-          csharpNullableTargetType(indicesType),
-          { readonly: true },
-        ),
-      instanceReceiver,
-    ),
-  ];
 }
 
 function targetTypeListKey(
