@@ -65,7 +65,7 @@ function planObjectLiteralExpressionWithObjectShape(node: Node, sourceFile: Sour
     }
     assignments.push(...planned);
   }
-  return planCsharpObjectInitialization(node, sourceFile, input, diagnostics, objectShape.targetType, type, captures, assignments);
+  return planCsharpObjectInitialization(node, sourceFile, input, diagnostics, objectShape.targetType, type, selected.initialization, captures, assignments);
 }
 
 function planJsValueObjectLiteral(

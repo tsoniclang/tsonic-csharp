@@ -6,8 +6,8 @@ import type { CsharpPlanningContext } from "../context.js";
 import { csharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { captureCsharpPlannedValue } from "./planned-value-composition.js";
 import { planCsharpAbsentValue, planCsharpPresentValueGuard } from "./optional-storage.js";
-import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
+import type { CsharpObjectInitialization } from "../../../target-model/records/object-literals.js";
 
 export interface CsharpPlannedObjectAssignment extends CsharpObjectInitializerAssignment {
   readonly carrier: TargetTypeRef;
@@ -22,6 +22,7 @@ export interface CsharpPlannedObjectInitializer {
 export function planCsharpObjectInitialization(
   node: Node, file: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
   carrier: TargetTypeRef, type: CsharpTypeNode,
+  initialization: CsharpObjectInitialization,
   initial: readonly CsharpPlannedObjectAssignment[], groups: readonly CsharpPlannedObjectInitializer[],
 ): CsharpPlannedValue | undefined {
   const inline: CsharpObjectInitializerAssignment[] = initial.map(({ name, expression }) => ({ kind: "AssignmentExpression", name, expression }));
@@ -33,25 +34,27 @@ export function planCsharpObjectInitialization(
     if (assignments.length !== 1) { direct = false; break; }
     inline.push(...assignments.map(({ name, expression }) => ({ kind: "AssignmentExpression" as const, name, expression })));
   }
-  if (direct && new Set(inline.map(assignment => assignment.name)).size === inline.length)
+  if (direct && initialization.inlineUnique)
     return csharpPlannedValue(carrier, { kind: "ObjectCreationExpression", type, assignments: inline });
   const prelude: CsharpStatement[] = [];
-  const slots = new Map<string, { readonly name: string; readonly carrier: TargetTypeRef; definite: boolean }>();
+  const slots = new Map<string, { readonly name: string }>();
+  const selectedSlots = new Map(initialization.slots.map(slot => [slot.name, slot]));
   const append = (assignment: CsharpPlannedObjectAssignment, optional: boolean): readonly CsharpStatement[] | undefined => {
     let slot = slots.get(assignment.name);
-    if (slot !== undefined && !targetTypeRefEquals(slot.carrier, assignment.carrier)) return undefined;
     if (slot === undefined) {
+      const selected = selectedSlots.get(assignment.name)
+        ?? failCsharpPlannerInvariant("An admitted object initialization requires its selected native storage slot.", node);
       const captured = captureCsharpPlannedValue(node, input, diagnostics, assignment.carrier);
       if (captured === undefined) return undefined;
-      const absent = optional ? planCsharpAbsentValue(assignment.carrier, input.scope.typeParameterNames) : undefined;
-      slot = { name: captured.name, carrier: assignment.carrier, definite: absent !== undefined || !optional };
+      const absent = selected.initializeAbsence ? planCsharpAbsentValue(selected.carrier, input) : undefined;
+      if (selected.initializeAbsence && absent === undefined) failCsharpPlannerInvariant("An admitted optional object slot requires its native absence initializer.", node);
+      slot = { name: captured.name };
       slots.set(assignment.name, slot);
       const declaration: CsharpStatement = { kind: "LocalDeclarationStatement", ...captured,
         ...(!optional ? { initializer: assignment.expression } : absent === undefined ? {} : { initializer: absent }) };
       if (!optional) return [declaration];
       prelude.push(declaration);
     }
-    if (!optional) slot.definite = true;
     return [{ kind: "ExpressionStatement", expression: { kind: "AssignmentExpression",
       left: { kind: "IdentifierName", name: slot.name }, operatorToken: { kind: "EqualsToken" }, right: assignment.expression } }];
   };
@@ -74,7 +77,7 @@ export function planCsharpObjectInitialization(
     }
     const guard = group.presence.kind !== "optional" ? undefined : planCsharpPresentValueGuard(
       group.value.completion.carrier, group.presence.carrier, value,
-      input.names.temporaryName(`__tsonic_present_${input.program.source.ast.pos(node)}`), input.scope.typeParameterNames,
+      input.names.temporaryName(`__tsonic_present_${input.program.source.ast.pos(node)}`), input,
     );
     if (group.presence.kind === "optional" && guard === undefined) return undefined;
     const stores: CsharpStatement[] = [];
@@ -86,10 +89,6 @@ export function planCsharpObjectInitialization(
     if (guard === undefined) prelude.push(...stores);
     else if (stores.length > 0) prelude.push({ kind: "IfStatement", condition: guard.condition,
       thenBody: { kind: "Block", statements: stores } });
-  }
-  if ([...slots.values()].some(slot => !slot.definite)) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Native object construction requires a definite value for every required storage member."));
-    return undefined;
   }
   void file;
   return csharpPlannedValue(carrier, { kind: "ObjectCreationExpression", type,

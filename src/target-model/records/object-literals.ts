@@ -13,9 +13,14 @@ export type CsharpObjectLiteralMemberEmission =
 export type CsharpObjectLiteralEmission = {
   readonly members: readonly CsharpObjectLiteralMemberEmission[];
 } & (
-  | { readonly kind: "native" }
+  | { readonly kind: "native"; readonly initialization: CsharpObjectInitialization }
   | { readonly kind: "js"; readonly keyCarrier: TargetTypeRef; readonly operation: Extract<CsharpJsValueOperationSelection, { readonly kind: "resolved" }> }
 );
+
+export interface CsharpObjectInitialization {
+  readonly inlineUnique: boolean;
+  readonly slots: readonly { readonly name: string; readonly carrier: TargetTypeRef; readonly initializeAbsence: boolean }[];
+}
 
 export interface CsharpObjectLiteralRecords {
   readonly objectLiteral: { readonly get: (shape: CsharpObjectShapeFact, node: Node) => CsharpObjectLiteralEmission | undefined };

@@ -23,6 +23,7 @@ import { createCsharpObjectLiteralRecords } from "../program/records/object-lite
 import type { CsharpSourceMemberKey } from "../../target-model/types/model.js";
 import { selectCsharpObjectLiteralCallable } from "../../policy/objects/object-literals.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
+import { analyzeCsharpObjectInitialization } from "./initialization.js";
 
 export function analyzeCsharpObjectLiterals(input: {
   readonly source: TargetSourceSyntaxProgram;
@@ -203,7 +204,14 @@ export function analyzeCsharpObjectLiterals(input: {
         continue;
       }
       entries.push({ shape, node, value: Object.freeze({ kind: "js", members: Object.freeze(members), keyCarrier: csharpStringTargetType(), operation }) });
-    } else entries.push({ shape, node, value: Object.freeze({ kind: "native", members: Object.freeze(members) }) });
+    } else {
+      const captures = input.methods.objectCaptures.get(shape)
+        ?? failTargetAnalysisInvariant("tsonic-csharp", "An admitted object literal requires its complete native capture-field inventory.", node);
+      const initialization = analyzeCsharpObjectInitialization(node, shape, members, captures,
+        expression => { const selected = childUse(use, expression); return selected !== undefined && selected.kind !== "erased" && selected.completion.kind === "never"; });
+      issues.push(...initialization.issues);
+      entries.push({ shape, node, value: Object.freeze({ kind: "native", members: Object.freeze(members), initialization: initialization.value }) });
+    }
   }
   return Object.freeze({ records: createCsharpObjectLiteralRecords(entries), issues: Object.freeze(issues) });
 }
