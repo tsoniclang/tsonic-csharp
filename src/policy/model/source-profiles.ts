@@ -76,6 +76,7 @@ export type CsharpSourceProfileElementPolicyResult =
     };
 
 export interface CsharpSourceProfileCallPolicy {
+  readonly inputRequirements?: import("../../target-model/records/source-profile-inputs.js").CsharpSourceProfileInputRequirements;
   readonly finalizeArguments?: true;
   readonly source: CsharpSourceProfileIdentitySelector;
   readonly inheritableConstructor?: CsharpTargetMember;
