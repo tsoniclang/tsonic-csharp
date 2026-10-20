@@ -1,23 +1,23 @@
-import type { CsharpTypeResolutionScope } from "./engine.js";
+import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, Type } from "@tsonic/tsts";
 import { sourcePresentCallableType, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
-import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
+
 import { nextState } from "./state.js";
-import { resolveBinaryTargetRepresentation, commonTargetRepresentation, getTaskResultType } from "./representation.js";
-import { selectCsharpTargetCall, selectCsharpTargetElement, selectCsharpTargetProperty } from "../../operations/members/selection/target-selection.js";
+import { resolveBinaryTargetRepresentation, commonTargetRepresentation, getTaskResultType } from "../../../policy/types/representation.js";
+import { selectCsharpTargetCall, selectCsharpTargetElement, selectCsharpTargetProperty } from "../../../policy/operations/members/selection/target-selection.js";
 import { isCsharpAssignmentOperator, sourceOperatorFromKindName } from "../../../target-model/syntax/operators.js";
-import { selectCsharpMethodValue } from "../objects/method-values.js";
+import { selectCsharpMethodValue } from "../../../policy/types/objects/method-values.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import { getCsharpClassFactory } from "../../../target-model/types/carriers/class-factories.js";
 import { substituteTargetTypeParameters } from "../../../target-model/types/substitution.js";
 import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
 import { resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
-import { selectCsharpConditionalNumericCarrier } from "../conditional-numeric-carrier.js";
+import { selectCsharpConditionalNumericCarrier } from "../../../policy/types/conditional-numeric-carrier.js";
 import { getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
-import { resolveCsharpStaticMemberReceiver } from "../project/static-members.js";
+import { resolveCsharpStaticMemberReceiver } from "../../../policy/types/project/static-members.js";
 import { combineCsharpTargetUnionMembers } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { resolveCsharpContextualLiteralCarrier } from "./contextual-literals.js";
@@ -460,14 +460,4 @@ export function resolveSourceOwnedConstructionResult(
         state,
         source.sourceResultType,
       );
-}
-
-export function optionalAccessTargetType(
-  {  }: CsharpTypeResolutionScope,
-  type: TargetTypeRef | undefined,
-  optionalChain: boolean,
-): TargetTypeRef | undefined {
-  return type === undefined || !optionalChain
-    ? type
-    : csharpNullableTargetType(type);
 }
