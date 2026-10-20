@@ -128,7 +128,7 @@ export function analyzeCsharpObjectShapeEmission(input: {
       }
       for (const type of typeConstraints) {
         const reason = csharpTargetTypeRenderingRejection(type);
-        if (reason !== undefined) refuse(reason);
+        if (reason !== undefined) refuse(`The exact C# object-shape constraint has no native type syntax (${reason.reason}).`);
       }
       result.push(Object.freeze({ parameter, name, constraints: resolution.constraints,
         variance: fact.covariantTypeParameterIdentities?.includes(parameter.identity) === true ? "out" : undefined }));
