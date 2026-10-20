@@ -1,4 +1,4 @@
-import type { CsharpTypeResolutionScope } from "./engine.js";
+import type { CsharpTypeResolutionScope } from "../../../policy/types/resolution/engine.js";
 import { resolveCsharpConstructorValueType } from "./constructors.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
@@ -6,19 +6,20 @@ import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { combineCsharpTargetUnionMembers } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpJsArrayTargetType } from "../../../target-model/types/carriers/js.js";
-import { getCsharpCollectionElementTargetType } from "../../../target-model/types/carriers/collections.js";
-import { getCsharpNullableElementTargetType, csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
+
+import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { maximumTypeResolutionDepth } from "./model.js";
 import { nextState } from "./state.js";
-import { resolveCsharpSourceLiteralTargetType } from "./source-literal-policy.js";
-import { resolveKeywordType } from "./source-primitives.js";
-import { selectedCsharpSourceProfileOwner } from "./source-profile.js";
+import { resolveCsharpSourceLiteralTargetType } from "../../../policy/conversions/source-literals.js";
+import { resolveKeywordType } from "../../../policy/types/source-primitives.js";
+import { selectedCsharpSourceProfileOwner } from "../../../policy/identities/source-types.js";
 import { sourceFactSubjectsForNode } from "./source-evidence.js";
-import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+
 import { retainCsharpUnionObjectShapes } from "./source-union-refinement.js";
 import { resolveCsharpProviderIndexedAccess } from "./indexed-access.js";
 import { csharpSourceStorageContext, csharpSourceStorageComponentContext } from "./source-storage-projection.js";
 
+import { selectCsharpParameterListCarrier } from "../../../policy/types/callables/parameter-list.js";
 export function resolveNodeWithState(
   scope: CsharpTypeResolutionScope,
   node: Node | undefined,
@@ -253,34 +254,8 @@ export function resolveTupleTypeNode(
   const restIndexes = syntaxElements.flatMap((element, index) =>
     tupleElementIsRest(element) ? [index] : []
   );
-  if (restIndexes.length === 0) {
-    return {
-      kind: "tuple",
-      elements: elements as readonly TargetTypeRef[],
-    };
-  }
-  if (restIndexes.length !== 1) {
-    return undefined;
-  }
-  const restIndex = restIndexes[0]!;
-  const restElement = getCsharpCollectionElementTargetType(
-    elements[restIndex],
-  );
-  if (restElement === undefined) {
-    return undefined;
-  }
-  const homogeneous = elements.every((element, index) => {
-    const value = index === restIndex
-      ? restElement
-      : getCsharpNullableElementTargetType(element) ?? element;
-    return value !== undefined && targetTypeRefEquals(value, restElement);
-  });
-  if (!homogeneous) {
-    return undefined;
-  }
-  return selectedCsharpSourceProfileOwner(host.target) === "js"
-    ? csharpJsArrayTargetType(restElement)
-    : { kind: "array", element: restElement };
+  return selectCsharpParameterListCarrier(elements as readonly TargetTypeRef[], restIndexes,
+    selectedCsharpSourceProfileOwner(host.target) === "js");
 }
 
 export function tupleElementIsRest(
