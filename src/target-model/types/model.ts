@@ -1,11 +1,4 @@
-import type {
-  ArgumentPassingMode,
-  ExtensionFactSubject,
-  Node,
-  ResolvedSourceWellKnownSymbolInfo,
-  SourcePrimitiveKind,
-  Type,
-} from "@tsonic/tsts";
+import type { ArgumentPassingMode, ExtensionFactSubject, Node, ResolvedSourceWellKnownSymbolInfo, SourcePrimitiveKind, Type } from "@tsonic/tsts";
 import type { CsharpTargetBinaryExecutionDriver } from "../metadata/provider-metadata.js";
 
 export type CsharpTypeofRuntimeKind = "string" | "number" | "boolean" | "bigint" | "symbol" | "object" | "function" | "undefined";
