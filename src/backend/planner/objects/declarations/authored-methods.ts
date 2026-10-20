@@ -67,7 +67,7 @@ export function renderCsharpAuthoredObjectMethods(
 }
 
 export function planCsharpObjectCaptureAssignments(
-  shape: CsharpObjectShapeFact, literal: Node, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], state?: DestructuringPlannerState,
+  shape: CsharpObjectShapeFact, literal: Node, input: CsharpPlanningContext, _diagnostics: TargetDiagnostic[], state?: DestructuringPlannerState,
 ): readonly CsharpPlannedObjectAssignment[] | undefined {
   if (shape.methodImplementation !== undefined && shape.methodImplementation.declaration !== literal) return [];
   const assignments: CsharpPlannedObjectAssignment[] = [];
