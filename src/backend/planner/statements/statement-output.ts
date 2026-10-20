@@ -127,7 +127,7 @@ function discardAssignment(expression: CsharpExpression, carrier: TargetTypeRef 
   while (selected.kind === "ParenthesizedExpression") selected = selected.expression;
   let value = expression;
   if (selected.kind === "LambdaExpression") {
-    const type = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
+    const type = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier, undefined);
     if (type === undefined) failCsharpPlannerInvariant("Discarded native callable syntax requires its sealed delegate carrier.");
     value = { kind: "CastExpression", type, expression: { kind: "ParenthesizedExpression", expression } };
   }
