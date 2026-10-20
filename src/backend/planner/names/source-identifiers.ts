@@ -11,7 +11,7 @@ export function planIdentifierName(
   if (node === undefined) {
     failCsharpPlannerInvariant(`An admitted ${description} requires its checked name node.`, node);
   }
-  const resolution = input.names.resolve(node);
+  const resolution = input.program.records.sourceName.get(node);
   if (resolution.kind === "resolved") {
     return resolution.name;
   }

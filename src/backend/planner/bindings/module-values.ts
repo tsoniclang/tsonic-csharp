@@ -12,7 +12,7 @@ export function planCsharpSourceModuleMemberName(
   _diagnostics: TargetDiagnostic[],
 ): string {
   if (HasSourceKind(input.program.source.ast, declaration, KindExportAssignment)) return "@default";
-  const selected = input.program.names.resolve(Node_Name(input.program.source.ast, declaration));
+  const selected = input.program.records.sourceName.get(Node_Name(input.program.source.ast, declaration));
   if (selected.kind !== "resolved") failCsharpPlannerInvariant("An admitted cross-file reference requires its exact native declaration name.", declaration);
   return selected.name;
 }

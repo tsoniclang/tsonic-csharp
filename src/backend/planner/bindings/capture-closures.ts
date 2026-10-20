@@ -56,7 +56,7 @@ export function planCsharpFrameClosureReference(
       let expression = csharpCapturedBindingExpression(binding.declaration, input, state);
       if (expression === undefined && name !== undefined) {
         const local = getCsharpLocalBindingName(name, input, state);
-        const selectedName = input.program.names.resolve(name);
+        const selectedName = input.program.records.sourceName.get(name);
         if (local === undefined && selectedName.kind !== "resolved") failCsharpPlannerInvariant("An admitted captured binding requires its sealed native name.", binding.declaration);
         expression = { kind: "IdentifierName", name: local === undefined && selectedName.kind === "resolved" ? selectedName.name : local! };
       }

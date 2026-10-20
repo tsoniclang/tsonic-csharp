@@ -81,7 +81,7 @@ export function planCsharpObjectCaptureAssignments(
       expression = csharpCapturedBindingExpression(declaration, input, state);
       if (expression === undefined && name !== undefined) {
         const local = getCsharpLocalBindingName(name, input, state);
-        const selected = input.program.names.resolve(name);
+        const selected = input.program.records.sourceName.get(name);
         if (local === undefined && selected.kind !== "resolved") failCsharpPlannerInvariant("An admitted object capture requires its native binding name.", declaration);
         expression = { kind: "IdentifierName", name: local === undefined && selected.kind === "resolved" ? selected.name : local! };
       }

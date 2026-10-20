@@ -213,7 +213,7 @@ export function declareCsharpLocalBindingName(
   if (existing !== undefined) {
     return existing;
   }
-  const selected = input.program.names.resolve(node);
+  const selected = input.program.records.sourceName.get(node);
   if (selected.kind !== "resolved") return failCsharpPlannerInvariant(
     "An emitted native binding lost its pre-seal target name.", node);
   const plannedName = selected.name;

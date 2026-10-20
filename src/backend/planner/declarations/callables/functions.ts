@@ -47,7 +47,7 @@ export function planSourceFunctionDeclaration(
   { readonly body: NonNullable<CsharpMethodDeclaration["body"]> } } {
   const declaration = AsFunctionDeclaration(input.program.source.ast, node)!;
   const name = declaration.name === undefined || parent === undefined ? undefined : getCsharpLocalBindingName(declaration.name, input, parent);
-  const selectedName = name ?? planCsharpAdmittedMemberName(input.program.names, declaration.name);
+  const selectedName = name ?? planCsharpAdmittedMemberName(input.program.records, declaration.name);
   const emission = input.program.records.callableDeclaration.get(node);
   if (emission === undefined) failCsharpPlannerInvariant("An admitted source function requires its sealed native declaration plan.", node);
   const state = parent === undefined ? createDestructuringPlannerState(node, input.program.source.ast)

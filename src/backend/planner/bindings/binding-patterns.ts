@@ -102,7 +102,7 @@ function planBindingNameFromProjection(
           input,
           state,
         );
-    const selectedName = input.program.names.resolve(name);
+    const selectedName = input.program.records.sourceName.get(name);
     if (selectedName.kind !== "resolved") return failCsharpPlannerInvariant(
       "An admitted destructured binding lost its pre-seal native name.", name);
     const local = captured === undefined ? {

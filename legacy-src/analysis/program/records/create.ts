@@ -47,6 +47,7 @@ import type { CsharpStructuralObjectEmissionRecords } from "../../../target-mode
 import type { CsharpCompilationEmission } from "../../../target-model/records/compilation.js";
 import type { CsharpSourceUnionEmissionRecords } from "../../../target-model/records/source-unions.js";
 import { createCsharpCompilationRecords } from "./compilation.js";
+import { createCsharpSourceNameRecords } from "./names.js";
 import { createCsharpJsonObjectShapeRecords } from "./json-object-shapes.js";
 import type { CsharpObjectMethodRecords } from "../../../target-model/records/object-methods.js";
 import type { CsharpObjectMemberRecords } from "../../../target-model/records/object-members.js";
@@ -56,6 +57,7 @@ import type { CsharpFrozenDataPropertyRecords } from "../../../target-model/reco
 import type { CsharpCaptureMethodRecords } from "../../../target-model/records/capture-methods.js";
 
 export interface CsharpProgramRecordInput {
+  readonly names: import("../../../target-model/names/model.js").CsharpNamePlan;
   readonly propertyValueProjection: import("../../../target-model/records/property-value-projection.js").CsharpPropertyValueProjectionRecords;
   readonly arrayLiterals: import("../../../target-model/records/array-literals.js").CsharpArrayLiteralRecords;
   readonly literalEmission: import("../../../target-model/records/literal-emission.js").CsharpLiteralEmissionRecords;
@@ -208,6 +210,7 @@ export function createCsharpProgramRecords(
     ...createCsharpJsonObjectShapeRecords(input.objectShapeDemand),
     ...input.structuralObjectEmission,
     ...createCsharpCompilationRecords(input.compilation),
+    ...createCsharpSourceNameRecords(input.names),
     ...input.sourceUnions,
     ...input.classEmission,
     ...input.callableParameters,

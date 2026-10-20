@@ -27,7 +27,7 @@ export function planEnumDeclaration(
   if (definition?.kind !== "enum") failCsharpPlannerInvariant("A source enum requires its admitted integer-width definition.", node);
   return {
     kind: "EnumDeclaration",
-    name: planCsharpAdmittedMemberName(input.program.names, declaration.name),
+    name: planCsharpAdmittedMemberName(input.program.records, declaration.name),
     underlyingType: definition.integerWidth === 32 ? "int" : "long",
     modifiers: ["public"],
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
@@ -50,7 +50,7 @@ function planEnumMember(
   if (typeof enumValue !== "bigint") failCsharpPlannerInvariant("A native enum member requires its admitted exact integer constant.", node);
   return {
     kind: "EnumMemberDeclaration",
-    name: planCsharpAdmittedMemberName(input.program.names, member.name ?? Node_Name(input.program.source.ast, node)),
+    name: planCsharpAdmittedMemberName(input.program.records, member.name ?? Node_Name(input.program.source.ast, node)),
     value: planIntegerLiteral(input.scope.typeParameterNames, enumValue,
       { kind: "source-primitive", name: integerWidth === 32 ? "int32" : "int64" }) ??
         failCsharpPlannerInvariant("An admitted enum integer requires its native literal syntax.", node),

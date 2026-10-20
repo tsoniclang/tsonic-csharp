@@ -116,7 +116,7 @@ function planInterfaceMethodDeclaration(
   );
   return {
     kind: "MethodDeclaration",
-    name: planCsharpAdmittedMemberName(input.program.names, declaration.name),
+    name: planCsharpAdmittedMemberName(input.program.records, declaration.name),
     modifiers: [...planCsharpNativeMemberHiding(input.program.records.nativeMemberHiding, { kind: "source", declaration: node, role: "member" }), ...csharpSafetyModifiersForDeclaration(
       node,
       "declaration",
@@ -147,7 +147,7 @@ function planInterfacePropertyDeclaration(
   const writable = !input.program.source.ast.hasModifierKind(node, "readonly");
   return {
     kind: "PropertyDeclaration",
-    name: planCsharpAdmittedMemberName(input.program.names, declaration.name),
+    name: planCsharpAdmittedMemberName(input.program.records, declaration.name),
     modifiers: [...planCsharpNativeMemberHiding(input.program.records.nativeMemberHiding, { kind: "source", declaration: node, role: "member" }), ...csharpSafetyModifiersForDeclaration(
       node,
       "declaration",
@@ -210,7 +210,7 @@ function planInterfaceIndexerDeclaration(
 
 function requiredName(name: Node | undefined, input: CsharpPlanningContext, subject: Node): string {
   if (name === undefined) failCsharpPlannerInvariant("An admitted native interface member requires its checked source name.", subject);
-  const selected = input.program.names.resolve(name);
+  const selected = input.program.records.sourceName.get(name);
   if (selected.kind !== "resolved") failCsharpPlannerInvariant("An admitted native interface member requires its selected native name.", subject);
   return selected.name;
 }

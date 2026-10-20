@@ -70,7 +70,7 @@ export function planClassInitializationRegion(
     const value = fields.get(node);
     if (value === undefined) continue;
     const property = ast.as.AsPropertyDeclaration(node)!;
-    const name = planCsharpAdmittedMemberName(input.program.names, property.name);
+    const name = planCsharpAdmittedMemberName(input.program.records, property.name);
     const defaultValue = defaults.get(node);
     entries.push({ node, name, value, ...(defaultValue === undefined ? {} : { defaultValue }) });
   }

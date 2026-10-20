@@ -1,6 +1,5 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../target-model/types/index.js";
-import type { CsharpNamePlan } from "../../target-model/names/model.js";
 import type { CsharpTargetProgram } from "../../analysis/program/index.js";
 import type { CsharpExpression, CsharpMethodDeclaration } from "../target-ast/syntax/index.js";
 import type { CsharpDelegateAdapterIdentity } from "../../target-model/records/conversions.js";
@@ -19,7 +18,7 @@ export interface CsharpPlanningScope {
   readonly sourceThisBinding?: { readonly name: string; readonly targetType: TargetTypeRef };
 }
 
-export type CsharpPlanningNames = Pick<CsharpNamePlan, "resolve"> & CsharpSyntheticNames;
+export type CsharpPlanningNames = CsharpSyntheticNames;
 
 export interface CsharpPlanningContext {
   readonly storageExpression?: Node;
@@ -27,17 +26,16 @@ export interface CsharpPlanningContext {
   readonly program: {
     readonly source: Pick<CsharpTargetProgram["source"], "ast">;
     readonly records: CsharpTargetProgram["records"];
-    readonly names: CsharpTargetProgram["names"];
   };
   readonly names: CsharpPlanningNames;
   readonly scope: CsharpPlanningScope;
 }
 
 export function createCsharpPlanningContext(program: CsharpTargetProgram): CsharpPlanningContext {
-  const names: CsharpPlanningNames = Object.freeze({ resolve: program.names.resolve,
-    temporaryName: createCsharpSyntheticNames(program.names.reservedNames).temporaryName });
-  return Object.freeze({ host: program.host, program: Object.freeze({ source: Object.freeze({ ast: program.source.ast }), records: program.records, names: program.names }),
-    names, scope: Object.freeze({ typeParameterNames: new Map(program.names.typeParameterNames.map(parameter => [parameter.identity, parameter.name])) }) });
+  const inventory = program.records.nameInventory.get();
+  const names: CsharpPlanningNames = createCsharpSyntheticNames(inventory.reservedNames);
+  return Object.freeze({ host: program.host, program: Object.freeze({ source: Object.freeze({ ast: program.source.ast }), records: program.records }),
+    names, scope: Object.freeze({ typeParameterNames: new Map(inventory.typeParameterNames.map(parameter => [parameter.identity, parameter.name])) }) });
 }
 
 export function createCsharpMemberPlanningContext(input: CsharpPlanningContext): CsharpPlanningContext {

@@ -52,9 +52,10 @@ import type { CsharpIndexedRecordRecords } from "./indexed-records.js";
 import type { CsharpFrozenDataPropertyRecords } from "./frozen-data-properties.js";
 import type { CsharpCaptureMethodRecords } from "./capture-methods.js";
 import type { CsharpCompilationRecords } from "./compilation.js";
+import type { CsharpSourceNameRecords } from "./names.js";
 import type { CsharpSourceUnionEmissionRecords } from "./source-unions.js";
 
-export interface CsharpProgramRecords extends CsharpStatementExitRecords, CsharpStatementCompletionRecords, CsharpResourceScopeRecords, CsharpDeclarationModifierRecords, CsharpNativeDeclarationRecords, CsharpStructuralInterfaceRecords, CsharpLexicalValueRecords, CsharpConstructorEmissionRecords, CsharpClassEmissionRecords {
+export interface CsharpProgramRecords extends CsharpSourceNameRecords, CsharpStatementExitRecords, CsharpStatementCompletionRecords, CsharpResourceScopeRecords, CsharpDeclarationModifierRecords, CsharpNativeDeclarationRecords, CsharpStructuralInterfaceRecords, CsharpLexicalValueRecords, CsharpConstructorEmissionRecords, CsharpClassEmissionRecords {
   readonly projectDeclaration: import("./project-emission.js").CsharpProjectEmissionRecords["projectDeclaration"];
   readonly projectTypeParameterNames: import("./project-emission.js").CsharpProjectEmissionRecords["projectTypeParameterNames"];
   readonly startup: import("./startup.js").CsharpStartupRecords["startup"];

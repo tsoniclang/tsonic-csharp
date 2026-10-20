@@ -19,7 +19,7 @@ export function planCsharpParameterPropertyAssignments(
     if (!sourceParameterIsProperty(ast, parameter)) return [];
     const name = ast.name(parameter);
     if (name === undefined) failCsharpPlannerInvariant("An admitted parameter property requires its authored identifier.", parameter);
-    const memberName = planCsharpAdmittedMemberName(input.program.names, name);
+    const memberName = planCsharpAdmittedMemberName(input.program.records, name);
     const valueName = declareCsharpLocalBindingName(name, input, state);
     return [{ kind: "ExpressionStatement", expression: {
       kind: "AssignmentExpression",

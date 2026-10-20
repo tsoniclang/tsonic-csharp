@@ -64,7 +64,7 @@ export function planPropertyDeclaration(
     const type = getCsharpTypeForSourceField(sourceField, "Class field", sourceFile, input, diagnostics);
     return {
       kind: "FieldDeclaration",
-      name: planCsharpAdmittedMemberName(input.program.names, declaration.name),
+      name: planCsharpAdmittedMemberName(input.program.records, declaration.name),
       modifiers: withCsharpSafetyModifiers(
         planClassMemberModifiers(node, declaration.name, input, { kind: "source", declaration: node, role: "member" }),
         node,
@@ -80,7 +80,7 @@ export function planPropertyDeclaration(
     sourceFile,
     input, diagnostics,
   );
-  const propertyName = planCsharpAdmittedMemberName(input.program.names, declaration.name);
+  const propertyName = planCsharpAdmittedMemberName(input.program.records, declaration.name);
   const modifiers = planClassMemberModifiers(node, declaration.name, input,
     { kind: "source", declaration: node, role: "member" });
   const storage = input.program.records.classPropertyStorage.get(node);
@@ -149,7 +149,7 @@ export function mergeAccessorProperty(
   const accessor = HasSourceKind(input.program.source.ast, node, KindGetAccessor)
     ? AsGetAccessorDeclaration(input.program.source.ast, node)!
     : AsSetAccessorDeclaration(input.program.source.ast, node)!;
-  const name = planCsharpAdmittedMemberName(input.program.names, accessor.name);
+  const name = planCsharpAdmittedMemberName(input.program.records, accessor.name);
   const existing = accessorProperties.get(name);
   const next = HasSourceKind(input.program.source.ast, node, KindGetAccessor)
     ? mergeGetterAccessor(existing, node, name, sourceFile, input, diagnostics)
@@ -285,7 +285,7 @@ function mergeAccessorModifiers(
 }
 
 function setterParameterName(name: Node | undefined, subject: Node, input: CsharpPlanningContext): string {
-  const selected = input.program.names.resolve(name);
+  const selected = input.program.records.sourceName.get(name);
   if (selected.kind !== "resolved") failCsharpPlannerInvariant("An admitted setter parameter requires its exact native name.", subject);
   return selected.name;
 }

@@ -57,7 +57,7 @@ export function planValueTypeDeclaration(
       type,
     });
   }
-  const name = input.program.names.resolve(declaration.name);
+  const name = input.program.records.sourceName.get(declaration.name);
   if (name.kind !== "resolved") failCsharpPlannerInvariant("An admitted value type requires its authored native identifier.", declarationNode);
   return {
     kind: "StructDeclaration",

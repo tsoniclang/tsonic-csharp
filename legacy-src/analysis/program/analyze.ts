@@ -785,6 +785,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     objectMethods: objectMethods.records,
     structuralObjectEmission: structuralObjectEmission.records,
     compilation: Object.freeze({ project: project.value, namespace: project.value.namespace, languageDialect: configuration.languageDialect }),
+    names,
     sourceUnions,
     objectShapeEmission: objectShapeEmission.records,
     objectShapes: createCsharpObjectShapeRecords(callableAdapters.objectShapes),

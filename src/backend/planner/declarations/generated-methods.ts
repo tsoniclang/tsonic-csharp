@@ -20,7 +20,7 @@ export function planCsharpGeneratedMethodCall(
     return failCsharpPlannerInvariant("A generated native method lost its containing scope or exact constructed argument contract.", node);
   }
   const { ast } = input.program.source;
-  const enclosing = input.program.names.generatedMethodTypeParameters.get(node);
+  const enclosing = input.program.records.generatedMethodTypeParameters.get(node);
   if (enclosing === undefined) return failCsharpPlannerInvariant(
     "A generated native method requires the sealed enclosing generic-name inventory.", node);
   const typeParameters = planTypeParameters(enclosing, input, diagnostics);

@@ -87,7 +87,7 @@ export function planIdentifierExpression(identifier: Node, sourceFile: SourceFil
 }
 
 function requireSealedSourceReferenceName(node: Node, input: CsharpPlanningContext): string {
-  const selected = input.program.names.resolve(node);
+  const selected = input.program.records.sourceName.get(node);
   return selected.kind === "resolved" ? selected.name : failCsharpPlannerInvariant("An admitted authored reference lost its sealed native name.", node);
 }
 

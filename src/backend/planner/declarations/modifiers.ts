@@ -3,7 +3,8 @@ import {
   ModifierFlagsAsync,
 } from "@tsonic/target-api/source";
 import type { AstReader, Node } from "@tsonic/tsts";
-import type { CsharpNamePlan, CsharpNativeMemberIdentity } from "../../../target-model/names/model.js";
+import type { CsharpNativeMemberIdentity } from "../../../target-model/names/model.js";
+import type { CsharpSourceNameRecords } from "../../../target-model/records/names.js";
 import { failCsharpPlannerInvariant } from "../../invariants.js";
 import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
 import { objectShapeArtifactKey } from "../../../target-model/records/object-shape-demand.js";
@@ -20,8 +21,8 @@ export function planCsharpNativeMemberHiding(
   return hides ? ["new"] : [];
 }
 
-export function planCsharpAdmittedMemberName(names: Pick<CsharpNamePlan, "resolve">, node: Node | undefined): string {
-  const selected = names.resolve(node);
+export function planCsharpAdmittedMemberName(records: CsharpSourceNameRecords, node: Node | undefined): string {
+  const selected = records.sourceName.get(node);
   if (selected.kind !== "resolved") return failCsharpPlannerInvariant(
     "An admitted native member lost its final representable name.", node);
   return selected.name;

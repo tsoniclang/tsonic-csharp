@@ -170,21 +170,9 @@ export function createCsharpSourceNameBuilder(
           within(current.scope, other.scope) && !(host.ast.is.IsFunctionDeclaration(other.binding.declaration) &&
             within(current.binding.declaration, other.binding.declaration)));
         if (!shadows) continue;
-        const base = current.name.startsWith("@") ? current.name.slice(1) : current.name;
-        let suffix = 1;
-        const collides = (name: string): boolean => byName.get(name)?.some(other =>
-          within(current.scope, other.scope) || within(other.scope, current.scope)) === true;
-        while (collides(`${base}_${suffix}`)) suffix += 1;
-        const name = `${base}_${suffix}`;
-        const selected = Object.freeze({ kind: "resolved" as const, name });
-        resolutions.set(current.binding.name, selected);
-        for (const reference of host.navigation.referencesToDeclaration(current.binding.declaration)) {
-          if (host.ast.is.IsIdentifier(reference) && resolutions.has(reference)) resolutions.set(reference, selected);
-        }
-        sourceNames.add(name);
-        const group = byName.get(name) ?? [];
-        group.push({ ...current, name });
-        byName.set(name, group);
+        issues.push(Object.freeze({ code: "CSHARP_INVALID_IDENTIFIER", category: "error", source: "tsonic-csharp",
+          sourceNode: current.binding.name,
+          message: `Authored binding '${current.name}' conflicts with an enclosing C# local declaration space (CS0136); its spelling cannot be changed.` }));
       }
       for (const binding of emittedBindings) {
         const name = resolutions.get(binding.name);
