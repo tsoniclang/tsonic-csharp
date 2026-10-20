@@ -1,3 +1,4 @@
+import { createCsharpNativeParticipationProducer } from "../program/records/native-participation.js";
 import type { AstReader, Node } from "@tsonic/tsts";
 import { sourceEnclosingCallable, sourceLexicalFunctionIsUnused, sourceNodesOutsideErasedSubtrees } from "@tsonic/target-api/source";
 import { rejectedTargetStage, resolvedTargetStage, type TargetStageResult } from "@tsonic/target-api/artifacts";
@@ -25,7 +26,7 @@ export interface CsharpNativeParticipationAnalysisInput {
 
 export function analyzeCsharpNativeParticipation(input: CsharpNativeParticipationAnalysisInput): TargetStageResult<CsharpNativeParticipationInput> {
   const { ast } = input;
-  const participation = new WeakMap<Node, CsharpNativeParticipation>();
+  const producer = createCsharpNativeParticipationProducer();
   const failure = input.storage.failureReason();
   const admitted = failure !== undefined ? { kind: "unresolved" as const, reason: failure }
     : sourceNodesOutsideErasedSubtrees(ast, input.storage.nodes, node => {
@@ -34,14 +35,14 @@ export function analyzeCsharpNativeParticipation(input: CsharpNativeParticipatio
       if (selected === undefined) return false;
       requireCsharpRecord(input.requiredRecords, { family: "nativeParticipation", subject: node,
         construct: "native participation decision", producer: "analyzeCsharpNativeParticipation" });
-      participation.set(node, selected);
+      producer.selected(node, selected);
       return selected === "erased";
     });
   if (admitted.kind === "unresolved") return rejectedTargetStage([{
     code: "CSHARP_NATIVE_PARTICIPATION_NOT_CLOSED", category: "error", source: "tsonic-csharp", message: admitted.reason,
     evidence: Object.freeze(["target.capability=csharp.native-participation"]),
   }]);
-  return resolvedTargetStage(Object.freeze({ participation: Object.freeze({ get: (declaration: Node) => participation.get(declaration) }) }));
+  return resolvedTargetStage(producer.seal());
 
   function select(node: Node): CsharpNativeParticipation | undefined {
     if (ast.is.IsModuleDeclaration(node)) return "erased";
