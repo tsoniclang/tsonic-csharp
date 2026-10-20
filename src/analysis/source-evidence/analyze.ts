@@ -1,59 +1,24 @@
-import type {
-  ExtensionFactSubject,
-  Node,
-  ResolvedSourceGeneratorInfo,
-  ResolvedSourceWellKnownSymbolInfo,
-  ResolvedSourceYieldInfo,
-  SourceFile,
-  Type,
-  Signature,
-} from "@tsonic/tsts";
-import {
-  providerVirtualDeclarationFactKey,
-} from "@tsonic/tsts";
-import type {
-  TargetSourceProgram,
-} from "@tsonic/target-api/source";
+import { selectCsharpFlowReadCarrier } from "../../policy/types/flow-read.js";
+import { isCsharpFlowReadEvidenceNode, inferCallableReturnType, freezeSourceArgumentClassification } from "./source-values.js";
+import type { ExtensionFactSubject, Node, ResolvedSourceGeneratorInfo, ResolvedSourceWellKnownSymbolInfo, ResolvedSourceYieldInfo, SourceFile, Type, Signature } from "@tsonic/tsts";
+import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
+import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import { sourceClassFieldIsTypeOnly } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { csharpNativePropertyNameIssue } from "../objects/computed-field-names.js";
 import { selectCsharpSemanticCarrier } from "../../policy/types/semantic-types.js";
-import type {
-  CsharpTypePolicy,
-} from "../../policy/types/index.js";
-import {
-  combineCsharpTargetUnionMembers,
-  getCsharpNullableElementTargetType,
-  isCsharpAbsenceTargetType,
-  isCsharpJsValueTargetType,
-  isTypeParameterTargetRef,
-  targetTypeRefEquals,
-  targetTypeRefKey,
-} from "../../policy/types/index.js";
-import {
-  csharpTargetTypeComponents,
-} from "../../target-model/types/components.js";
+import type { CsharpTypePolicy } from "../../policy/types/index.js";
+import { isCsharpJsValueTargetType, isTypeParameterTargetRef, targetTypeRefEquals, targetTypeRefKey } from "../../policy/types/index.js";
+import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
-import type {
-  TargetTypeRef,
-} from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpSemanticTypeClassification, CsharpContextualTupleClassification, CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpSourceEvidenceResult } from "./model.js";
-import type {
-  CsharpTypeParameterConstraintResolution,
-} from "../../policy/constraints/index.js";
-import {
-  selectCsharpSourceArgument,
-} from "../../policy/operations/members/index.js";
-import {
-  csharpFixedArrayRepresentationRejection,
-  readCsharpSourceDefaultValue,
-  readCsharpSourceField,
-  readCsharpSourceFixedArrayType,
-  readCsharpSourceStruct,
-} from "../../policy/types/index.js";
+import type { CsharpTypeParameterConstraintResolution } from "../../policy/constraints/index.js";
+import { selectCsharpSourceArgument } from "../../policy/operations/members/index.js";
+import { csharpFixedArrayRepresentationRejection, readCsharpSourceDefaultValue, readCsharpSourceField, readCsharpSourceFixedArrayType, readCsharpSourceStruct } from "../../policy/types/index.js";
 
 const missing = Symbol("csharp.source-evidence.missing");
 import { createTsonicMemoryMetadataIndex, createTsonicPointerBackingDemands, createTsonicClosedArrayStorageQueries } from "@tsonic/source-core/facts";
@@ -341,7 +306,7 @@ export function analyzeCsharpSourceEvidence(
     );
     if (source.ast.is.IsEnumMember(node)) {
       const constant = source.semantics.enumConstants.get(node);
-      if (constant === undefined) throw new Error("A checked enum member requires its exact completed source constant selection.");
+      if (constant === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A checked enum member requires its exact completed source constant selection.", node);
       if (constant.kind === "resolved") {
         constants.set(node, Object.freeze({ value: constant.value }));
         const initializer = source.ast.as.AsEnumMember(node)?.Initializer;
@@ -386,22 +351,10 @@ export function analyzeCsharpSourceEvidence(
       declaredTargetType !== undefined &&
       selectedTargetType !== undefined &&
       targetTypeRefEquals(declaredTargetType, selectedTargetType);
-    const absenceUsesStorage = isCsharpAbsenceTargetType(selectedTargetType) &&
-      getCsharpNullableElementTargetType(readStorageTargetType) !== undefined;
-    const exactSourceRead = refinement.kind === "resolved" && refinement.refinement.kind === "exact";
-    const flowReadTargetType = (exactSourceRead || unrelatedSourceTypesShareTargetRepresentation || absenceUsesStorage) &&
-        readStorageTargetType !== undefined
-      ? readStorageTargetType
-      : selectedTargetType !== undefined &&
-          readStorageTargetType !== undefined &&
-          !targetTypeRefEquals(readStorageTargetType, selectedTargetType)
-        ? selectedTargetType
-        : memberTargetTypes === undefined ||
-            memberTargetTypes.some((member) => member === undefined)
-          ? selectedTargetType
-          : recordTargetType(combineCsharpTargetUnionMembers(
-              memberTargetTypes as readonly TargetTypeRef[],
-            ));
+    const flowReadTargetType = recordTargetType(selectCsharpFlowReadCarrier({
+      exactSourceRead: refinement.kind === "resolved" && refinement.refinement.kind === "exact",
+      unrelatedSourceTypesShareTargetRepresentation, selectedTargetType, readStorageTargetType, memberTargetTypes,
+    }));
     refinements.set(node, Object.freeze({
       source: refinement,
       ...(selectedTargetType === undefined ? {} : { selectedTargetType }),
@@ -634,51 +587,6 @@ export function analyzeCsharpSourceEvidence(
   });
 }
 
-function isCsharpFlowReadEvidenceNode(
-  ast: import("@tsonic/tsts").AstReader,
-  node: Node,
-): boolean {
-  return ast.is.IsIdentifier(node) ||
-    ast.is.IsPropertyAccessExpression(node) ||
-    ast.is.IsElementAccessExpression(node);
-}
-
-function inferCallableReturnType(
-  declaration: Node,
-  sourceFile: SourceFile,
-  source: TargetSourceProgram,
-  types: CsharpTypePolicy,
-): TargetTypeRef | undefined {
-  const semantics = source.semantics.forFile(sourceFile);
-  const declarationType = semantics.types.expressionType(declaration);
-  if (declarationType === undefined) {
-    return undefined;
-  }
-  const signatures = semantics.types.signatureInfos(declarationType, "call")
-    .filter((signature) =>
-      semantics.declarations.signatureDeclaration(signature.signature) === declaration);
-  return signatures.length === 1
-    ? types.resolveType(signatures[0]!.returnType, sourceFile)
-    : undefined;
-}
-
 function cachedValue<Value>(value: Cached<Value> | undefined): Value | undefined {
   return value === undefined || value === missing ? undefined : value;
-}
-
-function freezeSourceArgumentClassification(
-  value: import("../../target-model/records/source-evidence.js").CsharpSourceArgumentClassification,
-): import("../../target-model/records/source-evidence.js").CsharpSourceArgumentClassification {
-  return value.kind === "resolved"
-    ? Object.freeze({
-        kind: "resolved",
-        argument: Object.freeze({
-          passingMode: value.argument.passingMode,
-          storageExpression: value.argument.storageExpression,
-        }),
-      })
-    : Object.freeze({
-        kind: "rejected",
-        reason: value.reason,
-      });
 }
