@@ -5,7 +5,7 @@ import { csharpSourceTypeParameter } from "../../../target-model/names/type-para
 import { substituteTargetTypeParameters } from "../../../target-model/types/substitution.js";
 import type { CsharpTypeResolutionScope } from "../../../policy/types/resolution/engine.js";
 import type { CsharpTypeResolutionState } from "./model.js";
-import { csharpBoundSourceType, csharpSourceBindings } from "../../../policy/types/resolution/type-bindings.js";
+import { csharpBoundSourceType, csharpSourceBindings } from "./type-bindings.js";
 import { resolveCsharpConditionalApplication } from "./conditional-types.js";
 import { nextState } from "./state.js";
 import { resolveCsharpOptionalStorage } from "../../../target-model/types/carriers/optional-storage.js";
