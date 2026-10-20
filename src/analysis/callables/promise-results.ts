@@ -1,16 +1,12 @@
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import { analyzeSourceGenericAdoption, sourceGenericAdoptionDiagnosticCode, sourceGenericAdoptionDiagnosticMessage,
-  createSourceOwnershipQuery, createSourceStorageBudget, defaultSourceStorageLimits,
-  type SourceOwnershipPremises, type SourceOwnershipUnresolved, type SourceStorageQueries } from "@tsonic/target-api/analysis";
+import { analyzeSourceGenericAdoption, sourceGenericAdoptionDiagnosticCode, sourceGenericAdoptionDiagnosticMessage, createSourceOwnershipQuery, createSourceStorageBudget, defaultSourceStorageLimits, type SourceOwnershipPremises, type SourceOwnershipUnresolved, type SourceStorageQueries } from "@tsonic/target-api/analysis";
 import { sourceExpressionResultDisposition, type TargetSourceProgram } from "@tsonic/target-api/source";
 import { classifyCsharpSourceProfileType } from "../../policy/types/resolution/source-profile.js";
-import type { CsharpProgramRecords } from "../../target-model/records/program.js";
+import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpPromiseDiscard, CsharpPromiseResult, CsharpPromiseResults } from "../../target-model/records/promise-results.js";
-import { getCsharpTaskResultTargetType } from "../../target-model/types/carriers/delegates.js";
-import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
-import { getCsharpRuntimeUnionArms } from "../../target-model/types/carriers/runtime-carriers.js";
-import { isCsharpValueTypeTargetType } from "../../target-model/types/identity.js";
+
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
 import { isCsharpRefLikeTargetType } from "../../target-model/types/ref-like.js";
@@ -34,7 +30,7 @@ export function analyzeCsharpPromiseResults(input: {
   readonly genericAdoption: readonly TargetDiagnostic[];
   readonly storage: SourceStorageQueries;
   readonly nodes: readonly Node[];
-  readonly records: Pick<CsharpProgramRecords, "valueRead" | "selectedCall" | "selectedConstruction">;
+  readonly records: CsharpValueReadClassifications & Pick<CsharpTargetOperationClassifications, "selectedCall" | "selectedConstruction">;
   readonly definitions: CsharpTypeDefinitions;
   readonly sourceCarrier: (type: Type, file: SourceFile) => TargetTypeRef | undefined;
   readonly nativePlacement: readonly TargetDiagnostic[];
@@ -46,21 +42,17 @@ export function analyzeCsharpPromiseResults(input: {
   if (input.nativePlacement.length !== 0) return Object.freeze({ results,
     diagnostics: Object.freeze([...input.nativePlacement, ...diagnostics]) });
   const unresolved = (at: Node, reason: string): SourceOwnershipUnresolved => Object.freeze({ kind: "unresolved", at, reason });
-  const select = (carrier: TargetTypeRef, depth = 0): CsharpPromiseDiscard | undefined => {
-    if (depth > 128) return undefined;
-    const nullable = getCsharpNullableElementTargetType(carrier);
-    if (nullable !== undefined) {
-      const present = select(nullable, depth + 1);
-      return present === undefined ? undefined : Object.freeze({ kind: "optional", valueType: isCsharpValueTypeTargetType(nullable), present });
+  const refused = new WeakSet<Node>();
+  const select = (carrier: TargetTypeRef, node: Node): CsharpPromiseDiscard | undefined => {
+    const selected = selectCsharpPromiseDiscard(carrier, input.definitions);
+    if (selected.kind === "selected") return selected.discard;
+    if (!refused.has(node)) {
+      refused.add(node);
+      diagnostics.push(Object.freeze({ code: "CSHARP_ASYNC_RESULT_USE_NOT_PROVEN", category: "error",
+        source: "tsonic-csharp", sourceNode: node, message: selected.reason,
+        evidence: Object.freeze(["target.capability=csharp.async.native-result-use"]) }));
     }
-    if (getCsharpTaskResultTargetType(carrier) !== undefined) return Object.freeze({ kind: "task" });
-    const alternatives = getCsharpRuntimeUnionArms(carrier, input.definitions);
-    if (alternatives === undefined) return undefined;
-    const arms = alternatives.flatMap((alternative, index) => {
-      const selection = select(alternative, depth + 1);
-      return selection === undefined ? [] : [Object.freeze({ index, selection })];
-    });
-    return arms.length === 0 ? undefined : Object.freeze({ kind: "union", arms: Object.freeze(arms) });
+    return undefined;
   };
   const premises: SourceOwnershipPremises = {
     completionFor(node, selected) {
@@ -89,7 +81,7 @@ export function analyzeCsharpPromiseResults(input: {
           else native = true;
         } else {
           const carrier = file === undefined ? undefined : input.sourceCarrier(type, file);
-          if (carrier !== undefined && select(carrier) !== undefined) native = true;
+          if (carrier !== undefined && select(carrier, node) !== undefined) native = true;
         }
         active.delete(type);
       };
@@ -121,7 +113,7 @@ export function analyzeCsharpPromiseResults(input: {
       if (checked.kind === "unresolved") return unresolved(value.node, checked.reason);
       const carrier = input.sourceCarrier(checked.type, checked.sourceFile);
       if (carrier === undefined) return undefined;
-      const task = select(carrier);
+      const task = select(carrier, value.node);
       if (isCall && task === undefined && input.records.selectedCall.get(value.node) === undefined &&
         input.records.selectedConstruction.get(value.node) === undefined) return undefined;
       return Object.freeze({ kind: task === undefined ? "never" : "may-suspend", value,
@@ -132,7 +124,7 @@ export function analyzeCsharpPromiseResults(input: {
   for (const node of input.nodes) {
     if (!ast.is.IsCallExpression(node) && !ast.is.IsNewExpression(node)) continue;
     const carrier = input.records.valueRead.get(node)?.value;
-    const selection = carrier === undefined ? undefined : select(carrier);
+    const selection = carrier === undefined ? undefined : select(carrier, node);
     if (selection === undefined) continue;
     const disposition = sourceExpressionResultDisposition(ast, node);
     if (ast.is.IsCallExpression(node)) {
@@ -149,3 +141,5 @@ export function analyzeCsharpPromiseResults(input: {
   }
   return Object.freeze({ results, diagnostics: Object.freeze(diagnostics) });
 }
+
+import { selectCsharpPromiseDiscard } from "../../policy/types/callables/promise-results.js";
