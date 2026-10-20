@@ -1,5 +1,5 @@
 import type { CsharpTargetMember } from "../../../../target-model/types/model.js";
-import type { CsharpProviderCallSelectionHost } from "../../../../policy/operations/members/selection/call-selection.js";
+import type { CsharpProviderCallSelectionHost } from "./selection.js";
 import type { ResolvedSourceCallInfo } from "../../../../target-model/records/source-calls.js";
 
 export function selectCsharpInheritedConstructorTarget(

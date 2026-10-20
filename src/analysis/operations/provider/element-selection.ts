@@ -4,7 +4,7 @@ import type { CsharpProviderTargetRelation } from "../../../target-model/identit
 import type { CsharpTargetMember } from "../../../policy/types/index.js";
 import { targetTypeRefEquals } from "../../../policy/types/index.js";
 import { instantiateCsharpProviderBindingMember } from "../../../policy/operations/members/instantiation/binding-instantiation.js";
-import type { CsharpProviderCallSelectionHost } from "../../../policy/operations/members/selection/call-selection.js";
+import type { CsharpProviderCallSelectionHost } from "./calls/selection.js";
 import { resolveCsharpProviderElementRelations } from "./relations.js";
 
 type ResolvedSourceElementAccessInfo = NonNullable<

@@ -1,29 +1,10 @@
-import type {
-  ExtensionDiagnostic,
-  Node,
-  SourceFile,
-} from "@tsonic/tsts";
-import type {
-  SourceFileSemantics,
-  SourceProgramNavigation,
-} from "@tsonic/target-api/source";
-import type {
-  CsharpProviderOperationHost,
-  CsharpProviderOperationResolution,
-} from "../providers/operations.js";
-import {
-  resolveCsharpProviderCallRelations,
-} from "../providers/operations.js";
-import type {
-  CsharpInstantiatedProviderCall,
-  CsharpProviderCallInstantiation,
-  CsharpProviderCallInstantiationHost,
-} from "../instantiation/instantiation.js";
-import {
-  compareInstantiatedProviderCalls,
-  instantiateCsharpProviderCall,
-} from "../instantiation/instantiation.js";
-import { selectCsharpInheritedConstructorTarget } from "./inherited-construction.js";
+import type { ExtensionDiagnostic, Node, SourceFile } from "@tsonic/tsts";
+import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { CsharpProviderOperationHost, CsharpProviderOperationResolution } from "../relations.js";
+import { resolveCsharpProviderCallRelations } from "../relations.js";
+import type { CsharpInstantiatedProviderCall, CsharpProviderCallInstantiation, CsharpProviderCallInstantiationHost } from "../../../../policy/operations/members/instantiation/instantiation.js";
+import { compareInstantiatedProviderCalls, instantiateCsharpProviderCall } from "../../../../policy/operations/members/instantiation/instantiation.js";
+import { selectCsharpInheritedConstructorTarget } from "./implicit-super.js";
 
 type ResolvedSourceCallInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["call"]>
