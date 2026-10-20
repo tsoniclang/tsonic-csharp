@@ -1,6 +1,4 @@
-import type {
-  DotnetProviderIdentity,
-} from "../model/index.js";
+import type { DotnetProviderIdentity } from "../model/index.js";
 
 export const dotnetReflectionProviderIdentity: DotnetProviderIdentity = {
   id: "tsonic.csharp.dotnet-reflection-provider",
