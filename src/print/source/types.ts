@@ -1,12 +1,12 @@
 import type { CsharpExpression, CsharpTypeNode } from "../../backend/target-ast/syntax/index.js";
-import { failUnsupportedCsharpSyntax } from "./fail-closed.js";
+import { failCsharpSyntaxInvariant } from "./invariants.js";
 
 export function printCsharpType(type: CsharpTypeNode): string {
   switch (type.kind) {
     case "PredefinedType":
       return type.name;
     case "InvalidType":
-      throw new Error(`Invalid C# type reached printer: ${type.reason}`);
+      return failCsharpSyntaxInvariant(type, `type: ${type.reason}`);
     case "IdentifierName":
       return type.typeArguments === undefined || type.typeArguments.length === 0
         ? type.name
@@ -30,7 +30,7 @@ export function printCsharpType(type: CsharpTypeNode): string {
     case "NullableType":
       return `${printCsharpType(type.inner)}?`;
   }
-  return failUnsupportedCsharpSyntax(type, "type");
+  return failCsharpSyntaxInvariant(type, "type");
 }
 
 function printFunctionPointerCallingConvention(
