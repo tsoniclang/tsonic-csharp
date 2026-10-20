@@ -56,6 +56,9 @@ import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { csharpDelegateSignatureHasSupportedPassingModes, getCsharpDelegateSignature } from "../../target-model/types/carriers/delegates.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import { isCsharpVoidTargetType } from "../../target-model/types/identity.js";
+import { collectCsharpGeneratedHelpers } from "./generated-helpers.js";
+import { createCsharpGeneratedHelperRecords } from "../program/records/generated-helpers.js";
+import type { CsharpGeneratedHelper } from "../../target-model/records/generated-helpers.js";
 
 const unavailableConversion: CsharpConversionSelection = Object.freeze({
   kind: "rejected",
@@ -84,6 +87,7 @@ export function analyzeCsharpConversions(
   let preparedOperations: CsharpTargetOperationClassifications | undefined;
   let preparedValueReads: import("../../target-model/records/conversions.js").CsharpValueReadClassifications | undefined;
   let sealedClassifications: CsharpConversionClassifications | undefined;
+  const requiredHelpers = new Set<CsharpGeneratedHelper>();
   const literalRequests = createCsharpExactLiteralRequestCollector(policy.literalValues);
   const conversionPolicy = Object.freeze({
     ast: policy.ast, literalValues: policy.literalValues, typeDefinitions: policy.typeDefinitions,
@@ -92,6 +96,8 @@ export function analyzeCsharpConversions(
   });
 
   const openClassifications: CsharpConversionClassifications = {
+    generatedHelpers: Object.freeze({ get: () => Object.freeze([...requiredHelpers].sort()) }),
+    generatedHelper: Object.freeze({ get: (helper: CsharpGeneratedHelper) => requiredHelpers.has(helper) ? true : undefined }),
     issues,
     propertyProjection: Object.freeze({ get: (expression, source) => propertyProjections.get(expression)?.get(targetTypeRefKey(source)) }),
     delegateAdapters: Object.freeze({ get: scope => delegateAdapters.get(scope) ?? [] }),
@@ -142,6 +148,7 @@ export function analyzeCsharpConversions(
       const admitted = sealCsharpConversionUses(nativeDemand, preparedOperations, (expression, source, target, mode, exactInteger, boundary, sourceCompletion) => {
         const selected = boundary === undefined ? classifyExpression(expression, source, target, mode, exactInteger, sourceCompletion) : boundary.selection;
         if (selected === undefined) return undefined;
+        collectCsharpGeneratedHelpers(selected, requiredHelpers);
         if (boundary === undefined && sourceCompletion?.kind !== "void") classifyPair(source, target, mode, expression);
         const key = pairKey(source, target, mode);
         if (boundary !== undefined) {
@@ -152,13 +159,18 @@ export function analyzeCsharpConversions(
         }
         const classification = expressionSelections.get(expression)?.get(key);
         return classification === undefined ? undefined : Object.freeze({ key, classification });
-      }, (expression, source, target) => classifyPair(source, target, "implicit", expression), requiredRecords, issues, callConversions);
+      }, (expression, source, target) => {
+        const selected = classifyPair(source, target, "implicit", expression);
+        if (selected !== undefined) collectCsharpGeneratedHelpers(selected, requiredHelpers);
+        return selected;
+      }, requiredRecords, issues, callConversions);
       issues.push(...admitted.issues);
       delegateAdapters = sealCsharpDelegateAdapterIdentities(policy, preparedValueReads, admitted.expressions, issues);
       closed = true;
       Object.freeze(issues);
       const sealedIssues = Object.freeze([...issues]);
       const sealed: CsharpConversionClassifications = {
+        ...createCsharpGeneratedHelperRecords(requiredHelpers),
         issues: sealedIssues,
         propertyProjection: Object.freeze({ get: openClassifications.propertyProjection.get }),
         delegateAdapters: Object.freeze({ get: openClassifications.delegateAdapters.get }),

@@ -125,6 +125,8 @@ export function createCsharpProgramRecords(
 ): CsharpProgramRecords {
   const records: CsharpProgramRecords = Object.freeze({
     ...input.sourceArtifacts,
+    generatedHelpers: input.conversions.generatedHelpers,
+    generatedHelper: input.conversions.generatedHelper,
     ...input.safetyEmission,
     ...input.startup,
     ...input.projectEmission,

@@ -33,7 +33,7 @@ import {
 import {
   csharpGeneratedConversionHelperName,
   csharpGeneratedHelperNamespace,
-} from "../artifacts/generated-helpers.js";
+} from "../../../target-model/records/generated-helpers.js";
 import type {
   CsharpPlanningContext,
 } from "../context.js";
@@ -355,13 +355,8 @@ function applyLiftedProviderArgumentAdapter(
       `Exact lifted provider argument adapter '${selection.adapter.id}' requires renderable source, result, and declaring types.`,
       node);
   }
-  const helper = input.artifacts.requireGeneratedHelper(
-    "lifted-provider-argument-adapter",
-  );
-  if (helper.kind === "rejected") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, helper.reason));
-    return undefined;
-  }
+  if (input.program.records.generatedHelper.get("lifted-provider-argument-adapter") === undefined)
+    failCsharpPlannerInvariant("An admitted lifted provider argument adapter requires its sealed helper demand.", node);
   return {
     kind: "InvocationExpression",
     callee: {
