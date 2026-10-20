@@ -23,7 +23,8 @@ import { readCsharpSourceNativePointerOperation } from "../../../policy/operatio
 import { readCsharpSourceTypedLocationOperation } from "../../../policy/operations/typed-locations/source-typed-locations.js";
 import { readCsharpSourceUnsafeContext } from "../../../policy/operations/safety/explicit.js";
 import { relateTypeArguments } from "./generic-arguments.js";
-import { readCsharpSourceRawAddress, csharpRawAddressResultType } from "../../../policy/operations/pointers/raw-addresses.js";
+import { csharpRawAddressResultType } from "../../../policy/operations/pointers/raw-addresses.js";
+import { readCsharpSourceRawAddress } from "../../../source/extension/raw-addresses.js";
 import { selectCsharpLayoutObservation } from "../../../policy/operations/pointers/layout-observations.js";
 import { readCsharpRawLocation } from "../../../source/extension/native-memory.js";
 import { resolveTypeParameter, definedValues } from "./source-evidence.js";

@@ -1,29 +1,16 @@
-import type { CsharpRawAddressSelection, CsharpSourceRawAddressOperation } from "../../../target-model/records/raw-addresses.js";
-import type { ExtensionFactSubject, Node, ReadonlySourceFactResolver, SourceFile } from "@tsonic/tsts";
-import { readTsonicDataLayout, readTsonicRawMemoryOperation } from "@tsonic/source-core/facts";
+import type { CsharpRawAddressSelection } from "../../../target-model/records/raw-addresses.js";
+import type { Node, SourceFile } from "@tsonic/tsts";
+import { readTsonicDataLayout } from "@tsonic/source-core/facts";
 
-import type { CsharpPolicyContext } from "../../model/context.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpPolicyContext } from "../../../policy/model/context.js";
+
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpRuntimeRawPointerTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpNullableReferenceTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 
-export function readCsharpSourceRawAddress(
-  facts: ReadonlySourceFactResolver | undefined,
-  subject: ExtensionFactSubject | undefined,
-): CsharpSourceRawAddressOperation | undefined {
-  const fact = facts === undefined ? undefined : readTsonicRawMemoryOperation(facts, subject);
-  return fact?.operation === "byte-offset" || fact?.operation === "raw-to-address-integer" ||
-    fact?.operation === "address-integer-to-raw" ? fact : undefined;
-}
-
-export function csharpRawAddressResultType(fact: CsharpSourceRawAddressOperation): TargetTypeRef {
-  return fact.operation === "raw-to-address-integer"
-    ? csharpSourcePrimitiveTargetType(fact.addressWidth === 32 ? "uint32" : "uint64")
-    : csharpNullableReferenceTargetType(csharpRuntimeRawPointerTargetType());
-}
-
+import { readCsharpSourceRawAddress } from "../../../source/extension/raw-addresses.js";
+import { csharpRawAddressResultType } from "../../../policy/operations/pointers/raw-addresses.js";
 export function selectCsharpRawAddress(
   input: CsharpPolicyContext,
   node: Node,
