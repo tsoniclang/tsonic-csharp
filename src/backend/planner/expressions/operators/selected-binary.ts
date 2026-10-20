@@ -13,10 +13,8 @@ import type {
 import {
   csharpAssignmentOperatorTokenFromText,
   csharpBinaryOperatorTokenFromText,
-} from "../csharp-operator-tokens.js";
-import {
-  unsupportedNodeDiagnostic,
-} from "../../diagnostics.js";
+} from "../../../target-ast/syntax/operator-tokens.js";
+import { failCsharpPlannerInvariant } from "../../../invariants.js";
 import type { ExpressionPlanner } from "../expression-planner-types.js";
 import {
   csharpTypeFromTargetTypeRef,
@@ -25,7 +23,6 @@ import {
   callStatic,
   literalNumber,
 } from "../csharp-expression-builders.js";
-import { isCsharpAbsenceTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { planCsharpBigIntCall } from "./bigint-call.js";
 import { planCsharpClosedValueCoalescing } from "./closed-value-coalescing.js";
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
@@ -39,11 +36,12 @@ import { captureCsharpPlannedLocation } from "../planned-locations.js";
 import { captureCsharpPlannedValue } from "../planned-value-composition.js";
 import { planCsharpPlannedDiscard } from "../../statements/statement-output.js";
 import { planCsharpConditionalValue } from "./conditional-values.js";
-import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 
 export function planSelectedCsharpBinaryOperation(node: Node, selection: CsharpResolvedBinaryOperation, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner, state?: DestructuringPlannerState
 ): CsharpPlannedValue | undefined {
   const operation = selection.targetOperation;
+  const emission = input.program.records.nativeBinaryEmission.get(node, selection)
+    ?? failCsharpPlannerInvariant("An admitted binary operation requires its exact contextual native emission record.", node);
   if (operation.kind === "conditional-value") return planCsharpConditionalValue(node, selection, sourceFile, input, diagnostics, planExpression, state);
   if (operation.kind === "sequence") {
     const left = planExpression(selection.left, sourceFile, input, diagnostics, state);
@@ -65,8 +63,7 @@ export function planSelectedCsharpBinaryOperation(node: Node, selection: CsharpR
   if (operation.kind === "union-coalesce") {
     const resultType = csharpTypeFromTargetTypeRef(selection.resultType, input.scope.typeParameterNames);
     if (state === undefined || resultType === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(node, "Union coalescing requires its sealed result type and hygienic evaluation scope."));
-      return undefined;
+      failCsharpPlannerInvariant("An admitted union coalescing operation requires its result type and hygienic scope.", node);
     }
     const left = planExpression(selection.left, sourceFile, input, diagnostics, state);
     const right = planExpression(selection.right, sourceFile, input, diagnostics, state);
@@ -78,12 +75,12 @@ export function planSelectedCsharpBinaryOperation(node: Node, selection: CsharpR
     const condition: CsharpExpression = {
       kind: "BinaryExpression", operatorToken: { kind: "AmpersandAmpersandToken" },
       left: { kind: "IsPatternExpression", expression: left.completion.expression, type: { kind: "IdentifierName", name: "var" }, designation: name },
-      right: runtimeUnionArmTest(reference, operation.valueArmIndex, selection.leftType),
+      right: runtimeUnionArmTest(reference, operation.valueArmIndex, selection.leftType, input),
     };
     return planCsharpValueBranch(node, sourceFile, input, diagnostics,
       csharpPlannedValue(csharpSourcePrimitiveTargetType("bool"), condition, left.prelude),
       csharpPlannedValue(selection.resultType, operation.retainCarrier ? reference
-        : runtimeUnionArmProjection(reference, operation.valueArmIndex, selection.leftType)),
+        : runtimeUnionArmProjection(reference, operation.valueArmIndex, selection.leftType, false, input)),
       right, selection.resultType);
   }
   if (operation.kind === "array-index-presence") {
@@ -125,15 +122,13 @@ export function planSelectedCsharpBinaryOperation(node: Node, selection: CsharpR
     const selectedOperand = values[operation.operand === "left" ? 0 : 1]!;
     const selectedOther = values[operation.operand === "left" ? 1 : 0]!;
     let tested = selectedOperand;
-    const intrinsicUndefined = input.program.source.ast.is.IsIdentifier(otherNode) &&
-      input.program.sourceNavigation.referenceFor(otherNode) === undefined &&
-      isCsharpAbsenceTargetType(input.program.records.nodeTargetType.get(otherNode));
-    if (selectedOther.kind !== "LiteralExpression" && !intrinsicUndefined) {
+    if (emission.retainOther) {
       const testedType = csharpTypeFromTargetTypeRef(operation.operand === "left"
         ? selection.leftType : selection.rightType, input.scope.typeParameterNames);
       const otherType = csharpTypeFromTargetTypeRef(operation.operand === "left"
         ? selection.rightType : selection.leftType, input.scope.typeParameterNames);
-      if (testedType === undefined || otherType === undefined) return undefined;
+      if (testedType === undefined || otherType === undefined)
+        failCsharpPlannerInvariant("An admitted nullish comparison requires both exact native operand types.", node);
       const testedValue: CsharpExpression = { kind: "CastExpression", type: testedType, expression: selectedOperand };
       const otherValue: CsharpExpression = { kind: "CastExpression", type: otherType, expression: selectedOther };
       tested = { kind: "SimpleMemberAccessExpression",
@@ -150,14 +145,13 @@ export function planSelectedCsharpBinaryOperation(node: Node, selection: CsharpR
       let temporary: string | undefined;
       if (arms.length > 1) {
         if (state === undefined) {
-          diagnostics.push(unsupportedNodeDiagnostic(node, "A multi-arm nullish test requires a hygienic evaluation scope."));
-          return undefined;
+          failCsharpPlannerInvariant("An admitted multi-arm nullish test requires its hygienic evaluation scope.", node);
         }
         temporary = allocateExpressionTemp(state);
         reference = { kind: "IdentifierName", name: temporary };
       }
       const carrier = operation.operand === "left" ? selection.leftType : selection.rightType;
-      let test = arms.map(arm => runtimeUnionArmTest(reference, arm, carrier)).reduce((left, right): CsharpExpression => ({
+      let test = arms.map(arm => runtimeUnionArmTest(reference, arm, carrier, input)).reduce((left, right): CsharpExpression => ({
         kind: "BinaryExpression", left, operatorToken: { kind: "BarBarToken" }, right,
       }));
       if (operation.negated) test = {
@@ -189,11 +183,7 @@ export function planSelectedCsharpBinaryOperation(node: Node, selection: CsharpR
       diagnostics,
     );
     if (operatorToken === undefined || left === undefined || right === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        node,
-        `Selected C# string relational operator '${operation.operator}' could not be planned exactly.`,
-      ));
-      return undefined;
+      failCsharpPlannerInvariant("An admitted native string comparison requires its selected operator and both native operands.", node);
     }
     return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [left, right], values => ({
       kind: "BinaryExpression",
@@ -245,16 +235,10 @@ export function planSelectedCsharpBinaryOperation(node: Node, selection: CsharpR
     }, selection.resultType);
   }
   const targetOperator = operation.operator;
-  const assignmentToken = csharpAssignmentOperatorTokenFromText(
-    targetOperator,
-  );
-  if (assignmentToken !== undefined) {
-    let storageExpression = selection.left;
-    while (input.program.source.ast.is.IsParenthesizedExpression(storageExpression)) {
-      const inner = input.program.source.ast.as.AsParenthesizedExpression(storageExpression)?.Expression;
-      if (inner === undefined) return undefined;
-      storageExpression = inner;
-    }
+  if (emission.syntax === "assignment") {
+    const assignmentToken = csharpAssignmentOperatorTokenFromText(targetOperator)
+      ?? failCsharpPlannerInvariant("An admitted native assignment requires its selected operator token.", node);
+    const storageExpression = emission.storage;
     const left = planExpression(
       selection.left,
       sourceFile,
@@ -265,19 +249,14 @@ export function planSelectedCsharpBinaryOperation(node: Node, selection: CsharpR
     if (left === undefined || right === undefined) return undefined;
     if (left.completion.kind === "never") return left;
     if (left.completion.kind !== "value") return undefined;
-    const narrowedCoalescing = assignmentToken.kind === "QuestionQuestionEqualsToken" &&
-      !targetTypeRefEquals(selection.resultType, left.completion.carrier);
+    const narrowedCoalescing = emission.narrowedCoalescing;
     const direct = !narrowedCoalescing && right.prelude.length === 0 && right.completion.kind === "value";
     if (direct) return csharpPlannedValue(selection.resultType, { kind: "AssignmentExpression",
       left: left.completion.expression, operatorToken: assignmentToken, right: right.completion.expression }, left.prelude);
-    const fact = input.program.records.nativeLocation.get(storageExpression);
-    if (fact?.kind !== "resolved" || !fact.writable) {
-      diagnostics.push(unsupportedNodeDiagnostic(node, fact?.kind === "rejected" ? fact.reason
-        : "A sequenced native assignment requires its sealed writable physical location."));
-      return undefined;
-    }
+    const fact = emission.location
+      ?? failCsharpPlannerInvariant("An admitted native assignment requires its sealed writable physical location.", node);
     const captured = captureCsharpPlannedLocation(node, sourceFile, input, diagnostics, left, fact,
-      input.program.sourceNavigation.expressionEffects(selection.right).suspends);
+      emission.rightSuspends);
     if (captured === undefined || captured.completion.kind !== "value") return captured;
     const location = captured.completion.expression;
     if (assignmentToken.kind === "QuestionQuestionEqualsToken") {
@@ -328,11 +307,7 @@ export function planSelectedCsharpBinaryOperation(node: Node, selection: CsharpR
   }
   const binaryToken = csharpBinaryOperatorTokenFromText(targetOperator);
   if (binaryToken === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
-      `Selected C# operator '${targetOperator}' has no target AST token.`,
-    ));
-    return undefined;
+    failCsharpPlannerInvariant("An admitted native binary operation requires its exact operator token.", node);
   }
   const left = planExpression(selection.left, sourceFile, input, diagnostics, state);
   const right = planExpression(selection.right, sourceFile, input, diagnostics, state);
@@ -342,8 +317,7 @@ export function planSelectedCsharpBinaryOperation(node: Node, selection: CsharpR
   const zeroType = operation.kind === "generic-numeric" && operation.zeroOperand !== undefined
     ? csharpTypeFromTargetTypeRef(operation.carrier, input.scope.typeParameterNames) : undefined;
   if (operation.kind === "generic-numeric" && operation.zeroOperand !== undefined && zeroType === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Generic numeric zero requires its sealed native type parameter."));
-    return undefined;
+    failCsharpPlannerInvariant("An admitted generic numeric zero requires its sealed native type parameter.", node);
   }
   return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [left, right], values => {
   if (input.program.records.int32Remainder.get(node)) {

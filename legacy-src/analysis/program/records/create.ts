@@ -68,6 +68,7 @@ export interface CsharpProgramRecordInput {
   readonly typeParameterEmission: import("../../../target-model/records/type-parameters.js").CsharpTypeParameterEmissionRecords;
   readonly typeEmission: import("../../../target-model/records/type-emission.js").CsharpTypeEmissionRecords;
   readonly nativeConstants: import("../../../target-model/records/native-constants.js").CsharpNativeConstantRecords;
+  readonly binaryEmission: import("../../../target-model/records/binary-emission.js").CsharpBinaryEmissionRecords;
   readonly nativeLayouts: import("../../../target-model/records/native-layout-emission.js").CsharpNativeLayoutRecords;
   readonly unionEquality: import("../../../target-model/records/union-equality.js").CsharpUnionEqualityRecords;
   readonly closedTypeTests: import("../../../target-model/records/type-tests.js").CsharpClosedTypeTestRecords;
@@ -165,6 +166,7 @@ export function createCsharpProgramRecords(
     ...input.typeParameterEmission,
     ...input.typeEmission,
     ...input.nativeConstants,
+    ...input.binaryEmission,
     ...input.nativeLayouts,
     ...input.unionEquality,
     ...input.closedTypeTests,

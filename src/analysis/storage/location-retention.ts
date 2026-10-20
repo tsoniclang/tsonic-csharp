@@ -16,10 +16,6 @@ export function admitCsharpLocationRetention(input: { readonly source: TargetSou
     source: "tsonic-csharp", sourceNode: node, message }); };
   for (const node of input.nodes) {
     if (!input.admitted(node)) continue;
-    const binary = input.operations.binaryOperation.get(node)?.target;
-    if (binary?.kind === "resolved" && (binary.targetOperation.kind === "bigint-call" || binary.targetOperation.kind === "closed-value-coalesce") &&
-      binary.targetOperation.assignment && binary.targetOperation.location === "unsupported") refuse(node,
-        "Read-modify-write requires a binding or an exact native reference-receiver location and hygienic evaluation scope.");
     const element = input.elements.selectedElement.get(node)?.emission;
     if (element?.kind === "source-member" && element.writable && !element.static && isCsharpValueTypeTargetType(element.present)) {
       const location = input.storage.nativeLocation.get(element.receiver.expression);

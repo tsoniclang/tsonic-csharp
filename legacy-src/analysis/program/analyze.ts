@@ -5,6 +5,7 @@ import type {
 } from "@tsonic/tsts";
 import { analyzeCsharpCaptureStorage } from "../callables/capture-storage.js";
 import { analyzeCsharpNativeConstants } from "../expressions/native-constants.js";
+import { analyzeCsharpBinaryEmission } from "../expressions/binary-emission.js";
 import { admitCsharpLocationRetention } from "../storage/location-retention.js";
 import { analyzeCsharpNativeParticipation } from "../callables/participation.js";
 import { analyzeCsharpProjectCallableAdapters } from "../project-types/callable-adapters.js";
@@ -688,6 +689,9 @@ function analyzeCsharpTargetProgramBeforeSeal(
   if (typeEmission.issues.length !== 0) return rejectedTargetStage(typeEmission.issues);
   const nativeConstants = analyzeCsharpNativeConstants({ ast: source.ast, demand: nativeDemand, literals: literalValues,
     exact: exactLiterals, values: analysis.valueReads, types: typeEmission.records, references: sourceReferences.records });
+  const binaryEmission = analyzeCsharpBinaryEmission({ source, nodes: sourceStorage.nodes, operations: admittedOperations,
+    demand: nativeDemand, storage: analysis.storage, constants: nativeConstants, admitted: admittedControlNode });
+  if (binaryEmission.issues.length !== 0) return rejectedTargetStage(binaryEmission.issues);
   const sourceFileEmission = analyzeCsharpSourceFileEmission({ source, identities: sourceOutputIdentities.records,
     factories: classFactories, evidence: analysis.sourceEvidence, operations: admittedOperations,
     moduleInitialization: moduleInitialization.index, expectedTypes: analysis.expectedTypes,
@@ -741,6 +745,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     sourceFileEmission: sourceFileEmission.records,
     typeEmission: typeEmission.records,
     nativeConstants,
+    binaryEmission: binaryEmission.records,
     nativeLayouts: nativeLayouts.records,
     typeParameterEmission: typeParameterEmission.records,
     projectEmission: projectEmission.records,
