@@ -15,7 +15,7 @@ import { failCsharpPlannerInvariant } from "../../invariants.js";
 import { planIdentifierExpression } from "../expressions/expression-source-references.js";
 import { applyCsharpConversionSelection } from "../expressions/conversions.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
-import { csharpTupleExpression } from "../types/csharp-tuples.js";
+import { csharpTupleExpression } from "../types/tuples.js";
 import { csharpConstructibleTypeFromObjectShapeFact, objectShapeStorageMemberName } from "../objects/index.js";
 import { planObjectShapeDefaultProjection } from "../objects/object-shape-defaults.js";
 import { planArrayDefaultProjection } from "./array-defaults.js";

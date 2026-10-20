@@ -16,7 +16,7 @@ import type {
 import { runtimeArrayHelperCall } from "../expressions/arrays/helpers.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
-import { csharpTupleExpression } from "../types/csharp-tuples.js";
+import { csharpTupleExpression } from "../types/tuples.js";
 import { failCsharpPlannerInvariant } from "../../invariants.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { planArrayDefaultProjection } from "./array-defaults.js";
