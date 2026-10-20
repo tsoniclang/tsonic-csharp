@@ -10,7 +10,6 @@ import type {
 } from "../../../target-model/types/index.js";
 import {
   csharpTsValueTargetType,
-  isCsharpJsValueTargetType,
 } from "../../../target-model/types/index.js";
 import type {
   CsharpExpression,
@@ -21,42 +20,31 @@ import {
 import type {
   CsharpPlanningContext,
 } from "../context.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 import {
-  unsupportedNodeDiagnostic,
-} from "../diagnostics.js";
-import {
-  planCsharpExactLiteralConversion,
+  planCsharpExactLiteralRecipe,
 } from "./literal-conversions.js";
 
 export function planCsharpJsValueBox(
   node: Node,
   input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
+  _diagnostics: TargetDiagnostic[],
   sourceType: TargetTypeRef | undefined,
   expression: CsharpExpression,
 ): CsharpExpression | undefined {
-  if (sourceType !== undefined && isCsharpJsValueTargetType(sourceType)) {
-    return expression;
-  }
+  if (sourceType === undefined) failCsharpPlannerInvariant("An admitted closed-value input requires its exact native carrier.", node);
+  const selected = input.program.records.jsValueBoxing.get(node, sourceType)
+    ?? failCsharpPlannerInvariant("An admitted closed-value input requires its sealed native boxing plan.", node);
+  if (selected.kind === "identity") return expression;
   let sourceExpression = expression;
-  const literal = planCsharpExactLiteralConversion(input, node, sourceType);
-  if (literal.kind === "rejected") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, literal.reason));
-    return undefined;
-  }
-  if (literal.kind === "resolved") {
+  if (selected.kind === "literal") {
+    const literal = planCsharpExactLiteralRecipe(input.scope.typeParameterNames, selected.recipe);
+    if (literal.kind !== "resolved") failCsharpPlannerInvariant("An admitted closed-value literal requires its native recipe.", node);
     sourceExpression = literal.expression;
-  } else if (
-    sourceType?.kind === "source-primitive" &&
-    (input.program.source.ast.is.IsNumericLiteral(node) || input.program.source.ast.is.IsPrefixUnaryExpression(node))
-  ) {
-    const type = csharpTypeFromTargetTypeRef(sourceType, input.scope.typeParameterNames);
+  } else if (selected.kind === "cast") {
+    const type = csharpTypeFromTargetTypeRef(selected.carrier, input.scope.typeParameterNames);
     if (type === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        node,
-        "A source primitive entering the closed JS-value carrier requires its exact renderable C# representation.",
-      ));
-      return undefined;
+      failCsharpPlannerInvariant("An admitted closed-value primitive requires its native representation.", node);
     }
     sourceExpression = {
       kind: "CastExpression",
@@ -64,10 +52,9 @@ export function planCsharpJsValueBox(
       expression,
     };
   }
-  const type = csharpTypeFromTargetTypeRef(csharpTsValueTargetType(), input.scope.typeParameterNames);
-  return type === undefined
-    ? undefined
-    : {
+  const type = csharpTypeFromTargetTypeRef(csharpTsValueTargetType(), input.scope.typeParameterNames)
+    ?? failCsharpPlannerInvariant("An admitted closed-value input requires its native runtime owner.", node);
+  return {
         kind: "InvocationExpression",
         callee: {
           kind: "SimpleMemberAccessExpression",
@@ -87,9 +74,8 @@ export function translateCsharpJsValueInvocation(
   const dispatchReceiver = selection.dispatch === "instance"
     ? receiver
     : csharpTypeFromTargetTypeRef(csharpTsValueTargetType(), typeParameterNames);
-  return dispatchReceiver === undefined
-    ? undefined
-    : {
+  if (dispatchReceiver === undefined) failCsharpPlannerInvariant("An admitted closed-value invocation requires its native dispatch receiver.");
+  return {
         kind: "InvocationExpression",
         callee: {
           kind: "SimpleMemberAccessExpression",

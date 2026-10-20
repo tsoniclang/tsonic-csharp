@@ -14,6 +14,7 @@ import { analyzeCsharpArrayLiterals } from "../expressions/array-literals.js";
 import { analyzeCsharpLiteralAdmission } from "../expressions/literals.js";
 import { analyzeCsharpAwaitAdmission } from "../callables/await-admission.js";
 import { analyzeCsharpVoidAdmission } from "../expressions/expression-void.js";
+import { analyzeCsharpJsValueBoxing } from "../expressions/js-value-boxing.js";
 import { analyzeCsharpConditions } from "../expressions/conditions.js";
 import { analyzeCsharpTemplateStrings } from "../expressions/template-strings.js";
 import { analyzeCsharpPropertyValueProjection } from "../conversions/property-value-projection.js";
@@ -489,6 +490,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const templateStrings = analyzeCsharpTemplateStrings(source.ast, nativeDemand);
   const unionEquality = analyzeCsharpUnionEquality(sourceStorage.nodes, admittedOperations);
   const closedTypeTests = analyzeCsharpClosedTypeTests(sourceStorage.nodes, admittedOperations, typeDefinitions);
+  const jsValueBoxing = analyzeCsharpJsValueBoxing({ ast: source.ast, demand: nativeDemand, values: analysis.valueReads, exact: exactLiterals });
   const typeofEmission = analyzeCsharpTypeofEmission({ ast: source.ast, nodes: sourceStorage.nodes, admitted: admittedControlNode,
     operations: admittedOperations, values: analysis.valueReads, factories: classFactories, definitions: typeDefinitions });
   const nonCallableIssues = [
@@ -497,6 +499,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     ...literalEmission.issues,
     ...unionEquality.issues,
     ...closedTypeTests.issues,
+    ...jsValueBoxing.issues,
     ...typeofEmission.issues,
     ...analyzeCsharpConditions({ ast: source.ast, demand: nativeDemand, operations: admittedOperations, values: analysis.valueReads }),
     ...analyzeCsharpVoidAdmission({ ast: source.ast, demand: nativeDemand, values: analysis.valueReads, operations: admittedOperations }),
@@ -707,6 +710,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     literalValues, exactLiterals, nativeParticipation, nativeDemand, bindingPatterns,
     unionEquality: unionEquality.records,
     closedTypeTests: closedTypeTests.records,
+    jsValueBoxing: jsValueBoxing.records,
     typeofEmission: typeofEmission.records,
     flowReads, valueReads: analysis.valueReads,
     callableAdapters, callableCreations, typeProjections: analysis.typeProjections, classFactories, classInitialization, captureStorage,
