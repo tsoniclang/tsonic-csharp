@@ -1,6 +1,7 @@
+import { csharpBinaryOperationRequiresLocation } from "../../policy/operations/operators/rules.js";
 import type { CsharpOperationSelection, CsharpResolvedBinaryOperation, CsharpResolvedDestructuringAssignmentOperation, CsharpResolvedUnaryOperation } from "../../target-model/records/operator-selection.js";
 
-import { selectCsharpAssignmentLocation } from "../../policy/operations/operators/assignment-location.js";
+import { selectCsharpAssignmentLocation } from "./assignment-location.js";
 
 import { selectCsharpGenericNumericOperation } from "./numeric/generic.js";
 import { resolveCsharpContextualLiteralCarrier } from "../types/resolution/contextual-literals.js";
@@ -79,10 +80,11 @@ export function selectCsharpBinaryOperands(
   const genericNumeric = selectCsharpGenericNumericOperation(input, sourceOperator, left, right, leftType, rightType);
   return selectCsharpNativeBinaryOperation(input, {
     left, right, sourceOperator, resultType, leftType, rightType, genericNumeric,
-    leftStorage: input.types.resolveReadStorage(left),
-    rightStorage: input.types.resolveReadStorage(right),
+    leftStorage: isEquality(sourceOperator) && isCsharpAbsenceTargetType(rightType) ? input.types.resolveReadStorage(left) : undefined,
+    rightStorage: isEquality(sourceOperator) && isCsharpAbsenceTargetType(leftType) ? input.types.resolveReadStorage(right) : undefined,
     resultUse: input.navigation.expressionResultUse(right),
-    assignmentLocation: selectCsharpAssignmentLocation(input, left, targetTypeFor),
+    assignmentLocation: csharpBinaryOperationRequiresLocation(sourceOperator, leftType, rightType)
+      ? selectCsharpAssignmentLocation(input, left, targetTypeFor) : "unsupported",
   }, expectedResultType);
 }
 

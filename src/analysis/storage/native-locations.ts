@@ -5,7 +5,7 @@ import { sourceDeclarationIsModuleScoped, sourceParameterIsProperty } from "@tso
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
-import { selectCsharpAssignmentLocation } from "../../policy/operations/operators/assignment-location.js";
+import { selectCsharpAssignmentLocation } from "../operations/assignment-location.js";
 import { type CsharpAssignmentLocation } from "../../target-model/operations/assignment-locations.js";
 import { selectCsharpNativeRefReturn } from "../../policy/operations/typed-locations/typed-locations.js";
 import { selectCsharpTargetElement, selectCsharpTargetProperty } from "../../policy/operations/members/index.js";

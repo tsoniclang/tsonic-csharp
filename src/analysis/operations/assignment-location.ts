@@ -1,10 +1,10 @@
 import type { Node } from "@tsonic/tsts";
 import { Node_Expression } from "@tsonic/target-api/source";
-import type { CsharpPolicyContext } from "../../model/context.js";
-import type { TargetTypeRef } from "../../types/index.js";
-import { csharpReferenceIdentityCarrier } from "./reference-equality.js";
+import type { CsharpPolicyContext } from "../../policy/model/context.js";
+import type { TargetTypeRef } from "../../policy/types/index.js";
+import { csharpReferenceIdentityCarrier } from "../../policy/operations/operators/reference-equality.js";
 
-import type { CsharpAssignmentLocation } from "../../../target-model/operations/assignment-locations.js";
+import type { CsharpAssignmentLocation } from "../../target-model/operations/assignment-locations.js";
 
 export function selectCsharpAssignmentLocation(
   input: CsharpPolicyContext,

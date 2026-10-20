@@ -494,3 +494,13 @@ export function selectCsharpNativeUnaryOperation(
       }
     : rejectCsharpOperator(incompatibility);
 }
+
+export function csharpBinaryOperationRequiresLocation(
+  operator: CsharpSourceOperator,
+  left: TargetTypeRef,
+  right: TargetTypeRef,
+): boolean {
+  return (operator === "??" || operator === "??=") && isCsharpJsValueTargetType(left) ||
+    targetTypeRefEquals(left, csharpBigIntegerTargetType()) && targetTypeRefEquals(right, csharpBigIntegerTargetType()) &&
+    bigintRuntimeMethods[operator] !== undefined;
+}
