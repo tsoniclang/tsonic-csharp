@@ -32,6 +32,6 @@ export function planArrayLiteralExpressionWithCarrier(node: Node, sourceFile: So
   switch (selected.kind) {
     case "array": return planArrayLiteralExpression(node, sourceFile, input, diagnostics, elementType, planner, element);
     case "js": return planJsArrayLiteralExpression(node, sourceFile, input, diagnostics, selected.carrier, type, elementType, element, planner);
-    case "collection": return planNativeCollectionArrayLiteralExpression(node, sourceFile, input, diagnostics, selected.carrier, element, planner);
+    case "collection": return planNativeCollectionArrayLiteralExpression(node, sourceFile, input, diagnostics, carrier, element, planner);
   }
 }
