@@ -56,6 +56,7 @@ import type { CsharpSourceUnionEmissionRecords } from "./source-unions.js";
 
 export interface CsharpProgramRecords extends CsharpStatementExitRecords, CsharpStatementCompletionRecords, CsharpResourceScopeRecords, CsharpDeclarationModifierRecords, CsharpNativeDeclarationRecords, CsharpStructuralInterfaceRecords, CsharpLexicalValueRecords, CsharpConstructorEmissionRecords, CsharpClassEmissionRecords {
   readonly projectDeclaration: import("./project-emission.js").CsharpProjectEmissionRecords["projectDeclaration"];
+  readonly projectTypeParameterNames: import("./project-emission.js").CsharpProjectEmissionRecords["projectTypeParameterNames"];
   readonly startup: import("./startup.js").CsharpStartupRecords["startup"];
   readonly sourceArtifacts: import("./artifacts.js").CsharpSourceArtifactRecords["sourceArtifacts"];
   readonly propertyValueProjection: import("./property-value-projection.js").CsharpPropertyValueProjectionRecords["propertyValueProjection"];
@@ -79,6 +80,7 @@ export interface CsharpProgramRecords extends CsharpStatementExitRecords, Csharp
   readonly captureMethods: CsharpCaptureMethodRecords["captureMethods"];
   readonly bindingIdentity: CsharpBindingIdentityRecords["bindingIdentity"];
   readonly sourceFile: CsharpSourceFileRecords["sourceFile"];
+  readonly providerSourceFile: CsharpSourceFileRecords["providerSourceFile"];
   readonly nodeObjectShape: CsharpObjectShapeRecords["nodeObjectShape"];
   readonly targetObjectShape: CsharpObjectShapeRecords["targetObjectShape"];
   readonly objectShapeParameters: CsharpObjectShapeEmissionRecords["objectShapeParameters"];
