@@ -1,46 +1,21 @@
-import type {
-  SourceFile,
-  Node,
-  AstReader,
-  ReadonlySourceFactResolver,
-} from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { selectCsharpArrayUnionElement, selectCsharpArrayUnionProperty } from "./js/array-unions.js";
-import { selectCsharpIndexedRecordElement, selectCsharpIndexedRecordProperty } from "../collections/indexed-records.js";
+import type { SourceFile, Node, AstReader, ReadonlySourceFactResolver } from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../target-model/types/model.js";
+import { selectCsharpArrayUnionElement, selectCsharpArrayUnionProperty } from "../../policy/operations/source-profiles/js/array-unions.js";
+import { selectCsharpIndexedRecordElement, selectCsharpIndexedRecordProperty } from "../operations/collections/indexed-records.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
-import type {
-  CsharpProviderCallSelectionHost,
-} from "../members/selection/call-selection.js";
-import {
-  csharpJsSourceProfileCallPolicies,
-  csharpJsSourceProfileElementPolicies,
-  csharpJsSourceProfilePropertyPolicies,
-} from "./js/index.js";
-import {
-  csharpNativeSourceProfileCallPolicies,
-  csharpNativeSourceProfileElementPolicies,
-  csharpNativeSourceProfilePropertyPolicies,
-} from "./native-source-profile.js";
-import {
-  csharpGeneratorSourceProfileCallPolicies,
-  csharpGeneratorSourceProfilePropertyPolicies,
-} from "./generator-source-profile.js";
-import {
-  csharpErrorSourceProfileCallPolicies,
-  csharpErrorSourceProfilePropertyPolicies,
-} from "./error-source-profile.js";
+import type { CsharpProviderCallSelectionHost } from "../../policy/model/provider-calls.js";
+import { csharpJsSourceProfileCallPolicies, csharpJsSourceProfileElementPolicies, csharpJsSourceProfilePropertyPolicies } from "../../policy/operations/source-profiles/js/index.js";
+import { csharpNativeSourceProfileCallPolicies, csharpNativeSourceProfileElementPolicies, csharpNativeSourceProfilePropertyPolicies } from "../../policy/operations/source-profiles/native-source-profile.js";
+import { csharpGeneratorSourceProfileCallPolicies, csharpGeneratorSourceProfilePropertyPolicies } from "../../policy/operations/source-profiles/generator-source-profile.js";
+import { csharpErrorSourceProfileCallPolicies, csharpErrorSourceProfilePropertyPolicies } from "../../policy/operations/source-profiles/error-source-profile.js";
 import { csharpPromiseSourceProfileCallPolicies } from "./promise-source-profile.js";
-import type { CsharpSourceProfileCallPolicyResult, CsharpSourceProfileElementPolicyResult } from "./source-profile-policy.js";
-import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/source-profile-invocations.js";
-import { csharpSourceProfileDeclarationIdentity } from "./source-profile-identity.js";
-import type { CsharpTargetMember } from "../../../target-model/types/model.js";
-import {
-  sourceProfileIdentityMatches,
-  selectCsharpSourceProfileCallPolicy,
-  selectCsharpSourceProfileElementPolicy,
-  selectCsharpSourceProfilePropertyPolicy,
-} from "./source-profile-policy.js";
-import type { ResolvedSourceCallInfo } from "../../../target-model/records/members.js";
+import type { CsharpSourceProfileCallPolicyResult, CsharpSourceProfileElementPolicyResult } from "../../policy/model/source-profiles.js";
+import type { CsharpSourceProfilePropertyPolicyResult } from "../../target-model/records/source-profile-invocations.js";
+import { csharpSourceProfileDeclarationIdentity } from "../../policy/identities/selected-source.js";
+import type { CsharpTargetMember } from "../../target-model/types/model.js";
+import { sourceProfileIdentityMatches } from "../../policy/operations/source-profiles/source-profile-policy.js";
+import { selectCsharpSourceProfileCallPolicy, selectCsharpSourceProfileElementPolicy, selectCsharpSourceProfilePropertyPolicy } from "./policy-selection.js";
+import type { ResolvedSourceCallInfo } from "../../target-model/records/source-calls.js";
 type ResolvedSourcePropertyAccessInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["propertyAccess"]>
 >;

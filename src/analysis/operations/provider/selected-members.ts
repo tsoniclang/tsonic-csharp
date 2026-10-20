@@ -6,7 +6,7 @@ import { selectCsharpProviderCall } from "./calls/selection.js";
 import { selectCsharpProviderElement } from "./element-selection.js";
 import { selectCsharpProviderProperty } from "./property-selection.js";
 import { selectCsharpProjectElement } from "./project-indexers.js";
-import { selectCsharpComposedSourceProfileCall, selectCsharpComposedSourceProfileElement, selectCsharpComposedSourceProfileProperty } from "../../../policy/operations/source-profiles/source-profile-selection.js";
+import { selectCsharpComposedSourceProfileCall, selectCsharpComposedSourceProfileElement, selectCsharpComposedSourceProfileProperty } from "../../source-profiles/selection.js";
 
 import { selectCsharpUnionProperty } from "./union-properties.js";
 

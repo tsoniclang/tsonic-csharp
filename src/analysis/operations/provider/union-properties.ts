@@ -5,7 +5,7 @@ import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-mo
 
 import { getCsharpRuntimeUnionArms } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { selectCsharpSourceProfilePropertyForCarrier } from "../../../policy/operations/source-profiles/source-profile-selection.js";
+import { selectCsharpSourceProfilePropertyForCarrier } from "../../source-profiles/selection.js";
 
 export function selectCsharpUnionProperty(
   host: CsharpProviderCallSelectionHost,
