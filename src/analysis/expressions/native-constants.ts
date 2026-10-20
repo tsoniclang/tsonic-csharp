@@ -4,12 +4,17 @@ import type { CsharpNativeDemandAnalysis } from "../operations/native-demand-mod
 import type { CsharpExactLiteralRecipe, CsharpExactLiteralSelectionIndex } from "../../target-model/conversions/exact-literals.js";
 import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { CsharpTypeEmissionRecords } from "../../target-model/records/type-emission.js";
+import type { CsharpSourceReferenceRecords } from "../../target-model/records/source-references.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
+import { isCsharpStringTargetType } from "../../target-model/types/carriers/scalar-types.js";
 import { createCsharpNativeConstantRecords } from "../program/records/native-constants.js";
 
 export function analyzeCsharpNativeConstants(input: { readonly ast: AstReader; readonly demand: CsharpNativeDemandAnalysis;
-  readonly literals: SourceLiteralIndex; readonly exact: CsharpExactLiteralSelectionIndex; readonly values: CsharpValueReadClassifications }) {
+  readonly literals: SourceLiteralIndex; readonly exact: CsharpExactLiteralSelectionIndex; readonly values: CsharpValueReadClassifications;
+  readonly types: CsharpTypeEmissionRecords; readonly references: CsharpSourceReferenceRecords }) {
   const values = new Map<Node, Map<string, boolean>>();
+  const absence = new Map<Node, Map<string, boolean>>();
   const constant = (recipe: CsharpExactLiteralRecipe): boolean => {
     switch (recipe.kind) {
       case "char": case "string": case "signed-zero": return true;
@@ -30,12 +35,18 @@ export function analyzeCsharpNativeConstants(input: { readonly ast: AstReader; r
     }
     const exact = input.exact.exactLiteral.get(literalNode, carrier);
     const literal = input.literals.literalValue.get(literalNode);
+    const storage = input.types.typeEmission.get(carrier)?.optionalStorage;
+    const absent = storage?.kind === "native" && storage.absence && !storage.jsValue &&
+      (input.ast.kind(literalNode) === KindNullKeyword || input.ast.is.IsVoidExpression(literalNode) ||
+        input.references.identifierEmission.get(literalNode)?.kind === "absence");
     const selected = exact?.kind === "resolved" ? constant(exact.recipe)
-      : input.ast.kind(literalNode) === KindNullKeyword || literal !== undefined && (literal.form === "true" || literal.form === "false" || literal.form === "string" ||
-        literal.form === "template" && input.ast.is.IsNoSubstitutionTemplateLiteral(literalNode) ||
+      : literal !== undefined && ((literal.form === "true" || literal.form === "false") && carrier.kind === "source-primitive" && carrier.name === "bool" ||
+        (literal.form === "string" || literal.form === "template" && input.ast.is.IsNoSubstitutionTemplateLiteral(literalNode)) && isCsharpStringTargetType(carrier) ||
         literal.form === "numeric" && carrier.kind === "source-primitive" && carrier.name === "float64" &&
           literal.number !== undefined && Number.isFinite(literal.number));
-    carriers.set(key, selected); values.set(node, carriers);
+    carriers.set(key, selected || absent); values.set(node, carriers);
+    const absenceCarriers = absence.get(node) ?? new Map<string, boolean>();
+    absenceCarriers.set(key, absent); absence.set(node, absenceCarriers);
   };
   for (const { use } of input.demand.entries) {
     if (use.kind === "erased") continue;
@@ -45,5 +56,5 @@ export function analyzeCsharpNativeConstants(input: { readonly ast: AstReader; r
     if (read?.source !== undefined) select(use.expression, read.source);
     if (read?.value !== undefined) select(use.expression, read.value);
   }
-  return createCsharpNativeConstantRecords(values);
+  return createCsharpNativeConstantRecords(values, absence);
 }

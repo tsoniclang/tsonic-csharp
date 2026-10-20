@@ -10,6 +10,7 @@ export interface CsharpPlannedValue {
   readonly prelude: readonly CsharpStatement[];
   readonly completion: CsharpPlannedCompletion;
   readonly constant?: true;
+  readonly absent?: true;
 }
 
 export interface CsharpPlannedEffectOperand {
@@ -41,9 +42,11 @@ export function csharpPlannedValue(
   expression: CsharpExpression,
   prelude: readonly CsharpStatement[] = [],
   constant = false,
+  absent = false,
 ): CsharpPlannedValue {
   return Object.freeze({ prelude: Object.freeze([...prelude]),
     ...(constant ? { constant: true as const } : {}),
+    ...(absent ? { absent: true as const } : {}),
     completion: Object.freeze({ kind: "value", carrier, expression }) });
 }
 

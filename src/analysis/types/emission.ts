@@ -94,6 +94,8 @@ export function analyzeCsharpTypeEmission(input: { readonly ast: AstReader; read
     if (collectionRead?.kind === "method" && collectionRead.member.declaringType !== undefined) pending.push(collectionRead.member.declaringType);
     producer.publish(root, { objectShapes: Object.freeze([...shapes]),
       completion: isCsharpNeverTargetType(root) ? "never" : isCsharpVoidTargetType(root) ? "void" : "value",
+      coalescing: optional === undefined && !isCsharpJsValueTargetType(root) ? "operator" : "guard",
+      nullable: getCsharpNullableElementTargetType(root) !== undefined,
       unionAccess: optional !== undefined ? Object.freeze({ kind: "generic", operations: optional.operations })
         : Object.freeze({ kind: getCsharpNullableElementTargetType(root) === undefined ? "direct" : "nullable" }),
       collectionRead: collectionRead?.kind === "invalid" ? undefined : collectionRead,

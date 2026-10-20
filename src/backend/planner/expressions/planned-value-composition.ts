@@ -3,18 +3,12 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpPlanningContext } from "../context.js";
 import type { CsharpExpression, CsharpStatement } from "../../target-ast/syntax/index.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { isCsharpVoidTargetType } from "../../../target-model/types/identity.js";
-import { isCsharpNeverTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { qualifiedCsharpType } from "../types/index.js";
-import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { failCsharpPlannerInvariant } from "../../invariants.js";
 import { planCsharpNeverValue } from "./never-values.js";
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
-import { getCsharpNullableElementTargetType } from "../../../target-model/types/index.js";
-import { getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { planCsharpAbsentValue, planCsharpPresentValueGuard } from "./optional-storage.js";
 import { convertCsharpPlannedValue } from "./planned-value-conversions.js";
 import { readCsharpNativeExpressionCarrier } from "./native-uses.js";
@@ -26,26 +20,26 @@ import {
 export function planCsharpExpressionCompletion(
   node: Node,
   _sourceFile: SourceFile,
-  _input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
+  input: CsharpPlanningContext,
+  _diagnostics: TargetDiagnostic[],
   expression: CsharpExpression | undefined,
   carrier: TargetTypeRef | undefined,
   prelude: readonly CsharpStatement[] = [],
 ): CsharpPlannedValue | undefined {
   if (expression === undefined) return undefined;
-  if (carrier === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Native expression planning requires its exact finalized completion carrier."));
-    return undefined;
-  }
-  if (isCsharpNeverTargetType(carrier)) return csharpPlannedEffect(carrier, [...prelude, {
+  if (carrier === undefined) failCsharpPlannerInvariant("An admitted expression requires its finalized completion carrier.", node);
+  const completion = input.program.records.typeEmission.get(carrier)?.completion
+    ?? failCsharpPlannerInvariant("An admitted expression requires its selected native completion.", node);
+  if (completion === "never") return csharpPlannedEffect(carrier, [...prelude, {
     kind: "ThrowStatement", expression: planCsharpNeverValue(expression, qualifiedCsharpType("System", "Exception")),
   }], "never");
-  if (isCsharpVoidTargetType(carrier)) {
+  if (completion === "void") {
     let statement = expression;
     while (statement.kind === "ParenthesizedExpression") statement = statement.expression;
     return csharpPlannedEffect(carrier, [...prelude, { kind: "ExpressionStatement", expression: statement }]);
   }
-  return csharpPlannedValue(carrier, expression, prelude, _input.program.records.nativeConstant.get(node, carrier) === true);
+  return csharpPlannedValue(carrier, expression, prelude, input.program.records.nativeConstant.get(node, carrier) === true,
+    input.program.records.nativeAbsence.get(node, carrier) === true);
 }
 
 export function captureCsharpPlannedValue(
@@ -56,8 +50,7 @@ export function captureCsharpPlannedValue(
 ): CsharpPlannedCapture | undefined {
   const type = csharpTypeFromTargetTypeRef(carrier, input.scope.typeParameterNames);
   if (type === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Native ordered evaluation requires a renderable exact temporary carrier."));
-    return undefined;
+    failCsharpPlannerInvariant("An admitted ordered evaluation requires its exact native temporary carrier.", node);
   }
   return { type, name: input.names.temporaryName(`__tsonic_value_${input.program.source.ast.pos(node)}`) };
 }
@@ -119,10 +112,9 @@ export function planCsharpValueBranch(
   if (condition === undefined || consequent === undefined || alternative === undefined || carrier === undefined) return undefined;
   const statements = consequent.prelude.length > 0 || alternative.prelude.length > 0 ||
     consequent.completion.kind !== "value" || alternative.completion.kind !== "value";
-  const capture = !statements || isCsharpVoidTargetType(carrier) || isCsharpNeverTargetType(carrier)
-    ? undefined : captureCsharpPlannedValue(node, input, diagnostics, carrier);
   const completion = input.program.records.typeEmission.get(carrier)?.completion ??
     failCsharpPlannerInvariant("An admitted branch requires its native completion kind.", node);
+  const capture = !statements || completion !== "value" ? undefined : captureCsharpPlannedValue(node, input, diagnostics, carrier);
   return planCsharpPlannedBranch(condition, consequent, alternative, carrier, capture, completion);
 }
 
@@ -138,23 +130,19 @@ export function planCsharpCoalescingValue(
   if (left.completion.kind === "never") return left;
   if (left.completion.kind !== "value") return undefined;
   const storage = left.completion.carrier;
-  const optional = getCsharpGenericOptionalParts(storage);
-  if (optional === undefined && getCsharpNullableElementTargetType(storage) !== undefined && targetTypeRefEquals(storage, carrier) &&
+  const selected = input.program.records.typeEmission.get(storage)
+    ?? failCsharpPlannerInvariant("An admitted coalescing operand requires its native storage plan.", node);
+  if (selected.nullable && targetTypeRefEquals(storage, carrier) &&
     right.prelude.length === 0 && right.completion.kind === "value" && targetTypeRefEquals(right.completion.carrier, storage) &&
-    (right.completion.expression.kind === "LiteralExpression" && right.completion.expression.value === null ||
-      right.completion.expression.kind === "DefaultExpression" && right.completion.expression.type.kind === "NullableType")) return left;
-  if (optional === undefined && !isCsharpJsValueTargetType(storage) &&
+    right.absent === true) return left;
+  if (selected.coalescing === "operator" &&
     right.prelude.length === 0 && right.completion.kind === "value") {
     return csharpPlannedValue(carrier, { kind: "BinaryExpression", left: left.completion.expression,
       operatorToken: { kind: "QuestionQuestionToken" }, right: right.completion.expression }, left.prelude);
   }
-  const present = optional?.element ?? getCsharpNullableElementTargetType(storage) ?? storage;
+  const present = selected.optionalStorage.present;
   const name = input.names.temporaryName(`__tsonic_present_${input.program.source.ast.pos(node)}`);
-  const guard = planCsharpPresentValueGuard(storage, present, left.completion.expression, name, input.scope.typeParameterNames);
-  if (guard === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Coalescing evaluation requires its exact native storage and present-value relation."));
-    return undefined;
-  }
+  const guard = planCsharpPresentValueGuard(storage, present, left.completion.expression, name, input);
   return planCsharpValueBranch(node, sourceFile, input, diagnostics,
     csharpPlannedValue(csharpSourcePrimitiveTargetType("bool"), guard.condition, left.prelude),
     convertCsharpPlannedValue(node, sourceFile, input, diagnostics, csharpPlannedValue(present, guard.value), carrier, "implicit"),
@@ -174,16 +162,15 @@ export function planCsharpOptionalReceiverValue(
   if (receiver.completion.kind === "never") return receiver;
   if (receiver.completion.kind !== "value") return undefined;
   const storage = receiver.completion.carrier;
-  const element = getCsharpGenericOptionalParts(storage)?.element ?? getCsharpNullableElementTargetType(storage) ?? storage;
+  const element = input.program.records.typeEmission.get(storage)?.optionalStorage.present
+    ?? failCsharpPlannerInvariant("An admitted optional receiver requires its native present-value plan.", node);
   const name = input.names.temporaryName(`__tsonic_present_${input.program.source.ast.pos(node)}`);
-  const guard = planCsharpPresentValueGuard(storage, element, receiver.completion.expression, name, input.scope.typeParameterNames);
-  if (guard === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Optional evaluation requires its exact native storage and present-value relation."));
-    return undefined;
-  }
-  const absent = isCsharpVoidTargetType(carrier) ? csharpPlannedEffect(carrier, [])
+  const guard = planCsharpPresentValueGuard(storage, element, receiver.completion.expression, name, input);
+  const completion = input.program.records.typeEmission.get(carrier)?.completion
+    ?? failCsharpPlannerInvariant("An admitted optional result requires its native completion.", node);
+  const absent = completion === "void" ? csharpPlannedEffect(carrier, [])
     : planCsharpExpressionCompletion(node, sourceFile, input, diagnostics,
-      planCsharpAbsentValue(carrier, input.scope.typeParameterNames), carrier);
+      planCsharpAbsentValue(carrier, input), carrier);
   const selected = present(guard.value);
   return planCsharpValueBranch(node, sourceFile, input, diagnostics,
     csharpPlannedValue(csharpSourcePrimitiveTargetType("bool"), guard.condition, receiver.prelude),
