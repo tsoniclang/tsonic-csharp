@@ -353,11 +353,13 @@ function visit(
     );
   }
   if (ast.is.IsRegularExpressionLiteral(node)) {
+    const selection = selectCsharpRegularExpressionLiteral(policy, node, sourceFile);
+    if (selection.kind === "rejected") issues?.push(Object.freeze({ node, code: selection.code, message: selection.message }));
     setClassification(
       builder,
       node,
       regularExpressionKey,
-      selectCsharpRegularExpressionLiteral(policy, node, sourceFile),
+      selection,
     );
   }
   if (ast.is.IsCallExpression(node)) {
