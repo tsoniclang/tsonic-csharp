@@ -1,3 +1,4 @@
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import {
   createCsharpNativeConstructionDemandQuery,
 } from "../objects/native-construction-demand.js";
@@ -68,7 +69,7 @@ function createCsharpTypeSystem(
   let bindingProjections: CsharpBindingProjectionPolicy | undefined;
   let projectTypes: CsharpProjectTypePolicy | undefined;
   const requireProjectTypes = (): CsharpProjectTypePolicy => {
-    if (projectTypes === undefined) throw new Error("C# project heritage was requested before the type system was fully initialized.");
+    if (projectTypes === undefined) failTargetAnalysisInvariant("tsonic-csharp", "C# project heritage was requested before the type system was fully initialized.");
     return projectTypes;
   };
   const typeParameterConstraints = createCsharpTypeParameterEnvironment(host.ast, (declaration, parameter, source) => {
@@ -95,12 +96,12 @@ function createCsharpTypeSystem(
         return selectCsharpArrayTypeGuard(host, semantics.operations.call(node), semantics.sourceFile);
       },
       bindingProjection(node: Node, sourceFile: SourceFile) {
-        if (bindingProjections === undefined) throw new Error("C# binding projection ran before type-system initialization.");
+        if (bindingProjections === undefined) failTargetAnalysisInvariant("tsonic-csharp", "C# binding projection ran before type-system initialization.");
         return bindingProjections.resolveProjection(node, sourceFile, { depth: 0 });
       },
       get objectShapes() {
         if (objectShapes === undefined) {
-          throw new Error("C# object-shape selection ran before the type system was fully initialized.");
+          failTargetAnalysisInvariant("tsonic-csharp", "C# object-shape selection ran before the type system was fully initialized.");
         }
         return objectShapes;
       },
@@ -113,16 +114,16 @@ function createCsharpTypeSystem(
       },
       structuralTypes: {
         resolveReference(type) {
-          if (objectShapes === undefined) throw new Error("C# structural references requested before type-system initialization.");
+          if (objectShapes === undefined) failTargetAnalysisInvariant("tsonic-csharp", "C# structural references requested before type-system initialization.");
           return objectShapes.resolveReference(type);
         },
         resolveUnion(type, sourceFile, state) {
-          if (objectShapes === undefined) throw new Error("C# structural definitions requested before type-system initialization.");
+          if (objectShapes === undefined) failTargetAnalysisInvariant("tsonic-csharp", "C# structural definitions requested before type-system initialization.");
           return objectShapes.resolveUnion(type, sourceFile, state);
         },
         resolveTarget(type) {
           if (objectShapes === undefined) {
-            throw new Error("C# structural type resolution ran before the type system was fully initialized.");
+            failTargetAnalysisInvariant("tsonic-csharp", "C# structural type resolution ran before the type system was fully initialized.");
           }
           return objectShapes.resolveTarget(type);
         },
@@ -132,14 +133,10 @@ function createCsharpTypeSystem(
           state,
         ) {
           if (objectShapes === undefined) {
-            throw new Error(
-              "C# structural type resolution ran before the type system was fully initialized.",
-            );
+            failTargetAnalysisInvariant("tsonic-csharp", "C# structural type resolution ran before the type system was fully initialized.");
           }
           if (bindingProjections === undefined) {
-            throw new Error(
-              "C# binding projection ran before the type system was fully initialized.",
-            );
+            failTargetAnalysisInvariant("tsonic-csharp", "C# binding projection ran before the type system was fully initialized.");
           }
           return bindingProjections.resolveNode(node, sourceFile, state) ??
             objectShapes.resolveNodeWithState(node, sourceFile, state)?.targetType;
@@ -151,9 +148,7 @@ function createCsharpTypeSystem(
           authoredTypeRoot?: Node,
         ) {
           if (objectShapes === undefined) {
-            throw new Error(
-              "C# structural type resolution ran before the type system was fully initialized.",
-            );
+            failTargetAnalysisInvariant("tsonic-csharp", "C# structural type resolution ran before the type system was fully initialized.");
           }
           return objectShapes.resolveTypeWithState(
             type,
