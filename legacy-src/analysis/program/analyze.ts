@@ -10,6 +10,7 @@ import { analyzeCsharpClassFactories } from "../project-types/class-factories.js
 import { analyzeCsharpClassInitialization } from "../project-types/class-initialization.js";
 import { createCsharpProgramRecords } from "./records/create.js";
 import { analyzeCsharpSourceArtifacts } from "../source-modules/artifacts.js";
+import { analyzeCsharpArrayLiterals } from "../expressions/array-literals.js";
 import { analyzeCsharpStructuralObjectEmission } from "../objects/structural-emission.js";
 import { analyzeCsharpAuthoredObjectMethods } from "../objects/authored-methods.js";
 import { analyzeCsharpObjectMemberEmission } from "../objects/member-emission.js";
@@ -617,7 +618,11 @@ function analyzeCsharpTargetProgramBeforeSeal(
   if (safetyEmission.issues.length !== 0) return rejectedTargetStage(safetyEmission.issues);
   const sourceArtifacts = analyzeCsharpSourceArtifacts(source, sourceModuleConstructions.index);
   if (sourceArtifacts.issues.length !== 0) return rejectedTargetStage(sourceArtifacts.issues);
+  const arrayLiterals = analyzeCsharpArrayLiterals({ source, demand: nativeDemand, conversions,
+    values: analysis.valueReads, expected: analysis.expectedTypes, evidence: analysis.sourceEvidence, operations: admittedOperations });
+  if (arrayLiterals.issues.length !== 0) return rejectedTargetStage(arrayLiterals.issues);
   const records = createCsharpProgramRecords({
+    arrayLiterals: arrayLiterals.records,
     sourceArtifacts: sourceArtifacts.records,
     safetyEmission: safetyEmission.records,
     startup: startup.records,
