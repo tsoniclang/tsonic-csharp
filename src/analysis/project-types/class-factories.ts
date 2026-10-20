@@ -1,7 +1,7 @@
 import type { CsharpClassCapture, CsharpClassFactory, CsharpClassFactoryIndex } from "../../target-model/records/class-factories.js";
 import type { Node } from "@tsonic/tsts";
 import { sourceLexicalCaptures, type TargetSourceProgram } from "@tsonic/target-api/source";
-import type { CsharpProjectTypeCatalog } from "../../policy/types/project/project-types.js";
+import type { CsharpProjectTypeCatalog } from "../../target-model/records/project-types.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpStorageClassifications, CsharpStorageIssue } from "../../target-model/records/storage.js";
 

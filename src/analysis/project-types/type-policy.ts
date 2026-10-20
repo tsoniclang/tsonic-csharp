@@ -1,90 +1,24 @@
-import { csharpProviderBindingFromResolution } from "../../../providers/model/relation-resolver.js";
-import type { CsharpProjectTypeDefinition, CsharpProjectTypeHeritage, CsharpProjectTypeIssue } from "../../../target-model/records/project-types.js";
+import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy, CsharpProjectMemberTypeInstantiation, CsharpProjectTypeDefinitionSelection } from "../../target-model/records/project-types.js";
+
+import { csharpProjectHeritageKindIssue } from "../../policy/types/project/relationships.js";
+import { csharpProviderBindingFromResolution } from "../../providers/model/relation-resolver.js";
+import type { CsharpProjectTypeDefinition, CsharpProjectTypeHeritage, CsharpProjectTypeIssue } from "../../target-model/records/project-types.js";
 import type { AstReader, Node, ReadonlySourceFactResolver } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { sourceNodeIdentity, sourceCallableInterface } from "@tsonic/target-api/source";
-import { csharpFreeTypeParameterIdentities, visitCsharpTargetTypeParameters } from "../../../target-model/types/generic-references.js";
-import { csharpSourceTypeParameter } from "../../../target-model/names/type-parameters.js";
-import type { SourceEnumConstantIndex, SourceEnumIntegerWidthSelection, SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
-import type {
-  CsharpProviderRelationResolver,
-} from "../../../providers/model/relation-resolver.js";
-import type {
-  CsharpTargetNamedTypeRef,
-  TargetTypeRef,
-} from "../../../target-model/types/model.js";
-import {
-  csharpTargetBindingFact,
-} from "../../../target-model/types/model.js";
-import type {
-  CsharpTypePolicy,
-} from "../resolution/index.js";
-import {
-  substituteTargetTypeParameters,
-} from "../../../target-model/types/substitution.js";
-import { readCsharpSourceStruct } from "../resolution/source-markers.js";
-import { resolveCsharpSourceProfileBaseType } from "../resolution/source-profiles.js";
-import {
-  targetTypeRefKey,
-} from "../../../target-model/types/equality.js";
-import {
-  csharpTargetNamedType,
-} from "../../../target-model/types/factories.js";
-import { csharpRenderShapeForTargetNamedType } from "../../../target-model/types/render-shapes.js";
-import type { CsharpProjectConstructorPolicy } from "./project-type-constructors.js";
-import type { CsharpProjectForwardingConstructor } from "../../../target-model/records/project-types.js";
+import { csharpFreeTypeParameterIdentities, visitCsharpTargetTypeParameters } from "../../target-model/types/generic-references.js";
+import { csharpSourceTypeParameter } from "../../target-model/names/type-parameters.js";
+import type { SourceEnumConstantIndex, SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
+import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
+import { csharpTargetBindingFact } from "../../target-model/types/model.js";
+import type { CsharpTypePolicy } from "../../policy/types/resolution/index.js";
+import { substituteTargetTypeParameters } from "../../target-model/types/substitution.js";
+import { readCsharpSourceStruct } from "../../policy/types/resolution/source-markers.js";
+import { resolveCsharpSourceProfileBaseType } from "../../policy/types/resolution/source-profiles.js";
+import { targetTypeRefKey } from "../../target-model/types/equality.js";
 
-export interface CsharpProjectTypeCatalog {
-  readonly definitions: readonly CsharpProjectTypeDefinition[];
-  readonly issues: readonly CsharpProjectTypeIssue[];
-  definitionForDeclaration(
-    declaration: Node | undefined,
-  ): CsharpProjectTypeDefinition | undefined;
-  definitionContainingDeclaration(
-    declaration: Node | undefined,
-  ): CsharpProjectTypeDefinition | undefined;
-  definitionForTarget(
-    type: TargetTypeRef | undefined,
-  ): CsharpProjectTypeDefinition | undefined;
-  targetTypeForDeclaration(
-    declaration: Node | undefined,
-    typeArguments: readonly TargetTypeRef[],
-  ): CsharpTargetNamedTypeRef | undefined;
-}
-
-export interface CsharpProjectTypePolicy {
-  readonly catalog: CsharpProjectTypeCatalog;
-  readonly issues: readonly CsharpProjectTypeIssue[];
-  heritageForDeclaration(
-    declaration: Node,
-  ): CsharpProjectTypeHeritage | undefined;
-  directSupertypes(
-    type: TargetTypeRef,
-  ): readonly TargetTypeRef[] | undefined;
-  instantiateDeclarationType(
-    declaration: Node | undefined,
-    receiver: TargetTypeRef | undefined,
-    declaredType: TargetTypeRef,
-  ): CsharpProjectMemberTypeInstantiation;
-  instantiateMemberType(
-    declaration: Node | undefined,
-    receiver: TargetTypeRef | undefined,
-    memberType: TargetTypeRef,
-  ): CsharpProjectMemberTypeInstantiation;
-  implicitConstructorsForDeclaration(
-    declaration: Node,
-  ): readonly CsharpProjectForwardingConstructor[] | undefined;
-  implicitConstructorForSignature(
-    declaration: Node,
-    signature: import("@tsonic/tsts").Signature,
-    parameters: import("@tsonic/target-api/source").ResolvedSourceCallInfo["sourceSelectedSignatureParameters"],
-  ): CsharpProjectForwardingConstructor | undefined;
-}
-
-export type CsharpProjectMemberTypeInstantiation =
-  | { readonly kind: "not-project-member" }
-  | { readonly kind: "resolved"; readonly type: TargetTypeRef }
-  | { readonly kind: "unresolved"; readonly reason: string };
+import type { CsharpProjectConstructorPolicy } from "../../policy/types/project/project-type-constructors.js";
 
 export interface CsharpProjectTypeCatalogHost {
   readonly ast: AstReader;
@@ -290,11 +224,6 @@ function projectMemberOwner(
   return catalog.definitionForDeclaration(ast.parent(member));
 }
 
-export type CsharpProjectTypeDefinitionSelection =
-  | { readonly kind: "resolved"; readonly definition: CsharpProjectTypeDefinition }
-  | { readonly kind: "not-project-type" }
-  | { readonly kind: "rejected"; readonly selection: Extract<SourceEnumIntegerWidthSelection, { readonly kind: "rejected" }> };
-
 export function projectTypeDefinition(
   host: CsharpProjectTypeCatalogHost,
   declaration: Node,
@@ -313,7 +242,7 @@ export function projectTypeDefinition(
     return { kind: "not-project-type" };
   }
   const enumWidth = kind === "enum" ? host.enumConstants.integerWidth(declaration) : undefined;
-  if (kind === "enum" && enumWidth === undefined) throw new Error("A checked source enum requires its completed common integer-width decision.");
+  if (kind === "enum" && enumWidth === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A checked source enum requires its completed common integer-width decision.", declaration);
   if (enumWidth?.kind === "rejected") return { kind: "rejected", selection: enumWidth };
   const local = kind === "class" && !host.ast.is.IsSourceFile(host.ast.parent(declaration)!);
   const semantics = host.semanticsFor(declaration);
@@ -440,7 +369,7 @@ export function selectCsharpProjectTypeHeritage(
       };
     }
     const targetKind = targetDeclarationKind(host, catalog, target);
-    const kindError = heritageKindError(definition, edge.kind, targetKind, target);
+    const kindError = csharpProjectHeritageKindIssue(definition, edge.kind, targetKind, target);
     if (kindError !== undefined) {
       return {
         kind: "unresolved",
@@ -478,49 +407,6 @@ export function selectCsharpProjectTypeHeritage(
   };
 }
 
-function heritageKindError(
-  definition: CsharpProjectTypeDefinition,
-  relation: "extends" | "implements",
-  targetKind: CsharpProjectTypeDefinition["kind"] | undefined,
-  target: TargetTypeRef,
-): string | undefined {
-  if (definition.kind === "enum" || definition.kind === "struct") {
-    return `Project ${definition.kind} '${definition.sourceName}' cannot declare C# heritage.`;
-  }
-  if (definition.kind === "interface") {
-    if (relation === "implements") {
-      return `Project interface '${definition.sourceName}' cannot implement a C# type.`;
-    }
-    return targetKind === "interface" || targetKind === undefined && isCsharpStructuralInterfaceTarget(target)
-      ? undefined
-      : `Project interface '${definition.sourceName}' cannot inherit the non-interface C# type '${csharpHeritageTargetName(target)}'.`;
-  }
-  if (relation === "extends") {
-    if (target.kind !== "target-named") {
-      return `Project class '${definition.sourceName}' cannot extend the non-class C# type '${csharpHeritageTargetName(target)}'.`;
-    }
-    return targetKind !== undefined && targetKind !== "class"
-      ? `Project class '${definition.sourceName}' cannot extend the selected non-class C# type.`
-      : undefined;
-  }
-  if (targetKind === "interface" || targetKind === undefined && isCsharpStructuralInterfaceTarget(target)) return undefined;
-  return targetKind === undefined
-    ? `Project class '${definition.sourceName}' cannot implement the C# type '${csharpHeritageTargetName(target)}' without an exact native interface declaration.`
-    : `Project class '${definition.sourceName}' cannot implement the non-interface C# type '${csharpHeritageTargetName(target)}'.`;
-}
-
-function csharpHeritageTargetName(type: TargetTypeRef): string {
-  const shape = type.kind === "target-named" ? csharpRenderShapeForTargetNamedType(type) : undefined;
-  return shape?.kind === "named" ? [...(shape.namespace ?? []), shape.name].join(".") : targetTypeRefKey(type);
-}
-
-function isCsharpStructuralInterfaceTarget(type: TargetTypeRef): boolean {
-  return type.kind === "target-named" && (
-    (type as CsharpTargetNamedTypeRef).csharpStructuralContract === true ||
-    (type as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "interface"
-  );
-}
-
 function targetDeclarationKind(
   host: CsharpProjectTypePolicyHost,
   catalog: CsharpProjectTypeCatalog,
@@ -545,17 +431,6 @@ function targetDeclarationKind(
         : binding?.kind === "struct"
           ? "struct"
           : (type as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind;
-}
-
-export function projectDefinitionTargetType(
-  definition: CsharpProjectTypeDefinition,
-  typeArguments: readonly TargetTypeRef[],
-): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType(definition.id, typeArguments, { kind: "named", name: definition.sourceName,
-      ...(definition.scopeName === undefined ? {} : { namespace: [definition.scopeName] }) }, { allowsRefLikeTypeArguments: (typeArguments ?? []).map(() => false), sourceDeclarationKind: definition.kind,
-      ...(definition.kind === "class" ? { constraintRequiresReferenceType: true as const } : {}),
-      ...(definition.kind === "class" || definition.kind === "interface" || definition.kind === "struct"
-        ? { typeofRuntimeKind: "object" as const } : {}) });
 }
 
 function declarationKind(

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { sourceFileIdentity } from "@tsonic/target-api/source";
 
-import type { CsharpProjectTypeCatalogHost } from "../../policy/types/project/project-types.js";
+import type { CsharpProjectTypeCatalogHost } from "../project-types/type-policy.js";
 import type { CsharpProjectTypeDefinition, CsharpProjectTypeIssue } from "../../target-model/records/project-types.js";
 
 export function analyzeCsharpProjectNames(

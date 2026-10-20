@@ -5,14 +5,9 @@ import type {
   CsharpProjectTypeHeritage,
   CsharpProjectTypeIssue,
 } from "../../../target-model/records/project-types.js";
-import {
-  createCsharpProjectTypePolicy,
-  projectDefinitionTargetType,
-  selectCsharpProjectTypeHeritage,
-  type CsharpProjectTypeCatalog,
-  type CsharpProjectTypePolicy,
-  type CsharpProjectTypePolicyHost,
-} from "../../../policy/types/project/project-types.js";
+import { projectDefinitionTargetType } from "../../../policy/types/project/declaration-carriers.js";
+import { type CsharpProjectTypeCatalog, type CsharpProjectTypePolicy } from "../../../target-model/records/project-types.js";
+import { createCsharpProjectTypePolicy, selectCsharpProjectTypeHeritage, type CsharpProjectTypePolicyHost } from "../type-policy.js";
 import {
   csharpForwardingConstructorSignatureKey,
   selectCsharpProjectConstructorSignature,

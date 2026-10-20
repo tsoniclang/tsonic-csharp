@@ -1,6 +1,7 @@
-import type { CsharpTargetMember, TargetTypeRef } from "../types/model.js";
-import type { SourceClassConstructorSignature } from "@tsonic/target-api/source";
-import type { Node, SourceFile } from "@tsonic/tsts";
+import { type CsharpTargetMember, type TargetTypeRef, type CsharpTargetNamedTypeRef } from "../types/model.js";
+import { type SourceClassConstructorSignature, type SourceEnumIntegerWidthSelection } from "@tsonic/target-api/source";
+import { type Node, type SourceFile } from "@tsonic/tsts";
+import { type CsharpProjectTypeDefinition, type CsharpProjectTypeHeritage, type CsharpProjectTypeIssue, type CsharpProjectForwardingConstructor } from "./project-types.js";
 
 export interface CsharpProjectTypeClassifications {
   readonly issues: readonly CsharpProjectTypeIssue[];
@@ -62,3 +63,69 @@ export interface CsharpProjectForwardingConstructor {
   readonly targetMember: CsharpTargetMember;
   readonly baseMemberId?: string;
 }
+
+
+
+
+
+
+
+
+
+
+export interface CsharpProjectTypeCatalog {
+  readonly definitions: readonly CsharpProjectTypeDefinition[];
+  readonly issues: readonly CsharpProjectTypeIssue[];
+  definitionForDeclaration(
+    declaration: Node | undefined,
+  ): CsharpProjectTypeDefinition | undefined;
+  definitionContainingDeclaration(
+    declaration: Node | undefined,
+  ): CsharpProjectTypeDefinition | undefined;
+  definitionForTarget(
+    type: TargetTypeRef | undefined,
+  ): CsharpProjectTypeDefinition | undefined;
+  targetTypeForDeclaration(
+    declaration: Node | undefined,
+    typeArguments: readonly TargetTypeRef[],
+  ): CsharpTargetNamedTypeRef | undefined;
+}
+
+export interface CsharpProjectTypePolicy {
+  readonly catalog: CsharpProjectTypeCatalog;
+  readonly issues: readonly CsharpProjectTypeIssue[];
+  heritageForDeclaration(
+    declaration: Node,
+  ): CsharpProjectTypeHeritage | undefined;
+  directSupertypes(
+    type: TargetTypeRef,
+  ): readonly TargetTypeRef[] | undefined;
+  instantiateDeclarationType(
+    declaration: Node | undefined,
+    receiver: TargetTypeRef | undefined,
+    declaredType: TargetTypeRef,
+  ): CsharpProjectMemberTypeInstantiation;
+  instantiateMemberType(
+    declaration: Node | undefined,
+    receiver: TargetTypeRef | undefined,
+    memberType: TargetTypeRef,
+  ): CsharpProjectMemberTypeInstantiation;
+  implicitConstructorsForDeclaration(
+    declaration: Node,
+  ): readonly CsharpProjectForwardingConstructor[] | undefined;
+  implicitConstructorForSignature(
+    declaration: Node,
+    signature: import("@tsonic/tsts").Signature,
+    parameters: import("@tsonic/target-api/source").ResolvedSourceCallInfo["sourceSelectedSignatureParameters"],
+  ): CsharpProjectForwardingConstructor | undefined;
+}
+
+export type CsharpProjectMemberTypeInstantiation =
+  | { readonly kind: "not-project-member" }
+  | { readonly kind: "resolved"; readonly type: TargetTypeRef }
+  | { readonly kind: "unresolved"; readonly reason: string };
+
+export type CsharpProjectTypeDefinitionSelection =
+  | { readonly kind: "resolved"; readonly definition: CsharpProjectTypeDefinition }
+  | { readonly kind: "not-project-type" }
+  | { readonly kind: "rejected"; readonly selection: Extract<SourceEnumIntegerWidthSelection, { readonly kind: "rejected" }> };

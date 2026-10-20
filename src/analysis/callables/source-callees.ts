@@ -4,7 +4,7 @@ import type { CsharpSourceCalleeSelection } from "../../target-model/operations/
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import { getCsharpCallableValueSignature, getCsharpDelegateSignature } from "../../target-model/types/carriers/delegates.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
-import type { CsharpProjectTypePolicy } from "../../policy/types/project/project-types.js";
+import type { CsharpProjectTypePolicy } from "../../target-model/records/project-types.js";
 import { resolveCsharpStaticMemberReceiver } from "../../policy/types/project/static-members.js";
 import { getCsharpRuntimeUnionArms } from "../../target-model/types/carriers/runtime-carriers.js";
 import type { CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";

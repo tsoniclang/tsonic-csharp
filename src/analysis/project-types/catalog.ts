@@ -2,9 +2,11 @@ import { analyzeCsharpProjectNames } from "../names/project-types.js";
 import type { AstReader, Node } from "@tsonic/tsts";
 
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpProjectTypeCatalog, CsharpProjectTypeCatalogHost } from "../../policy/types/project/project-types.js";
+import type { CsharpProjectTypeCatalog } from "../../target-model/records/project-types.js";
+import type { CsharpProjectTypeCatalogHost } from "./type-policy.js";
 import type { CsharpProjectTypeDefinition, CsharpProjectTypeIssue } from "../../target-model/records/project-types.js";
-import { projectDefinitionTargetType, projectTypeDefinition } from "../../policy/types/project/project-types.js";
+import { projectDefinitionTargetType } from "../../policy/types/project/declaration-carriers.js";
+import { projectTypeDefinition } from "./type-policy.js";
 
 export function createCsharpProjectTypeCatalog(
   host: CsharpProjectTypeCatalogHost,

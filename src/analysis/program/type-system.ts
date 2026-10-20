@@ -31,10 +31,7 @@ import type {
 import {
   createCsharpTypeResolutionServices,
 } from "../../policy/types/resolution/engine.js";
-import type {
-  CsharpProjectTypeCatalog,
-  CsharpProjectTypePolicy,
-} from "../../policy/types/project/project-types.js";
+import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../target-model/records/project-types.js";
 import {
   analyzeCsharpProjectTypePolicy,
 } from "../project-types/catalog/resolution.js";
