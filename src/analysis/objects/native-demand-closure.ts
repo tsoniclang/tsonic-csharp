@@ -1,26 +1,8 @@
-import type {
-  CsharpObjectShapeFact,
-  CsharpObjectShapeCapability,
-  CsharpObjectShapeProjection,
-  TargetTypeRef,
-} from "../../target-model/types/index.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeCapability, CsharpObjectShapeProjection, TargetTypeRef } from "../../target-model/types/index.js";
 import type { CsharpObjectShapeDemandScope } from "./native-demand-batches.js";
 import type { JsonClosureState } from "./native-demand-batches.js";
 import type { CsharpObjectShapeProjectionAdmission } from "../../target-model/records/object-shape-demand.js";
-import {
-  csharpObjectShapesEqual,
-  csharpObjectShapeAssignmentMembers,
-  csharpObjectShapeProjectionMembers,
-  isCsharpObjectShapeGeneratedMemberName,
-  getCsharpJsArrayElementTargetType,
-  getCsharpNullableElementTargetType,
-  getCsharpRuntimeUnionArms,
-  isCsharpClosedJsonRuntimeLeaf,
-  isCsharpRecordDictionaryTargetType,
-  isCsharpStringTargetType,
-  targetTypeRefEquals,
-  targetTypeRefKey,
-} from "../../target-model/types/index.js";
+import { csharpObjectShapesEqual, csharpObjectShapeAssignmentMembers, csharpObjectShapeProjectionMembers, getCsharpJsArrayElementTargetType, getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms, isCsharpClosedJsonRuntimeLeaf, isCsharpRecordDictionaryTargetType, isCsharpStringTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/index.js";
 import { rejected } from "./native-demand-batches.js";
 import { maximumJsonClosureDepth } from "./native-demand-batches.js";
 import { objectShapeArtifactKey } from "../program/records/object-shape-keys.js";
@@ -121,16 +103,6 @@ export function validateProjectionShapes(
     if (members === undefined) {
       return `Closed object projection '${key}' does not identify every exact own member once.`;
     }
-    for (const member of shape.members) {
-      if (isCsharpObjectShapeGeneratedMemberName(member.targetName)) {
-        return `Closed object projection '${key}' conflicts with generated member '${member.targetName}'.`;
-      }
-    }
-  }
-  if (projection.kind === "assign" && projection.sourceShape.members.some((member) =>
-    isCsharpObjectShapeGeneratedMemberName(member.targetName)
-  )) {
-    return "Closed object assignment source conflicts with a generated member name.";
   }
   return undefined;
 }

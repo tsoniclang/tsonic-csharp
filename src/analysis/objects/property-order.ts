@@ -3,7 +3,7 @@ import type { AstReader, Node } from "@tsonic/tsts";
 import { orderEnumerableOwnStringProperties } from "@tsonic/target-api/source";
 
 import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
-import { isSourceDeclaredNominalShape, isCsharpObjectShapeGeneratedMemberName } from "../../target-model/types/object-shape-projection.js";
+import { isSourceDeclaredNominalShape } from "../../target-model/types/object-shape-projection.js";
 
 import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
 import { csharpFreeTypeParameterIdentities } from "../../target-model/types/generic-references.js";
@@ -49,7 +49,6 @@ export function analyzeCsharpObjectShapePropertyOrders(fact: CsharpObjectShapeFa
   implementations: readonly CsharpObjectShapeFact[] | undefined): CsharpObjectShapePropertyOrders {
   const stringMembers = fact.members.filter(member => member.sourceKey.kind === "property");
   const nominal = isSourceDeclaredNominalShape(fact);
-  const reserved = fact.members.some(member => isCsharpObjectShapeGeneratedMemberName(member.targetName));
   const exactOwnSet = !isInterfaceShape(fact) ? hasExactNativeOwnStorage(fact)
     : implementations !== undefined && implementations.length !== 0 && implementations.every(implementation => {
       const members = implementation.members.filter(member => member.sourceKey.kind === "property");
@@ -59,7 +58,6 @@ export function analyzeCsharpObjectShapePropertyOrders(fact: CsharpObjectShapeFa
     });
   const commonReason = nominal
     ? "requires one exact generated structural object carrier; an open nominal source type cannot prove its runtime own-property set."
-    : reserved ? "conflicts with a reserved generated object-shape member name."
     : isInterfaceShape(fact) && !exactOwnSet
       ? "requires an exact own-property set for every admitted native implementation; a structural view alone is insufficient." : undefined;
   const authored = commonReason === undefined ? classifyCsharpObjectShapeAuthoredOrder(fact, ast, exactOwnSet) : undefined;
