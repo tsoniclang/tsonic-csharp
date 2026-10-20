@@ -18,6 +18,7 @@ import { sourceClassFieldIsTypeOnly } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { csharpNativePropertyNameIssue } from "../objects/computed-field-names.js";
+import { selectCsharpSemanticCarrier } from "../../policy/types/semantic-types.js";
 import type {
   CsharpTypePolicy,
 } from "../../policy/types/index.js";
@@ -176,6 +177,7 @@ export function analyzeCsharpSourceEvidence(
     const typeParameter = typeParameters.length === 1
       ? csharpSourceTypeParameter(typeParameters[0]!, source.ast) : undefined;
     const classification = Object.freeze({
+      carrier: selectCsharpSemanticCarrier({ intrinsic, targetType, typeParameter }),
       intrinsic,
       nullish: semantics.types.isNullish(type),
       ...(targetType === undefined ? {} : { targetType }),
