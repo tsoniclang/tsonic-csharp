@@ -11,10 +11,16 @@ export function createCsharpSourceProfileInputs(
   const values = new Map<Node, Map<Type, TargetTypeRef | undefined>>();
   const types = new Map<Type, TargetTypeRef | undefined>();
   const nodes = new Map<Node, TargetTypeRef | undefined>();
+  const numericArguments = new Set<Node>();
   for (const value of sourceValues) {
     let selectedTypes = values.get(value.expression);
     if (selectedTypes === undefined) { selectedTypes = new Map(); values.set(value.expression, selectedTypes); }
     if (!selectedTypes.has(value.type)) selectedTypes.set(value.type, host.types.resolveSelectedValue(value.expression, value.type, file));
+    const valueCarrier = selectedTypes.get(value.type);
+    const numeric = getCsharpNullableElementTargetType(valueCarrier) ?? valueCarrier;
+    if (numeric?.kind === "type-parameter" && csharpSourceHasNumericConstraint(value.expression, numeric, file, host)) {
+      numericArguments.add(value.expression);
+    }
     if (!types.has(value.type)) types.set(value.type, host.types.resolveType(value.type, file));
     if (!nodes.has(value.expression)) nodes.set(value.expression, host.types.resolveNode(value.expression, file));
     if (host.ast.is.IsSpreadElement(value.expression)) {
@@ -28,5 +34,7 @@ export function createCsharpSourceProfileInputs(
   }));
   const resultType = host.types.resolveType(result, file);
   if (result !== undefined) types.set(result, resultType);
-  return Object.freeze({ values, types, nodes, typeArguments: Object.freeze(typeArguments), resultType });
+  return Object.freeze({ values, types, nodes, typeArguments: Object.freeze(typeArguments), resultType, numericArguments });
 }
+import { csharpSourceHasNumericConstraint } from "../constraints/numeric-evidence.js";
+import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
