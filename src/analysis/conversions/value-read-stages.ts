@@ -1,3 +1,4 @@
+import { createCsharpValueReadProducer } from "../program/records/value-reads.js";
 import type { Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type {
@@ -32,31 +33,30 @@ export function analyzeCsharpValueReadStages(
   operations: CsharpTargetOperationClassifications,
 ): CsharpValueReadStageAnalysis {
   const rawStages = new WeakMap<Node, CsharpRawValueReadStages>();
-  const stages = new WeakMap<Node, CsharpValueReadStages>();
+  const producer = createCsharpValueReadProducer();
+  const nodes: Node[] = [];
   for (const sourceFile of policy.sourceFiles) visitStages(sourceFile);
   let sealed: CsharpValueReadClassifications | undefined;
   return Object.freeze({
-    valueReadStages: Object.freeze({ get: (node: Node) => stages.get(node) }),
+    valueReadStages: producer.sealStages(),
     seal(storage: Pick<CsharpStorageRepresentationClassifications, "storageType">): CsharpValueReadClassifications {
       if (sealed !== undefined) return sealed;
-      const reads = new WeakMap<Node, CsharpValueRead>();
-      const visitReads = (node: Node): void => {
+      for (const node of nodes) {
         const read = sealedValueRead(rawStages.get(node), storage.storageType.get(node));
-        if (read !== undefined) reads.set(node, read);
-        policy.ast.forEachChild(node, child => { if (child !== undefined) visitReads(child); });
-      };
-      for (const sourceFile of policy.sourceFiles) visitReads(sourceFile);
-      sealed = Object.freeze({ valueRead: Object.freeze({ get: (node: Node) => reads.get(node) }) });
+        if (read !== undefined) producer.read(node, read);
+      }
+      sealed = producer.sealReads();
       return sealed;
     },
   });
 
   function visitStages(node: Node): void {
+    nodes.push(node);
     const raw = rawValueReadStages(node);
     if (raw !== undefined) {
       rawStages.set(node, raw);
       const selected = preStorageValueRead(raw);
-      if (selected !== undefined) stages.set(node, selected);
+      if (selected !== undefined) producer.stage(node, selected);
     }
     policy.ast.forEachChild(node, child => { if (child !== undefined) visitStages(child); });
   }
