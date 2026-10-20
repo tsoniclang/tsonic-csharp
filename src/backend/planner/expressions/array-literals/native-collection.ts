@@ -13,11 +13,11 @@ export function planNativeCollectionArrayLiteralExpression(node: Node, sourceFil
   elementCarrier: TargetTypeRef, planner: ArrayLiteralPlanner): CsharpPlannedValue | undefined {
   const selected = input.program.records.arrayLiteral.get(node, carrier);
   const construction = selected?.construction;
-  if (construction === undefined) failCsharpPlannerInvariant("An admitted native collection requires its exact builder contract.", node);
+  if (selected === undefined || construction === undefined) failCsharpPlannerInvariant("An admitted native collection requires its exact builder contract.", node);
   const elementType = csharpTypeFromTargetTypeRef(elementCarrier, input.scope.typeParameterNames)
     ?? failCsharpPlannerInvariant("An admitted native collection requires its element type.", node);
   const type = csharpTypeFromTargetTypeRef(construction.carrier, input.scope.typeParameterNames)
     ?? failCsharpPlannerInvariant("An admitted native collection requires its construction type.", node);
-  return planCsharpArrayConstruction(node, sourceFile, input, diagnostics, elementType, elementCarrier, planner,
+  return planCsharpArrayConstruction(node, sourceFile, input, diagnostics, elementType, elementCarrier, planner, selected,
     { carrier: construction.carrier, type, builder: construction.builder });
 }

@@ -19,12 +19,8 @@ import type {
 import type {
   ArrayLiteralPlanner,
 } from "./types.js";
-import {
-  arrayLiteralHasElision,
-  rejectSparseArrayLiteralElision,
-} from "./elision.js";
 import { planCsharpArrayConstruction } from "./construction.js";
-import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../../invariants.js";
 import type { CsharpPlannedValue } from "../planned-values.js";
 import { buildCsharpPlannedValue } from "../planned-value-composition.js";
 
@@ -35,18 +31,13 @@ export function planArrayLiteralExpression(
   diagnostics: TargetDiagnostic[],
   elementType: CsharpTypeNode,
   planner: ArrayLiteralPlanner,
-  elementTargetType?: TargetTypeRef,
+  elementTargetType: TargetTypeRef,
 ): CsharpPlannedValue | undefined {
   const literal = AsArrayLiteralExpression(input.program.source.ast, node)!;
-  if (arrayLiteralHasElision(node, input)) {
-    return rejectSparseArrayLiteralElision(node, diagnostics);
-  }
   if ((literal.Elements?.Nodes ?? []).some((element) => HasSourceKind(input.program.source.ast, element, KindSpreadElement))) {
-    if (elementTargetType === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(node, "Dense array construction requires its exact element carrier."));
-      return undefined;
-    }
-    return planCsharpArrayConstruction(node, sourceFile, input, diagnostics, elementType, elementTargetType, planner);
+    const selected = input.program.records.arrayLiteral.get(node, { kind: "array", element: elementTargetType });
+    if (selected === undefined) failCsharpPlannerInvariant("An admitted dense array requires its exact native construction plan.", node);
+    return planCsharpArrayConstruction(node, sourceFile, input, diagnostics, elementType, elementTargetType, planner, selected);
   }
   const elements = plannedArrayElements(literal.Elements?.Nodes ?? [], sourceFile, input, diagnostics, (element, elementSourceFile, elementInput, elementDiagnostics) =>
     planner.planExpression(element, elementSourceFile, elementInput, elementDiagnostics));
@@ -79,7 +70,7 @@ export function plannedArrayElements(
   const planned: CsharpPlannedValue[] = [];
   for (const element of elements) {
     if (element === undefined) {
-      continue;
+      failCsharpPlannerInvariant("An admitted array requires its dense source element inventory.", sourceFile);
     }
     const expression = planExpression(element, sourceFile, input, diagnostics);
     if (expression === undefined) {
