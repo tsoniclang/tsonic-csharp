@@ -267,7 +267,7 @@ export function selectCsharpNativeJsValueConditionOperation(
       };
 }
 
-function selectJsValueMode(types: readonly (TargetTypeRef | undefined)[]): { readonly kind: "js-value" | "not-js-value" } {
+function selectJsValueMode(types: readonly (TargetTypeRef | undefined)[]): { readonly kind: "js-value" } | { readonly kind: "not-js-value" } {
   return types.some(isCsharpJsValueTargetType) ? { kind: "js-value" } : { kind: "not-js-value" };
 }
 function receiverRuntimeMember(
