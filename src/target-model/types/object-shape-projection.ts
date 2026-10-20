@@ -1,12 +1,7 @@
 import { createHash } from "node:crypto";
-import type {
-  CsharpObjectShapeFact,
-  CsharpObjectShapeProjection,
-} from "./model.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeProjection } from "./model.js";
 import { targetTypeRefKey } from "./equality.js";
-import {
-  resolveCsharpObjectShapeMemberBySourceContract,
-} from "./object-shape-members.js";
+import { resolveCsharpObjectShapeMemberBySourceContract } from "./object-shape-members.js";
 
 const projectionPrefix = "__tsonicObject";
 
@@ -37,7 +32,10 @@ export function csharpObjectShapeProjectionMethodName(
     ]))
     .digest("hex")
     .slice(0, 12);
-  return `${projectionPrefix}${operation}_${identity}`;
+  const reserved = new Set(receiver.members.map(member => member.targetName));
+  let name = `${projectionPrefix}${operation}_${identity}`;
+  while (reserved.has(name)) name = `_${name}`;
+  return name;
 }
 
 export function csharpObjectShapeProjectionMembers(
@@ -114,8 +112,4 @@ export function isSourceDeclaredNominalShape(fact: CsharpObjectShapeFact): boole
     (fact.targetType as {
       readonly csharpSourceDeclarationKind?: unknown;
     }).csharpSourceDeclarationKind !== undefined;
-}
-
-export function isCsharpObjectShapeGeneratedMemberName(name: string): boolean {
-  return name.startsWith(projectionPrefix);
 }
