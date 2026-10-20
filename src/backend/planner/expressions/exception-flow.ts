@@ -8,16 +8,17 @@ import {
   csharpTsThrownValueExceptionTargetType,
 } from "../../../target-model/types/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 
 export function csharpCatchExceptionType(): CsharpTypeNode | undefined {
-  return csharpTypeFromTargetTypeRef(csharpExceptionTargetType(), undefined);
+  return csharpTypeFromTargetTypeRef(csharpExceptionTargetType(), undefined)
+    ?? failCsharpPlannerInvariant("The CLR catch boundary requires its native exception type.");
 }
 
 export function csharpThrownValueFromExpression(expression: CsharpExpression): CsharpExpression | undefined {
-  const type = csharpTypeFromTargetTypeRef(csharpTsThrownValueExceptionTargetType(), undefined);
-  return type === undefined
-    ? undefined
-    : {
+  const type = csharpTypeFromTargetTypeRef(csharpTsThrownValueExceptionTargetType(), undefined)
+    ?? failCsharpPlannerInvariant("A thrown value requires its native exception transport type.");
+  return {
         kind: "InvocationExpression",
         callee: {
           kind: "SimpleMemberAccessExpression",
@@ -29,10 +30,9 @@ export function csharpThrownValueFromExpression(expression: CsharpExpression): C
 }
 
 export function csharpThrownValueToValueExpression(expression: CsharpExpression): CsharpExpression | undefined {
-  const type = csharpTypeFromTargetTypeRef(csharpTsThrownValueExceptionTargetType(), undefined);
-  return type === undefined
-    ? undefined
-    : {
+  const type = csharpTypeFromTargetTypeRef(csharpTsThrownValueExceptionTargetType(), undefined)
+    ?? failCsharpPlannerInvariant("A caught value requires its native exception transport type.");
+  return {
         kind: "InvocationExpression",
         callee: {
           kind: "SimpleMemberAccessExpression",
