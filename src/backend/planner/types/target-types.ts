@@ -1,5 +1,5 @@
 export {
   csharpTypeFromSourcePrimitiveKind,
   csharpTypeFromTargetTypeRef,
-} from "./target-type-rendering.js";
+} from "./render.js";
 export { csharpTypeRequiresUnsafe } from "./target-type-unsafe.js";
