@@ -1,29 +1,11 @@
-import type {
-  ProviderDeclarationModel,
-  ProviderExportDeclaration,
-  ProviderMemberDeclaration,
-  ProviderMemberKey,
-  ProviderPropertyName,
-  ProviderSignatureDeclaration,
-} from "@tsonic/tsts";
+import type { ProviderDeclarationModel, ProviderExportDeclaration, ProviderMemberDeclaration, ProviderMemberKey, ProviderPropertyName, ProviderSignatureDeclaration } from "@tsonic/tsts";
 import type { CsharpProviderParameterRelation, CsharpProviderBindingTypeArgumentSource, CsharpTargetReceiverRelation, CsharpProviderTypeParameterRelation } from "../../../target-model/identities/provider-relations.js";
-import type {
-  CsharpTargetBindingFact,
-  CsharpTargetMember,
-} from "../../../policy/types/index.js";
-import type {
-  DotnetTypeDeclaration,
-} from "../model/index.js";
+import type { CsharpTargetBindingFact, CsharpTargetMember } from "../../../target-model/types/model.js";
+import type { DotnetTypeDeclaration } from "../model/index.js";
 import { dotnetTypeToTargetBinding } from "./binding-projection.js";
-import {
-  dotnetMemberToProviderMember,
-} from "./declarations/members.js";
-import {
-  dotnetProviderSignatureIdsForMember,
-} from "./declarations/signatures.js";
-import {
-  dotnetMemberToTargetMemberRecords,
-} from "./members.js";
+import { dotnetMemberToProviderMember } from "./declarations/members.js";
+import { dotnetProviderSignatureIdsForMember } from "./declarations/signatures.js";
+import { dotnetMemberToTargetMemberRecords } from "./members.js";
 
 export interface DotnetTargetMemberProjection {
   readonly targetBinding: CsharpTargetBindingFact;
