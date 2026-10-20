@@ -1,20 +1,5 @@
-import type {
-  Node,
-  SourceFile,
-} from "@tsonic/tsts";
-import type {
-  CsharpPolicyContext,
-} from "../../model/context.js";
-import {
-  csharpSourcePrimitiveTargetType,
-  csharpStringTargetType,
-  csharpTsValueTargetType,
-  isCsharpJsValueTargetType,
-  targetTypeRefEquals,
-} from "../../types/index.js";
-import type {
-  TargetTypeRef,
-} from "../../types/index.js";
+import { csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTsValueTargetType, isCsharpJsValueTargetType, targetTypeRefEquals } from "../../types/index.js";
+import type { TargetTypeRef } from "../../types/index.js";
 
 import type { CsharpJsValueInvocation, CsharpJsValueOperationSelection, CsharpJsValueReceiverOperation, CsharpJsValueCallKind, CsharpJsValueRuntimeMember } from "../../../target-model/operations/js-values.js";
 import type { CsharpSourceOperator } from "../../../target-model/syntax/operators.js";
@@ -86,24 +71,6 @@ export function selectCsharpJsObjectLiteralOperation(): Extract<
   };
 }
 
-export function selectCsharpJsValueReceiverExpressionOperation(
-  input: CsharpPolicyContext,
-  receiver: Node | undefined,
-  sourceFile: SourceFile,
-  operation: CsharpJsValueReceiverOperation,
-  optional = false,
-): CsharpJsValueOperationSelection {
-  const selection = selectJsValueMode(input, [receiver], sourceFile);
-  if (selection.kind !== "js-value") {
-    return selection;
-  }
-  return selectCsharpJsValueReceiverOperation(
-    input.types.resolveNode(receiver, sourceFile),
-    operation,
-    optional,
-  );
-}
-
 export function selectCsharpJsValueReceiverOperation(
   receiverType: TargetTypeRef | undefined,
   operation: CsharpJsValueReceiverOperation,
@@ -133,23 +100,17 @@ export function selectCsharpJsValueReceiverOperation(
       };
 }
 
-export function selectCsharpJsValueCallOperation(
-  input: CsharpPolicyContext,
-  callee: Node | undefined,
-  receiver: Node | undefined,
-  sourceFile: SourceFile,
-  callKind: CsharpJsValueCallKind,
-  optionalCall: boolean,
+export function selectCsharpNativeJsValueCallOperation(
+  calleeType: TargetTypeRef | undefined, receiverType: TargetTypeRef | undefined, callKind: CsharpJsValueCallKind, optionalCall: boolean,
 ): CsharpJsValueOperationSelection {
-  const selection = selectJsValueMode(input, [callee], sourceFile);
+  const selection = selectJsValueMode([calleeType]);
   if (selection.kind !== "js-value") {
     return selection;
   }
   if (
     callKind !== "direct" &&
     (
-      receiver === undefined ||
-      !isCsharpJsValueTargetType(input.types.resolveNode(receiver, sourceFile))
+      !isCsharpJsValueTargetType(receiverType)
     )
   ) {
     return {
@@ -182,22 +143,14 @@ export function selectCsharpJsValueCallOperation(
   };
 }
 
-export function selectCsharpJsValueBinaryOperation(
-  input: CsharpPolicyContext,
-  left: Node | undefined,
-  right: Node | undefined,
-  sourceFile: SourceFile,
-  operator: CsharpSourceOperator | "",
+export function selectCsharpNativeJsValueBinaryOperation(
+  left: TargetTypeRef | undefined, right: TargetTypeRef | undefined, storage: TargetTypeRef | undefined, operator: CsharpSourceOperator | "",
 ): CsharpJsValueOperationSelection {
   if ((operator === "??" || operator === "??=") &&
-    isCsharpJsValueTargetType(input.types.resolveReadStorage(left))) {
+    isCsharpJsValueTargetType(storage)) {
     return { kind: "not-js-value" };
   }
-  const mode = selectJsValueOperandMode(
-    input,
-    [left, right],
-    sourceFile,
-  );
+  const mode = selectJsValueMode([left, right]);
   if (mode.kind !== "js-value") {
     return mode;
   }
@@ -242,17 +195,10 @@ export function selectCsharpJsValueBinaryOperation(
       };
 }
 
-export function selectCsharpJsValueUnaryOperation(
-  input: CsharpPolicyContext,
-  operand: Node | undefined,
-  sourceFile: SourceFile,
-  operator: CsharpSourceOperator | "",
+export function selectCsharpNativeJsValueUnaryOperation(
+  operand: TargetTypeRef | undefined, operator: CsharpSourceOperator | "",
 ): CsharpJsValueOperationSelection {
-  const mode = selectJsValueOperandMode(
-    input,
-    [operand],
-    sourceFile,
-  );
+  const mode = selectJsValueMode([operand]);
   if (mode.kind !== "js-value") {
     return mode;
   }
@@ -279,14 +225,9 @@ export function selectCsharpJsValueUnaryOperation(
       };
 }
 
-export function selectCsharpJsTypeofOperation(
-  input: CsharpPolicyContext,
-  operand: Node | undefined,
-  sourceFile: SourceFile,
+export function selectCsharpNativeJsValueTypeofOperation(
+  type: TargetTypeRef | undefined,
 ): CsharpJsValueOperationSelection {
-  const type = operand === undefined
-    ? undefined
-    : input.types.resolveNode(operand, sourceFile);
   if (isCsharpJsValueTargetType(type)) {
     return {
         kind: "resolved",
@@ -298,12 +239,10 @@ export function selectCsharpJsTypeofOperation(
   return { kind: "not-js-value" };
 }
 
-export function selectCsharpJsValueVoidOperation(
-  input: CsharpPolicyContext,
-  operand: Node | undefined,
-  sourceFile: SourceFile,
+export function selectCsharpNativeJsValueVoidOperation(
+  operand: TargetTypeRef | undefined,
 ): CsharpJsValueOperationSelection {
-  const mode = selectJsValueOperandMode(input, [operand], sourceFile);
+  const mode = selectJsValueMode([operand]);
   return mode.kind !== "js-value"
     ? mode
     : {
@@ -314,16 +253,10 @@ export function selectCsharpJsValueVoidOperation(
       };
 }
 
-export function selectCsharpJsValueCondition(
-  input: CsharpPolicyContext,
-  expression: Node | undefined,
-  sourceFile: SourceFile,
+export function selectCsharpNativeJsValueConditionOperation(
+  expression: TargetTypeRef | undefined,
 ): CsharpJsValueOperationSelection {
-  const mode = selectJsValueOperandMode(
-    input,
-    [expression],
-    sourceFile,
-  );
+  const mode = selectJsValueMode([expression]);
   return mode.kind !== "js-value"
     ? mode
     : {
@@ -334,39 +267,9 @@ export function selectCsharpJsValueCondition(
       };
 }
 
-function selectJsValueMode(
-  input: CsharpPolicyContext,
-  nodes: readonly (Node | undefined)[],
-  sourceFile: SourceFile,
-):
-  | Extract<CsharpJsValueOperationSelection, { readonly kind: "not-js-value" | "rejected" }>
-  | { readonly kind: "js-value" } {
-  const usesJsValue = nodes.some((node) =>
-    node !== undefined &&
-    isCsharpJsValueTargetType(input.types.resolveNode(node, sourceFile))
-  );
-  if (!usesJsValue) {
-    return { kind: "not-js-value" };
-  }
-  return { kind: "js-value" };
+function selectJsValueMode(types: readonly (TargetTypeRef | undefined)[]): { readonly kind: "js-value" | "not-js-value" } {
+  return types.some(isCsharpJsValueTargetType) ? { kind: "js-value" } : { kind: "not-js-value" };
 }
-
-function selectJsValueOperandMode(
-  input: CsharpPolicyContext,
-  nodes: readonly (Node | undefined)[],
-  sourceFile: SourceFile,
-):
-  | Extract<CsharpJsValueOperationSelection, { readonly kind: "not-js-value" | "rejected" }>
-  | { readonly kind: "js-value" } {
-  const types = nodes.map((node) =>
-    node === undefined ? undefined : input.types.resolveNode(node, sourceFile)
-  );
-  if (!types.some((type) => isCsharpJsValueTargetType(type))) {
-    return { kind: "not-js-value" };
-  }
-  return { kind: "js-value" };
-}
-
 function receiverRuntimeMember(
   operation: CsharpJsValueReceiverOperation,
   optional: boolean,
