@@ -1,12 +1,12 @@
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
 import type { CsharpObjectShapePolicyHost } from "./model.js";
-import type { CsharpTypeResolutionState } from "../../resolution/model.js";
-import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { CsharpTypeResolutionState } from "../../types/resolution/model.js";
+import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { ExtensionFactSubject, Node, Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { sourceTypeIsAuthoredEmptyObject } from "@tsonic/target-api/source";
-import { nextState } from "../../resolution/state.js";
-import { classifyCsharpSourceProfileType } from "../../resolution/source-profile.js";
+import { nextState } from "../../types/resolution/state.js";
+import { classifyCsharpSourceProfileType } from "../../../policy/identities/source-types.js";
 
 interface SelectedObjectShapeSource {
   readonly type: Type | undefined;
@@ -218,7 +218,7 @@ export function isProjectSourceTargetType(
   type: TargetTypeRef,
 ): type is CsharpTargetNamedTypeRef {
   return type.kind === "target-named" &&
-    type.id.startsWith("tsonic.source:");
+    (type as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind !== undefined;
 }
 
 export function projectClassIsObjectInitializable(

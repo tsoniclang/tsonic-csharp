@@ -8,7 +8,7 @@ import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { csharpSourceMemberDisplayName } from "../../../target-model/types/source-member-keys.js";
 import { nextState } from "../../types/resolution/state.js";
 import { objectShapeMemberTargetNameForKey } from "../../../policy/names/source-members.js";
-import { typeIncludesNullish } from "../../../policy/types/objects/object-shape-policy/source-evidence.js";
+import { typeIncludesNullish } from "./source-evidence.js";
 import { resolveObjectShapeSourceMemberKey } from "../../../policy/types/objects/object-shape-policy/source-member-identity.js";
 import { resolveCsharpCallableTypeParameters } from "../../../policy/constraints/callable-type-parameters.js";
 import { csharpMethodValueCoversContract, getCsharpMethodValue } from "../../../target-model/types/method-values.js";
