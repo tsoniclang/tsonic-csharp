@@ -1,3 +1,4 @@
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { Node } from "@tsonic/tsts";
 import { targetUseSiteRef, type TargetUseSiteRef } from "@tsonic/target-api/analysis";
 import type { CsharpConversionMode } from "../conversions/selection.js";
@@ -183,4 +184,21 @@ export interface CsharpNativeExpressionRecord {
   readonly bottom: { readonly effects: readonly TargetUseSiteRef[]; readonly expression: Node } | undefined;
   readonly storage: Node | undefined;
   readonly integerTruncation?: { readonly target: TargetTypeRef; readonly signed: boolean };
+}
+
+export type CsharpNativeUnadmittedReason =
+  | "argument-refused" | "argument-unresolved" | "argument-inconsistent" | "argument-expression-unresolved"
+  | "expression-form-unresolved" | "operation-unresolved" | "source-argument-rejected" | "construction-unresolved"
+  | "completion-unresolved" | "use-context-unresolved" | "expected-use-pending" | "cyclic-use" | "callable-creation" | "property-key-refused";
+
+export type CsharpNativeUnadmitted =
+  | { readonly kind: "pending-use"; readonly site: TargetUseSiteRef; readonly expression: Node;
+    readonly reason: CsharpNativeUnadmittedReason; readonly message?: string; readonly code?: string }
+  | { readonly kind: "source-refusal"; readonly requiredBy: Node; readonly diagnostic: TargetDiagnostic };
+
+export interface CsharpNativeDemandAnalysis extends CsharpNativeUseClassifications {
+  readonly entries: readonly { readonly site: TargetUseSiteRef; readonly use: CsharpNativeUse }[];
+  readonly unadmitted: readonly CsharpNativeUnadmitted[];
+  readonly requiredBindingRoots: readonly Node[];
+  readonly requiredNativeValueDeclarations: readonly Node[];
 }
