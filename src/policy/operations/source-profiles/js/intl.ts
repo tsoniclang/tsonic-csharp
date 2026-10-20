@@ -1,40 +1,9 @@
-import type {
-  CsharpTargetMember,
-  TargetTypeRef,
-} from "../../../types/index.js";
-import {
-  csharpJsDateTargetType,
-  csharpJsIntlTargetType,
-  type CsharpJsIntlCarrierName,
-} from "../../../../target-model/types/carriers/js.js";
-import {
-  csharpBigIntegerTargetType,
-  csharpNullableTargetType,
-  csharpQualifiedTypeRenderShape,
-  csharpSourcePrimitiveTargetType,
-  csharpStringTargetType,
-  csharpTargetNamedType,
-  csharpTsValueTargetType,
-  csharpRuntimeUnionTargetType,
-  targetTypeRefEquals,
-} from "../../../../target-model/types/index.js";
-import type {
-  CsharpSourceProfileCallPolicy,
-  CsharpSourceProfileCallPolicyContext,
-  CsharpSourceProfilePropertyPolicy,
-} from "../source-profile-policy.js";
+import type { CsharpTargetMember, TargetTypeRef } from "../../../types/index.js";
+import { csharpJsDateTargetType, csharpJsIntlTargetType, type CsharpJsIntlCarrierName } from "../../../../target-model/types/carriers/js.js";
+import { csharpBigIntegerTargetType, csharpNullableTargetType, csharpQualifiedTypeRenderShape, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTargetNamedType, csharpTsValueTargetType, csharpRuntimeUnionTargetType, targetTypeRefEquals } from "../../../../target-model/types/index.js";
+import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext, CsharpSourceProfilePropertyPolicy } from "../../../model/source-profiles.js";
 import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
-import {
-  instanceMethod,
-  jsCallPolicy,
-  jsConstructIdentity,
-  jsMemberIdentity,
-  jsPropertyPolicy,
-  jsRuntimeTargetType,
-  targetParameter,
-  targetProperty,
-  staticMethod,
-} from "./common.js";
+import { instanceMethod, jsCallPolicy, jsConstructIdentity, jsMemberIdentity, jsPropertyPolicy, jsRuntimeTargetType, targetParameter, targetProperty, staticMethod } from "./common.js";
 
 const doubleType = csharpSourcePrimitiveTargetType("float64");
 const intType = csharpSourcePrimitiveTargetType("int32");
@@ -270,10 +239,7 @@ function directIntlMember(
     context,
     context.source.sourceReceiver,
   );
-  const result = returnType ?? context.host.types.resolveType(
-    context.source.sourceResultType,
-    context.sourceFile,
-  );
+  const result = returnType ?? context.inputs.types.get(context.source.sourceResultType);
   return receiver?.kind !== "target-named" || result === undefined
     ? undefined
     : instanceMethod(
