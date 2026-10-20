@@ -6,7 +6,7 @@ import type { CsharpIdentifierEmission } from "../../target-model/records/source
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpClassFactoryIndex } from "../../target-model/records/class-factories.js";
 import type { CsharpCaptureStorage } from "../../target-model/records/capture-storage.js";
-import type { CsharpNativeDemandAnalysis } from "../operations/native-demand-model.js";
+import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpSourceFileRecords } from "../../target-model/records/source-files.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";

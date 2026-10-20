@@ -5,7 +5,7 @@ import type { CsharpTargetParameter } from "../../target-model/types/model.js";
 import type { CsharpProviderArgumentMapping, CsharpSelectedTargetCall, ResolvedSourceCallInfo } from "../../target-model/records/members.js";
 import type { CsharpCallArgumentForm, CsharpCallArgumentEmission, CsharpTargetArgumentOperand, CsharpTargetArgumentsEmission } from "../../target-model/records/target-arguments.js";
 import type { CsharpSourceCallEmissionRecords } from "../../target-model/records/source-call-emission.js";
-import type { CsharpNativeDemandAnalysis } from "../operations/native-demand-model.js";
+import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
 import { csharpTargetParameterValueType, getCsharpDelegateSignature, csharpArgumentVectorCallbackResultMatches, getCsharpJsArrayElementTargetType } from "../../target-model/types/index.js";
 import { selectCsharpTypeEmission } from "../../policy/types/type-emission.js";
 import { csharpPositionalArgumentsAreRepresentable } from "../../policy/operations/call-arguments.js";

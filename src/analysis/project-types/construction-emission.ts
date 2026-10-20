@@ -4,7 +4,7 @@ import { targetDiagnosticFromExtension, type TargetDiagnostic } from "@tsonic/ta
 import type { CsharpAdmittedConstruction } from "../../target-model/records/construction.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
-import type { CsharpNativeDemandAnalysis } from "../operations/native-demand-model.js";
+import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpSourceModuleConstructionIndex } from "../../target-model/records/source-modules.js";
 import type { CsharpSourceFileRecords } from "../../target-model/records/source-files.js";

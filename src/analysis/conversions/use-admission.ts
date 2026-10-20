@@ -2,7 +2,7 @@ import type { Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpConversionMode, CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import type { CsharpConversionIssue, CsharpExpressionConversionClassification } from "../../target-model/records/conversions.js";
-import type { CsharpNativeDemandAnalysis } from "../operations/native-demand-model.js";
+import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpTargetCallSelection } from "../../target-model/records/member-selections.js";

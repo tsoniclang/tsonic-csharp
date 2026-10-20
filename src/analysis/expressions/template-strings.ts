@@ -1,6 +1,6 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import type { CsharpNativeDemandAnalysis } from "../operations/native-demand-model.js";
+import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
 import { createCsharpTemplateStringProducer } from "../program/records/template-strings.js";
 
 export function analyzeCsharpTemplateStrings(ast: AstReader, demand: CsharpNativeDemandAnalysis) {

@@ -1,7 +1,7 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpNativeDemandAnalysis } from "../operations/native-demand-model.js";
+import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
 import type { CsharpOptionalCallChain, CsharpOptionalCallStep } from "../../target-model/records/optional-call-chains.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { createCsharpOptionalCallChainRecords } from "../program/records/optional-call-chains.js";

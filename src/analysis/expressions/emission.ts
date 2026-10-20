@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetUseSiteRef } from "@tsonic/target-api/analysis";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpNativeDemandAnalysis } from "../operations/native-demand-model.js";
+import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
 import type { CsharpNativeExpressionRecord, CsharpNativeDiscardEmission } from "../../target-model/records/native-demand.js";
 import type { CsharpConversionClassifications } from "../../target-model/records/conversions.js";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";

@@ -2,7 +2,7 @@ import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { sourceDeclarationIsModuleScoped, sourceEnclosingCallable, sourceParameterIsProperty, type TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
-import type { CsharpNativeDemandAnalysis } from "../operations/native-demand-model.js";
+import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 import type { CsharpCaptureStorage } from "../../target-model/records/capture-storage.js";
 import type { CsharpClassFactory } from "../../target-model/records/class-factories.js";

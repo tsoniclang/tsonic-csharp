@@ -4,7 +4,7 @@ import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/targ
 import type { CsharpResolvedBinaryOperation } from "../../target-model/records/operator-selection.js";
 import type { CsharpBinaryEmission, CsharpNativeBinaryEmission } from "../../target-model/records/binary-emission.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpNativeDemandAnalysis } from "../operations/native-demand-model.js";
+import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
 import type { CsharpNativeConstantRecords } from "../../target-model/records/native-constants.js";
 import { csharpSourcePrimitiveTargetType } from "../../target-model/types/carriers/scalar-types.js";

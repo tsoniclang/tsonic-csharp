@@ -14,7 +14,7 @@ import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/ren
 import { createCsharpObjectShapeEmissionRecords } from "../program/records/object-shape-emission.js";
 import { analyzeCsharpObjectShapeNames } from "./display-names.js";
 import type { AstReader, Node } from "@tsonic/tsts";
-import type { CsharpNativeDemandAnalysis } from "../operations/native-demand-model.js";
+import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
 import type { CsharpBindingPatternClassifications } from "../../target-model/records/value-projections.js";
 
 export function analyzeCsharpObjectShapeEmission(input: {

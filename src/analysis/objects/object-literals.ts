@@ -4,7 +4,7 @@ import { AsGetAccessorDeclaration, AsSetAccessorDeclaration, AsParameterDeclarat
   KindMethodDeclaration, KindGetAccessor, KindSetAccessor, KindSpreadAssignment, KindPropertyAssignment, KindShorthandPropertyAssignment } from "@tsonic/target-api/source";
 import type { TargetSourceSyntaxProgram } from "@tsonic/target-api/analysis";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpNativeDemandAnalysis } from "../operations/native-demand-model.js";
+import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
 import type { CsharpNativeUse } from "../../target-model/records/native-demand.js";
 import type { CsharpObjectLiteralEmission, CsharpObjectLiteralMemberEmission } from "../../target-model/records/object-literals.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../target-model/types/model.js";

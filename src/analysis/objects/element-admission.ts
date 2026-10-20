@@ -1,7 +1,7 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { targetDiagnosticFromExtension, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpNativeDemandAnalysis } from "../operations/native-demand-model.js";
+import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
 import type { CsharpAdmittedElementClassification, CsharpElementEmission, CsharpElementRead } from "../../target-model/records/element-admission.js";
 import type { CsharpMemberReceiverRecords } from "../../target-model/records/member-receivers.js";
 import type { SourceProgramNavigation } from "@tsonic/target-api/source";

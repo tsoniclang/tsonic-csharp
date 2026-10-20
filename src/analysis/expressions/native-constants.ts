@@ -1,7 +1,7 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { KindNullKeyword } from "@tsonic/target-api/source";
 import type { SourceLiteralIndex } from "@tsonic/target-api/source";
-import type { CsharpNativeDemandAnalysis } from "../operations/native-demand-model.js";
+import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
 import type { CsharpExactLiteralRecipe, CsharpExactLiteralSelectionIndex } from "../../target-model/conversions/exact-literals.js";
 import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";

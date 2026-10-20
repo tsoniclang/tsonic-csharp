@@ -5,7 +5,7 @@ import type { CsharpTargetArgumentRecords } from "../../target-model/records/tar
 import type { CsharpSourceCallEmissionRecords } from "../../target-model/records/source-call-emission.js";
 import type { CsharpOptionalCallChainRecords } from "../../target-model/records/optional-call-chains.js";
 import type { CsharpObjectShapeDemand } from "../../target-model/records/object-shape-demand.js";
-import type { CsharpNativeDemandAnalysis } from "../operations/native-demand-model.js";
+import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
 import type { CsharpTargetCallEmission } from "../../target-model/records/target-call-emission.js";
 import { selectCsharpTargetCallEmission } from "../../policy/operations/members/target-call-emission.js";
 import { createCsharpTargetCallEmissionRecords } from "../program/records/target-call-emission.js";

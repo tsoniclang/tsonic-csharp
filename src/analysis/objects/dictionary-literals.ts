@@ -1,6 +1,6 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpNativeDemandAnalysis } from "../operations/native-demand-model.js";
+import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
 import type { CsharpDictionaryLiteral } from "../../target-model/records/dictionary-literals.js";
 import { isCsharpRecordDictionaryTargetType } from "../../target-model/types/carriers/collections.js";
 import { targetTypeRefKey, targetTypeRefEquals } from "../../target-model/types/equality.js";

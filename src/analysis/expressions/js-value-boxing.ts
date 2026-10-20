@@ -1,6 +1,6 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpNativeDemandAnalysis } from "../operations/native-demand-model.js";
+import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
 import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
 import type { CsharpExactLiteralSelectionIndex } from "../../target-model/conversions/exact-literals.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";

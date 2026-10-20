@@ -3,7 +3,7 @@ import type { CsharpConversionClassifications, CsharpValueReadClassifications } 
 import type { CsharpExactLiteralRequest } from "../../target-model/conversions/exact-literals.js";
 import type { CsharpExpectedTypeClassifications } from "../../target-model/records/expected-types.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpNativeDemandAnalysis } from "../operations/native-demand-model.js";
+import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
 import type { CsharpRequiredRecord } from "../program/records/required-records.js";
 
 export interface CsharpPreparedConversionClassifications extends CsharpConversionClassifications {

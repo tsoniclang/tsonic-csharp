@@ -15,7 +15,8 @@ import { csharpVoidTargetType } from "../../target-model/types/carriers/scalar-t
 import { csharpCarrierAdmitsSourceAbsence, isCsharpAbsenceTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import { isCsharpVoidTargetType } from "../../target-model/types/identity.js";
 import type { CsharpNativePropertyKey } from "../../target-model/conversions/exact-literals.js";
-import type { CsharpNativeDemandAnalysis, CsharpNativeDemandAnalysisInput, CsharpNativeUnadmitted, CsharpNativeUnadmittedReason } from "./native-demand-model.js";
+import type { CsharpNativeDemandAnalysisInput } from "./native-demand-model.js";
+import type { CsharpNativeDemandAnalysis, CsharpNativeUnadmitted, CsharpNativeUnadmittedReason } from "../../target-model/records/native-demand.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
 
 interface VisitedUse {
