@@ -30,6 +30,7 @@ import { analyzeCsharpTypeParameterEmission } from "../declarations/type-paramet
 import { analyzeCsharpTypeEmission } from "../types/emission.js";
 import { analyzeCsharpIdentifierEmission } from "../names/source-identifiers.js";
 import { analyzeCsharpSourceFileEmission } from "../source-modules/emission.js";
+import { analyzeCsharpStartup } from "../source-modules/startup.js";
 import { analyzeCsharpStatementExits } from "../control-flow/statement-exits.js";
 import { analyzeCsharpStatementCompletions } from "../control-flow/statement-completion.js";
 import { analyzeCsharpResourceScopes } from "../control-flow/resource-scopes.js";
@@ -600,7 +601,13 @@ function analyzeCsharpTargetProgramBeforeSeal(
     moduleInitialization: moduleInitialization.index, expectedTypes: analysis.expectedTypes,
     declarations: callableDeclarations.records, names });
   if (sourceFileEmission.issues.length !== 0) return rejectedTargetStage(sourceFileEmission.issues);
+  const binaryExecutionDriver = composeCsharpBinaryExecutionDriver(prerequisiteBinaryExecutionDriver,
+    [...promiseResults.results.values()].some(result => result.discard !== undefined) ? csharpJsEventLoopBinaryExecutionDriver : undefined);
+  const startup = analyzeCsharpStartup({ source, identities: sourceIdentities.records, modules: moduleInitialization.index,
+    constructions: sourceModuleConstructions.index, outputType: configuration.outputType, driver: binaryExecutionDriver });
+  if (startup.issues.length !== 0) return rejectedTargetStage(startup.issues);
   const records = createCsharpProgramRecords({
+    startup: startup.records,
     sourceFileEmission: sourceFileEmission.records,
     typeEmission: typeEmission.records,
     typeParameterEmission: typeParameterEmission.records,
@@ -650,8 +657,6 @@ function analyzeCsharpTargetProgramBeforeSeal(
     expectedTypes: analysis.expectedTypes, storage: analysis.storage,
     sourceModuleConstructions: sourceModuleConstructions.index, moduleInitialization: moduleInitialization.index,
   }, analysis.requiredRecords);
-  const binaryExecutionDriver = composeCsharpBinaryExecutionDriver(prerequisiteBinaryExecutionDriver,
-    [...promiseResults.results.values()].some(result => result.discard !== undefined) ? csharpJsEventLoopBinaryExecutionDriver : undefined);
   const program: CsharpTargetProgram = Object.freeze({
     typeDefinitions,
     records,

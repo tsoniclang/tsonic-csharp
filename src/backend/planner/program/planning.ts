@@ -40,7 +40,6 @@ export function planCsharpOutput(input: CsharpPlanningContext): CsharpPlanningRe
   const startup = planCsharpStartupSourceFile(
     input,
     plannedSources,
-    diagnostics,
   );
   if (diagnostics.length > 0) {
     return rejectedTargetStage(diagnostics);

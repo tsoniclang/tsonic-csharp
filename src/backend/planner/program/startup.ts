@@ -1,15 +1,13 @@
 import type { CsharpPlanningContext } from "../context.js";
 import type { CsharpOutputSourceFile } from "../../artifact-model/output.js";
 import type { PlannedCsharpSourceFile } from "./source-file.js";
-import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { csharpModuleInitMethodName } from "./module-initialization-names.js";
 import {
   predefined,
   qualifiedCsharpType,
 } from "../types/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-type-rendering.js";
-import { readNamespace } from "../project/project-artifacts.js";
-import { targetPolicyDiagnostic } from "../diagnostics.js";
+import { failCsharpPlannerInvariant } from "../../invariants.js";
 import type {
   CsharpExpression,
   CsharpStatement,
@@ -18,83 +16,50 @@ import type {
 export function planCsharpStartupSourceFile(
   input: CsharpPlanningContext,
   plannedSources: readonly PlannedCsharpSourceFile[],
-  diagnostics: TargetDiagnostic[],
 ): CsharpOutputSourceFile | undefined {
   const plannedSourcesByFileName = new Map(plannedSources.map((source) => [source.fileName, source]));
-  const entrypointSourceFile = input.program.moduleInitialization.entrypointInitializer();
-  const entrypointPlannedSource = entrypointSourceFile === undefined
+  const selection = input.program.records.startup.get();
+  const entrypointPlannedSource = selection.entryFileName === undefined
     ? undefined
-    : plannedSourcesByFileName.get(input.program.source.ast.getFileName(entrypointSourceFile));
-  if (input.program.configuration.outputType === "Library") {
-    if (
-      entrypointSourceFile === undefined ||
-      entrypointPlannedSource?.hasModuleInitializer !== true
-    ) {
-      return undefined;
-    }
-    if (entrypointPlannedSource.asyncModuleInitializer) {
-      diagnostics.push(targetPolicyDiagnostic(
-        entrypointSourceFile,
-        "CSHARP_ASYNC_LIBRARY_MODULE_INITIALIZATION_UNSUPPORTED",
-        "C# library output cannot preserve TypeScript top-level await during automatic module initialization because CLR module initializers must be synchronous.",
-        [
-          "The configured library entry module requires asynchronous initialization.",
-          "Generated library members can execute only after the complete entry-module dependency graph has initialized.",
-          "Select executable output or remove top-level await from the library module graph.",
-        ],
-      ));
-      return undefined;
-    }
+    : plannedSourcesByFileName.get(selection.entryFileName);
+  if (selection.kind === "none") return undefined;
+  if (selection.kind === "library") {
+    if (entrypointPlannedSource?.hasModuleInitializer !== true)
+      failCsharpPlannerInvariant("An admitted native library startup requires its synchronous entry initializer.");
     return planCsharpLibraryModuleInitializer(input, entrypointPlannedSource);
   }
-  const driverDiagnosticCount = diagnostics.length;
   const binaryExecutionDriver = planCsharpBinaryExecutionDriver(
     input,
-    diagnostics,
   );
-  if (diagnostics.length !== driverDiagnosticCount) return undefined;
   const workerEntryByKey = new Map<string, {
     readonly sourceFile: import("@tsonic/tsts").SourceFile;
     readonly identity: string;
     readonly planned: PlannedCsharpSourceFile;
     readonly bootstrap: import("../../../target-model/records/source-modules.js").CsharpSourceModuleBootstrap;
   }>();
-  for (const construction of input.program.sourceModuleConstructions.entries()) {
-    const sourceFile = construction.targetSourceFile;
-    const fileName = input.program.source.ast.getFileName(sourceFile);
+  for (const construction of selection.workers) {
+    const sourceFile = construction.sourceFile;
+    const fileName = construction.fileName;
     const planned = plannedSourcesByFileName.get(fileName);
     if (planned === undefined) {
-      diagnostics.push(targetPolicyDiagnostic(
-        sourceFile,
-        "CSHARP_WORKER_SOURCE_ARTIFACT_MISSING",
-        `Worker source module '${fileName}' has no planned C# source artifact.`,
-      ));
-      continue;
+      failCsharpPlannerInvariant("An admitted worker source requires its native source artifact.", sourceFile);
     }
     const key = `${construction.bootstrap.id}\0${fileName}`;
     if (!workerEntryByKey.has(key)) {
       workerEntryByKey.set(key, {
         sourceFile,
-        identity: input.program.records.sourceFile.get(fileName)!.className,
+        identity: construction.identity,
         planned,
         bootstrap: construction.bootstrap,
       });
     }
   }
   const workerEntries = [...workerEntryByKey.values()];
-  if (diagnostics.length > 0) return undefined;
-  const asyncEntrypoint =
-    binaryExecutionDriver === undefined &&
-    (
-      entrypointPlannedSource?.asyncModuleInitializer === true ||
-      workerEntries.some((entry) =>
-        entry.planned?.asyncModuleInitializer === true)
-    );
+  const asyncEntrypoint = selection.asynchronous;
   const workerDispatch = planCsharpWorkerDispatch(
     input.scope.typeParameterNames,
     workerEntries,
     binaryExecutionDriver,
-    diagnostics,
   );
   if (workerDispatch === undefined) return undefined;
   return {
@@ -104,7 +69,7 @@ export function planCsharpStartupSourceFile(
       usings: [],
       members: [{
         kind: "NamespaceDeclaration",
-        name: readNamespace(input),
+        name: input.program.records.compilation.get().namespace,
         members: [{
           kind: "ClassDeclaration",
           name: "TsonicEntrypoint",
@@ -163,8 +128,7 @@ function planCsharpWorkerDispatch(
     readonly bootstrap: import("../../../target-model/records/source-modules.js").CsharpSourceModuleBootstrap;
   }[],
   binaryExecutionDriver: PlannedCsharpBinaryExecutionDriver | undefined,
-  diagnostics: TargetDiagnostic[],
-): readonly CsharpStatement[] | undefined {
+): readonly CsharpStatement[] {
   if (entries.length === 0) return Object.freeze([]);
   const entriesByBootstrapId = new Map<
     string,
@@ -182,12 +146,7 @@ function planCsharpWorkerDispatch(
     const bootstrap = group[0]!.bootstrap;
     const bootstrapType = csharpTypeFromTargetTypeRef(bootstrap.declaringType, typeParameterNames);
     if (bootstrapType === undefined) {
-      diagnostics.push(targetPolicyDiagnostic(
-        group[0]!.sourceFile,
-        "CSHARP_WORKER_BOOTSTRAP_TYPE_UNRENDERABLE",
-        `Source-module bootstrap '${bootstrap.id}' has no renderable C# declaring type.`,
-      ));
-      continue;
+      failCsharpPlannerInvariant("An admitted worker bootstrap requires its rendered native declaring type.", group[0]!.sourceFile);
     }
     const workerEntryName = `__tsonic_worker_entry_${index + 1}`;
     statements.push({
@@ -274,7 +233,7 @@ function planCsharpWorkerDispatch(
       },
     });
   }
-  return diagnostics.length === 0 ? Object.freeze(statements) : undefined;
+  return Object.freeze(statements);
 
 }
 
@@ -289,25 +248,12 @@ interface PlannedCsharpBinaryExecutionDriver {
 
 function planCsharpBinaryExecutionDriver(
   input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
 ): PlannedCsharpBinaryExecutionDriver | undefined {
-  const driver = input.program.binaryExecutionDriver;
+  const driver = input.program.records.startup.get().driver;
   if (driver === undefined) return undefined;
   const declaringType = csharpTypeFromTargetTypeRef(driver.declaringType, input.scope.typeParameterNames);
   if (declaringType === undefined) {
-    diagnostics.push({
-      code: "CSHARP_BINARY_EXECUTION_DRIVER_TYPE_UNRENDERABLE",
-      category: "error",
-      source: "tsonic-csharp",
-      message:
-        `Provider binary execution driver '${driver.id}' has no renderable C# declaring type.`,
-      evidence: Object.freeze([
-        `provider.binaryExecutionDriver=${driver.id}`,
-        `provider.runMethod=${driver.runMethodName}`,
-        `provider.runWithEntrypointMethod=${driver.runWithEntrypointMethodName}`,
-      ]),
-    });
-    return undefined;
+    failCsharpPlannerInvariant("An admitted native binary execution driver requires its rendered declaring type.");
   }
   return Object.freeze({
     id: driver.id,
@@ -401,7 +347,7 @@ function planCsharpLibraryModuleInitializer(
       usings: [],
       members: [{
         kind: "NamespaceDeclaration",
-        name: readNamespace(input),
+        name: input.program.records.compilation.get().namespace,
         members: [{
           kind: "ClassDeclaration",
           name: "TsonicModuleInitializer",
