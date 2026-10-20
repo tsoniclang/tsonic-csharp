@@ -3,4 +3,4 @@ export {
 } from "./classification.js";
 export type {
   CsharpProjectClassifications,
-} from "./model.js";
+} from "../../target-model/project/plan.js";

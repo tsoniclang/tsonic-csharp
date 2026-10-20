@@ -21,7 +21,7 @@ import type {
 } from "../../target-model/project/references.js";
 import type {
   CsharpProjectClassifications,
-} from "./model.js";
+} from "../../target-model/project/plan.js";
 import type { CsharpRuntimeSourceProject } from "../../target-model/project/runtime.js";
 import { classifyCsharpRuntimeSource, instantiateCsharpRuntimeSources, validateCsharpRuntimeSources } from "./runtime-sources.js";
 

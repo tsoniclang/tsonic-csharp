@@ -1,13 +1,13 @@
 import type {
   CsharpProjectConfiguration,
-} from "../../target-model/configuration/model.js";
+} from "../configuration/model.js";
 import type {
   CsharpProjectProperty,
-} from "../../target-model/project/model.js";
+} from "./model.js";
 import type {
   CsharpProjectReference,
-} from "../../target-model/project/references.js";
-import type { CsharpRuntimeProjectInstance, CsharpRuntimeSourceProject } from "../../target-model/project/runtime.js";
+} from "./references.js";
+import type { CsharpRuntimeProjectInstance, CsharpRuntimeSourceProject } from "./runtime.js";
 
 export interface CsharpProjectClassifications {
   readonly assemblyName: string;
