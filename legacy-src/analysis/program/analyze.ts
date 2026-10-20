@@ -127,7 +127,7 @@ import {
 } from "../safety/application-index.js";
 import type {
   CsharpTargetAnalysisRequest,
-  CsharpTargetProgram,
+  CsharpAnalysisProgram,
 } from "./model.js";
 import {
   createCsharpSourceIdentityPolicy,
@@ -215,15 +215,15 @@ interface CsharpRepresentationContract {
 
 type CsharpAnalysisRejection = Extract<TargetStageResult<never>, { readonly kind: "rejected" }>;
 
-export function analyzeCsharpTargetProgram(
+export function analyzeCsharpAnalysisProgram(
   request: CsharpTargetAnalysisRequest,
-): TargetStageResult<CsharpTargetProgram> {
+): TargetStageResult<CsharpAnalysisProgram> {
   const references = request.providers.validateReferences();
   if (references.length !== 0) {
     return rejectedTargetStage(references.map(diagnostic => targetDiagnosticFromExtension(undefined, diagnostic)));
   }
   try {
-    return analyzeCsharpTargetProgramBeforeSeal(request);
+    return analyzeCsharpAnalysisProgramBeforeSeal(request);
   } catch (error) {
     if (error instanceof CsharpProviderAcquisitionRejection) {
       return rejectedTargetStage([targetDiagnosticFromExtension(undefined, error.diagnostic)]);
@@ -232,9 +232,9 @@ export function analyzeCsharpTargetProgram(
   }
 }
 
-function analyzeCsharpTargetProgramBeforeSeal(
+function analyzeCsharpAnalysisProgramBeforeSeal(
   request: CsharpTargetAnalysisRequest,
-): TargetStageResult<CsharpTargetProgram> {
+): TargetStageResult<CsharpAnalysisProgram> {
   const { input, configuration, providers } = request;
   const project = analyzeCsharpProject(
     configuration,
@@ -842,7 +842,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     expectedTypes: analysis.expectedTypes, storage: analysis.storage,
     sourceModuleConstructions: sourceModuleConstructions.index, moduleInitialization: moduleInitialization.index,
   }, analysis.requiredRecords);
-  const program: CsharpTargetProgram = Object.freeze({
+  const program: CsharpAnalysisProgram = Object.freeze({
     typeDefinitions,
     records,
     classFactories: classFactories.factories,

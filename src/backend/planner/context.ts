@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../target-model/types/index.js";
-import type { CsharpTargetProgram } from "../../analysis/program/index.js";
+import type { CsharpTargetProgram } from "../../target-model/program.js";
 import type { CsharpExpression, CsharpMethodDeclaration } from "../target-ast/syntax/index.js";
 import type { CsharpDelegateAdapterIdentity } from "../../target-model/records/conversions.js";
 import { createCsharpSyntheticNames, type CsharpSyntheticNames } from "./names/synthetic.js";
