@@ -1,48 +1,10 @@
-import type {
-  CsharpTargetMember,
-  CsharpTargetNamedTypeRef,
-  TargetTypeRef,
-} from "../../../types/index.js";
-import {
-  csharpDelegateTargetType,
-  csharpEnumerableTargetType,
-  csharpReadOnlyListTargetType,
-  getCsharpJsArrayElementTargetType,
-  csharpNullableValueTargetType,
-  csharpSourcePrimitiveTargetType,
-  csharpStringTargetType,
-  csharpVoidTargetType,
-} from "../../../../target-model/types/index.js";
-import {
-  csharpJsArrayBufferTargetType,
-  csharpJsDataViewTargetType,
-  csharpJsTypedArrayElementTargetType,
-  csharpJsTypedArrayTargetType,
-  type CsharpJsTypedArrayName,
-} from "../../../../target-model/types/carriers/js.js";
-import type {
-  CsharpSourceProfileCallPolicy,
-  CsharpSourceProfileCallPolicyContext,
-  CsharpSourceProfileElementPolicy,
-  CsharpSourceProfileElementPolicyContext,
-  CsharpSourceProfilePropertyPolicy,
-  CsharpSourceProfilePropertyPolicyContext,
-} from "../source-profile-policy.js";
+import type { CsharpTargetMember, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../types/index.js";
+import { csharpDelegateTargetType, csharpEnumerableTargetType, csharpReadOnlyListTargetType, getCsharpJsArrayElementTargetType, csharpNullableValueTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpVoidTargetType } from "../../../../target-model/types/index.js";
+import { csharpJsArrayBufferTargetType, csharpJsDataViewTargetType, csharpJsTypedArrayElementTargetType, csharpJsTypedArrayTargetType, type CsharpJsTypedArrayName } from "../../../../target-model/types/carriers/js.js";
+import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext, CsharpSourceProfileElementPolicy, CsharpSourceProfileElementPolicyContext, CsharpSourceProfilePropertyPolicy, CsharpSourceProfilePropertyPolicyContext } from "../../../model/source-profiles.js";
 import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
 import { csharpJsNumericArgument } from "./numeric-argument.js";
-import {
-  instanceMethod,
-  jsCallPolicy,
-  jsConstructIdentity,
-  jsElementPolicy,
-  jsIndexerIdentity,
-  jsMemberIdentity,
-  jsPropertyPolicy,
-  jsRuntimeTargetType,
-  targetIndexer,
-  targetParameter,
-  targetProperty,
-} from "./common.js";
+import { instanceMethod, jsCallPolicy, jsConstructIdentity, jsElementPolicy, jsIndexerIdentity, jsMemberIdentity, jsPropertyPolicy, jsRuntimeTargetType, targetIndexer, targetParameter, targetProperty } from "./common.js";
 
 const doubleType = csharpSourcePrimitiveTargetType("float64");
 const intType = csharpSourcePrimitiveTargetType("int32");
