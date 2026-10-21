@@ -3,7 +3,7 @@ import { renderSelectedCsharpTargetMethodTypeArguments } from "../../selected-me
 import { sourceCallIsOptional, translateArrayCreationCall } from "./helpers.js";
 import { translateCsharpSelectedReceiver } from "../../receivers.js";
 import { translateSelectedTargetArguments } from "./arguments.js";
-import { failCsharpPlannerInvariant } from "../../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../../diagnostics.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../../expression-planner-types.js";
 import type { CsharpArgument, CsharpExpression, CsharpTypeNode } from "../../../../target-ast/syntax/index.js";
 import { csharpBinaryOperatorTokenFromText, csharpPrefixUnaryOperatorTokenFromText } from "../../../../target-ast/syntax/operator-tokens.js";

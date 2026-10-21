@@ -5,7 +5,7 @@ import type { CsharpExpression, CsharpStatement } from "../../target-ast/syntax/
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { qualifiedCsharpType } from "../types/index.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planCsharpNeverValue } from "./never-values.js";
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";

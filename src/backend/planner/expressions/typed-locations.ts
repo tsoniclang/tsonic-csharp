@@ -7,7 +7,7 @@ import type { CsharpPlanningContext } from "../context.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
 import type { CsharpPlannedAddress, CsharpPlannedValue } from "./planned-values.js";
 import { allocateSyntheticParameter, createDestructuringPlannerState, getCsharpTypedLocationIdentityName, type DestructuringPlannerState } from "../bindings/index.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { planCsharpNativeMemoryCall } from "./native-memory.js";
 import { planCsharpIndexedLocation } from "./indexed-locations.js";

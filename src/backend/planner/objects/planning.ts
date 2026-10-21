@@ -12,7 +12,7 @@ import type {
 } from "../../artifact-model/output.js";
 import type { Node } from "@tsonic/tsts";
 import type { CsharpObjectShapeDeclarationEmission } from "../../../target-model/records/object-shape-emission.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { csharpCompilationRequiresUnsafe, csharpObjectShapeSafetyModifiers } from "../safety/explicit-safety.js";
 import {
   csharpTypeFromTargetTypeRef,

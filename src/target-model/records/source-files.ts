@@ -2,7 +2,7 @@ export interface CsharpSourceFileOutputIdentity {
   readonly fileName: string;
   readonly namespace: string;
   readonly className: string;
-  readonly artifactPath: string;
+  readonly modulePath: string;
 }
 
 export interface CsharpSourceFileRecords {

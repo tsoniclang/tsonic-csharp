@@ -4,7 +4,7 @@ import type { CsharpConversionSelection } from "../../../target-model/conversion
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpExpression, CsharpSwitchExpressionArm } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { planCsharpUnionPattern } from "./union-patterns.js";
 

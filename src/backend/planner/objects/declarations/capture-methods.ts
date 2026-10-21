@@ -9,7 +9,7 @@ import { planCsharpArrowLambdaSyntax, planCsharpCapturedFunctionLambdaSyntax } f
 import { planExpression } from "../../expressions/index.js";
 import { planTypeParameters } from "../../types/type-parameters.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { planSourceFunctionDeclaration } from "../../declarations/callables/functions.js";
 import { withCsharpSafetyModifiers } from "../../safety/explicit-safety.js";
 import { planCsharpArtifactMemberHiding } from "../../declarations/modifiers.js";

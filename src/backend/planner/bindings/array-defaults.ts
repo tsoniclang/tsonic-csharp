@@ -4,7 +4,7 @@ import type { CsharpArrayBindingCarrier, TargetTypeRef } from "../../../target-m
 import type { CsharpDefaultValueContract } from "../../../target-model/records/value-projections.js";
 import type { CsharpExpression, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import type { ExpressionPlanner } from "../expressions/expression-planner-types.js";
 import type { DestructuringPlannerState } from "./binding-state.js";

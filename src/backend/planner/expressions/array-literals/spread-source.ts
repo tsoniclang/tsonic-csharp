@@ -7,7 +7,7 @@ import type { CsharpExpression, CsharpTypeNode } from "../../../target-ast/synta
 import type { ExpressionPlanner } from "../expression-planner-types.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import type { CsharpPlannedValue } from "../planned-values.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import type { CsharpSequenceEmission } from "../../../../target-model/records/array-literals.js";
 
 export interface CsharpArraySpreadInput {

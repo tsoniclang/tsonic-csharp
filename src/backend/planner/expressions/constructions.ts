@@ -1,7 +1,7 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression } from "../../target-ast/syntax/index.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "./expression-planner-types.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import type { CsharpPlanningContext } from "../context.js";

@@ -9,7 +9,7 @@ import { buildCsharpPlannedValue, projectCsharpPlannedValue } from "./planned-va
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { csharpRecordOperation } from "../objects/indexed-records.js";
 import { planCsharpExactLiteralRecipe } from "./literal-conversions.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function tryPlanRecordDictionaryLiteralWithCarrier(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner, carrier: TargetTypeRef): CsharpPlannedValue | undefined {

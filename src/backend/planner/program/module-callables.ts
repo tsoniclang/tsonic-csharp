@@ -8,7 +8,7 @@ import { planCsharpArrowLambdaSyntax, planCsharpCapturedFunctionLambdaSyntax } f
 import { planExpression } from "../expressions/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { planCsharpNativeMemberHiding } from "../declarations/modifiers.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function planCsharpModuleCallable(selected: CsharpModuleCallableEmission, sourceFile: SourceFile,
   input: CsharpPlanningContext, diagnostics: TargetDiagnostic[]): CsharpMethodDeclaration {

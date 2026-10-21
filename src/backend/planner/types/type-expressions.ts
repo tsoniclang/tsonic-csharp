@@ -5,7 +5,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import { getCsharpTypeForNode } from "./type-node/index.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function expressionToCsharpType(
   node: Node | undefined, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics?: TargetDiagnostic[],

@@ -6,7 +6,7 @@ import type { CsharpPlannedArgument, CsharpPlannedValue } from "../../planned-va
 import { composeCsharpPlannedValues } from "../../planned-value-composition.js";
 import { captureCsharpPlannedValue } from "../../planned-value-composition.js";
 import { csharpPlannedValue } from "../../planned-values.js";
-import { failCsharpPlannerInvariant } from "../../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../../diagnostics.js";
 import { captureCsharpPlannedLocation } from "../../planned-locations.js";
 
 export interface CsharpPlannedCallArguments {

@@ -1,5 +1,5 @@
 import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";
-import { failCsharpPlannerInvariant } from "../../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../../diagnostics.js";
 import type { CsharpArgument, CsharpExpression, CsharpTypeNode } from "../../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
 import type { TargetTypeRef } from "../../../../../target-model/types/model.js";

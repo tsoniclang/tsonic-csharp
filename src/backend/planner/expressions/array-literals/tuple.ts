@@ -9,7 +9,7 @@ import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import type { CsharpPlannedValue } from "../planned-values.js";
 import { buildCsharpPlannedValue } from "../planned-value-composition.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 
 export function planTupleLiteralExpression(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[], planner: ArrayLiteralPlanner, tupleType: CsharpTypeNode | undefined,

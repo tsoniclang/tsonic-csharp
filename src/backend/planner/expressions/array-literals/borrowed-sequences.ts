@@ -10,7 +10,7 @@ import { planCsharpPresentValueGuard } from "../optional-storage.js";
 import type { CsharpPlannedValue } from "../planned-values.js";
 import { csharpPlannedEffect } from "../planned-values.js";
 import type { CsharpArraySpreadInput } from "./spread-source.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 
 export function planCsharpBorrowedSequenceConsumption(node: Node, fact: CsharpBorrowedSequenceInput,
   _sourceFile: SourceFile, input: CsharpPlanningContext, _diagnostics: TargetDiagnostic[], elementTarget: TargetTypeRef,

@@ -2,7 +2,7 @@ import { applyCalleeTypeArguments } from "./helpers.js";
 import { planCsharpUnionDispatcherCall } from "./union.js";
 import { planCsharpSourceUndefinedValue } from "../../undefined-values.js";
 import { translateCallArgument } from "./arguments.js";
-import { failCsharpPlannerInvariant } from "../../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../../diagnostics.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../../expression-planner-types.js";
 import type { CsharpArgument, CsharpExpression } from "../../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";

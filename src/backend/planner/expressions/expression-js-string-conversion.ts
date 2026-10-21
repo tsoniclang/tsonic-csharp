@@ -4,7 +4,7 @@ import type {
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpPlanningContext } from "../context.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
 import type { CsharpPlannedValue } from "./planned-values.js";
 import { mapCsharpPlannedValue } from "./planned-values.js";

@@ -7,7 +7,7 @@ import type { CsharpRestSequence } from "../../../../../target-model/records/res
 import type { SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { planCsharpSequenceValue } from "../../sequence-conversions.js";
-import { failCsharpPlannerInvariant } from "../../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../../diagnostics.js";
 
 export function planCsharpRestSequence(sequence: CsharpRestSequence, sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner): CsharpPlannedValue | undefined {

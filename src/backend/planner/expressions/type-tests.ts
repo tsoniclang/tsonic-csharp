@@ -8,7 +8,7 @@ import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { qualifiedCsharpType } from "../types/index.js";
 import { runtimeUnionArmProjection, runtimeUnionArmTest } from "./union-access.js";
 import { evaluatedConstant } from "./builders.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function planCsharpClosedTypeTest(expression: CsharpExpression, fact: CsharpClosedTypeTest,
   input: CsharpPlanningContext, state: DestructuringPlannerState): CsharpExpression {

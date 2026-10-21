@@ -15,7 +15,7 @@ import {
   planBindingPatternFromExpression,
 } from "./binding-patterns.js";
 import type { CsharpEntryBinding } from "./binding-patterns.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planExpression } from "../expressions/index.js";
 import { consumeCsharpPlannedValue } from "../statements/statement-output.js";
 

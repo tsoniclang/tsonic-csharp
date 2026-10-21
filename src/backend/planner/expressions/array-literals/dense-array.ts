@@ -20,7 +20,7 @@ import type {
   ArrayLiteralPlanner,
 } from "./types.js";
 import { planCsharpArrayConstruction } from "./construction.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import type { CsharpPlannedValue } from "../planned-values.js";
 import { buildCsharpPlannedValue } from "../planned-value-composition.js";
 

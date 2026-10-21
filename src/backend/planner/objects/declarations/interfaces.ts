@@ -6,7 +6,7 @@ import type {
   CsharpObjectShapeFact,
 } from "../../../../target-model/types/index.js";
 import type { Node } from "@tsonic/tsts";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../../types/target-types.js";

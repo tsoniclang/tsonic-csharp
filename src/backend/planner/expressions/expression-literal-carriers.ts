@@ -1,7 +1,7 @@
 import type { CsharpPlanningContext } from "../context.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function requireCsharpStringRuntimeCarrier(node: Node, _sourceFile: SourceFile, input: CsharpPlanningContext,
   _diagnostics: TargetDiagnostic[], _description: string): boolean {

@@ -9,7 +9,7 @@ import { planCsharpRuntimeParameterDefault } from "../declarations/callables/def
 import { consumeCsharpPlannedValue } from "../statements/statement-output.js";
 import { planCsharpParameterStorageDeclaration } from "../bindings/typed-location-identities.js";
 import { planCsharpParameterCapture } from "../bindings/capture-storage.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function planLambdaParameterStorage(nodes: readonly (Node | undefined)[], parameters: readonly CsharpLambdaParameter[], sourceFile: SourceFile,
   input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], state: DestructuringPlannerState):

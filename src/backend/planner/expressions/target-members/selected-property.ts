@@ -7,7 +7,7 @@ import type { CsharpTargetPropertySelection } from "../../../../target-model/rec
 import type {
   CsharpExpression,
 } from "../../../target-ast/syntax/index.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import type {
   ExpressionPlanner,
 } from "../expression-planner-types.js";

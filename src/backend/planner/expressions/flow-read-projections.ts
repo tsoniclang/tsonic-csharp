@@ -1,4 +1,4 @@
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type {
   Node,
   SourceFile,

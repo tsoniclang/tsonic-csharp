@@ -8,7 +8,7 @@ import { csharpPlannedValue } from "./planned-values.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { captureCsharpPlannedValue } from "./planned-value-composition.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 type NativeLocation = Extract<CsharpNativeLocationSelection, { readonly kind: "resolved" }>;
 

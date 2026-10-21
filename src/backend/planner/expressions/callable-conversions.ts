@@ -8,7 +8,7 @@ import type { CsharpPlanningContext } from "../context.js";
 import type { CsharpPlannedCallable } from "./planned-values.js";
 import type { applyCsharpConversionSelection } from "./conversions.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planCsharpVoidReturn } from "../statements/statement-output.js";
 import { planCsharpExpressionCompletion } from "./planned-value-composition.js";
 

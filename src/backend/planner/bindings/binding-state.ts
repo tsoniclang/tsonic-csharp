@@ -1,7 +1,7 @@
 import type {
   CsharpPlanningContext } from "../context.js";
 import { tryCsharpIdentifier } from "../../../target-model/names/identifiers.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { CsharpExpression, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import type { AstReader,
   Node,

@@ -13,7 +13,7 @@ import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../../types/target-type-object-shapes.js";
 import { planBlockStatements } from "../../statements/planning.js";
 import { planCsharpGeneratedMethodCall } from "../generated-methods.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { planThisExpression } from "../../expressions/expression-this.js";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { planCsharpParameterPropertyAssignments } from "./parameter-properties.js";

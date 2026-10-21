@@ -8,7 +8,7 @@ import { planCsharpDelegateAdaptationBody } from "../../expressions/callable-con
 import { applyCsharpConversionSelection } from "../../expressions/conversions.js";
 import { getCsharpDelegateSignature } from "../../../../target-model/types/carriers/delegates.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 
 export function withCsharpDelegateAdapterDeclarations(block: Node, input: CsharpPlanningContext): CsharpPlanningContext {
   const identities = input.program.records.delegateAdapters.get(block);

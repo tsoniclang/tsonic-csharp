@@ -4,7 +4,7 @@ import type { CsharpInterfaceMember, CsharpTypeMember, CsharpTypeNode } from "..
 import { csharpEnumerableKeysMethodName, csharpEnumerableKeysStorageName } from "../../../../target-model/names/object-members.js";
 import type { CsharpNativeMemberHidingReader } from "../../../../target-model/records/native-member-names.js";
 import { planCsharpArtifactMemberHiding } from "../../declarations/modifiers.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 
 const stringType: CsharpTypeNode = { kind: "PredefinedType", name: "string" };
 export const csharpEnumerableKeysType: CsharpTypeNode = {

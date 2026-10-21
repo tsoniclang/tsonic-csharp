@@ -5,7 +5,7 @@ import type { CsharpMethodDeclaration, CsharpTypeMember } from "../../../target-
 import type { CsharpPlanningContext } from "../../context.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { nullableCsharpType } from "../../types/index.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { planCsharpNativeMemberHiding } from "../modifiers.js";
 import { withCsharpSafetyModifiers } from "../../safety/explicit-safety.js";
 

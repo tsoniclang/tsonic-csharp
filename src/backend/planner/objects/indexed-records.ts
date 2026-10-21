@@ -2,7 +2,7 @@ import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import type { Node } from "@tsonic/tsts";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import type { CsharpPlanningContext } from "../context.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function csharpRecordOperation(name: "GetOrDefault" | "Set" | "Extend", arguments_: readonly CsharpExpression[]): CsharpExpression {
   return { kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression",

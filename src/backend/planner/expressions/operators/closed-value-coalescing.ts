@@ -4,7 +4,7 @@ import type { CsharpResolvedBinaryOperation } from "../../../../target-model/rec
 import type { CsharpPlanningContext } from "../../context.js";
 import type { CsharpExpression } from "../../../target-ast/syntax/index.js";
 import { allocateExpressionTemp, type DestructuringPlannerState } from "../../bindings/binding-state.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import type { ExpressionPlanner } from "../expression-planner-types.js";
 import { planCsharpStorageIsAbsent } from "../optional-storage.js";

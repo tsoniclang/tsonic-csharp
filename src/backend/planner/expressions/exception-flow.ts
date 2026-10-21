@@ -8,7 +8,7 @@ import {
   csharpTsThrownValueExceptionTargetType,
 } from "../../../target-model/types/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function csharpCatchExceptionType(): CsharpTypeNode | undefined {
   return csharpTypeFromTargetTypeRef(csharpExceptionTargetType(), undefined)

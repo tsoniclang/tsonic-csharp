@@ -4,7 +4,7 @@ import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import type { CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(
   input: CsharpPlanningContext, type: TargetTypeRef, _diagnostics?: TargetDiagnostic[], diagnosticSubject?: Node,

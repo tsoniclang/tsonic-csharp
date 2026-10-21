@@ -2,7 +2,7 @@ import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpExpression, CsharpStatement } from "../../target-ast/syntax/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import type { CsharpPlanningContext } from "../context.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function planCsharpCollectionElementRead(
   carrier: TargetTypeRef, receiver: CsharpExpression, index: CsharpExpression,

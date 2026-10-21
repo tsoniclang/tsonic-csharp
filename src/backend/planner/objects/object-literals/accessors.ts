@@ -5,7 +5,7 @@ import type { CsharpPlanningContext } from "../../context.js";
 import { csharpPlannedValue } from "../../expressions/planned-values.js";
 import type { CsharpPlannedObjectInitializer } from "../../expressions/planned-initializers.js";
 import { renderCsharpObjectLiteralCallable } from "./methods.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 
 export function planObjectShapeAccessorMemberAssignment(
   accessorNode: Node, objectShape: CsharpObjectShapeFact, sourceFile: SourceFile,

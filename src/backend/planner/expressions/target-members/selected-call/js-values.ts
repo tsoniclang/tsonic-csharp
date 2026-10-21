@@ -6,7 +6,7 @@ import type { CsharpExpression } from "../../../../target-ast/syntax/index.js";
 import { csharpPlannedValue, type CsharpPlannedValue } from "../../planned-values.js";
 import { buildCsharpPlannedValue, captureCsharpPlannedValue, planCsharpOptionalReceiverValue } from "../../planned-value-composition.js";
 import { translateCsharpJsValueInvocation } from "../../js-value-operations.js";
-import { failCsharpPlannerInvariant } from "../../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../../diagnostics.js";
 
 export function planCsharpJsValueCall(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner): CsharpPlannedValue | undefined {

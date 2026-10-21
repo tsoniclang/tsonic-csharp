@@ -9,7 +9,7 @@ import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { csharpGenericConstraintFromTargetTypeParameterConstraint } from "../types/type-parameters.js";
 import { planCsharpArtifactMemberHiding } from "../declarations/modifiers.js";
 import { qualifiedCsharpType } from "../types/primitives.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function renderObjectShapeProjectionMethods(
   input: CsharpPlanningContext, projections: readonly CsharpObjectShapeProjectionDeclaration[], _diagnostics: TargetDiagnostic[],

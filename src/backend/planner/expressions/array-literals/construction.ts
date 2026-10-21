@@ -3,7 +3,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import type { ArrayLiteralPlanner } from "./types.js";
 import { planCsharpArraySpreadInput, type CsharpPlannedArraySpreadInput } from "./spread-source.js";
 import { planCsharpBorrowedDenseSequence } from "./borrowed-dense.js";

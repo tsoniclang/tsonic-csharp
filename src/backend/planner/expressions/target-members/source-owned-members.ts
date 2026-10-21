@@ -7,7 +7,7 @@ import { planCsharpSourceMemberName } from "./source-member-names.js";
 import { planCsharpNativeUnionPropertyProjection } from "../union-projections.js";
 import type { CsharpPlannedValue } from "../planned-values.js";
 import { projectCsharpPlannedValue, projectCsharpPlannedMember } from "../planned-value-composition.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 
 export function translateCsharpSourceOwnedMember(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[], receiver: CsharpPlannedValue, conditional: boolean): CsharpPlannedValue | undefined {

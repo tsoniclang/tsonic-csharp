@@ -2,7 +2,7 @@ import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 function unionAccess(carrier: TargetTypeRef | undefined, input: CsharpPlanningContext) {
   if (carrier === undefined) failCsharpPlannerInvariant("An admitted union access requires its native carrier.");

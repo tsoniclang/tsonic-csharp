@@ -7,7 +7,7 @@ import type { ExpressionPlanner } from "./expression-planner-types.js";
 import type { CsharpPlannedArgument } from "./planned-values.js";
 import { mapCsharpPlannedValue } from "./planned-values.js";
 import { planCsharpPropertyValueProjection } from "./property-value-projection.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function planCallArgumentCore(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner, state: DestructuringPlannerState | undefined, parameter: CsharpTargetParameter | undefined): CsharpPlannedArgument | undefined {

@@ -2,7 +2,7 @@ import type { Node } from "@tsonic/tsts";
 import type { CsharpNativeUseContext, CsharpNativeUseSlot } from "../../../target-model/records/native-demand.js";
 import { csharpNativeUseSite } from "../../../target-model/records/native-demand.js";
 import type { CsharpPlanningContext } from "../context.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 
 export function readCsharpNativeUse(

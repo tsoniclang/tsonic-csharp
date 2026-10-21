@@ -11,7 +11,7 @@ import { planLambdaBlockBody, planLambdaParameters, type LambdaTargetContext } f
 import { planLambdaParameterStorage } from "../../expressions/lambda-parameter-storage.js";
 import { csharpPlannedValue } from "../../expressions/planned-values.js";
 import type { CsharpPlannedObjectInitializer } from "../../expressions/planned-initializers.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 
 export function planObjectShapeMethodMemberAssignment(
   methodNode: Node, objectShape: CsharpObjectShapeFact, sourceFile: SourceFile,

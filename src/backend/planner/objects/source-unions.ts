@@ -3,7 +3,7 @@ import type { CsharpOutputSourceFile } from "../../artifact-model/output.js";
 import type { CsharpExpression, CsharpStructDeclaration, CsharpTypeMember, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { finalizeCsharpCompilationUnit } from "../program/compilation-unit.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { csharpCompilationRequiresUnsafe, csharpTypeSafetyModifiers } from "../safety/explicit-safety.js";
 
 export function planCsharpSourceUnionFile(input: CsharpPlanningContext):

@@ -1,4 +1,4 @@
-import { failCsharpPlannerInvariant } from "../../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../../diagnostics.js";
 import { planCsharpJsValueCall } from "./js-values.js";
 import { buildCsharpPlannedValue, projectCsharpPlannedValue } from "../../planned-value-composition.js";
 import type { CsharpPlannedValue } from "../../planned-values.js";

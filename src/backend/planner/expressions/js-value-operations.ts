@@ -20,7 +20,7 @@ import {
 import type {
   CsharpPlanningContext,
 } from "../context.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import {
   planCsharpExactLiteralRecipe,
 } from "./literal-conversions.js";

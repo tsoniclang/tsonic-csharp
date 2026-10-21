@@ -10,7 +10,7 @@ import { tryPlanJsArrayMutationExpression } from "./expression-js-array-mutation
 import { planSelectedCsharpBinaryOperation } from "./operators/selected-binary.js";
 import { tryPlanTypeofComparisonExpression, tryPlanTypeTestExpression } from "./expression-typeof-operators.js";
 import { translateCsharpJsValueInvocation } from "./js-value-operations.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export { planTypeofExpression } from "./expression-typeof-operators.js";
 

@@ -14,7 +14,7 @@ import {
   allocateCatchValue,
   declareCsharpLocalBindingName,
 } from "../bindings/index.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import {
   csharpCatchExceptionType,

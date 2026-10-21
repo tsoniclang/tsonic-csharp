@@ -11,7 +11,7 @@ import type {
   CsharpEnumMember,
 } from "../../../target-ast/syntax/index.js";
 import { planAttributesForSubject } from "../attributes.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { planCsharpAdmittedMemberName } from "../modifiers.js";
 import { planIntegerLiteral } from "../../expressions/literal-conversions.js";
 

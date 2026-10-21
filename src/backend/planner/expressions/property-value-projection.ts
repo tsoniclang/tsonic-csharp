@@ -8,7 +8,7 @@ import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { planCsharpJsValueBox } from "./js-value-operations.js";
 import { planCsharpUnionPattern } from "./union-patterns.js";
 import { renderCsharpClosedShapeConversion } from "../objects/closed-object-shapes.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function planCsharpPropertyValueProjection(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[], sourceType: TargetTypeRef | undefined, expression: CsharpExpression): CsharpExpression | undefined {

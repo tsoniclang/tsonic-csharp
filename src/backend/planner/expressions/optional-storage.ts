@@ -2,7 +2,7 @@ import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 function optionalStorage(storage: TargetTypeRef, input: CsharpPlanningContext) {
   return input.program.records.typeEmission.get(storage)?.optionalStorage

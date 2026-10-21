@@ -8,7 +8,7 @@ import { createDestructuringPlannerState } from "../bindings/index.js";
 import { AsExpressionStatement } from "@tsonic/target-api/source";
 import { csharpPlannedValue, type CsharpPlannedValue } from "../expressions/planned-values.js";
 import { captureCsharpPlannedValue } from "../expressions/planned-value-composition.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { TargetTypeRef, CsharpObjectShapeFact } from "../../../target-model/types/model.js";
 
 export function planCsharpExplicitSafetyExpression(

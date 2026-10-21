@@ -9,7 +9,7 @@ import type {
   CsharpObjectShapeFact,
 } from "../../../target-model/types/index.js";
 import type { CsharpJsonObjectShapeContract, CsharpJsonObjectShapeRecords } from "../../../target-model/records/json-object-shapes.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import {
   csharpJsonValueWriterMethodName,
   csharpJsonValueProjectionMethodName,

@@ -2,7 +2,7 @@ import type { CsharpPlanningContext } from "../context.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression } from "../../target-ast/syntax/index.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function planThisExpression(node: Node, _sourceFile: SourceFile, input: CsharpPlanningContext, _diagnostics: TargetDiagnostic[]): CsharpExpression {
   const captured = input.scope.capturedReceivers?.get(node);

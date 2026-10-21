@@ -11,7 +11,7 @@ import { translateCsharpJsValueInvocation } from "./js-value-operations.js";
 import type { CsharpPlannedValue } from "./planned-values.js";
 import { composeCsharpPlannedValues, planCsharpExpressionCompletion, projectCsharpPlannedValue } from "./planned-value-composition.js";
 import { readCsharpNativeExpressionCarrier } from "./native-uses.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function planTypeofExpression(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner, state?: DestructuringPlannerState): CsharpPlannedValue | undefined {

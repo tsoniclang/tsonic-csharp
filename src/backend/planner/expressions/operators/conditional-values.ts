@@ -8,7 +8,7 @@ import { csharpPlannedValue, mapCsharpPlannedValue, type CsharpPlannedValue } fr
 import { planCsharpValueBranch } from "../planned-value-composition.js";
 import { planCsharpPlannedDiscard } from "../../statements/statement-output.js";
 import { applyCsharpConversionSelection, readCsharpExpressionConversionClassification } from "../conversions.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { csharpSourcePrimitiveTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
 
 export function planCsharpConditionalValue(node: Node, selection: CsharpResolvedBinaryOperation, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner, state?: DestructuringPlannerState

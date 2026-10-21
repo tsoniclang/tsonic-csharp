@@ -9,7 +9,7 @@ import { csharpPlannedValue, mapCsharpPlannedValue, type CsharpPlannedValue } fr
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { getCsharpTypeFromProjectSourceReferenceNode } from "../types/project-source-types.js";
 import type { CsharpTypeNode } from "../../target-ast/syntax/index.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function csharpProjectTypeReceiver(receiver: CsharpSelectedReceiverEvidence,
   input: CsharpPlanningContext, diagnostics: TargetDiagnostic[]): CsharpTypeNode | undefined {

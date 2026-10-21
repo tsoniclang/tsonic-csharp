@@ -5,7 +5,7 @@ import type { ExpressionPlanner } from "./expression-planner-types.js";
 import type { CsharpPlannedValue } from "./planned-values.js";
 import { mapCsharpPlannedValue } from "./planned-values.js";
 import { csharpPostfixUnaryOperatorTokenFromText, csharpPrefixUnaryOperatorTokenFromText } from "../../target-ast/syntax/operator-tokens.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { translateCsharpJsValueInvocation } from "./js-value-operations.js";
 import { planCsharpExactLiteralRecipe } from "./literal-conversions.js";
 import { planCsharpExpressionCompletion, projectCsharpPlannedValue } from "./planned-value-composition.js";

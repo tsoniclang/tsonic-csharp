@@ -8,7 +8,7 @@ import { createCsharpMemberPlanningContext, createCsharpThisBindingPlanningConte
 import { planMethodDeclaration } from "../../declarations/classes/methods.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { csharpTypeFromObjectShapeFact } from "../planning.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import type { CsharpObjectCaptureField } from "../../../../target-model/records/object-methods.js";
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
 import { getCsharpLocalBindingName } from "../../bindings/binding-state.js";

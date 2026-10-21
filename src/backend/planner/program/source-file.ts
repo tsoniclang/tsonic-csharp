@@ -48,7 +48,7 @@ import {
   csharpModuleInitMethodName,
 } from "./module-initialization-names.js";
 import { planClassDeclaration, planEnumDeclaration, planFunctionDeclaration, planInterfaceDeclaration } from "../declarations/index.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planExpression } from "../expressions/index.js";
 import { planClassFactoryDeclaration, planClassFactoryIdentity } from "../declarations/classes/factories.js";
 import { sanitizeIdentifier } from "../../../target-model/names/identifiers.js";

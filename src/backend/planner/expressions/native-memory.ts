@@ -5,7 +5,7 @@ import { csharpRuntimeNativeArrayTargetType } from "../../../target-model/types/
 import { csharpNativeLayoutOwner, csharpNativeMemoryOwner } from "../../../target-model/names/native-memory.js";
 import { qualifiedCsharpType } from "../types/primitives.js";
 import type { CsharpNativeLayoutRecords } from "../../../target-model/records/native-layout-emission.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function planCsharpNativeMemoryCall(
   typeParameterNames: ReadonlyMap<string, string> | undefined,

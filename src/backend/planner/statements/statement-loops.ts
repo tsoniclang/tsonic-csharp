@@ -10,7 +10,7 @@ import type {
   CsharpStatement,
 } from "../../target-ast/syntax/index.js";
 import { qualifiedCsharpType } from "../types/index.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import {
   allocateForOfItem,
   declareCsharpLocalBindingName,

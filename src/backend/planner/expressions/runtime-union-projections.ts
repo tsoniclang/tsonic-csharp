@@ -5,7 +5,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpConversionSelection } from "../../../target-model/conversions/selection.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import type { CsharpExpression } from "../../target-ast/syntax/index.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planCsharpUnionPattern } from "./union-patterns.js";
 
 export function planCsharpRuntimeUnionProjection(node: Node, sourceType: TargetTypeRef | undefined,

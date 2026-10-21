@@ -3,7 +3,7 @@ import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpPlanningContext } from "../../context.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import type { ArrayLiteralPlanner } from "./types.js";
 import { planArrayLiteralExpression } from "./dense-array.js";
 import { planTupleLiteralExpression } from "./tuple.js";

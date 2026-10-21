@@ -17,7 +17,7 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
 import { csharpRuntimeRawPointerTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { csharpNativeSizeLiteral, planCsharpNativeMemoryCall } from "./native-memory.js";
 import { mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { buildCsharpPlannedValue, planCsharpExpressionCompletion, projectCsharpPlannedValue } from "./planned-value-composition.js";

@@ -6,7 +6,7 @@ import type { CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import { planIdentifierName } from "../names/source-identifiers.js";
 import { sanitizeIdentifier } from "../../../target-model/names/identifiers.js";
 import { csharpSourceTypeArgumentNodes } from "../../../target-model/syntax/type-arguments.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function getCsharpTypeFromProjectSourceReferenceNode(
   node: Node, _sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics?: TargetDiagnostic[],

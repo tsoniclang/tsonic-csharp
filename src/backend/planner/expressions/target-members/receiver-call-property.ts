@@ -6,7 +6,7 @@ import type { ExpressionPlanner } from "../expression-planner-types.js";
 import type { CsharpExpression } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlannedValue } from "../planned-values.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { translateCsharpSelectedReceiver } from "../receivers.js";
 import { planCsharpExpressionCompletion, planCsharpOptionalReceiverValue, projectCsharpPlannedValue } from "../planned-value-composition.js";
 import { readCsharpNativeExpressionCarrier } from "../native-uses.js";

@@ -4,7 +4,7 @@ import { qualifiedCsharpType } from "../types/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { planCsharpArtifactMemberHiding } from "../declarations/modifiers.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function guardCsharpFrozenDataProperties(
   shape: CsharpObjectShapeFact, members: readonly CsharpTypeMember[],

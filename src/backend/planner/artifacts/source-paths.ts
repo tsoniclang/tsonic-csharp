@@ -2,7 +2,7 @@ import type {
   CsharpPlanningContext,
 } from "../context.js";
 
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function sourceFileClassName(
   input: CsharpPlanningContext,
@@ -19,5 +19,5 @@ export function sourceFileArtifactPath(
 ): string {
   const selected = input.program.records.sourceFile.get(fileName);
   if (selected === undefined) failCsharpPlannerInvariant("An admitted source file requires its selected native artifact identity.");
-  return selected.artifactPath;
+  return `src/${selected.modulePath}.cs`;
 }

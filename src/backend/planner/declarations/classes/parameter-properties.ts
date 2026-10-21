@@ -5,7 +5,7 @@ import type { CsharpStatement } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import { declareCsharpLocalBindingName, type DestructuringPlannerState } from "../../bindings/index.js";
 import { planCsharpAdmittedMemberName } from "../modifiers.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 
 export function planCsharpParameterPropertyAssignments(
   constructor: Node,

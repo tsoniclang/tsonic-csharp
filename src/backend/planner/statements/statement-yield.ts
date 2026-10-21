@@ -13,7 +13,7 @@ import type {
 import type {
   DestructuringPlannerState,
 } from "../bindings/index.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { CsharpYieldFact } from "../../../target-model/records/generators.js";
 import {
   applyCsharpConversionSelection,

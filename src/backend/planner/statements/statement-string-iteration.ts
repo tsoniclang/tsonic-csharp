@@ -10,7 +10,7 @@ import type {
 import {
   predefined,
 } from "../types/index.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import {
   allocateStringIterationNames,
 } from "../bindings/index.js";

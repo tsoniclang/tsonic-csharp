@@ -11,7 +11,7 @@ import {
 import type { CsharpPlannedValue } from "./planned-values.js";
 import { composeCsharpPlannedValues, planCsharpExpressionCompletion } from "./planned-value-composition.js";
 import { readCsharpNativeExpressionCarrier } from "./native-uses.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function planTemplateExpression(
   node: Node,

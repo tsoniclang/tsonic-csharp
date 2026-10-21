@@ -3,7 +3,7 @@ import type { CsharpPlanningContext } from "../context.js";
 import type { CsharpConstructorDeclaration } from "../../target-ast/syntax/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { csharpSafetyModifiersForDeclaration } from "../safety/explicit-safety.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function planImplicitForwardingConstructors(declaration: Node, className: string,
   input: CsharpPlanningContext): readonly CsharpConstructorDeclaration[] {

@@ -6,7 +6,7 @@ import { AsAwaitExpression, AsNoSubstitutionTemplateLiteral, AsStringLiteral,
   KindAwaitExpression, KindBigIntLiteral, KindFalseKeyword, KindNoSubstitutionTemplateLiteral, KindNullKeyword,
   KindNumericLiteral, KindStringLiteral, KindSuperKeyword, KindThisKeyword, KindTrueKeyword,
   Node_Text, SourceKind } from "@tsonic/target-api/source";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
 import { planIntegerLiteral, planCsharpExactLiteralRecipe } from "./literal-conversions.js";
 import { requireCsharpStringRuntimeCarrier } from "./expression-literal-carriers.js";

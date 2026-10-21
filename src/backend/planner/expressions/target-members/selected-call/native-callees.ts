@@ -12,7 +12,7 @@ import { planCsharpSourceMemberName } from "../source-member-names.js";
 import { planCsharpDiscardedOperand } from "../../../statements/statement-output.js";
 import { composeCsharpPlannedValues } from "../../planned-value-composition.js";
 import { captureCsharpPlannedMemberReceiver } from "../../planned-locations.js";
-import { failCsharpPlannerInvariant } from "../../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../../diagnostics.js";
 
 export function planCsharpNativeFunctionCallee(selected: Extract<CsharpSourceCalleeSelection, { readonly kind: "function" }>,
   sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], state: DestructuringPlannerState | undefined): CsharpExpression {

@@ -20,7 +20,7 @@ import { planCsharpCapturedInitialization } from "./capture-storage.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import {
   planCsharpAbsentValue,
 } from "../expressions/optional-storage.js";

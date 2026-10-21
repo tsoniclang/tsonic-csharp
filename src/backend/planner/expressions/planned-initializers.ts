@@ -6,7 +6,7 @@ import type { CsharpPlanningContext } from "../context.js";
 import { csharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { captureCsharpPlannedValue } from "./planned-value-composition.js";
 import { planCsharpAbsentValue, planCsharpPresentValueGuard } from "./optional-storage.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { CsharpObjectInitialization } from "../../../target-model/records/object-literals.js";
 
 export interface CsharpPlannedObjectAssignment extends CsharpObjectInitializerAssignment {

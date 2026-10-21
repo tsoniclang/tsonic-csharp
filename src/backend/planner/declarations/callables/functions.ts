@@ -12,7 +12,7 @@ import { planBlockStatements } from "../../statements/index.js";
 import { planTypeParameters } from "../../types/type-parameters.js";
 import { getAsyncReturnExpressionExpectedType, getExplicitReturnType } from "./return-types.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { planCsharpGeneratorFunction } from "../../statements/generators.js";
 import { withCsharpSafetyModifiers } from "../../safety/explicit-safety.js";
 import { planCsharpAbsenceReturn } from "../../statements/statement-output.js";

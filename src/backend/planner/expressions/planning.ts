@@ -30,7 +30,7 @@ import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";
 import { getCsharpExpressionOverride } from "../bindings/binding-state.js";
 import { getCsharpTypeForNode } from "../types/index.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planClassFactoryExpression } from "../declarations/classes/factories.js";
 import { planRegularExpressionLiteral } from "./regular-expression-literals.js";
 import {

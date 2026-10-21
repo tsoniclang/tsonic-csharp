@@ -4,7 +4,7 @@ import type { CsharpNativeMemberHidingReader } from "../../../../target-model/re
 import { planCsharpArtifactMemberHiding } from "../../declarations/modifiers.js";
 import type { CsharpGenericConstraint, CsharpInterfaceMember, CsharpInterfaceMethodDeclaration, CsharpInterfacePropertyDeclaration } from "../../../target-ast/syntax/index.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 
 export function renderCsharpStructuralInterfaceMembers(
   typeParameterNames: ReadonlyMap<string, string> | undefined,

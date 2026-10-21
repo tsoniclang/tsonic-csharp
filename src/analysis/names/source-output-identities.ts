@@ -43,7 +43,7 @@ function buildSourceOutputIdentityPlan(
 ): CsharpSourceOutputIdentityPlan {
   const byFileName = new Map<string, CsharpSourceFileOutputIdentity>();
   const byClassName = new Map<string, string>();
-  const byArtifactPath = new Map<string, string>();
+  const byModulePath = new Map<string, string>();
   const diagnostics: TargetDiagnostic[] = [];
   const reservedNames = new Set([...host.generatedTypeNames,
     ...host.sourceFiles.flatMap(sourceFile => [...topLevelTypeNames(host.ast, sourceFile)])]);
@@ -65,7 +65,7 @@ function buildSourceOutputIdentityPlan(
       baseClassName,
       reservedNames,
     );
-    const artifactPath = sourceFileModuleArtifactPath(
+    const modulePath = sourceFileModulePath(
       relativeName,
       baseClassName,
     );
@@ -78,7 +78,7 @@ function buildSourceOutputIdentityPlan(
         message: `Source files '${existingFileName}' and '${fileName}' produced the same deterministic C# output-plan class identity '${className}'.`,
       });
     }
-    const existingArtifactFileName = byArtifactPath.get(artifactPath);
+    const existingArtifactFileName = byModulePath.get(modulePath);
     if (
       existingArtifactFileName !== undefined &&
       existingArtifactFileName !== fileName
@@ -87,7 +87,7 @@ function buildSourceOutputIdentityPlan(
         code: "CSHARP_SOURCE_ARTIFACT_COLLISION",
         category: "error",
         source: "tsonic-csharp",
-        message: `Source files '${existingArtifactFileName}' and '${fileName}' produced the same deterministic C# output-plan artifact path '${artifactPath}'.`,
+        message: `Source files '${existingArtifactFileName}' and '${fileName}' produced the same deterministic C# output-plan artifact path 'src/${modulePath}.cs'.`,
       });
     }
     if (
@@ -97,12 +97,12 @@ function buildSourceOutputIdentityPlan(
       continue;
     }
     byClassName.set(className, fileName);
-    byArtifactPath.set(artifactPath, fileName);
+    byModulePath.set(modulePath, fileName);
     byFileName.set(fileName, Object.freeze({
       fileName,
       namespace: host.namespace,
       className,
-      artifactPath,
+      modulePath,
     }));
   }
   return diagnostics.length === 0
@@ -167,13 +167,13 @@ function normalizePath(value: string): string {
   return value.split("\\").join("/");
 }
 
-function sourceFileModuleArtifactPath(
+function sourceFileModulePath(
   relativeName: string,
   className: string,
 ): string {
   const parts = relativeName.split("/");
-  parts[parts.length - 1] = `${className}.cs`;
-  return `src/${parts.join("/")}`;
+  parts[parts.length - 1] = className;
+  return parts.join("/");
 }
 
 function sourceFileModuleClassName(relativeName: string): string {

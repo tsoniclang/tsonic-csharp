@@ -23,7 +23,7 @@ import { planClassInitializationRegion } from "./initializers.js";
 import { renderObjectShapeProjectionMethods } from "../../objects/closed-object-shapes.js";
 import { planCsharpNativeMemberHiding } from "../modifiers.js";
 import type { CsharpParameter } from "../../../target-ast/syntax/index.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 
 export interface CsharpPlannedClass {
   readonly declaration: CsharpClassDeclaration;

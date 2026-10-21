@@ -5,7 +5,7 @@ import {
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { CsharpNativeMemberIdentity } from "../../../target-model/names/model.js";
 import type { CsharpSourceNameRecords } from "../../../target-model/records/names.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
 import { objectShapeArtifactKey } from "../../../analysis/program/records/object-shape-keys.js";
 import type { CsharpNativeMemberHidingReader } from "../../../target-model/records/native-member-names.js";

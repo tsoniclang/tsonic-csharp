@@ -2,7 +2,7 @@ import type { CsharpPlanningContext } from "../context.js";
 import type {
   SourceFile,
 } from "@tsonic/tsts";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function isProviderVirtualSourceFile(input: CsharpPlanningContext, sourceFile: SourceFile | undefined): boolean {
   if (sourceFile === undefined) return false;

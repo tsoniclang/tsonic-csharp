@@ -6,7 +6,7 @@ import type { CsharpPlanningContext } from "../../context.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { planExpression } from "../../expressions/index.js";
 import { planCsharpAdmittedMemberName } from "../modifiers.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { createDestructuringPlannerState } from "../../bindings/binding-state.js";
 import { planClassStaticBlockDeclaration } from "./constructors.js";
 import { consumeCsharpPlannedValue } from "../../statements/statement-output.js";

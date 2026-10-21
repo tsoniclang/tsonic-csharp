@@ -5,7 +5,7 @@ import type { ExpressionPlanner } from "./expression-planner-types.js";
 import { translateCsharpJsValueInvocation } from "./js-value-operations.js";
 import { mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function planCsharpConditionExpression(expression: Node, context: string, sourceFile: SourceFile,
   input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner): CsharpPlannedValue | undefined {

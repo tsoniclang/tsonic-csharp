@@ -11,7 +11,7 @@ import { planCsharpNativeMemoryCall } from "../../expressions/native-memory.js";
 import { objectShapeAccessorGetterStorageMemberName, objectShapeAccessorSetterStorageMemberName, objectShapeStorageMemberName, objectShapeBoundStorageMemberName } from "../../../../target-model/names/object-members.js";
 import { renderCsharpStructuralMethod } from "./structural-interfaces.js";
 import { renderCsharpDeferredCaptureMember } from "./deferred-captures.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 
 export function renderObjectShapeMembers(
   typeParameterNames: ReadonlyMap<string, string> | undefined,

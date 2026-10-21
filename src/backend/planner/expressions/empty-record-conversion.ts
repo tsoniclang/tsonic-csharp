@@ -2,7 +2,7 @@ import type { CsharpConversionSelection } from "../../../target-model/conversion
 import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function planCsharpEmptyRecordConversion(
   typeParameterNames: ReadonlyMap<string, string> | undefined,

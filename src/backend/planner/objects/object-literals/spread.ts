@@ -4,7 +4,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpObjectShapeFact } from "../../../../target-model/types/model.js";
 import type { ExpressionPlanner } from "../../expressions/expression-planner-types.js";
 import type { CsharpPlannedObjectInitializer } from "../../expressions/planned-initializers.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 
 export function planObjectShapeSpreadAssignments(
   spreadNode: Node,

@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { CsharpPlanningContext } from "../../context.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 
 export function planCsharpSourceMemberName(node: Node, methodValue: boolean, input: CsharpPlanningContext): string {
   const selected = input.program.records.sourceMemberName.get(node);

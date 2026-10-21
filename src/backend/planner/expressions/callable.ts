@@ -29,7 +29,7 @@ import {
 import type {
   DestructuringPlannerState,
 } from "../bindings/index.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planBlockStatements } from "../statements/index.js";
 import { planCsharpCaptureFrame, planCsharpCaptureEntryBindings } from "../bindings/capture-storage.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";

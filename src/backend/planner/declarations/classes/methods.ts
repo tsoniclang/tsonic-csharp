@@ -31,7 +31,7 @@ import {
 import {
   csharpTypeFromTargetTypeRef,
 } from "../../types/target-types.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import {
   planCsharpGeneratorFunction,
 } from "../../statements/generators.js";

@@ -7,7 +7,7 @@ import { allocateExpressionTemp, type DestructuringPlannerState } from "../bindi
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
 import { planSelectedCsharpBinaryOperation } from "./operators/selected-binary.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { type CsharpPlannedValue } from "./planned-values.js";
 import { buildCsharpPlannedValue, composeCsharpPlannedValues, projectCsharpPlannedValue } from "./planned-value-composition.js";
 

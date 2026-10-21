@@ -3,7 +3,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { applyCsharpConversionSelection } from "./conversions.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
 import { planCsharpBorrowedSequenceConsumption } from "./array-literals/borrowed-sequences.js";

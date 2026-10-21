@@ -4,7 +4,7 @@ import type { CsharpSourceArgumentEmissionGroup } from "../../../target-model/re
 import { csharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { applyCsharpConversionSelection } from "./conversions.js";
 
 export function planCsharpSourceUndefinedValue(node: Node, plan: Extract<CsharpSourceArgumentEmissionGroup, { readonly kind: "absence" }>,

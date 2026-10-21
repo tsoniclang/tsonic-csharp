@@ -7,7 +7,7 @@ import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import type { CsharpTypeParameterConstraint } from "../../../target-model/types/generic-constraints.js";
 import type { CsharpProjectedType } from "../../../target-model/types/projections.js";
 import { sanitizeIdentifier } from "../../../target-model/names/identifiers.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function planTypeParameters(
   nodes: readonly (Node | undefined)[], input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],

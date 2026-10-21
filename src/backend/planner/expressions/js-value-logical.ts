@@ -2,7 +2,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpPlanningContext } from "../context.js";
 import type { CsharpJsValueOperationSelection } from "../../../target-model/operations/js-values.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { csharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { planCsharpJsValueBox, translateCsharpJsValueInvocation } from "./js-value-operations.js";
 import { projectCsharpPlannedValue, planCsharpValueBranch } from "./planned-value-composition.js";

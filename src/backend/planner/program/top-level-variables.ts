@@ -22,7 +22,7 @@ import { planLocalDeclaration, planLocalDeclarationStatements } from "../binding
 import { planStatements } from "../statements/index.js";
 import { planValueTypeDeclaration } from "../declarations/value-types.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planCsharpModuleCallable } from "./module-callables.js";
 import { planResourceRegistrationStatement } from "../statements/resource-management.js";
 import { planCsharpNativeMemberHiding } from "../declarations/modifiers.js";

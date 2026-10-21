@@ -7,7 +7,7 @@ import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { applyCsharpConversionSelection, readCsharpConversionClassification } from "./conversions.js";
 import { csharpPlannedValue, mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { planCsharpAbsentValue } from "./optional-storage.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function convertCsharpPlannedValue(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[], planned: CsharpPlannedValue, target: TargetTypeRef,

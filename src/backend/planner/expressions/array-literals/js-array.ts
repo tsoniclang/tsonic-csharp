@@ -4,7 +4,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTypeNode } from "../../../target-ast/syntax/index.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import type { ArrayLiteralPlanner } from "./types.js";
 import { plannedArrayElements } from "./dense-array.js";
 import { planCsharpJsArraySpreadAppend } from "../sequence-conversions.js";

@@ -18,7 +18,7 @@ import { planCsharpNativeMemoryCall } from "../expressions/native-memory.js";
 import { csharpRuntimeLocationTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function planCsharpParameterStorageDeclaration(
   declaration: Node,

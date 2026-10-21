@@ -14,7 +14,7 @@ import {
   csharpAssignmentOperatorTokenFromText,
   csharpBinaryOperatorTokenFromText,
 } from "../../../target-ast/syntax/operator-tokens.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import type { ExpressionPlanner } from "../expression-planner-types.js";
 import {
   csharpTypeFromTargetTypeRef,

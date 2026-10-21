@@ -34,7 +34,7 @@ import { planCsharpConstructorInitializerArgument } from "./initializer-argument
 import type { DestructuringPlannerState } from "../../bindings/index.js";
 import { planCsharpPreparedConstructor, type CsharpConstructorArgumentPlan } from "./constructor-entry.js";
 import { planCsharpParameterPropertyAssignments } from "./parameter-properties.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 
 export function planClassStaticBlockDeclaration(
   node: Node,

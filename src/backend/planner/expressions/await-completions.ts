@@ -13,7 +13,7 @@ import { csharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js
 import { captureCsharpPlannedValue, planCsharpExpressionCompletion } from "./planned-value-composition.js";
 import { planCsharpAbsentValue } from "./optional-storage.js";
 import type { CsharpStatement } from "../../target-ast/syntax/index.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function planCsharpAwaitCompletion(
   node: Node,

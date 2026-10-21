@@ -1,7 +1,7 @@
 import type { CsharpPlanningContext } from "../context.js";
 
 import type { Node } from "@tsonic/tsts";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function planIdentifierName(
   node: Node | undefined,

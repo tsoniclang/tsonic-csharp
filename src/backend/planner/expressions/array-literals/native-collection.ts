@@ -6,7 +6,7 @@ import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import type { ArrayLiteralPlanner } from "./types.js";
 import { planCsharpArrayConstruction } from "./construction.js";
 import type { CsharpPlannedValue } from "../planned-values.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 
 export function planNativeCollectionArrayLiteralExpression(node: Node, sourceFile: SourceFile,
   input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], carrier: TargetTypeRef,

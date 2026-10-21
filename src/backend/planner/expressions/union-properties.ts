@@ -6,7 +6,7 @@ import type { ExpressionPlanner } from "./expression-planner-types.js";
 import { planCsharpNativeUnionPropertyProjection } from "./union-projections.js";
 import type { CsharpPlannedValue } from "./planned-values.js";
 import { projectCsharpPlannedValue } from "./planned-value-composition.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 type CsharpUnionProperty = Extract<CsharpPropertyClassification["selection"], { readonly kind: "union-property" }>;
 

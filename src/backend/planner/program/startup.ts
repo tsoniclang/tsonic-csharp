@@ -7,7 +7,7 @@ import {
   qualifiedCsharpType,
 } from "../types/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
-import { failCsharpPlannerInvariant } from "../../invariants.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type {
   CsharpExpression,
   CsharpStatement,

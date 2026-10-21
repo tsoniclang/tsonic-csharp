@@ -3,7 +3,7 @@ import type { CsharpTypeParameter } from "../../../target-ast/syntax/index.js";
 import type { CsharpObjectShapeFact } from "../../../../target-model/types/model.js";
 import type { CsharpObjectShapeEmissionRecords } from "../../../../target-model/records/object-shape-emission.js";
 import { csharpGenericConstraintFromTargetTypeParameterConstraint } from "../../types/type-parameters.js";
-import { failCsharpPlannerInvariant } from "../../../invariants.js";
+import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 
 export function renderObjectShapeTypeParameters(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
