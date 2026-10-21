@@ -7,7 +7,8 @@ import { objectShapeArtifactKey } from "../../../dist/analysis/program/records/o
 import { csharpStringTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../../dist/target-model/types/index.js";
 import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
 import { csharpProjectedType } from "../../../dist/target-model/types/projections.js";
-import { objectShapeProjectionDeclaration } from "../../../dist/analysis/objects/native-demand-declarations.js";
+import { prepareCsharpObjectShapeProjectionDeclaration } from "../../../dist/analysis/objects/native-demand-declarations.js";
+import { publishCsharpObjectShapeProjectionDeclaration, selectCsharpObjectShapePublication } from "../../../dist/analysis/names/object-shapes.js";
 import { printCsharpCompilationUnit } from "../../../dist/print/source/index.js";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
@@ -42,7 +43,7 @@ function fixture(arguments_ = [integer, text], selectedConversion) {
   };
   const engine = createCsharpObjectShapeDemandEngine(host);
   return { declaration, instances, host, conversions, engine,
-    publish: () => publishCsharpNativeArtifactDemand(engine.close(), { typeParameterNames: [] }) };
+    publish: () => publishCsharpNativeArtifactDemand(selectCsharpObjectShapePublication(engine.close(), { typeParameterNames: [] })) };
 }
 
 function resultType(kind, receiver) {
@@ -188,7 +189,9 @@ test("a projected parameter already owned by the declaration is not redeclared b
   const { projected } = projectedParameter("optional");
   const receiver = { targetType: target(projected), members: [field(projected)] };
   const selected = { kind: "has-own", resultType: { kind: "source-primitive", name: "bool" }, propertyOrder: ["value"] };
-  const binding = objectShapeProjectionDeclaration(receiver, selected, [{ identity: projected.identity, name: "Storage" }], []);
+  const declarations = [{ identity: projected.identity, name: "Storage" }];
+  const binding = publishCsharpObjectShapeProjectionDeclaration(prepareCsharpObjectShapeProjectionDeclaration(
+    receiver, selected, declarations, [], { kind: "has-own", keys: ["value"] }), declarations);
   assert.equal(binding.typeParameters.length, 0, "the existing class binder satisfies the emitted physical parameter");
   const diagnostics = [];
   const methods = renderObjectShapeProjectionMethods({ scope: { typeParameterNames: new Map([[projected.identity, "Storage"]]) } }, [binding], diagnostics);
@@ -199,8 +202,8 @@ test("a projected parameter already owned by the declaration is not redeclared b
 test("physical projection publication refuses missing native binder constraints", () => {
   const projected = csharpProjectedType({ kind: "optional", part: "storage", arguments: [parameter] });
   const receiver = { targetType: target(projected), members: [field(projected)] };
-  assert.throws(() => objectShapeProjectionDeclaration(receiver,
-    { kind: "has-own", resultType: { kind: "source-primitive", name: "bool" }, propertyOrder: ["value"] }, [], []),
+  assert.throws(() => prepareCsharpObjectShapeProjectionDeclaration(receiver,
+    { kind: "has-own", resultType: { kind: "source-primitive", name: "bool" }, propertyOrder: ["value"] }, [], [], { kind: "has-own", keys: ["value"] }),
   /exact sealed native generic constraints/u, "source projection evidence does not manufacture an unconstrained native binder");
 });
 
@@ -215,8 +218,8 @@ test("null checks are selected only for exact native reference receivers, never 
     ["unconstrained native parameter", parameter, false],
   ]) {
     const receiver = { targetType: type, members: [] };
-    const binding = objectShapeProjectionDeclaration(receiver,
-      { kind: "has-own", resultType: { kind: "source-primitive", name: "bool" }, propertyOrder: [] }, [], []);
+    const binding = publishCsharpObjectShapeProjectionDeclaration(prepareCsharpObjectShapeProjectionDeclaration(receiver,
+      { kind: "has-own", resultType: { kind: "source-primitive", name: "bool" }, propertyOrder: [] }, [], [], { kind: "has-own", keys: [] }), []);
     assert.equal(binding.receiverRequiresNullCheck, expected, `${name}: one pre-seal reference obligation`);
     const diagnostics = [];
     const methods = renderObjectShapeProjectionMethods({ scope: { typeParameterNames: new Map() } }, [binding], diagnostics);
@@ -250,9 +253,9 @@ test("actual optional and conditional physical projection methods compile and re
     ["int", { kind: "type-parameter", identity: "Receiver:Unconstrained", name: "Unconstrained",
       csharpConstraints: { kind: "resolved", constraints: [] } }],
   ];
-  const inverses = inverseTypes.map(([name, type]) => ({ name, binding: objectShapeProjectionDeclaration({ targetType: type, members: [] },
+  const inverses = inverseTypes.map(([name, type]) => ({ name, binding: publishCsharpObjectShapeProjectionDeclaration(prepareCsharpObjectShapeProjectionDeclaration({ targetType: type, members: [] },
     { kind: "has-own", resultType: { kind: "source-primitive", name: "bool" }, propertyOrder: [] },
-    [{ identity: parameter.identity, name: "Value" }], []) }));
+    [{ identity: parameter.identity, name: "Value" }], [], { kind: "has-own", keys: [] }), [{ identity: parameter.identity, name: "Value" }]) }));
   for (const { binding } of inverses) assert.equal(binding.receiverRequiresNullCheck, false,
     "native struct, ref-like and unconstrained physical receivers never acquire a boxing null check");
   const diagnostics = [];

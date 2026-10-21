@@ -2,28 +2,33 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { csharpDelegateTargetType, csharpTaskTargetType } from "../../../../dist/target-model/types/carriers/delegates.js";
 import { csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
-import { csharpPlannedValue, csharpPlannedExpressionIsStable } from "../../../../dist/backend/planner/expressions/planned-values.js";
+import { csharpPlannedValue } from "../../../../dist/backend/planner/expressions/planned-values.js";
+import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../../helpers/direct-csharp-session.mjs";
 import { planCsharpPlannedDiscard, planCsharpDiscardedStatement, planDiscardedExpression } from "../../../../dist/backend/planner/statements/statement-output.js";
 
 const integer = csharpSourcePrimitiveTargetType("int32");
 const invocation = { kind: "InvocationExpression", callee: { kind: "IdentifierName", name: "effect" }, arguments: [] };
 const prelude = { kind: "ExpressionStatement", expression: invocation };
 
-for (const asynchronous of [false, true]) {
-  const carrier = csharpDelegateTargetType("System.Func", [], asynchronous ? csharpTaskTargetType(integer) : integer);
-  const definition = { kind: "LambdaExpression", ...(asynchronous ? { async: true } : {}), parameters: [], body: invocation };
-  for (const explicit of [false, true]) {
-    test(`discarding an uninvoked ${asynchronous ? "async" : "sync"} definition retains only prior effects (${explicit ? "explicit" : "implicit"})`, () => {
-      const parenthesized = { kind: "ParenthesizedExpression", expression: { kind: "ParenthesizedExpression", expression: definition } };
-      for (const expression of [definition, parenthesized]) {
-        const discarded = planCsharpPlannedDiscard(csharpPlannedValue(carrier, expression, [prelude]), explicit);
-        assert.equal(discarded.length === 1 && discarded[0] === prelude, true, "definition bodies do not execute and prior effects are preserved exactly");
-        assert.equal(planCsharpDiscardedStatement(expression, carrier, explicit) === undefined, true, "pure definition has no native statement");
-        assert.equal(planDiscardedExpression(expression, carrier) === undefined, true, "pure definition has no native discarded expression");
-        assert.equal(csharpPlannedExpressionIsStable(expression), false, "discard elision does not change value sequencing or observable closure identity");
-      }
-    });
-  }
+for (const asynchronous of [false, true]) for (const explicit of [false, true]) {
+  test(`discarded ${asynchronous ? "async" : "sync"} source definitions are erased before planning (${explicit})`, () => {
+    const compiled = compileCsharpSource({ sourceText: `
+      export function effect(): number { return 1; }
+      export function run(): void { effect(); ${explicit ? "void " : ""}(((${asynchronous ? "async " : ""}() => effect()))); }
+    ` });
+    assertCsharpCompilationSucceeded(compiled);
+    const ast = compiled.source.ast;
+    const nodes = [];
+    const visit = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
+    visit(compiled.source.getSourceFile("/project/index.ts"));
+    const definition = nodes.find(node => ast.is.IsArrowFunction(node));
+    assert.equal(definition !== undefined, true, "the checked source definition is retained for admission");
+    assert.equal(compiled.result.program.records.lambdaCreation.get(definition).kind, "discarded",
+      "one pre-seal source-use owner erases only the uninvoked definition");
+    const generated = [...compiled.artifacts].filter(([path]) => path.endsWith(".cs")).map(([, text]) => text).join("\n");
+    assert.equal([...generated.matchAll(/\beffect\s*\(/gu)].length, 2,
+      "the declaration and one prior effect remain; the uninvoked body is not emitted or executed");
+  });
 }
 
 test("discarding calls and getter reads must still evaluate their effects", () => {

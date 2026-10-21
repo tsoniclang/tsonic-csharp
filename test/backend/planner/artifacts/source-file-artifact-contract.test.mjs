@@ -1,255 +1,73 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { analyzeCsharpSourceArtifacts } from "../../../../dist/analysis/source-modules/artifacts.js";
 
-import {
-  createTargetArtifactContractGraph,
-  reconstructTargetArtifacts,
-} from "../../../../../tsonic/packages/target-api/dist/public/artifacts.js";
-
-import {
-  csharpSourceFileContractCandidate,
-} from "../../../../dist/backend/planner/artifacts/source-file-contract.js";
-
-test("source-file contracts separate implementation from public surface", () => {
-  const first = resolvedCandidate(methodUnit({
-    bodyValue: 1,
-    parameter: { name: "actions", type: stringType },
-  }));
-  const implementationEdit = resolvedCandidate(methodUnit({
-    bodyValue: 2,
-    parameter: { name: "actions", type: stringType },
-  }));
-  const publicEdit = resolvedCandidate(methodUnit({
-    bodyValue: 1,
-    parameter: { name: "actions", type: stringType, isParams: true },
-  }));
-
-  assert.equal(
-    facet(first, "source-file-public-surface"),
-    facet(implementationEdit, "source-file-public-surface"),
-  );
-  assert.notEqual(
-    facet(first, "source-file-implementation"),
-    facet(implementationEdit, "source-file-implementation"),
-  );
-  assert.notEqual(
-    facet(first, "source-file-public-surface"),
-    facet(publicEdit, "source-file-public-surface"),
-  );
-});
-
-test("source-file public contracts exclude private implementation details", () => {
-  const first = resolvedCandidate(methodUnit({
-    bodyValue: 1,
-    parameter: { name: "value", type: stringType },
-    privateParameterType: stringType,
-  }));
-  const privateEdit = resolvedCandidate(methodUnit({
-    bodyValue: 1,
-    parameter: { name: "value", type: stringType },
-    privateParameterType: intType,
-  }));
-
-  assert.equal(
-    facet(first, "source-file-public-surface"),
-    facet(privateEdit, "source-file-public-surface"),
-  );
-  assert.notEqual(
-    facet(first, "source-file-implementation"),
-    facet(privateEdit, "source-file-implementation"),
-  );
-});
-
-test("explicit interface methods remain part of the public structural contract", () => {
-  const unit = (name, bodyValue) => {
-    const result = methodUnit({ bodyValue, parameter: { name: "value", type: stringType } });
-    const method = result.members[0].members[0].members[0];
-    method.modifiers = [];
-    method.explicitInterface = { kind: "IdentifierName", name };
-    return result;
-  };
-  const first = resolvedCandidate(unit("IAction", 1));
-  const implementation = resolvedCandidate(unit("IAction", 2));
-  const contract = resolvedCandidate(unit("IOther", 1));
-  assert.equal(facet(first, "source-file-public-surface"), facet(implementation, "source-file-public-surface"));
-  assert.notEqual(facet(first, "source-file-public-surface"), facet(contract, "source-file-public-surface"));
-});
-
-test("source-file contracts preserve exact public dependencies", () => {
-  const dependencies = [{
-    owner: "source-file:/project/dependency.ts",
-    facet: "source-file-public-surface",
-  }];
-  const candidate = resolvedCandidate(methodUnit({
-    bodyValue: 1,
-    parameter: { name: "value", type: stringType },
-  }), dependencies);
-
-  assert.deepEqual(candidate.dependencies, dependencies);
-});
-
-test("C# public contracts reconstruct direct and transitive source dependents", () => {
-  const graph = createTargetArtifactContractGraph();
-  let restParameter = false;
-  let bodyValue = 1;
-  const reconstructed = [];
-  const paramsSurface = facet(resolvedCandidate(methodUnit({
-    bodyValue,
-    parameter: { name: "actions", type: stringType, isParams: true },
-  })), "source-file-public-surface");
-  const reconstruct = (owner, current) => {
-    reconstructed.push(owner);
-    if (owner === "callee") {
-      return sourceCandidate(methodUnit({
-        bodyValue,
-        parameter: {
-          name: "actions",
-          type: stringType,
-          ...(restParameter ? { isParams: true } : {}),
-        },
-      }), []);
-    }
-    if (owner === "caller") {
-      const expanded = graphFacet(
-        current,
-        "callee",
-        "source-file-public-surface",
-      ) === paramsSurface;
-      return sourceCandidate(methodUnit({
-        bodyValue: 1,
-        parameter: expanded
-          ? { name: "expandedCount", type: intType }
-          : { name: "value", type: stringType },
-      }), [{
-        owner: "callee",
-        facet: "source-file-public-surface",
-      }]);
-    }
-    const expanded = graphFacet(
-      current,
-      "caller",
-      "source-file-public-surface",
-    ) === facet(resolvedCandidate(methodUnit({
-      bodyValue: 1,
-      parameter: { name: "expandedCount", type: intType },
-    })), "source-file-public-surface");
-    return sourceCandidate(methodUnit({
-      bodyValue: expanded ? 2 : 1,
-      parameter: { name: "value", type: stringType },
-    }), [{
-      owner: "caller",
-      facet: "source-file-public-surface",
-    }]);
-  };
-
-  assert.deepEqual(reconstructTargetArtifacts(
-    graph,
-    ["callee", "caller", "entry"],
-    reconstruct,
-    { maximumReconstructionCount: 16 },
-  ), { kind: "completed", reconstructionCount: 3 });
-  assert.deepEqual(reconstructed, ["callee", "caller", "entry"]);
-
-  reconstructed.length = 0;
-  bodyValue = 3;
-  assert.deepEqual(reconstructTargetArtifacts(
-    graph,
-    ["callee"],
-    reconstruct,
-    { maximumReconstructionCount: 16 },
-  ), { kind: "completed", reconstructionCount: 1 });
-  assert.deepEqual(reconstructed, ["callee"]);
-
-  reconstructed.length = 0;
-  restParameter = true;
-  assert.deepEqual(reconstructTargetArtifacts(
-    graph,
-    ["callee"],
-    reconstruct,
-    { maximumReconstructionCount: 16 },
-  ), { kind: "completed", reconstructionCount: 3 });
-  assert.deepEqual(reconstructed, ["callee", "caller", "entry"]);
-});
-
-function resolvedCandidate(unit, dependencies = []) {
-  const result = csharpSourceFileContractCandidate(
-    "source-file:/project/index.ts",
-    unit,
-    dependencies,
-  );
-  assert.equal(result.kind, "resolved");
-  return result.candidate;
+function select(files, references = new Map(), constructions = []) {
+  return analyzeCsharpSourceArtifacts({
+    ast: { getPath: file => file.path },
+    navigation: { sourceFiles: files, moduleReferences: file => (references.get(file) ?? []).map(sourceFile => ({ sourceFile })) },
+  }, { entries: () => constructions });
 }
 
-function facet(candidate, name) {
-  return candidate.contract.facets.find((entry) => entry.facet === name).value;
-}
+const file = path => Object.freeze({ path });
+const owner = source => 'source-file:' + source.path;
 
-function graphFacet(graph, owner, name) {
-  return graph.contract(owner)?.facets.find((entry) => entry.facet === name)?.value;
-}
-
-function sourceCandidate(unit, dependencies) {
-  const candidate = resolvedCandidate(unit, dependencies);
-  return {
-    kind: "resolved",
-    contract: candidate.contract,
-    dependencies: candidate.dependencies,
-    artifact: candidate.artifact,
-  };
-}
-
-function methodUnit(options) {
-  return {
-    kind: "CompilationUnit",
-    usings: [],
-    members: [{
-      kind: "NamespaceDeclaration",
-      name: "Example",
-      members: [{
-        kind: "ClassDeclaration",
-        name: "Api",
-        modifiers: ["public", "static"],
-        members: [
-          {
-            kind: "MethodDeclaration",
-            name: "invoke",
-            modifiers: ["public", "static"],
-            returnType: intType,
-            parameters: [options.parameter],
-            body: {
-              kind: "Block",
-              statements: [{
-                kind: "ReturnStatement",
-                expression: {
-                  kind: "LiteralExpression",
-                  value: options.bodyValue,
-                },
-              }],
-            },
-          },
-          {
-            kind: "MethodDeclaration",
-            name: "implementationDetail",
-            modifiers: ["private", "static"],
-            returnType: intType,
-            parameters: [{
-              name: "value",
-              type: options.privateParameterType ?? stringType,
-            }],
-            body: { kind: "Block", statements: [] },
-          },
-        ],
-      }],
-    }],
-  };
-}
-
-const stringType = Object.freeze({
-  kind: "PredefinedType",
-  name: "string",
+test("source-file contracts retain exact public dependencies before sealing", () => {
+  const root = file("/project/index.ts");
+  const dependency = file("/project/dependency.ts");
+  const result = select([root, dependency], new Map([[root, [dependency]]]));
+  assert.equal(result.issues.length, 0);
+  const selected = result.records.sourceArtifacts.get().find(entry => entry.sourceFile === root);
+  assert.deepEqual(selected.dependencies, [{ owner: owner(dependency), facet: "source-file-public-surface" }]);
+  assert.equal(Object.isFrozen(selected) && Object.isFrozen(selected.dependencies), true);
+  assert.equal(result.records.sourceArtifacts.get() === result.records.sourceArtifacts.get(), true);
 });
-const intType = Object.freeze({
-  kind: "PredefinedType",
-  name: "int",
+
+test("constructed modules retain implementation and public facets separately", () => {
+  const root = file("/project/index.ts");
+  const dependency = file("/project/worker.ts");
+  const result = select([root, dependency], new Map([[root, [dependency]]]), [{ sourceFile: root, targetSourceFile: dependency }]);
+  assert.equal(result.issues.length, 0);
+  const selected = result.records.sourceArtifacts.get().find(entry => entry.sourceFile === root);
+  assert.deepEqual(selected.dependencies, [
+    { owner: owner(dependency), facet: "source-file-implementation" },
+    { owner: owner(dependency), facet: "source-file-public-surface" },
+  ]);
+});
+
+test("mutual source imports produce one finite immutable dependency set", () => {
+  const root = file("/project/index.ts");
+  const peer = file("/project/peer.ts");
+  const result = select([root, peer], new Map([[root, [peer, peer, root]], [peer, [root]]]));
+  assert.equal(result.issues.length, 0);
+  const records = result.records.sourceArtifacts.get();
+  assert.equal(records.length, 2);
+  for (const [source, dependency] of [[root, peer], [peer, root]]) {
+    assert.deepEqual(records.find(entry => entry.sourceFile === source).dependencies,
+      [{ owner: owner(dependency), facet: "source-file-public-surface" }]);
+  }
+});
+
+test("transitive source contracts retain their exact direct owners without backend reconstruction", () => {
+  const root = file("/project/index.ts");
+  const caller = file("/project/caller.ts");
+  const callee = file("/project/callee.ts");
+  const result = select([root, caller, callee], new Map([[root, [caller]], [caller, [callee]]]));
+  assert.equal(result.issues.length, 0);
+  const records = result.records.sourceArtifacts.get();
+  for (const [source, dependency] of [[root, caller], [caller, callee]]) {
+    assert.deepEqual(records.find(entry => entry.sourceFile === source).dependencies,
+      [{ owner: owner(dependency), facet: "source-file-public-surface" }]);
+  }
+  assert.deepEqual(records.find(entry => entry.sourceFile === callee).dependencies, []);
+  assert.equal(Object.hasOwn(result.records, "reconstructArtifact"), false);
+});
+
+test("a missing exact source dependency is refused at its source owner", () => {
+  const root = file("/project/index.ts");
+  const absent = file("/project/absent.ts");
+  const result = select([root], new Map([[root, [absent]]]));
+  assert.equal(result.issues.length, 1);
+  assert.equal(result.issues[0].code, "CSHARP_SOURCE_FILE_DEPENDENCY_IDENTITY_MISSING");
+  assert.equal(result.issues[0].sourceNode === root, true);
 });
