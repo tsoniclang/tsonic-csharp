@@ -8,7 +8,7 @@ import { createTestWorkspace } from "../../../../tsonic/test/scripts/test-worksp
 import { createDotnetReflectionTypeDataProvider } from "../../helpers/dotnet-reflection-provider.mjs";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { csharpCoreRuntimeSource, csharpRuntimeSourceContributions } from "../../../dist/providers/runtime/source-projects.js";
-import { analyzeCsharpProject } from "../../../dist/analysis/project/classification.js";
+import { classifyCsharpProjectConfiguration } from "../../../dist/compilation/project.js";
 import { createCsharpTargetConfiguration } from "../../../dist/compilation/configuration.js";
 import { csharpNativeInheritanceLookup, csharpNativeTargetBindingFact } from "../../../dist/target-model/types/native-inheritance.js";
 import { csharpExceptionTargetType, csharpRuntimeErrorTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
@@ -32,7 +32,7 @@ function fixture() {
   const cacheRoot = join(root, "cache");
   const configuration = createCsharpTargetConfiguration({ id: "csharp", options: { targetFramework: framework } },
     repository, join(root, "out"));
-  const classified = analyzeCsharpProject(configuration, csharpRuntimeSourceContributions(runtime).references, cacheRoot);
+  const classified = classifyCsharpProjectConfiguration(configuration, csharpRuntimeSourceContributions(runtime).references, cacheRoot);
   assert.equal(classified.kind, "resolved", "the actual selected runtime graph is classified once");
   const project = classified.value;
   const preparation = Object.freeze({ sources: project.runtimeSources, projects: project.runtimeProjects,
@@ -88,7 +88,7 @@ test("Error and Exception roots select the actual published metadata names and k
   const cacheRoot = join(root, "cache");
   const configuration = createCsharpTargetConfiguration({ id: "csharp", options: { targetFramework: framework } },
     repository, join(root, "out"));
-  const classified = analyzeCsharpProject(configuration, csharpRuntimeSourceContributions(csharpCoreRuntimeSource).references, cacheRoot);
+  const classified = classifyCsharpProjectConfiguration(configuration, csharpRuntimeSourceContributions(csharpCoreRuntimeSource).references, cacheRoot);
   assert.equal(classified.kind, "resolved", "the selected actual core runtime is classified");
   const project = classified.value;
   const inputs = { root, cacheRoot, wrapper: project.runtimeProjects[0], preparation: Object.freeze({
@@ -221,7 +221,7 @@ test("runtime native selection sees all actually selected project references bef
     const cacheRoot = join(root, `cache-${orderIndex}`);
     const configuration = createCsharpTargetConfiguration({ id: "csharp", options: { targetFramework: framework } },
       repository, join(root, `out-${orderIndex}`));
-    const classified = analyzeCsharpProject(configuration,
+    const classified = classifyCsharpProjectConfiguration(configuration,
       ordered.flatMap(source => csharpRuntimeSourceContributions(source).references), cacheRoot);
     assert.equal(classified.kind, "resolved", `graph ${orderIndex}: actual selected runtime classification`);
     const project = classified.value;

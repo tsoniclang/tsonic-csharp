@@ -14,7 +14,6 @@ import {
   dotnetNativeArrayLengthMemberId,
   dotnetNativeArrayTypeId,
   dotnetModuleToProviderDeclarationModel,
-  dotnetTypeRefToProviderType,
   dotnetTypeRefToTargetTypeRef,
   validateDotnetProviderDeclarationModelContract,
 } from "../../../dist/public/provider-dotnet.js";
@@ -24,7 +23,7 @@ import {
 import { dotnetExportToTargetBinding } from "../../../dist/providers/native/projection/binding-projection.js";
 import { tryDotnetTypeRefToProviderType } from "../../../dist/providers/native/projection/declarations/provider-conversion.js";
 import { buildDotnetFixture } from "../../helpers/dotnet-fixtures.mjs";
-export { assert, dirname, join, test, fileURLToPath, augmentDotnetModuleWithNativeArray, completeDotnetProviderContext, createDotnetProviderTelemetry, createDotnetReflectionTypeDataProvider, createDotnetSourceDeclarationProvider, dotnetNativeArrayCreateMemberId, dotnetNativeArrayIndexerMemberId, dotnetNativeArrayLengthMemberId, dotnetNativeArrayTypeId, dotnetModuleToProviderDeclarationModel, dotnetTypeRefToProviderType, dotnetTypeRefToTargetTypeRef, validateDotnetProviderDeclarationModelContract, dotnetExportToTargetBinding, tryDotnetTypeRefToProviderType, buildDotnetFixture };
+export { assert, dirname, join, test, fileURLToPath, augmentDotnetModuleWithNativeArray, completeDotnetProviderContext, createDotnetProviderTelemetry, createDotnetReflectionTypeDataProvider, createDotnetSourceDeclarationProvider, dotnetNativeArrayCreateMemberId, dotnetNativeArrayIndexerMemberId, dotnetNativeArrayLengthMemberId, dotnetNativeArrayTypeId, dotnetModuleToProviderDeclarationModel, dotnetTypeRefToTargetTypeRef, validateDotnetProviderDeclarationModelContract, dotnetExportToTargetBinding, tryDotnetTypeRefToProviderType, buildDotnetFixture };
 
 export const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 export const testAssemblyId = "Test.Assembly, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null";
@@ -197,77 +196,77 @@ export function assertProviderDeclarationRefsFullyQualified(model) {
   assert.deepEqual(invalidRefs, []);
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 export function unsupportedMembersByMetadataName(declaration) {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   return new Map(declaration.unsupportedMembers?.map((member) => [member.metadataName, member]) ?? []);
 }
 
@@ -455,3 +454,5 @@ export function buildSignatureIdentityFixture() {
     projectDirectory: join(repoRoot, "test/fixtures/dotnet-provider/signature-identity"),
   });
 }
+
+undefined

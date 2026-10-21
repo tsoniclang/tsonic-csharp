@@ -87,7 +87,7 @@ test("C# backend consumes target-owned marker models only", () => {
 test("C# backend consumes only resolved C# typed-location operations", () => {
   const plannerPath = join(
     sourceRoot,
-    "backend/planner/expressions/expression-typed-locations.ts",
+    "backend/planner/expressions/typed-locations.ts",
   );
   const planner = readFileSync(plannerPath, "utf8");
   const analysis = readFileSync(
@@ -114,7 +114,7 @@ test("C# backend consumes only resolved C# typed-location operations", () => {
 
 test("typed-location selection is fact-driven and contains no marker spellings", () => {
   const selection = readFileSync(
-    join(sourceRoot, "policy/operations/typed-locations/typed-locations.ts"),
+    join(sourceRoot, "policy/operations/typed-locations/selection.ts"),
     "utf8",
   );
   assert.match(selection, /readCsharpSourceTypedLocationOperation/u);
@@ -127,11 +127,11 @@ test("typed-location selection is fact-driven and contains no marker spellings",
 
 test("typed-location storage identity is closed over exact declarations, members, and arrays", () => {
   const storage = readFileSync(
-    join(sourceRoot, "policy/operations/typed-locations/typed-location-storage.ts"),
+    join(sourceRoot, "policy/operations/typed-locations/storage.ts"),
     "utf8",
   );
   const planner = readFileSync(
-    join(sourceRoot, "backend/planner/expressions/expression-typed-locations.ts"),
+    join(sourceRoot, "backend/planner/expressions/typed-locations.ts"),
     "utf8",
   );
 

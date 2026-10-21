@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
-import { CsharpProviderAcquisitionRejection, assertCsharpProviderLookupPurpose,
+import { assertCsharpProviderLookupPurpose,
   csharpProviderBindingFromResolution } from "../../dist/providers/model/relation-resolver.js";
 import { createCsharpProviderRelationResolver } from "../../dist/providers/native/projection/relation-resolution.js";
 import { csharpReferenceIdentityCarrier } from "../../dist/policy/operations/operators/reference-equality.js";
@@ -73,7 +73,10 @@ function rejectingProviders() {
     reads += 1;
     return rejected;
   };
-  return { providers: { findTargetBindingByTargetId: reject, findTargetBindingByMetadataName: reject }, reads: () => reads };
+  return { providers: createCsharpProviderRelationResolver({
+    providers: [{ identity: { id: "rejecting", version: "1" }, validateReferences: () => undefined,
+      findTargetBindingByTargetId: reject, findTargetBindingByMetadataName: reject }], providerPolicies: [],
+  }), reads: () => reads };
 }
 
 const policyFamilies = [
@@ -91,7 +94,7 @@ const policyFamilies = [
     ast: { getSourceFile: () => undefined }, types: { resolveSelectedType: () => carrier },
     semantics: () => ({ types: { propertyInfos: () => [] } }),
     projectTypes: { catalog: { definitionForTarget: () => undefined } },
-  }, { kind: "value", call: {}, sourceType: {}, fields: [], byteSize: 4, byteAlignment: 4, stride: 4,
+  }, { kind: "value", call: {}, sourceType: {}, fields: [], byteSize: 4n, byteAlignment: 4n, stride: 4n,
     dataLayout: { addressWidth: 64, byteOrder: "little" } }, {})],
   ["project heritage kind", host => {
     const declaration = Object.freeze({});
@@ -103,7 +106,8 @@ const policyFamilies = [
       semanticsFor: () => ({ declarations: { typeAliasSymbol: () => undefined, typeSymbol: () => undefined },
         types: { isTypeReference: () => false } }),
       navigation: { declaredHeritage: () => ({ kind: "resolved", edges: [{ kind: "extends", heritage,
-        selectedType, typeArguments: [], selectedTypeArguments: [] }] }) },
+        selectedType, typeArguments: [], selectedTypeArguments: [] }] }),
+        classConstructors: () => ({ kind: "resolved", implicit: false }) },
       types: { resolveSelectedType: () => carrier },
     }, { issues: [], definitions: [definition], definitionForDeclaration: () => definition,
       definitionForTarget: () => undefined });
@@ -114,15 +118,19 @@ for (const [name, invoke] of policyFamilies) {
   test(`${name} cannot turn an expected native acquisition rejection into false or absence`, () => {
     const state = rejectingProviders();
     const host = { providers: state.providers, projectTypes: { directSupertypes: () => [] } };
-    assert.throws(() => invoke(host), error => error instanceof CsharpProviderAcquisitionRejection && error.diagnostic === diagnostic,
-      "the one adapter carries the exact original diagnostic");
+    invoke(host);
+    assert.equal(state.providers.failures().length, 1, "the owning provider retains one expected refusal");
+    assert.equal(state.providers.failures()[0] === diagnostic, true, "the exact original diagnostic is value data");
     assert.equal(state.reads(), 1, "the rejecting query is evaluated once without fallback");
   });
 }
 
 test("an interrupted native type computation publishes no poisoned kind in a fresh analysis", () => {
-  const interrupted = createCsharpTypeDefinitionRegistry(() => csharpProviderBindingFromResolution(rejected));
-  assert.throws(() => interrupted.nativeDeclarationKind(carrier), CsharpProviderAcquisitionRejection);
+  const state = rejectingProviders();
+  const interrupted = createCsharpTypeDefinitionRegistry(id =>
+    csharpProviderBindingFromResolution(state.providers.findTargetBindingByTargetId(id, "ordinary")));
+  assert.equal(interrupted.nativeDeclarationKind(carrier), undefined, "a rejected lookup publishes no native kind");
+  assert.equal(state.providers.failures()[0] === diagnostic, true, "the refusal survives independently of the absent kind");
   const fresh = createCsharpTypeDefinitionRegistry(() => csharpProviderBindingFromResolution({ kind: "resolved", binding }));
   assert.equal(fresh.nativeDeclarationKind(carrier), "class", "a fresh analysis sees the actual native result");
   assert.equal(fresh.nativeDeclarationKind(carrier), "class", "only the completed native kind is memoized");
@@ -134,6 +142,7 @@ test("the pre-seal analysis boundary preserves acquisition rejection and publish
   let reads = 0;
   const compiled = compileCsharpSource({ sourceText: recordSource, compileTarget(request, observer) {
     return compileCsharpTarget({ ...request, providers: { ...request.providers,
+      failures: () => reads === 0 ? [] : [diagnostic],
       findTargetBindingByMetadataName(_name, purpose) {
         assert.equal(purpose, "ordinary", "the rejected carrier query is not runtime preparation");
         reads += 1;
@@ -170,7 +179,7 @@ function sourceFiles(directory) {
   });
 }
 
-test("the expected acquisition abort has one constructor, one throw owner and one pre-seal translator", () => {
+test("expected acquisition failures are values rejected by the sole pre-seal analysis owner", () => {
   const files = sourceFiles(resolve(root, "src"));
   const declarations = [];
   const constructions = [];
@@ -181,20 +190,14 @@ test("the expected acquisition abort has one constructor, one throw owner and on
     if (/new CsharpProviderAcquisitionRejection\(/u.test(source)) constructions.push(path);
     if (/instanceof CsharpProviderAcquisitionRejection\b/u.test(source)) translators.push(path);
   }
-  const adapter = resolve(root, "src/providers/model/relation-resolver.ts");
   const boundary = resolve(root, "src/analysis/program/analyze.ts");
-  assert.equal(declarations.length === 1 && declarations[0] === adapter, true, "one expected error type owner");
-  assert.equal(constructions.length === 1 && constructions[0] === adapter, true, "only the native lookup adapter constructs the abort");
-  assert.equal(translators.length === 1 && translators[0] === boundary, true, "only the pre-seal entry translates the abort");
+  assert.equal(declarations.length, 0, "the expected error class is removed");
+  assert.equal(constructions.length, 0, "no expected refusal is thrown");
+  assert.equal(translators.length, 0, "no layer catches an expected refusal");
   const source = readFileSync(boundary, "utf8");
-  assert.equal((source.match(/catch\s*\(/gu) ?? []).length, 1, "one expected-error catch in the analysis entry");
-  assert.equal(/if\s*\(error instanceof CsharpProviderAcquisitionRejection\)[\s\S]*rejectedTargetStage\([\s\S]*error\.diagnostic/u.test(source), true,
-    "the sole translator returns the original acquisition diagnostic");
-  assert.equal(/throw error;/u.test(source), true, "all other errors escape unchanged");
-  for (const file of ["analysis/project-types/type-definitions.ts", "analysis/project-types/analyze.ts", "analysis/conversions/validation.ts",
-    "analysis/objects/native-construction-demand.ts", "analysis/objects/value-domain-carriers.ts"]) {
-    const content = readFileSync(resolve(root, "src", file), "utf8");
-    assert.equal(/catch\s*\(error\)[\s\S]*throw error;/u.test(content), true, `${file}: the existing narrow catch preserves unrelated errors`);
-    assert.equal(/instanceof CsharpProviderAcquisitionRejection/u.test(content), false, `${file}: no second acquisition translator`);
-  }
+  assert.equal((source.match(/catch\s*\(/gu) ?? []).length, 0, "unrelated exceptions escape without interception");
+  assert.match(source, /const failures = request\.providers\.failures\(\);/u);
+  assert.match(source, /failures\.map\(diagnostic => targetDiagnosticFromExtension\(undefined, diagnostic\)\)/u);
+  const resolver = readFileSync(resolve(root, "src/providers/native/projection/relation-resolution.ts"), "utf8");
+  assert.match(resolver, /failures\.set\(canonicalProviderValue\(diagnostic\), diagnostic\)/u);
 });

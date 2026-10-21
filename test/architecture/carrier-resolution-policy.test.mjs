@@ -29,8 +29,8 @@ test("C# backend and tests consume structured target carrier resolutions", () =>
 
 test("recursive object-shape policies cannot re-enter the public type resolver", () => {
   const recursivePolicyFiles = [
-    ...filesUnder(join(repoRoot, "src/policy/types/objects/object-shape-policy")),
-    join(repoRoot, "src/policy/types/objects/binding-projection-policy.ts"),
+    ...filesUnder(join(repoRoot, "src/analysis/objects/shapes")),
+    join(repoRoot, "src/policy/types/objects/binding-projection.ts"),
   ].filter((filePath) => filePath.endsWith(".ts"));
   const failures = [];
   for (const filePath of recursivePolicyFiles) {

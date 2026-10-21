@@ -1,5 +1,5 @@
 import { nativeTypeFixture } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
-import { assert, dirname, join, test, fileURLToPath, augmentDotnetModuleWithNativeArray, createDotnetProviderTelemetry, createDotnetReflectionTypeDataProvider, createDotnetSourceDeclarationProvider, dotnetNativeArrayCreateMemberId, dotnetNativeArrayIndexerMemberId, dotnetNativeArrayLengthMemberId, dotnetNativeArrayTypeId, dotnetModuleToProviderDeclarationModel, dotnetTypeRefToProviderType, dotnetTypeRefToTargetTypeRef, validateDotnetProviderDeclarationModelContract, dotnetExportToTargetBinding, tryDotnetTypeRefToProviderType, buildDotnetFixture, repoRoot, testAssemblyId, testTargetId, namedDotnetTypeRef, methodMember, dotnetTestTypeMetadataName, sourcePrimitiveTestMetadataName, getDotnetDeclaration, getDotnetTargetId, getDotnetBinding, requireDotnetMember, requireProviderDeclarationMember, idEndsWith, findByIdSuffix, stripAssemblyQualifiers, collectProviderRefs, assertProviderDeclarationRefsFullyQualified, unsupportedMembersByMetadataName, constructorSignature, methodSignature, parameterFacts, stripTargetPayload, typeFact, omitLocalName, buildAttributeFixture, buildConstructorFixture, buildUnsupportedEventFixture, buildUnsupportedMemberFixture, buildConstraintFixture, buildConversionFixture, buildSignatureIdentityFixture } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
+import { assert, dirname, join, test, fileURLToPath, augmentDotnetModuleWithNativeArray, createDotnetProviderTelemetry, createDotnetReflectionTypeDataProvider, createDotnetSourceDeclarationProvider, dotnetNativeArrayCreateMemberId, dotnetNativeArrayIndexerMemberId, dotnetNativeArrayLengthMemberId, dotnetNativeArrayTypeId, dotnetModuleToProviderDeclarationModel, dotnetTypeRefToTargetTypeRef, validateDotnetProviderDeclarationModelContract, dotnetExportToTargetBinding, tryDotnetTypeRefToProviderType, buildDotnetFixture, repoRoot, testAssemblyId, testTargetId, namedDotnetTypeRef, methodMember, dotnetTestTypeMetadataName, sourcePrimitiveTestMetadataName, getDotnetDeclaration, getDotnetTargetId, getDotnetBinding, requireDotnetMember, requireProviderDeclarationMember, idEndsWith, findByIdSuffix, stripAssemblyQualifiers, collectProviderRefs, assertProviderDeclarationRefsFullyQualified, unsupportedMembersByMetadataName, constructorSignature, methodSignature, parameterFacts, stripTargetPayload, typeFact, omitLocalName, buildAttributeFixture, buildConstructorFixture, buildUnsupportedEventFixture, buildUnsupportedMemberFixture, buildConstraintFixture, buildConversionFixture, buildSignatureIdentityFixture } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
 import { mergeProviderSignatures } from "../../../../dist/providers/native/projection/declarations/signatures.js";
 
 import { getCompleteDotnetModule } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
@@ -23,7 +23,7 @@ test(".NET native projections retain every primitive width in scalar, nullable a
     "int64", "uint64", "int128", "uint128", "native-int", "native-uint", "float16", "float32", "float64", "decimal"]) {
     const primitive = { kind: "source-primitive", name };
     assert.deepEqual(dotnetTypeRefToTargetTypeRef(primitive), primitive);
-    assert.deepEqual(dotnetTypeRefToProviderType(primitive), primitive);
+    assert.deepEqual(tryDotnetTypeRefToProviderType(primitive), primitive);
     assert.deepEqual(dotnetTypeRefToTargetTypeRef({ kind: "array", elementType: primitive }), {
       kind: "array", element: primitive,
     });
@@ -123,7 +123,7 @@ test(".NET explicit type-ref kinds carry special target semantics without metada
   assert.equal(nullableType.csharpValueType, true);
   assert.deepEqual(nullableType.typeArguments, [intType]);
 
-  assert.deepEqual(dotnetTypeRefToProviderType({ kind: "nullable", elementType: intType }), {
+  assert.deepEqual(tryDotnetTypeRefToProviderType({ kind: "nullable", elementType: intType }), {
     kind: "union",
     types: [intType, { kind: "literal", value: null }],
   });
@@ -149,7 +149,7 @@ test(".NET explicit CLR array target refs preserve provider-supplied rank facts"
   });
 });
 test(".NET provider function source shapes preserve parameter modes and exact pointer parameters", () => {
-  const functionType = dotnetTypeRefToProviderType({
+  const functionType = tryDotnetTypeRefToProviderType({
     kind: "function",
     id: "test.callback",
     parameters: [
@@ -338,10 +338,6 @@ test(".NET provider source type conversion preserves exact native source markers
     elementType: intType,
   };
   assert.equal(tryDotnetTypeRefToProviderType(unsupportedRankedArray), undefined);
-  assert.throws(
-    () => dotnetTypeRefToProviderType(unsupportedRankedArray),
-    /Unsupported \.NET provider type 'array'/u,
-  );
 });
 test(".NET named target refs do not derive C# special semantics from metadata names", () => {
   const intType = { kind: "source-primitive", name: "int32" };

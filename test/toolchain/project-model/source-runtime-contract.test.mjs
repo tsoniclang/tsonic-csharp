@@ -10,14 +10,14 @@ import { validateDotnetReflectionTargetFramework } from "../../../dist/providers
 import { resolveDotnetProviderToolPaths } from "../../../dist/providers/native/acquisition/path-resolution.js";
 
 import { createCsharpTargetConfiguration } from "../../../dist/compilation/configuration.js";
-import { analyzeCsharpProject } from "../../../dist/analysis/project/index.js";
+import { classifyCsharpProjectConfiguration } from "../../../dist/compilation/project.js";
 import { planCsharpProjectFile } from "../../../dist/backend/planner/project/project-artifacts.js";
 import { materializeCsharpOutputPlan } from "../../../dist/backend/emission/materialize.js";
 
 function csharpRuntimeProjectReference(selected, source) {
   const contributions = csharpRuntimeSourceContributions(source);
   const configuration = createCsharpTargetConfiguration(selected.target, process.cwd(), resolve(".temp/source-runtime-contract/out"));
-  const classified = analyzeCsharpProject(configuration, contributions.references, selected.paths.cacheRoot);
+  const classified = classifyCsharpProjectConfiguration(configuration, contributions.references, selected.paths.cacheRoot);
   assert.equal(classified.kind, "resolved", JSON.stringify(classified));
   const project = planCsharpProjectFile({ program: { configuration, project: classified.value }, host: { paths: selected.paths } });
   materializeCsharpOutputPlan({ sources: [], project: { kind: "generated", project } });
@@ -90,11 +90,11 @@ test("source-project analysis rejects missing, cyclic, forged and conflicting na
   ]) {
     const modified = structuredClone(references);
     mutate(modified);
-    const result = analyzeCsharpProject(configuration, modified, context("net11.0").paths.cacheRoot);
+    const result = classifyCsharpProjectConfiguration(configuration, modified, context("net11.0").paths.cacheRoot);
     assert.equal(result.kind, "rejected", JSON.stringify(modified));
     assert.ok(result.diagnostics.every(diagnostic => diagnostic.code === "CSHARP_RUNTIME_REFERENCE_INVALID"));
   }
-  const duplicate = analyzeCsharpProject(configuration, [...references, ...references], context("net11.0").paths.cacheRoot);
+  const duplicate = classifyCsharpProjectConfiguration(configuration, [...references, ...references], context("net11.0").paths.cacheRoot);
   assert.equal(duplicate.kind, "resolved");
   assert.equal(duplicate.value.runtimeSources.length, 2);
 });

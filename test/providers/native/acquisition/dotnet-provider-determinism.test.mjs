@@ -10,8 +10,8 @@ import {
 import {
   createDotnetReferenceSnapshot,
 } from "../../../../dist/providers/native/acquisition/reference-snapshot.js";
-import { readCsharpReferences } from "../../../../dist/options/target.js";
-import { readCsharpReflectionReferencePaths } from "../../../../dist/options/csharp-target-options.js";
+import { readCsharpReferences, readCsharpProviderReferences, readCsharpTargetFramework } from "../../../../dist/options/target.js";
+import { resolveCsharpReflectionReferencePaths } from "../../../../dist/providers/native/acquisition/reference-paths.js";
 import { resolveDotnetFrameworkReferenceAssemblies } from "../../../../dist/providers/native/acquisition/framework-reference-packs.js";
 import { buildDotnetFixture } from "../../../helpers/dotnet-fixtures.mjs";
 import { getCompleteDotnetModule } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
@@ -19,7 +19,7 @@ import { getCompleteDotnetModule } from "../../../fixtures/dotnet-provider/dotne
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 
 test("C# framework references resolve through active SDK targeting packs", () => {
-  const references = readCsharpReflectionReferencePaths({
+  const target = {
     id: "csharp",
     options: {
       references: {
@@ -30,7 +30,9 @@ test("C# framework references resolve through active SDK targeting packs", () =>
         ],
       },
     },
-  }, repoRoot);
+  };
+  const references = resolveCsharpReflectionReferencePaths(readCsharpReferences(target),
+    readCsharpProviderReferences(target), readCsharpTargetFramework(target), repoRoot);
 
   assert.deepEqual(references.slice(0, 2), [
     resolve(repoRoot, "../lib/Acme.Contracts.dll"),
@@ -61,14 +63,16 @@ test("C# framework references resolve through active SDK targeting packs", () =>
 });
 
 test(".NET reflection provider reads active SDK targeting-pack assemblies as metadata", () => {
-  const references = readCsharpReflectionReferencePaths({
+  const target = {
     id: "csharp",
     options: {
       references: {
         frameworks: ["Microsoft.AspNetCore.App"],
       },
     },
-  }, repoRoot);
+  };
+  const references = resolveCsharpReflectionReferencePaths(readCsharpReferences(target),
+    readCsharpProviderReferences(target), readCsharpTargetFramework(target), repoRoot);
   const provider = createDotnetReflectionTypeDataProvider({
     disablePersistentCache: true,
     references,
@@ -223,7 +227,8 @@ test("C# provider references are reflection-only provider inputs", () => {
     },
   };
 
-  assert.deepEqual(readCsharpReflectionReferencePaths(target, repoRoot), [
+  assert.deepEqual(resolveCsharpReflectionReferencePaths(readCsharpReferences(target),
+    readCsharpProviderReferences(target), readCsharpTargetFramework(target), repoRoot), [
     resolve(repoRoot, "../lib/Project.Assembly.dll"),
     providerOnlyAssembly,
   ]);
