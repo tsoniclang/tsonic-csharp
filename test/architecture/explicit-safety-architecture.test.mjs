@@ -9,7 +9,7 @@ test("explicit safety reaches the planner through target-owned policy only", () 
   );
   const planning = product("src/backend/planner/expressions/planning.ts");
 
-  assert.match(explicitSafety, /input\.program\.records\.safetyApplication\.get/u);
+  assert.match(explicitSafety, /input\.program\.records\.declarationSafety\.get/u);
   assert.equal([...planning.matchAll(/input\.program\.records\.nativeHandler\.get\(node\)/gu)].length === 1, true,
     "the expression root reads one admitted native handler");
   assert.match(planning, /case "native-pointer":[\s\S]*?planCsharpNativePointerOperation\(\s*node,\s*nativeHandler\.selection/u);
@@ -22,14 +22,17 @@ test("explicit safety reaches the planner through target-owned policy only", () 
   );
 });
 
-test("C# unsafe permission uses typed syntax traversal", () => {
+test("C# unsafe permission is decided on source before sealing", () => {
   const permission = product("src/analysis/safety/emission.ts");
-  const members = product("src/analysis/safety/emission.ts");
-  const expressions = product("src/analysis/safety/emission.ts");
+  const types = product("src/policy/safety/native-types.ts");
+  const planner = product("src/backend/planner/safety/explicit-safety.ts");
 
-  assert.match(permission, /memberRequiresUnsafePermission/u);
-  assert.match(members, /switch \(member\.kind\)/u);
-  assert.match(expressions, /switch \(expression\.kind\)/u);
+  assert.match(permission, /ast\.forEachChild\(node/u);
+  assert.match(permission, /selectCsharpTypeUnsafeContext\(carrier\)/u);
+  assert.match(permission, /createCsharpSafetyEmissionRecords\(subjects, compilations, declarations, shapes\)/u);
+  assert.match(types, /case "pointer": case "function-pointer": return true/u);
+  assert.match(planner, /records\.unsafeCompilation\.get\(subject\)/u);
+  assert.doesNotMatch(planner, /forEachChild|selectCsharpTypeUnsafeContext|switch \(expression\.kind\)/u);
   assert.doesNotMatch(
     permission,
     /Object\.(?:values|entries|keys)|WeakSet|Record<string, unknown>|\bunknown\b/u,
@@ -39,7 +42,8 @@ test("C# unsafe permission uses typed syntax traversal", () => {
 test("C# never restores compilation-wide or containing-type unsafe inference", () => {
   const marking = product("src/analysis/safety/emission.ts");
 
-  assert.match(marking, /typeDeclarationHeaderRequiresUnsafe/u);
+  assert.match(marking, /const headerContext = children\.some/u);
+  assert.match(marking, /const lexicalContext = ast\.is\.IsSourceFile\(node\)/u);
   assert.doesNotMatch(marking, /markCompilationUnitUnsafe/u);
   assert.doesNotMatch(
     marking,
@@ -54,7 +58,7 @@ test("C# never restores compilation-wide or containing-type unsafe inference", (
 test("C# language, memory rules, and unsafe permission remain separate controls", () => {
   const options = product("src/options/target.ts");
   const projectAnalysis = product(
-    "src/analysis/project/classification.ts",
+    "src/options/project.ts",
   );
   const properties = product(
     "src/backend/planner/project/project-options.ts",
@@ -65,10 +69,13 @@ test("C# language, memory rules, and unsafe permission remain separate controls"
   assert.match(options, /readCsharpMemorySafetyRules/u);
   assert.match(projectAnalysis, /configuration\.languageDialect/u);
   assert.match(projectAnalysis, /configuration\.memorySafetyRules/u);
-  assert.match(properties, /input\.program\.project\.properties/u);
+  assert.match(properties, /input\.program\.records\.compilation\.get\(\)\.project\.properties/u);
   assert.match(properties, /options\.allowUnsafeBlocks === true/u);
-  assert.match(safety, /input\.program\.configuration\.languageDialect/u);
-  assert.match(safety, /input\.program\.configuration\.memorySafetyRules/u);
+  const admission = product("src/analysis/safety/emission.ts");
+  assert.match(admission, /input\.configuration\.languageDialect/u);
+  assert.match(admission, /input\.configuration\.memorySafetyRules/u);
+  assert.match(safety, /records\.declarationSafety\.get/u);
+  assert.doesNotMatch(safety, /configuration\.(?:languageDialect|memorySafetyRules)/u);
   assert.doesNotMatch(
     `${projectAnalysis}\n${properties}\n${safety}`,
     /readCsharpLanguageDialect|readCsharpMemorySafetyRules/u,

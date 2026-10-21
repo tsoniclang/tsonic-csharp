@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { printCsharpExpression } from "../../../dist/print/source/index.js";
-import { expressionRequiresUnsafe, expressionRequiresUnsafePermission } from "../../../dist/backend/planner/safety/unsafe-expressions.js";
 
 test("native switch expressions preserve patterns, guards and receiver precedence", () => {
   const expression = { kind: "SwitchExpression", expression: { kind: "IdentifierName", name: "input" }, arms: [
@@ -22,7 +21,5 @@ test("native switch expressions preserve patterns, guards and receiver precedenc
   const unsafe = { ...expression, arms: [{ pattern: { kind: "DiscardPattern" }, expression: {
     kind: "PrefixUnaryExpression", operand: { kind: "IdentifierName", name: "pointer" }, operatorToken: { kind: "AsteriskToken" },
   } }] };
-  assert.equal(expressionRequiresUnsafe(unsafe, () => false), true);
-  assert.equal(expressionRequiresUnsafePermission(unsafe, () => false), true);
-  assert.equal(expressionRequiresUnsafe(expression, () => false), false);
+  assert.equal(printCsharpExpression(unsafe), "(input) switch { _ => *pointer }");
 });

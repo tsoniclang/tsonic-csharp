@@ -9,6 +9,8 @@ const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..")
 const sourceRoot = join(repositoryRoot, "src");
 const paths = Object.freeze({
   analyze: "src/analysis/program/analyze.ts",
+  iteration: "src/analysis/program/iteration.ts",
+  emission: "src/analysis/program/emission.ts",
   create: "src/analysis/program/records/create.ts",
   classFactories: "src/analysis/project-types/class-factories.ts",
   storage: "src/analysis/storage/analyze.ts",
@@ -48,7 +50,8 @@ function text(node) {
   const range = node === undefined ? undefined : ast.authoredRange(node);
   return range?.kind === "authored" ? ast.getSourceText(ast.getSourceFile(node)).slice(range.start, range.end) : undefined;
 }
-const position = node => ast.pos(node);
+const position = node => ast.pos(node) + (ast.getSourceFile(node) === file(paths.emission)
+  ? ast.getSourceText(file(paths.analyze)).length : 0);
 const named = (node, name) => text(ast.name(node)) === name;
 
 function functionNamed(path, name) {
@@ -62,9 +65,10 @@ function callsTo(root, callee) {
 }
 
 function composedCall(callee, composer, label) {
-  const calls = callsTo(file(paths.analyze), callee);
-  assert.equal(calls.length === 1, true, `${label}: exactly one ${callee} call in analyze.ts`);
-  assert.equal(descendants(composer).includes(calls[0]), true, `${label}: the ${callee} call is inside its composing function`);
+  const calls = callsTo(composer, callee).concat(composer === program ? callsTo(emission, callee) : []);
+  assert.equal(calls.length === 1, true, `${label}: exactly one ${callee} call in its composing owner`);
+  assert.equal(descendants(composer).includes(calls[0]) || composer === program && descendants(emission).includes(calls[0]), true,
+    `${label}: the ${callee} call is inside its composing owner`);
   return calls[0];
 }
 
@@ -100,32 +104,35 @@ function topLevelIndex(statements, predicate, label) {
   return index;
 }
 
-const iteration = functionNamed(paths.analyze, "analyzeIteration");
+const iteration = functionNamed(paths.iteration, "analyzeCsharpRepresentationIteration");
 const entry = functionNamed(paths.analyze, "analyzeCsharpTargetProgram");
 const program = functionNamed(paths.analyze, "analyzeCsharpTargetProgramBeforeSeal");
+const emission = functionNamed(paths.emission, "finalizeCsharpNativeEmission");
 const evaluate = descendants(program).find(node => ast.is.IsMethodDeclaration(node) && named(node, "evaluate"));
-const programStatements = ast.statements(ast.body(program));
+const programStatements = [...ast.statements(ast.body(program)).slice(0, -1), ...ast.statements(ast.body(emission))];
 
-test("one expected native provider rejection wraps the same preseal program owner", () => {
+test("expected native provider failures return their original data before publication", () => {
   const calls = callsTo(entry, "analyzeCsharpTargetProgramBeforeSeal");
   assert.equal(calls.length, 1, "the public entry delegates once to the actual preseal owner");
-  const returns = descendants(entry).filter(node => ast.is.IsReturnStatement(node));
-  assert.equal(returns.length === 2 && text(ast.as.AsReturnStatement(returns[0]).Expression) ===
-    "analyzeCsharpTargetProgramBeforeSeal(request)" && text(ast.as.AsReturnStatement(returns[1]).Expression) ===
-    "rejectedTargetStage([targetDiagnosticFromExtension(undefined, error.diagnostic)])", true,
-  "the existing typed expected abort returns only its original diagnostic, never poisoned records");
-  const expected = descendants(entry).filter(node => ast.is.IsIfStatement(node) &&
-    text(ast.as.AsIfStatement(node).Expression) === "error instanceof CsharpProviderAcquisitionRejection");
-  assert.equal(expected.length === 1 && descendants(expected[0]).filter(node => ast.is.IsReturnStatement(node)).length === 1,
-    true, "only the one original typed provider rejection enters the expected diagnostic return");
-  assert.equal(descendants(entry).filter(node => ast.is.IsThrowStatement(node) &&
-    text(ast.as.AsThrowStatement(node).Expression) === "error").length, 1,
-  "every non-provider error keeps its original throw path");
+  const failures = callsTo(entry, "request.providers.failures");
+  assert.equal(failures.length, 1, "the boundary reads the provider's retained refusal values once");
+  assert.equal(position(calls[0]) < position(failures[0]), true, "retained failures are collected after analysis");
+  assert.equal(callsTo(entry, "request.providers.validateReferences").length, 1, "reference admission precedes source analysis");
+  const refusal = descendants(entry).filter(node => ast.is.IsIfStatement(node) &&
+    text(ast.as.AsIfStatement(node).Expression) === 'request.providerAcquisition.kind === "rejected"');
+  assert.equal(refusal.length, 1, "runtime acquisition is admitted as a value before analysis");
+  assert.equal(position(refusal[0]) < position(calls[0]), true, "an acquisition refusal cannot expose a partial program");
+  for (const kind of ["IsTryStatement", "IsCatchClause", "IsThrowStatement"]) {
+    assert.equal(descendants(entry).some(node => ast.is[kind](node)), false, "expected refusals use values, and unexpected errors propagate naturally");
+  }
+  const returned = ast.statements(ast.body(entry)).at(-1);
+  assert.equal(ast.is.IsReturnStatement(returned) && text(ast.as.AsReturnStatement(returned).Expression) === "result", true,
+    "only the complete resolved result reaches publication");
 });
 
 test("the requirement list is declared once, as the first statement of analyzeIteration", () => {
   const first = ast.statements(ast.body(iteration))[0];
-  const declarations = descendants(file(paths.analyze))
+  const declarations = descendants(file(paths.iteration))
     .filter(node => ast.is.IsVariableDeclaration(node) && named(node, "requiredRecords"));
   assert.equal(declarations.length === 1, true, "first statement: one requiredRecords declaration in analyze.ts");
   const [declaration] = declarations;
@@ -153,7 +160,7 @@ test("analyzeIteration passes its list to storage and operations and returns it 
     "iteration state: the final return carries the list as requiredRecords");
   for (const callee of ["analyzeCsharpClassFactories", "analyzeCsharpNativeDemand", "admitCsharpBindingPatterns", "conversionAnalysis.close"]) {
     const call = composedCall(callee, iteration, "iteration state");
-    assert.equal(text(ast.arguments(call).at(-1)) === "requiredRecords", true,
+    assert.equal(text(ast.arguments(call)[callee === "conversionAnalysis.close" ? 1 : ast.arguments(call).length - 1]) === "requiredRecords", true,
       `iteration state: ${callee} receives the same requirement list`);
   }
   const participation = composedCall("analyzeCsharpNativeParticipation", iteration, "iteration state");
@@ -173,7 +180,7 @@ test("native handler finalization receives the operations producer's mandatory l
     text(ast.as.AsParameterDeclaration(parameter).Type) === "CsharpRequiredRecord[]", true,
     "operations: a mandatory requirements parameter");
   const finalizers = callsTo(operations, "analyzeCsharpNativeHandlers");
-  const seals = callsTo(operations, "builder.seal");
+  const seals = callsTo(operations, "producer.seal");
   assert.equal(finalizers.length === 1 && seals.length === 1, true,
     "operations: exactly one native handler finalizer and one classification seal");
   const forwarded = ast.arguments(finalizers[0]).at(-1);
@@ -205,7 +212,7 @@ test("the late producers and the assembly receive the stable attempt's list", ()
   assert.equal(stable !== undefined && ast.is.IsNonNullExpression(stable) &&
     callsTo(stable, "closure.program.get").length === 1, true, "stable attempt: stable is the closed fixed-point contract");
   assert.equal(evaluated !== undefined && ast.is.IsCallExpression(evaluated) &&
-    text(ast.as.AsCallExpression(evaluated).Expression) === "analyzeIteration" &&
+    text(ast.as.AsCallExpression(evaluated).Expression) === "analyzeCsharpRepresentationIteration" &&
     text(ast.arguments(evaluated).at(-1)) === "stable", true, "stable attempt: evaluated is analyzeIteration over stable");
   assert.equal(text(analysis) === "evaluated.value", true, "stable attempt: analysis is the evaluated result");
   const factories = composedCall("analyzeCsharpClassFactories", iteration, "stable attempt");
@@ -220,9 +227,10 @@ test("the late producers and the assembly receive the stable attempt's list", ()
   const assembly = composedCall("createCsharpProgramRecords", program, "stable attempt");
   assert.equal(ast.arguments(assembly).length === 2 && text(ast.arguments(assembly)[1]) === "analysis.requiredRecords", true,
     "stable attempt: createCsharpProgramRecords receives analysis.requiredRecords");
-  const reads = descendants(program).filter(node => ast.is.IsPropertyAccessExpression(node) && text(node) === "analysis.requiredRecords");
-  assert.equal(reads.length === 3 && identifiers(program, "requiredRecords").length === 3, true,
-    "stable attempt: final native-value admission, artifact demand and assembly read the completed attempt's list");
+  const reads = [...descendants(program), ...descendants(emission)]
+    .filter(node => ast.is.IsPropertyAccessExpression(node) && text(node) === "analysis.requiredRecords");
+  assert.equal(reads.length, 11,
+    "stable attempt: all eleven native admission and record assembly inputs read the completed attempt's list");
   const nativeValues = composedCall("analyzeCsharpNativeValueCarriers", program, "stable attempt");
   assert.equal(text(ast.arguments(nativeValues).at(-1)) === "analysis.requiredRecords", true,
     "the actual native-value producer receives the same stable requirement list");
@@ -232,7 +240,7 @@ test("the late producers and the assembly receive the stable attempt's list", ()
   const demand = composedCall("analyzeCsharpNativeDemand", iteration, "stable attempt");
   const bindings = composedCall("admitCsharpBindingPatterns", iteration, "stable attempt");
   const conversions = composedCall("conversionAnalysis.close", iteration, "stable attempt");
-  for (const call of [demand, bindings, conversions]) assert.equal(text(ast.arguments(call).at(-1)) === "requiredRecords", true,
+  for (const call of [demand, bindings, conversions]) assert.equal(text(ast.arguments(call)[call === conversions ? 1 : ast.arguments(call).length - 1]) === "requiredRecords", true,
     "each actual native-use admission receives the same attempt-local requirement list");
   const publication = composedCall("conversionAnalysis.seal", iteration, "stable attempt");
   assert.equal(ast.arguments(publication).length === 0 && position(conversions) < position(publication), true,
@@ -286,11 +294,12 @@ test("callable contracts and forwarding consume the actual attempt's mandatory f
   assert.equal(callsTo(file(paths.analyze), "finalizeCsharpStructuralInterfaceForwarding").length === 0 &&
     identifiers(file(paths.analyze), "finalizeCsharpStructuralInterfaceForwarding").length === 0, true,
   "the composing program has no competing finalizer call or stale import");
-  const publication = programStatements.map(statement => ownDeclaration(statement, "program")).find(node => node !== undefined);
-  const literal = ast.arguments(ast.as.AsVariableDeclaration(publication).Initializer)[0];
+  const publication = programStatements.map(statement => ownDeclaration(statement, "recordInput")).find(node => node !== undefined);
+  const literal = ast.as.AsVariableDeclaration(publication).Initializer;
   const finalShape = property(literal, "objectShapes");
   assert.equal(finalShape !== undefined && ast.is.IsPropertyAssignment(finalShape) &&
-    text(ast.as.AsPropertyAssignment(finalShape).Initializer) === "callableAdapters.objectShapes", true,
+    callsTo(ast.as.AsPropertyAssignment(finalShape).Initializer, "createCsharpObjectShapeRecords").length === 1 &&
+    text(ast.arguments(ast.as.AsPropertyAssignment(finalShape).Initializer)[0]) === "callableAdapters.objectShapes", true,
   "the published program consumes the canonical owner's already-final pure shape reader");
 });
 
@@ -346,7 +355,7 @@ test("owning issues reject before the late registrations finish and before the o
     ["pure artifact publication", calling("publishCsharpNativeArtifactDemand")],
     ["raw-interface issues", rejection("rawInterfaceIssues.length > 0")],
     ["assembly", calling("createCsharpProgramRecords")],
-    ["program literal", statement => ownDeclaration(statement, "program") !== undefined],
+    ["program publication", statement => ast.is.IsReturnStatement(statement) && callsTo(statement, "resolvedTargetStage").length === 1],
   ];
   const indexes = steps.map(([label, predicate]) => topLevelIndex(programStatements, predicate, `rejection order: ${label}`));
   const collections = programStatements.flatMap(statement => ownDeclaration(statement, "refusals") ?? []);
@@ -382,9 +391,10 @@ test("owning issues reject before the late registrations finish and before the o
 });
 
 test("the published program literal carries no requirement state", () => {
-  const literal = programStatements.find(statement => ownDeclaration(statement, "program") !== undefined);
+  const literal = ast.statements(ast.body(emission)).at(-1);
   const names = ["requiredRecords", "requireCsharpRecord", "assertCsharpRequiredRecords", "CsharpRequiredRecord"];
-  assert.equal(literal !== undefined && names.every(name => identifiers(literal, name).length === 0), true,
+  assert.equal(ast.is.IsReturnStatement(literal) && callsTo(literal, "resolvedTargetStage").length === 1 &&
+    names.every(name => identifiers(literal, name).length === 0), true,
     "program literal: no requirement list, builder or assertion");
   const wrapper = functionNamed(paths.analyze, "analyzeCsharpTargetProgram");
   assert.equal([...names, "requirements"].every(name => identifiers(wrapper, name).length === 0), true,
@@ -417,11 +427,11 @@ for (const [label, path, producer, list, family, guard, publications] of [
   ["storage", paths.storage, "analyzeCsharpStorage", "requiredRecords", "requiredStorageType",
     "contract !== undefined", ["contract.lambdaParameterType"]],
   ["participation", paths.participation, "analyzeCsharpNativeParticipation", "input.requiredRecords", "nativeParticipation",
-    "selected === undefined", ["participation.set"]],
+    "selected === undefined", ["producer.selected"]],
   ["native handlers", paths.nativeHandlers, "analyzeCsharpNativeHandlers", "requirements", "nativeHandler",
-    "selected === undefined", ["builder.set"]],
+    "selected === undefined", ["producer.selected"]],
   ["native values", paths.nativeValues, "analyzeCsharpNativeValueCarriers", "requiredRecords", "nativeValueDeclaration",
-    "source === undefined", ["declarations.set"]],
+    "source === undefined", ["producer.publish"]],
 ]) {
   test(`${label}: one registration into the producer's own list precedes its publication under the same conditions`, () => {
     const owner = functionNamed(path, producer);
@@ -472,51 +482,164 @@ test("storage and class factories take the list as a mandatory parameter and par
     "native handler input: a mandatory CsharpRequiredRecord[] list");
 });
 
-test("requirement state stays inside analysis, in exactly fifteen files", () => {
+test("requirement state stays inside its twenty-five analysis owners", () => {
   const users = sourceFiles(sourceRoot)
     .filter(path => /requiredRecords|CsharpRequiredRecord|requireCsharpRecord|assertCsharpRequiredRecords/u.test(readFileSync(path, "utf8")))
     .map(path => path.slice(repositoryRoot.length + 1)).sort();
-  assert.equal(users.join() === [
-    paths.participation,
-    paths.operations,
-    paths.nativeHandlers,
-    paths.analyze,
-    paths.create,
-    "src/analysis/program/records/required-records.ts",
-    paths.classFactories,
-    paths.storage,
-    paths.nativeDemand,
-    paths.bindingPatterns,
-    paths.conversions,
-    paths.conversionModel,
-    paths.conversionUses,
-    paths.nativeValues,
-    paths.artifactDemand,
-  ].sort().join(), true, `requirement users: exactly the fifteen analysis files, found ${users.join(", ")}`);
+  assert.deepEqual(users, [
+  "src/analysis/callables/generators.ts",
+  "src/analysis/callables/parameters.ts",
+  "src/analysis/callables/participation.ts",
+  "src/analysis/control-flow/binding-patterns.ts",
+  "src/analysis/control-flow/resource-scopes.ts",
+  "src/analysis/control-flow/statement-completion.ts",
+  "src/analysis/control-flow/statement-exits.ts",
+  "src/analysis/conversions/analyze.ts",
+  "src/analysis/conversions/model.ts",
+  "src/analysis/conversions/use-admission.ts",
+  "src/analysis/declarations/classes/modifiers.ts",
+  "src/analysis/declarations/native-forms.ts",
+  "src/analysis/objects/native-demand.ts",
+  "src/analysis/objects/value-carriers.ts",
+  "src/analysis/operations/analyze.ts",
+  "src/analysis/operations/native-demand.ts",
+  "src/analysis/operations/native-handlers.ts",
+  "src/analysis/program/analyze.ts",
+  "src/analysis/program/emission.ts",
+  "src/analysis/program/iteration.ts",
+  "src/analysis/program/records/create.ts",
+  "src/analysis/program/records/required-records.ts",
+  "src/analysis/project-types/class-factories.ts",
+  "src/analysis/storage/analyze.ts",
+  "src/analysis/storage/local-bindings.ts"
+]);
 });
 
 test("each seal name and producer is mentioned only by its owner and the composition", () => {
-  const requiredRecordsModule = "src/analysis/program/records/required-records.ts";
   const inventory = [
-    ["requiredRecords", [paths.participation, paths.analyze, paths.classFactories, paths.storage,
-      paths.nativeDemand, paths.bindingPatterns, paths.conversions, paths.conversionModel, paths.conversionUses, paths.nativeValues]],
-    ["CsharpRequiredRecord", [paths.participation, paths.operations, paths.nativeHandlers, paths.analyze, paths.create, requiredRecordsModule,
-      paths.classFactories, paths.storage, paths.nativeDemand, paths.bindingPatterns, paths.conversionModel, paths.conversionUses, paths.nativeValues, paths.artifactDemand]],
-    ["requireCsharpRecord", [paths.participation, paths.nativeHandlers, requiredRecordsModule, paths.classFactories, paths.storage,
-      paths.nativeDemand, paths.bindingPatterns, paths.conversionUses, paths.nativeValues, paths.artifactDemand]],
-    ["assertCsharpRequiredRecords", [paths.create, requiredRecordsModule]],
-    ["createCsharpProgramRecords", [paths.analyze, paths.create]],
-    ["analyzeCsharpClassFactories", [paths.analyze, paths.classFactories]],
-    ["analyzeCsharpNativeParticipation", [paths.participation, paths.analyze]],
-    ["analyzeCsharpNativeHandlers", [paths.operations, paths.nativeHandlers]],
-    ["analyzeCsharpNativeValueCarriers", [paths.analyze, paths.nativeValues]],
-    ["analyzeCsharpStorage", [paths.analyze, paths.storage, "src/analysis/storage/index.ts"]],
-  ];
+  [
+    "requiredRecords",
+    [
+      "src/analysis/callables/participation.ts",
+      "src/analysis/control-flow/binding-patterns.ts",
+      "src/analysis/conversions/analyze.ts",
+      "src/analysis/conversions/model.ts",
+      "src/analysis/conversions/use-admission.ts",
+      "src/analysis/objects/value-carriers.ts",
+      "src/analysis/operations/native-demand.ts",
+      "src/analysis/program/analyze.ts",
+      "src/analysis/program/emission.ts",
+      "src/analysis/program/iteration.ts",
+      "src/analysis/project-types/class-factories.ts",
+      "src/analysis/storage/analyze.ts"
+    ]
+  ],
+  [
+    "CsharpRequiredRecord",
+    [
+      "src/analysis/callables/generators.ts",
+      "src/analysis/callables/parameters.ts",
+      "src/analysis/callables/participation.ts",
+      "src/analysis/control-flow/binding-patterns.ts",
+      "src/analysis/control-flow/resource-scopes.ts",
+      "src/analysis/control-flow/statement-completion.ts",
+      "src/analysis/control-flow/statement-exits.ts",
+      "src/analysis/conversions/model.ts",
+      "src/analysis/conversions/use-admission.ts",
+      "src/analysis/declarations/classes/modifiers.ts",
+      "src/analysis/declarations/native-forms.ts",
+      "src/analysis/objects/native-demand.ts",
+      "src/analysis/objects/value-carriers.ts",
+      "src/analysis/operations/analyze.ts",
+      "src/analysis/operations/native-demand.ts",
+      "src/analysis/operations/native-handlers.ts",
+      "src/analysis/program/iteration.ts",
+      "src/analysis/program/records/create.ts",
+      "src/analysis/program/records/required-records.ts",
+      "src/analysis/project-types/class-factories.ts",
+      "src/analysis/storage/analyze.ts",
+      "src/analysis/storage/local-bindings.ts"
+    ]
+  ],
+  [
+    "requireCsharpRecord",
+    [
+      "src/analysis/callables/generators.ts",
+      "src/analysis/callables/parameters.ts",
+      "src/analysis/callables/participation.ts",
+      "src/analysis/control-flow/binding-patterns.ts",
+      "src/analysis/control-flow/resource-scopes.ts",
+      "src/analysis/control-flow/statement-completion.ts",
+      "src/analysis/control-flow/statement-exits.ts",
+      "src/analysis/conversions/use-admission.ts",
+      "src/analysis/declarations/classes/modifiers.ts",
+      "src/analysis/declarations/native-forms.ts",
+      "src/analysis/objects/native-demand.ts",
+      "src/analysis/objects/value-carriers.ts",
+      "src/analysis/operations/native-demand.ts",
+      "src/analysis/operations/native-handlers.ts",
+      "src/analysis/program/records/required-records.ts",
+      "src/analysis/project-types/class-factories.ts",
+      "src/analysis/storage/analyze.ts",
+      "src/analysis/storage/local-bindings.ts"
+    ]
+  ],
+  [
+    "assertCsharpRequiredRecords",
+    [
+      "src/analysis/program/records/create.ts",
+      "src/analysis/program/records/required-records.ts"
+    ]
+  ],
+  [
+    "createCsharpProgramRecords",
+    [
+      "src/analysis/program/emission.ts",
+      "src/analysis/program/records/create.ts"
+    ]
+  ],
+  [
+    "analyzeCsharpClassFactories",
+    [
+      "src/analysis/program/iteration.ts",
+      "src/analysis/project-types/class-factories.ts"
+    ]
+  ],
+  [
+    "analyzeCsharpNativeParticipation",
+    [
+      "src/analysis/callables/participation.ts",
+      "src/analysis/program/iteration.ts"
+    ]
+  ],
+  [
+    "analyzeCsharpNativeHandlers",
+    [
+      "src/analysis/operations/analyze.ts",
+      "src/analysis/operations/native-handlers.ts"
+    ]
+  ],
+  [
+    "analyzeCsharpNativeValueCarriers",
+    [
+      "src/analysis/objects/value-carriers.ts",
+      "src/analysis/program/analyze.ts",
+      "src/analysis/program/emission.ts"
+    ]
+  ],
+  [
+    "analyzeCsharpStorage",
+    [
+      "src/analysis/program/iteration.ts",
+      "src/analysis/storage/analyze.ts",
+      "src/analysis/storage/index.ts"
+    ]
+  ]
+];
   const files = sourceFiles(sourceRoot).map(path => [path.slice(repositoryRoot.length + 1), readFileSync(path, "utf8")]);
   for (const [name, expected] of inventory) {
     const pattern = new RegExp(`\\b${name}\\b`, "u");
     const found = files.filter(([, source]) => pattern.test(source)).map(([path]) => path).sort();
-    assert.equal(found.join() === [...expected].sort().join(), true,
-      `name inventory: ${name} is mentioned exactly by ${[...expected].sort().join(", ")}; found ${found.join(", ")}`);
+    assert.deepEqual(found, expected, name);
   }
 });

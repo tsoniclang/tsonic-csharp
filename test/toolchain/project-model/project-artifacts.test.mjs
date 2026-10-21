@@ -11,8 +11,8 @@ import { createDotnetToolchain } from "../../../dist/toolchain/native.js";
 import { createCsharpTargetConfiguration } from "../../../dist/compilation/configuration.js";
 import { validateCsharpTargetOptions } from "../../../dist/options/target.js";
 import {
-  analyzeCsharpProject,
-} from "../../../dist/analysis/project/index.js";
+  classifyCsharpProjectConfiguration,
+} from "../../../dist/compilation/project.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const tsonicLangRoot = dirname(repoRoot);

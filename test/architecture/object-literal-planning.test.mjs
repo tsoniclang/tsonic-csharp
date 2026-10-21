@@ -16,19 +16,22 @@ const owners = new Map([
   ["planObjectShapeAccessorMemberAssignment", `${domain}accessors.ts`],
   ["planObjectShapeMethodMemberAssignment", `${domain}methods.ts`],
   ["planObjectShapeSpreadAssignments", `${domain}spread.ts`],
-  ["getExpectedObjectShapeFact", `${domain}support.ts`],
+  ["getCsharpObjectLiteralMember", `${domain}support.ts`],
 ]);
 
 test("own-property order proofs belong to analysis and planners consume completed selections", () => {
   const model = readFileSync(resolve(repositoryRoot, "src/target-model/types/object-shape-projection.ts"), "utf8");
   assert.doesNotMatch(maskNonCode(model), /\bAstReader\b|\bast\s*\.|\borderEnumerableOwnStringProperties\b/u);
   for (const file of ["src/analysis/objects/native-demand-requests.ts",
-    "src/analysis/objects/native-demand-references.ts",
-    "src/backend/planner/objects/declarations/enumerable-keys.ts"]) {
+    "src/analysis/objects/native-demand-references.ts"]) {
     const source = maskNonCode(readFileSync(resolve(repositoryRoot, file), "utf8"));
     assert.doesNotMatch(source, /\bresolveCsharpObjectShape(?:PropertyOrder|AssignmentSourceOrder)\b/u);
     assert.match(source, /objectShapes\.propertyOrder\(/u);
   }
+  const renderer = maskNonCode(readFileSync(resolve(repositoryRoot,
+    "src/backend/planner/objects/declarations/enumerable-keys.ts"), "utf8"));
+  assert.match(renderer, /records\.enumerableKeys\.get\(shape\)/u);
+  assert.doesNotMatch(renderer, /objectShapes\.propertyOrder|resolveCsharpObjectShapePropertyOrder/u);
 });
 
 test("object-literal implementations and consumers use one canonical planning domain", () => {
@@ -48,7 +51,7 @@ test("object-literal ownership rejects implementation moves and old-path forward
   const oldPath = "src/backend/planner/expressions/expression-object-literal-support.ts";
   moved.set(oldPath, moved.get(support));
   moved.delete(support);
-  assert.ok(ownershipFindings(moved).includes(`implementation-owner:getExpectedObjectShapeFact`));
+  assert.ok(ownershipFindings(moved).includes(`implementation-owner:getCsharpObjectLiteralMember`));
   assert.ok(ownershipFindings(moved).includes(`old-path:${oldPath}`));
 
   const alias = new Map(canonical);

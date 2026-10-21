@@ -125,8 +125,8 @@ test("C# consumes shared source semantics instead of raw compiler query containe
 test("operation selection consumes atomic shared semantic decisions", () => {
   const required = new Map([
     ["src/analysis/operations/provider/calls/selection.ts", ".operations.call("],
-    ["src/policy/operations/members/selection/property-selection.ts", ".operations.propertyAccess("],
-    ["src/policy/operations/members/selection/element-selection.ts", ".operations.elementAccess("],
+    ["src/analysis/operations/provider/property-selection.ts", ".operations.propertyAccess("],
+    ["src/analysis/operations/provider/element-selection.ts", ".operations.elementAccess("],
   ]);
   const violations = [];
   for (const [file, method] of required) {
@@ -143,7 +143,7 @@ test("operation selection consumes atomic shared semantic decisions", () => {
 
 test("RegExp literals consume structured TSTS syntax without target parsing", () => {
   const policy = readFileSync(
-    join(repoRoot, "src/policy/operations/syntax/regexp-literal.ts"),
+    join(repoRoot, "src/analysis/operations/syntax/regexp-literal.ts"),
     "utf8",
   );
   assert.match(policy, /\.regularExpressionLiteral\(node\)/u);
@@ -176,14 +176,16 @@ test("generic method type arguments come only from shared selected call evidence
     consumerCounts.set(file, (consumerCounts.get(file) ?? 0) + 1);
   }
   assert.deepEqual([...consumerCounts.entries()].sort(), [
-    ["src/analysis/conversions/analyze.ts", 1],
-    ["src/policy/operations/members/instantiation/instantiation.ts", 4],
-    ["src/policy/operations/source-profiles/js/arrays.ts", 4],
+    ["src/analysis/conversions/requirements.ts", 1],
+    ["src/analysis/operations/provider/calls/instantiation.ts", 1],
+    ["src/analysis/operations/provider/calls/type-arguments.ts", 3],
+    ["src/analysis/source-profiles/js/regexp-protocol.ts", 1],
+    ["src/analysis/source-profiles/policy-selection.ts", 1],
+    ["src/analysis/types/resolution/calls.ts", 4],
+    ["src/analysis/types/resolution/expressions.ts", 1],
+    ["src/policy/operations/source-profiles/js/array-statics.ts", 3],
+    ["src/policy/operations/source-profiles/js/arrays.ts", 1],
     ["src/policy/operations/source-profiles/js/promises.ts", 2],
-    ["src/policy/operations/source-profiles/js/regexp-protocol.ts", 1],
-    ["src/policy/operations/source-profiles/source-profile-result.ts", 1],
-    ["src/policy/types/resolution/calls.ts", 4],
-    ["src/policy/types/resolution/expressions.ts", 1],
   ]);
 });
 

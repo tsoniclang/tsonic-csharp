@@ -10,16 +10,16 @@ const architectureTestPath = fileURLToPath(import.meta.url);
 
 const neutralFactReaders = new Map([
   ["argumentPassingFactKey", ["src/source/extension/arguments.ts"]],
-  ["defaultValueFactKey", ["src/policy/types/resolution/source-markers.ts"]],
-  ["fieldFactKey", ["src/policy/types/resolution/source-markers.ts"]],
+  ["defaultValueFactKey", ["src/source/extension/markers.ts"]],
+  ["fieldFactKey", ["src/source/extension/markers.ts"]],
   ["flowStateFactKey", ["src/policy/operations/flow/source-flow.ts"]],
-  ["tsonicKeepAliveFactKey", ["src/policy/operations/flow/source-flow.ts"]],
-  ["functionPointerFactKey", ["src/policy/types/resolution/source-markers.ts"]],
-  ["pointerFactKey", ["src/policy/types/resolution/source-markers.ts"]],
-  ["rawPointerFactKey", ["src/policy/types/resolution/source-markers.ts"]],
-  ["rawPointerOperationFactKey", ["src/policy/operations/pointers/source-raw-pointers.ts"]],
+  ["tsonicKeepAliveFactKey", ["src/source/extension/reachability.ts"]],
+  ["functionPointerFactKey", ["src/source/extension/markers.ts"]],
+  ["pointerFactKey", ["src/source/extension/markers.ts"]],
+  ["rawPointerFactKey", ["src/source/extension/markers.ts"]],
+  ["rawPointerOperationFactKey", ["src/source/extension/raw-pointers.ts"]],
   ["pointerOperationFactKey", ["src/source/extension/typed-locations.ts"]],
-  ["structFactKey", ["src/policy/types/resolution/source-markers.ts"]],
+  ["structFactKey", ["src/source/extension/markers.ts"]],
   ["tsonicNativePointerOperationFactKey", ["src/source/extension/native-pointers.ts"]],
   ["tsonicSafetyBuilderFactKey", ["src/source/extension/explicit-safety.ts"]],
   ["tsonicUnsafeContextFactKey", ["src/source/extension/explicit-safety.ts"]],
@@ -91,7 +91,7 @@ test("C# backend consumes only resolved C# typed-location operations", () => {
   );
   const planner = readFileSync(plannerPath, "utf8");
   const analysis = readFileSync(
-    join(sourceRoot, "analysis/operations/analyze.ts"),
+    join(sourceRoot, "analysis/operations/typed-locations.ts"),
     "utf8",
   );
   const planning = readFileSync(join(sourceRoot, "backend/planner/expressions/planning.ts"), "utf8");
@@ -99,8 +99,9 @@ test("C# backend consumes only resolved C# typed-location operations", () => {
   assert.match(analysis, /selectCsharpTypedLocationOperation/u);
   assert.equal([...planning.matchAll(/input\.program\.records\.nativeHandler\.get\(node\)/gu)].length === 1, true,
     "the expression root reads one admitted native handler");
-  assert.match(planning, /case "typed-location":[\s\S]*?planCsharpTypedLocationOperation\(\s*node,\s*nativeHandler\.selection/u);
-  assert.match(planner, /operation: Extract<CsharpNativeHandler, \{ readonly kind: "typed-location" \}>\["selection"\]/u);
+  assert.match(planning, /case "typed-location":[\s\S]*?planCsharpTypedLocationOperation\(\s*node,\s*sourceFile/u);
+  assert.match(planner, /records\.typedLocationEmission\.get\(node\)/u);
+  assert.match(planner, /const operation = selected\.selection/u);
   assert.doesNotMatch(planner, /input\.program\.records\.(?:memoryBinding|nativePointer|typedLocation|jsStringConversion)\.get/u);
   assert.doesNotMatch(
     planner,
@@ -114,7 +115,7 @@ test("C# backend consumes only resolved C# typed-location operations", () => {
 
 test("typed-location selection is fact-driven and contains no marker spellings", () => {
   const selection = readFileSync(
-    join(sourceRoot, "policy/operations/typed-locations/selection.ts"),
+    join(sourceRoot, "analysis/operations/typed-locations.ts"),
     "utf8",
   );
   assert.match(selection, /readCsharpSourceTypedLocationOperation/u);
@@ -127,7 +128,7 @@ test("typed-location selection is fact-driven and contains no marker spellings",
 
 test("typed-location storage identity is closed over exact declarations, members, and arrays", () => {
   const storage = readFileSync(
-    join(sourceRoot, "policy/operations/typed-locations/storage.ts"),
+    join(sourceRoot, "analysis/storage/typed-locations.ts"),
     "utf8",
   );
   const planner = readFileSync(

@@ -40,13 +40,15 @@ test("C# responsibility folders replace their superseded locations", () => {
 test("pure C# carrier vocabulary has one dedicated owner", () => {
   const carriers = [
     "array-like", "binding-array-carrier", "class-factories", "collection-reads",
-    "collections", "delegates", "generators", "nullable", "optional-storage",
+    "collections", "delegates", "generators", "nullable",
     "runtime-carriers", "scalar-types",
   ];
   for (const carrier of carriers) {
     assert.equal(existsSync(resolve(root, `src/target-model/types/${carrier}.ts`)), false, carrier);
     assert.equal(existsSync(resolve(root, `src/target-model/types/carriers/${carrier}.ts`)), true, carrier);
   }
+  assert.equal(existsSync(resolve(root, "src/target-model/types/carriers/optional-storage.ts")), false);
+  assert.equal(existsSync(resolve(root, "src/policy/types/storage/optional-storage.ts")), true);
 });
 
 test("C# responsibility tests follow their source owners", () => {

@@ -11,24 +11,27 @@ const contracts = productSource(
 );
 
 test("C# source artifacts use one contract-driven reconstruction path", () => {
-  assert.match(planner, /reconstructCsharpSourceFiles\s*\(/u);
+  assert.match(planner, /planCsharpSourceFiles\s*\(/u);
   assert.doesNotMatch(planner, /planSourceFilesToArtifactFixedPoint/u);
   assert.doesNotMatch(planner, /maximumPasses/u);
   assert.doesNotMatch(planner, /CSHARP_ARTIFACT_FIXED_POINT_EXHAUSTED/u);
-  assert.match(reconstruction, /reconstructTargetArtifacts\s*\(/u);
-  assert.match(reconstruction, /captureDependencies\s*\(/u);
-  assert.match(reconstruction, /moduleReferences\s*\(/u);
-  assert.match(reconstruction, /kind:\s*"retry"/u);
-  assert.match(reconstruction, /artifacts\.reconstructArtifact\s*\(/u);
+  assert.match(contracts, /analyzeSourceArtifactFiles\s*\(/u);
+  assert.match(contracts, /createCsharpSourceArtifactRecords\(selected\.files\)/u);
+  assert.match(reconstruction, /program\.records\.sourceArtifacts\.get\(\)/u);
+  assert.match(reconstruction, /planSourceFile\(sourceFile, input, diagnostics\)/u);
+  assert.doesNotMatch(reconstruction, /reconstructTargetArtifacts|captureDependencies|moduleReferences|kind:\s*"retry"|reconstructArtifact/u);
   assert.doesNotMatch(reconstruction, /graph\.contract\s*\(/u);
   assert.doesNotMatch(reconstruction, /graph\.artifact\s*\(/u);
   assert.doesNotMatch(reconstruction, /graph\.dependencies\s*\(/u);
 });
 
 test("C# source artifact contracts separate public and implementation facets", () => {
-  assert.match(contracts, /source-file-public-surface/u);
-  assert.match(contracts, /source-file-implementation/u);
-  assert.match(contracts, /publicCompilationUnit\s*\(/u);
+  const shared = readFileSync(new URL("../../../tsonic/packages/target-api/src/target-analysis/artifacts/source-files.ts", import.meta.url), "utf8");
+  assert.match(shared, /source-file-public-surface/u);
+  assert.match(shared, /source-file-implementation/u);
+  assert.match(shared, /input\.navigation\.moduleReferences\(file\)/u);
+  assert.match(shared, /construction\.sourceFile === file/u);
+  assert.match(shared, /dependencies: Object\.freeze/u);
   assert.doesNotMatch(contracts, /printCsharpCompilationUnit/u);
   assert.doesNotMatch(contracts, /JSON\.stringify/u);
 });
