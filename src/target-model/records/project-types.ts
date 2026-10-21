@@ -66,6 +66,7 @@ export interface CsharpProjectForwardingConstructor {
 export interface CsharpProjectTypeCatalog {
   readonly definitions: readonly CsharpProjectTypeDefinition[];
   readonly issues: readonly CsharpProjectTypeIssue[];
+  definitionForId(id: string): CsharpProjectTypeDefinition | undefined;
   definitionForDeclaration(
     declaration: Node | undefined,
   ): CsharpProjectTypeDefinition | undefined;

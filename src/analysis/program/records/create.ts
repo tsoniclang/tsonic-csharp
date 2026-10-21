@@ -84,7 +84,7 @@ export interface CsharpProgramRecordInput {
   readonly jsValueBoxing: import("../../../target-model/records/js-value-boxing.js").CsharpJsValueBoxingRecords;
   readonly unaryEmission: import("../../../target-model/records/expression-unary.js").CsharpUnaryEmissionRecords;
   readonly thisEmission: import("../../../target-model/records/expression-this.js").CsharpThisEmissionRecords;
-  readonly sourceMemberNames: import("../../../target-model/records/source-member-names.js").CsharpSourceMemberNameRecords;
+  readonly memberNames: import("../../../target-model/records/source-member-names.js").CsharpSourceMemberNameRecords;
   readonly receiverCallProperties: import("../../../target-model/records/receiver-call-property.js").CsharpReceiverCallPropertyRecords;
   readonly restSequences: import("../../../target-model/records/rest-sequences.js").CsharpRestSequenceRecords;
   readonly jsCalls: import("../../../target-model/records/js-value-calls.js").CsharpJsCallRecords;
@@ -184,7 +184,7 @@ export function createCsharpProgramRecords(
     ...input.jsValueBoxing,
     ...input.unaryEmission,
     ...input.thisEmission,
-    ...input.sourceMemberNames,
+    ...input.memberNames,
     ...input.receiverCallProperties,
     ...input.restSequences,
     ...input.jsCalls,

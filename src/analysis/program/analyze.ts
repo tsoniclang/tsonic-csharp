@@ -46,13 +46,10 @@ export function analyzeCsharpTargetProgram(
     return rejectedTargetStage([targetDiagnosticFromExtension(undefined, request.providerAcquisition.diagnostic)]);
   }
   const result = analyzeCsharpTargetProgramBeforeSeal(request);
-  if (result.kind === "rejected") {
-    const failures = request.providers.failures();
-    if (failures.length !== 0) return rejectedTargetStage([
-      ...result.diagnostics,
-      ...failures.map(diagnostic => targetDiagnosticFromExtension(undefined, diagnostic)),
-    ]);
-  }
+  const failures = request.providers.failures();
+  if (failures.length !== 0) return rejectedTargetStage(
+    failures.map(diagnostic => targetDiagnosticFromExtension(undefined, diagnostic)),
+  );
   return result;
 }
 

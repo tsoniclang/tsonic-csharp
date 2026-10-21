@@ -227,8 +227,8 @@ export function finalizeCsharpNativeEmission(
   if (nativeMemberNames.issues.length > 0) return rejectedTargetStage(nativeMemberNames.issues);
   const names = analysis.names.seal(nativeDemand.requiredBindingRoots, nativeMemberNames);
   if (names.issues.length > 0) return rejectedTargetStage(names.issues);
-  const sourceMemberNames = analyzeCsharpSourceMemberNames({ ast: source.ast, nodes: sourceStorage.nodes, operations: admittedOperations, names, admitted: admittedControlNode });
-  if (sourceMemberNames.issues.length !== 0) return rejectedTargetStage(sourceMemberNames.issues);
+  const memberNames = analyzeCsharpSourceMemberNames({ ast: source.ast, nodes: sourceStorage.nodes, operations: admittedOperations, names, admitted: admittedControlNode });
+  if (memberNames.issues.length !== 0) return rejectedTargetStage(memberNames.issues);
   const objectShapeDemand = publishCsharpNativeArtifactDemand(selectCsharpObjectShapePublication(objectShapeClosure.value, names));
   const rawInterfaceIssues = admitCsharpRawInterfaceDeclarations(source.ast, sourceStorage.nodes,
     nativeDemand.nativeUse, callableAdapters.objectShapes, objectShapeDemand, analysis.storage,
@@ -458,7 +458,7 @@ export function finalizeCsharpNativeEmission(
     jsValueBoxing: jsValueBoxing.records,
     unaryEmission: unaryEmission.records,
     thisEmission: thisEmission.records,
-    sourceMemberNames: sourceMemberNames.records,
+    memberNames: memberNames.records,
     receiverCallProperties: receiverCallProperties.records,
     restSequences: restSequences.records,
     jsCalls: jsCalls.records,

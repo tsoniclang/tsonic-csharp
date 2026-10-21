@@ -58,6 +58,9 @@ export function createCsharpProjectTypeCatalog(
   return Object.freeze({
     definitions: frozenDefinitions,
     issues: frozenIssues,
+    definitionForId(id: string) {
+      return byId.get(id);
+    },
     definitionForDeclaration(declaration: Node | undefined) {
       return declaration === undefined ? undefined : byDeclaration.get(declaration);
     },

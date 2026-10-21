@@ -84,6 +84,7 @@ const directArrayRows = [
 const readOnlyArrayQueryRows = [
   {
     sourceName: "join",
+    requiresNumericUnionEquality: false,
     parameters: () => [
       targetParameter("separator", stringType, { optional: true }),
     ],
@@ -91,6 +92,7 @@ const readOnlyArrayQueryRows = [
   },
   {
     sourceName: "indexOf",
+    requiresNumericUnionEquality: true,
     parameters: (element: TargetTypeRef) => [
       targetParameter("searchElement", element),
       targetParameter("fromIndex", intType, { optional: true }),
@@ -99,6 +101,7 @@ const readOnlyArrayQueryRows = [
   },
   {
     sourceName: "lastIndexOf",
+    requiresNumericUnionEquality: true,
     parameters: (element: TargetTypeRef) => [
       targetParameter("searchElement", element),
       targetParameter("fromIndex", intType, { optional: true }),
@@ -107,6 +110,7 @@ const readOnlyArrayQueryRows = [
   },
   {
     sourceName: "includes",
+    requiresNumericUnionEquality: true,
     parameters: (element: TargetTypeRef) => [
       targetParameter("searchElement", element),
       targetParameter("fromIndex", intType, { optional: true }),
@@ -322,7 +326,7 @@ function readOnlyArrayQueryMember(
   const shape = readOnlyArrayCallShape(context);
   const arms = shape === undefined ? undefined : getCsharpRuntimeUnionArms(
     getCsharpNullableElementTargetType(shape.element) ?? shape.element, context.host.typeDefinitions);
-  if ((row.sourceName === "includes" || row.sourceName === "indexOf" || row.sourceName === "lastIndexOf") &&
+  if (row.requiresNumericUnionEquality &&
     arms !== undefined && arms.every(arm => arm.kind === "source-primitive" && arm.name !== "bool")) {
     return { kind: "rejected", diagnostic: csharpSourceProfileDiagnostic("CSHARP_JS_SOURCE_PROFILE_CALL_NOT_CLOSED", 9101001,
       `Array.${row.sourceName} over a numeric union requires an exact native cross-arm key equality relation.`) };

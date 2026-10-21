@@ -70,6 +70,8 @@ export function createCsharpProviderRelationResolver(
     return result;
   };
   const inheritance = new Map<string, CsharpProviderNativeBindingResolution>();
+  const ordinaryIds = new Map<string, CsharpProviderBindingResolution>();
+  const ordinaryMetadata = new Map<string, CsharpProviderBindingResolution>();
   const acquiring = new Set<string>();
   const bindingCandidates = (
     query: string,
@@ -121,19 +123,27 @@ export function createCsharpProviderRelationResolver(
       acquiring.delete(key);
     }
   };
+  function ordinaryQuery(query: string, kind: "id" | "metadata"): CsharpProviderBindingResolution {
+    const cache = kind === "id" ? ordinaryIds : ordinaryMetadata;
+    const existing = cache.get(query);
+    if (existing !== undefined) return existing;
+    const result = retained(findUniqueTargetBinding(bindingCandidates(query, kind), query));
+    cache.set(query, result);
+    return result;
+  }
   function findTargetBindingByTargetId(targetId: string, purpose: "inheritance"): CsharpProviderNativeBindingResolution;
   function findTargetBindingByTargetId(targetId: string, purpose: CsharpProviderBindingLookupPurpose): CsharpProviderBindingResolution;
   function findTargetBindingByTargetId(targetId: string, purpose: CsharpProviderBindingLookupPurpose): CsharpProviderBindingResolution {
     assertCsharpProviderLookupPurpose(purpose);
     return retained(purpose === "inheritance" ? inheritanceQuery(targetId, "id")
-      : findUniqueTargetBinding(bindingCandidates(targetId, "id"), targetId));
+      : ordinaryQuery(targetId, "id"));
   }
   function findTargetBindingByMetadataName(metadataName: string, purpose: "inheritance"): CsharpProviderNativeBindingResolution;
   function findTargetBindingByMetadataName(metadataName: string, purpose: CsharpProviderBindingLookupPurpose): CsharpProviderBindingResolution;
   function findTargetBindingByMetadataName(metadataName: string, purpose: CsharpProviderBindingLookupPurpose): CsharpProviderBindingResolution {
     assertCsharpProviderLookupPurpose(purpose);
     return retained(purpose === "inheritance" ? inheritanceQuery(metadataName, "metadata")
-      : findUniqueTargetBinding(bindingCandidates(metadataName, "metadata"), metadataName));
+      : ordinaryQuery(metadataName, "metadata"));
   }
   const resolve = (
     declaration: ProviderVirtualDeclarationFact | undefined,
@@ -229,6 +239,8 @@ export function createCsharpProviderRelationResolver(
     prepareRuntimeSources(preparation: CsharpProviderRuntimePreparation): CsharpProviderRuntimeAcquisition {
       if (runtimePrepared) throw new TypeError("C# native runtime acquisition is prepared exactly once before analysis.");
       runtimePrepared = true;
+      ordinaryIds.clear();
+      ordinaryMetadata.clear();
       return retained(providers[0]?.prepareRuntimeSources(preparation) ??
         Object.freeze({ kind: "resolved", references: Object.freeze([]) }));
     },
