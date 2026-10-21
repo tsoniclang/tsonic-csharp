@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { TargetSourceProgram } from "@tsonic/target-api/source";
+import { referenceQueryNode, type TargetSourceProgram } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpProjectTypeClassifications } from "../../target-model/records/project-types.js";
 import type { CsharpClassFactoryIndex } from "../../target-model/records/class-factories.js";
@@ -36,6 +36,7 @@ export function analyzeCsharpProjectEmission(input: {
         ...input.projections.genericProjection.get(node).map(parameter => parameter.name)]);
       producer.names(node, [...selected].map(entry => Object.freeze(entry)));
     } else producer.names(node, []);
+    if (referenceQueryNode(input.source.ast, node) === undefined) continue;
     const reference = input.source.navigation.referenceFor(node);
     if (reference === undefined || !input.source.navigation.isProjectDeclaration(reference.declaration) ||
       reference.sourceFile.IsDeclarationFile || input.evidence.providerVirtualDeclaration.get(reference.declaration)) continue;
