@@ -2,50 +2,66 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { planCsharpExactLiteralConversion } from "../../../../dist/backend/planner/expressions/literal-conversions.js";
 import { csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/index.js";
-import { csharpPlannedExpressionIsStable, csharpPlannedValue } from "../../../../dist/backend/planner/expressions/planned-values.js";
+import { csharpPlannedValue, sequenceCsharpPlannedValues } from "../../../../dist/backend/planner/expressions/planned-values.js";
 import { evaluatedConstant } from "../../../../dist/backend/planner/expressions/builders.js";
-import { csharpExpressionIsNativeNumericConstant } from "../../../../dist/backend/target-ast/syntax/expressions.js";
+import { selectCsharpExactLiteralConversion } from "../../../../dist/policy/conversions/literals.js";
+import { analyzeCsharpNativeConstants } from "../../../../dist/analysis/expressions/native-constants.js";
+import { analyzeCsharpLiteralAdmission } from "../../../../dist/analysis/expressions/literals.js";
 import { planCsharpPlannedDiscard } from "../../../../dist/backend/planner/statements/statement-output.js";
-import { printCsharpStatement } from "../../../../dist/print/source/printer.js";
+
 
 const primitive = name => csharpSourcePrimitiveTargetType(name);
 const node = Object.freeze({});
 
-for (const [name, primitiveName, minimum, maximum] of [
-  ["sbyte", "int8", -128, 127],
-  ["byte", "uint8", 0, 255],
-  ["short", "int16", -32768, 32767],
-  ["ushort", "uint16", 0, 65535],
-  ["uint", "uint32", 0, 4294967295],
+function analyzeConstant(subject, carrier, selection, literal) {
+  const input = {
+    ast: { as: { AsParenthesizedExpression: () => undefined }, kindName: () => "NumericLiteral",
+      is: { IsVoidExpression: () => false, IsNoSubstitutionTemplateLiteral: () => false } },
+    demand: { entries: [{ use: { kind: "value", expression: subject, carrier } }] },
+    literals: { literalValue: { get: () => literal } }, exact: { exactLiteral: { get: () => selection } },
+    values: { valueRead: { get: () => ({ source: carrier, value: carrier }) } },
+    types: { typeEmission: { get: () => undefined } }, references: { identifierEmission: { get: () => undefined } },
+  };
+  return analyzeCsharpNativeConstants(input).nativeConstant.get(subject, carrier);
+}
+
+for (const [name, minimum, maximum] of [
+  ["int8", -128, 127], ["uint8", 0, 255], ["int16", -32768, 32767],
+  ["uint16", 0, 65535], ["uint32", 0, 4294967295],
 ]) {
   for (const [boundary, value, expected] of [
-    ["minimum-minus-one", minimum - 1, false],
-    ["minimum", minimum, true],
-    ["maximum", maximum, true],
-    ["maximum-plus-one", maximum + 1, false],
+    ["minimum-minus-one", minimum - 1, false], ["minimum", minimum, true],
+    ["maximum", maximum, true], ["maximum-plus-one", maximum + 1, false],
   ]) {
-    test(`native constant proof: ${name} ${boundary}`, () => {
-      const label = `${name} ${boundary}`;
-      const expression = { kind: "CastExpression", type: { kind: "PredefinedType", name },
-        expression: { kind: "LiteralExpression", value } };
-      assert.equal(csharpExpressionIsNativeNumericConstant(expression), expected,
-        `${label}: only an in-range builtin cast proves a constant`);
-      assert.equal(csharpPlannedExpressionIsStable(expression), expected,
-        `${label}: stability requires the same native range proof`);
-      const evaluated = evaluatedConstant(expression, "number");
-      const statements = planCsharpPlannedDiscard(csharpPlannedValue(primitive(primitiveName), expression));
-      if (expected) {
-        assert.deepEqual(evaluated, { kind: "LiteralExpression", value: "number" },
-          `${label}: a valid constant can be replaced without evaluation`);
-        assert.equal(statements.length, 0, `${label}: a valid discarded constant adds no native work`);
+    test(`native constant admission: ${name} ${boundary}`, () => {
+      const target = primitive(name);
+      const literal = { form: "numeric", number: value, integer: BigInt(value) };
+      const selected = selectCsharpExactLiteralConversion(literal, target);
+      assert.equal(selected.kind, expected ? "resolved" : "rejected", "native integer range is decided before rendering");
+      const admitted = analyzeCsharpLiteralAdmission({
+        ast: { is: { IsNumericLiteral: () => true, IsBigIntLiteral: () => false,
+          IsTemplateExpression: () => false, IsNoSubstitutionTemplateLiteral: () => false } },
+        demand: { entries: [{ use: { kind: "value", expression: node, carrier: target } }] },
+        exact: { exactLiteral: { get: () => selected } }, literals: { literalValue: { get: () => literal } },
+        values: { valueRead: { get: () => ({ source: target, value: target }) } },
+      });
+      assert.equal(admitted.issues.length, expected ? 0 : 1, "out-of-range values are rejected once at admission");
+      assert.equal(admitted.records.literalEmission.get(node) !== undefined, expected, "invalid native literals are never emitted");
+      if (!expected) {
+        assert.equal(admitted.issues[0].sourceNode === node, true, "the diagnostic belongs to the exact source literal");
+        assert.equal(admitted.issues[0].message, selected.reason);
       } else {
-        assert.equal(evaluated.kind, "SwitchExpression", `${label}: evaluation cannot disappear`);
-        assert.equal(evaluated.expression === expression, true, `${label}: the exact invalid cast is retained`);
-        assert.equal(statements.length, 1, `${label}: a discarded invalid cast is not erased`);
-        assert.equal(statements[0].expression.right === expression, true,
-          `${label}: the discarded statement retains the exact cast`);
-        assert.equal(printCsharpStatement(statements[0]), `_ = (${name})${value};`,
-          `${label}: native syntax remains available for the native range diagnostic`);
+        assert.equal(analyzeConstant(node, target, selected, literal), true, "the sealed constant proof is produced once");
+        const rendered = plan(selected, target).result;
+        assert.equal(rendered.kind, "resolved");
+        const effect = { kind: "InvocationExpression", callee: { kind: "IdentifierName", name: "observe" }, arguments: [] };
+        const combined = sequenceCsharpPlannedValues([
+          csharpPlannedValue(target, rendered.expression, [], true),
+          csharpPlannedValue(target, { kind: "LiteralExpression", value: 0 }, [{ kind: "ExpressionStatement", expression: effect }]),
+        ], () => { throw new Error("An admitted native constant must not be captured."); },
+        expressions => csharpPlannedValue(target, expressions[0]));
+        assert.equal(combined.completion.expression === rendered.expression, true, "no redundant native copy or capture");
+        assert.equal(combined.prelude.length, 1, "the following effect is kept exactly once");
       }
     });
   }
@@ -74,7 +90,7 @@ test("the literal planner fails its invariant when the selected record is missin
 
 test("the literal planner reads one record at the requested key and passes unrendered outcomes through", () => {
   const target = primitive("uint8");
-  for (const selection of [{ kind: "not-applicable" }, { kind: "source-representation" }, { kind: "rejected", reason: "kept" }]) {
+  for (const selection of [{ kind: "not-applicable" }, { kind: "source-representation" }]) {
     const { result, reads } = plan(Object.freeze(selection), target);
     assert.deepEqual(result, selection, selection.kind);
     assert.deepEqual(reads, [[node, target]], "one read at the exact node and target");
@@ -123,47 +139,38 @@ test("the literal planner renders each selected recipe without deciding it", () 
   }
 });
 
-test("signed native numeric token syntax stays a stable scalar without admitting effectful or overloaded prefixes", () => {
-  for (const precision of ["float32", "decimal"]) {
-    const { result } = plan({ kind: "resolved", recipe: { kind: "float", target: primitive(precision), precision,
-      token: { significand: "1.5" }, negative: true } });
-    const expression = result.expression;
-    const old = { kind: "NumericLiteralExpression", value: -1.5, suffix: precision === "float32" ? "F" : "M" };
-    assert.equal(csharpPlannedExpressionIsStable(expression), csharpPlannedExpressionIsStable(old), `${precision}: stability unchanged`);
-    assert.deepEqual(evaluatedConstant(expression, "number"), { kind: "LiteralExpression", value: "number" },
-      `${precision}: replacing an already classified constant does not add a switch`);
-    const positive = { ...expression, operatorToken: { kind: "PlusToken" } };
-    assert.equal(csharpPlannedExpressionIsStable(positive), true, `${precision}: builtin positive sign`);
-    for (const operand of [{ kind: "IdentifierName", name: "overloaded" },
-      { kind: "InvocationExpression", callee: { kind: "IdentifierName", name: "effect" }, arguments: [] }]) {
-      const unsafe = { ...expression, operand };
-      assert.equal(csharpPlannedExpressionIsStable(unsafe), false, `${precision}: no value or callable inference`);
-      assert.equal(evaluatedConstant(unsafe, "number").kind, "SwitchExpression", `${precision}: evaluation remains observable`);
-    }
-    const update = { ...expression, operatorToken: { kind: "MinusMinusToken" } };
-    assert.equal(csharpPlannedExpressionIsStable(update), false, `${precision}: an update never becomes a scalar literal`);
-  }
+test("rejected literals cannot reach the renderer after admission", () => {
+  assert.throws(() => plan({ kind: "rejected", reason: "range" }), error =>
+    error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT" &&
+    error.message === "A rejected exact literal cannot reach native planning.");
 });
 
-test("native small integer constant casts retain scalar stability and elision without admitting user conversions", () => {
-  for (const [name, value] of [["int8", -128n], ["uint8", 255n], ["int16", -32768n], ["uint16", 65535n], ["uint32", 4294967295n]]) {
-    const { result } = plan({ kind: "resolved", recipe: { kind: "integer", target: primitive(name), width: name, value } });
-    const expression = result.expression;
-    assert.equal(expression.kind, "CastExpression", `${name}: the selected native carrier is explicit`);
-    assert.equal(csharpPlannedExpressionIsStable(expression), true, `${name}: a primitive constant cast requires no capture`);
-    assert.deepEqual(evaluatedConstant(expression, "number"), { kind: "LiteralExpression", value: "number" },
-      `${name}: replacing a native constant requires no switch`);
-    const excluded = [
-      { ...expression, type: { kind: "IdentifierName", name: expression.type.name } },
-      { ...expression, type: { kind: "PredefinedType", name: "float" } },
-      { ...expression, expression: { kind: "IdentifierName", name: "value" } },
-      { ...expression, expression: { kind: "InvocationExpression", callee: { kind: "IdentifierName", name: "effect" }, arguments: [] } },
-      { ...expression, expression: { kind: "LiteralExpression", value: 0.5 } },
-      { ...expression, expression: { kind: "LiteralExpression", value: Number.POSITIVE_INFINITY } },
-    ];
-    for (const [index, invalid] of excluded.entries()) {
-      assert.equal(csharpPlannedExpressionIsStable(invalid), false, `${name}: excluded grammar ${index}`);
-      assert.equal(evaluatedConstant(invalid, "number").kind, "SwitchExpression", `${name}: excluded operand ${index} is not elided`);
+test("sealed native constant proofs distinguish scalar recipes from source values and effects", () => {
+  for (const precision of ["float32", "decimal"]) {
+    const target = primitive(precision);
+    const selected = { kind: "resolved", recipe: { kind: "float", target, precision,
+      token: { significand: "1.5" }, negative: true } };
+    assert.equal(analyzeConstant(node, target, selected), true, precision + ": signed scalar constant");
+    const expression = plan(selected, target).result.expression;
+    assert.equal(expression.operatorToken.kind, "MinusToken");
+    assert.equal(evaluatedConstant(expression, "number").kind, "SwitchExpression",
+      precision + ": the raw syntax builder does not rediscover constant semantics");
+    for (const kind of ["identifier", "call", "update", "user-conversion"]) {
+      assert.equal(analyzeConstant({ kind }, target, { kind: "not-applicable" }), false,
+        precision + ": " + kind + " remains observable without source constant evidence");
     }
   }
+  for (const name of ["int8", "uint8", "int16", "uint16", "uint32"]) {
+    const target = primitive(name);
+    assert.equal(analyzeConstant(node, target, selectCsharpExactLiteralConversion(
+      { form: "numeric", integer: 0n, number: 0 }, target)), true, name + ": builtin integer recipe");
+    for (const literal of [{ form: "numeric", number: 0.5 }, { form: "numeric", number: Infinity }, undefined]) {
+      assert.equal(analyzeConstant(node, target, selectCsharpExactLiteralConversion(literal, target), literal), false,
+        name + ": unproven or non-integer values are not scalar constants");
+    }
+  }
+  const effect = { kind: "InvocationExpression", callee: { kind: "IdentifierName", name: "effect" }, arguments: [] };
+  const statements = planCsharpPlannedDiscard(csharpPlannedValue(primitive("float32"), effect));
+  assert.equal(statements.length, 1);
+  assert.equal(statements[0].expression === effect, true, "discard never erases an observable call");
 });

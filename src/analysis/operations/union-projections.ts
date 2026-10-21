@@ -15,12 +15,18 @@ export function admitCsharpUnionProjections(nodes: readonly Node[], operations: 
       issues.push({ code, category: "error", source: "tsonic-csharp", sourceNode: node, message });
     };
     const variants = getCsharpRuntimeUnionArms(fact.unionCarrier, definitions);
+    if (!Array.isArray(fact.variants) || !Array.isArray(fact.selectedVariantIndexes)) {
+      reject("Native union projection has no exact emitted shape and nonempty selected-variant set."); continue;
+    }
     const selected = new Set(fact.selectedVariantIndexes);
     if (variants === undefined || variants.length !== fact.variants.length || selected.size === 0 ||
       selected.size !== fact.selectedVariantIndexes.length || [...selected].some(index => !Number.isInteger(index) || index < 0 || index >= fact.variants.length)) {
       reject("Native union projection has no exact emitted shape and nonempty selected-variant set."); continue;
     }
     for (const [index, variant] of fact.variants.entries()) {
+      if (variant === undefined || variant.carrier === undefined) {
+        reject("Native union projection conflicts with its finalized variant contract."); break;
+      }
       const operation = variant.operation;
       if (variants[index] === undefined || !targetTypeRefEquals(variant.carrier, variants[index]!) || selected.has(index) !== (operation !== undefined)) {
         reject("Native union projection conflicts with its finalized variant contract."); break;
