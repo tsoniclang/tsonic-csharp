@@ -9,12 +9,12 @@ import { createDotnetReflectionTypeDataProvider } from "../../helpers/dotnet-ref
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { csharpCoreRuntimeSource, csharpRuntimeSourceContributions } from "../../../dist/providers/runtime/source-projects.js";
 import { analyzeCsharpProject } from "../../../dist/analysis/project/classification.js";
-import { createCsharpTargetConfiguration } from "../../../dist/options/csharp-target-options.js";
+import { createCsharpTargetConfiguration } from "../../../dist/compilation/configuration.js";
 import { csharpNativeInheritanceLookup, csharpNativeTargetBindingFact } from "../../../dist/target-model/types/native-inheritance.js";
 import { csharpExceptionTargetType, csharpRuntimeErrorTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { materializeCsharpOutputPlan } from "../../../dist/backend/emission/materialize.js";
 import { planCsharpProjectFile } from "../../../dist/backend/planner/project/project-artifacts.js";
-import { printCsharpProjectFile } from "../../../dist/print/project/csharp-project.js";
+import { printCsharpProjectFile } from "../../../dist/print/project/manifest.js";
 
 const repository = resolve(new URL("../../..", import.meta.url).pathname);
 const framework = "net10.0";

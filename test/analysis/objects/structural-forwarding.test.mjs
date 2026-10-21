@@ -19,20 +19,21 @@ const emptyNativeDispatch = Object.freeze({
 });
 import { selectCsharpStructuralInterface } from "../../../dist/analysis/objects/structural-interfaces.js";
 import { analyzeCsharpObjectShapes } from "../../../dist/analysis/objects/analyze.js";
-import { selectCsharpStructuralInterfaceImplementation } from "../../../dist/policy/types/objects/method-values.js";
+import { selectCsharpStructuralInterfaceImplementation } from "../../../dist/policy/types/objects/structural-implementation.js";
 import { planCsharpStructuralInterfaceMembers } from "../../../dist/backend/planner/declarations/interfaces/structural.js";
 import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
-import { substituteObjectShapeMemberTargetTypeParameters } from "../../../dist/target-model/types/substitution.js";
+import { substituteObjectShapeMemberTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
 import { printCsharpCompilationUnit } from "../../../dist/print/source/index.js";
 import { csharpProjectedType } from "../../../dist/target-model/types/projections.js";
 import { instantiateCsharpInheritedCallable } from "../../../dist/analysis/callables/instantiation.js";
-import { csharpSourceTypeParameter } from "../../../dist/target-model/names/type-parameters.js";
-import { createCsharpObjectShapePolicy } from "../../../dist/policy/types/objects/object-shape-policy/api.js";
-import { createStructuralObjectShapeTarget, mergeCsharpObjectShapeSubjects } from "../../../dist/policy/types/objects/object-shape-policy/construction.js";
+import { csharpSourceTypeParameter } from "../../../dist/source/extension/type-parameters.js";
+import { createCsharpObjectShapePolicy } from "../../../dist/analysis/objects/shapes/api.js";
+import { createStructuralObjectShapeTarget, mergeCsharpObjectShapeSubjects } from "../../../dist/analysis/objects/shapes/construction.js";
 import { finalizeCsharpStructuralInterfaceForwarding } from "../../../dist/analysis/objects/structural-forwarding.js";
-import { retainCsharpMethodValueContracts, csharpCopiedObjectShapeMembers } from "../../../dist/policy/types/objects/object-shape-policy/method-values.js";
-import { selectCsharpObjectMethodImplementation } from "../../../dist/policy/types/objects/object-shape-policy/method-implementations.js";
+import { retainCsharpMethodValueContracts } from "../../../dist/analysis/objects/shapes/method-values.js";
+import { csharpCopiedObjectShapeMembers } from "../../../dist/policy/types/objects/method-environments.js";
+import { selectCsharpObjectMethodImplementation } from "../../../dist/analysis/objects/shapes/method-implementations.js";
 
 const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
 

@@ -1,9 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {
-  createCsharpTypeResolutionQueryCache,
-} from "../../../dist/policy/types/resolution/query-cache.js";
+import { createCsharpTypeResolutionQueryCache } from "../../../dist/analysis/types/resolution/query-cache.js";
 
 const int32 = Object.freeze({ kind: "source-primitive", name: "int32" });
 const string = Object.freeze({ kind: "source-primitive", name: "string" });

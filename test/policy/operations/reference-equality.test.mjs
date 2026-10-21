@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { selectCsharpReferenceEquality } from "../../../dist/policy/operations/operators/reference-equality.js";
-import { selectCsharpBinaryOperands } from "../../../dist/policy/operations/operators/operator-selection.js";
+import { selectCsharpBinaryOperands } from "../../../dist/analysis/operations/operators.js";
 import { selectCsharpUnionEquality } from "../../../dist/policy/operations/operators/union-equality.js";
 import { selectDelegateConversion } from "../../../dist/policy/conversions/carriers.js";
 import { csharpDelegateTargetType, csharpNullableTargetType, csharpRuntimeUnionTargetType,

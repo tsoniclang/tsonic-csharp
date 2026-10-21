@@ -29,10 +29,7 @@ import {
 import {
   createDotnetProviderToolRunner,
 } from "../../../../dist/providers/native/acquisition/tool.js";
-import {
-  csharpSourceProfileContributions,
-  csharpSourceProfileOwnerId,
-} from "../../../../dist/source/profiles/source-profile-declarations.js";
+import { csharpSourceProfileContributions, csharpSourceProfileOwnerId } from "../../../../dist/source/profiles/declarations.js";
 
 function providerRefExportNames(value, moduleSpecifier, refs = new Set()) {
   if (value === null || typeof value !== "object") {

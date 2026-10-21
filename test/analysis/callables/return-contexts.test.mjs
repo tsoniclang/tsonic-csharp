@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
-import {
-  selectCsharpAccessorReturnContext,
-  selectCsharpCallableReturnContext,
-} from "../../../dist/analysis/callables/return-contexts.js";
+import { selectCsharpAccessorReturnContext, selectCsharpCallableReturnContext } from "../../../dist/policy/types/callables/return-contexts.js";
 import { csharpDelegateTargetType, csharpTaskTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpGeneratorTargetType, csharpAsyncGeneratorTargetType } from "../../../dist/target-model/types/carriers/generators.js";
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { checkedSourceLiteralValues } from "../../helpers/source-literal-values.mjs";
 import { csharpLiteralIsRepresentableAs } from "../../../dist/policy/conversions/literals.js";
-import { csharpNumericLiteralFitsSourcePrimitive } from "../../../dist/target-model/syntax/numeric-literals.js";
+import { csharpNumericLiteralFitsSourcePrimitive } from "../../../dist/policy/conversions/literal-range.js";
 import * as numericRules from "../../../dist/target-model/syntax/numeric-literals.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../dist/target-model/types/index.js";

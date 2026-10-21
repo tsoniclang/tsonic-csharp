@@ -3,7 +3,7 @@ import test from "node:test";
 import { isDeepStrictEqual } from "node:util";
 import { planClassHeritage, planInterfaceHeritage } from "../../../../dist/backend/planner/declarations/classes/heritage.js";
 import { renderCsharpStructuralInterfaceMembers } from "../../../../dist/backend/planner/objects/declarations/structural-interfaces.js";
-import { objectShapeArtifactKey } from "../../../../dist/target-model/records/object-shape-demand.js";
+import { objectShapeArtifactKey } from "../../../../dist/analysis/program/records/object-shape-keys.js";
 import { printCsharpCompilationUnit } from "../../../../dist/print/source/index.js";
 import { csharpDelegateTargetType } from "../../../../dist/target-model/types/carriers/delegates.js";
 import { completeCsharpDeclarationHeritage } from "../../../../dist/analysis/project-types/heritage.js";

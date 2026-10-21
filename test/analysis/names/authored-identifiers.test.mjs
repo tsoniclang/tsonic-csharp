@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { createCsharpSourceNameBuilder } from "../../../dist/analysis/names/source-names.js";
+import { createCsharpSourceNameBuilder } from "../../../dist/analysis/names/plan.js";
 
 test("C# source name resolution retains authored case across declarations and references", () => {
   const checked = createCompilerSessionFromFiles({

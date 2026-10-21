@@ -11,7 +11,7 @@ const emptyNativeDispatch = Object.freeze({
   nativeUse: Object.freeze({ order: unexpectedNativeDispatchRead }),
   classPropertyStorage: Object.freeze({ get: unexpectedNativeDispatchRead }),
 });
-import { selectCsharpStructuralInterfaceImplementation } from "../../../dist/policy/types/objects/method-values.js";
+import { selectCsharpStructuralInterfaceImplementation } from "../../../dist/policy/types/objects/structural-implementation.js";
 import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
 import { csharpVariantArgumentImplicitlyAccepts, namedTargetTypeImplicitlyAccepts } from "../../../dist/policy/conversions/carriers.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";

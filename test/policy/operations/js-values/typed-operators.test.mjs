@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { selectCsharpJsValueBinaryOperation, selectCsharpJsValueUnaryOperation, validateCsharpJsValueOperationSelection } from "../../../../dist/policy/operations/js-values/selection.js";
+import { selectCsharpJsValueBinaryOperation, selectCsharpJsValueUnaryOperation } from "../../../../dist/analysis/operations/js-values.js";
+import { validateCsharpJsValueOperationSelection } from "../../../../dist/policy/operations/js-values/selection.js";
 import { csharpTsValueTargetType } from "../../../../dist/policy/types/index.js";
 
 const carrier = csharpTsValueTargetType();

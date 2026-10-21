@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getLambdaTargetContext } from "../../../../dist/backend/planner/expressions/expression-lambdas.js";
+import { getLambdaTargetContext } from "../../../../dist/backend/planner/expressions/callable.js";
 import { csharpDelegateTargetType } from "../../../../dist/target-model/types/carriers/delegates.js";
 import { csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
 

@@ -130,8 +130,8 @@ test("architecture validator rejects catch-all policy modules while permitting n
     [
       "src/policy/operations/source-profiles/source-profile-policy.ts",
       "src/policy/types/objects/binding-projection-policy.ts",
-      "src/policy/types/objects/object-shape-policy.ts",
-      "src/policy/types/resolution/source-literal-policy.ts",
+      "src/analysis/objects/shapes/index.ts",
+      "src/policy/conversions/source-literals.ts",
     ].map((file) => proceduralPolicyRule.pattern.test(file)),
     [false, false, false, false],
   );

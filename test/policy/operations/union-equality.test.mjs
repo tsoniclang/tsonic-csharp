@@ -4,7 +4,7 @@ import { selectCsharpUnionEquality } from "../../../dist/policy/operations/opera
 import { csharpAbsenceTargetType, csharpNullableTargetType, csharpRuntimeUnionTargetType,
   csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTargetNamedType } from "../../../dist/target-model/types/index.js";
 import { csharpUnionEqualityArmsEqual } from "../../../dist/target-model/operations/binary.js";
-import { selectCsharpBinaryOperands } from "../../../dist/policy/operations/operators/operator-selection.js";
+import { selectCsharpBinaryOperands } from "../../../dist/analysis/operations/operators.js";
 import { createCsharpTypeDefinitionRegistry } from "../../../dist/analysis/project-types/type-definitions.js";
 import { csharpSourceUnionTargetType } from "../../../dist/target-model/types/source-union-definitions.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";

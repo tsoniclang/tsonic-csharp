@@ -3,7 +3,7 @@ import test from "node:test";
 import { createCompilerSessionFromFiles } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { closedNativeAbsenceGuardPolicySource } from "../../../../tsonic/test/fixtures/closed-native-absence-guards.mjs";
-import { selectCsharpNativeGuardResult } from "../../../dist/policy/types/resolution/native-flow-refinement.js";
+import { selectCsharpNativeGuardResult } from "../../../dist/analysis/types/resolution/native-flow-refinement.js";
 import { csharpAbsenceTargetType, csharpTsValueTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";

@@ -15,7 +15,7 @@ test("C# package delegates product documentation to the canonical Tsonic tree", 
 });
 
 test("canonical C# configuration lists every accepted option", () => {
-  const source = readFileSync(resolve(repositoryRoot, "src/options/csharp-target-options.ts"), "utf8");
+  const source = readFileSync(resolve(repositoryRoot, "src/options/target.ts"), "utf8");
   const reference = readFileSync(resolve(referenceRoot, "configuration.md"), "utf8");
   for (const option of extractFrozenStringList(source, "supportedCsharpTargetOptionKeys")) {
     assert.ok(reference.includes("| `" + option + "` |"), option);

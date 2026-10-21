@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getCsharpTypeofResult } from "../../dist/target-model/types/runtime-kind.js";
+import { getCsharpTypeofResult } from "../../dist/policy/operations/syntax/runtime-kind.js";
 import { csharpNullableTargetType, csharpStringTargetType, csharpSourcePrimitiveTargetType, csharpVoidTargetType, csharpTargetNamedType } from "../../dist/target-model/types/index.js";
-import { projectDefinitionTargetType } from "../../dist/policy/types/project/project-types.js";
+import { projectDefinitionTargetType } from "../../dist/policy/types/project/declaration-carriers.js";
 import { planCsharpRuntimeCategory } from "../../dist/backend/planner/expressions/runtime-category.js";
 import { createDestructuringPlannerState } from "../../dist/backend/planner/bindings/binding-state.js";
 import { csharpJsMapTargetType, csharpJsSetTargetType, csharpJsWeakMapTargetType, csharpJsWeakSetTargetType,

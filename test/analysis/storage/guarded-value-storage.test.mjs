@@ -5,7 +5,7 @@ import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpTargetProgram } from "../../../dist/analysis/program/index.js";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
-import { createCsharpTargetConfiguration } from "../../../dist/options/csharp-target-options.js";
+import { createCsharpTargetConfiguration } from "../../../dist/compilation/configuration.js";
 import { isCsharpJsValueTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 
 test("a later guarded extraction cannot promote its broad producer storage", () => {

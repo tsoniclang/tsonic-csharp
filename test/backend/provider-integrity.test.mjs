@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { compileCsharpTarget } from "../../dist/backend/compile.js";
-import { createCsharpTargetConfiguration } from "../../dist/options/csharp-target-options.js";
+import { createCsharpTargetConfiguration } from "../../dist/compilation/configuration.js";
 import { createCsharpProviderRelationResolver } from "../../dist/providers/native/projection/relation-resolution.js";
 import { createTargetSourceProgram } from "../../../tsonic/packages/target-api/dist/public/source.js";
 import { checkCsharpSource } from "../helpers/direct-csharp-session.mjs";

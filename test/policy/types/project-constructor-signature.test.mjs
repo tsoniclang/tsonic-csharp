@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { selectCsharpProjectConstructorSignature } from "../../../dist/policy/types/project/project-type-constructors.js";
+import { selectCsharpProjectConstructorSignature } from "../../../dist/analysis/project-types/catalog/constructors.js";
 
 function fixture() {
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/src",

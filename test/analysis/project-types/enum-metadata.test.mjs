@@ -3,7 +3,7 @@ import test from "node:test";
 import { createCompilerSessionFromFiles } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { createCsharpProjectTypeCatalog } from "../../../dist/analysis/project-types/catalog.js";
-import { projectTypeDefinition } from "../../../dist/policy/types/project/project-types.js";
+import { projectTypeDefinition } from "../../../dist/analysis/project-types/type-policy.js";
 
 function fixture(text) {
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/project",

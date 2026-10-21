@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { csharpArgumentVectorCallbackResultMatches } from "../../../../dist/target-model/types/carriers/delegates.js";
+import { csharpArgumentVectorCallbackResultMatches } from "../../../../dist/policy/conversions/callable-completions.js";
 import { csharpNeverTargetType, csharpVoidTargetType, csharpStringTargetType, csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpJsArgumentVectorCallbackParameter } from "../../../../dist/policy/operations/source-profiles/js/replacement-callback.js";
 import { csharpDelegateTargetType } from "../../../../dist/target-model/types/carriers/delegates.js";

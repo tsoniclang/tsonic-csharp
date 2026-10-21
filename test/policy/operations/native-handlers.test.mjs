@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { selectCsharpNativeHandler } from "../../../dist/policy/operations/pointers/native-handlers.js";
-import { selectCsharpNativePointerOperation } from "../../../dist/policy/operations/pointers/native-pointers.js";
+import { selectCsharpNativePointerOperation } from "../../../dist/analysis/operations/pointers/native-pointers.js";
 import { rawPointerOperationFactKey } from "@tsonic/tsts";
 import { tsonicNativePointerOperationFactKey } from "@tsonic/source-core/facts";
 import { csharpRuntimeRawPointerTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";

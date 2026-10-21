@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { reconcileCsharpSelectedTargetType } from "../../../dist/policy/types/resolution/selected-type-evidence.js";
+import { reconcileCsharpSelectedTargetType } from "../../../dist/policy/types/selected-type-evidence.js";
 import { csharpBigIntegerTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 
 test("checked bigint selection does not replace an authored native integer carrier", () => {

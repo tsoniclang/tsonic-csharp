@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { selectCsharpSourceCallResult } from "../../../dist/policy/types/resolution/call-results.js";
+import { selectCsharpSourceCallResult } from "../../../dist/analysis/types/resolution/call-results.js";
 import { csharpTsValueTargetType, csharpEmptyObjectTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 
 const base = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "fixture.Base" };

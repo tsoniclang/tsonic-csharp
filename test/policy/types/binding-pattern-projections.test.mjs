@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { selectCsharpBindingPatternDefault, selectCsharpBindingPatternProjection } from "../../../dist/policy/types/objects/binding-projection-policy.js";
+import { selectCsharpBindingPatternDefault, selectCsharpBindingPatternProjection } from "../../../dist/policy/types/objects/binding-projection.js";
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 

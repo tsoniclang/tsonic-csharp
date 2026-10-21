@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resolveSourceCallContract } from "../../../dist/policy/types/resolution/call-contracts.js";
+import { resolveSourceCallContract } from "../../../dist/analysis/types/resolution/call-contracts.js";
 import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
 
 const integer = { kind: "source-primitive", name: "int32" };

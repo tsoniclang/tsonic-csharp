@@ -10,13 +10,9 @@ import {
 import {
   createDotnetReferenceSnapshot,
 } from "../../../../dist/providers/native/acquisition/reference-snapshot.js";
-import {
-  readCsharpReferences,
-  readCsharpReflectionReferencePaths,
-} from "../../../../dist/options/csharp-target-options.js";
-import {
-  resolveDotnetFrameworkReferenceAssemblies,
-} from "../../../../dist/options/dotnet-framework-reference-packs.js";
+import { readCsharpReferences } from "../../../../dist/options/target.js";
+import { readCsharpReflectionReferencePaths } from "../../../../dist/options/csharp-target-options.js";
+import { resolveDotnetFrameworkReferenceAssemblies } from "../../../../dist/providers/native/acquisition/framework-reference-packs.js";
 import { buildDotnetFixture } from "../../../helpers/dotnet-fixtures.mjs";
 import { getCompleteDotnetModule } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
 

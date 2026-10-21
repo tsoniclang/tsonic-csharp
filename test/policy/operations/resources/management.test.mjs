@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { compileCsharpSource } from "../../../helpers/direct-csharp-session.mjs";
-import { selectCsharpResourceManagement } from "../../../../dist/policy/operations/resources/management.js";
+import { selectCsharpResourceManagement } from "../../../../dist/analysis/control-flow/resource-management.js";
 
 function fixture() {
   const compiled = compileCsharpSource({ sourceText: `

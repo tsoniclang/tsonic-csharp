@@ -1,26 +1,27 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { closeCsharpOwnerTypeParameterEnvironment, csharpObjectShapeTypeParameters,
-  csharpFreeTypeParameterIdentities, visitCsharpTargetTypeParameters } from "../../../dist/target-model/types/generic-references.js";
+import { closeCsharpOwnerTypeParameterEnvironment, csharpObjectShapeTypeParameters } from "../../../dist/analysis/constraints/owner-environment.js";
+import { csharpFreeTypeParameterIdentities, visitCsharpTargetTypeParameters } from "../../../dist/target-model/types/generic-references.js";
 import { isCsharpTargetTypeRef, snapshotCsharpTargetTypes } from "../../../dist/target-model/types/snapshot.js";
 import { csharpTargetTypeComponents } from "../../../dist/target-model/types/components.js";
 import { createCsharpMetadataBudget, maximumCsharpMetadataEntries, maximumCsharpMetadataDepth } from "../../../dist/target-model/metadata/immutable.js";
-import { csharpSourceTypeParameter } from "../../../dist/target-model/names/type-parameters.js";
-import { createCsharpTypeParameterEnvironment } from "../../../dist/policy/constraints/type-parameter-environment.js";
-import { createStructuralObjectShapeTarget } from "../../../dist/policy/types/objects/object-shape-policy/construction.js";
-import { substituteTargetTypeParameters } from "../../../dist/target-model/types/substitution.js";
+import { csharpSourceTypeParameter } from "../../../dist/source/extension/type-parameters.js";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/constraints/type-parameter-environment.js";
+import { createStructuralObjectShapeTarget } from "../../../dist/analysis/objects/shapes/construction.js";
+import { substituteTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { csharpObjectShapeContractKey } from "../../../dist/target-model/types/object-shape-identity.js";
 import { csharpObjectShapesEqual } from "../../../dist/target-model/types/object-shape-equality.js";
 import { csharpConstraintsRequireReference, csharpTypeParameterConstraintResolutionKey } from "../../../dist/target-model/types/generic-constraints.js";
-import { resolveTypeParameter } from "../../../dist/policy/types/resolution/source-evidence.js";
-import { csharpTypeParameterConstraintsEqual, resolveCsharpTypeParameterConstraints } from "../../../dist/policy/constraints/type-parameter-constraints.js";
+import { resolveTypeParameter } from "../../../dist/analysis/types/resolution/source-evidence.js";
+import { csharpTypeParameterConstraintsEqual } from "../../../dist/policy/constraints/type-parameter-constraints.js";
+import { resolveCsharpTypeParameterConstraints } from "../../../dist/analysis/constraints/type-parameter-constraints.js";
 import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
 import { csharpDelegateTargetType, csharpTaskTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpListTargetType, csharpEnumerableTargetType } from "../../../dist/target-model/types/carriers/collections.js";
 import { csharpStringTargetType, csharpExceptionTargetType, csharpRuntimeErrorTargetType,
   csharpObjectTargetType, csharpVoidTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
-import { projectDefinitionTargetType } from "../../../dist/policy/types/project/project-types.js";
+import { projectDefinitionTargetType } from "../../../dist/policy/types/project/declaration-carriers.js";
 
 const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
 const parameter = (identity, name = identity) => ({ kind: "type-parameter", identity, name });

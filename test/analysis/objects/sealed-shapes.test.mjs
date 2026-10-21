@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { analyzeCsharpObjectShapes } from "../../../dist/analysis/objects/analyze.js";
-import { instantiateCsharpObjectShape } from "../../../dist/policy/types/objects/object-shape-policy/instantiation.js";
+import { instantiateCsharpObjectShape } from "../../../dist/policy/types/objects/instantiation.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { emptyCsharpTypeDefinitions } from "../../../dist/target-model/types/source-union-definitions.js";
 

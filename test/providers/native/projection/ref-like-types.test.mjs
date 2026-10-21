@@ -6,7 +6,7 @@ import { executeCsharpConstruction } from "../../../helpers/native-construction.
 import { createDotnetReflectionTypeDataProvider } from "../../../helpers/dotnet-reflection-provider.mjs";
 import { completeDotnetProviderContext,
   validateDotnetModuleModelContract } from "../../../../dist/public/provider-dotnet.js";
-import { dotnetExportToTargetBinding } from "../../../../dist/providers/native/model/index.js";
+import { dotnetExportToTargetBinding } from "../../../../dist/providers/native/projection/binding-projection.js";
 import { csharpDelegateTargetType, csharpTaskTargetType } from "../../../../dist/target-model/types/carriers/delegates.js";
 import { csharpNullableValueTargetType } from "../../../../dist/target-model/types/carriers/nullable.js";
 import { csharpEnumerableTargetType, csharpReadOnlyListTargetType,

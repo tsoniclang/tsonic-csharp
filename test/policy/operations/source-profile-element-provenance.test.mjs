@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
 import { jsSourceSemanticsIdentity } from "@tsonic/js-source-profile";
-import { selectCsharpSourceProfileElementPolicy } from "../../../dist/policy/operations/source-profiles/source-profile-policy.js";
+import { selectCsharpSourceProfileElementPolicy } from "../../../dist/analysis/source-profiles/policy-selection.js";
 import { csharpJsRegExpElementPolicies } from "../../../dist/policy/operations/source-profiles/js/regexp.js";
 import { csharpJsArrayElementPolicies } from "../../../dist/policy/operations/source-profiles/js/arrays.js";
 import { csharpJsArrayTargetType, csharpJsStringTargetType, csharpStringTargetType } from "../../../dist/policy/types/index.js";

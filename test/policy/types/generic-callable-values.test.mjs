@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { retainCsharpGenericCallableValue } from "../../../dist/policy/types/callables/generic-values.js";
+import { retainCsharpGenericCallableValue } from "../../../dist/analysis/callables/generic-values.js";
 import { csharpDelegateTargetType, getCsharpCallableValueSignature, getCsharpDelegateSignature } from "../../../dist/target-model/types/carriers/delegates.js";
-import { csharpMethodValueType, getCsharpMethodValue, rebindCsharpMethodValueTypeParameters } from "../../../dist/target-model/types/method-values.js";
+import { csharpMethodValueType, getCsharpMethodValue } from "../../../dist/target-model/types/method-values.js";
+import { rebindCsharpMethodValueTypeParameters } from "../../../dist/policy/types/callables/method-values.js";
 import { targetTypeRefEquals, targetTypeRefIsClosed } from "../../../dist/target-model/types/equality.js";
 import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types/target-types.js";
-import { substituteTargetTypeParameters } from "../../../dist/target-model/types/substitution.js";
+import { substituteTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
 import { csharpFreeTypeParameterIdentities } from "../../../dist/target-model/types/generic-references.js";
 
 const unconstrainedEnvironment = () => ({ kind: "resolved", constraints: [] });

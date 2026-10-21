@@ -7,10 +7,10 @@ import { CsharpProviderAcquisitionRejection, assertCsharpProviderLookupPurpose,
 import { createCsharpProviderRelationResolver } from "../../dist/providers/native/projection/relation-resolution.js";
 import { csharpReferenceIdentityCarrier } from "../../dist/policy/operations/operators/reference-equality.js";
 import { validateBinaryTargetSemantics } from "../../dist/policy/operations/operators/operator-validation.js";
-import { isCsharpThrowableType } from "../../dist/policy/types/resolution/target-hierarchy.js";
-import { resolveSourceProfileType } from "../../dist/policy/types/resolution/source-profiles.js";
-import { validateCsharpProviderConstraints } from "../../dist/policy/operations/members/instantiation/constraint-satisfaction.js";
-import { selectCsharpNativeMemoryLayout } from "../../dist/policy/operations/pointers/native-memory.js";
+import { isCsharpThrowableType } from "../../dist/analysis/project-types/throwable-types.js";
+import { resolveSourceProfileType } from "../../dist/analysis/types/resolution/source-profiles.js";
+import { validateCsharpProviderConstraints } from "../../dist/analysis/constraints/provider-satisfaction.js";
+import { selectCsharpNativeMemoryLayout } from "../../dist/analysis/operations/pointers/native-memory.js";
 import { createCsharpTypeDefinitionRegistry } from "../../dist/analysis/project-types/type-definitions.js";
 import { analyzeCsharpProjectTypePolicy } from "../../dist/analysis/project-types/catalog/resolution.js";
 import { compileCsharpTarget } from "../../dist/backend/compile.js";

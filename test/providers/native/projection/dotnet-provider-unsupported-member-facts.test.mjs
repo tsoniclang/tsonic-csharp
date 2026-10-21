@@ -16,9 +16,7 @@ import {
   namedDotnetTypeRef,
   testTargetId,
 } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
-import {
-  dotnetExportToTargetBinding,
-} from "../../../../dist/providers/native/model/index.js";
+import { dotnetExportToTargetBinding } from "../../../../dist/providers/native/projection/binding-projection.js";
 
 const moduleSpecifier =
   "@tsonic/dotnet/ProviderUnsupportedMemberFixtures.js";

@@ -4,7 +4,7 @@ import { targetUseSiteIdentity } from "@tsonic/target-api/analysis";
 import * as expressionEntry from "../../../../dist/backend/planner/expressions/index.js";
 import { createCsharpExpectedUseCollection } from "../../../../dist/analysis/expected-types/collection.js";
 import { createCsharpExpectedTypePropagation } from "../../../../dist/analysis/expected-types/propagation.js";
-import { admitCsharpExpectedBinarySelection } from "../../../../dist/analysis/expected-types/analyze.js";
+import { admitCsharpExpectedBinarySelection } from "../../../../dist/policy/operations/operators/expected-binary.js";
 import { planCsharpNativeExpression } from "../../../../dist/backend/planner/expressions/expression-expected-types.js";
 import { selectCsharpNativeUseRepresentation } from "../../../../dist/policy/conversions/native-use-representation.js";
 import { csharpNativeUseSite } from "../../../../dist/target-model/records/native-demand.js";

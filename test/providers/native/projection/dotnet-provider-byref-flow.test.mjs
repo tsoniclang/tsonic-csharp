@@ -2,9 +2,7 @@ import { nativeTypeFixture } from "../../../fixtures/dotnet-provider/native-inhe
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {
-  dotnetExportToTargetBinding,
-} from "../../../../dist/providers/native/model/index.js";
+import { dotnetExportToTargetBinding } from "../../../../dist/providers/native/projection/binding-projection.js";
 import {
   testTargetId,
 } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";

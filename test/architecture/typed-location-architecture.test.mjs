@@ -9,7 +9,7 @@ const sourceRoot = join(repositoryRoot, "src");
 const architectureTestPath = fileURLToPath(import.meta.url);
 
 const neutralFactReaders = new Map([
-  ["argumentPassingFactKey", ["src/policy/operations/members/selection/argument-selection.ts"]],
+  ["argumentPassingFactKey", ["src/source/extension/arguments.ts"]],
   ["defaultValueFactKey", ["src/policy/types/resolution/source-markers.ts"]],
   ["fieldFactKey", ["src/policy/types/resolution/source-markers.ts"]],
   ["flowStateFactKey", ["src/policy/operations/flow/source-flow.ts"]],
@@ -18,11 +18,11 @@ const neutralFactReaders = new Map([
   ["pointerFactKey", ["src/policy/types/resolution/source-markers.ts"]],
   ["rawPointerFactKey", ["src/policy/types/resolution/source-markers.ts"]],
   ["rawPointerOperationFactKey", ["src/policy/operations/pointers/source-raw-pointers.ts"]],
-  ["pointerOperationFactKey", ["src/policy/operations/typed-locations/source-typed-locations.ts"]],
+  ["pointerOperationFactKey", ["src/source/extension/typed-locations.ts"]],
   ["structFactKey", ["src/policy/types/resolution/source-markers.ts"]],
-  ["tsonicNativePointerOperationFactKey", ["src/policy/operations/pointers/source-native-pointers.ts"]],
-  ["tsonicSafetyBuilderFactKey", ["src/policy/operations/safety/explicit.ts"]],
-  ["tsonicUnsafeContextFactKey", ["src/policy/operations/safety/explicit.ts"]],
+  ["tsonicNativePointerOperationFactKey", ["src/source/extension/native-pointers.ts"]],
+  ["tsonicSafetyBuilderFactKey", ["src/source/extension/explicit-safety.ts"]],
+  ["tsonicUnsafeContextFactKey", ["src/source/extension/explicit-safety.ts"]],
   ["createTsonicAttributeApplicationFactIndex", ["src/analysis/attributes/application-index.ts"]],
 ]);
 
@@ -43,7 +43,7 @@ test("neutral typed-location facts enter C# through one policy adapter", () => {
     .map((path) => path.slice(repositoryRoot.length + 1));
 
   assert.deepEqual(occurrences, [
-    "src/policy/operations/typed-locations/source-typed-locations.ts",
+    "src/source/extension/typed-locations.ts",
   ]);
 });
 

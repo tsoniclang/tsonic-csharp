@@ -6,7 +6,7 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 import { transformCsharpTargetAst } from "../../../dist/backend/target-ast/normalization/transformation.js";
 import { csharpStructuralObjectShapeIdentity } from "../../../dist/target-model/types/index.js";
 import { printCsharpType } from "../../../dist/print/source/printer.js";
-import { createCsharpObjectShapeValueStorage } from "../../../dist/policy/types/objects/object-shape-policy/construction.js";
+import { createCsharpObjectShapeValueStorage } from "../../../dist/policy/types/objects/shape-carriers.js";
 import { applyCsharpObjectShapeDisplayNames } from "../../../dist/backend/target-ast/normalization/object-shape-names.js";
 
 const header = 'import type { int32 } from "@tsonic/core/types.js";';

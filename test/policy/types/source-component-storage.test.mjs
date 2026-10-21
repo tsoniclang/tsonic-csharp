@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resolveCallableEvidence, resolveSignatureParameterEvidence, resolveSourceProfileType, resolveSourceTypeComponentEvidence } from "../../../dist/policy/types/resolution/source-profiles.js";
-import { csharpSourceStorageComponentContext } from "../../../dist/policy/types/resolution/source-storage-projection.js";
+import { resolveCallableEvidence, resolveSignatureParameterEvidence, resolveSourceProfileType, resolveSourceTypeComponentEvidence } from "../../../dist/analysis/types/resolution/source-profiles.js";
+import { csharpSourceStorageComponentContext } from "../../../dist/analysis/types/resolution/source-storage-projection.js";
 
 const typeOnlyPredicates = { IsTypeAliasDeclaration: () => false, IsInterfaceDeclaration: () => false,
   IsTypeParameterDeclaration: () => false };

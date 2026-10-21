@@ -18,10 +18,7 @@ import {
   createDotnetReflectionTypeDataProvider,
   dotnetReflectionProviderStorage,
 } from "../../../helpers/dotnet-reflection-provider.mjs";
-import {
-  csharpSourceProfileContributions,
-  csharpSourceProfileOwnerId,
-} from "../../../../dist/source/profiles/source-profile-declarations.js";
+import { csharpSourceProfileContributions, csharpSourceProfileOwnerId } from "../../../../dist/source/profiles/declarations.js";
 
 const systemCollectionsGenericModule = "@tsonic/dotnet/System.Collections.Generic.js";
 const systemTasksModule = "@tsonic/dotnet/System.Threading.Tasks.js";

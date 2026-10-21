@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { csharpNullableTargetType, csharpRuntimeUnionTargetType, csharpStringTargetType, csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/index.js";
 import { csharpSourceUnionTargetType } from "../../../dist/target-model/types/source-union-definitions.js";
-import { csharpUnionProjectionPath } from "../../../dist/target-model/types/union-relations.js";
+import { csharpUnionProjectionPath } from "../../../dist/policy/conversions/union-relations.js";
 import { selectCsharpRuntimeUnionProjection } from "../../../dist/policy/conversions/carriers.js";
 import { csharpRuntimeUnionProjectionMatches } from "../../../dist/analysis/conversions/validation.js";
 

@@ -5,12 +5,7 @@ import {
   createSourceSemanticsExtension,
   formatDiagnostics,
 } from "@tsonic/tsts";
-import {
-  csharpJsSourceProfileOwnerId,
-  csharpJsSurfaceSourceProfileContributions,
-  csharpSourceProfileContributions,
-  csharpSourceProfileOwnerId,
-} from "../../../dist/source/profiles/source-profile-declarations.js";
+import { csharpJsSourceProfileOwnerId, csharpJsSurfaceSourceProfileContributions, csharpSourceProfileContributions, csharpSourceProfileOwnerId } from "../../../dist/source/profiles/declarations.js";
 import {
   createJsSourceSemanticsExtension,
   jsRegExpSourceProfileDeclarations,

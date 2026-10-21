@@ -14,14 +14,10 @@ import {
   targetParameter,
   targetProperty,
 } from "../../../dist/policy/types/index.js";
-import {
-  selectCsharpProviderCall,
-  selectCsharpProviderElement,
-  selectCsharpProviderProperty,
-  selectCsharpTargetCall,
-  selectCsharpTargetElement,
-  selectCsharpTargetProperty,
-} from "../../../dist/policy/operations/members/index.js";
+import { selectCsharpProviderCall } from "../../../dist/analysis/operations/provider/calls/selection.js";
+import { selectCsharpProviderElement } from "../../../dist/analysis/operations/provider/element-selection.js";
+import { selectCsharpProviderProperty } from "../../../dist/analysis/operations/provider/property-selection.js";
+import { selectCsharpTargetCall, selectCsharpTargetElement, selectCsharpTargetProperty } from "../../../dist/analysis/operations/provider/selected-members.js";
 import {
   createCsharpProviderRelationCatalog,
   providerMemberSourceIdentity,

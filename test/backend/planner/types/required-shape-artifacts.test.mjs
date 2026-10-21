@@ -12,7 +12,7 @@ import { planCsharpRuntimeParameterDefault } from "../../../../dist/backend/plan
 import { planCsharpPreparedConstructor } from "../../../../dist/backend/planner/declarations/classes/constructor-entry.js";
 import { planLambdaParameterStorage } from "../../../../dist/backend/planner/expressions/lambda-parameter-storage.js";
 import { csharpRuntimeUnionTargetType, csharpEmptyObjectTargetType, csharpTsValueTargetType } from "../../../../dist/target-model/types/carriers/runtime-carriers.js";
-import { objectShapeArtifactKey } from "../../../../dist/target-model/records/object-shape-demand.js";
+import { objectShapeArtifactKey } from "../../../../dist/analysis/program/records/object-shape-keys.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../../dist/target-model/types/equality.js";
 
 const integer = { kind: "source-primitive", name: "int32" };

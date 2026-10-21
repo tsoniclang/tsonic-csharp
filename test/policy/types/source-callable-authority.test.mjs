@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isSourceOwnedCallableRuntimeCarrierSubject } from "../../../dist/policy/types/resolution/source-ownership.js";
+import { isSourceOwnedCallableRuntimeCarrierSubject } from "../../../dist/analysis/types/resolution/source-ownership.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 
 const integer = Object.freeze({ kind: "source-primitive", name: "int32" });

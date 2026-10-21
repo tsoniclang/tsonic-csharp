@@ -6,7 +6,7 @@ import { createDestructuringPlannerState } from "../../../../dist/backend/planne
 import { planCsharpRuntimeParameterDefault } from "../../../../dist/backend/planner/declarations/callables/defaults.js";
 import { planParametersWithPrelude } from "../../../../dist/backend/planner/declarations/callables/parameters.js";
 import { csharpTargetNamedType } from "../../../../dist/target-model/types/index.js";
-import { selectCsharpDefaultValueContract } from "../../../../dist/policy/types/objects/binding-projection-policy.js";
+import { selectCsharpDefaultValueContract } from "../../../../dist/policy/types/objects/binding-projection.js";
 
 const defaultMessage = "A runtime parameter default requires renderable sealed native value and incoming carriers.";
 const invariantMessage = "A runtime parameter default contract requires its authored parameter initializer.";

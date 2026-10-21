@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { guardCsharpFrozenDataProperties } from "../../../../dist/backend/planner/objects/frozen-data-properties.js";
-import { objectShapeArtifactKey } from "../../../../dist/target-model/records/object-shape-demand.js";
+import { objectShapeArtifactKey } from "../../../../dist/analysis/program/records/object-shape-keys.js";
 
 const integer = { kind: "PredefinedType", keyword: "int" };
 const input = { program: { records: { nativeField: { get: () => undefined } } } };

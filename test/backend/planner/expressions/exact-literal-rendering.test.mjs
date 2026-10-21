@@ -3,7 +3,7 @@ import test from "node:test";
 import { planCsharpExactLiteralConversion } from "../../../../dist/backend/planner/expressions/literal-conversions.js";
 import { csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/index.js";
 import { csharpPlannedExpressionIsStable, csharpPlannedValue } from "../../../../dist/backend/planner/expressions/planned-values.js";
-import { evaluatedConstant } from "../../../../dist/backend/planner/expressions/csharp-expression-builders.js";
+import { evaluatedConstant } from "../../../../dist/backend/planner/expressions/builders.js";
 import { csharpExpressionIsNativeNumericConstant } from "../../../../dist/backend/target-ast/syntax/expressions.js";
 import { planCsharpPlannedDiscard } from "../../../../dist/backend/planner/statements/statement-output.js";
 import { printCsharpStatement } from "../../../../dist/print/source/printer.js";

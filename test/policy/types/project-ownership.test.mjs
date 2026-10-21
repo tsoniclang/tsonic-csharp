@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { projectSourceDeclarationTargetType } from "../../../dist/policy/types/resolution/project-types.js";
+import { projectSourceDeclarationTargetType } from "../../../dist/analysis/types/resolution/project-types.js";
 
 test("project type classification rejects foreign declarations before project semantic queries", () => {
   for (const kind of ["provider-type-literal", "source-profile-mapped-type", "native-interface", "native-class", "source-profile-alias"]) {

@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createCsharpObjectShapeDemandEngine } from "../../../dist/analysis/objects/native-demand-requests.js";
-import { publishCsharpNativeArtifactDemand } from "../../../dist/analysis/objects/native-demand-declarations.js";
+import { publishCsharpNativeArtifactDemand } from "../../../dist/analysis/program/records/native-demand.js";
 import { renderObjectShapeProjectionMethods } from "../../../dist/backend/planner/objects/closed-object-shapes.js";
-import { objectShapeArtifactKey } from "../../../dist/target-model/records/object-shape-demand.js";
+import { objectShapeArtifactKey } from "../../../dist/analysis/program/records/object-shape-keys.js";
 import { csharpStringTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../../dist/target-model/types/index.js";
 import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
 import { csharpProjectedType } from "../../../dist/target-model/types/projections.js";

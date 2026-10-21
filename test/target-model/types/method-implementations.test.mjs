@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { csharpObjectShapeMethodDeclaration, csharpObjectShapeMethodRequiresProtocol } from "../../../dist/target-model/types/method-values.js";
 import { csharpObjectShapesEqual } from "../../../dist/target-model/types/object-shape-equality.js";
-import { substituteObjectShapeFactTargetTypeParameters } from "../../../dist/target-model/types/substitution.js";
+import { substituteObjectShapeFactTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
 
 const declaration = Object.freeze({});
 const foreign = Object.freeze({});

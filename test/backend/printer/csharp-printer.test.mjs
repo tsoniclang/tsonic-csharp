@@ -6,7 +6,7 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "../../../dist/backend/planner/types/target-types.js";
 import { renderObjectShapeMembers } from "../../../dist/backend/planner/objects/declarations.js";
-import { objectShapeArtifactKey } from "../../../dist/target-model/records/object-shape-demand.js";
+import { objectShapeArtifactKey } from "../../../dist/analysis/program/records/object-shape-keys.js";
 import {
   printCsharpCompilationUnit,
   printCsharpExpression,
@@ -16,10 +16,8 @@ import {
 import {
   finalizeCsharpCompilationUnit,
 } from "../../../dist/backend/planner/program/compilation-unit.js";
-import {
-  applyCsharpObjectShapeDisplayNames,
-  selectCsharpObjectShapeDisplayNames,
-} from "../../../dist/backend/target-ast/normalization/object-shape-names.js";
+import { applyCsharpObjectShapeDisplayNames } from "../../../dist/backend/target-ast/normalization/object-shape-names.js";
+import { selectCsharpObjectShapeDisplayNames } from "../../../dist/analysis/names/object-shapes.js";
 import {
   csharpDelegateTargetType,
   csharpPropertySourceMemberKey,

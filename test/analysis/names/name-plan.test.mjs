@@ -4,13 +4,13 @@ import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts"
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { assertCsharpCompilationSucceeded, checkCsharpSource, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
-import { createCsharpSourceNameBuilder } from "../../../dist/analysis/names/source-names.js";
+import { createCsharpSourceNameBuilder } from "../../../dist/analysis/names/plan.js";
 import { analyzeCsharpTargetProgram } from "../../../dist/analysis/program/index.js";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
-import { createCsharpTargetConfiguration } from "../../../dist/options/csharp-target-options.js";
+import { createCsharpTargetConfiguration } from "../../../dist/compilation/configuration.js";
 import { createCsharpPlanningContext } from "../../../dist/backend/planner/context.js";
 import { createCsharpSyntheticNames } from "../../../dist/backend/planner/names/synthetic.js";
-import { csharpSourceTypeParameter } from "../../../dist/target-model/names/type-parameters.js";
+import { csharpSourceTypeParameter } from "../../../dist/source/extension/type-parameters.js";
 import { createDotnetReflectionTypeDataProvider } from "../../helpers/dotnet-reflection-provider.mjs";
 import { planClassMemberModifiers } from "../../../dist/backend/planner/declarations/classes/modifiers.js";
 import { planCsharpAdmittedMemberName } from "../../../dist/backend/planner/declarations/modifiers.js";

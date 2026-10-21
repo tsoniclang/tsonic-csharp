@@ -2,7 +2,7 @@ import { assertNoTargetDiagnostics } from "../../../../tsonic/test/scripts/diagn
 import assert from "node:assert/strict";
 import test from "node:test";
 import { csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpRuntimeUnionTargetType, csharpNullableTargetType } from "../../../dist/target-model/types/index.js";
-import { selectCsharpUnionArmMapping } from "../../../dist/target-model/types/union-relations.js";
+import { selectCsharpUnionArmMapping } from "../../../dist/policy/conversions/union-relations.js";
 import { selectCsharpConversion, selectCsharpFlowReadConversion } from "../../../dist/policy/conversions/index.js";
 import { planCsharpUnionMapping } from "../../../dist/backend/planner/expressions/union-mappings.js";
 import { admitCsharpConversionSelection } from "../../../dist/analysis/conversions/validation.js";

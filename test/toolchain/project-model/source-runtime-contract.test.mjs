@@ -3,13 +3,13 @@ import { readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
 import { csharpCoreRuntimeSource, csharpJsRuntimeSource, csharpRuntimeSourceContributions } from "../../../dist/public/provider.js";
-import { readCsharpTargetFramework } from "../../../dist/options/csharp-target-options.js";
+import { readCsharpTargetFramework } from "../../../dist/options/target.js";
 import { parseCsharpTargetFramework } from "../../../dist/target-model/configuration/framework.js";
 import { selectDotnetPlatformDirectory } from "../../../dist/providers/native/acquisition/toolchain.js";
 import { validateDotnetReflectionTargetFramework } from "../../../dist/providers/native/acquisition/cache-request.js";
 import { resolveDotnetProviderToolPaths } from "../../../dist/providers/native/acquisition/path-resolution.js";
 
-import { createCsharpTargetConfiguration } from "../../../dist/options/csharp-target-options.js";
+import { createCsharpTargetConfiguration } from "../../../dist/compilation/configuration.js";
 import { analyzeCsharpProject } from "../../../dist/analysis/project/index.js";
 import { planCsharpProjectFile } from "../../../dist/backend/planner/project/project-artifacts.js";
 import { materializeCsharpOutputPlan } from "../../../dist/backend/emission/materialize.js";

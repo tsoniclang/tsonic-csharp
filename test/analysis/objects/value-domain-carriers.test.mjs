@@ -9,7 +9,7 @@ import { csharpValueDomainHasTargetType as selectedValueDomainHasTargetType } fr
 import { analyzeCsharpValueDomainCarriers } from "../../../dist/analysis/objects/value-domain-carriers.js";
 import { csharpEmptyObjectTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
-import { substituteObjectShapeFactTargetTypeParameters } from "../../../dist/target-model/types/substitution.js";
+import { substituteObjectShapeFactTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
 import { createCsharpMetadataBudget } from "../../../dist/target-model/metadata/immutable.js";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { frozenEmptyStorageSources } from "../../../../tsonic/test/fixtures/frozen-empty-storage.mjs";

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { selectCsharpIteration } from "../../../../dist/policy/operations/iteration/index.js";
+import { selectCsharpIteration } from "../../../../dist/analysis/operations/iteration/selection.js";
 import { csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../../dist/target-model/types/index.js";
 
 const integer = csharpSourcePrimitiveTargetType("int32");

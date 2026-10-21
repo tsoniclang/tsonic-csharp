@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { analyzeCsharpObjectShapes } from "../../../dist/analysis/objects/analyze.js";
-import { instantiateCsharpObjectShape } from "../../../dist/policy/types/objects/object-shape-policy/instantiation.js";
+import { instantiateCsharpObjectShape } from "../../../dist/policy/types/objects/instantiation.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { emptyCsharpTypeDefinitions } from "../../../dist/target-model/types/source-union-definitions.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
-import { resolveCsharpOptionalStorage } from "../../../dist/target-model/types/carriers/optional-storage.js";
+import { resolveCsharpOptionalStorage } from "../../../dist/policy/types/storage/optional-storage.js";
 import { analyzeCsharpProjectCallableAdapters } from "../../../dist/analysis/project-types/callable-adapters.js";
 const unexpectedNativeDispatchRead = () => assert.fail("this structural fixture has no authored native dispatch domain");
 const emptyNativeDispatch = Object.freeze({

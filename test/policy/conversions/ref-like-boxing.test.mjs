@@ -7,7 +7,7 @@ import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { nativeRefLikeFixture } from "../../helpers/native-ref-like-fixture.mjs";
 import { createDotnetReflectionTypeDataProvider } from "../../helpers/dotnet-reflection-provider.mjs";
 import { completeDotnetProviderContext } from "../../../dist/public/provider-dotnet.js";
-import { dotnetExportToTargetBinding } from "../../../dist/providers/native/model/index.js";
+import { dotnetExportToTargetBinding } from "../../../dist/providers/native/projection/binding-projection.js";
 
 const carrier = csharpTargetNamedType("Proof.NativeLease", undefined, { kind: "named", name: "NativeLease" },
   { valueType: true, byRefLike: true, allowsRefLikeTypeArguments: [] });

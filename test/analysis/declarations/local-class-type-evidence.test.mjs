@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { projectTypeDefinition } from "../../../dist/policy/types/project/project-types.js";
+import { projectTypeDefinition } from "../../../dist/analysis/project-types/type-policy.js";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { admitCsharpNativeDeclarations } from "../../../dist/analysis/declarations/native-value-declarations.js";

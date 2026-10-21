@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { csharpBindingDefaultCarrier } from "../../../dist/target-model/types/binding-normalization.js";
+import { csharpBindingDefaultCarrier } from "../../../dist/policy/types/storage/binding-normalization.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../dist/target-model/types/index.js";
 

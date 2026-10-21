@@ -5,8 +5,8 @@ import { compileCsharpRequiredRecordSource, csharpRecordInput } from "../../help
 import { createCsharpProgramRecords } from "../../../dist/analysis/program/records/create.js";
 import { assertCsharpRequiredRecords } from "../../../dist/analysis/program/records/required-records.js";
 import { createCsharpObjectShapeDemandEngine } from "../../../dist/analysis/objects/native-demand-requests.js";
-import { publishCsharpNativeArtifactDemand } from "../../../dist/analysis/objects/native-demand-declarations.js";
-import { objectShapeArtifactKey } from "../../../dist/target-model/records/object-shape-demand.js";
+import { publishCsharpNativeArtifactDemand } from "../../../dist/analysis/program/records/native-demand.js";
+import { objectShapeArtifactKey } from "../../../dist/analysis/program/records/object-shape-keys.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { createCsharpPlanningContext } from "../../../dist/backend/planner/context.js";
 import { csharpObjectShapeMemberContractKey } from "../../../dist/target-model/types/object-shape-identity.js";

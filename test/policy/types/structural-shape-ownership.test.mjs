@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
-import { typeHasProjectOwnedShapeDeclaration } from "../../../dist/policy/types/objects/object-shape-policy/source-evidence.js";
+import { typeHasProjectOwnedShapeDeclaration } from "../../../dist/analysis/objects/shapes/source-evidence.js";
 
 function fixture() {
   const type = {};

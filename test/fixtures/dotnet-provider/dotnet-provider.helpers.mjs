@@ -21,10 +21,8 @@ import {
 import {
   createDotnetReflectionTypeDataProvider,
 } from "../../helpers/dotnet-reflection-provider.mjs";
-import {
-  dotnetExportToTargetBinding,
-  tryDotnetTypeRefToProviderType,
-} from "../../../dist/providers/native/model/index.js";
+import { dotnetExportToTargetBinding } from "../../../dist/providers/native/projection/binding-projection.js";
+import { tryDotnetTypeRefToProviderType } from "../../../dist/providers/native/projection/declarations/provider-conversion.js";
 import { buildDotnetFixture } from "../../helpers/dotnet-fixtures.mjs";
 export { assert, dirname, join, test, fileURLToPath, augmentDotnetModuleWithNativeArray, completeDotnetProviderContext, createDotnetProviderTelemetry, createDotnetReflectionTypeDataProvider, createDotnetSourceDeclarationProvider, dotnetNativeArrayCreateMemberId, dotnetNativeArrayIndexerMemberId, dotnetNativeArrayLengthMemberId, dotnetNativeArrayTypeId, dotnetModuleToProviderDeclarationModel, dotnetTypeRefToProviderType, dotnetTypeRefToTargetTypeRef, validateDotnetProviderDeclarationModelContract, dotnetExportToTargetBinding, tryDotnetTypeRefToProviderType, buildDotnetFixture };
 

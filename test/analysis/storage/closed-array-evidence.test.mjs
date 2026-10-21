@@ -3,7 +3,7 @@ import test from "node:test";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { checkCsharpSource, assertCsharpCheckingSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpSourceEvidence } from "../../../dist/analysis/source-evidence/analyze.js";
-import { createCsharpSourceProfileCallableAliasQuery } from "../../../dist/policy/operations/source-profiles/callable-aliases.js";
+import { createCsharpSourceProfileCallableAliasQuery } from "../../../dist/analysis/source-profiles/callable-aliases.js";
 
 const unknownTypes = new Proxy({}, { get: () => () => undefined });
 

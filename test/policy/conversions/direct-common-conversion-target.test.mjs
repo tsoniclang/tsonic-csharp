@@ -1,11 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {
-  selectCsharpCommonImplicitTarget,
-  selectCsharpConversion,
-  selectCsharpFlowReadConversion,
-} from "../../../dist/policy/conversions/index.js";
+import { selectCsharpCommonImplicitTarget } from "../../../dist/analysis/conversions/common-target.js";
+import { selectCsharpConversion, selectCsharpFlowReadConversion } from "../../../dist/policy/conversions/index.js";
 import {
   csharpDelegateTargetType,
   csharpExceptionTargetType,

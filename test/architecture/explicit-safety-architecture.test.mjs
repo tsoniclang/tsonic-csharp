@@ -5,7 +5,7 @@ import test from "node:test";
 test("explicit safety reaches the planner through target-owned policy only", () => {
   const explicitSafety = product("src/backend/planner/safety/explicit-safety.ts");
   const nativePointers = product(
-    "src/backend/planner/expressions/expression-native-pointers.ts",
+    "src/backend/planner/expressions/native-pointers.ts",
   );
   const planning = product("src/backend/planner/expressions/planning.ts");
 
@@ -23,9 +23,9 @@ test("explicit safety reaches the planner through target-owned policy only", () 
 });
 
 test("C# unsafe permission uses typed syntax traversal", () => {
-  const permission = product("src/backend/planner/safety/unsafe-requires.ts");
-  const members = product("src/backend/planner/safety/unsafe-members.ts");
-  const expressions = product("src/backend/planner/safety/unsafe-expressions.ts");
+  const permission = product("src/analysis/safety/emission.ts");
+  const members = product("src/analysis/safety/emission.ts");
+  const expressions = product("src/analysis/safety/emission.ts");
 
   assert.match(permission, /memberRequiresUnsafePermission/u);
   assert.match(members, /switch \(member\.kind\)/u);
@@ -37,7 +37,7 @@ test("C# unsafe permission uses typed syntax traversal", () => {
 });
 
 test("C# never restores compilation-wide or containing-type unsafe inference", () => {
-  const marking = product("src/backend/planner/safety/unsafe-marking.ts");
+  const marking = product("src/analysis/safety/emission.ts");
 
   assert.match(marking, /typeDeclarationHeaderRequiresUnsafe/u);
   assert.doesNotMatch(marking, /markCompilationUnitUnsafe/u);
@@ -52,7 +52,7 @@ test("C# never restores compilation-wide or containing-type unsafe inference", (
 });
 
 test("C# language, memory rules, and unsafe permission remain separate controls", () => {
-  const options = product("src/options/csharp-target-options.ts");
+  const options = product("src/options/target.ts");
   const projectAnalysis = product(
     "src/analysis/project/classification.ts",
   );

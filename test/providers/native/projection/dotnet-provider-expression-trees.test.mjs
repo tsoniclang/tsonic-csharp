@@ -3,7 +3,7 @@ import test from "node:test";
 import { dotnetTypeRefToTargetTypeRef, validateDotnetModuleModelContract } from "../../../../dist/public/provider-dotnet.js";
 import { getCsharpDelegateSignature, getCsharpLambdaSignature } from "../../../../dist/target-model/types/index.js";
 import { substituteTargetTypeParameters } from "../../../../dist/public/provider.js";
-import { csharpApplyExternAliasToTargetType } from "../../../../dist/policy/types/project/extern-aliases.js";
+import { csharpApplyExternAliasToTargetType } from "../../../../dist/providers/native/projection/extern-aliases.js";
 
 const parameter = { kind: "type-parameter", identity: "Fixture:0", name: "T" };
 const signature = { kind: "function", id: "Fixture::Selector.Invoke", parameters: [

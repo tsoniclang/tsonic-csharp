@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { tsonicPointerViewFactKey } from "@tsonic/source-core/facts";
-import { selectCsharpTypedLocationOperation } from "../../../dist/policy/operations/typed-locations/typed-locations.js";
+import { selectCsharpTypedLocationOperation } from "../../../dist/analysis/operations/typed-locations.js";
 
 for (const changed of ["call", "pointerExpression", "readExpression", "writeExpression", "arguments"]) {
   test(`pointer view rejects changed ${changed} before lowering`, () => {

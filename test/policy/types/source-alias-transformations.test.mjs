@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createTsonicPlugin as nodejsCapability } from "../../../../csharp-nodejs/dist/index.js";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
-import { resolveTypeReferenceNode } from "../../../dist/policy/types/resolution/source-references.js";
+import { resolveTypeReferenceNode } from "../../../dist/analysis/types/resolution/source-references.js";
 
 test("checked component transformations do not require native carriers for discarded inputs", () => {
   const node = {};

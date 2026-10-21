@@ -11,7 +11,7 @@ import { csharpAbsenceTargetType, csharpNullableTargetType, csharpRuntimeUnionTa
   csharpTargetNamedType } from "../../../dist/target-model/types/index.js";
 import { csharpSourceUnionTargetType } from "../../../dist/target-model/types/source-union-definitions.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
-import { csharpUnionArmMappingsMatch, selectCsharpUnionArmMapping } from "../../../dist/target-model/types/union-relations.js";
+import { csharpUnionArmMappingsMatch, selectCsharpUnionArmMapping } from "../../../dist/policy/conversions/union-relations.js";
 import { planCsharpUnionMapping } from "../../../dist/backend/planner/expressions/union-mappings.js";
 
 const reference = (name, arguments_) => csharpTargetNamedType(`fixture.${name}`, arguments_, { kind: "named", name }, { allowsRefLikeTypeArguments: ((arguments_) ?? []).map(() => false),});

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { selectCsharpCopiedMethodReceiver } from "../../../dist/policy/ownership/copied-methods.js";
+import { selectCsharpCopiedMethodReceiver } from "../../../dist/analysis/ownership/copied-methods.js";
 import { csharpSourcePrimitiveTargetType, csharpDelegateTargetType, csharpTargetNamedType } from "../../../dist/target-model/types/index.js";
 
 const integer = csharpSourcePrimitiveTargetType("int32");

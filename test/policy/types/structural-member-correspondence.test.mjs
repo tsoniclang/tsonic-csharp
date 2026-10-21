@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCsharpObjectShapeMemberResolver } from "../../../dist/policy/types/objects/object-shape-policy/member-evidence.js";
+import { createCsharpObjectShapeMemberResolver } from "../../../dist/analysis/objects/shapes/member-evidence.js";
 
 const carrier = Object.freeze({ kind: "source-primitive", name: "int64" });
 const destinationType = {};

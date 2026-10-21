@@ -3,7 +3,7 @@ import test from "node:test";
 import { captureDependencies, dependOn } from "../../../../dist/backend/planner/artifacts/graph/dependencies.js";
 import { createCsharpArtifactGraph } from "../../../../dist/backend/planner/artifacts/graph.js";
 import { collectShapeDependencies } from "../../../../dist/analysis/objects/native-demand-batches.js";
-import { objectShapeArtifactKey } from "../../../../dist/target-model/records/object-shape-demand.js";
+import { objectShapeArtifactKey } from "../../../../dist/analysis/program/records/object-shape-keys.js";
 import { targetTypeRefKey } from "../../../../dist/target-model/types/equality.js";
 import { createCsharpObjectShapeDemandEngine } from "../../../../dist/analysis/objects/native-demand-requests.js";
 

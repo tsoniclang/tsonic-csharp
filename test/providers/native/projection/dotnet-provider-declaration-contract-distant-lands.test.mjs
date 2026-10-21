@@ -10,7 +10,7 @@ import {
 import {
   createDotnetReflectionTypeDataProvider,
 } from "../../../helpers/dotnet-reflection-provider.mjs";
-import { tryDotnetTypeRefToProviderType } from "../../../../dist/providers/native/model/index.js";
+import { tryDotnetTypeRefToProviderType } from "../../../../dist/providers/native/projection/declarations/provider-conversion.js";
 import { dotnetMembersToProviderMembers } from "../../../../dist/providers/native/projection/declarations/members.js";
 import { completeProviderDeclarationRequest } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
 

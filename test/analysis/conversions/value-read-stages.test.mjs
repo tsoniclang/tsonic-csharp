@@ -5,7 +5,7 @@ import { checkCsharpSource, assertCsharpCheckingSucceeded } from "../../helpers/
 import { analyzeCsharpTargetProgram } from "../../../dist/analysis/program/index.js";
 import { analyzeCsharpValueReadStages } from "../../../dist/analysis/conversions/value-read-stages.js";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
-import { createCsharpTargetConfiguration } from "../../../dist/options/csharp-target-options.js";
+import { createCsharpTargetConfiguration } from "../../../dist/compilation/configuration.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 
 const same = (left, right) => left === right || (left !== undefined && right !== undefined && targetTypeRefEquals(left, right));

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { sourceMarkerFactKey } from "@tsonic/tsts";
-import { selectCsharpJsStringConversion } from "../../../dist/policy/operations/strings/explicit-js-string.js";
+import { selectCsharpJsStringConversion } from "../../../dist/analysis/operations/strings/explicit-js-string.js";
 import { planCsharpJsStringConversion } from "../../../dist/backend/planner/expressions/expression-js-string-conversion.js";
 import { selectCsharpNativeHandler } from "../../../dist/policy/operations/pointers/native-handlers.js";
 import { csharpPlannedValue, csharpPlannedEffect } from "../../../dist/backend/planner/expressions/planned-values.js";

@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { buildDotnetFixture } from "../../../helpers/dotnet-fixtures.mjs";
 import { createDotnetReflectionTypeDataProvider } from "../../../helpers/dotnet-reflection-provider.mjs";
 import { completeDotnetProviderContext, validateDotnetModuleModelContract } from "../../../../dist/public/provider-dotnet.js";
-import { dotnetExportToTargetBinding } from "../../../../dist/providers/native/model/index.js";
+import { dotnetExportToTargetBinding } from "../../../../dist/providers/native/projection/binding-projection.js";
 import { dotnetTypeRefToTargetTypeRef } from "../../../../dist/providers/native/projection/type-ref.js";
 import { csharpSourceErrorNames } from "../../../../dist/target-model/identities/source-errors.js";
 import { csharpStringTargetType, csharpExceptionTargetType, csharpRuntimeErrorTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";

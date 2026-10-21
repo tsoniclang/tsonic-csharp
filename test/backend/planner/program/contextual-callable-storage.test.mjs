@@ -5,13 +5,13 @@ import { contextualAsyncResultSource, ordinaryAsyncResultSource } from "../../..
 import { checkCsharpSource, assertCsharpCheckingSucceeded } from "../../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpTargetProgram } from "../../../../dist/analysis/program/index.js";
 import { createCsharpProviderRelationResolver } from "../../../../dist/providers/native/projection/relation-resolution.js";
-import { createCsharpTargetConfiguration } from "../../../../dist/options/csharp-target-options.js";
+import { createCsharpTargetConfiguration } from "../../../../dist/compilation/configuration.js";
 import { createCsharpPlanningContext, createCsharpMemberPlanningContext } from "../../../../dist/backend/planner/context.js";
 import { createDestructuringPlannerState } from "../../../../dist/backend/planner/bindings/index.js";
 import { planLocalDeclaration } from "../../../../dist/backend/planner/bindings/locals.js";
 import { planTopLevelVariableStatement } from "../../../../dist/backend/planner/program/top-level-variables.js";
 import { csharpTypeFromTargetTypeRef } from "../../../../dist/backend/planner/types/target-types.js";
-import { sameCsharpType } from "../../../../dist/backend/planner/types/csharp-type-equality.js";
+import { sameCsharpType } from "../../../../dist/backend/target-ast/inspection/type-equality.js";
 import { csharpSourcePrimitiveTargetType, getCsharpDelegateSignature, getCsharpTaskResultTargetType, targetTypeRefEquals } from "../../../../dist/target-model/types/index.js";
 
 const localSource = `

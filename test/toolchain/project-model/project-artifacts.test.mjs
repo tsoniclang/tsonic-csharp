@@ -5,13 +5,11 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { planCsharpProject, planCsharpProjectFile } from "../../../dist/backend/planner/project/project-artifacts.js";
 import { materializeCsharpOutputPlan } from "../../../dist/backend/emission/materialize.js";
-import { createCsharpTargetPack } from "../../../dist/descriptor/csharp-target-pack.js";
-import { printCsharpProjectFile } from "../../../dist/print/project/csharp-project.js";
-import { createDotnetToolchain } from "../../../dist/toolchain/dotnet-toolchain.js";
-import {
-  createCsharpTargetConfiguration,
-  validateCsharpTargetOptions,
-} from "../../../dist/options/csharp-target-options.js";
+import { createCsharpTargetPack } from "../../../dist/descriptor/target-pack.js";
+import { printCsharpProjectFile } from "../../../dist/print/project/manifest.js";
+import { createDotnetToolchain } from "../../../dist/toolchain/native.js";
+import { createCsharpTargetConfiguration } from "../../../dist/compilation/configuration.js";
+import { validateCsharpTargetOptions } from "../../../dist/options/target.js";
 import {
   analyzeCsharpProject,
 } from "../../../dist/analysis/project/index.js";

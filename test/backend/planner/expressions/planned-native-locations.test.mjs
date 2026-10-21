@@ -6,7 +6,7 @@ import { planCsharpExpressionCompletion } from "../../../../dist/backend/planner
 import { csharpPlannedValue, sequenceCsharpPlannedValues } from "../../../../dist/backend/planner/expressions/planned-values.js";
 import { composeCsharpPlannedCall } from "../../../../dist/backend/planner/expressions/target-members/selected-call/planned-arguments.js";
 import { planSelectedCsharpBinaryOperation } from "../../../../dist/backend/planner/expressions/operators/selected-binary.js";
-import { planCsharpTypedLocationOperation } from "../../../../dist/backend/planner/expressions/expression-typed-locations.js";
+import { planCsharpTypedLocationOperation } from "../../../../dist/backend/planner/expressions/typed-locations.js";
 import { csharpRuntimeLocationTargetType } from "../../../../dist/target-model/types/index.js";
 import { csharpVoidTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
 

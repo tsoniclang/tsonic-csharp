@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { csharpTargetNamedType, csharpStringTargetType, csharpSourcePrimitiveTargetType,
   csharpQualifiedTypeRenderShape, csharpNullableTargetType } from "../../../dist/target-model/types/index.js";
-import { csharpCollectionElementRead } from "../../../dist/target-model/types/carriers/collection-reads.js";
+import { csharpCollectionElementRead } from "../../../dist/policy/operations/collections/element-reads.js";
 import { planCsharpCollectionElementRead, planCsharpCollectionIndexedIteration } from "../../../dist/backend/planner/expressions/collection-reads.js";
 import { planCsharpSequenceAppendStatements } from "../../../dist/backend/planner/expressions/sequence-conversions.js";
 

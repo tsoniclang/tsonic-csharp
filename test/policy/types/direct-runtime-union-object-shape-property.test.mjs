@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  csharpRuntimeUnionTargetType,
-  csharpStringTargetType,
-  resolveCsharpRuntimeUnionObjectShapeProperty,
-} from "../../../dist/policy/types/index.js";
+import { csharpRuntimeUnionTargetType, csharpStringTargetType } from "../../../dist/policy/types/index.js";
+import { resolveCsharpRuntimeUnionObjectShapeProperty } from "../../../dist/analysis/objects/runtime-union-shapes.js";
 
 const selectedDeclaration = {};
 const string = csharpStringTargetType();

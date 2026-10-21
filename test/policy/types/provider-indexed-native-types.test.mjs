@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
 import { providerIndexedPolicyFixture } from "../../../../tsonic/test/fixtures/provider-indexed-policy.mjs";
-import { resolveCsharpProviderIndexedAccess } from "../../../dist/policy/types/resolution/indexed-access.js";
+import { resolveCsharpProviderIndexedAccess } from "../../../dist/analysis/types/resolution/indexed-access.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { directProviderHost, memberRelation, signatureRelation, providerBinding, providerDeclaration, providerField } from "../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
 

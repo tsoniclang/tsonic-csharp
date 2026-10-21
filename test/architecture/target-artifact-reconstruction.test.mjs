@@ -4,10 +4,10 @@ import test from "node:test";
 
 const planner = productSource("src/backend/planner/program/planning.ts");
 const reconstruction = productSource(
-  "src/backend/planner/artifacts/source-file-reconstruction.ts",
+  "src/backend/planner/artifacts/source-files.ts",
 );
 const contracts = productSource(
-  "src/backend/planner/artifacts/source-file-contract.ts",
+  "src/analysis/source-modules/artifacts.ts",
 );
 
 test("C# source artifacts use one contract-driven reconstruction path", () => {

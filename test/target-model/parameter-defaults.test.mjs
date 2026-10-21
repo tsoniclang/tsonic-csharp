@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { csharpRuntimeParameterDefault } from "../../dist/target-model/types/parameter-defaults.js";
+import { csharpRuntimeParameterDefault } from "../../dist/policy/types/storage/parameter-defaults.js";
 import { csharpNullableTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType,
   csharpTsValueTargetType, csharpTargetNamedType, csharpVoidTargetType } from "../../dist/target-model/types/index.js";
 

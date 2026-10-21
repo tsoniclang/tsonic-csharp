@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpProjectTypePolicy } from "../../../dist/analysis/project-types/catalog/resolution.js";
-import { createCsharpProjectTypePolicy } from "../../../dist/policy/types/project/project-types.js";
+import { createCsharpProjectTypePolicy } from "../../../dist/analysis/project-types/type-policy.js";
 import { csharpEnumerableTargetType } from "../../../dist/target-model/types/carriers/collections.js";
 
 const header = 'import type { int32, int64 } from "@tsonic/core/types.js";\n';

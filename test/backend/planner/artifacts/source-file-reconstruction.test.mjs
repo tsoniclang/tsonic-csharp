@@ -5,7 +5,7 @@ import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { checkCsharpSource, assertCsharpCheckingSucceeded } from "../../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpTargetProgram } from "../../../../dist/analysis/program/index.js";
 import { createCsharpProviderRelationResolver } from "../../../../dist/providers/native/projection/relation-resolution.js";
-import { createCsharpTargetConfiguration } from "../../../../dist/options/csharp-target-options.js";
+import { createCsharpTargetConfiguration } from "../../../../dist/compilation/configuration.js";
 import { createCsharpPlanningContext } from "../../../../dist/backend/planner/context.js";
 import { captureDependencies } from "../../../../dist/backend/planner/artifacts/graph/dependencies.js";
 import { reconstructCsharpSourceFiles } from "../../../../dist/backend/planner/artifacts/source-file-reconstruction.js";

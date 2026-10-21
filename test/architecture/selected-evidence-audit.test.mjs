@@ -124,7 +124,7 @@ test("C# consumes shared source semantics instead of raw compiler query containe
 
 test("operation selection consumes atomic shared semantic decisions", () => {
   const required = new Map([
-    ["src/policy/operations/members/selection/call-selection.ts", ".operations.call("],
+    ["src/analysis/operations/provider/calls/selection.ts", ".operations.call("],
     ["src/policy/operations/members/selection/property-selection.ts", ".operations.propertyAccess("],
     ["src/policy/operations/members/selection/element-selection.ts", ".operations.elementAccess("],
   ]);

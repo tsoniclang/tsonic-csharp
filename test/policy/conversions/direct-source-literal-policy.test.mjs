@@ -1,8 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {
-  resolveCsharpSourceLiteralTargetType,
-} from "../../../dist/policy/types/resolution/source-literal-policy.js";
+import { resolveCsharpSourceLiteralTargetType } from "../../../dist/policy/conversions/source-literals.js";
 import { analyzeSourceLiteralValues } from "@tsonic/target-api/source";
 import {
   csharpSourcePrimitiveTargetType,

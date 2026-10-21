@@ -1,19 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resolveSourceCallContract } from "../../../dist/policy/types/resolution/call-contracts.js";
-import { resolveSourceCallParameter, resolveSourceCallParameters, resolveSourceCallArgumentParameter,
-  resolveSourceCallResultWithState, resolveSourceCallTypeArguments } from "../../../dist/policy/types/resolution/public-api.js";
+import { resolveSourceCallContract } from "../../../dist/analysis/types/resolution/call-contracts.js";
+import { resolveSourceCallParameter, resolveSourceCallParameters, resolveSourceCallArgumentParameter, resolveSourceCallResultWithState, resolveSourceCallTypeArguments } from "../../../dist/analysis/types/resolution/call-api.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
-import { retainCsharpGenericCallableValue } from "../../../dist/policy/types/callables/generic-values.js";
-import { substituteTargetTypeParameters } from "../../../dist/target-model/types/substitution.js";
+import { retainCsharpGenericCallableValue } from "../../../dist/analysis/callables/generic-values.js";
+import { substituteTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
 import { csharpFreeTypeParameterIdentities } from "../../../dist/target-model/types/generic-references.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
-import { sourceCallableTypeParametersMatch, resolveSourceCallReceiverTargetType } from "../../../dist/policy/types/resolution/calls.js";
-import { csharpSourceTypeParameter } from "../../../dist/target-model/names/type-parameters.js";
+import { sourceCallableTypeParametersMatch, resolveSourceCallReceiverTargetType } from "../../../dist/analysis/types/resolution/calls.js";
+import { csharpSourceTypeParameter } from "../../../dist/source/extension/type-parameters.js";
 import { selectSourceCallParameterSlots } from "../../../../tsonic/packages/target-api/dist/source-semantics/call-parameter-slots.js";
-import { resolveCallableEvidence } from "../../../dist/policy/types/resolution/source-profiles.js";
-import { createCsharpTypeParameterEnvironment } from "../../../dist/policy/constraints/type-parameter-environment.js";
+import { resolveCallableEvidence } from "../../../dist/analysis/types/resolution/source-profiles.js";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/constraints/type-parameter-environment.js";
 
 const integer = { kind: "source-primitive", name: "int64" };
 const string = { kind: "source-primitive", name: "string" };

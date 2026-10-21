@@ -6,9 +6,7 @@ import {
 import {
   csharpJsRegExpTargetType,
 } from "../../../dist/policy/types/index.js";
-import {
-  selectCsharpRegularExpressionLiteral,
-} from "../../../dist/policy/operations/index.js";
+import { selectCsharpRegularExpressionLiteral } from "../../../dist/analysis/operations/syntax/regexp-literal.js";
 import {
   printCsharpExpression,
 } from "../../../dist/print/source/index.js";

@@ -2,9 +2,7 @@ import { nativeTypeFixture } from "../../../fixtures/dotnet-provider/native-inhe
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {
-  dotnetExportToTargetBinding,
-} from "../../../../dist/providers/native/model/index.js";
+import { dotnetExportToTargetBinding } from "../../../../dist/providers/native/projection/binding-projection.js";
 
 test(".NET target policy projects only exact JsonSerializer.Deserialize result type parameters", () => {
   const binding = dotnetExportToTargetBinding(nativeTypeFixture({
