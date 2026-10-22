@@ -26,7 +26,7 @@ test("project type emission queries checked reference syntax, never import conta
   assert.equal(selected.issues.length, 0, "checked type references are admitted before sealing");
   const clause = nodes.find(source.ast.is.IsImportClause);
   assert.equal(clause !== undefined, true, "the source contains the exact formerly invalid checker query subject");
-  assert.equal(selected.records.projectSourceReference.get(clause), undefined, "an import container has no native type-reference occurrence");
+  assert.equal(selected.records.projectSourceReference.get(clause) === undefined, true, "an import container has no native type-reference occurrence");
   const typeReference = nodes.find(source.ast.is.IsTypeReferenceNode);
   const declaration = selected.records.projectSourceReference.get(typeReference);
   assert.equal(declaration !== undefined, true, "the actual source type-reference occurrence retains its project declaration");
