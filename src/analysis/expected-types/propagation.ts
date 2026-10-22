@@ -266,6 +266,10 @@ export function createCsharpExpectedTypePropagation(
       } else if (policy.ast.is.IsShorthandPropertyAssignment(property)) {
         record(policy.ast.name(property), selected.member.type, strength, member(property),
           selected.member.exactNumericStorage === true);
+      } else if (policy.ast.is.IsMethodDeclaration(property) && selected.member.memberKind === "method") {
+        // An object-literal method initializes its member's delegate field, so that delegate is its callable target
+        // (parameters and defaults lower against it, as for an arrow property).
+        record(property, selected.member.type, strength);
       }
     }
   }

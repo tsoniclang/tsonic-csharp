@@ -166,7 +166,9 @@ export function analyzeCsharpStorage(
   }
 
   function recordCallableParameterRequirements(node: Node): void {
-    const contextual = policy.ast.is.IsArrowFunction(node) || policy.ast.is.IsFunctionExpression(node);
+    const objectLiteralMethod = policy.ast.is.IsMethodDeclaration(node) &&
+      policy.ast.is.IsObjectLiteralExpression(policy.ast.parent(node));
+    const contextual = policy.ast.is.IsArrowFunction(node) || policy.ast.is.IsFunctionExpression(node) || objectLiteralMethod;
     if (!contextual && !policy.ast.is.IsFunctionDeclaration(node) &&
       !policy.ast.is.IsMethodDeclaration(node) && !policy.ast.is.IsConstructorDeclaration(node)) {
       return;
@@ -178,7 +180,7 @@ export function analyzeCsharpStorage(
     const selectedSignature = callableTarget === undefined
       ? undefined
       : getCsharpLambdaSignature(callableTarget);
-    const nativeContract = contextual && callableTarget === undefined
+    const nativeContract = contextual && !objectLiteralMethod && callableTarget === undefined
       ? callables.get({ kind: "declaration", declaration: node })
       : undefined;
     const parameterTypes = selectedSignature === undefined

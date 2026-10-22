@@ -39,8 +39,9 @@ export function analyzeCsharpCallableParameterEmission(input: {
       if (node === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted callable requires its dense checked parameter list.", owner);
       const parameter = input.ast.as.AsParameterDeclaration(node);
       if (parameter?.name === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted callable parameter requires its exact checked binding.", node);
-      // Object-literal methods and captured local functions are also planned as lambdas; only arrow and function
-      // expressions carry a native incoming delegate parameter type, so the others select identity or default entries.
+      // Captured local functions are also planned as lambdas without a native incoming delegate parameter type, so they
+      // select identity or default entries; arrow and function expressions and object-literal methods (against their
+      // member delegate) carry one.
       const native = input.storage.lambdaParameterType.get(node);
       const runtime = input.declarations.runtimeDefault.get(node);
       // A selected delegate whose parameter is the default's present type (`(x: number) => number` for `(x = 5) => x`)
