@@ -1,30 +1,30 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createCsharpNumericLiteralToken } from "../../../dist/target-model/syntax/numeric-literals.js";
-import { isCsharpTargetTypeRef, snapshotCsharpTargetTypes } from "../../../dist/target-model/types/snapshot.js";
+import { createCsharpNumericLiteralToken } from "../../dist/target-model/syntax/numeric-literals.js";
+import { isCsharpTargetTypeRef, snapshotCsharpTargetTypes } from "../../dist/target-model/types/snapshot.js";
 import {
   csharpTypeFromTargetTypeRef,
-} from "../../../dist/backend/planner/types/target-types.js";
-import { renderObjectShapeMembers } from "../../../dist/backend/planner/objects/declarations.js";
-import { objectShapeArtifactKey } from "../../../dist/analysis/program/records/object-shape-keys.js";
-import { analyzeCsharpObjectMemberEmission } from "../../../dist/analysis/objects/member-emission.js";
+} from "../../dist/backend/planner/types/target-types.js";
+import { renderObjectShapeMembers } from "../../dist/backend/planner/objects/declarations.js";
+import { objectShapeArtifactKey } from "../../dist/analysis/program/records/object-shape-keys.js";
+import { analyzeCsharpObjectMemberEmission } from "../../dist/analysis/objects/member-emission.js";
 import {
   printCsharpCompilationUnit,
   printCsharpExpression,
   printCsharpStatement,
   printCsharpType,
-} from "../../../dist/print/source/index.js";
+} from "../../dist/print/source/index.js";
 import {
   finalizeCsharpCompilationUnit,
-} from "../../../dist/backend/planner/program/compilation-unit.js";
-import { applyCsharpObjectShapeDisplayNames } from "../../../dist/backend/target-ast/normalization/object-shape-names.js";
-import { selectCsharpObjectShapeDisplayNames } from "../../../dist/analysis/names/object-shapes.js";
+} from "../../dist/backend/planner/program/compilation-unit.js";
+import { applyCsharpObjectShapeDisplayNames } from "../../dist/backend/target-ast/normalization/object-shape-names.js";
+import { selectCsharpObjectShapeDisplayNames } from "../../dist/analysis/names/object-shapes.js";
 import {
   csharpDelegateTargetType,
   csharpPropertySourceMemberKey,
   csharpTargetTypeFromBinding,
   targetTypeRefEquals,
-} from "../../../dist/policy/types/index.js";
+} from "../../dist/policy/types/index.js";
 
 const unbackedObjectStorage = Object.freeze({ nativeField: { get: () => undefined } });
 

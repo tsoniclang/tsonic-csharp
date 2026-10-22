@@ -2,18 +2,18 @@ import assert from "node:assert/strict";
 import { readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
-import { csharpCoreRuntimeSource, csharpJsRuntimeSource, csharpRuntimeSourceContributions } from "../../../dist/public/provider.js";
-import { readCsharpTargetFramework } from "../../../dist/options/target.js";
-import { parseCsharpTargetFramework } from "../../../dist/target-model/configuration/framework.js";
-import { selectDotnetPlatformDirectory } from "../../../dist/providers/native/acquisition/toolchain.js";
-import { validateDotnetReflectionTargetFramework } from "../../../dist/providers/native/acquisition/cache-request.js";
-import { resolveDotnetProviderToolPaths } from "../../../dist/providers/native/acquisition/path-resolution.js";
+import { csharpCoreRuntimeSource, csharpJsRuntimeSource, csharpRuntimeSourceContributions } from "../../../../dist/public/provider.js";
+import { readCsharpTargetFramework } from "../../../../dist/options/target.js";
+import { parseCsharpTargetFramework } from "../../../../dist/target-model/configuration/framework.js";
+import { selectDotnetPlatformDirectory } from "../../../../dist/providers/native/acquisition/toolchain.js";
+import { validateDotnetReflectionTargetFramework } from "../../../../dist/providers/native/acquisition/cache-request.js";
+import { resolveDotnetProviderToolPaths } from "../../../../dist/providers/native/acquisition/path-resolution.js";
 
-import { createCsharpTargetConfiguration } from "../../../dist/compilation/configuration.js";
-import { classifyCsharpProjectConfiguration } from "../../../dist/compilation/project.js";
-import { planCsharpProjectFile } from "../../../dist/backend/planner/project/project-artifacts.js";
-import { createCsharpCompilationRecords } from "../../../dist/analysis/program/records/compilation.js";
-import { materializeCsharpOutputPlan } from "../../../dist/backend/emission/materialize.js";
+import { createCsharpTargetConfiguration } from "../../../../dist/compilation/configuration.js";
+import { classifyCsharpProjectConfiguration } from "../../../../dist/compilation/project.js";
+import { planCsharpProjectFile } from "../../../../dist/backend/planner/project/project-artifacts.js";
+import { createCsharpCompilationRecords } from "../../../../dist/analysis/program/records/compilation.js";
+import { materializeCsharpOutputPlan } from "../../../../dist/backend/emission/materialize.js";
 
 function csharpRuntimeProjectReference(selected, source) {
   const contributions = csharpRuntimeSourceContributions(source);

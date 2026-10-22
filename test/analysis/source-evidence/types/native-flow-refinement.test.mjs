@@ -1,18 +1,18 @@
-import { assertNoTargetDiagnostics } from "../../../../tsonic/test/scripts/diagnostic-assertions.mjs";
+import { assertNoTargetDiagnostics } from "../../../../../tsonic/test/scripts/diagnostic-assertions.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
-import { selectCsharpNativeFlowMembers } from "../../../dist/analysis/source-evidence/types/resolution/native-flow-refinement.js";
-import { csharpJsArrayTargetType, csharpJsDateTargetType, csharpJsRegExpTargetType } from "../../../dist/target-model/types/carriers/js.js";
-import { csharpStringTargetType, csharpObjectTargetType, csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
-import { csharpRuntimeUnionTargetType, getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
-import { resolveCsharpInstanceType } from "../../../dist/analysis/source-evidence/types/resolution/instance-tests.js";
-import { resolveSelectedValueWithState } from "../../../dist/analysis/source-evidence/types/resolution/public-api.js";
-import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
-import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
-import { createCsharpSourceUnionIndex } from "../../../dist/analysis/source-evidence/types/resolution/source-unions.js";
+import { selectCsharpNativeFlowMembers } from "../../../../dist/analysis/source-evidence/types/resolution/native-flow-refinement.js";
+import { csharpJsArrayTargetType, csharpJsDateTargetType, csharpJsRegExpTargetType } from "../../../../dist/target-model/types/carriers/js.js";
+import { csharpStringTargetType, csharpObjectTargetType, csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
+import { csharpRuntimeUnionTargetType, getCsharpRuntimeUnionArms } from "../../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { resolveCsharpInstanceType } from "../../../../dist/analysis/source-evidence/types/resolution/instance-tests.js";
+import { resolveSelectedValueWithState } from "../../../../dist/analysis/source-evidence/types/resolution/public-api.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../../dist/target-model/types/carriers/nullable.js";
+import { targetTypeRefEquals } from "../../../../dist/target-model/types/equality.js";
+import { createCsharpSourceUnionIndex } from "../../../../dist/analysis/source-evidence/types/resolution/source-unions.js";
 
 test("native nominal guard selection completes partial typeof evidence through the exact constructor owner", () => {
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: { "/src/index.ts": `

@@ -84,7 +84,7 @@ export const replacementContracts = Object.freeze({
   "source-core": contract(
     `const zero = defaultof<int32>();\nattribute<ObsoleteAttribute>().apply();`,
     [
-      "test/source/markers/direct-source-core-translation.test.mjs",
+      "test/source/direct-source-core-translation.test.mjs",
       "test/backend/planner/expressions/direct-translation-core.test.mjs",
       "test/providers/native/projection/dotnet-provider-attributes.test.mjs",
       "../tsonic/test/cli-build/providers/source-semantics/core.test.mjs",
@@ -105,7 +105,7 @@ export const replacementContracts = Object.freeze({
   "source-profiles": contract(
     `const clr = path.Split("/");\nconst js = path.split("/");`,
     [
-      "test/integration/source-profile/source-profile-contract.test.mjs",
+      "test/integration/generated/source-profile-contract.test.mjs",
       "../tsonic/test/cli-build/providers/source-profile/contract.test.mjs",
       "../tsonic/test/cli-build/runtime/js-surface/rejections.test.mjs",
     ],

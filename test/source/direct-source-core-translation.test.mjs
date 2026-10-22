@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   compileCsharpSource,
-} from "../../helpers/direct-csharp-session.mjs";
+} from "../helpers/direct-csharp-session.mjs";
 
 for (const moduleSpecifier of ["@tsonic/core/lang.js", "@tsonic/csharp/lang.js"]) {
   for (const placement of ["", '.target("inner")', '.target("outer")']) {

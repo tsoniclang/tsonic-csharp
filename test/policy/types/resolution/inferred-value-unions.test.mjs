@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
-import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../../helpers/direct-csharp-session.mjs";
+import { executeCsharpConstruction } from "../../../helpers/native-construction.mjs";
 
 for (const surface of [undefined, "js"]) {
   test(`scalar, array and callable payloads use closed native unions on ${surface ?? "native"}`, { timeout: 300_000 }, () => {

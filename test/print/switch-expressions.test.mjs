@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { printCsharpExpression } from "../../../dist/print/source/index.js";
+import { printCsharpExpression } from "../../dist/print/source/index.js";
 
 test("native switch expressions preserve patterns, guards and receiver precedence", () => {
   const expression = { kind: "SwitchExpression", expression: { kind: "IdentifierName", name: "input" }, arms: [

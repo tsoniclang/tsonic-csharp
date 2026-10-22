@@ -3,19 +3,19 @@ import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { planCsharpProject, planCsharpProjectFile } from "../../../dist/backend/planner/project/project-artifacts.js";
-import { createCsharpCompilationRecords } from "../../../dist/analysis/program/records/compilation.js";
-import { materializeCsharpOutputPlan } from "../../../dist/backend/emission/materialize.js";
-import { createCsharpTargetPack } from "../../../dist/descriptor/target-pack.js";
-import { printCsharpProjectFile } from "../../../dist/print/project/manifest.js";
-import { createDotnetToolchain } from "../../../dist/toolchain/native.js";
-import { createCsharpTargetConfiguration } from "../../../dist/compilation/configuration.js";
-import { validateCsharpTargetOptions } from "../../../dist/options/target.js";
+import { planCsharpProject, planCsharpProjectFile } from "../../../../dist/backend/planner/project/project-artifacts.js";
+import { createCsharpCompilationRecords } from "../../../../dist/analysis/program/records/compilation.js";
+import { materializeCsharpOutputPlan } from "../../../../dist/backend/emission/materialize.js";
+import { createCsharpTargetPack } from "../../../../dist/descriptor/target-pack.js";
+import { printCsharpProjectFile } from "../../../../dist/print/project/manifest.js";
+import { createDotnetToolchain } from "../../../../dist/toolchain/native.js";
+import { createCsharpTargetConfiguration } from "../../../../dist/compilation/configuration.js";
+import { validateCsharpTargetOptions } from "../../../../dist/options/target.js";
 import {
   classifyCsharpProjectConfiguration,
-} from "../../../dist/compilation/project.js";
+} from "../../../../dist/compilation/project.js";
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 const tsonicLangRoot = dirname(repoRoot);
 const fixtureProjectRoot = join(repoRoot, ".temp", "project-artifacts-installed-runtime");
 mkdirSync(fixtureProjectRoot, { recursive: true });

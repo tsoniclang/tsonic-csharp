@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { csharpBindingDefaultCarrier } from "../../../dist/policy/types/storage/binding-normalization.js";
-import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
-import { csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../dist/target-model/types/index.js";
+import { csharpBindingDefaultCarrier } from "../../../../dist/policy/types/storage/binding-normalization.js";
+import { csharpNullableTargetType } from "../../../../dist/target-model/types/carriers/nullable.js";
+import { csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../../dist/target-model/types/index.js";
 
 test("binding defaults preserve nullable fallback storage and native generic payloads", () => {
   for (const value of [csharpSourcePrimitiveTargetType("int64"), csharpStringTargetType(),

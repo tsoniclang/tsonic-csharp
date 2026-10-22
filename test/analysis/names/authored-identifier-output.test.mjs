@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compileCsharpSource } from "../../../helpers/direct-csharp-session.mjs";
+import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 
 test("C# authored declarations and cross-file aliases retain exact spelling", () => {
   const compiled = compileCsharpSource({

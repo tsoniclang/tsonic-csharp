@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { selectCsharpInferredNumericArrayElement } from "../../../dist/policy/types/collections/array-elements.js";
-import { csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpBooleanTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
-import { csharpRuntimeUnionTargetType, csharpAbsenceTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
-import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
-import { createCsharpTypeResolutionQueryCache } from "../../../dist/analysis/source-evidence/types/resolution/query-cache.js";
+import { selectCsharpInferredNumericArrayElement } from "../../../../dist/policy/types/collections/array-elements.js";
+import { csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpBooleanTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
+import { csharpRuntimeUnionTargetType, csharpAbsenceTargetType } from "../../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { csharpNullableTargetType } from "../../../../dist/target-model/types/carriers/nullable.js";
+import { createCsharpTypeResolutionQueryCache } from "../../../../dist/analysis/source-evidence/types/resolution/query-cache.js";
 
 const primitive = csharpSourcePrimitiveTargetType;
 const fixed = name => Object.freeze({ carrier: primitive(name), literal: undefined, literalDefault: undefined });
