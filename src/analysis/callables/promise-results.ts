@@ -111,7 +111,9 @@ export function analyzeCsharpPromiseResults(input: {
       if (isCall && call?.sourceSelectedSignatureKind !== "resolved") return undefined;
       const checked = input.storage.typeFor(value);
       if (checked.kind === "unresolved") return unresolved(value.node, checked.reason);
-      const carrier = input.sourceCarrier(checked.type, checked.sourceFile);
+      // A call's native result carrier is the one its selected operation produces (for example the generator protocol's
+      // Task<IteratorResult> for an async generator's next()), not a carrier re-derived from the checked result type.
+      const carrier = isCall ? input.records.valueRead.get(value.node)?.value : input.sourceCarrier(checked.type, checked.sourceFile);
       if (carrier === undefined) return undefined;
       const task = select(carrier, value.node);
       if (isCall && task === undefined && input.records.selectedCall.get(value.node) === undefined &&
