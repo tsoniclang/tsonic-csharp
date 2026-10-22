@@ -41,7 +41,9 @@ function setup(optionalReceiver = false, optionalCall = false, element = false) 
   const analyze = operation => analyzeCsharpJsCalls(syntax, [call], { selectedCall: { get: node => node === call
     ? { form: { kind: "js-value", operation }, source } : undefined } }, () => true);
   const analysis = analyze(selected);
-  const input = { program: { source: { ast: syntax }, records: { jsCall: analysis.records.jsCall, typeEmission: csharpTypeEmissionRecord() } },
+  const input = { program: { source: { ast: syntax }, records: { jsCall: analysis.records.jsCall, typeEmission: csharpTypeEmissionRecord(),
+    // A dynamic JS-value call publishes neither a native constant nor a native absence fact.
+    nativeConstant: { get: () => undefined }, nativeAbsence: { get: () => undefined } } },
     scope: {}, names: { temporaryName: () => `local${counter++}` } };
   const plan = subject => csharpPlannedValue(carrier, identifier(subject.kind),
     subject === argument ? [effect("argumentPrelude")] : subject === key ? [effect("keyPrelude")] : []);
