@@ -6,6 +6,7 @@ import { selectCsharpUnionArmMapping } from "../../../dist/policy/conversions/un
 import { selectCsharpConversion, selectCsharpFlowReadConversion } from "../../../dist/policy/conversions/index.js";
 import { planCsharpUnionMapping } from "../../../dist/backend/planner/expressions/union-mappings.js";
 import { admitCsharpConversionSelection } from "../../../dist/analysis/conversions/validation.js";
+import { csharpTypeEmissionRecord } from "../../helpers/planning-records.mjs";
 
 test("union mappings require complete exact coverage and reject forged or numeric-changing arms", () => {
   const integer = csharpSourcePrimitiveTargetType("int64");
