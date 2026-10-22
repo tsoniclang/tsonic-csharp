@@ -17,3 +17,20 @@ export function csharpProgramPromiseResults(program) {
   csharpProgramSourceFiles(program).forEach(visit);
   return rows;
 }
+
+// The object shape every native object-literal construction of the sealed program builds, in source order. Native demand
+// publishes the shape with the literal's use (records.nativeExpression); the physical use wins over a converted one.
+export function csharpProgramObjectLiteralShapes(program) {
+  const { ast } = program.source;
+  const shapes = [];
+  const visit = node => {
+    if (ast.is.IsObjectLiteralExpression(node)) {
+      const selected = program.records.nativeExpression.get(node);
+      const shape = selected?.physical?.objectShape ?? (selected?.use.kind === "erased" ? undefined : selected?.use.objectShape);
+      if (shape !== undefined) shapes.push(shape);
+    }
+    ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  csharpProgramSourceFiles(program).forEach(visit);
+  return shapes;
+}

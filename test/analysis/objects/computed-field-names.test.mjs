@@ -5,6 +5,7 @@ import {
   assertCsharpCheckingSucceeded,
   compileCsharpSource,
 } from "../../helpers/direct-csharp-session.mjs";
+import { csharpProgramObjectLiteralShapes } from "../../helpers/program-source-files.mjs";
 
 const staticKeys = [
   { name: "string literal", prelude: "", key: '"value"', ordinary: "value" },
@@ -259,7 +260,7 @@ export function make(): number {
       assert.equal(compiled.result.plan !== undefined, true, "computed-field program reaches planning");
       assert.equal(compiled.result.artifacts.length > 0, true, "computed-field program emits native artifacts");
       const expectedName = current.expected ?? (current.ordinary.startsWith('"') ? JSON.parse(current.ordinary) : current.ordinary);
-      assert.equal(compiled.result.program.objectShapes.knownShapes().some(shape => shape.members.some(member =>
+      assert.equal(csharpProgramObjectLiteralShapes(compiled.result.program).some(shape => shape.members.some(member =>
         member.sourceKey.kind === "property" && member.sourceKey.name === expectedName)), true,
       "sealed native member preserves the exact source key, not a rounded checked spelling");
     });
