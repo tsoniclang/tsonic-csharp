@@ -1,46 +1,22 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTargetSourceProgram, Node_Expression } from "@tsonic/target-api/source";
+import { Node_Expression } from "@tsonic/target-api/source";
 import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 import { requiredStorageSubject } from "../../../../tsonic/test/fixtures/source-navigation.mjs";
-import { captureTargetCapabilityContributions } from "../../../../tsonic/packages/host/dist/target/extensions.js";
 import { nativeRetainedErrorFlowSource } from "../../../../tsonic/test/fixtures/native-retained-errors.mjs";
 import { createTsonicPlugin } from "../../../../csharp-nodejs/dist/index.js";
 import {
-  assertCsharpCheckingSucceeded,
   assertCsharpCompilationSucceeded,
-  checkCsharpSource,
+  analyzeCsharpSource,
   compileCsharpSource,
 } from "../../helpers/direct-csharp-session.mjs";
-import { analyzeCsharpAnalysisProgram } from "../../../dist/analysis/program/index.js";
 import { createCsharpErrorStorageDemandQuery } from "../../../dist/analysis/objects/error-storage-demands.js";
-import { createCsharpTargetConfiguration } from "../../../dist/compilation/configuration.js";
-import { collectCsharpCapabilityContributions } from "../../../dist/providers/native/acquisition/contributions.js";
-import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { csharpExceptionTargetType, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
-import { completeCsharpAnalysisRequest } from "../../helpers/analysis-request.mjs";
-
-const analyzeCompletedCsharpProgram = request => analyzeCsharpAnalysisProgram(completeCsharpAnalysisRequest(request));
 
 test("retained-provider catch reads select exact readonly C# Error flow and observation facts", () => {
-  const capability = createTsonicPlugin();
-  const checked = checkCsharpSource({ surface: "js", capabilities: [capability], sourceText: nativeRetainedErrorFlowSource });
-  assertCsharpCheckingSucceeded(checked);
-  const source = createTargetSourceProgram(checked.source);
-  const contributions = collectCsharpCapabilityContributions(captureTargetCapabilityContributions({
-    project: checked.project,
-    projectDirectory: checked.paths.projectRoot,
-    target: checked.target,
-    selectedCapabilities: [capability],
-    selectedSurfaces: checked.targetPack.surfaces.filter(surface => surface.id === "js"),
-  }));
-  const analysis = analyzeCompletedCsharpProgram({
-    input: { source, sourcePackages: checked.sourcePackages, project: checked.project, target: checked.target,
-      runtimeActivatedCapabilityIds: [], runtimeReferences: [], paths: checked.paths },
-    configuration: createCsharpTargetConfiguration(checked.target, checked.paths.projectRoot, checked.paths.targetOutputRoot),
-    providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: contributions.providerPolicies }),
-    binaryExecutionDriver: contributions.binaryExecutionDriver,
-  });
+  // C# member naming reads the System.Object inventory, so the analysis runs with the session's live providers.
+  const { source, analysis } = analyzeCsharpSource({ surface: "js", capabilities: [createTsonicPlugin()],
+    sourceText: nativeRetainedErrorFlowSource });
   assert.equal(analysis.kind, "resolved", "C# retained Error source has one closed target analysis");
   assert.equal(analysis.diagnostics.length, 0, "C# retained Error analysis has no diagnostics");
   const program = analysis.value;
