@@ -436,7 +436,8 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
         const kind = member.memberKind === "method" ? "method"
           : member.accessor !== undefined || structural || member.bound || (shape.implements?.length ?? 0) > 0 ? "property" : "field";
         const dispatch = method === undefined ? undefined : input.dispatch.get(method);
-        if (member.memberKind !== "method" || member.optional !== true || member.methodValueContract === undefined) {
+        // An optional method without an authored implementation emits no method header; an implemented one does.
+        if (member.memberKind !== "method" || member.optional !== true || member.methodValueContract === undefined || method !== undefined) {
           recordHeader(member.targetName, shapeSignature(member, member.targetName, kind), dispatch?.overridesBase === true);
         }
         const storageName = objectShapeStorageMemberName(shape, member);

@@ -402,10 +402,21 @@ export function analyzeCsharpNativeDemand(
     const cached = erasedExpressions.get(expression);
     if (cached !== undefined) return cached;
     const operand = sourceTransparentExpressionOperand(ast, expression);
-    const erased = input.evidence.compileTimeMetadata.get(expression) ? "erased-statement" : input.participation.get(expression) === "erased"
-      ? "discarded-callable" : operand === undefined ? false : erasedExpression(operand);
+    erasedExpressions.set(expression, false);
+    const erased = input.evidence.compileTimeMetadata.get(expression) ? "erased-statement" : input.participation.get(expression) === "erased" ||
+      discardedCallableRead(expression) ? "discarded-callable" : operand === undefined ? false : erasedExpression(operand);
     erasedExpressions.set(expression, erased);
     return erased;
+  }
+
+  // A read of a const binding whose initializer is a discarded function value: the source navigation proved every read
+  // of that binding discarded, and the function value is never created, so the read is erased with it.
+  function discardedCallableRead(expression: Node): boolean {
+    if (!ast.is.IsIdentifier(expression)) return false;
+    const declaration = input.navigation.sourceReferenceFor(expression)?.declaration;
+    if (declaration === undefined || !ast.is.IsVariableDeclaration(declaration) || ast.name(declaration) === expression) return false;
+    const initializer = ast.as.AsVariableDeclaration(declaration)?.Initializer;
+    return initializer !== undefined && erasedExpression(initializer) === "discarded-callable";
   }
 
   function selectDiscardedPresence(expression: Node, selected: CsharpNativeOperandSelection,

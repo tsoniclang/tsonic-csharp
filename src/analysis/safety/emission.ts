@@ -119,7 +119,10 @@ export function analyzeCsharpSafetyEmission(input: {
       const marker = expression === undefined ? undefined : input.safety.safetyOperation.get(expression);
       if (marker?.kind === "unsafe-context" && marker.fact.kind === "remaining-block") { context = false; permission = true; }
     }
-    const value = Object.freeze({ context, permission: permission || !preview && context,
+    // An erased statement (a safety builder, an attribute application or a block marker) emits nothing, so nothing in
+    // it can require an unsafe context or unsafe permission from its enclosing declaration or compilation.
+    const erased = input.operations.erasedStatement.get(node) === true;
+    const value = Object.freeze({ context: !erased && context, permission: !erased && (permission || !preview && context),
       moduleContext: ast.is.IsSourceFile(node) && children.some(child => runtimeStatement(child.node) && child.selection.context) });
     subjects.set(node, value);
     const placements = new Map<CsharpSafetyPlacement, readonly "unsafe"[]>();

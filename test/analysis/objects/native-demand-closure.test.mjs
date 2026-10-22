@@ -9,6 +9,7 @@ import { publishCsharpNativeArtifactDemand } from "../../../dist/analysis/progra
 import { objectShapeArtifactKey } from "../../../dist/analysis/program/records/object-shape-keys.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { createCsharpPlanningContext } from "../../../dist/backend/planner/context.js";
+import { csharpObjectShapeArtifact } from "../../../dist/backend/planner/artifacts/object-shapes.js";
 import { csharpObjectShapeMemberContractKey } from "../../../dist/target-model/types/object-shape-identity.js";
 import { monomorphicStructuralOptionalFiles } from "../../../../tsonic/test/fixtures/generic-structural-methods.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
@@ -37,23 +38,22 @@ for (const surface of ["native", "js"]) for (const [name, body] of programs) {
       assert.equal(artifact.key === objectShapeArtifactKey(artifact.fact), true, "canonical target-owned artifact key");
     }
     const context = createCsharpPlanningContext(program);
-    assert.equal(Object.hasOwn(context.artifacts, "registerObjectShape") || Object.hasOwn(context.artifacts, "requireObjectShapeCapability") ||
-      Object.hasOwn(context.artifacts, "requireObjectShapeProjection") || Object.hasOwn(context.artifacts, "requireObjectShapeMethodReceiver"), false,
-    "no decision or mutation API survives in the backend");
-    const revision = context.artifacts.revision;
-    for (const artifact of demand.artifacts) assert.equal(context.artifacts.objectShape(artifact.fact) === artifact, true,
+    assert.equal(Object.hasOwn(context, "artifacts") || Object.isFrozen(context) === false, false,
+      "no artifact graph, decision or mutation API survives in the backend");
+    assert.equal(context.program.records.objectShapeArtifact === demand, true, "the backend holds the sealed demand by identity");
+    for (const artifact of demand.artifacts) assert.equal(csharpObjectShapeArtifact(context, artifact.fact) === artifact, true,
       "the backend reads exactly the sealed artifact");
-    assert.equal(context.artifacts.revision, revision, "render-time demand reads cannot change publication");
+    assert.equal(demand.artifacts.every(artifact => demand.get(artifact.key) === artifact), true, "render-time demand reads cannot change publication");
     assert.equal([...compiled.artifacts.values()].some(text => text.includes("class ") || text.includes("struct ")), true, "native declarations are emitted");
     const subject = nodes.find(node => source.ast.is.IsFunctionDeclaration(node));
     const row = { family: "objectShapeArtifact", key: demand.artifacts[0].key, subject,
       construct: "native object-shape artifact", producer: "analyzeCsharpNativeArtifactDemand" };
     assertCsharpRequiredRecords(program.records, [row]);
     const missing = Object.freeze({ ...demand, get: key => key === row.key ? undefined : demand.get(key) });
-    assert.throws(() => createCsharpProgramRecords({ ...csharpRecordInput(program.records), objectShapeDemand: missing }, [row]),
+    assert.throws(() => createCsharpProgramRecords(csharpRecordInput({ ...program.records, objectShapeArtifact: missing }), [row]),
       /Required C# semantic plan 'objectShapeArtifact'/u, "a missing actual artifact prevents publication");
     const invalidContext = createCsharpPlanningContext({ ...program, records: { ...program.records, objectShapeArtifact: missing } });
-    assert.throws(() => invalidContext.artifacts.objectShapeHasCapability(demand.artifacts[0].fact, "json-serialization"),
+    assert.throws(() => csharpObjectShapeArtifact(invalidContext, demand.artifacts[0].fact),
       /sealed artifact record/u, "an impossible missing record cannot become a false capability answer");
     assert.throws(() => assertCsharpRequiredRecords(program.records, [{ ...row, key: "foreign-owner" }]),
       /Required C# semantic plan 'objectShapeArtifact'/u, "a different artifact is not evidence for this owner");
