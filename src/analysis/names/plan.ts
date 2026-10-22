@@ -165,10 +165,19 @@ export function createCsharpSourceNameBuilder(
         }
         return false;
       };
+      // C# 8 and later let locals and parameters of a lambda or local function shadow enclosing names; CS0136 applies only
+      // to a nested local declaration space of the same function body.
+      const crossesFunction = (node: Node, scope: Node): boolean => {
+        for (let current: Node | undefined = node; current !== undefined && current !== scope; current = host.ast.parent(current)) {
+          if (host.ast.is.IsArrowFunction(current) || host.ast.is.IsFunctionExpression(current) || host.ast.is.IsFunctionDeclaration(current) ||
+            host.ast.is.IsMethodDeclaration(current) || host.ast.is.IsConstructorDeclaration(current) ||
+            host.ast.is.IsGetAccessorDeclaration(current) || host.ast.is.IsSetAccessorDeclaration(current)) return true;
+        }
+        return false;
+      };
       for (const current of nativeBindings) {
         const shadows = byName.get(current.name)?.some(other => other !== current && other.scope !== current.scope &&
-          within(current.scope, other.scope) && !(host.ast.is.IsFunctionDeclaration(other.binding.declaration) &&
-            within(current.binding.declaration, other.binding.declaration)));
+          within(current.scope, other.scope) && !crossesFunction(current.scope, other.scope));
         if (!shadows) continue;
         issues.push(Object.freeze({ code: "CSHARP_INVALID_IDENTIFIER", category: "error", source: "tsonic-csharp",
           sourceNode: current.binding.name,
