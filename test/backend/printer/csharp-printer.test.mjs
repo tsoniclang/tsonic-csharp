@@ -7,6 +7,7 @@ import {
 } from "../../../dist/backend/planner/types/target-types.js";
 import { renderObjectShapeMembers } from "../../../dist/backend/planner/objects/declarations.js";
 import { objectShapeArtifactKey } from "../../../dist/analysis/program/records/object-shape-keys.js";
+import { analyzeCsharpObjectMemberEmission } from "../../../dist/analysis/objects/member-emission.js";
 import {
   printCsharpCompilationUnit,
   printCsharpExpression,
@@ -36,6 +37,22 @@ function unhiddenObjectMembers(shape, names) {
     assert.equal(admitted.has(subject.member), true, `printer fixture admits ${subject.member}`);
     return false;
   } }) });
+}
+
+// Object members are selected by analyzeCsharpObjectMemberEmission for a generated (synthetic) shape; a refusal is an
+// analysis issue and nothing is rendered. The renderer prints the selected member records.
+function renderGeneratedMembers(shape, hiddenNames, diagnostics) {
+  const artifact = { key: objectShapeArtifactKey(shape), fact: shape, capabilities: [], materialization: "synthetic",
+    typeParameterNames: [], receiverBoundMethodKeys: [] };
+  const analysis = analyzeCsharpObjectMemberEmission({ shapes: { knownShapes: () => [shape] },
+    demand: { artifacts: [artifact], get: key => key === artifact.key ? artifact : undefined },
+    captures: { captureFrameShape: { get: () => undefined } }, storage: unbackedObjectStorage });
+  if (analysis.issues.length !== 0) {
+    diagnostics?.push(...analysis.issues);
+    return undefined;
+  }
+  return renderObjectShapeMembers(undefined, shape, { ...analysis.records, structuralObject: { get: () => undefined },
+    nativeLayoutEmission: { get: () => undefined }, nativeMemberHiding: unhiddenObjectMembers(shape, hiddenNames).memberHiding });
 }
 
 test("generated native expressions retain precedence and exact association at printing", () => {
@@ -282,7 +299,7 @@ test("numeric tokens retain floating values beyond the native integer literal ra
       [-0, "-0D"],
     ]) assert.equal(printCsharpExpression({ kind, value }), expected);
     for (const value of [NaN, Infinity, -Infinity]) {
-      assert.throws(() => printCsharpExpression({ kind, value }), /finite values/u);
+      assert.throws(() => printCsharpExpression({ kind, value }), /Unsupported C# numeric literal syntax reached printer: non-finite-number/u);
     }
   }
   assert.equal(printCsharpExpression({ kind: "NumericLiteralExpression", token: createCsharpNumericLiteralToken("100000000000000000000"), suffix: "M" }), "100000000000000000000M");
@@ -322,7 +339,7 @@ test("printer preserves exact 64-bit integer literal digits", () => {
       digits: "1; Console.WriteLine(2)",
       suffix: "L",
     }),
-    /integer literal digits must be canonical unsigned decimal text/u,
+    /Unsupported C# integer literal syntax reached printer: noncanonical-integer-digits/u,
   );
 });
 
@@ -549,7 +566,8 @@ test("object-shape display names are readable, unique, and build-order invariant
         }],
       }],
     }],
-  }], [candidates[0]]);
+  }], [{ canonicalName: candidates[0].canonicalName, identity: candidates[0].identity,
+    displayName: forward.get(candidates[0].canonicalName) }]);
   const normalizedSource = printCsharpCompilationUnit(normalized);
   assert.match(normalizedSource, /class Todo_InputShape_aaaaaaaaaaaa/u);
   assert.match(normalizedSource, /Todo_InputShape_aaaaaaaaaaaa next/u);
@@ -795,7 +813,7 @@ test("printer fails closed for invalid or foreign raw syntax nodes", () => {
   );
   assert.throws(
     () => printCsharpType({ kind: "InvalidType", reason: "missing fact" }),
-    /Invalid C# type reached printer: missing fact/,
+    /Unsupported C# type: missing fact syntax reached printer: InvalidType/,
   );
   assert.throws(
     () => printCsharpCompilationUnit({
@@ -902,19 +920,7 @@ test("object shape methods require explicit delegate signature metadata", () => 
       },
     }],
   };
-  assert.equal(
-    renderObjectShapeMembers(
-      undefined,
-      rawDelegateShape,
-      false,
-      new Set(),
-      undefined,
-      undefined,
-      unbackedObjectStorage,
-      unhiddenObjectMembers(rawDelegateShape, ["Visit", "__tsonic_shape_method_0_Visit"]),
-    ),
-    undefined,
-  );
+  assert.equal(renderGeneratedMembers(rawDelegateShape, ["Visit", "__tsonic_shape_method_0_Visit"]), undefined);
 
   const metadataBackedShape = {
     ...rawDelegateShape,
@@ -923,16 +929,7 @@ test("object shape methods require explicit delegate signature metadata", () => 
       type: csharpDelegateTargetType("System.Action", [{ kind: "source-primitive", name: "int32" }]),
     }],
   };
-  const members = renderObjectShapeMembers(
-    undefined,
-    metadataBackedShape,
-    false,
-    new Set(),
-    undefined,
-    undefined,
-    unbackedObjectStorage,
-    unhiddenObjectMembers(metadataBackedShape, ["Visit", "__tsonic_shape_method_0_Visit"]),
-  );
+  const members = renderGeneratedMembers(metadataBackedShape, ["Visit", "__tsonic_shape_method_0_Visit"]);
   assert.ok(members);
   assert.equal(members.length, 2);
   assert.deepEqual(members[0].modifiers, ["public", "required"]);
@@ -956,19 +953,7 @@ test("object shape methods require explicit delegate signature metadata", () => 
     }],
   };
   const diagnostics = [];
-  assert.equal(
-    renderObjectShapeMembers(
-      undefined,
-      missingReturnFactShape,
-      false,
-      new Set(),
-      diagnostics,
-      { Kind: "KindTypeLiteral" },
-      unbackedObjectStorage,
-      unhiddenObjectMembers(missingReturnFactShape, ["Visit", "__tsonic_shape_method_0_Visit"]),
-    ),
-    undefined,
-  );
+  assert.equal(renderGeneratedMembers(missingReturnFactShape, ["Visit", "__tsonic_shape_method_0_Visit"], diagnostics), undefined);
   assert.match(diagnostics[0].message, /explicit return facts/);
 });
 
@@ -996,30 +981,14 @@ test("object shape declarations enforce required members while leaving optional 
     }],
   };
 
-  const fields = renderObjectShapeMembers(
-    undefined,
-    shape,
-    false,
-    new Set(),
-    undefined,
-    undefined,
-    unbackedObjectStorage,
-    unhiddenObjectMembers(shape, ["requiredValue", "optionalValue"]),
-  );
+  const fields = renderGeneratedMembers(shape, ["requiredValue", "optionalValue"]);
   assert.deepEqual(Object.fromEntries(fields?.map((member) => [member.name, member.modifiers]) ?? []), {
     optionalValue: ["public"],
     requiredValue: ["public", "required"],
   });
-  const properties = renderObjectShapeMembers(
-    undefined,
-    shape,
-    true,
-    new Set(),
-    undefined,
-    undefined,
-    unbackedObjectStorage,
-    unhiddenObjectMembers(shape, ["requiredValue", "optionalValue"]),
-  );
+  // A shape implementing an interface declares properties instead of fields.
+  const implementing = { ...shape, implements: [{ kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "__ShapeContract" }] };
+  const properties = renderGeneratedMembers(implementing, ["requiredValue", "optionalValue"]);
   assert.deepEqual(Object.fromEntries(properties?.map((member) => [member.name, member.modifiers]) ?? []), {
     optionalValue: ["public"],
     requiredValue: ["public", "required"],
