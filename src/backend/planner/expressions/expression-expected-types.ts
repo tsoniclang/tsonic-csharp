@@ -44,6 +44,9 @@ export function planCsharpNativeExpression(
   const physical = emission.physical ?? failCsharpPlannerInvariant("An admitted expression requires its physical emission use.", node);
   const planned = render(physical);
   if (planned === undefined || planned.completion.kind === "never" || selected.kind !== "converted") return planned;
+  // An expression planned as its storage (a nullish test's operand, a by-reference argument, a read-modify-write
+  // target) is the storage itself: like its flow-read projection, its use conversion is not applied.
+  if (input.storageExpression === node) return planned;
   if (emission.integerTruncation !== undefined) return planned;
   if (selected.completion.kind === "void") return csharpPlannedEffect(selected.target, planCsharpPlannedDiscard(planned));
   const conversion = emission.conversion ?? failCsharpPlannerInvariant("An admitted converted expression requires its selected native conversion.", node);
