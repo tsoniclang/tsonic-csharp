@@ -178,7 +178,7 @@ export function finalizeCsharpNativeEmission(
     ...jsCalls.issues,
     ...callAdmission.issues,
     ...optionalCallChains.issues,
-    ...analyzeCsharpConditions({ ast: source.ast, demand: nativeDemand, operations: admittedOperations, values: analysis.valueReads }),
+    ...analyzeCsharpConditions({ ast: source.ast, nodes: sourceStorage.nodes, demand: nativeDemand, operations: admittedOperations, values: analysis.valueReads }),
     ...analyzeCsharpVoidAdmission({ ast: source.ast, demand: nativeDemand, values: analysis.valueReads, operations: admittedOperations }),
     ...analyzeCsharpAwaitAdmission({ ast: source.ast, demand: nativeDemand, values: analysis.valueReads, operations: admittedOperations }),
     ...admittedIterations.issues,
