@@ -288,7 +288,10 @@ export function equal(): boolean { return High.Value === 9007199254740992; }
   }
 
   test(`C# ${surface ?? "native"} refuses cross-file checked merged enum membership once`, () => {
-    const compiled = compileCsharpSource({ surface, sourceText: "export function run(): number { return 42; }", files: {
+    // RULINGS 2026-10-22: the merged-enum refusal test sets script mode for its own fixtures; the subject is merging
+    // across script files, which module mode (the helper default) cannot express.
+    const compiled = compileCsharpSource({ surface, compilerOptions: { moduleDetection: "auto" },
+      sourceText: "export function run(): number { return 42; }", files: {
       "first.ts": "enum Value { First = 9007199254740992 }",
       "second.ts": "enum Value { Second = 9007199254740993 }",
     } });
