@@ -13,6 +13,7 @@ export type CsharpSourceProfileTypeKind =
   | "error"
   | "array"
   | "readonly-array"
+  | "template-strings-array"
   | "promise"
   | "promise-fulfilled-result"
   | "promise-rejected-result"
@@ -92,6 +93,7 @@ const sourceProfileTypePolicies = Object.freeze([
   ...csharpSourceErrorIdentities.map(identity => sourceProfileErrorTypePolicy("js", identity)),
   sourceProfileTypePolicy("js", "Array", "array"),
   sourceProfileTypePolicy("js", "ReadonlyArray", "readonly-array"),
+  sourceProfileTypePolicy("js", "TemplateStringsArray", "template-strings-array"),
   sourceProfileTypePolicy("js", "Promise", "promise"),
   sourceProfileTypePolicy("js", "PromiseLike", "promise"),
   sourceProfileTypePolicy("js", "PromiseFulfilledResult", "promise-fulfilled-result"),

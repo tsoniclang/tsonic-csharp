@@ -47,6 +47,11 @@ export function selectCsharpSourceProfileCarrier(
         ? csharpJsArrayTargetType(elementType)
         : { kind: "array", element: elementType };
     }
+    case "template-strings-array":
+      // TemplateStringsArray extends ReadonlyArray<string>; its elements read through the JS array indexer.
+      return typeArguments.length === 0 && identity.ownerId === "js"
+        ? csharpJsArrayTargetType(csharpStringTargetType())
+        : undefined;
     case "promise": {
       const resultType = typeArguments.length === 1
         ? typeArguments[0]
