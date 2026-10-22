@@ -327,7 +327,7 @@ test("direct C# translation selects the explicit JS array carrier for array synt
     {
         public static string edit(string text, Tsonic.CSharp.Js.JSArray<double> values)
         {
-            values.push(Tsonic.CSharp.Js.Number.parseInt(text, 10));
+            values.push(Tsonic.CSharp.Js.Number.parseInt(text, 10D));
             return Tsonic.CSharp.Js.String.toUpperCase(Tsonic.CSharp.Js.String.trim(text)) + Tsonic.CSharp.Js.Array.join(values, ",");
         }
     }
