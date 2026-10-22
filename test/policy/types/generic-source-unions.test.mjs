@@ -167,7 +167,8 @@ test("nullish refinement retains a native carrier only for the complete non-null
 test("nullable union conversion never confuses nullability with selecting an arm", () => {
   const union = csharpRuntimeUnionTargetType([byte, integer]);
   const nullable = csharpNullableTargetType(union);
-  assert.deepEqual(selectCsharpConversion({}, union, nullable, "implicit"), { kind: "identity" });
+  // Union`N is a readonly struct: wrapping it in Nullable<T> is the implicit nullable conversion, never an arm selection.
+  assert.deepEqual(selectCsharpConversion({}, union, nullable, "implicit"), { kind: "implicit", proof: "nullable" });
   assert.equal(selectCsharpConversion({}, nullable, union, "explicit").kind, "nullable-value");
   assert.equal(selectCsharpConversion({}, nullable, union, "implicit").kind, "rejected");
 });
