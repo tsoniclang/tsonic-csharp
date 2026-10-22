@@ -4,7 +4,7 @@ import type { CsharpTargetBindingFact, CsharpTargetMember, TargetTypeRef } from 
 import type { CsharpTypeQueries } from "../../../../policy/model/type-resolution.js";
 import { csharpTargetBindingSubstitutions, csharpTargetTypePatternFromBinding, resolveCsharpTargetTypePatternArguments, substituteCsharpTargetMember, targetTypeRefEquals } from "../../../../policy/types/index.js";
 
-import { isCompleteTypeParameterRelation } from "../../../../policy/operations/members/instantiation/binding-instantiation.js";
+import { isCompleteTypeParameterRelation } from "../../../../policy/operations/members/binding-instantiation.js";
 export interface CsharpSourceTypeEvidence {
   readonly node?: Node;
   readonly type?: Type;

@@ -20,7 +20,7 @@ import { csharpConstructibleTypeFromObjectShapeFact, objectShapeStorageMemberNam
 import { planObjectShapeDefaultProjection } from "../objects/object-shape-defaults.js";
 import { planArrayDefaultProjection } from "./array-defaults.js";
 import { planCsharpBindingDefaultValue } from "./optional-values.js";
-import { runtimeArrayHelperCall } from "../expressions/arrays/helpers.js";
+import { runtimeArrayHelperCall } from "../expressions/array-helpers.js";
 import { consumeCsharpPlannedValue } from "../statements/statement-output.js";
 import { qualifiedCsharpType } from "../types/index.js";
 import type { CsharpDestructuringAssignmentPattern, CsharpDestructuringAssignmentTarget } from "../../../target-model/records/value-projections.js";

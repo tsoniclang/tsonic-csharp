@@ -38,7 +38,7 @@ import {
 import {
   getCsharpObjectShapeFactForNode,
 } from "../../objects/fact-queries.js";
-import { renderCsharpStructuralInterfaceMethodValues } from "../../objects/declarations/structural-interfaces.js";
+import { renderCsharpStructuralInterfaceMethodValues } from "../../objects/structural-interfaces.js";
 import { planCsharpNativeMemberHiding, planCsharpAdmittedMemberName } from "../modifiers.js";
 import { renderObjectShapeProjectionMethods } from "../../objects/closed-object-shapes.js";
 import {

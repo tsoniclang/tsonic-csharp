@@ -5,12 +5,12 @@ import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "./expression-planner-types.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import type { CsharpPlanningContext } from "../context.js";
-import { translateSelectedTargetArguments, translateSourceOwnedArguments } from "./target-members/selected-call.js";
+import { translateSelectedTargetArguments, translateSourceOwnedArguments } from "./calls/selected-call.js";
 import { renderSelectedCsharpTargetMethodTypeArguments } from "./selected-method-type-arguments.js";
 import { translateCsharpJsValueInvocation } from "./js-value-operations.js";
 import type { CsharpPlannedValue } from "./planned-values.js";
 import { buildCsharpPlannedValue, planCsharpExpressionCompletion } from "./planned-value-composition.js";
-import { composeCsharpPlannedCall } from "./target-members/selected-call/planned-arguments.js";
+import { composeCsharpPlannedCall } from "./calls/planned-arguments.js";
 
 export function translateCsharpConstruction(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner, planCallArgument: CallArgumentPlanner): CsharpPlannedValue | undefined {

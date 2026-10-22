@@ -17,7 +17,7 @@ type CsharpProviderSignatureRelation = Extract<
 >;
 
 import type { CsharpProviderCallInstantiationHost } from "../../../../policy/model/provider-calls.js";
-import { everyRequiredTargetParameterIsSupplied } from "../../../../policy/operations/members/instantiation/arguments.js";
+import { everyRequiredTargetParameterIsSupplied } from "../../../../policy/operations/members/instantiation-arguments.js";
 type CsharpProviderArgumentValidation =
   | {
       readonly kind: "accepted";

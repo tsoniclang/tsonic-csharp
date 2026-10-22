@@ -3,7 +3,7 @@ export {
 } from "./type-expressions.js";
 export {
   getCsharpTypeForNode,
-} from "./type-node/index.js";
+} from "./type-node.js";
 export {
   getCsharpTypeFromSemanticType,
 } from "./semantic-types.js";

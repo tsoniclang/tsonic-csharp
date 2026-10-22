@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { selectCsharpSourceArgumentGrouping } from "../../../dist/policy/operations/members/selection/source-argument-groups.js";
+import { selectCsharpSourceArgumentGrouping } from "../../../dist/policy/operations/members/source-argument-groups.js";
 
 const scalar = Object.freeze({ kind: "source-primitive", name: "float64" });
 const sequence = Object.freeze({ kind: "array", element: scalar });

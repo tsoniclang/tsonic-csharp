@@ -9,7 +9,7 @@ import {
 import type { CsharpSourceField } from "../../../target-model/records/source-markers.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTypeMember, CsharpStructDeclaration, CsharpTypeNode } from "../../target-ast/syntax/index.js";
-import { renderBoundRecordMember } from "../objects/declarations/members.js";
+import { renderBoundRecordMember } from "../objects/members.js";
 import { planAttributesForSubject } from "./attributes.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../types/target-type-object-shapes.js";

@@ -1,9 +1,9 @@
 export {
   renderObjectShapeInterfaces,
-} from "./declarations/interfaces.js";
+} from "./interfaces.js";
 export {
   renderObjectShapeMembers,
-} from "./declarations/members.js";
+} from "./members.js";
 export {
   renderObjectShapeTypeParameters,
-} from "./declarations/type-parameters.js";
+} from "./type-parameters.js";

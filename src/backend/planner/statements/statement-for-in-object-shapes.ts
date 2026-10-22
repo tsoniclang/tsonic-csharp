@@ -33,7 +33,7 @@ import type {
 import {
   planForInBindingActivation,
 } from "./statement-for-in-binding.js";
-import { csharpEnumerableKeysType } from "../objects/declarations/enumerable-keys.js";
+import { csharpEnumerableKeysType } from "../objects/enumerable-keys.js";
 import { csharpEnumerableKeysMethodName } from "../../../target-model/names/object-members.js";
 
 export function planObjectShapeForInStatement(

@@ -38,7 +38,7 @@ export type CsharpProviderCallInstantiation =
 
 import type { CsharpProviderCallInstantiationHost } from "../../../../policy/model/provider-calls.js";
 import { resolveProviderBindingTypeArguments, resolveMethodTypeArguments, resolveInvocationTypeArguments } from "./type-arguments.js";
-import { targetTypeParameterSubstitutions, relateCallArguments } from "../../../../policy/operations/members/instantiation/arguments.js";
+import { targetTypeParameterSubstitutions, relateCallArguments } from "../../../../policy/operations/members/instantiation-arguments.js";
 import { validateArgumentsTargetSelectedParameters } from "./arguments.js";
 export function instantiateCsharpProviderCall(
   host: CsharpProviderCallInstantiationHost,

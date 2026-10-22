@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applyCalleeTypeArguments } from "../../../../dist/backend/planner/expressions/target-members/selected-call/helpers.js";
+import { applyCalleeTypeArguments } from "../../../../dist/backend/planner/expressions/calls/helpers.js";
 import { printCsharpExpression } from "../../../../dist/print/source/index.js";
 
 test("native invocation removes source grouping without creating a C# cast ambiguity", () => {

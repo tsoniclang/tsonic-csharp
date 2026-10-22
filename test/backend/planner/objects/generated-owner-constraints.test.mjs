@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { renderObjectShapeTypeParameters } from "../../../../dist/backend/planner/objects/declarations/type-parameters.js";
+import { renderObjectShapeTypeParameters } from "../../../../dist/backend/planner/objects/type-parameters.js";
 import { analyzeCsharpObjectShapeEmission } from "../../../../dist/analysis/objects/declaration-emission.js";
 import { objectShapeArtifactKey } from "../../../../dist/analysis/program/records/object-shape-keys.js";
 

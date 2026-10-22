@@ -33,7 +33,17 @@ export const csharpForbiddenDirectories = canonicalTargetForbiddenDirectories;
 export const csharpSourceRules = Object.freeze([
   ...canonicalTargetSourceRules,
   selectedTargetEvidenceRule([
-    "src/policy/operations/members/selection/",
-    "src/backend/planner/expressions/target-members/",
+    "src/policy/operations/members/call-forms.ts",
+    "src/policy/operations/members/native-use-arguments.ts",
+    "src/policy/operations/members/source-argument-groups.ts",
+    "src/backend/planner/expressions/calls/",
+    "src/backend/planner/expressions/receiver-call-property.ts",
+    "src/backend/planner/expressions/selected-element.ts",
+    "src/backend/planner/expressions/selected-property.ts",
+    "src/backend/planner/expressions/source-member-names.ts",
+    "src/backend/planner/expressions/source-owned-members.ts",
+    "src/backend/planner/expressions/target-member-call.ts",
+    "src/backend/planner/expressions/target-member-element-access.ts",
+    "src/backend/planner/expressions/target-member-property-access.ts",
   ]),
 ]);

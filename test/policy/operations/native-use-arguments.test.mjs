@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { csharpSelectedTargetArgumentBindings, csharpSourceOwnedArgumentBindings } from "../../../dist/policy/operations/members/selection/native-use-arguments.js";
-import { selectCsharpSourceArgumentGrouping } from "../../../dist/policy/operations/members/selection/source-argument-groups.js";
+import { csharpSelectedTargetArgumentBindings, csharpSourceOwnedArgumentBindings } from "../../../dist/policy/operations/members/native-use-arguments.js";
+import { selectCsharpSourceArgumentGrouping } from "../../../dist/policy/operations/members/source-argument-groups.js";
 
 const scalar = Object.freeze({ kind: "source-primitive", name: "int32" });
 const array = Object.freeze({ kind: "array", element: scalar });

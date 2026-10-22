@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { isDeepStrictEqual } from "node:util";
 import { planClassHeritage, planInterfaceHeritage } from "../../../../dist/backend/planner/declarations/classes/heritage.js";
-import { renderCsharpStructuralInterfaceMembers } from "../../../../dist/backend/planner/objects/declarations/structural-interfaces.js";
+import { renderCsharpStructuralInterfaceMembers } from "../../../../dist/backend/planner/objects/structural-interfaces.js";
 import { analyzeCsharpStructuralObjectEmission } from "../../../../dist/analysis/objects/structural-emission.js";
 import { objectShapeArtifactKey } from "../../../../dist/analysis/program/records/object-shape-keys.js";
 import { targetTypeRefKey } from "../../../../dist/target-model/types/equality.js";

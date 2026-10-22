@@ -5,7 +5,7 @@ import { compileCsharpRequiredRecordSource } from "../../../helpers/required-rec
 import { createCsharpPlanningContext } from "../../../../dist/backend/planner/context.js";
 import { createDestructuringPlannerState } from "../../../../dist/backend/planner/bindings/binding-state.js";
 import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../../../../dist/backend/planner/types/target-type-object-shapes.js";
-import { getCsharpTypeForNode } from "../../../../dist/backend/planner/types/type-node/resolution.js";
+import { getCsharpTypeForNode } from "../../../../dist/backend/planner/types/type-node.js";
 import { planValueTypeDeclaration } from "../../../../dist/backend/planner/declarations/value-types.js";
 import { planParametersWithPrelude } from "../../../../dist/backend/planner/declarations/callables/parameters.js";
 import { planCsharpRuntimeParameterDefault } from "../../../../dist/backend/planner/declarations/callables/defaults.js";

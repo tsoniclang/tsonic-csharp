@@ -12,7 +12,7 @@ import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planArrayLiteralExpressionWithCarrier } from "./array-literals/index.js";
 import { planObjectLiteralExpression } from "../objects/object-literals/planning.js";
 import { tryPlanRecordDictionaryLiteralWithCarrier } from "./expression-dictionary-literals.js";
-import { planSelectedCsharpBinaryOperation } from "./operators/selected-binary.js";
+import { planSelectedCsharpBinaryOperation } from "./selected-binary.js";
 import { planCsharpConditionExpression } from "./expression-bool-carriers.js";
 import { planCsharpExactLiteralRecipe } from "./literal-conversions.js";
 import { planVoidExpression } from "./expression-void.js";

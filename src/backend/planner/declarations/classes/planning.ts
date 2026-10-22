@@ -6,7 +6,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpClassDeclaration, CsharpConstructorDeclaration, CsharpStatement } from "../../../target-ast/syntax/index.js";
 import { planAttributesForSubject } from "../attributes.js";
 import { planClassHeritage } from "./heritage.js";
-import { csharpClosedValueCarrierInterfaceType } from "../../objects/declarations/interfaces.js";
+import { csharpClosedValueCarrierInterfaceType } from "../../objects/interfaces.js";
 import { planCsharpStructuralInterfaceMembers } from "../interfaces/structural.js";
 import { createCsharpTypeParameterPlanningContext } from "../../names/type-parameters.js";
 import { planOuterTypeParameters, planTypeParameters } from "../../types/type-parameters.js";

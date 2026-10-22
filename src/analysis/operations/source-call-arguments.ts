@@ -1,6 +1,6 @@
 import type { SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import { selectCsharpSourceArgumentGrouping } from "../../policy/operations/members/selection/source-argument-groups.js";
+import { selectCsharpSourceArgumentGrouping } from "../../policy/operations/members/source-argument-groups.js";
 import type { ResolvedSourceCallInfo } from "../../target-model/records/source-calls.js";
 import type { CsharpSourceCallArgumentClassification } from "../../target-model/records/operations.js";
 

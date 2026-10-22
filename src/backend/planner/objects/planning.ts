@@ -46,12 +46,12 @@ export {
 export { objectShapeMethodStorageTargetType } from "./object-shape-storage.js";
 
 import { guardCsharpFrozenDataProperties } from "./frozen-data-properties.js";
-import { renderCsharpStructuralInterfaceMembers } from "./declarations/structural-interfaces.js";
-import { renderCsharpMethodValueContracts } from "./declarations/method-values.js";
-import { csharpClosedValueCarrierInterfaceType } from "./declarations/interfaces.js";
-import { csharpEnumerableKeysContract, renderCsharpEnumerableKeys } from "./declarations/enumerable-keys.js";
-import { renderCsharpAuthoredObjectMethods } from "./declarations/authored-methods.js";
-import { renderCsharpCaptureFrameMethods } from "./declarations/capture-methods.js";
+import { renderCsharpStructuralInterfaceMembers } from "./structural-interfaces.js";
+import { renderCsharpMethodValueContracts } from "./method-values.js";
+import { csharpClosedValueCarrierInterfaceType } from "./interfaces.js";
+import { csharpEnumerableKeysContract, renderCsharpEnumerableKeys } from "./enumerable-keys.js";
+import { renderCsharpAuthoredObjectMethods } from "./authored-methods.js";
+import { renderCsharpCaptureFrameMethods } from "./capture-methods.js";
 
 export function csharpTypeFromObjectShapeFact(
   input: CsharpPlanningContext,

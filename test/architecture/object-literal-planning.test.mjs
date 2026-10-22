@@ -29,7 +29,7 @@ test("own-property order proofs belong to analysis and planners consume complete
     assert.match(source, /objectShapes\.propertyOrder\(/u);
   }
   const renderer = maskNonCode(readFileSync(resolve(repositoryRoot,
-    "src/backend/planner/objects/declarations/enumerable-keys.ts"), "utf8"));
+    "src/backend/planner/objects/enumerable-keys.ts"), "utf8"));
   assert.match(renderer, /records\.enumerableKeys\.get\(shape\)/u);
   assert.doesNotMatch(renderer, /objectShapes\.propertyOrder|resolveCsharpObjectShapePropertyOrder/u);
 });

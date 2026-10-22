@@ -6,7 +6,7 @@ import type { CsharpNativeDemandAnalysis } from "../../target-model/records/nati
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpTargetCallSelection } from "../../target-model/records/member-selections.js";
-import { csharpSelectedTargetArgumentBindings } from "../../policy/operations/members/selection/native-use-arguments.js";
+import { csharpSelectedTargetArgumentBindings } from "../../policy/operations/members/native-use-arguments.js";
 import { csharpNativeUseSite } from "../../target-model/records/native-demand.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
 import type { CsharpNativeCompletion } from "../../target-model/records/native-demand.js";

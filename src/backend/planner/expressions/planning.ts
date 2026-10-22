@@ -44,11 +44,9 @@ import {
 import {
   planCsharpIdentifierValue,
 } from "./expression-source-references.js";
-import {
-  planCallExpression,
-  planElementAccessExpression,
-  planPropertyAccessExpression,
-} from "./target-members/index.js";
+import { planCallExpression } from "./target-member-call.js";
+import { planElementAccessExpression } from "./target-member-element-access.js";
+import { planPropertyAccessExpression } from "./target-member-property-access.js";
 import { planCsharpNativeExpression } from "./expression-expected-types.js";
 import {
   planCallArgumentCore,

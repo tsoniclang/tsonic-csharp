@@ -1,7 +1,7 @@
 import { assertNoTargetDiagnostics } from "../../../../../tsonic/test/scripts/diagnostic-assertions.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { planCsharpJsValueCall } from "../../../../dist/backend/planner/expressions/target-members/selected-call/js-values.js";
+import { planCsharpJsValueCall } from "../../../../dist/backend/planner/expressions/calls/js-values.js";
 import { csharpPlannedValue } from "../../../../dist/backend/planner/expressions/planned-values.js";
 import { csharpTsValueTargetType } from "../../../../dist/target-model/types/index.js";
 import { selectCsharpJsValueCallOperation } from "../../../../dist/analysis/operations/js-values.js";

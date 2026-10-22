@@ -30,7 +30,7 @@ test("C# architecture rules reject target-specific boundary mutations", () => {
     ["ARCH-TARGET-CONFIG-001", "src/backend/planner/project.ts", "configuration.projectFile"],
     ["ARCH-TARGET-PROGRAM-001", "src/analysis/program/model.ts", "readonly values: Map<string, string>;"],
     ["ARCH-TARGET-PLAN-001", "src/backend/artifact-model/output.ts", "readonly diagnostics: Diagnostic[];"],
-    ["ARCH-TARGET-SELECTION-001", "src/policy/operations/members/selection/call.ts", "semantics.types.callSignatures(type);"],
+    ["ARCH-TARGET-SELECTION-001", "src/policy/operations/members/call-forms.ts", "semantics.types.callSignatures(type);"],
     ["ARCH-TARGET-PLANNER-002", "src/backend/planner/call.ts", "selectCsharpTargetCall(node);"],
     ["ARCH-TARGET-ANALYSIS-002", "src/analysis/calls.ts", 'import { planCall } from "../backend/planner/call.js";'],
     ["ARCH-TARGET-MODEL-001", "src/target-model/types.ts", 'import { analyzeType } from "../analysis/types.js";'],

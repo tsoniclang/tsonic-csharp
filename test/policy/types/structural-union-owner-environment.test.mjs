@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createCsharpStructuralUnionDefinitions } from "../../../dist/analysis/objects/shapes/union-definitions.js";
 import { getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
-import { renderObjectShapeTypeParameters } from "../../../dist/backend/planner/objects/declarations/type-parameters.js";
+import { renderObjectShapeTypeParameters } from "../../../dist/backend/planner/objects/type-parameters.js";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { analyzeCsharpObjectShapeEmission } from "../../../dist/analysis/objects/declaration-emission.js";

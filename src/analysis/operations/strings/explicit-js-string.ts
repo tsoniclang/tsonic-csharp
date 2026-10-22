@@ -3,7 +3,7 @@ import { sourceMarkerFactKey } from "@tsonic/tsts";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
 
-import { selectCsharpNativeJsStringConversion } from "../../../policy/operations/strings/explicit-js-string.js";
+import { selectCsharpNativeJsStringConversion } from "../../../policy/operations/js-values/explicit-js-string.js";
 export function selectCsharpJsStringConversion(
   policy: CsharpPolicyContext,
   node: Node,

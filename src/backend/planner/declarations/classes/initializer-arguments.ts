@@ -7,7 +7,7 @@ import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { planCsharpGeneratedMethodCall } from "../generated-methods.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
-import { csharpPlannedArgumentSyntax } from "../../expressions/target-members/selected-call/planned-arguments.js";
+import { csharpPlannedArgumentSyntax } from "../../expressions/calls/planned-arguments.js";
 
 export function planCsharpConstructorInitializerArgument(
   node: Node, planned: CsharpPlannedArgument, parameters: readonly CsharpParameter[],

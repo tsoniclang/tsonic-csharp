@@ -8,7 +8,7 @@ import type { CsharpObjectShapeFact } from "../../../../target-model/types/index
 import type { CsharpObjectLiteralEmission } from "../../../../target-model/records/object-literals.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
-import { planCsharpObjectCaptureAssignments } from "../declarations/authored-methods.js";
+import { planCsharpObjectCaptureAssignments } from "../authored-methods.js";
 import { csharpConstructibleTypeFromObjectShapeFact } from "../index.js";
 import {
   translateCsharpJsValueInvocation,

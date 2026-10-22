@@ -3,7 +3,7 @@ import { isSourceCallableBodyBoundary } from "@tsonic/target-api/source";
 import { csharpCallableValueType } from "../../policy/types/callables/value-type.js";
 import { csharpSourceArgumentExpectedType, csharpTargetParameterValueType, getCsharpGeneratorProtocol,
   resolveCsharpObjectShapeMemberBySelectedSubject } from "../../policy/types/index.js";
-import { csharpSelectedTargetArgumentBindings, csharpSourceOwnedArgumentBindings, csharpProviderArgumentSourceCarrier } from "../../policy/operations/members/selection/native-use-arguments.js";
+import { csharpSelectedTargetArgumentBindings, csharpSourceOwnedArgumentBindings, csharpProviderArgumentSourceCarrier } from "../../policy/operations/members/native-use-arguments.js";
 import type { CsharpNativeUseSlot } from "../../target-model/records/native-demand.js";
 import type { CsharpTargetCallSelection } from "../../target-model/records/member-selections.js";
 import type { ResolvedSourceCallInfo } from "../../target-model/records/source-calls.js";

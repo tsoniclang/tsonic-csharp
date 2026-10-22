@@ -9,7 +9,7 @@ import { csharpNativeUseSite } from "../../../dist/target-model/records/native-d
 import { analyzeCsharpCallableCreations } from "../../../dist/analysis/callables/creation.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpObjectTargetType, csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
-import { csharpProviderArgumentSourceCarrier } from "../../../dist/policy/operations/members/selection/native-use-arguments.js";
+import { csharpProviderArgumentSourceCarrier } from "../../../dist/policy/operations/members/native-use-arguments.js";
 import { analyzeCsharpConversions } from "../../../dist/analysis/conversions/analyze.js";
 import { analyzeCsharpObjectShapes } from "../../../dist/analysis/objects/analyze.js";
 import { createCsharpNativeFieldBacking } from "../../../dist/analysis/storage/native-field-backing.js";

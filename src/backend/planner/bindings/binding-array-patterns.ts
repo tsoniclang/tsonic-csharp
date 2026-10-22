@@ -13,7 +13,7 @@ import type {
   CsharpExpression,
   CsharpStatement,
 } from "../../target-ast/syntax/index.js";
-import { runtimeArrayHelperCall } from "../expressions/arrays/helpers.js";
+import { runtimeArrayHelperCall } from "../expressions/array-helpers.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
 import { csharpTupleExpression } from "../types/tuples.js";

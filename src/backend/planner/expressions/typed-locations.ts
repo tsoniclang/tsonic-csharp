@@ -15,7 +15,7 @@ import { csharpPlannedValue } from "./planned-values.js";
 import { buildCsharpPlannedValue, projectCsharpPlannedValue, projectCsharpPlannedMember, planCsharpExpressionCompletion } from "./planned-value-composition.js";
 import { readCsharpNativeExpressionCarrier } from "./native-uses.js";
 import { captureCsharpPlannedLocation } from "./planned-locations.js";
-import { translateCsharpPropertyAccess } from "./target-members/selected-property.js";
+import { translateCsharpPropertyAccess } from "./selected-property.js";
 
 export function planCsharpTypedLocationOperation(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner, state?: DestructuringPlannerState): CsharpPlannedValue | undefined {

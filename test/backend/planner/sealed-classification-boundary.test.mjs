@@ -5,7 +5,7 @@ import {
 } from "../../../dist/backend/planner/expressions/conversions.js";
 import {
   translateCsharpCallExpression,
-} from "../../../dist/backend/planner/expressions/target-members/selected-call/entry.js";
+} from "../../../dist/backend/planner/expressions/calls/entry.js";
 import { analyzeCsharpCallAdmission } from "../../../dist/analysis/callables/call-admission.js";
 
 test("C# call planning fails closed when its sealed classification is absent", () => {

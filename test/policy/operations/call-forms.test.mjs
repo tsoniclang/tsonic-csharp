@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { selectCsharpCallForm } from "../../../dist/policy/operations/members/selection/call-forms.js";
+import { selectCsharpCallForm } from "../../../dist/policy/operations/members/call-forms.js";
 import { selectCsharpSourceFlowCall } from "../../../dist/policy/operations/flow/source-flow.js";
 
 const call = Object.freeze({ label: "call" });

@@ -7,7 +7,7 @@ import type { CallArgumentPlanner, ExpressionPlanner } from "./expression-planne
 import { buildCsharpPlannedValue } from "./planned-value-composition.js";
 import { planCsharpJsValueLogical } from "./js-value-logical.js";
 import { tryPlanJsArrayMutationExpression } from "./expression-js-array-mutations.js";
-import { planSelectedCsharpBinaryOperation } from "./operators/selected-binary.js";
+import { planSelectedCsharpBinaryOperation } from "./selected-binary.js";
 import { tryPlanTypeofComparisonExpression, tryPlanTypeTestExpression } from "./expression-typeof-operators.js";
 import { translateCsharpJsValueInvocation } from "./js-value-operations.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";

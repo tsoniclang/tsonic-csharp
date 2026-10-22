@@ -5,8 +5,8 @@ import { csharpBinaryOperationUsesExpectedResultType } from "../../../dist/polic
 import { sourceOperatorFromKindName } from "../../../dist/target-model/syntax/operators.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
-import { selectCsharpCallForm } from "../../../dist/policy/operations/members/selection/call-forms.js";
-import { planCsharpOptionalReceiverChain } from "../../../dist/backend/planner/expressions/target-members/selected-call/optional-chain.js";
+import { selectCsharpCallForm } from "../../../dist/policy/operations/members/call-forms.js";
+import { planCsharpOptionalReceiverChain } from "../../../dist/backend/planner/expressions/calls/optional-chain.js";
 import { analyzeCsharpOptionalCallChains } from "../../../dist/analysis/callables/optional-call-chains.js";
 import { createExpectedNativeUseOwner } from "../../helpers/expected-native-uses.mjs";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
