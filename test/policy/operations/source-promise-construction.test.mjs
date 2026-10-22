@@ -13,18 +13,20 @@ import {
   getCsharpTaskResultTargetType,
   targetTypeRefEquals,
 } from "../../../dist/policy/types/index.js";
+import { csharpSourceProfileInputs } from "../../helpers/planning-records.mjs";
 
 const binding = Object.freeze({ sourceArgumentIndex: 0, effectiveArgumentIndex: 0,
   sourceParameterIndex: 0, sourceForm: "value" });
 
 function contextFor(task, changes = {}) {
   const selectedType = {};
-  return {
-    host: { types: { resolveType(type) {
-      assert.equal(type === selectedType, true, "exact selected Task type query");
-      return task;
-    } } },
-    sourceFile: {},
+  const host = { types: { resolveType(type) {
+    assert.equal(type === selectedType, true, "exact selected Task type query");
+    return task;
+  } } };
+  const sourceFile = {};
+  // The policy reads the call's result carrier from the input facts the analysis resolves for it.
+  return { host, sourceFile, inputs: csharpSourceProfileInputs(host, sourceFile, { result: selectedType }),
     source: { sourceResultType: selectedType, sourceSelectedSignatureKind: "resolved",
       sourceSelectedSignatureParameters: [{}], sourceArgumentBindings: [binding], ...changes },
   };

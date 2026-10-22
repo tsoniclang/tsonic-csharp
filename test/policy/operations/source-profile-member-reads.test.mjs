@@ -2,16 +2,18 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { csharpJsArrayElementPolicies, csharpJsArrayPropertyPolicies } from "../../../dist/policy/operations/source-profiles/js/arrays.js";
 import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
+import { csharpSourceProfileInputs } from "../../helpers/planning-records.mjs";
 
 const element = { kind: "source-primitive", name: "int64" };
 const receiver = csharpJsArrayTargetType(element);
 
 function context(carrier, readonly) {
-  return {
-    host: { types: { resolveSelectedValue: () => carrier } },
-    source: { receiver: { expression: {}, type: {} }, writable: !readonly },
-    sourceFile: {}, receiverType: carrier, readonly,
-  };
+  const host = { types: { resolveSelectedValue: () => carrier } };
+  const source = { receiver: { expression: {}, type: {} }, writable: !readonly };
+  const sourceFile = {};
+  // The member policies read the receiver carrier from the input facts the analysis resolves for the access.
+  return { host, source, sourceFile, receiverType: carrier, readonly,
+    inputs: csharpSourceProfileInputs(host, sourceFile, { values: [source.receiver] }) };
 }
 
 test("synthesized array contributors retain one native member policy and checker-selected writability", () => {

@@ -3,6 +3,7 @@
 import { analyzeCsharpTypeEmission } from "../../dist/analysis/types/emission.js";
 import { admitCsharpDelegateEmission } from "../../dist/analysis/conversions/callable-emission.js";
 import { createCsharpDelegateContractProducer } from "../../dist/analysis/program/records/callable-conversions.js";
+import { createCsharpSourceProfileInputs } from "../../dist/analysis/program/records/source-profile-inputs.js";
 
 // records.typeEmission for any queried carrier, computed by analyzeCsharpTypeEmission over that carrier alone.
 // targetShapes: the object-shape facts by targetTypeRefKey that the carrier may reach.
@@ -23,4 +24,18 @@ export function csharpDelegateContractRecord(conversions) {
   for (const [source, target, selection] of conversions) admitCsharpDelegateEmission(producer, source, target, selection);
   producer.seal();
   return producer.records.delegateContract;
+}
+
+// The source-profile input facts the analysis computes for a policy call (createCsharpSourceProfileInputs, as in
+// analysis/source-profiles/policy-selection.ts). Fixture hosts supply only the type queries their policy reads;
+// every other query answers that the fixture has no such evidence.
+export function csharpSourceProfileInputs(host, sourceFile, { values = [], result, selected = [], requirements, source } = {}) {
+  const complete = {
+    ...host,
+    semantics: host.semantics ?? (() => ({ types: { isNumberLike: () => false, relationship: () => undefined } })),
+    ast: host.ast ?? { is: { IsSpreadElement: () => false } },
+    types: { resolveType: () => undefined, resolveNode: () => undefined, resolveSelectedValue: () => undefined,
+      resolveSelectedType: () => undefined, ...host.types },
+  };
+  return createCsharpSourceProfileInputs(complete, sourceFile, values, result, selected, requirements, source);
 }

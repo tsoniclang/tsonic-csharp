@@ -2,16 +2,17 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { csharpJsArrayElementPolicies } from "../../../dist/policy/operations/source-profiles/js/arrays.js";
 import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
+import { csharpSourceProfileInputs } from "../../helpers/planning-records.mjs";
 
 const element = { kind: "source-primitive", name: "int32" };
 
 function select(policy, carrier, readonly = false) {
-  return policy.select({
-    host: { types: { resolveSelectedValue: () => carrier } },
-    source: { receiver: { expression: {}, type: {} } },
-    sourceFile: {},
-    readonly,
-  });
+  const host = { types: { resolveSelectedValue: () => carrier } };
+  const source = { receiver: { expression: {}, type: {} } };
+  const sourceFile = {};
+  // The element policy reads the receiver carrier from the input facts the analysis resolves for the access.
+  return policy.select({ host, source, sourceFile, readonly,
+    inputs: csharpSourceProfileInputs(host, sourceFile, { values: [source.receiver] }) });
 }
 
 test("source array location selection retains its exact native method and index type", () => {
