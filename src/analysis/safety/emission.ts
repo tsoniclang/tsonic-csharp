@@ -99,8 +99,10 @@ export function analyzeCsharpSafetyEmission(input: {
       context = true;
       if (operation.kind === "load" || operation.kind === "store") permission = true;
     }
+    // Every safety marker is position-checked, including one in an erased statement: an incomplete builder statement
+    // (`safety(selected);`) is erased from output and so never admitted, and must be refused rather than dropped.
     const selected = input.safety.safetyOperation.get(node);
-    if (selected !== undefined && input.admitted(node)) {
+    if (selected !== undefined) {
       const issue = sourceSafetyPositionIssue(ast, node, selected, subject => input.safety.safetyOperation.get(subject));
       if (issue === "marker-runtime") refuse("CSHARP_SAFETY_MARKER_RUNTIME_POSITION_UNSUPPORTED",
         "C# declaration safety markers must be complete standalone expression statements.");
