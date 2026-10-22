@@ -35,7 +35,8 @@ function fixture(text) {
   visit(sourceFile);
   return { session, policy, sourceFile, expressions, seal() {
     const issues = [];
-    const scopes = sealCsharpDelegateAdapterIdentities(policy, expressions, issues);
+    // The bindings are non-nullable delegate parameters and locals: their value reads publish no nullable storage.
+    const scopes = sealCsharpDelegateAdapterIdentities(policy, { valueRead: { get: () => undefined } }, expressions, issues);
     return { scopes, issues };
   } };
 }
