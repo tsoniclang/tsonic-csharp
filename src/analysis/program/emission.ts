@@ -311,7 +311,8 @@ export function finalizeCsharpNativeEmission(
   if (projectEmission.issues.length !== 0) return rejectedTargetStage(projectEmission.issues);
   const sourceReferences = analyzeCsharpSourceReferences({ source, nodes: sourceStorage.nodes, admitted: admittedControlNode,
     evidence: analysis.sourceEvidence, factories: classFactories, captures: captureStorage, demand: nativeDemand,
-    operations: admittedOperations, files: sourceOutputIdentities.records, backing: analysis.storage.nativeBacking });
+    operations: admittedOperations, files: sourceOutputIdentities.records, backing: analysis.storage.nativeBacking,
+    delegateAdapters: conversions.delegateAdapters });
   if (sourceReferences.issues.length !== 0) return rejectedTargetStage(sourceReferences.issues);
   const memberReceivers = analyzeCsharpMemberReceivers({ source, nodes: sourceStorage.nodes, operations: admittedOperations,
     references: sourceReferences.records, projects: projectEmission.records, factories: classFactories, admitted: admittedControlNode });

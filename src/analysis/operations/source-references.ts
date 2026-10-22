@@ -10,6 +10,7 @@ import type { CsharpNativeDemandAnalysis } from "../../target-model/records/nati
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpSourceFileRecords } from "../../target-model/records/source-files.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
+import type { CsharpConversionClassifications } from "../../target-model/records/conversions.js";
 import { getCsharpDelegateSignature } from "../../target-model/types/carriers/delegates.js";
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 import { createCsharpSourceReferenceRecords } from "../program/records/source-references.js";
@@ -19,7 +20,8 @@ export function analyzeCsharpSourceReferences(input: { readonly source: TargetSo
   readonly admitted: (node: Node) => boolean; readonly evidence: CsharpSourceEvidenceIndex;
   readonly factories: CsharpClassFactoryIndex; readonly captures: CsharpCaptureStorage;
   readonly demand: CsharpNativeDemandAnalysis; readonly operations: CsharpTargetOperationClassifications;
-  readonly files: CsharpSourceFileRecords; readonly backing: CsharpStorageClassifications["nativeBacking"] }) {
+  readonly files: CsharpSourceFileRecords; readonly backing: CsharpStorageClassifications["nativeBacking"];
+  readonly delegateAdapters: CsharpConversionClassifications["delegateAdapters"] }) {
   const { ast } = input.source;
   const identifiers = new Map<Node, CsharpIdentifierEmission>();
   const modules = new Map<Node, SourceProjectReference>();
@@ -91,6 +93,15 @@ export function analyzeCsharpSourceReferences(input: { readonly source: TargetSo
       }
     }
     identifiers.set(node, { kind: "local", declaration, backing: declaration !== undefined && input.backing.get(declaration) !== undefined });
+  }
+  // A retained delegate adapter calls its stable binding by the binding declaration's own name, so that name is a
+  // reference to the binding: the same frame or local emission an ordinary read of the binding selects.
+  for (const node of input.nodes) if (ast.is.IsBlock(node)) for (const identity of input.delegateAdapters.get(node)) {
+    const name = ast.name(identity.declaration);
+    if (name === undefined || !ast.is.IsIdentifier(name) || identifiers.has(name)) continue;
+    identifiers.set(name, input.captures.captureClosure.get(identity.declaration) !== undefined
+      ? { kind: "frame", declaration: identity.declaration }
+      : { kind: "local", declaration: identity.declaration, backing: input.backing.get(identity.declaration) !== undefined });
   }
   return Object.freeze({ records: createCsharpSourceReferenceRecords({ identifiers, modules, references }), issues: Object.freeze(issues) });
 }
