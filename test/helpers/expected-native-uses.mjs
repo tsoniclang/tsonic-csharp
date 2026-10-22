@@ -4,6 +4,7 @@ import { analyzeCsharpExpectedTypes } from "../../dist/analysis/expected-types/a
 import { compileCsharpTarget } from "../../dist/backend/compile.js";
 import { createCsharpProviderRelationResolver } from "../../dist/providers/native/projection/relation-resolution.js";
 import { compileCsharpSource } from "./direct-csharp-session.mjs";
+import { csharpProgramSourceFiles } from "./program-source-files.mjs";
 
 export function compileCsharpNativeUseSource(options) {
   let nativeStage;
@@ -29,7 +30,7 @@ export function createExpectedNativeUseOwner(compiled) {
   const ast = source.ast;
   const records = program.records;
   const nodes = [];
-  const pending = [...program.sourceFiles];
+  const pending = [...csharpProgramSourceFiles(program)];
   while (pending.length > 0) {
     const node = pending.pop();
     nodes.push(node);
@@ -40,10 +41,10 @@ export function createExpectedNativeUseOwner(compiled) {
     const returnType = records.generatorTargetType.get(node) ?? (declared?.kind === "resolved" ? declared.type : undefined);
     return returnType === undefined ? [] : [{ sourceDeclaration: node, returnType }];
   });
-  const policy = { ast, sourceFiles: program.sourceFiles, navigation: source.navigation,
+  const policy = { ast, sourceFiles: csharpProgramSourceFiles(program), navigation: source.navigation,
     target: compiled.target, providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
     objectShapes: program.objectShapes, projectTypes: program.projectTypes,
-    literalValues: analyzeSourceLiteralValues(ast, program.sourceFiles),
+    literalValues: analyzeSourceLiteralValues(ast, csharpProgramSourceFiles(program)),
     semantics: source.semantics.forFile, semanticsFor: source.semantics.forNode,
     typeDefinitions: program.typeDefinitions };
   const input = { policy, evidence: records, operations: records, objectShapes: program.objectShapes,

@@ -13,6 +13,7 @@ import { planBindingPatternFromExpression } from "../../../dist/backend/planner/
 import { csharpPlannedValue } from "../../../dist/backend/planner/expressions/planned-values.js";
 import { csharpCarrierAdmitsSourceAbsence } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 const arrayMessage = "Array destructuring requires a finalized provider array or tuple runtime-carrier fact for the source expression. Runtime carrier fact is missing for the array destructuring source expression.";
 
@@ -45,7 +46,7 @@ for (const surface of ["native", "js"]) {
       if (fact?.element?.kind === "object-shape-absence") absent.push({ node, fact });
       ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
     };
-    program.sourceFiles.forEach(visit);
+    csharpProgramSourceFiles(program).forEach(visit);
     assert.equal(absent.length, 4, "only the four physically missing optional extractions are absent");
     for (const { node, fact } of absent) {
       assert.equal(Object.isFrozen(fact) && Object.isFrozen(fact.element) && Object.isFrozen(fact.binding) &&
@@ -121,7 +122,9 @@ function findNode(program, kindName, text) {
     if (found === undefined && ast.kindName(node) === kindName && sourceText(program, node) === text) found = node;
     ast.forEachChild(node, (child) => { if (child !== undefined) visit(child); });
   };
-  for (const sourceFile of program.sourceFiles) {
+  // A sealed program lists its files through its source artifacts; the unsealed fixture carries the checked files.
+  const files = program.records === undefined ? program.sourceFiles : csharpProgramSourceFiles(program);
+  for (const sourceFile of files) {
     if (String(ast.getPath(sourceFile)).endsWith("/index.ts")) visit(sourceFile);
   }
   assert.equal(found !== undefined, true, `the program has a ${kindName} with text ${text}`);
@@ -405,7 +408,7 @@ for (const surface of ["native", "js"]) {
       }
       ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
     };
-    program.sourceFiles.forEach(visit);
+    csharpProgramSourceFiles(program).forEach(visit);
     assert.equal(defaulted !== undefined, true, "the default-valued control is retained");
     assert.equal(csharpCarrierAdmitsSourceAbsence(program.records.storageType.get(defaulted)), false,
       "default-valued binding storage is its post-default native carrier");

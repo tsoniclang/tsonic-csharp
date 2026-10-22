@@ -6,6 +6,7 @@ import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 // expected membership. Membership is decided once by @tsonic/target-api's createTargetSafetyApplicationIndex.
 const header = `import { safety, unsafecontext } from "@tsonic/core/lang.js";
 import type { int32 } from "@tsonic/core/types.js";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 export class Value {
   private stored: int32 = 1;
@@ -50,7 +51,7 @@ function membership(body) {
   const { ast } = compiled.source;
   const nodes = [];
   const visit = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
-  program.sourceFiles.forEach(visit);
+  csharpProgramSourceFiles(program).forEach(visit);
   const find = predicate => {
     const found = nodes.find(predicate);
     assert.ok(found);

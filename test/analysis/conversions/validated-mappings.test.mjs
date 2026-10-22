@@ -10,6 +10,7 @@ import { planCsharpRuntimeUnionProjection } from "../../../dist/backend/planner/
 import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types/target-types.js";
 import { csharpNullableTargetType, csharpRuntimeUnionTargetType, csharpSourcePrimitiveTargetType,
   csharpStringTargetType } from "../../../dist/target-model/types/index.js";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 const mappingRejected = { kind: "rejected", reason: "Union conversion requires exact sealed arm coverage and native absence correspondence." };
 const projectionRejected = { kind: "rejected", reason: "Union projection requires exact sealed payload and absence correspondence." };
@@ -20,7 +21,7 @@ function compiled(sourceText, surface) {
   assertCsharpCompilationSucceeded(result);
   const { program } = result.result;
   const nodes = [];
-  const pending = [...program.sourceFiles];
+  const pending = [...csharpProgramSourceFiles(program)];
   while (pending.length > 0) {
     const node = pending.pop();
     nodes.push(node);

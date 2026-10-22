@@ -10,6 +10,7 @@ import {
   csharpRecordsOmitting,
   csharpRequiredRecordFailure,
 } from "../../../helpers/required-records.mjs";
+import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
 
 const sourceText = `
   import type { int32 } from "@tsonic/core/types.js";
@@ -114,8 +115,8 @@ test("exact conversion requirements cannot fall back to another expression or co
   const omitted = csharpRecordsOmitting(records, "expressionConversion", row.subject);
   assert.throws(() => assertCsharpRequiredRecords(omitted, [row]), failure("expressionConversion", row.subject),
     "a pair is not exact expression evidence");
-  assert.throws(() => assertCsharpRequiredRecords(records, [{ ...row, subject: program.sourceFiles[0] }]),
-    failure("expressionConversion", program.sourceFiles[0]), "an unrelated source subject cannot borrow the published pair");
+  assert.throws(() => assertCsharpRequiredRecords(records, [{ ...row, subject: csharpProgramSourceFiles(program)[0] }]),
+    failure("expressionConversion", csharpProgramSourceFiles(program)[0]), "an unrelated source subject cannot borrow the published pair");
 });
 
 test("the seal rejects an omitted exact literal at its own source and native target", () => {

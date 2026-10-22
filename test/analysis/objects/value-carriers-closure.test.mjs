@@ -116,7 +116,7 @@ export function read(value: Point): int64 { return value.y; }
       if (source.ast.is.IsVariableDeclaration(node) && source.ast.text(source.ast.name(node)) === "Point") declaration = node;
       source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
     };
-    visit(compiled.result.program.sourceFiles[0]);
+    visit(csharpProgramSourceFiles(compiled.result.program)[0]);
     assert.equal(declaration !== undefined, true, "authored struct declaration");
     const selected = compiled.result.program.records.nativeValueDeclaration.get(declaration);
     assert.equal(selected?.fields.length, 2, "every field is admitted before planning");
@@ -133,6 +133,7 @@ function valueProgram() {
   const compiled = compileCsharpSource({ sourceText: `
 import { field, struct } from "@tsonic/core/lang.js";
 import type { int32, int64 } from "@tsonic/core/types.js";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 export const Point = struct({ x: field<int32>(), y: field<int64>() });
 export type Point = typeof Point;
 ` });
@@ -143,7 +144,7 @@ export type Point = typeof Point;
     if (program.source.ast.is.IsVariableDeclaration(node) && program.source.ast.text(program.source.ast.name(node)) === "Point") declaration = node;
     program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  program.sourceFiles.forEach(visit);
+  csharpProgramSourceFiles(program).forEach(visit);
   assert.equal(declaration !== undefined, true, "the exact authored value declaration is retained");
   return { program, declaration, selected: program.records.nativeValueDeclaration.get(declaration) };
 }

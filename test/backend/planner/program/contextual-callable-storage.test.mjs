@@ -13,6 +13,7 @@ import { planTopLevelVariableStatement } from "../../../../dist/backend/planner/
 import { csharpTypeFromTargetTypeRef } from "../../../../dist/backend/planner/types/target-types.js";
 import { sameCsharpType } from "../../../../dist/backend/target-ast/inspection/type-equality.js";
 import { csharpSourcePrimitiveTargetType, getCsharpDelegateSignature, getCsharpTaskResultTargetType, targetTypeRefEquals } from "../../../../dist/target-model/types/index.js";
+import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
 
 const localSource = `
   class Reply { constructor(public count: number) {} }
@@ -169,7 +170,7 @@ function fixture(surface, sourceText) {
   assert.equal(analysis.kind, "resolved");
   assert.equal(analysis.diagnostics.length, 0);
   const program = analysis.value;
-  const file = program.sourceFiles.find(selected => source.ast.getFileName(selected) === "/project/index.ts");
+  const file = csharpProgramSourceFiles(program).find(selected => source.ast.getFileName(selected) === "/project/index.ts");
   assert.equal(file !== undefined, true, "authored project file");
   const variables = new Map();
   const awaiting = [];

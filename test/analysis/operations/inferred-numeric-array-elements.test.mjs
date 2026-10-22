@@ -6,6 +6,7 @@ import { getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carr
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { isCsharpStringTargetType, isCsharpJsStringTargetType } from "../../../dist/target-model/types/identity.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 const header = 'import type { float32, float64, int16, uint16, int32, uint32, int64 } from "@tsonic/core/types.js";';
 const compile = (surface, body) => compileCsharpNativeUseSource({ surface, sourceText: `${header}\n${body}` });
@@ -26,7 +27,7 @@ function arrays(program) {
     }
     ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  for (const file of program.sourceFiles) visit(file);
+  for (const file of csharpProgramSourceFiles(program)) visit(file);
   return selected;
 }
 
@@ -44,7 +45,7 @@ function constructedArrays(program) {
     }
     ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  for (const file of program.sourceFiles) visit(file);
+  for (const file of csharpProgramSourceFiles(program)) visit(file);
   return selected;
 }
 
@@ -84,7 +85,7 @@ function actualDestinationEvidence(program, expected, label) {
     if (ast.is.IsArrayLiteralExpression(node)) nodes.push(node);
     ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  for (const file of program.sourceFiles) visit(file);
+  for (const file of csharpProgramSourceFiles(program)) visit(file);
   assert.equal(nodes.length, expected.length, `${label}: every actual construction is checked`);
   for (const [index, node] of nodes.entries()) {
     const kind = expected[index];
@@ -112,7 +113,7 @@ function actualUnionDestinationEvidence(program, label) {
     if (ast.is.IsArrayLiteralExpression(node)) nodes.push(node);
     ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  for (const file of program.sourceFiles) visit(file);
+  for (const file of csharpProgramSourceFiles(program)) visit(file);
   assert.equal(nodes.length, 1, `${label}: the original physical construction is observed`);
   const expression = nodes[0];
   const use = program.records.nativeUse.expression(expression)?.use;
@@ -242,7 +243,7 @@ for (const surface of ["native", "js"]) {
       if (ast.is.IsCallExpression(node) && ast.text(ast.as.AsCallExpression(node)?.Expression) === "consume") call = node;
       ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
     };
-    for (const file of program.sourceFiles) visit(file);
+    for (const file of csharpProgramSourceFiles(program)) visit(file);
     assert.equal(call !== undefined && array !== undefined, true, "the actual call and source construction remain present");
     const grouping = program.records.selectedCall.get(call)?.sourceArgumentGrouping;
     const constructed = program.records.nativeUse.expression(array)?.use;

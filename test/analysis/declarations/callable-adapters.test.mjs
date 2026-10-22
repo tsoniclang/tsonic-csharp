@@ -15,6 +15,7 @@ import { admitCsharpNativeDeclarations } from "../../../dist/analysis/declaratio
 import { planMethodDeclaration } from "../../../dist/backend/planner/declarations/classes/methods.js";
 import { planCsharpProjectCallableAdapters } from "../../../dist/backend/planner/declarations/classes/callable-adapters.js";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 const host = { typeDefinitions: undefined, projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) }, target: {},
   objectShapes: Object.freeze({ resolveNode: () => undefined, resolveTarget: () => undefined }) };
@@ -136,7 +137,7 @@ function classForwarder(control) {
   const ast = program.source.ast;
   const nodes = [];
   const visit = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
-  for (const file of program.sourceFiles) visit(file);
+  for (const file of csharpProgramSourceFiles(program)) visit(file);
   const declaration = nodes.find(node => ast.is.IsMethodDeclaration(node));
   const original = program.records.callableDispatch.get(declaration)?.implementation;
   assert.equal(original?.parameters.length, control.modes.length, `${control.name}: actual checked native method contract`);
@@ -303,7 +304,7 @@ function nativeMethodNodes(program) {
     if (program.source.ast.is.IsMethodDeclaration(node)) declarations.push(node);
     program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  program.sourceFiles.forEach(visit);
+  csharpProgramSourceFiles(program).forEach(visit);
   return declarations;
 }
 

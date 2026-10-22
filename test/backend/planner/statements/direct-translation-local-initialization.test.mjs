@@ -9,6 +9,7 @@ import { admitCsharpNativeStorageBindings } from "../../../../dist/analysis/cont
 import { createCsharpPlanningContext } from "../../../../dist/backend/planner/context.js";
 import { createDestructuringPlannerState } from "../../../../dist/backend/planner/bindings/binding-state.js";
 import { planLocalDeclaration } from "../../../../dist/backend/planner/bindings/locals.js";
+import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
 
 for (const surface of ["native", "js"]) {
   test(`generic initializer-less absence uses its selected native witness on ${surface}`, () => {
@@ -183,7 +184,7 @@ test("local storage has one final carrier and no syntax, lambda or source-eviden
     if (ast.is.IsVariableDeclaration(node)) declaration = node;
     ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  program.sourceFiles.forEach(visit);
+  csharpProgramSourceFiles(program).forEach(visit);
   assert.equal(declaration !== undefined, true, "the local's exact declaration is retained");
   const file = ast.getSourceFile(declaration);
   const selected = program.records.storageType.get(declaration);
@@ -237,7 +238,7 @@ test("iteration and catch bindings stay with their admitted owners rather than l
     if (ast.is.IsVariableDeclaration(node)) bindings.push(node);
     ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  program.sourceFiles.forEach(visit);
+  csharpProgramSourceFiles(program).forEach(visit);
   assert.equal(bindings.length, 2, "the exact iteration and catch declarations are both observed");
   const issues = admitCsharpNativeStorageBindings(ast, bindings, { order: () => [] }, {
     nativeBacking: { get: () => undefined }, nativeArray: { get: () => undefined },

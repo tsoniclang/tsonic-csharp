@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 const forms = [
   ["reversed parenthesized", `("string") === (typeof x)`, `"string" === typeof x`, "string"],
@@ -27,7 +28,7 @@ function compileComparison(surface, condition) {
     if (classification !== undefined) comparisons.push(classification);
     ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  program.sourceFiles.forEach(visit);
+  csharpProgramSourceFiles(program).forEach(visit);
   const output = compiled.result.artifacts.filter(artifact => artifact.path.endsWith(".cs"))
     .map(artifact => artifact.text).join("\n");
   const emitted = output.match(/^\s*if \((.*)\)\s*$/mu)?.[1];

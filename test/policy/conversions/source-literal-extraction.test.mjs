@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { compileCsharpTarget } from "../../../dist/backend/compile.js";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 function literals(sourceText, surface = "native") {
   const compiled = compileCsharpSource({ surface, sourceText });
@@ -14,7 +15,7 @@ function literals(sourceText, surface = "native") {
     if (datum !== undefined) found.push({ node, kind: ast.kindName(node), datum });
     ast.forEachChild(node, (child) => { if (child !== undefined) visit(child); });
   };
-  for (const file of program.sourceFiles) visit(file);
+  for (const file of csharpProgramSourceFiles(program)) visit(file);
   return { compiled, program, found };
 }
 
@@ -108,7 +109,7 @@ export function decimalDefault(value: decimal = -1.50): decimal { return value; 
       `${surface}: the native token never uses the lossy double summary`);
     assert.doesNotThrow(() => JSON.stringify(compiled.result.plan), `${surface}: every native token remains JSON-safe`);
     const program = compiled.result.program;
-    const defaults = program.sourceFiles.flatMap(file => program.source.ast.statements(file))
+    const defaults = csharpProgramSourceFiles(program).flatMap(file => program.source.ast.statements(file))
       .filter(node => node !== undefined && program.source.ast.is.IsFunctionDeclaration(node))
       .flatMap(node => program.source.ast.parameters(node))
       .filter(node => program.source.ast.as.AsParameterDeclaration(node)?.Initializer !== undefined);

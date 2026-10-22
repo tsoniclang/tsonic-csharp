@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { assertNoTargetDiagnostics } from "../../../../tsonic/test/scripts/diagnostic-assertions.mjs";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 const header = `
   import type { int } from "@tsonic/csharp/types.js";
@@ -68,7 +69,7 @@ for (const [name, body, count] of acceptedForms) {
       if (ast.is.IsCallExpression(node)) calls.push(records.selectedCall.get(node));
       ast.forEachChild(node, (child) => { if (child !== undefined) visit(child); });
     };
-    for (const sourceFile of compiled.result.program.sourceFiles) visit(sourceFile);
+    for (const sourceFile of csharpProgramSourceFiles(compiled.result.program)) visit(sourceFile);
     const keepAlive = calls.filter((call) => call?.form.kind === "keep-alive");
     assert.equal(keepAlive.length, count);
     for (const call of keepAlive) assert.equal(call.form.sourceFlow.kind, "keep-alive");
@@ -89,7 +90,7 @@ test("a local function named like a source-flow marker is an ordinary call with 
     if (ast.is.IsCallExpression(node)) calls.push(records.selectedCall.get(node));
     ast.forEachChild(node, (child) => { if (child !== undefined) visit(child); });
   };
-  for (const sourceFile of compiled.result.program.sourceFiles) visit(sourceFile);
+  for (const sourceFile of csharpProgramSourceFiles(compiled.result.program)) visit(sourceFile);
   assert.ok(calls.length > 0);
   for (const call of calls) assert.equal(call?.form.kind === "target", true, "ordinary calls select the target call form");
 });

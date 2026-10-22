@@ -32,7 +32,7 @@ test("a thrown carrier without native syntax is refused at admission; corrupt pu
   const program = compiled.result.program;
   assert.equal(program !== undefined && compiled.result.diagnostics.length === 0, true, "the authored throw compiles");
   const ast = program.source.ast;
-  const declaration = program.sourceFiles.flatMap(file => ast.statements(file))
+  const declaration = csharpProgramSourceFiles(program).flatMap(file => ast.statements(file))
     .find(node => ast.text(ast.name(node)) === "fail");
   const statement = ast.statements(ast.body(declaration))[0];
   const expression = ast.as.AsThrowStatement(statement).Expression;
@@ -63,6 +63,7 @@ test("a thrown carrier without native syntax is refused at admission; corrupt pu
 
 const headerSource = `
 import type { IncomingMessage } from "node:http";
+import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
 type NativeHeaders = IncomingMessage["headersDistinct"];
 export function joinFromHeaders(headers: NativeHeaders, key: string): string {
   const values = headers[key];

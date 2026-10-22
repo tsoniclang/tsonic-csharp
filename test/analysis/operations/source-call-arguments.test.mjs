@@ -2,13 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 function calls(compiled) {
   const program = compiled.result.program;
   assert.equal(program !== undefined, true, "analyzed program is present");
   const ast = program.source.ast;
   const selected = [];
-  for (const file of program.sourceFiles) {
+  for (const file of csharpProgramSourceFiles(program)) {
     if (!String(ast.getPath(file)).endsWith("/index.ts")) continue;
     const text = String(ast.getSourceText(file));
     const visit = node => {

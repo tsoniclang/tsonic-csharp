@@ -10,6 +10,7 @@ import { createCsharpPlanningContext } from "../../../../dist/backend/planner/co
 import { createDestructuringPlannerState } from "../../../../dist/backend/planner/bindings/binding-state.js";
 import { tryPlanDestructuringAssignmentExpression } from "../../../../dist/backend/planner/bindings/destructuring-assignment.js";
 import { planExpression } from "../../../../dist/backend/planner/expressions/index.js";
+import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
 
 for (const surface of ["native", "js"]) {
   for (const [name, pattern, initializer] of [
@@ -169,7 +170,7 @@ test("destructuring assignment operation, pattern and rendering scope are indepe
     if (program.records.binaryOperation.get(node)?.destructuring?.kind === "resolved") assignment = node;
     ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  program.sourceFiles.forEach(visit);
+  csharpProgramSourceFiles(program).forEach(visit);
   assert.equal(assignment !== undefined, true, "the checked assignment has its exact admitted native operation");
   const file = ast.getSourceFile(assignment);
   for (const control of [

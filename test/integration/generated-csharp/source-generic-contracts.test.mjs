@@ -133,6 +133,7 @@ for (const surface of [undefined, "js"]) {
   test(`module declarations are not source absence expressions (${surface ?? "native"})`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
 import type { int32 } from "@tsonic/core/types.js";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 export class State { count: int32; constructor(count: int32) { this.count = count; } }
 export let state: State;
 export let absent: State | undefined = undefined;
@@ -151,7 +152,7 @@ export function run(): boolean {
       if (ast.is.IsVariableDeclaration(node)) declarations.push(node);
       ast.forEachChild(node, child => { if (child !== undefined) collect(child); });
     };
-    for (const sourceFile of compiled.result.program.sourceFiles) collect(sourceFile);
+    for (const sourceFile of csharpProgramSourceFiles(compiled.result.program)) collect(sourceFile);
     const state = declarations.find(node => ast.text(ast.name(node)) === "state");
     const absent = declarations.find(node => ast.text(ast.name(node)) === "absent");
     const modes = compiled.result.program.records.moduleBindingInitialization;

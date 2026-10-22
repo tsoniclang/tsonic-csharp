@@ -71,6 +71,7 @@ for (const surface of ["native", "js"]) test(`${surface}: native class delegate 
   { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
 import type { int32 } from "@tsonic/core/types.js";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 class HandlerBox { run: (value: int32) => int32 = (value) => value; }
 function make(): HandlerBox { return { run(value: int32): int32 { return value + 1; } }; }
 export function run(): boolean { const handler = make(); return handler.run(6) === 7; }
@@ -844,7 +845,7 @@ for (const surface of ["native", "js"]) {
           if (ast.is.IsMethodDeclaration(node) && ast.text(ast.name(node)) === "read") declaration = node;
           ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
         };
-        program.sourceFiles.forEach(visit);
+        csharpProgramSourceFiles(program).forEach(visit);
         assert.equal(declaration !== undefined, true, "the exact authored method remains in the sealed source domain");
         const method = program.records.callableDispatch.get(declaration)?.implementation;
         assert.equal(method?.parameters.length, 2, "unused and omittable native parameters are not dropped");

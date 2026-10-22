@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { nativeUnaryLocationsSource } from "../../../../tsonic/test/fixtures/native-unary-locations.mjs";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 for (const surface of ["native", "js"]) {
   test(`${surface} native updates consume locations while receivers keep narrowed value reads`, () => {
@@ -33,7 +34,7 @@ for (const surface of ["native", "js"]) {
       }
       ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
     };
-    for (const sourceFile of program.sourceFiles) {
+    for (const sourceFile of csharpProgramSourceFiles(program)) {
       if (String(ast.getPath(sourceFile)).endsWith("/index.ts")) visit(sourceFile);
     }
     assert.equal(updates, 10, "all real local, capture, field and indexed update operands are inspected");

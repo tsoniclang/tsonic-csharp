@@ -13,6 +13,7 @@ import { printCsharpCompilationUnit } from "../../../../dist/print/source/printe
 import { csharpAbsenceTargetType, csharpSourcePrimitiveTargetType, targetTypeRefEquals } from "../../../../dist/target-model/types/index.js";
 import { selectCsharpConversion } from "../../../../dist/policy/conversions/core.js";
 import { requireExpressionPlan } from "../../../../dist/backend/planner/expressions/required-plan.js";
+import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
 
 function fixture() {
   const checked = checkCsharpSource({ surface: "js", sourceText: `
@@ -33,7 +34,7 @@ function fixture() {
   assert.equal(analysis.kind === "resolved" && analysis.diagnostics.length === 0, true, "baseline analysis succeeds");
   const program = analysis.value;
   const nodes = [];
-  const pending = [...program.sourceFiles];
+  const pending = [...csharpProgramSourceFiles(program)];
   while (pending.length !== 0) {
     const node = pending.pop();
     nodes.push(node);

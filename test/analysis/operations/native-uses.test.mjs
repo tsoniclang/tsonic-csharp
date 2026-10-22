@@ -8,6 +8,7 @@ import { analyzeCsharpExpectedTypes } from "../../../dist/analysis/expected-type
 import { admitCsharpExpectedNativeUses } from "../../../dist/analysis/expected-types/native-uses.js";
 import { analyzeCsharpExactLiteralSelections } from "../../../dist/analysis/conversions/literal-plans.js";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 function owners(sourceText, surface = "native") {
   const compiled = compileCsharpSource({ sourceText, surface });
@@ -19,9 +20,9 @@ function owners(sourceText, surface = "native") {
   const records = program.records;
   const nodes = [];
   const walk = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) walk(child); }); };
-  for (const file of program.sourceFiles) walk(file);
+  for (const file of csharpProgramSourceFiles(program)) walk(file);
   const participation = records.nativeParticipation;
-  const bindingPatterns = analyzeCsharpBindingPatterns({ ast, semanticsFor: source.semantics.forNode, sourceFiles: program.sourceFiles, participation, evidence: records,
+  const bindingPatterns = analyzeCsharpBindingPatterns({ ast, semanticsFor: source.semantics.forNode, sourceFiles: csharpProgramSourceFiles(program), participation, evidence: records,
     operations: records, valueReads: records, objectShapes: program.objectShapes, storage: records,
     typePolicy: { resolveType: () => assert.fail("These native-use fixtures require no source-owned member resolution.") },
     conversionPolicy: { target: compiled.target, typeDefinitions: program.typeDefinitions, objectShapes: program.objectShapes,
@@ -31,7 +32,7 @@ function owners(sourceText, surface = "native") {
         return heritage === undefined ? undefined : heritage.baseType === undefined
           ? heritage.interfaces : [heritage.baseType, ...heritage.interfaces];
       } } } });
-  const input = { ast, sourceFiles: program.sourceFiles, navigation: program.sourceNavigation, evidence: records, operations: records,
+  const input = { ast, sourceFiles: csharpProgramSourceFiles(program), navigation: program.sourceNavigation, evidence: records, operations: records,
     nativeExpressionIssues: [],
     declarations: records, objectShapes: program.objectShapes,
     exactLiteral: records.exactLiteral, propertyKeyBindings: expression => {
@@ -48,8 +49,8 @@ function owners(sourceText, surface = "native") {
     const declared = records.returnContract.get(node);
     return declared?.kind === "resolved" ? [{ sourceDeclaration: node, returnType: declared.type }] : [];
   });
-  const literalValues = analyzeSourceLiteralValues(ast, program.sourceFiles);
-  const expected = analyzeCsharpExpectedTypes({ ast, sourceFiles: program.sourceFiles, literalValues,
+  const literalValues = analyzeSourceLiteralValues(ast, csharpProgramSourceFiles(program));
+  const expected = analyzeCsharpExpectedTypes({ ast, sourceFiles: csharpProgramSourceFiles(program), literalValues,
     semantics: source.semantics.forFile, semanticsFor: source.semantics.forNode, typeDefinitions: program.typeDefinitions }, records, records, program.objectShapes,
     { declarationContracts: contracts, closedInputType: () => undefined, get: () => undefined },
     { get: node => { const read = records.valueRead.get(node); return read === undefined ? undefined

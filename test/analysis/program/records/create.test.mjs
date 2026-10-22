@@ -5,6 +5,7 @@ import { analyzeCsharpTargetProgram } from "../../../../dist/analysis/program/in
 import { createCsharpTargetConfiguration } from "../../../../dist/compilation/configuration.js";
 import { createCsharpProviderRelationResolver } from "../../../../dist/providers/native/projection/relation-resolution.js";
 import { checkCsharpSource, assertCsharpCheckingSucceeded } from "../../../helpers/direct-csharp-session.mjs";
+import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
 
 function fixture(surface) {
   const checked = checkCsharpSource({ surface, sourceText: `
@@ -23,7 +24,7 @@ function fixture(surface) {
   assert.equal(analyzed.kind === "resolved", true, `${surface}: valid source analysis`);
   const program = analyzed.value;
   const nodes = [];
-  const pending = [...program.sourceFiles];
+  const pending = [...csharpProgramSourceFiles(program)];
   while (pending.length > 0) {
     const node = pending.pop();
     nodes.push(node);

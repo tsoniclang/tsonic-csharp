@@ -7,6 +7,7 @@ import { planCsharpRuntimeParameterDefault } from "../../../../dist/backend/plan
 import { planParametersWithPrelude } from "../../../../dist/backend/planner/declarations/callables/parameters.js";
 import { csharpTargetNamedType } from "../../../../dist/target-model/types/index.js";
 import { selectCsharpDefaultValueContract } from "../../../../dist/policy/types/objects/binding-projection.js";
+import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
 
 const defaultMessage = "A runtime parameter default requires renderable sealed native value and incoming carriers.";
 const invariantMessage = "A runtime parameter default contract requires its authored parameter initializer.";
@@ -24,7 +25,7 @@ function compiledParameters() {
   const program = compiled.result.program;
   assert.equal(program !== undefined && compiled.result.diagnostics.length === 0, true, "the authored defaults compile");
   const ast = program.source.ast;
-  const declarations = program.sourceFiles.flatMap(file => ast.statements(file));
+  const declarations = csharpProgramSourceFiles(program).flatMap(file => ast.statements(file));
   const parameter = name => ast.parameters(declarations.find(node => ast.text(ast.name(node)) === name))[0];
   return { program, ast, withDefault: parameter("withDefault"), withoutDefault: parameter("withoutDefault") };
 }

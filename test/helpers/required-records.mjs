@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { compileCsharpTarget } from "../../dist/backend/compile.js";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "./direct-csharp-session.mjs";
+import { csharpProgramSourceFiles } from "./program-source-files.mjs";
 
 export function compileCsharpRequiredRecordSource(sourceText, surface) {
   let request;
@@ -17,7 +18,7 @@ export function compileCsharpRequiredRecordSource(sourceText, surface) {
     nodes.push(node);
     source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  program.sourceFiles.forEach(visit);
+  csharpProgramSourceFiles(program).forEach(visit);
   return { compiled, request, source, program, nodes };
 }
 

@@ -3,6 +3,7 @@ import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { moduleBindingPatternFiles, moduleBindingPublicationPrograms } from "../../../../tsonic/test/fixtures/module-binding-patterns.mjs";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 for (const surface of [undefined, "js"]) {
   test(`module initialization selects only exact module binding leaves on ${surface ?? "native"}`, () => {
@@ -31,7 +32,7 @@ export function read(): number {
       }
       ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
     };
-    for (const sourceFile of program.sourceFiles) visit(sourceFile);
+    for (const sourceFile of csharpProgramSourceFiles(program)) visit(sourceFile);
     for (const [name, mode] of [["first", "value"], ["second", "value"], ["third", "value"], ["local", undefined]]) {
       const binding = bindings.get(name);
       assert.equal(binding !== undefined, true, `the actual ${name} source binding exists`);

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 registerHooks({
   load(url, context, nextLoad) {
@@ -62,7 +63,7 @@ for (const surface of ["native", "js"]) {
     assert.deepEqual(result.targetDiagnostics, []);
     const { program } = result.result;
     const mappings = [];
-    const pending = [...program.sourceFiles];
+    const pending = [...csharpProgramSourceFiles(program)];
     while (pending.length > 0) {
       const node = pending.pop();
       for (const alternative of program.records.awaitCompletion.get(node)?.alternatives ?? []) {

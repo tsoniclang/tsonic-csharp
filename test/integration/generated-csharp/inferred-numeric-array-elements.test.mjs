@@ -69,6 +69,7 @@ unionDestinationPrograms.push(
 
 const sourceText = `
 import type { float32, float64, int16, uint16, int32, uint32, int64, decimal as nativeDecimal } from "@tsonic/core/types.js";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 export function bare(signed: int32, unsigned: uint32) { const bareValues = [signed, unsigned]; return bareValues; }
 export function reverse(signed: int32, unsigned: uint32) { const reverseValues = [unsigned, signed]; return reverseValues; }
 export function left(signed: int32, unsigned: uint32) { const leftValues = [signed, unsigned, 1]; return leftValues; }
@@ -141,7 +142,7 @@ function carriers(program) {
     }
     ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  for (const file of program.sourceFiles) visit(file);
+  for (const file of csharpProgramSourceFiles(program)) visit(file);
   return result;
 }
 
@@ -160,7 +161,7 @@ function nativeArrayElements(program) {
     }
     ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  for (const file of program.sourceFiles) visit(file);
+  for (const file of csharpProgramSourceFiles(program)) visit(file);
   return { named, unionDestinations };
 }
 

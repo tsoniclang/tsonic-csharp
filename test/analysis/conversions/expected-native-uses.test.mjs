@@ -11,6 +11,7 @@ import { csharpNativeUseSite } from "../../../dist/target-model/records/native-d
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { createExpectedNativeUseOwner } from "../../helpers/expected-native-uses.mjs";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 function owners(sourceText, surface = "native", targetOptions) {
   const compiled = compileCsharpSource({ sourceText, surface, targetOptions });
@@ -22,7 +23,7 @@ function owners(sourceText, surface = "native", targetOptions) {
   const records = program.records;
   const nodes = [];
   const walk = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) walk(child); }); };
-  for (const file of program.sourceFiles) walk(file);
+  for (const file of csharpProgramSourceFiles(program)) walk(file);
   const contracts = nodes.filter(node => ast.is.IsFunctionDeclaration(node) && ast.body(node) !== undefined).flatMap(node => {
     const declared = records.returnContract.get(node);
     const returnType = records.generatorTargetType.get(node) ?? (declared?.kind === "resolved" ? declared.type : undefined);

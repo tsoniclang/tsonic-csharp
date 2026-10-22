@@ -3,6 +3,7 @@ import test from "node:test";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { createExpectedNativeUseOwner } from "../../helpers/expected-native-uses.mjs";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 const source = `
   import type { int32 } from "@tsonic/core/types.js";
@@ -16,7 +17,7 @@ function compiled(surface) {
   assertCsharpCompilationSucceeded(result);
   const { program } = result.result;
   const nodes = [];
-  const pending = [...program.sourceFiles];
+  const pending = [...csharpProgramSourceFiles(program)];
   while (pending.length > 0) {
     const node = pending.pop();
     nodes.push(node);

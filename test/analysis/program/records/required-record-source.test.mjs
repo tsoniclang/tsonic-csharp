@@ -11,6 +11,7 @@ import { targetTypeRefEquals } from "../../../../dist/target-model/types/equalit
 import { compileCsharpRequiredRecordSource, csharpRequiredRecordFailure } from "../../../helpers/required-records.mjs";
 import { createExpectedNativeUseOwner } from "../../../helpers/expected-native-uses.mjs";
 import { getCsharpLambdaSignature } from "../../../../dist/target-model/types/carriers/delegates.js";
+import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
 
 const sourceText = `
   import type { int32 } from "@tsonic/core/types.js";
@@ -86,7 +87,7 @@ for (const surface of ["native", "js"]) {
   });
 
   test(`${surface}: the participation owner registers each native participation decision`, () => {
-    const storage = createSourceStorageQuery(source, program.sourceFiles, undefined, createCsharpSourceProfileStorageEffects(source));
+    const storage = createSourceStorageQuery(source, csharpProgramSourceFiles(program), undefined, createCsharpSourceProfileStorageEffects(source));
     assert.equal(storage.failureReason() === undefined, true, "bounded owned source domain");
     const rows = [];
     const admitted = analyzeCsharpNativeParticipation({
@@ -111,7 +112,7 @@ for (const surface of ["native", "js"]) {
   test(`${surface}: the storage owner registers required storage only for adapted lambda parameters`, () => {
     const rows = [];
     const policy = Object.freeze({
-      ast, sourceFiles: program.sourceFiles, sourceFacts: source.sourceFacts, navigation: source.navigation,
+      ast, sourceFiles: csharpProgramSourceFiles(program), sourceFacts: source.sourceFacts, navigation: source.navigation,
       typeDefinitions: program.typeDefinitions, semanticsFor: source.semantics.forNode,
     });
     const expected = createExpectedNativeUseOwner(compiled).analysis;

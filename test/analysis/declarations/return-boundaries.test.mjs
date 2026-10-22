@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 const localClass = constructorBody => `export function make() {
   class Local {
@@ -19,7 +20,7 @@ function makeContract(sourceText) {
   const { ast } = compiled.source;
   const nodes = [];
   const visit = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
-  program.sourceFiles.forEach(visit);
+  csharpProgramSourceFiles(program).forEach(visit);
   const make = nodes.find(node => ast.is.IsFunctionDeclaration(node) && ast.text(ast.name(node)) === "make");
   assert.ok(make);
   const output = compiled.result.artifacts.filter(artifact => artifact.path.endsWith(".cs"))

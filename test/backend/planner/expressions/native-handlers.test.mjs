@@ -5,6 +5,7 @@ import { createCsharpPlanningContext } from "../../../../dist/backend/planner/co
 import { planExpression } from "../../../../dist/backend/planner/expressions/index.js";
 import { planCsharpMemoryBinding } from "../../../../dist/backend/planner/expressions/memory-bindings.js";
 import { planCsharpExplicitSafetyExpression } from "../../../../dist/backend/planner/safety/explicit-safety.js";
+import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
 
 test("the C# root reads its selected descriptor once and never queries a losing applicability family", () => {
   const compiled = compileCsharpSource({ sourceText: `
@@ -23,7 +24,7 @@ test("the C# root reads its selected descriptor once and never queries a losing 
     if (ast.is.IsCallExpression(node) && ast.text(ast.as.AsCallExpression(node).Expression) === "unsafe") call = node;
     ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  program.sourceFiles.forEach(visit);
+  csharpProgramSourceFiles(program).forEach(visit);
   assert.equal(call !== undefined, true, "the exact unsafe call is present");
   const selected = Object.freeze({ kind: "native-pointer", selection: Object.freeze({ kind: "layout-query", value: 0 }) });
   let reads = 0;

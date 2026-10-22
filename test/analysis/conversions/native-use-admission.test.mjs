@@ -20,6 +20,7 @@ import { substituteObjectShapeFactTargetTypeParameters } from "../../../dist/pol
 import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
 import { analyzeCsharpFlowReadProjections } from "../../../dist/analysis/conversions/flow-read-projections.js";
 import { isCsharpSourceCallableArtifactDeclaration } from "../../../dist/policy/types/callables/source-callable-contract.js";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 test("canonical source callable admission recognizes TypeLiteral signatures without inventing executable bodies", () => {
   const declaration = {};
@@ -61,7 +62,7 @@ export function anonymous(present: boolean): int32 {
     if (program.source.ast.is.IsMethodSignatureDeclaration(node)) declarations.push(node);
     program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  for (const file of program.sourceFiles) visit(file);
+  for (const file of csharpProgramSourceFiles(program)) visit(file);
   assert.equal(declarations.length, 1, "the real selected TypeLiteral has one authored method signature");
   const signature = declarations[0];
   assert.equal(isCsharpSourceCallableArtifactDeclaration(program.source.ast, signature), true,
@@ -320,14 +321,14 @@ function owners(sourceText, surface) {
   const ast = source.ast;
   const nodes = [];
   const walk = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) walk(child); }); };
-  for (const file of program.sourceFiles) walk(file);
+  for (const file of csharpProgramSourceFiles(program)) walk(file);
   const records = program.records;
-  const literalValues = analyzeSourceLiteralValues(ast, program.sourceFiles);
+  const literalValues = analyzeSourceLiteralValues(ast, csharpProgramSourceFiles(program));
   const contracts = nodes.filter(node => ast.is.IsFunctionDeclaration(node) && ast.body(node) !== undefined).flatMap(node => {
     const declared = records.returnContract.get(node);
     return declared?.kind === "resolved" ? [{ sourceDeclaration: node, returnType: declared.type }] : [];
   });
-  const expected = analyzeCsharpExpectedTypes({ ast, sourceFiles: program.sourceFiles, literalValues,
+  const expected = analyzeCsharpExpectedTypes({ ast, sourceFiles: csharpProgramSourceFiles(program), literalValues,
     semantics: source.semantics.forFile, semanticsFor: source.semantics.forNode, typeDefinitions: program.typeDefinitions }, records, records, program.objectShapes,
     { declarationContracts: contracts, closedInputType: () => undefined, get: () => undefined },
     { get: node => { const read = records.valueRead.get(node); return read === undefined ? undefined

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 const forcedMessage = "Forced operation admission issue.";
 registerHooks({
@@ -83,7 +84,7 @@ function erasureOutcomes(compiled) {
     }
     ast.forEachChild(node, (child) => { if (child !== undefined) visit(child); });
   };
-  for (const sourceFile of program.sourceFiles) visit(sourceFile);
+  for (const sourceFile of csharpProgramSourceFiles(program)) visit(sourceFile);
   return outcomes;
 }
 
@@ -223,7 +224,7 @@ for (const [code, placement, erasedPrefix, emittedMarker, body, forcedSubject] o
         if (ast.is.IsAwaitExpression(node)) awaits.push(node);
         ast.forEachChild(node, (child) => { if (child !== undefined) visit(child); });
       };
-      for (const sourceFile of compiled.result.program.sourceFiles) visit(sourceFile);
+      for (const sourceFile of csharpProgramSourceFiles(compiled.result.program)) visit(sourceFile);
       assert.equal(awaits.length === 1 && inside(awaits[0]), true, "the program's only await is inside the erased statement");
     } else {
       const subjects = forced.subjects.filter(inside).map((node) => `${ast.kindName(node)}:${sourceText(compiled, node)}`);

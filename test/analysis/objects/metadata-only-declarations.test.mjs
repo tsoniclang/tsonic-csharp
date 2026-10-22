@@ -6,6 +6,7 @@ import { sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
 
 const pureSource = `
 import type { char, float16, float32, int64, uint8 } from "@tsonic/core/types.js";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 const nativeKey = "value";
 interface Holder { [nativeKey]: number; }
 const literalKey = "literal";
@@ -71,7 +72,7 @@ export function run(): boolean {
 
 function namedVariable(program, name, moduleLevel = true) {
   const { ast } = program.source;
-  const pending = [...program.sourceFiles];
+  const pending = [...csharpProgramSourceFiles(program)];
   while (pending.length !== 0) {
     const node = pending.pop();
     if (ast.is.IsVariableDeclaration(node) && ast.is.IsIdentifier(ast.name(node)) && ast.text(ast.name(node)) === name &&

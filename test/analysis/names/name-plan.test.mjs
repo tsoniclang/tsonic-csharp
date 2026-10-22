@@ -15,6 +15,7 @@ import { createDotnetReflectionTypeDataProvider } from "../../helpers/dotnet-ref
 import { planClassMemberModifiers } from "../../../dist/backend/planner/declarations/classes/modifiers.js";
 import { planCsharpAdmittedMemberName } from "../../../dist/backend/planner/declarations/modifiers.js";
 import { analyzeCsharpProjectCallableAdapters } from "../../../dist/analysis/project-types/callable-adapters.js";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 const nativeMemberNames = Object.freeze({ issues: Object.freeze([]), memberHiding: Object.freeze([]) });
 
@@ -116,7 +117,7 @@ for (const surface of ["native", "js"]) {
     assertCsharpCompilationSucceeded(admitted);
     const program = admitted.result.program;
     const ast = program.source.ast;
-    const declaration = ast.statements(program.sourceFiles[0]).find(node => ast.is.IsClassDeclaration(node));
+    const declaration = ast.statements(csharpProgramSourceFiles(program)[0]).find(node => ast.is.IsClassDeclaration(node));
     const field = ast.members(declaration).find(node => node !== undefined && ast.is.IsPropertyDeclaration(node));
     assert.equal(field !== undefined, true, "the separate corruption control starts with a real admitted field");
     assert.throws(() => planCsharpAdmittedMemberName({ ...program.names,
@@ -205,7 +206,7 @@ for (const surface of ["native", "js"]) {
       if (ast.is.IsVariableDeclaration(node) && ast.text(ast.name(node)) === "value") declaration = node;
       ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
     };
-    program.sourceFiles.forEach(visit);
+    csharpProgramSourceFiles(program).forEach(visit);
     const selected = program.names.resolve(ast.name(declaration));
     assert.equal(selected.kind === "resolved" && selected.name === "value_1", true,
       "the native CS0136 shadowing constraint is solved by the sole pre-seal name owner");
@@ -465,7 +466,7 @@ for (const surface of ["native", "js"]) {
       }
       ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
     };
-    program.sourceFiles.forEach(visit);
+    csharpProgramSourceFiles(program).forEach(visit);
     for (const owner of ["Base", "Hidden", "Derived", "Implemented"]) {
       const member = observations.find(entry => entry.owner === owner && entry.name === "read");
       assert.equal(member !== undefined, true, `${owner}: the actual authored method is retained`);

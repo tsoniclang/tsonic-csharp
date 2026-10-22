@@ -10,13 +10,14 @@ import { planCsharpOptionalReceiverChain } from "../../../dist/backend/planner/e
 import { createExpectedNativeUseOwner } from "../../helpers/expected-native-uses.mjs";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { selectCsharpSourceFlowCall } from "../../../dist/policy/operations/flow/source-flow.js";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 function recordedCalls(compiled) {
   const program = compiled.result.program;
   assert.equal(program !== undefined, true, "analyzed program is present");
   const ast = program.source.ast;
   const calls = [];
-  for (const sourceFile of program.sourceFiles) {
+  for (const sourceFile of csharpProgramSourceFiles(program)) {
     if (!String(ast.getPath(sourceFile)).endsWith("/index.ts")) continue;
     const text = String(ast.getSourceText(sourceFile));
     const visit = node => {
@@ -33,7 +34,7 @@ function recordedForms(compiled) {
   const program = compiled.result.program;
   const ast = program.source.ast;
   const forms = [];
-  for (const sourceFile of program.sourceFiles) {
+  for (const sourceFile of csharpProgramSourceFiles(program)) {
     if (!String(ast.getPath(sourceFile)).endsWith("/index.ts")) continue;
     const text = String(ast.getSourceText(sourceFile));
     const visit = (node) => {
@@ -108,7 +109,7 @@ test("operator form readers are frozen, repeatable and absent for foreign and no
     }
     ast.forEachChild(node, (child) => { if (child !== undefined) visit(child); });
   };
-  for (const sourceFile of program.sourceFiles) {
+  for (const sourceFile of csharpProgramSourceFiles(program)) {
     if (String(ast.getPath(sourceFile)).endsWith("/index.ts")) visit(sourceFile);
   }
   assert.equal(operators === 3, true, "two binary operators and one unary operator are visited");
@@ -181,7 +182,7 @@ test("binary expected-result eligibility is stored once from the checked operato
     let eligibleContextual = 0;
     let ineligible = 0;
     let unary = 0;
-    for (const sourceFile of program.sourceFiles) {
+    for (const sourceFile of csharpProgramSourceFiles(program)) {
       if (!String(ast.getPath(sourceFile)).endsWith("/index.ts")) continue;
       const text = String(ast.getSourceText(sourceFile));
       const visit = (node) => {

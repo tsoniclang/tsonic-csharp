@@ -9,6 +9,7 @@ import { executeCsharpConstruction } from "../../../helpers/native-construction.
 import { csharpConstructorBaseCall, csharpConstructorRequiresPreparation } from "../../../../dist/analysis/callables/constructor-entry.js";
 import { createCsharpPlanningContext } from "../../../../dist/backend/planner/context.js";
 import { planConstructorDeclarations } from "../../../../dist/backend/planner/declarations/classes/constructors.js";
+import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
 
 test("implicit derived constructors forward exact selected generic and optional source parameters", () => {
   const compiled = compileCsharpSource({ sourceText: `
@@ -114,7 +115,7 @@ for (const surface of ["native", "js"]) {
       if (ast.is.IsConstructorDeclaration(node)) constructors.push(node);
       ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
     };
-    program.sourceFiles.forEach(visit);
+    csharpProgramSourceFiles(program).forEach(visit);
     assert.equal(constructors.length, 3, "all three source constructors retain their actual direct entry");
     for (const [index, constructor] of constructors.entries()) {
       assert.equal(csharpConstructorRequiresPreparation(ast, constructor, program.records, program.records,

@@ -12,6 +12,7 @@ import { getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carr
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { memoryAbiCapability } from "../../helpers/memory-abi.mjs";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 const emissionPrograms = [
   ["class and static initializers", `
@@ -306,7 +307,7 @@ for (const surface of ["native", "js"]) test(`${surface} numeric spread carriers
     }
     ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  for (const file of program.sourceFiles) visit(file);
+  for (const file of csharpProgramSourceFiles(program)) visit(file);
   for (const name of ["prefix", "suffix", "left", "middle", "right"]) assert.equal(arrays.get(name)?.kind === "source-primitive" &&
     arrays.get(name)?.name === "float64", true, `${name}: actual double spread and numeric literals share the same native carrier`);
   assert.equal(arrays.get("narrow")?.kind === "source-primitive" && arrays.get("narrow")?.name === "int32", true,
@@ -420,7 +421,7 @@ for (const surface of ["native", "js"]) test(`${surface} actual structural calla
     if (ast.is.IsFunctionDeclaration(node) && ["create", "createOther"].includes(ast.text(ast.name(node)))) producers.push(node);
     ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  for (const file of program.sourceFiles) visit(file);
+  for (const file of csharpProgramSourceFiles(program)) visit(file);
   assert.equal(producers.length, 2, "both actual checked callable producers are present");
   for (const producer of producers) {
     const contract = program.records.returnContract.get(producer);
@@ -455,7 +456,7 @@ for (const surface of ["native", "js"]) test(`${surface} actual native delegate 
     }
     ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  for (const file of program.sourceFiles) visit(file);
+  for (const file of csharpProgramSourceFiles(program)) visit(file);
   assert.equal(returns.length, 1, "the source has one actual native variant return use");
   const use = program.records.nativeUse.expression(returns[0])?.use;
   assert.equal(use?.kind === "converted" && use.input.kind === "value", true,
@@ -506,7 +507,7 @@ test("transparent wrappers of discarded callable creation remain erased without 
     if (program.source.ast.is.IsExpressionStatement(node)) wrappers.push(program.source.ast.as.AsExpressionStatement(node).Expression);
     program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  for (const file of program.sourceFiles) visit(file);
+  for (const file of csharpProgramSourceFiles(program)) visit(file);
   assert.equal(wrappers.length, 3, "all three authored creation effects are represented");
   for (const wrapper of wrappers) assert.equal(program.records.nativeUse.expression(wrapper)?.use.kind === "erased", true,
     "a transparent wrapper inherits only its actual discarded child, never a pending source failure");
@@ -541,8 +542,8 @@ function owners(sourceText, surface = "js") {
   const records = program.records;
   const nodes = [];
   const walk = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) walk(child); }); };
-  for (const file of program.sourceFiles) walk(file);
-  const bindingPatterns = analyzeCsharpBindingPatterns({ ast, semanticsFor: source.semantics.forNode, sourceFiles: program.sourceFiles, participation: records.nativeParticipation,
+  for (const file of csharpProgramSourceFiles(program)) walk(file);
+  const bindingPatterns = analyzeCsharpBindingPatterns({ ast, semanticsFor: source.semantics.forNode, sourceFiles: csharpProgramSourceFiles(program), participation: records.nativeParticipation,
     evidence: records, operations: records, valueReads: records, objectShapes: program.objectShapes, storage: records,
     typePolicy: { resolveType: () => assert.fail("These native-use closure fixtures require no source-owned member resolution.") },
     conversionPolicy: { target: compiled.target, typeDefinitions: program.typeDefinitions, objectShapes: program.objectShapes,
@@ -552,7 +553,7 @@ function owners(sourceText, surface = "js") {
         return heritage === undefined ? undefined : heritage.baseType === undefined
           ? heritage.interfaces : [heritage.baseType, ...heritage.interfaces];
       } } } });
-  const input = { ast, sourceFiles: program.sourceFiles, navigation: program.sourceNavigation, evidence: records, operations: records,
+  const input = { ast, sourceFiles: csharpProgramSourceFiles(program), navigation: program.sourceNavigation, evidence: records, operations: records,
     nativeExpressionIssues: [],
     declarations: records, objectShapes: program.objectShapes,
     exactLiteral: records.exactLiteral, propertyKeyBindings: expression => {

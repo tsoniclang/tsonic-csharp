@@ -6,6 +6,7 @@ import { csharpDelegateTargetType, csharpTaskTargetType } from "../../../dist/ta
 import { csharpGeneratorTargetType, csharpAsyncGeneratorTargetType } from "../../../dist/target-model/types/carriers/generators.js";
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 const integer = csharpSourcePrimitiveTargetType("int32");
 const number = csharpSourcePrimitiveTargetType("float64");
@@ -87,7 +88,7 @@ test("the published return context is the target the planner writes return expre
     }
     ast.forEachChild(node, (child) => { if (child !== undefined) visit(child); });
   };
-  for (const file of program.sourceFiles) visit(file);
+  for (const file of csharpProgramSourceFiles(program)) visit(file);
   const keys = [...found.values()];
   assert.equal(keys.filter((key) => key === "source:int32").length, 3, "class getter, plain and async function return int32");
   assert.equal(keys.filter((key) => key === "source:float64").length, 2, "arrow and object-literal getter return float64");

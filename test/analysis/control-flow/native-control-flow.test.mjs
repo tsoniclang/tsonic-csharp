@@ -15,6 +15,7 @@ import { planBreakStatement, planContinueStatement, planReturnStatement } from "
 import { planLocalDeclarationStatements } from "../../../dist/backend/planner/bindings/locals.js";
 import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types/target-types.js";
 import { getCsharpGeneratorProtocol } from "../../../dist/target-model/types/index.js";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 for (const surface of ["native", "js"]) {
   test(`native C# rejects control transfer leaving cleanup before publishing output in ${surface}`, () => {
@@ -59,7 +60,7 @@ for (const surface of ["native", "js"]) {
       }
       ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
     };
-    program.sourceFiles.forEach(visit);
+    csharpProgramSourceFiles(program).forEach(visit);
     assert.equal(forms.length, 2, "declaration and assignment sources are both covered");
     for (const form of forms) {
       const original = program.records.nativeUse.expression(form.source);
@@ -94,7 +95,7 @@ test("generator return renders the native function's already selected return syn
   assert.equal(compiled.targetDiagnostics.length, 0, "the native protocol is admitted");
   const program = compiled.result.program;
   const ast = program.source.ast;
-  const declaration = program.sourceFiles.flatMap(file => ast.statements(file))
+  const declaration = csharpProgramSourceFiles(program).flatMap(file => ast.statements(file))
     .find(node => node !== undefined && ast.is.IsFunctionDeclaration(node));
   const statement = ast.children(ast.body(declaration))
     .find(node => node !== undefined && ast.is.IsReturnStatement(node));
@@ -266,7 +267,7 @@ if (Tsonic.Generated.Index.run() != 7) throw new System.Exception("native data-o
       if (fact?.element !== undefined) projections.push({ node, fact });
       ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
     };
-    program.sourceFiles.forEach(visit);
+    csharpProgramSourceFiles(program).forEach(visit);
     assert.equal(projections.length, 4, "named member, array element, rest and assignment projections are retained");
     for (const { fact } of projections) {
       assert.equal(fact.binding?.source !== undefined && fact.binding.target !== undefined &&
@@ -311,7 +312,7 @@ test("checked labeled transfers require their exact active renderer target", () 
     if (ast.is.IsBreakStatement(node) || ast.is.IsContinueStatement(node)) transfers.push(node);
     ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  program.sourceFiles.forEach(visit);
+  csharpProgramSourceFiles(program).forEach(visit);
   assert.equal(transfers.length, 2, "the witness retains one break and one continue");
   for (const transfer of transfers) {
     const diagnostics = [];
@@ -330,7 +331,7 @@ test("generated native helpers require their constructed scope and paired parame
   assert.equal(compiled.targetDiagnostics.length, 0, "the helper corruption witness starts from a valid published program");
   const program = compiled.result.program;
   const ast = program.source.ast;
-  const node = program.sourceFiles.flatMap(file => ast.statements(file)).find(statement => ast.is.IsFunctionDeclaration(statement));
+  const node = csharpProgramSourceFiles(program).flatMap(file => ast.statements(file)).find(statement => ast.is.IsFunctionDeclaration(statement));
   const context = createCsharpPlanningContext(program);
   for (const control of [
     { name: "missing containing native type", input: context, parameters: [] },
@@ -355,7 +356,7 @@ test("every emitted class property has one selected physical storage record", ()
   assert.equal(compiled.targetDiagnostics.length, 0, "native class property selection succeeds");
   const program = compiled.result.program;
   const ast = program.source.ast;
-  const declaration = program.sourceFiles.flatMap(file => ast.statements(file))
+  const declaration = csharpProgramSourceFiles(program).flatMap(file => ast.statements(file))
     .find(node => node !== undefined && ast.is.IsClassDeclaration(node) && ast.text(ast.name(node)) === "View");
   const properties = ast.members(declaration).filter(node => node !== undefined && ast.is.IsPropertyDeclaration(node));
   assert.equal(properties.length, 2, "both native fields retain their original declarations");
@@ -509,7 +510,7 @@ for (const surface of ["native", "js"]) {
         }
         ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
       };
-      program.sourceFiles.forEach(visit);
+      csharpProgramSourceFiles(program).forEach(visit);
       assert.equal(count, 3, "all three physical binding forms are witnessed");
       const integers = surface === "js"
         ? "new global::Tsonic.CSharp.Js.JSArray<int>(new int[] { 1, 2, 3 })" : "new int[] { 1, 2, 3 }";
@@ -541,7 +542,7 @@ test("published for-in records contain immutable physical bindings and conversio
     if (program.source.ast.is.IsForInStatement(node)) loop = node;
     program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  program.sourceFiles.forEach(visit);
+  csharpProgramSourceFiles(program).forEach(visit);
   const iteration = program.records.iteration.get(loop);
   assert.equal(iteration?.kind === "resolved" && iteration.iterationKind === "for-in", true,
     "only a successful native iteration payload is published");

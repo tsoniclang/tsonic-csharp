@@ -6,6 +6,7 @@ import { createCsharpPlanningContext } from "../../../../dist/backend/planner/co
 import { planThrowStatement } from "../../../../dist/backend/planner/statements/statement-simple.js";
 import { admitCsharpStatementBindings } from "../../../../dist/analysis/control-flow/native-control-flow.js";
 import { csharpStringTargetType } from "../../../../dist/target-model/types/index.js";
+import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
 
 test("native throw planning requires its exact sealed operand, source carrier and target conversion", () => {
   const compiled = compileCsharpSource({ sourceText: "export function fail(error: Error): void { throw error; }" });
@@ -15,7 +16,7 @@ test("native throw planning requires its exact sealed operand, source carrier an
   assertNoTargetDiagnostics(compiled.result.diagnostics);
   const program = compiled.result.program;
   const source = program.source;
-  const declaration = program.sourceFiles.flatMap(file => source.ast.statements(file))
+  const declaration = csharpProgramSourceFiles(program).flatMap(file => source.ast.statements(file))
     .find(node => source.ast.text(source.ast.name(node)) === "fail");
   const statement = source.ast.statements(source.ast.body(declaration))[0];
   const classification = program.records.throwValue.get(statement);

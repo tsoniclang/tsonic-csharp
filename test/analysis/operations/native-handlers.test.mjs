@@ -3,11 +3,12 @@ import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpNativeHandlers } from "../../../dist/analysis/operations/native-handlers.js";
 import { assertCsharpRequiredRecords } from "../../../dist/analysis/program/records/required-records.js";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 function handlersByCallee(program) {
   const ast = program.source.ast;
   const handlers = [];
-  for (const sourceFile of program.sourceFiles) {
+  for (const sourceFile of csharpProgramSourceFiles(program)) {
     const text = String(ast.getSourceText(sourceFile));
     const visit = (node) => {
       if (ast.is.IsCallExpression(node)) {

@@ -18,6 +18,7 @@ import { printCsharpExpression } from "../../../dist/print/source/printer.js";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { callEvidence, directProviderHost, providerBinding, providerDeclaration, providerFact, providerMethod,
   selectCsharpProviderCall, signatureRelation, targetParameter } from "../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 const primitive = name => csharpSourcePrimitiveTargetType(name);
 const primitives = ["bool", "char", "int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64", "native-int",
@@ -158,7 +159,7 @@ test("shorthand property keys never replace the same source node's runtime value
   const program = compiled.result.program;
   const nodes = [];
   const visit = node => { nodes.push(node); program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
-  for (const file of program.sourceFiles) visit(file);
+  for (const file of csharpProgramSourceFiles(program)) visit(file);
   const shorthand = nodes.find(node => program.source.ast.is.IsShorthandPropertyAssignment(node));
   const name = program.source.ast.name(shorthand);
   const use = program.records.nativeUse.expression(name)?.use;
@@ -184,7 +185,7 @@ test("actual native dictionary construction carries its computed string key reci
     if (program.source.ast.is.IsObjectLiteralExpression(node)) objects.push(node);
     program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  for (const file of program.sourceFiles) visit(file);
+  for (const file of csharpProgramSourceFiles(program)) visit(file);
   const bindings = objects.flatMap(expression => {
     const use = program.records.nativeUse.expression(expression)?.use;
     assert.equal(use !== undefined && use.kind !== "erased" && Object.isFrozen(use.propertyKeys), true,
@@ -413,7 +414,7 @@ test("a compiled program publishes exact literal selections at its actual reques
   const { program } = result.result;
   const records = program.records;
   const nodes = [];
-  const pending = [...program.sourceFiles];
+  const pending = [...csharpProgramSourceFiles(program)];
   while (pending.length > 0) {
     const node = pending.pop();
     nodes.push(node);
@@ -442,7 +443,7 @@ test("a compiled program publishes exact literal selections at its actual reques
   assert.equal(primitives.filter(name => records.exactLiteral.get(text, primitive(name)) !== undefined).length, 0,
     "a string literal has no native primitive record it was never requested at");
   assert.equal(records.exactLiteral.get(wide, primitive("uint128")), undefined, "an unrequested target stays unknown");
-  assert.deepEqual(records.exactLiteral.get(program.sourceFiles[0], primitive("int64")), { kind: "not-applicable" });
+  assert.deepEqual(records.exactLiteral.get(csharpProgramSourceFiles(program)[0], primitive("int64")), { kind: "not-applicable" });
   assert.equal(Object.isFrozen(records.exactLiteral) && !Object.hasOwn(records.exactLiteral, "set"), true);
 });
 
@@ -567,7 +568,7 @@ for (const surface of ["native", "js"]) test(`${surface} actual literal union re
     if (ast.is.IsReturnStatement(node)) expression = ast.as.AsReturnStatement(node).Expression;
     ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
-  for (const file of program.sourceFiles) visit(file);
+  for (const file of csharpProgramSourceFiles(program)) visit(file);
   assert.equal(declaration !== undefined && expression !== undefined, true, "the actual checked return and literal are present");
   const inner = program.records.exactLiteral.get(expression, primitive("float32"));
   assert.equal(inner?.kind === "resolved" && inner.recipe.kind === "float" && inner.recipe.precision === "float32" &&
