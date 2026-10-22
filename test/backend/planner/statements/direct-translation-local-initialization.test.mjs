@@ -213,7 +213,10 @@ test("local storage has one final carrier and no syntax, lambda or source-eviden
     error => error.message.includes(control.message), `${control.label}: only corrupted admitted storage is an invariant`);
   }
   const opaque = Object.freeze({ kind: "opaque", id: "missing" });
-  const issues = admitCsharpNativeStorageBindings(ast, [declaration], program.records.nativeUse,
+  // The pre-seal admission reads the analysis native-use catalog, whose construct order marks the declaration as
+  // admitted native code; the sealed record carries only expression uses.
+  const nativeUse = { ...program.records.nativeUse, order: node => node === declaration ? [] : undefined };
+  const issues = admitCsharpNativeStorageBindings(ast, [declaration], nativeUse,
     { ...program.records, storageType: { get: () => opaque } }, program.records.nativeRefReturn,
     program.records.nativeParticipation, program.records.compileTimeMetadata, program.records.nativeUnreachable);
   assert.equal(issues.length, 1, "the actual pre-seal owner refuses an unrenderable local carrier once");
