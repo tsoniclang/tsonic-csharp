@@ -63,8 +63,16 @@ export function analyzeCsharpBinaryEmission(input: { readonly source: TargetSour
       retainOther: input.constants.nativeAbsence.get(other, otherCarrier) !== true });
     native.set(node, entries);
   };
+  // The nullish choices of a borrowed spread sequence are planned as the borrowed sequence's own input choice (as the
+  // array-literal planner selects it), never as binary operations.
+  const borrowedControls = new Set<Node>();
   for (const node of input.nodes) {
-    if (!input.admitted(node) || !ast.is.IsBinaryExpression(node)) continue;
+    const borrowed = input.operations.borrowedSequence.get(node);
+    const single = borrowed?.inputs.length === 1 && borrowed.inputs[0]?.kind === "sequence" && !borrowed.inputs[0].optional;
+    if (borrowed !== undefined && !single) for (const control of borrowed.controlNodes) borrowedControls.add(control);
+  }
+  for (const node of input.nodes) {
+    if (!input.admitted(node) || !ast.is.IsBinaryExpression(node) || borrowedControls.has(node)) continue;
     const form = input.operations.operatorForm.get(node);
     if (form === "destructuring-assignment") continue;
     if (form === "js-array-mutation" || form === "type-test" || form === "typeof-comparison") { forms.set(node, { kind: form }); continue; }
@@ -98,6 +106,10 @@ export function analyzeCsharpBinaryEmission(input: { readonly source: TargetSour
       }
       forms.set(node, { kind: "element-write", receiver: element.Expression, key: element.ArgumentExpression, value: right, invocation: write }); continue;
     }
+    // A discarded expression whose presence alone is observed is planned from its native discarded-presence plan and
+    // never renders the selected binary operation.
+    const use = input.demand.nativeUse.expression(node)?.use;
+    if (use !== undefined && use.kind !== "erased" && use.discardedPresence !== undefined) continue;
     if (selected.target.kind === "rejected") { refuse(node, selected.target.reason); continue; }
     addNative(node, selected.target);
     forms.set(node, { kind: "native", selection: selected.target });
