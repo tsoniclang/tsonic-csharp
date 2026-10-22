@@ -302,7 +302,7 @@ export function finalizeCsharpNativeEmission(
   const indexedRecords = analyzeCsharpIndexedRecords(sourceStorage.nodes, admittedOperations);
   if (indexedRecords.issues.length !== 0) return rejectedTargetStage(indexedRecords.issues);
   const frozenDataProperties = analyzeCsharpFrozenDataProperties({ ast: source.ast, demand: objectShapeDemand, members: objectMembers.records,
-    storage: analysis.storage, operations: admittedOperations, attributes: attributeApplications });
+    storage: analysis.storage, operations: admittedOperations, attributes: attributeApplications, methodWrites: analysis.declarations.methodWrite });
   if (frozenDataProperties.issues.length !== 0) return rejectedTargetStage(frozenDataProperties.issues);
   const captureMethods = analyzeCsharpCaptureMethods(source.ast, captureStorage);
   if (captureMethods.issues.length !== 0) return rejectedTargetStage(captureMethods.issues);
