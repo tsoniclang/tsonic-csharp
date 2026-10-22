@@ -132,14 +132,13 @@ for (const surface of ["native", "js"]) {
       `${mode}: one native argument is forwarded without a packet or value copy`);
     const constructor = constructors[0];
     const argument = ast.as.AsCallExpression(csharpConstructorBaseCall(ast, constructor)).Arguments.Nodes[0];
-    const diagnostics = [];
-    planConstructorDeclarations(constructor, "RefDerived", ast.getSourceFile(constructor),
+    // A missing sealed mode record is a planner invariant (RULINGS: missing records are refused, never relabeled).
+    assert.throws(() => planConstructorDeclarations(constructor, "RefDerived", ast.getSourceFile(constructor),
       createCsharpPlanningContext({ ...program, records: { ...program.records,
-        sourceArgument: { get: node => node === argument ? undefined : program.records.sourceArgument.get(node) } } }), diagnostics, []);
-    assert.equal(diagnostics.length, 1, "a missing mode record is not accepted through a by-value fallback");
-    assert.equal(diagnostics[0].message, "C# call planning received an argument without sealed passing evidence.",
-      "the existing missing-record refusal is unchanged");
-    assert.equal(diagnostics[0].sourceNode === argument, true, "the exact argument remains the refusal subject");
+        sourceArgument: { get: node => node === argument ? undefined : program.records.sourceArgument.get(node) } } }), [], []),
+    failure => failure.diagnostic?.message === "C# call planning received an argument without sealed passing evidence." &&
+      failure.diagnostic?.sourceNode === argument,
+    "a missing mode record is not accepted through a by-value fallback; the exact argument is the subject");
     executeCsharpConstruction(compiled, `native-direct-base-${surface}`, false, false, [fixture.project], `
 int changed = 5, original = 7;
 var reference = new NativeConstructorModes.RefBase(ref changed);
