@@ -158,7 +158,10 @@ export function admitCsharpExpectedNativeUses(
         : final.operations.operatorForm.usesExpectedResultType(request.expression)
           ? expected.expectedBinary.get(request.expression, request.targetType) : final.operations.binaryOperation.get(request.expression)?.target,
       children: group.childData });
-    if (selection.kind === "pending") return selection;
+    if (selection.kind === "pending") {
+      const rejection = expected.constructions.constructionRejection(request.expression, request.targetType);
+      return rejection === undefined ? selection : { ...selection, message: rejection };
+    }
     const forwarded = selection.construction?.children ?? selection.children;
     const children = new Set<AdmissionGroup>();
     for (const site of forwarded) {
