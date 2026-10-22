@@ -2,6 +2,7 @@ import type { AstReader, Node } from "@tsonic/tsts";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpTypedLocationStorage } from "../../target-model/records/typed-location-storage.js";
+import type { CsharpJsCallRecords } from "../../target-model/records/js-value-calls.js";
 
 export type CsharpCallPlanningRecords = {
   readonly operations: Pick<CsharpTargetOperationClassifications, "selectedCall" | "nativeHandler">;
@@ -11,11 +12,12 @@ export type CsharpCallPlanningRecords = {
 /**
  * The expression nodes the planner renders as values: every admitted node plus the callee of each call planned as a
  * source-owned call, and every expression of an addressed typed-location storage chain (planned as the location's
- * owner, property and receiver values), and the identifier a for-of loop assigns each element to. Any other call renders its receiver and operands itself; its callee is never
- * planned as a property or identifier value, so it is not admitted as one.
+ * owner, property and receiver values), the identifier a for-of loop assigns each element to, and the receiver of each
+ * JS call (a direct JS call invokes its callee value, so that callee is its receiver). Any other call renders its
+ * receiver and operands itself; its callee is never planned as a property or identifier value, so it is not admitted as one.
  */
 export function selectCsharpEmittedExpressions(input: CsharpCallPlanningRecords & { readonly ast: AstReader;
-  readonly nodes: readonly Node[]; readonly admitted: (node: Node) => boolean }): ReadonlySet<Node> {
+  readonly nodes: readonly Node[]; readonly admitted: (node: Node) => boolean; readonly jsCalls: CsharpJsCallRecords }): ReadonlySet<Node> {
   const emitted = new Set<Node>();
   const unplannedCallees = new Set<Node>();
   for (const node of input.nodes) if (input.admitted(node)) {
@@ -29,7 +31,9 @@ export function selectCsharpEmittedExpressions(input: CsharpCallPlanningRecords 
     }
     const callee = input.operations.selectedCall.get(node)?.source?.sourceCallee.expression;
     if (callee === undefined) continue;
-    if (csharpCallIsPlannedAsSourceCall(node, input)) emitted.add(callee);
+    const jsReceiver = input.jsCalls.jsCall.get(node)?.receiver;
+    if (jsReceiver !== undefined) emitted.add(jsReceiver);
+    if (csharpCallIsPlannedAsSourceCall(node, input) || callee === jsReceiver) emitted.add(callee);
     else unplannedCallees.add(callee);
   }
   for (const callee of unplannedCallees) emitted.delete(callee);

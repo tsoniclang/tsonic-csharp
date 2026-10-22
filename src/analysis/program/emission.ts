@@ -312,13 +312,13 @@ export function finalizeCsharpNativeEmission(
   const sourceReferences = analyzeCsharpSourceReferences({ source, nodes: sourceStorage.nodes, admitted: admittedControlNode,
     evidence: analysis.sourceEvidence, factories: classFactories, captures: captureStorage, demand: nativeDemand,
     operations: admittedOperations, files: sourceOutputIdentities.records, backing: analysis.storage.nativeBacking,
-    delegateAdapters: conversions.delegateAdapters });
+    delegateAdapters: conversions.delegateAdapters, jsCalls: jsCalls.records });
   if (sourceReferences.issues.length !== 0) return rejectedTargetStage(sourceReferences.issues);
   const memberReceivers = analyzeCsharpMemberReceivers({ source, nodes: sourceStorage.nodes, operations: admittedOperations,
     references: sourceReferences.records, projects: projectEmission.records, factories: classFactories, admitted: admittedControlNode });
   if (memberReceivers.issues.length !== 0) return rejectedTargetStage(memberReceivers.issues);
   const propertyAdmission = analyzeCsharpPropertyAdmission({ ast: source.ast, nodes: sourceStorage.nodes,
-    operations: admittedOperations, admitted: admittedControlNode, projectDeclaration: node => source.navigation.isProjectDeclaration(node), receivers: memberReceivers.records,
+    operations: admittedOperations, admitted: admittedControlNode, projectDeclaration: node => source.navigation.isProjectDeclaration(node), receivers: memberReceivers.records, jsCalls: jsCalls.records,
     modules: sourceReferences.records.sourceModuleReference, evidence: analysis.sourceEvidence });
   if (propertyAdmission.issues.length !== 0) return rejectedTargetStage(propertyAdmission.issues);
   // Native member names are selected only where the planner renders one: an admitted source member read and the
