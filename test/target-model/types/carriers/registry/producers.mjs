@@ -274,13 +274,6 @@ export const producersCarrierRegistry = Object.freeze([
     frozen: false,
   },
   {
-    id: "src/analysis/source-evidence/types/resolution/expressions.ts#resolveNonNullExpressionType",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/source-evidence/types/resolution/expressions.ts", symbol: "resolveNonNullExpressionType" },
-    responsibility: "producers/source-absence-read-carrier",
-    frozen: false,
-  },
-  {
     id: "src/analysis/source-evidence/types/resolution/conditional-types.ts#resolveCsharpConditionalApplication",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/analysis/source-evidence/types/resolution/conditional-types.ts", symbol: "resolveCsharpConditionalApplication" },
@@ -362,27 +355,6 @@ export const producersCarrierRegistry = Object.freeze([
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/analysis/source-evidence/types/resolution/source-profiles.ts", symbol: "resolveUnionType" },
     responsibility: "producers/resolve-union",
-    frozen: false,
-  },
-  {
-    id: "src/analysis/source-evidence/types/resolution/project-types.ts#resolveProjectSourceSemanticType",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/source-evidence/types/resolution/project-types.ts", symbol: "resolveProjectSourceSemanticType" },
-    responsibility: "producers/resolve-instance-type",
-    frozen: false,
-  },
-  {
-    id: "src/analysis/source-evidence/types/resolution/project-types.ts#resolveProjectSourceType",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/source-evidence/types/resolution/project-types.ts", symbol: "resolveProjectSourceType" },
-    responsibility: "producers/resolve-instance-type",
-    frozen: false,
-  },
-  {
-    id: "src/analysis/source-evidence/types/resolution/project-types.ts#projectSourceDeclarationTargetType",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/source-evidence/types/resolution/project-types.ts", symbol: "projectSourceDeclarationTargetType" },
-    responsibility: "producers/resolve-instance-type",
     frozen: false,
   },
   {
