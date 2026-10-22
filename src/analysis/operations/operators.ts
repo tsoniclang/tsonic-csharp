@@ -85,7 +85,7 @@ export function selectCsharpBinaryOperands(
     left, right, sourceOperator, resultType, leftType, rightType, genericNumeric,
     leftStorage: isEquality(sourceOperator) && isCsharpAbsenceTargetType(rightType) ? input.types.resolveReadStorage(left) : undefined,
     rightStorage: isEquality(sourceOperator) && isCsharpAbsenceTargetType(leftType) ? input.types.resolveReadStorage(right) : undefined,
-    resultUse: input.navigation.expressionResultUse(right),
+    resultUse: sourceOperator === "," ? input.navigation.expressionResultUse(right) : undefined,
     assignmentLocation: csharpBinaryOperationRequiresLocation(sourceOperator, leftType, rightType)
       ? selectCsharpAssignmentLocation(input, left, targetTypeFor) : "unsupported",
   }, expectedResultType);

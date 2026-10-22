@@ -29,7 +29,8 @@ export interface CsharpBinaryOperands {
   readonly leftStorage: TargetTypeRef | undefined;
   readonly rightStorage: TargetTypeRef | undefined;
   readonly genericNumeric: Extract<CsharpTargetBinaryOperation, { readonly kind: "generic-numeric" }> | undefined;
-  readonly resultUse: ReturnType<CsharpPolicyContext["navigation"]["expressionResultUse"]>;
+  /** The checked use of the right operand; read only for the sequence operator, the one operation it selects. */
+  readonly resultUse: ReturnType<CsharpPolicyContext["navigation"]["expressionResultUse"]> | undefined;
   readonly assignmentLocation: import("../../../target-model/operations/assignment-locations.js").CsharpAssignmentLocation;
 }
 
@@ -44,7 +45,8 @@ export function selectCsharpNativeBinaryOperation(
     kind: "resolved", sourceOperator, targetOperation: genericNumeric,
     left, right, leftType, rightType, leftInputType: leftType, rightInputType: rightType, resultType,
   };
-  if (sourceOperator === ",") return {
+  if (sourceOperator === ",") return facts.resultUse === undefined
+    ? rejectCsharpOperator("A C# sequence operation requires the checked use of its right operand.") : {
     kind: "resolved", sourceOperator, targetOperation: {
       kind: "sequence", resultUse: facts.resultUse,
     },
