@@ -18,7 +18,9 @@ export function analyzeCsharpCallableDeclarationEmission(input: {
   for (const node of input.nodes) {
     if (!input.admitted(node) || input.ast.body(node) === undefined ||
       !input.ast.is.IsFunctionDeclaration(node) && !input.ast.is.IsFunctionExpression(node) && !input.ast.is.IsArrowFunction(node) &&
-      !input.ast.is.IsMethodDeclaration(node) && !input.ast.is.IsGetAccessorDeclaration(node) && !input.ast.is.IsSetAccessorDeclaration(node)) continue;
+      !input.ast.is.IsMethodDeclaration(node) && !input.ast.is.IsGetAccessorDeclaration(node)) continue;
+    // A set accessor has no native return carrier: it is planned as the property's void setter body, which reads no
+    // callable declaration record, and the checker infers no return type for it.
     const returned = input.declarations.returnContract.get(node);
     if (returned === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted callable requires its finalized return contract.", node);
     if (returned.kind === "rejected") {
