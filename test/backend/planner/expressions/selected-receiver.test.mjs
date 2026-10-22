@@ -4,9 +4,25 @@ import { translateCsharpSelectedReceiver } from "../../../../dist/backend/planne
 import { csharpPlannedValue } from "../../../../dist/backend/planner/expressions/planned-values.js";
 import { csharpStringTargetType, csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpNullableReferenceTargetType } from "../../../../dist/target-model/types/carriers/nullable.js";
+import { analyzeCsharpMemberReceivers } from "../../../../dist/analysis/objects/member-receivers.js";
+import { csharpTypeEmissionRecord } from "../../../helpers/planning-records.mjs";
 
-const instanceInput = { program: { sourceNavigation: {
-  sourceReferenceFor: () => undefined, referenceFor: () => undefined,
+// The type-or-value decision for a selected receiver is made by analyzeCsharpMemberReceivers from the project
+// reference, project type and class-factory records; the planner renders the published decision. receive() runs that
+// analysis for the receiver a test selects and plans it.
+function receive(evidence, input, diagnostics, planExpression, projection) {
+  const access = {};
+  const analysis = analyzeCsharpMemberReceivers({ source: { ast: input.program.source.ast }, nodes: [access],
+    operations: { selectedProperty: { get: node => node === access ? { selection: { kind: "resolved", source: { receiver: evidence } } } : undefined },
+      selectedElement: { get: () => undefined }, selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined } },
+    references: {}, projects: input.program.records, factories: input.program.records, admitted: () => false });
+  const records = { ...input.program.records, memberReceiver: analysis.records.memberReceiver };
+  return translateCsharpSelectedReceiver(evidence, {}, { ...input, program: { ...input.program, records } }, diagnostics, planExpression, projection);
+}
+
+const instanceInput = { program: { source: { ast: { name: () => undefined } }, records: {
+  projectSourceReference: { get: () => undefined }, projectSourceType: { get: () => undefined },
+  classFactory: { get: () => undefined }, valueRead: { get: () => undefined }, typeEmission: csharpTypeEmissionRecord(),
 } } };
 
 function projectReceiver(kind, scopeName = "ModuleScope") {
@@ -15,25 +31,27 @@ function projectReceiver(kind, scopeName = "ModuleScope") {
   const name = {};
   const file = { IsDeclarationFile: false };
   const carrier = csharpStringTargetType();
-  const input = {
-    program: { sourceNavigation: { referenceFor: () => ({ declaration, sourceFile: file }),
-        sourceReferenceFor: () => ({ declaration, sourceFile: file }),
-        isProjectDeclaration: candidate => candidate === declaration },
-      source: { ast: { kindName: () => kind, name: () => name, getFileName: () => "/project/entry.ts",
-        is: { IsClassExpression: () => false } } },
-      records: { classFactory: { get: () => undefined } } },
-    types: { classifications: { resolveNode: () => carrier },
-      projectTypes: { definitionContainingDeclaration: () => ({ scopeName }) } },
-    names: { resolve: () => ({ kind: "resolved", name: "Entry" }) },
+  // The checked reference of the receiver expression (and of its declaration's name) is the project declaration, whose
+  // native type is '<scopeName>.Entry'; the receiver value read publishes its native carrier.
+  const references = { expression: true };
+  const records = {
+    projectSourceReference: { get: node => node === expression && references.expression || node === name ? declaration : undefined },
+    projectSourceType: { get: node => node === declaration ? { name, scopeName } : undefined },
+    sourceName: { get: node => node === name ? { kind: "resolved", name: "Entry" } : { kind: "rejected", reason: "unexpected name" } },
+    classFactory: { get: () => undefined },
+    valueRead: { get: node => node === expression && references.carrier !== false ? { value: carrier } : undefined },
+    typeEmission: csharpTypeEmissionRecord(),
   };
-  return { expression, declaration, file, carrier, input };
+  const input = { program: { source: { ast: { kindName: () => kind, name: () => name, getSourceFile: () => file,
+    getFileName: () => "/project/entry.ts", is: { IsClassExpression: () => false } } }, records } };
+  return { expression, declaration, file, carrier, input, references };
 }
 
 test("project class and enum receivers consume the exact module qualification without acquiring constructor delegates", () => {
   for (const kind of ["KindClassDeclaration", "KindEnumDeclaration"]) {
     const { expression, file, carrier, input } = projectReceiver(kind);
     const diagnostics = [];
-    const result = translateCsharpSelectedReceiver({ expression, type: {} }, file, input, diagnostics,
+    const result = receive({ expression, type: {} }, input, diagnostics,
       () => assert.fail("native type references are not runtime constructor acquisition"));
     assert.equal(result === undefined, false, kind);
     assert.equal(result.completion.carrier === carrier, true, "exact retained value evidence");
@@ -45,13 +63,13 @@ test("project class and enum receivers consume the exact module qualification wi
 });
 
 test("constructed instance receivers never become static references merely because their type has a class declaration", () => {
-  const { expression, file, carrier, input } = projectReceiver("KindClassDeclaration");
-  input.program.sourceNavigation.sourceReferenceFor = () => undefined;
+  const { expression, carrier, input, references } = projectReceiver("KindClassDeclaration");
+  references.expression = false;
   const planned = csharpPlannedValue(carrier, { kind: "InvocationExpression",
     callee: { kind: "IdentifierName", name: "construct" }, arguments: [] });
   let evaluations = 0;
   const diagnostics = [];
-  const result = translateCsharpSelectedReceiver({ expression, type: {} }, file, input, diagnostics, selected => {
+  const result = receive({ expression, type: {} }, input, diagnostics, selected => {
     assert.equal(selected === expression, true);
     evaluations += 1;
     return planned;
@@ -62,42 +80,43 @@ test("constructed instance receivers never become static references merely becau
 });
 
 test("checked receiver value identity supports transparent syntax without reconstructing the checker", () => {
-  const { expression, declaration, file, input } = projectReceiver("KindClassDeclaration");
-  input.program.sourceNavigation.sourceReferenceFor = () => undefined;
+  const { expression, declaration, input, references } = projectReceiver("KindClassDeclaration");
+  references.expression = false;
   const diagnostics = [];
-  const result = translateCsharpSelectedReceiver({ expression, type: {}, valueDeclaration: declaration }, file, input, diagnostics,
+  const result = receive({ expression, type: {}, valueDeclaration: declaration }, input, diagnostics,
     () => assert.fail("parenthesized type syntax is not runtime factory acquisition"));
   assert.equal(result === undefined, false);
   assert.equal(result.completion.expression.kind, "QualifiedName");
   assert.equal(diagnostics.length, 0);
-  const rejected = translateCsharpSelectedReceiver({ expression, type: {}, valueDeclaration: {} }, file, input, diagnostics,
+  const rejected = receive({ expression, type: {}, valueDeclaration: {} }, input, diagnostics,
     () => csharpPlannedValue(csharpStringTargetType(), { kind: "IdentifierName", name: "actualValue" }));
   assert.equal(rejected.completion.expression.kind, "IdentifierName", "mismatched exact declarations cannot select static syntax");
 });
 
 test("project type receivers never bypass missing or rejected selected carrier evidence", () => {
-  const { expression, file, carrier, input } = projectReceiver("KindClassDeclaration");
-  for (const [label, types, projection] of [
-    ["missing native carrier", { ...input.types, classifications: { resolveNode: () => undefined } }, undefined],
-    ["rejected receiver projection", input.types,
-      { source: csharpNullableReferenceTargetType(carrier), target: carrier,
-        conversion: { kind: "rejected", reason: "missing selected proof" } }],
+  // The analysis admits neither form; a planner handed one fails its invariant instead of acquiring a constructor.
+  for (const [label, missingCarrier, projection] of [
+    ["missing native carrier", true, undefined],
+    ["rejected receiver projection", false, { source: csharpNullableReferenceTargetType(csharpStringTargetType()), target: csharpStringTargetType(),
+      conversion: { kind: "rejected", reason: "missing selected proof" } }],
   ]) {
+    const { expression, input, references } = projectReceiver("KindClassDeclaration");
+    if (missingCarrier) references.carrier = false;
     const diagnostics = [];
-    const result = translateCsharpSelectedReceiver({ expression, type: {} }, file, { ...input, types }, diagnostics,
-      () => assert.fail("no speculative constructor acquisition"), projection);
-    assert.equal(result === undefined, true, label);
-    assert.equal(diagnostics.length, 1, label);
+    assert.throws(() => receive({ expression, type: {} }, input, diagnostics,
+      () => assert.fail("no speculative constructor acquisition"), projection),
+    error => error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT", label);
+    assert.equal(diagnostics.length, 0, label);
   }
 });
 
 test("local class factories remain exact runtime receiver values rather than namespace references", () => {
-  const { expression, file, carrier, input } = projectReceiver("KindClassDeclaration");
-  input.program.records.classFactory.get = () => ({});
+  const { expression, carrier, input } = projectReceiver("KindClassDeclaration");
+  input.program.records.classFactory = { get: () => ({}) };
   const planned = csharpPlannedValue(carrier, { kind: "IdentifierName", name: "selectedFactory" });
   let evaluations = 0;
   const diagnostics = [];
-  const result = translateCsharpSelectedReceiver({ expression, type: {} }, file, input, diagnostics, selected => {
+  const result = receive({ expression, type: {} }, input, diagnostics, selected => {
     assert.equal(selected === expression, true);
     evaluations += 1;
     return planned;
@@ -117,7 +136,7 @@ test("selected receiver projections consume an already-selected planned value ex
     callee: { kind: "IdentifierName", name: "effect" }, arguments: [] } }];
   const planned = csharpPlannedValue(selected, value, prelude);
   const diagnostics = [];
-  const result = translateCsharpSelectedReceiver({ expression: node, type: {} }, {}, instanceInput, diagnostics,
+  const result = receive({ expression: node, type: {} }, instanceInput, diagnostics,
     () => planned, { source: storage, target: selected, conversion: { kind: "nullable-reference" } });
   assert.equal(result === planned, true, "no second null suppression or duplicated effects");
   assert.equal(result.prelude.length, 1);
@@ -127,21 +146,20 @@ test("selected receiver projections consume an already-selected planned value ex
 test("selected receiver projections reject an unrelated planned carrier rather than applying a stale conversion", () => {
   const selected = csharpStringTargetType();
   const diagnostics = [];
-  const result = translateCsharpSelectedReceiver({ expression: {}, type: {} }, {}, instanceInput, diagnostics,
+  assert.throws(() => receive({ expression: {}, type: {} }, instanceInput, diagnostics,
     () => csharpPlannedValue(csharpSourcePrimitiveTargetType("int32"), { kind: "LiteralExpression", value: 1 }),
-    { source: csharpNullableReferenceTargetType(selected), target: selected, conversion: { kind: "nullable-reference" } });
-  assert.equal(result === undefined, true);
-  assert.equal(diagnostics.length, 1);
-  assert.match(diagnostics[0].message, /exact planned completion carrier/u);
+    { source: csharpNullableReferenceTargetType(selected), target: selected, conversion: { kind: "nullable-reference" } }),
+  /exact native value completion/u);
+  assert.equal(diagnostics.length, 0);
 });
 
 test("selected receiver projections never hide rejected evidence behind an already-selected carrier", () => {
   const selected = csharpStringTargetType();
   const diagnostics = [];
-  const result = translateCsharpSelectedReceiver({ expression: {}, type: {} }, {}, instanceInput, diagnostics,
+  assert.throws(() => receive({ expression: {}, type: {} }, instanceInput, diagnostics,
     () => csharpPlannedValue(selected, { kind: "IdentifierName", name: "value" }),
     { source: csharpNullableReferenceTargetType(selected), target: selected,
-      conversion: { kind: "rejected", reason: "missing selected proof" } });
-  assert.equal(result === undefined, true);
-  assert.equal(diagnostics.length, 1);
+      conversion: { kind: "rejected", reason: "missing selected proof" } }),
+  /exact native value completion/u);
+  assert.equal(diagnostics.length, 0);
 });
