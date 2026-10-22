@@ -2,6 +2,20 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { planCsharpNamedSelfCaptureContext } from "../../../../dist/backend/planner/bindings/capture-closures.js";
 import { createDestructuringPlannerState, csharpCaptureFrameName } from "../../../../dist/backend/planner/bindings/binding-state.js";
+import { analyzeCsharpObjectShapeEmission } from "../../../../dist/analysis/objects/declaration-emission.js";
+import { objectShapeArtifactKey } from "../../../../dist/analysis/program/records/object-shape-keys.js";
+
+// The analysis materializes each captured activation frame's shape before sealing; the planner reads that sealed
+// emission for the frame it retains. 'registered' observes those reads.
+function frameShapeEmission(shape, registered) {
+  const artifact = { key: objectShapeArtifactKey(shape), fact: shape, capabilities: [], materialization: "synthetic", typeParameterNames: [] };
+  const analysis = analyzeCsharpObjectShapeEmission({ ast: { is: { IsObjectLiteralExpression: () => false } }, nodes: [],
+    nativeDemand: { entries: [] }, bindings: { bindingPatternProjection: { get: () => undefined } },
+    demand: { artifacts: [artifact], get: key => key === artifact.key ? artifact : undefined }, shapes: { knownShapes: () => [] },
+    names: { typeParameterNames: [], reservedNames: [] } });
+  assert.equal(analysis.issues.length, 0, "the activation frame shape is materializable");
+  return { get(fact) { registered.push(fact); return analysis.records.objectShapeEmission.get(fact); } };
+}
 
 function fixture() {
   const declaration = {};
@@ -17,8 +31,8 @@ function fixture() {
   const state = createDestructuringPlannerState();
   const original = csharpCaptureFrameName(scope, state);
   const registered = [];
-  const input = { scope: {}, program: { records: { capturedBinding: { get: node => bindings.get(node) } } },
-    artifacts: { objectShape: shape => { registered.push(shape); return { fact: shape }; } } };
+  const input = { scope: {}, program: { records: { capturedBinding: { get: node => bindings.get(node) },
+    objectShapeEmission: frameShapeEmission(frame.shape, registered) } } };
   const self = { declaration, captures: [first, second, ordinary], capturesReceiver: false, calls: [], values: [{}] };
   const select = (selectedInput = input, selectedSelf = self) => {
     const diagnostics = [];
@@ -107,8 +121,8 @@ test("unrenderable or absent admitted activation facts fail the invariant withou
   for (const reason of ["carrier", "registration"]) {
     const input = fixture();
     if (reason === "carrier") input.frame.shape.targetType = { kind: "opaque", id: "unproven" };
-    if (reason === "registration") input.input.artifacts.objectShape = () => { throw new Error("unproven activation"); };
-    assert.throws(() => input.select(), reason === "carrier" ? /admitted object-shape/u : /unproven activation/u, reason);
+    if (reason === "registration") input.input.program.records.objectShapeEmission = { get: () => undefined };
+    assert.throws(() => input.select(), reason === "carrier" ? /admitted object-shape/u : /sealed native materialization selection/u, reason);
     assert.equal(input.input.scope.captureFrames === undefined, true, "failure preserves caller scope");
   }
 });
