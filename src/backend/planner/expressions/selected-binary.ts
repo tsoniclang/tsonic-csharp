@@ -93,12 +93,17 @@ export function planSelectedCsharpBinaryOperation(node: Node, selection: CsharpR
       planExpression(operand, sourceFile, input, diagnostics, state));
     const [left, right] = operands;
     if (left === undefined || right === undefined) return undefined;
-    return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [left, right], values => ({
-      kind: "SimpleMemberAccessExpression",
-      receiver: { kind: "TupleExpression", elements: [...values,
-        { kind: "LiteralExpression", value: operation.value }] },
-      name: "Item3",
-    }), selection.resultType);
+    // Both operands are still evaluated in order, then the decided result is produced. A literal operand has no
+    // effect to keep, and a bare null literal has no C# type, so it cannot be a tuple element.
+    return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [left, right], values => {
+      const result: CsharpExpression = { kind: "LiteralExpression", value: operation.value };
+      const effects = values.filter(value => value.kind !== "LiteralExpression");
+      return effects.length === 0 ? result : {
+        kind: "SimpleMemberAccessExpression",
+        receiver: { kind: "TupleExpression", elements: [...effects, result] },
+        name: `Item${effects.length + 1}`,
+      };
+    }, selection.resultType);
   }
   if (operation.kind === "nullish-test") {
     const operandNode = operation.operand === "left"
