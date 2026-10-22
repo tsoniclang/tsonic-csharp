@@ -258,7 +258,7 @@ test("broad value object literals lower directly into nested closed JS-value car
   const source = compiled.artifacts.get("src/Index.cs") ?? "";
   assert.match(
     source,
-    /TsValue createUnknown\(\)[\s\S]*TsValue\.CreateDynamicObject\("value", Tsonic\.CSharp\.Runtime\.TsValue\.from\(\(int\)1\), "child", Tsonic\.CSharp\.Runtime\.TsValue\.CreateDynamicObject\("label", Tsonic\.CSharp\.Runtime\.TsValue\.from\("ready"\)\)\)/u,
+    /TsValue createUnknown\(\)[\s\S]*TsValue\.CreateDynamicObject\("value", Tsonic\.CSharp\.Runtime\.TsValue\.from\(1\), "child", Tsonic\.CSharp\.Runtime\.TsValue\.CreateDynamicObject\("label", Tsonic\.CSharp\.Runtime\.TsValue\.from\("ready"\)\)\)/u,
   );
   assert.match(
     source,

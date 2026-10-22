@@ -9,7 +9,7 @@ for (const surface of ["native", "js"]) {
     assertCsharpCompilationSucceeded(compiled);
     const source = compiled.artifacts.get("src/Index.cs");
     assert.equal(typeof source, "string");
-    assert.match(source, /static double (__tsonic_self_\d+)\(double count\)[\s\S]*?return count == 0(?:\.0)? \? 1(?:\.0)? : \1\(count - 1(?:\.0)?\);/u);
+    assert.match(source, /static double (__tsonic_self_\d+)\(double count\)[\s\S]*?return count == 0(?:\.0|D)? \? 1(?:\.0|D)? : \1\(count - 1(?:\.0|D)?\);/u);
     assert.match(source, /new Func<double, double>\(__tsonic_self_\d+\)/u);
     assert.doesNotMatch(source, /\boriginal\(/u);
   });
