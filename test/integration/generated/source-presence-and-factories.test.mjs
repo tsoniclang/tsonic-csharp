@@ -37,7 +37,9 @@ test("native option fields check dynamic values before use", { timeout: 300_000 
 
 test("native JS result carriers preserve widths, aliases and API behavior", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: nativeSurfaceResultsSource });
-  executeCsharpConstruction(compiled, "native-surface-results");
+  // setTimeout and setInterval schedule on the active JavaScript event loop, so the entry runs inside it.
+  executeCsharpConstruction(compiled, "native-surface-results", false, false, [],
+    "Tsonic.CSharp.Js.JsEventLoop.Run(() => { if (!Tsonic.Generated.Index.run()) throw new System.Exception(\"native JS result carriers\"); });");
   const text = [...compiled.artifacts.values()].join("\n");
   assert.match(text, /uint word\b/u);
   assert.match(text, /float single\b/u);
