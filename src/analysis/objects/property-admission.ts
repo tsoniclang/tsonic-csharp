@@ -86,12 +86,20 @@ export function analyzeCsharpPropertyAdmission(input: { readonly ast: AstReader;
     } else members.set(node, { kind: "member", methodValue, flow,
       static: input.receivers.memberReceiver.get(selection.source.receiver.expression, selection.source.receiver.valueDeclaration)?.kind === "type" });
   };
+  // A call selected through a provider or source-profile target renders its receiver and target member directly; its
+  // property-access callee is never planned as a property, so it is not admitted as one. Callees of source-owned calls
+  // are planned as source members and stay required.
   const required = new Set<Node>();
+  const targetCallees = new Set<Node>();
   for (const node of input.nodes) if (input.admitted(node)) {
     required.add(node);
-    const callee = input.operations.selectedCall.get(node)?.source?.sourceCallee.expression;
-    if (callee !== undefined) required.add(callee);
+    const call = input.operations.selectedCall.get(node);
+    const callee = call?.source?.sourceCallee.expression;
+    if (callee === undefined) continue;
+    if (call?.target?.kind === "source-owned") required.add(callee);
+    else targetCallees.add(callee);
   }
+  for (const node of targetCallees) required.delete(node);
   for (const node of required) {
     const element = input.operations.selectedElement.get(node);
     if (element?.target?.kind === "source-owned" && element.sourceOwned !== undefined) admitMember(node, element.target, element.sourceOwned);
