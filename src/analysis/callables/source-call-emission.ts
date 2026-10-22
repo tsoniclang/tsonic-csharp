@@ -1,4 +1,5 @@
-import type { Node } from "@tsonic/tsts";
+import type { AstReader, Node } from "@tsonic/tsts";
+import { csharpConstructorBaseCall } from "./constructor-entry.js";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTargetOperationClassifications, CsharpSourceCallArgumentClassification } from "../../target-model/records/operations.js";
@@ -78,6 +79,9 @@ export function analyzeCsharpSourceCallEmission(input: { readonly source: Target
     if (construction?.target?.kind === "source-owned") admitArguments(node, construction.target.source, construction);
     if (classification?.target?.kind !== "source-owned" || !csharpCallIsPlannedAsSourceCall(node, input)) continue;
     const source = classification.target.source;
+    // A constructor's leading super(...) is planned as its base initializer from the selected call and its argument
+    // parameter types, never through a source callee; it has no callee to acquire.
+    if (csharpCallIsConstructorBaseCall(ast, node)) continue;
     if (classification.unionCall.kind === "rejected") { refuse(node, classification.unionCall.reason); continue; }
     admitArguments(node, source, classification);
     const typeArguments = classification.sourceTypeArguments;
@@ -112,4 +116,11 @@ export function analyzeCsharpSourceCallEmission(input: { readonly source: Target
       methodValue: classification.sourceMethodValue?.method, optionalCallee: classification.optionalCallee });
   }
   return Object.freeze({ records: createCsharpSourceCallEmissionRecords({ calls, arguments: arguments_, optional, arrays }), issues: Object.freeze(issues) });
+}
+
+function csharpCallIsConstructorBaseCall(ast: AstReader, call: Node): boolean {
+  const statement = ast.parent(call);
+  const block = statement === undefined ? undefined : ast.parent(statement);
+  const constructor = block === undefined ? undefined : ast.parent(block);
+  return constructor !== undefined && ast.is.IsConstructorDeclaration(constructor) && csharpConstructorBaseCall(ast, constructor) === call;
 }
