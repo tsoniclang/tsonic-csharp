@@ -75,7 +75,13 @@ export function analyzeCsharpBinaryEmission(input: { readonly source: TargetSour
     if (!input.admitted(node) || !ast.is.IsBinaryExpression(node) || borrowedControls.has(node)) continue;
     const form = input.operations.operatorForm.get(node);
     if (form === "destructuring-assignment") continue;
-    if (form === "js-array-mutation" || form === "type-test" || form === "typeof-comparison") { forms.set(node, { kind: form }); continue; }
+    if (form === "js-array-mutation" || form === "type-test" || form === "typeof-comparison") {
+      forms.set(node, { kind: form });
+      // A typed-element compound assignment (words[0] += value) plans its calculation as the selected binary operation.
+      const mutation = form === "js-array-mutation" ? input.operations.jsArrayMutation.get(node) : undefined;
+      if (mutation?.kind === "set-typed-element" && mutation.calculation !== undefined) addNative(node, mutation.calculation);
+      continue;
+    }
     const syntax = ast.as.AsBinaryExpression(node);
     const left = syntax?.Left;
     const right = syntax?.Right;
