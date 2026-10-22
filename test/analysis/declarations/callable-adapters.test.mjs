@@ -165,9 +165,10 @@ function classForwarder(control) {
     parameterDefaults: Object.freeze(implementation.parameters.map(() => undefined)) });
   const interfaceImplementation = Object.freeze({ sourceNode: declaration, sourceType, interfaceType, properties: Object.freeze([]),
     methods: Object.freeze([Object.freeze({ sourceName: "read", declaration, member, forwarding })]) });
-  const selected = Object.freeze({ ...program, objectShapes: Object.freeze({ ...program.objectShapes,
-    structuralImplementations: type => type === sourceType ? Object.freeze([interfaceImplementation]) :
-      program.objectShapes.structuralImplementations(type) }) });
+  // The planner reads structural forwarding from the sealed structuralInterface record.
+  const selected = Object.freeze({ ...program, records: Object.freeze({ ...program.records,
+    structuralInterface: Object.freeze({ get: type => type === sourceType ? Object.freeze([interfaceImplementation]) :
+      program.records.structuralInterface.get(type) }) }) });
   const context = createCsharpPlanningContext(selected);
   const passing = mode => mode === "by-value" ? undefined : mode === "byref-readonly" ? "in"
     : mode === "byref-readwrite" ? "ref" : "out";
@@ -309,7 +310,10 @@ function nativeMethodNodes(program) {
 }
 
 function admitMethodRecords(program, nodes, records = program.records) {
-  return admitCsharpNativeDeclarations(program.source.ast, nodes, records.nativeUse,
+  // The sealed records publish native-use classification (nativeUse) and order (nativeOrder) as separate families;
+  // the admission reads the analysis classification that holds both.
+  const nativeUse = { get: records.nativeUse.get, order: records.nativeOrder.get };
+  return admitCsharpNativeDeclarations(program.source.ast, nodes, nativeUse,
     program.projectTypes, program.sourceNavigation, records, records, records.nativeParticipation, records.nativeUnreachable,
     records, records.callableDispatch, records.classFactory, records);
 }
