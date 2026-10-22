@@ -27,7 +27,8 @@ function sealedCallees({ selected, property, member, projects = {}, identifier =
     nodes: [call], operations, references,
     projects: { projectSourceReference: { get: () => undefined }, projectSourceType: { get: () => undefined }, ...projects },
     factories: { classFactory: { get: () => undefined } }, admitted: () => true });
-  const names = analyzeCsharpSourceMemberNames({ ast: { name: () => undefined }, nodes: [selected.expression], operations,
+  const names = analyzeCsharpSourceMemberNames({ ast: { name: () => undefined, as: { AsPropertyAccessExpression: () => undefined } },
+    nodes: [selected.expression], operations,
     names: { resolve: () => undefined }, rendered: () => true });
   return { analysis, names };
 }

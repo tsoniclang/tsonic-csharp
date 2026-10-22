@@ -74,7 +74,9 @@ test("native readonly indexed iteration and identity spreads consume the exact r
   assert.equal(loop.body.statements[0].expression.callee.name, "read");
   assert.equal(loop.body.statements[0].expression.arguments[1].expression.name, "elementIndex");
   const source = { carrier, expression: receiver, elements: [{ carrier: element, conversion: { kind: "identity" },
-    type: { kind: "PredefinedType", name: "string" } }], lengthMember: "Count" };
+    type: { kind: "PredefinedType", name: "string" } }], lengthMember: "Count",
+    // The analysis seals the readonly indexed collection as an indexed sequence.
+    sequence: { iteration: "indexed", tupleMembers: [], bulkCopy: false, appendSequence: false, resultCarrier: carrier } };
   const input = { ...planning, names: { temporaryName: () => "selectedIndex" } };
   const statements = planCsharpSequenceAppendStatements({}, source, receiver, {}, input, [], element, append);
   assert.equal(statements[0].kind, "ForStatement");
