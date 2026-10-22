@@ -8,7 +8,7 @@ import { isCsharpVoidTargetType } from "../../target-model/types/identity.js";
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { CsharpCaptureStorage } from "../../target-model/records/capture-storage.js";
 import type { CsharpConversionIssue } from "../../target-model/records/conversions.js";
-import { selectCsharpTypeEmission } from "../../policy/types/type-emission.js";
+import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 
 export function admitCsharpDelegateEmission(producer: CsharpDelegateContractProducer,
   source: TargetTypeRef, target: TargetTypeRef, selected: CsharpConversionSelection): void {

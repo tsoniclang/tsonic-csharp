@@ -10,7 +10,7 @@ import { combineCsharpTargetUnionMembers, csharpAbsenceTargetType, csharpRuntime
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import { getCsharpDelegateSignature } from "../../../../target-model/types/carriers/delegates.js";
 import { nextState } from "./state.js";
-import { reconcileCsharpSelectedTargetType } from "../../../../policy/types/selected-type-evidence.js";
+import { reconcileCsharpSelectedTargetType } from "../../../../policy/types/resolution/selected-type-evidence.js";
 import { retainCsharpUnionObjectShapes, selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
 import { resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";

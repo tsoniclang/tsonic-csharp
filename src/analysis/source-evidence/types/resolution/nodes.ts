@@ -11,7 +11,7 @@ import { csharpNullableTargetType } from "../../../../target-model/types/carrier
 import { maximumTypeResolutionDepth } from "./model.js";
 import { nextState } from "./state.js";
 import { resolveCsharpSourceLiteralTargetType } from "../../../../policy/conversions/source-literals.js";
-import { resolveKeywordType } from "../../../../policy/types/source-primitives.js";
+import { resolveKeywordType } from "../../../../policy/types/resolution/source-primitives.js";
 import { selectedCsharpSourceProfileOwner } from "../../../../policy/identities/source-types.js";
 import { sourceFactSubjectsForNode } from "./source-evidence.js";
 

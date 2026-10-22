@@ -1,4 +1,4 @@
-import { selectCsharpFieldInitialization } from "../../policy/operations/declarations/field-initialization.js";
+import { selectCsharpFieldInitialization } from "../../policy/types/project/field-initialization.js";
 import type { CsharpClassInitializationIndex, CsharpClassFieldInitialization } from "../../target-model/records/class-initialization.js";
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";

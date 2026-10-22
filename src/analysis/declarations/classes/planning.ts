@@ -5,7 +5,7 @@ import type { CsharpCaptureStorage } from "../../../target-model/records/capture
 import type { CsharpProjectTypeClassifications } from "../../../target-model/records/project-types.js";
 import type { CsharpStorageClassifications } from "../../../target-model/records/storage.js";
 import type { CsharpClassCaptureEmission, CsharpNativeClassEmission, CsharpForwardingConstructorEmission } from "../../../target-model/records/class-emission.js";
-import { selectCsharpForwardingConstructor } from "../../../policy/declarations/forwarding-constructors.js";
+import { selectCsharpForwardingConstructor } from "../../../policy/types/project/forwarding-constructors.js";
 import type { CsharpNamePlan } from "../../../target-model/names/model.js";
 import { createCsharpClassEmissionRecords } from "../../program/records/class-emission.js";
 import { sourceObjectMemberDeclarations } from "@tsonic/target-api/source";

@@ -9,7 +9,7 @@ import { csharpNullableTargetType, getCsharpNullableElementTargetType, getCsharp
   isCsharpDenseMutableCollectionTargetType, targetTypeRefEquals } from "../../target-model/types/index.js";
 import { getCsharpGenericOptionalParts } from "../../target-model/types/projections.js";
 import { csharpCollectionElementRead } from "../../policy/operations/collections/element-reads.js";
-import { selectCsharpTypeEmission } from "../../policy/types/type-emission.js";
+import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 import { createCsharpElementAdmissionRecords } from "../program/records/element-admission.js";
 
 export function analyzeCsharpElementAdmission(input: { readonly ast: AstReader; readonly nodes: readonly Node[];

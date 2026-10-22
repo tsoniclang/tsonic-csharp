@@ -199,9 +199,9 @@ export const jsCarrierRegistry: readonly TargetCarrierRegistryEntry<TargetTypeRe
     frozen: false,
   },
   {
-    id: "src/policy/types/selected-type-evidence.ts#retainCsharpBroadValueCarrier",
+    id: "src/policy/types/resolution/selected-type-evidence.ts#retainCsharpBroadValueCarrier",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/policy/types/selected-type-evidence.ts", symbol: "retainCsharpBroadValueCarrier" },
+    declaration: { module: "src/policy/types/resolution/selected-type-evidence.ts", symbol: "retainCsharpBroadValueCarrier" },
     counterpart: { module: "src/target-model/types/carriers/native.ts", symbol: "rustTsValueTargetType" },
     frozen: false,
   },

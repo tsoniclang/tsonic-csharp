@@ -1,16 +1,16 @@
 import type { SourceLiteralIndex } from "@tsonic/target-api/source";
 import type { AstReader, Node } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
-import { csharpSourcePrimitiveTargetType } from "../../target-model/types/carriers/scalar-types.js";
-import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
-import { getCsharpGenericOptionalParts, isCsharpAbsenceTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
-import { getCsharpAwaitResultTargetType } from "../operations/control-flow/await-completions.js";
-import { isCsharpAssignmentOperator, sourceOperatorFromKindName } from "../../target-model/syntax/operators.js";
-import { isCsharpDestructuringAssignmentPattern } from "../../target-model/syntax/operators.js";
-import { selectCsharpNumericBinaryPromotion } from "../operations/numeric/promotion.js";
-import { sourcePrimitiveImplicitlyConverts } from "../conversions/source-primitives.js";
-import { targetTypeRefEquals } from "../../target-model/types/equality.js";
-import type { CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
+import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { getCsharpGenericOptionalParts, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { getCsharpAwaitResultTargetType } from "../../operations/control-flow/await-completions.js";
+import { isCsharpAssignmentOperator, sourceOperatorFromKindName } from "../../../target-model/syntax/operators.js";
+import { isCsharpDestructuringAssignmentPattern } from "../../../target-model/syntax/operators.js";
+import { selectCsharpNumericBinaryPromotion } from "../../operations/numeric/promotion.js";
+import { sourcePrimitiveImplicitlyConverts } from "../../conversions/source-primitives.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
 import { resolveCsharpShortCircuitResult } from "./short-circuit-values.js";
 
 export function resolveBinaryTargetRepresentation(

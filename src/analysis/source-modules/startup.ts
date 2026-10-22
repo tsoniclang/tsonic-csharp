@@ -6,7 +6,7 @@ import type { CsharpSourceModuleConstructionIndex } from "../../target-model/rec
 import type { CsharpStartupEmission } from "../../target-model/records/startup.js";
 import type { CsharpTargetBinaryExecutionDriver } from "../../target-model/metadata/provider-metadata.js";
 import type { CsharpTargetConfiguration } from "../../target-model/configuration/model.js";
-import { selectCsharpTypeEmission } from "../../policy/types/type-emission.js";
+import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 import { createCsharpStartupRecords } from "../program/records/startup.js";
 
 export function analyzeCsharpStartup(input: {

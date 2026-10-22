@@ -5,7 +5,7 @@ import { getCsharpIndexableLengthMemberName, getCsharpReadOnlyIndexableCollectio
 import { csharpCollectionElementRead } from "../operations/collections/element-reads.js";
 import { isCsharpValueTypeTargetType } from "../../target-model/types/identity.js";
 import { csharpConversionIsApplicable } from "./applicability.js";
-import { selectCsharpTypeEmission } from "../types/type-emission.js";
+import { selectCsharpTypeEmission } from "../types/resolution/type-emission.js";
 
 export function selectCsharpSequenceEmission(carrier: TargetTypeRef, target: TargetTypeRef,
   elements: readonly { readonly carrier: TargetTypeRef; readonly conversion: CsharpConversionSelection | undefined }[] | undefined):

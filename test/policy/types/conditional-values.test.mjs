@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resolveBinaryTargetRepresentation } from "../../../dist/policy/types/representation.js";
+import { resolveBinaryTargetRepresentation } from "../../../dist/policy/types/resolution/representation.js";
 import { analyzeSourceLiteralValues } from "@tsonic/target-api/source";
 import { selectCsharpBinaryOperands } from "../../../dist/analysis/operations/operators.js";
 import { csharpBinarySelectionsEqual } from "../../../dist/analysis/expected-types/binary-equality.js";

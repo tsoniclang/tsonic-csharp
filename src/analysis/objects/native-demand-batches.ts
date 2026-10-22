@@ -11,7 +11,7 @@ import type { TargetTypeRef, CsharpObjectShapeProjectionKind } from "../../targe
 import type { CsharpObjectShapeFact, CsharpObjectShapeCapability, CsharpObjectShapeProjection } from "../../target-model/types/index.js";
 import { csharpObjectShapesEqual, csharpObjectShapeMemberContractKey } from "../../target-model/types/index.js";
 import { objectShapeArtifactKey } from "../program/records/object-shape-keys.js";
-import { objectShapeMaterialization } from "../../policy/objects/object-shape-materialization.js";
+import { objectShapeMaterialization } from "../../policy/types/objects/object-shape-materialization.js";
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
 import { isCsharpEmptyObjectTargetType } from "../../target-model/types/carriers/runtime-carriers.js";

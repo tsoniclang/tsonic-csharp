@@ -20,7 +20,7 @@ import { objectShapeStorageMemberName, objectShapeAccessorGetterStorageMemberNam
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 import { createCsharpObjectLiteralRecords } from "../program/records/object-literals.js";
 import type { CsharpSourceMemberKey } from "../../target-model/types/model.js";
-import { selectCsharpObjectLiteralCallable } from "../../policy/objects/object-literals.js";
+import { selectCsharpObjectLiteralCallable } from "../../policy/types/objects/object-literals.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
 import { analyzeCsharpObjectInitialization } from "./initialization.js";
 

@@ -6,7 +6,7 @@ import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { combineCsharpTargetUnionMembers } from "../../../../target-model/types/carriers/runtime-carriers.js";
 
 import { nextState } from "./state.js";
-import { reconcileCsharpSelectedTargetType } from "../../../../policy/types/selected-type-evidence.js";
+import { reconcileCsharpSelectedTargetType } from "../../../../policy/types/resolution/selected-type-evidence.js";
 
 import { selectCsharpAuthoredUnionRefinement, sourceRefinementOnlyRemovesNullish } from "./source-union-refinement.js";
 

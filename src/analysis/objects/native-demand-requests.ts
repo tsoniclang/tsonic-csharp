@@ -6,7 +6,7 @@ import type {
   TargetTypeRef,
 } from "../../target-model/types/index.js";
 import type { CsharpObjectShapeDemandScope } from "./native-demand-batches.js";
-import { selectCsharpJsonObjectShapeContract } from "../../policy/objects/json-object-shapes.js";
+import { selectCsharpJsonObjectShapeContract } from "../../policy/types/objects/json-object-shapes.js";
 import type { CsharpArtifactRequestResult, CsharpObjectShapeProjectionRequestResult } from "./native-demand-batches.js";
 import type { CsharpObjectShapeArtifactClosure, CsharpObjectShapeDeclarationNaming, CsharpObjectShapeDemandClosure, CsharpPreparedObjectShapeProjection } from "../../target-model/records/object-shape-demand.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
@@ -21,7 +21,7 @@ import {
   isSourceDeclaredNominalShape,
 } from "../../target-model/types/index.js";
 import { objectShapeArtifactKey } from "../program/records/object-shape-keys.js";
-import { objectShapeMaterialization } from "../../policy/objects/object-shape-materialization.js";
+import { objectShapeMaterialization } from "../../policy/types/objects/object-shape-materialization.js";
 import { objectShapeProjectionKey } from "../program/records/object-shape-keys.js";
 import { csharpObjectShapeMethodDeclaration } from "../../target-model/types/method-values.js";
 import type { CsharpObjectShapeDemandHost } from "./native-demand-batches.js";

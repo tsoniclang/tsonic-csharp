@@ -11,7 +11,7 @@ import type { CsharpTargetOperationClassifications } from "../../target-model/re
 import type { CsharpSourceFileRecords } from "../../target-model/records/source-files.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
 import { getCsharpDelegateSignature } from "../../target-model/types/carriers/delegates.js";
-import { selectCsharpTypeEmission } from "../../policy/types/type-emission.js";
+import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 import { createCsharpSourceReferenceRecords } from "../program/records/source-references.js";
 
 export function analyzeCsharpSourceReferences(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];

@@ -15,7 +15,7 @@ import { csharpCollectionUsesJsArraySemantics, getCsharpArrayLiteralElementTarge
   getCsharpArrayLiteralBuilder, getCsharpArrayLiteralConstructionTargetType,
   getCsharpCollectionElementTargetType } from "../../target-model/types/carriers/collections.js";
 import { selectCsharpSequenceEmission } from "../../policy/conversions/sequence-emission.js";
-import { selectCsharpTypeEmission } from "../../policy/types/type-emission.js";
+import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 import { createCsharpArrayLiteralProducer } from "../program/records/array-literals.js";
 
 export function analyzeCsharpArrayLiterals(input: { readonly source: TargetSourceProgram; readonly demand: CsharpNativeDemandAnalysis;

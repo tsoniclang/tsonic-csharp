@@ -24,7 +24,7 @@ test("explicit safety reaches the planner through target-owned policy only", () 
 
 test("C# unsafe permission is decided on source before sealing", () => {
   const permission = product("src/analysis/safety/emission.ts");
-  const types = product("src/policy/safety/native-types.ts");
+  const types = product("src/policy/operations/pointers/native-type-safety.ts");
   const planner = product("src/backend/planner/safety/explicit-safety.ts");
 
   assert.match(permission, /ast\.forEachChild\(node/u);

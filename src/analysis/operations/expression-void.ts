@@ -6,7 +6,7 @@ import type { CsharpTargetOperationClassifications } from "../../target-model/re
 import { isCsharpVoidTargetType } from "../../target-model/types/index.js";
 import { getCsharpGenericOptionalParts } from "../../target-model/types/projections.js";
 import { csharpCarrierAdmitsSourceAbsence } from "../../target-model/types/carriers/runtime-carriers.js";
-import { selectCsharpTypeEmission } from "../../policy/types/type-emission.js";
+import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 
 export function analyzeCsharpVoidAdmission(input: { readonly ast: AstReader; readonly demand: CsharpNativeDemandAnalysis;
   readonly values: CsharpValueReadClassifications; readonly operations: Pick<CsharpTargetOperationClassifications, "jsVoid"> }): readonly TargetDiagnostic[] {

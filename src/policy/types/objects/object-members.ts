@@ -1,10 +1,10 @@
-import type { CsharpObjectMemberPolicyInput } from "../model/object-members.js";
-import type { CsharpObjectMemberDeclaration, CsharpObjectMemberEmission, CsharpObjectMethodSignature } from "../../target-model/records/object-members.js";
-import { csharpDelegateTargetType, getCsharpDelegateSignature, getCsharpNullableElementTargetType, isCsharpVoidTargetType } from "../../target-model/types/index.js";
-import { csharpNullableTargetType } from "../../target-model/types/carriers/nullable.js";
-import { csharpRuntimeLocationTargetType, csharpRuntimeRecordFieldTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
-import { csharpTargetTypeRenderingRejection } from "../types/model/renderability.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { CsharpObjectMemberPolicyInput } from "../../model/object-members.js";
+import type { CsharpObjectMemberDeclaration, CsharpObjectMemberEmission, CsharpObjectMethodSignature } from "../../../target-model/records/object-members.js";
+import { csharpDelegateTargetType, getCsharpDelegateSignature, getCsharpNullableElementTargetType, isCsharpVoidTargetType } from "../../../target-model/types/index.js";
+import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { csharpRuntimeLocationTargetType, csharpRuntimeRecordFieldTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpTargetTypeRenderingRejection } from "../model/renderability.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
 
 export function selectCsharpObjectMemberEmission(input: CsharpObjectMemberPolicyInput):
   | { readonly kind: "selected"; readonly value: CsharpObjectMemberEmission }

@@ -1,7 +1,7 @@
-import type { CsharpIndexedRecordReadPolicyInput } from "../model/indexed-records.js";
-import type { CsharpIndexedRecordRead } from "../../target-model/records/indexed-records.js";
-import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../target-model/types/index.js";
-import { csharpTargetTypeRenderingRejection } from "../types/model/renderability.js";
+import type { CsharpIndexedRecordReadPolicyInput } from "../../model/indexed-records.js";
+import type { CsharpIndexedRecordRead } from "../../../target-model/records/indexed-records.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/index.js";
+import { csharpTargetTypeRenderingRejection } from "../model/renderability.js";
 
 export function selectCsharpIndexedRecordRead(input: CsharpIndexedRecordReadPolicyInput):
   | { readonly kind: "selected"; readonly value: CsharpIndexedRecordRead }

@@ -2,7 +2,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpSelectedTargetCall } from "../../target-model/records/members.js";
 import type { CsharpCallClassification, CsharpOperationIssue } from "../../target-model/records/operations.js";
-import { selectCsharpTypeEmission } from "../../policy/types/type-emission.js";
+import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 
 export function classifyMethodTypeArgumentProjections(
   policy: CsharpPolicyContext,

@@ -1,9 +1,9 @@
-import type { TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpTypeEmissionInput } from "../model/type-emission.js";
-import { csharpRenderShapeForTargetNamedType, isCsharpNeverTargetType } from "../../target-model/types/index.js";
-import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
-import { csharpFunctionPointerCallingConvention } from "../../target-model/syntax/function-pointer-conventions.js";
-import { tryCsharpIdentifier } from "../../target-model/names/identifiers.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpTypeEmissionInput } from "../../model/type-emission.js";
+import { csharpRenderShapeForTargetNamedType, isCsharpNeverTargetType } from "../../../target-model/types/index.js";
+import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
+import { csharpFunctionPointerCallingConvention } from "../../../target-model/syntax/function-pointer-conventions.js";
+import { tryCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 
 export function selectCsharpTypeEmission(input: CsharpTypeEmissionInput): boolean {
   const visited = new Set<TargetTypeRef>();

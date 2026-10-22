@@ -5,7 +5,7 @@ import type { CsharpTargetBinaryExecutionDriver } from "../../target-model/metad
 import type { CsharpProjectClassifications } from "../../target-model/project/plan.js";
 import type { SourceFile } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import type { CsharpTargetProgram } from "../../target-model/program.js";
+import type { CsharpTargetProgram } from "../../target-model/records/target-program.js";
 import type { CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
 import type { CsharpProjectTypeClassifications } from "../../target-model/records/project-types.js";
 import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";

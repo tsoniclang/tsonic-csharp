@@ -3,7 +3,7 @@ import test from "node:test";
 import { csharpArrayBindingProjectionTarget, resolveCsharpArrayBindingCarrier } from "../../../dist/policy/types/collections/binding-array-carrier.js";
 import { csharpJsArrayTargetType, csharpReadOnlyListTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, reconcileCsharpSelectedTargetType } from "../../../dist/policy/types/index.js";
 import { csharpEmptyObjectTargetType, csharpTsValueTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
-import { retainCsharpBroadValueCarrier } from "../../../dist/policy/types/selected-type-evidence.js";
+import { retainCsharpBroadValueCarrier } from "../../../dist/policy/types/resolution/selected-type-evidence.js";
 import { csharpNullableReferenceTargetType, csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { conversionIsImplicitlyApplicable } from "../../../dist/policy/conversions/core.js";
 import { createCompilerSessionFromFiles } from "@tsonic/tsts";

@@ -1,4 +1,4 @@
-import type { CsharpPositionalArgumentsInput } from "../model/call-arguments.js";
+import type { CsharpPositionalArgumentsInput } from "../../model/call-arguments.js";
 
 export function csharpPositionalArgumentsAreRepresentable(input: CsharpPositionalArgumentsInput): boolean {
   let previous = -1;

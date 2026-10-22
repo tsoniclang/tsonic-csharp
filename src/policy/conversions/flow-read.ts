@@ -2,7 +2,7 @@ import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import { isCsharpAbsenceTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
-import { combineCsharpTargetUnionMembers } from "./index.js";
+import { combineCsharpTargetUnionMembers } from "../types/index.js";
 
 export function selectCsharpFlowReadCarrier(input: {
   readonly exactSourceRead: boolean;

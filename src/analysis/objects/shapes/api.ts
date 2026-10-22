@@ -1,5 +1,5 @@
 import { createCsharpObjectShapeMemberResolver } from "./member-evidence.js";
-import { objectShapeMemberTargetName } from "../../../policy/names/source-members.js";
+import { objectShapeMemberTargetName } from "../../../policy/identities/source-member-names.js";
 import { createStructuralObjectShapeTarget, mergeCsharpObjectShapeSubjects } from "./construction.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { csharpObjectShapesEqual } from "../../../target-model/types/object-shape-equality.js";

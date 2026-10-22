@@ -11,7 +11,7 @@ import type { CsharpObjectShapeDemand } from "../../target-model/records/object-
 import type { CsharpSourceUnionEmissionRecords } from "../../target-model/records/source-unions.js";
 import type { CsharpUnsafeEmission, CsharpSafetyPlacement } from "../../target-model/records/safety-emission.js";
 import type { CsharpTargetConfiguration } from "../../target-model/configuration/model.js";
-import { selectCsharpTypeUnsafeContext } from "../../policy/safety/native-types.js";
+import { selectCsharpTypeUnsafeContext } from "../../policy/operations/pointers/native-type-safety.js";
 import { createCsharpSafetyEmissionRecords } from "../program/records/safety-emission.js";
 import { sourceSafetyPositionIssue, createSourceExplicitUnsafeContextIndex } from "@tsonic/target-api/analysis";
 import type { CsharpObjectShapeFact } from "../../target-model/types/model.js";

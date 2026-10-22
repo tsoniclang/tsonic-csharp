@@ -9,7 +9,7 @@ import { objectShapeArtifactKey } from "../program/records/object-shape-keys.js"
 import { objectShapeProjectionKey } from "../program/records/object-shape-keys.js";
 import { collectCsharpReferenceClosure } from "./native-demand-references.js";
 import { resolveCsharpSourceClassStorage } from "./native-demand-storage.js";
-import { selectCsharpJsonObjectShapeContract } from "../../policy/objects/json-object-shapes.js";
+import { selectCsharpJsonObjectShapeContract } from "../../policy/types/objects/json-object-shapes.js";
 
 export function collectJsonClosure(
   { collectJsonShape, collectJsonType, visibleObjectShapes }: CsharpObjectShapeDemandScope,

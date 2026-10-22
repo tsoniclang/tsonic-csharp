@@ -12,7 +12,7 @@ import type { CsharpTargetArgumentRecords } from "../../target-model/records/tar
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { getCsharpClassFactory } from "../../target-model/types/carriers/class-factories.js";
 import { getCsharpDelegateSignature } from "../../target-model/types/carriers/delegates.js";
-import { selectCsharpTypeEmission } from "../../policy/types/type-emission.js";
+import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 import { createCsharpConstructionRecords } from "../program/records/construction.js";
 
 export function analyzeCsharpConstructionEmission(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];

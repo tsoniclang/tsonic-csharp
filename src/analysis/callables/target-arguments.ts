@@ -9,8 +9,8 @@ import type { CsharpSourceCallEmissionRecords } from "../../target-model/records
 import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
 import { csharpTargetParameterValueType, getCsharpDelegateSignature, getCsharpJsArrayElementTargetType } from "../../target-model/types/index.js";
 import { csharpArgumentVectorCallbackResultMatches } from "../../policy/conversions/callable-completions.js";
-import { selectCsharpTypeEmission } from "../../policy/types/type-emission.js";
-import { csharpPositionalArgumentsAreRepresentable } from "../../policy/operations/call-arguments.js";
+import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
+import { csharpPositionalArgumentsAreRepresentable } from "../../policy/operations/members/call-arguments.js";
 import { createCsharpTargetArgumentProducer } from "../program/records/target-arguments.js";
 import type { CsharpNativeArgumentRequest } from "../../target-model/records/argument-passing.js";
 

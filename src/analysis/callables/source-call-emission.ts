@@ -11,7 +11,7 @@ import { csharpAbsenceTargetType } from "../../target-model/types/carriers/runti
 import { isCsharpVoidTargetType } from "../../target-model/types/identity.js";
 import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/index.js";
-import { selectCsharpTypeEmission } from "../../policy/types/type-emission.js";
+import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 import { createCsharpSourceCallEmissionRecords } from "../program/records/source-call-emission.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 

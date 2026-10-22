@@ -1,5 +1,5 @@
-import type { TargetTypeRef } from "../../target-model/types/model.js";
-import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 
 export function selectCsharpTypeUnsafeContext(carrier: TargetTypeRef): boolean {
   const seen = new Set<TargetTypeRef>();

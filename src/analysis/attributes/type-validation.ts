@@ -1,4 +1,4 @@
-import { nativeConstantConversion } from "../../policy/attributes/constant-conversions.js";
+import { nativeConstantConversion } from "../../policy/conversions/constant-conversions.js";
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";

@@ -1,6 +1,6 @@
-import type { TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpSemanticCarrierInput } from "../model/semantic-types.js";
-import { csharpBigIntegerTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpVoidTargetType } from "../../target-model/types/index.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpSemanticCarrierInput } from "../../model/semantic-types.js";
+import { csharpBigIntegerTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpVoidTargetType } from "../../../target-model/types/index.js";
 
 export function selectCsharpSemanticCarrier(input: CsharpSemanticCarrierInput): TargetTypeRef | undefined {
   if (input.intrinsic === "any" || input.intrinsic === "unknown") return undefined;

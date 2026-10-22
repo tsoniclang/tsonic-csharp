@@ -5,7 +5,7 @@ import type {
 } from "@tsonic/target-api/artifacts";
 import { analyzeCsharpTargetProgram } from "../analysis/program/index.js";
 import type { CsharpTargetAnalysisRequest } from "../analysis/program/index.js";
-import type { CsharpTargetProgram } from "../target-model/program.js";
+import type { CsharpTargetProgram } from "../target-model/records/target-program.js";
 import { planCsharpOutput } from "./planner/program/planning.js";
 import { createCsharpPlanningContext } from "./planner/context.js";
 import { materializeCsharpOutputPlan } from "./emission/materialize.js";

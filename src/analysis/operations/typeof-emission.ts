@@ -10,7 +10,7 @@ import { sourceOperatorFromKindName } from "../../target-model/syntax/operators.
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { csharpTypeofResultsEqual } from "../../target-model/types/runtime-kind.js";
 import { getCsharpTypeofResult } from "../../policy/operations/syntax/runtime-kind.js";
-import { selectCsharpTypeEmission } from "../../policy/types/type-emission.js";
+import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 import { createCsharpTypeofEmissionProducer } from "../program/records/typeof-emission.js";
 
 export function analyzeCsharpTypeofEmission(input: { readonly ast: AstReader; readonly nodes: readonly Node[];

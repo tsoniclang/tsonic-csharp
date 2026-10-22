@@ -8,7 +8,7 @@ import type { CsharpStorageClassifications } from "../../target-model/records/st
 import type { CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
 import { canonicalCsharpObjectShapeMembers, csharpObjectShapeMemberContractKey } from "../../target-model/types/object-shape-identity.js";
 import { csharpObjectShapeMethodDeclaration } from "../../target-model/types/method-values.js";
-import { selectCsharpObjectMemberEmission } from "../../policy/objects/object-members.js";
+import { selectCsharpObjectMemberEmission } from "../../policy/types/objects/object-members.js";
 import { createCsharpObjectMemberRecords } from "../program/records/object-members.js";
 
 export function analyzeCsharpObjectMemberEmission(input: {

@@ -9,7 +9,7 @@ export * from "../identities/source-types.js";
 export * from "../conversions/source-literals.js";
 export * from "../../source/extension/markers.js";
 export * from "./collections/fixed-arrays.js";
-export * from "./selected-type-evidence.js";
+export * from "./resolution/selected-type-evidence.js";
 export * from "./callables/source-callable-contract.js";
 export * from "../../target-model/types/carriers/js.js";
 

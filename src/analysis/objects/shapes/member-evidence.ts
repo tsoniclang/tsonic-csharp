@@ -7,7 +7,7 @@ import { csharpNullableTargetType } from "../../../target-model/types/carriers/n
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { csharpSourceMemberDisplayName } from "../../../target-model/types/source-member-keys.js";
 import { nextState } from "../../source-evidence/types/resolution/state.js";
-import { objectShapeMemberTargetNameForKey } from "../../../policy/names/source-members.js";
+import { objectShapeMemberTargetNameForKey } from "../../../policy/identities/source-member-names.js";
 import { typeIncludesNullish } from "./source-evidence.js";
 import { resolveObjectShapeSourceMemberKey } from "../../../source/extension/member-keys.js";
 import { resolveCsharpCallableTypeParameters } from "../../source-evidence/types/resolution/callable-type-parameters.js";

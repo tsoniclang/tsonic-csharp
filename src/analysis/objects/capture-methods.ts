@@ -4,7 +4,7 @@ import type { CsharpCaptureStorage } from "../../target-model/records/capture-st
 import type { CsharpCaptureMethodEmission } from "../../target-model/records/capture-methods.js";
 import { getCsharpExpressionTreeDelegateType, isCsharpVoidTargetType } from "../../target-model/types/index.js";
 import { objectShapeArtifactKey } from "../program/records/object-shape-keys.js";
-import { selectCsharpObjectLiteralCallable } from "../../policy/objects/object-literals.js";
+import { selectCsharpObjectLiteralCallable } from "../../policy/types/objects/object-literals.js";
 import { createCsharpCaptureMethodRecords } from "../program/records/capture-methods.js";
 
 export function analyzeCsharpCaptureMethods(ast: AstReader, captures: CsharpCaptureStorage) {

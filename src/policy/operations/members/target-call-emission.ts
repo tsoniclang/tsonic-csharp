@@ -2,7 +2,7 @@ import type { CsharpTargetCallEmissionInput } from "../../model/target-call-emis
 import type { CsharpTargetCallEmission, CsharpTargetInvocationEmission } from "../../../target-model/records/target-call-emission.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { csharpNativeBinaryOperators, csharpNativePrefixOperators } from "../../../target-model/syntax/native-operators.js";
-import { selectCsharpTypeEmission } from "../../types/type-emission.js";
+import { selectCsharpTypeEmission } from "../../types/resolution/type-emission.js";
 
 export function selectCsharpTargetCallEmission(input: CsharpTargetCallEmissionInput):
   | { readonly kind: "selected"; readonly value: CsharpTargetCallEmission }

@@ -1,4 +1,4 @@
-import { selectCsharpFlowReadCarrier } from "../../policy/types/flow-read.js";
+import { selectCsharpFlowReadCarrier } from "../../policy/conversions/flow-read.js";
 import { isCsharpFlowReadEvidenceNode, inferCallableReturnType, freezeSourceArgumentClassification } from "./source-values.js";
 import type { ExtensionFactSubject, Node, ResolvedSourceGeneratorInfo, ResolvedSourceWellKnownSymbolInfo, ResolvedSourceYieldInfo, SourceFile, Type, Signature } from "@tsonic/tsts";
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
@@ -7,7 +7,7 @@ import { sourceClassFieldIsTypeOnly } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { csharpNativePropertyNameIssue } from "../objects/computed-field-names.js";
-import { selectCsharpSemanticCarrier } from "../../policy/types/semantic-types.js";
+import { selectCsharpSemanticCarrier } from "../../policy/types/resolution/semantic-types.js";
 import type { CsharpTypePolicy } from "./types/resolution/model.js";
 import { isCsharpJsValueTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../policy/types/index.js";
 import { isTypeParameterTargetRef } from "../../policy/ownership/type-categories.js";

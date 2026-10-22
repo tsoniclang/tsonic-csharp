@@ -38,7 +38,7 @@ import {
 } from "../../target-model/types/index.js";
 import { csharpUnionLeaves } from "../../target-model/types/union-relations.js";
 import { objectShapeArtifactKey } from "../program/records/object-shape-keys.js";
-import { objectShapeMaterialization } from "../../policy/objects/object-shape-materialization.js";
+import { objectShapeMaterialization } from "../../policy/types/objects/object-shape-materialization.js";
 import { csharpTargetTypeRenderingRejection, csharpTargetTypeRendersAsUnqualifiedIdentifier } from "../../policy/types/model/renderability.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
 import { createCsharpObjectShapeDemandEngine } from "./native-demand-requests.js";

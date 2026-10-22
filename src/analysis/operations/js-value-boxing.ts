@@ -7,7 +7,7 @@ import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
 import { isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import { createCsharpJsValueBoxingProducer } from "../program/records/js-value-boxing.js";
-import { selectCsharpTypeEmission } from "../../policy/types/type-emission.js";
+import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 
 export function analyzeCsharpJsValueBoxing(input: { readonly ast: AstReader; readonly demand: CsharpNativeDemandAnalysis;
   readonly values: CsharpValueReadClassifications; readonly exact: CsharpExactLiteralSelectionIndex }) {

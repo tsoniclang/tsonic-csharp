@@ -1,6 +1,6 @@
 import { createCsharpIntegerRangeIndex } from "./records/integer-ranges.js";
 import { analyzeCsharpSourceAliasReexports } from "../source-modules/alias-reexports.js";
-import type { CsharpTargetProgram } from "../../target-model/program.js";
+import type { CsharpTargetProgram } from "../../target-model/records/target-program.js";
 import { analyzeCsharpRepresentationIteration, representationContractsEqual, type CsharpRepresentationContract } from "./iteration.js";
 import { rejectCsharpAnalysisIssues } from "./issues.js";
 import { finalizeCsharpNativeEmission } from "./emission.js";

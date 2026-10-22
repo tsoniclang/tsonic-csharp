@@ -1,6 +1,6 @@
 import type { TargetCompileInput } from "@tsonic/target-api";
 import type { TargetSourceSyntaxProgram } from "@tsonic/target-api/analysis";
-import type { CsharpProgramRecords } from "./records/program.js";
+import type { CsharpProgramRecords } from "./program.js";
 
 export interface CsharpTargetProgram {
   readonly source: Pick<TargetSourceSyntaxProgram, "ast">;

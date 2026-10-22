@@ -4,7 +4,7 @@ import type { CsharpNativeDemandAnalysis } from "../../target-model/records/nati
 import type { CsharpDictionaryLiteral } from "../../target-model/records/dictionary-literals.js";
 import { isCsharpRecordDictionaryTargetType } from "../../target-model/types/carriers/collections.js";
 import { targetTypeRefKey, targetTypeRefEquals } from "../../target-model/types/equality.js";
-import { selectCsharpTypeEmission } from "../../policy/types/type-emission.js";
+import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 import { createCsharpDictionaryLiteralRecords } from "../program/records/dictionary-literals.js";
 
 export function analyzeCsharpDictionaryLiterals(ast: AstReader, demand: CsharpNativeDemandAnalysis) {

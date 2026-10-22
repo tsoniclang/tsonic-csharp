@@ -4,7 +4,7 @@ import type { CsharpTargetOperationClassifications } from "../../target-model/re
 import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
 import type { CsharpAdmittedCallClassification } from "../../target-model/records/call-admission.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
-import { selectCsharpTypeEmission } from "../../policy/types/type-emission.js";
+import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 import { createCsharpCallAdmissionRecords } from "../program/records/call-admission.js";
 
 export function analyzeCsharpCallAdmission(ast: AstReader, nodes: readonly Node[], operations: CsharpTargetOperationClassifications,

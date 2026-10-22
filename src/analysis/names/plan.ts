@@ -9,7 +9,7 @@ import type {
 import { AsBindingPattern, ObjectLiteralProperty_SourceName, sourceBindingScope, sourceBindingWriteAtReference,
   sourceDeclarationIsModuleScoped, sourceNodesEqual } from "@tsonic/target-api/source";
 import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
-import { objectShapeMemberTargetName } from "../../policy/names/source-members.js";
+import { objectShapeMemberTargetName } from "../../policy/identities/source-member-names.js";
 import {
   tryCsharpIdentifier,
 } from "../../target-model/names/identifiers.js";

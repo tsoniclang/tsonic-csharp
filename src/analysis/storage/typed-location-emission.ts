@@ -10,7 +10,7 @@ import type { CsharpTypedLocationEmission, CsharpTypedStorageEmission } from "..
 import type { CsharpTypedLocationOperationKind } from "../../target-model/records/typed-locations.js";
 import { csharpRuntimeLocationTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import { objectShapeBoundStorageMemberName } from "../../target-model/names/object-members.js";
-import { selectCsharpTypeEmission } from "../../policy/types/type-emission.js";
+import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 import { createCsharpTypedLocationEmissionRecords } from "../program/records/typed-location-emission.js";
 
 export function analyzeCsharpTypedLocationEmission(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];

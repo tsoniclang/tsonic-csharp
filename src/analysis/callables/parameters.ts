@@ -7,11 +7,11 @@ import type { CsharpStorageClassifications } from "../../target-model/records/st
 import type { CsharpExactLiteralSelectionIndex } from "../../target-model/conversions/exact-literals.js";
 import type { CsharpCallableParameterEmission, CsharpParameterDefaultEmission, CsharpLambdaParameterEntry } from "../../target-model/records/parameter-emission.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
-import { csharpParameterDefaultIsLiteral } from "../../policy/declarations/parameter-defaults.js";
+import { csharpParameterDefaultIsLiteral } from "../../policy/types/callables/parameter-default-literals.js";
 import { createCsharpCallableParameterRecords } from "../program/records/parameter-emission.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
-import { selectCsharpTypeEmission } from "../../policy/types/type-emission.js";
+import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 
 export function analyzeCsharpCallableParameterEmission(input: {
   readonly ast: AstReader;

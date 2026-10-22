@@ -8,7 +8,7 @@ import type { CsharpTypeDefinitions } from "../../target-model/types/source-unio
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import { csharpClosedTypeTestMatches } from "./type-tests.js";
-import { selectCsharpTypeEmission } from "../../policy/types/type-emission.js";
+import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 import { createCsharpClosedTypeTestProducer } from "../program/records/type-tests.js";
 
 export function analyzeCsharpClosedTypeTests(nodes: readonly Node[], operations: CsharpTargetOperationClassifications, definitions: CsharpTypeDefinitions) {

@@ -7,7 +7,7 @@ import type { CsharpAdmittedPropertyClassification, CsharpSourceMemberEmission, 
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import type { CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
-import { selectCsharpTypeEmission } from "../../policy/types/type-emission.js";
+import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 import { createCsharpPropertyAdmissionRecords } from "../program/records/property-admission.js";
 
 export function analyzeCsharpPropertyAdmission(input: { readonly ast: AstReader; readonly nodes: readonly Node[];
