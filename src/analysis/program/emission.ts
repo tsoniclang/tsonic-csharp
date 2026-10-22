@@ -359,7 +359,7 @@ export function finalizeCsharpNativeEmission(
   const sourceFileEmission = analyzeCsharpSourceFileEmission({ source, identities: sourceOutputIdentities.records,
     factories: classFactories, evidence: analysis.sourceEvidence, operations: admittedOperations,
     moduleInitialization: moduleInitialization.index, expectedTypes: analysis.expectedTypes,
-    declarations: callableDeclarations.records, names });
+    declarations: callableDeclarations.records, names, storage: analysis.storage });
   if (sourceFileEmission.issues.length !== 0) return rejectedTargetStage(sourceFileEmission.issues);
   const binaryExecutionDriver = composeCsharpBinaryExecutionDriver(prerequisiteBinaryExecutionDriver,
     [...promiseResults.results.values()].some(result => result.discard !== undefined) ? csharpJsEventLoopBinaryExecutionDriver : undefined);
