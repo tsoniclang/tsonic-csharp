@@ -6,7 +6,6 @@ import type { CsharpExactLiteralSelectionIndex } from "../../target-model/conver
 import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
 import { csharpStringTargetType, csharpBigIntegerTargetType, targetTypeRefEquals } from "../../target-model/types/index.js";
 import { createCsharpLiteralEmissionProducer } from "../program/records/literal-emission.js";
-import type { CsharpLiteralEmission } from "../../target-model/records/literal-emission.js";
 
 export function analyzeCsharpLiteralAdmission(input: { readonly ast: AstReader; readonly demand: CsharpNativeDemandAnalysis;
   readonly literals: SourceLiteralIndex; readonly exact: CsharpExactLiteralSelectionIndex; readonly values: CsharpValueReadClassifications }) {
@@ -44,22 +43,7 @@ export function analyzeCsharpLiteralAdmission(input: { readonly ast: AstReader; 
         refuse(node, "BigInt literal emission requires parseable source literal text from TSTS.");
       else if (carrier === undefined || !targetTypeRefEquals(carrier, csharpBigIntegerTargetType()))
         refuse(node, "BigInt literal emission requires a finalized System.Numerics.BigInteger runtime carrier fact.");
-      else {
-        let storage: Extract<CsharpLiteralEmission, { readonly kind: "bigint" }>["storage"];
-        let negative = false;
-        if (value >= -(1n << 63n) && value < (1n << 63n)) storage = Object.freeze({ kind: "int64", value });
-        else {
-          negative = value < 0n;
-          let magnitude = negative ? -value : value;
-          if (magnitude < (1n << 64n)) storage = Object.freeze({ kind: "uint64", value: magnitude });
-          else {
-            const bytes: number[] = [];
-            while (magnitude !== 0n) { bytes.push(Number(magnitude & 255n)); magnitude >>= 8n; }
-            storage = Object.freeze({ kind: "bytes", bytes: Object.freeze(bytes) });
-          }
-        }
-        producer.publish(node, { kind: "bigint", carrier, negative, storage }); published.add(node);
-      }
+      else { producer.publish(node, { kind: "bigint", carrier, decimal: value.toString(10) }); published.add(node); }
     }
     if ((input.ast.is.IsTemplateExpression(node) || input.ast.is.IsNoSubstitutionTemplateLiteral(node)) &&
       (carrier === undefined || !targetTypeRefEquals(carrier, csharpStringTargetType()))) refuse(node,
