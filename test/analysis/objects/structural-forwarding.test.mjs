@@ -21,6 +21,7 @@ import { selectCsharpStructuralInterface } from "../../../dist/analysis/objects/
 import { analyzeCsharpObjectShapes } from "../../../dist/analysis/objects/analyze.js";
 import { selectCsharpStructuralInterfaceImplementation } from "../../../dist/policy/types/objects/structural-implementation.js";
 import { planCsharpStructuralInterfaceMembers } from "../../../dist/backend/planner/declarations/interfaces/structural.js";
+import { analyzeCsharpStructuralInterfaceEmission } from "../../../dist/analysis/declarations/interfaces/structural.js";
 import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { substituteObjectShapeMemberTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
@@ -392,6 +393,15 @@ test("structural publication closes late inherited obligations through its singl
   analyzed.knownShapes();
   assert.equal(correspondenceReads, closedReads, "an unchanged implementation graph never redecides correspondence");
 });
+
+// The planner reads structural forwarding from records.structuralInterface, which the analysis publishes with the
+// selected method binder names. The fixture's single structural shape has no lifted outer binders or projections.
+function structuralInterfaceRecords(objectShapes, sourceType) {
+  return analyzeCsharpStructuralInterfaceEmission({ ast: {},
+    shapes: { knownShapes: () => [{ targetType: sourceType }], structuralImplementations: type => objectShapes.structuralImplementations(type) },
+    names: { typeParameterNames: [] }, projectTypes: { definitionContainingDeclaration: () => undefined },
+    projections: { genericProjection: { get: () => [] } } });
+}
 
 function fixture(passingMode = "by-value") {
   const sourceType = Object.freeze({ kind: "target-named", id: "test.Source", csharpAllowsRefLikeTypeArguments: Object.freeze([]) });
@@ -780,7 +790,7 @@ for (const passingMode of ["by-value", "byref-readonly", "byref-readwrite", "byr
     assert.equal(finalized.issues.length, 0, "identical native passing contracts need no new adaptation capability");
     const diagnostics = [];
     const planned = planCsharpStructuralInterfaceMembers({ targetType: value.sourceType }, {
-      program: { objectShapes: finalized.objectShapes, source: { ast: {
+      program: { records: structuralInterfaceRecords(finalized.objectShapes, value.sourceType), source: { ast: {
         getSourceFile: () => ({}), parameters: () => assert.fail("the renderer cannot plan method parameters or defaults again"),
       } } }, scope: {},
     }, diagnostics);
@@ -912,7 +922,7 @@ function adaptedNativeForwarder(control, destinationNames = []) {
     `${control.name}: byref values never convert, copy or acquire a temporary`);
   const diagnostics = [];
   const planned = planCsharpStructuralInterfaceMembers({ targetType: sourceType }, {
-    program: { objectShapes: finalized.objectShapes, source: { ast: { getSourceFile: () => ({}),
+    program: { records: structuralInterfaceRecords(finalized.objectShapes, sourceType), source: { ast: { getSourceFile: () => ({}),
       parameters: () => assert.fail("native rendering cannot re-read parameter/default syntax") } } },
     names: { temporaryName: () => assert.fail("identity byref forwarding cannot allocate a native temporary") }, scope: {},
   }, diagnostics);
