@@ -305,7 +305,10 @@ function analyzeCsharpTargetProgramBeforeSeal(
         "tsonic-csharp", "A native source refusal requires its exact admitted reason.", use.expression),
     }];
   });
-  if (refusals.length > 0) return rejectedTargetStage(refusals);
+  // A refused destructuring binding is the root cause of refusals at its later uses (an incomplete rest copy has no
+  // callable contract for its methods), so it is reported first, with them.
+  if (refusals.length > 0) return rejectedTargetStage([...bindingPatterns.issues.map(issue => ({ code: issue.code, category: "error" as const,
+    source: "tsonic-csharp", message: issue.message, sourceNode: issue.node })), ...refusals]);
   const nativeValueCarriers = analyzeCsharpNativeValueCarriers(
     source.ast, nativeDemand.requiredNativeValueDeclarations, analysis.sourceEvidence, analysis.valueReads, analysis.objectShapes,
     source.semantics.forNode, analysis.requiredRecords,
