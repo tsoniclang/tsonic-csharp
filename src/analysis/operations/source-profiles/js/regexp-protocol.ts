@@ -1,12 +1,12 @@
-import type { TargetTypeRef } from "../../../policy/types/index.js";
+import type { TargetTypeRef } from "../../../../policy/types/index.js";
 
-import { csharpWellKnownSymbolSourceMemberKey, getCsharpDelegateSignature } from "../../../target-model/types/index.js";
-import { substituteTargetTypeParameters } from "../../../policy/types/resolution/substitution.js";
-import type { CsharpSourceProfileCallPolicy } from "../../../policy/model/source-profiles.js";
+import { csharpWellKnownSymbolSourceMemberKey, getCsharpDelegateSignature } from "../../../../target-model/types/index.js";
+import { substituteTargetTypeParameters } from "../../../../policy/types/resolution/substitution.js";
+import type { CsharpSourceProfileCallPolicy } from "../../../../policy/model/source-profiles.js";
 
-import type { CsharpProviderCallSelectionHost } from "../../../policy/model/provider-calls.js";
-import type { CustomRegExpProtocolKind } from "../../../target-model/records/source-profile-inputs.js";
-import { selectCsharpCustomRegExpProtocol } from "../../../policy/operations/source-profiles/js/regexp-protocol.js";
+import type { CsharpProviderCallSelectionHost } from "../../../../policy/model/provider-calls.js";
+import type { CustomRegExpProtocolKind } from "../../../../target-model/records/source-profile-inputs.js";
+import { selectCsharpCustomRegExpProtocol } from "../../../../policy/operations/source-profiles/js/regexp-protocol.js";
 export function analyzeCsharpCustomRegExpProtocol(
   context: Pick<Parameters<CsharpSourceProfileCallPolicy["select"]>[0], "source" | "sourceFile" | "inputs"> & { readonly host: CsharpProviderCallSelectionHost },
   argumentIndex: number,

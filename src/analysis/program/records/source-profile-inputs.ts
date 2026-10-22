@@ -1,4 +1,4 @@
-import { csharpRegExpReceiverHasNativeExecution } from "../../source-profiles/js/regexp-execution.js";
+import { csharpRegExpReceiverHasNativeExecution } from "../../operations/source-profiles/js/regexp-execution.js";
 import type { Node, Type, SourceFile } from "@tsonic/tsts";
 import type { CsharpProviderCallSelectionHost } from "../../../policy/model/provider-calls.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../../target-model/types/model.js";
@@ -7,7 +7,7 @@ import type { CsharpSourceProfileInputFacts, CsharpSourceProfileInputRequirement
 import { csharpSourceHasNumericConstraint } from "../../constraints/numeric-evidence.js";
 import { isCsharpThrowableType } from "../../project-types/throwable-types.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
-import { analyzeCsharpCustomRegExpProtocol } from "../../source-profiles/js/regexp-protocol.js";
+import { analyzeCsharpCustomRegExpProtocol } from "../../operations/source-profiles/js/regexp-protocol.js";
 export function createCsharpSourceProfileInputs(
   host: CsharpProviderCallSelectionHost, file: SourceFile,
   sourceValues: readonly { readonly expression: Node; readonly type: Type }[],

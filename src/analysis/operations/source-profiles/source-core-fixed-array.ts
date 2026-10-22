@@ -1,14 +1,14 @@
 import { tsonicFixedArrayProviderMember } from "@tsonic/source-core/facts";
 import type { SourceFile } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
-import { resolveCsharpProviderDeclarationEvidence } from "../../source/extension/provider-identities.js";
-import { csharpFixedArrayRepresentationRejection } from "../../policy/types/collections/fixed-arrays.js";
-import { csharpSourcePrimitiveTargetType, isCsharpArrayIndexTargetType, targetTypeRefKey } from "../../target-model/types/index.js";
-import type { CsharpProviderCallSelectionHost } from "../../policy/model/provider-calls.js";
-import type { CsharpSourceProfileElementPolicyResult } from "../../policy/model/source-profiles.js";
-import type { CsharpSourceProfilePropertyPolicyResult } from "../../target-model/records/source-profile-invocations.js";
-import { csharpSourceProfileDiagnostic } from "../../policy/operations/source-profiles/source-profile-policy.js";
-import { csharpLiteralIsRepresentableAs } from "../../policy/conversions/literals.js";
+import { resolveCsharpProviderDeclarationEvidence } from "../../../source/extension/provider-identities.js";
+import { csharpFixedArrayRepresentationRejection } from "../../../policy/types/collections/fixed-arrays.js";
+import { csharpSourcePrimitiveTargetType, isCsharpArrayIndexTargetType, targetTypeRefKey } from "../../../target-model/types/index.js";
+import type { CsharpProviderCallSelectionHost } from "../../../policy/model/provider-calls.js";
+import type { CsharpSourceProfileElementPolicyResult } from "../../../policy/model/source-profiles.js";
+import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/source-profile-invocations.js";
+import { csharpSourceProfileDiagnostic } from "../../../policy/operations/source-profiles/source-profile-policy.js";
+import { csharpLiteralIsRepresentableAs } from "../../../policy/conversions/literals.js";
 
 type ResolvedSourcePropertyAccessInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["propertyAccess"]>
@@ -17,7 +17,7 @@ type ResolvedSourceElementAccessInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["elementAccess"]>
 >;
 
-import { selectCsharpFixedArrayPropertyPlan, selectCsharpFixedArrayElementPlan } from "../../policy/operations/source-profiles/source-core-fixed-array.js";
+import { selectCsharpFixedArrayPropertyPlan, selectCsharpFixedArrayElementPlan } from "../../../policy/operations/source-profiles/source-core-fixed-array.js";
 export function selectCsharpSourceCoreFixedArrayProperty(
   host: CsharpProviderCallSelectionHost,
   source: ResolvedSourcePropertyAccessInfo,

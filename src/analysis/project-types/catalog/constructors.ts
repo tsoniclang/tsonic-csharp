@@ -11,7 +11,7 @@ import type { CsharpTargetMember, CsharpTargetNamedTypeRef, CsharpTargetParamete
 import type { CsharpTypePolicy } from "../../source-evidence/types/resolution/model.js";
 import { csharpTargetBindingSubstitutions, substituteCsharpTargetMember } from "../../../policy/types/callables/member-substitution.js";
 import { targetTypeRefKey, targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { selectCsharpSourceProfileConstructor } from "../../source-profiles/selection.js";
+import { selectCsharpSourceProfileConstructor } from "../../operations/source-profiles/selection.js";
 
 type CsharpProviderSignatureRelation = Extract<
   CsharpProviderTargetRelation,

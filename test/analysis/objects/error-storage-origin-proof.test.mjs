@@ -8,7 +8,7 @@ import { collectTargetSourceProfileContributions } from "../../../../tsonic/pack
 import { errorConstructorFootprintSource, errorOriginDomainSource } from "../../../../tsonic/test/fixtures/error-origin-domains.mjs";
 import { createCsharpErrorStorageDemandQuery } from "../../../dist/analysis/objects/error-storage-demands.js";
 import { resolveSourceProfileType } from "../../../dist/analysis/source-evidence/types/resolution/source-profiles.js";
-import { createCsharpSourceProfileStorageEffects } from "../../../dist/analysis/source-profiles/source-storage-effects.js";
+import { createCsharpSourceProfileStorageEffects } from "../../../dist/analysis/operations/source-profiles/source-storage-effects.js";
 import { csharpSourceProfileContributions, csharpJsSurfaceSourceProfileContributions } from "../../../dist/source/profiles/declarations.js";
 
 for (const jsEnabled of [false, true]) {

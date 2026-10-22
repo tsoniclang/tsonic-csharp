@@ -10,7 +10,7 @@ import type {
   Type,
 } from "@tsonic/tsts";
 import { emptyCsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
-import { selectCsharpArrayTypeGuard } from "../source-profiles/js/type-tests.js";
+import { selectCsharpArrayTypeGuard } from "../operations/source-profiles/js/type-tests.js";
 import type {
   CsharpRecursiveObjectShapePolicy,
 } from "../objects/shapes/model.js";

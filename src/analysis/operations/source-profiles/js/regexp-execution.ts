@@ -1,10 +1,10 @@
 import { jsRegExpSourceProfileIdentity } from "@tsonic/js-source-profile";
 import type { Node } from "@tsonic/tsts";
-import { csharpSourceProfileDeclarationIdentity } from "../../../policy/identities/selected-source.js";
+import { csharpSourceProfileDeclarationIdentity } from "../../../../policy/identities/selected-source.js";
 
 export function csharpRegExpReceiverHasNativeExecution(
   receiver: Node,
-  context: { readonly host: import("../../../policy/model/provider-calls.js").CsharpProviderCallSelectionHost; readonly sourceFile: import("@tsonic/tsts").SourceFile },
+  context: { readonly host: import("../../../../policy/model/provider-calls.js").CsharpProviderCallSelectionHost; readonly sourceFile: import("@tsonic/tsts").SourceFile },
 ): boolean {
   const { ast, navigation } = context.host;
   let origin = receiver;

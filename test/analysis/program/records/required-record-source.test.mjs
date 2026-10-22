@@ -6,7 +6,7 @@ import { assertCsharpRequiredRecords } from "../../../../dist/analysis/program/r
 import { createCsharpProjectTypeCatalog } from "../../../../dist/analysis/project-types/catalog.js";
 import { analyzeCsharpClassFactories } from "../../../../dist/analysis/project-types/class-factories.js";
 import { analyzeCsharpStorage } from "../../../../dist/analysis/storage/analyze.js";
-import { createCsharpSourceProfileStorageEffects } from "../../../../dist/analysis/source-profiles/source-storage-effects.js";
+import { createCsharpSourceProfileStorageEffects } from "../../../../dist/analysis/operations/source-profiles/source-storage-effects.js";
 import { targetTypeRefEquals } from "../../../../dist/target-model/types/equality.js";
 import { compileCsharpRequiredRecordSource, csharpRequiredRecordFailure } from "../../../helpers/required-records.mjs";
 import { createExpectedNativeUseOwner } from "../../../helpers/expected-native-uses.mjs";

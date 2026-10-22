@@ -15,7 +15,7 @@ import { validateCsharpJsValueOperationSelection } from "../../policy/operations
 import { resolveCsharpInstanceType } from "../source-evidence/types/resolution/instance-tests.js";
 import { selectCsharpClosedTypeTestPlan } from "../../policy/operations/operators/type-tests.js";
 import { selectCsharpOperatorForm } from "../../policy/operations/operators/operator-forms.js";
-import { selectCsharpArrayTypeTest } from "../source-profiles/js/type-tests.js";
+import { selectCsharpArrayTypeTest } from "./source-profiles/js/type-tests.js";
 import { selectCsharpCallForm } from "../../policy/operations/members/selection/call-forms.js";
 import { getCsharpTypeofResult } from "../../policy/operations/syntax/runtime-kind.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";

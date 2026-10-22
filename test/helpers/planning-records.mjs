@@ -27,7 +27,7 @@ export function csharpDelegateContractRecord(conversions) {
 }
 
 // The source-profile input facts the analysis computes for a policy call (createCsharpSourceProfileInputs, as in
-// analysis/source-profiles/policy-selection.ts). Fixture hosts supply only the type queries their policy reads;
+// analysis/operations/source-profiles/policy-selection.ts). Fixture hosts supply only the type queries their policy reads;
 // every other query answers that the fixture has no such evidence.
 export function csharpSourceProfileInputs(host, sourceFile, { values = [], result, selected = [], requirements, source } = {}) {
   const complete = {

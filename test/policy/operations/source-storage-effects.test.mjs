@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
-import { createCsharpSourceProfileStorageEffects } from "../../../dist/analysis/source-profiles/source-storage-effects.js";
+import { createCsharpSourceProfileStorageEffects } from "../../../dist/analysis/operations/source-profiles/source-storage-effects.js";
 import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { nativeStorageOperationAuthoritySource, nativeStorageOperationFactSource, nativeStorageVirtualOperationSource } from "../../../../tsonic/test/fixtures/native-storage-operation-authority.mjs";
 import { jsSourceSemanticsIdentity } from "@tsonic/js-source-profile";

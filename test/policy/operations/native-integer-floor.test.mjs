@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { callEvidence, directProviderHost, providerDeclaration, providerFact } from "../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
 import { jsSourceSemanticsIdentity } from "@tsonic/js-source-profile";
-import { selectCsharpComposedSourceProfileCall } from "../../../dist/analysis/source-profiles/selection.js";
+import { selectCsharpComposedSourceProfileCall } from "../../../dist/analysis/operations/source-profiles/selection.js";
 
 test("floor policy retains every native integer carrier supplied by exact provider evidence", () => {
   for (const name of ["int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64", "int128", "uint128", "native-int", "native-uint", "float32", "float64"]) {

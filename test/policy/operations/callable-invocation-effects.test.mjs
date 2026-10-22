@@ -5,7 +5,7 @@ import { csharpDelegateTargetType } from "../../../dist/target-model/types/carri
 import { sealInvocationOnlyCallableArguments } from "../../../dist/policy/operations/source-profiles/js/invocation-arguments.js";
 
 // Source-profile selection seals the invocation-only callable arguments of a selected JS call after the policy selects
-// it (analysis/source-profiles/policy-selection.ts); a call that cannot be sealed is rejected.
+// it (analysis/operations/source-profiles/policy-selection.ts); a call that cannot be sealed is rejected.
 function sealed(result, context) {
   if (result?.kind !== "resolved") return result;
   const call = sealInvocationOnlyCallableArguments(context, result.call);
