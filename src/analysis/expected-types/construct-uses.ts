@@ -80,7 +80,7 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
       const call = operations.selectedCall.get(node);
       if (call?.form.kind === "target") {
         if (call.target?.kind === "resolved") recordSelectedCall(node, call.target,
-          call.optionalReceiver?.guard === true ? call.optionalReceiver.storage : undefined);
+          call.optionalReceiver?.storage);
         else if (call.source !== undefined) recordSourceArguments(node, call.source, call.sourceArgumentParameterTypes, call.sourceArgumentGrouping);
       }
       const construction = operations.selectedConstruction.get(node);
@@ -156,13 +156,13 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
   }
 
   function recordSelectedCall(owner: Node, selection: Extract<CsharpTargetCallSelection, { readonly kind: "resolved" }>,
-    guardedReceiverStorage?: TargetTypeRef): void {
+    chainReceiverStorage?: TargetTypeRef): void {
     const call = selection.call;
     if (call.receiver.kind === "target-parameter") {
       const parameter = call.targetMember.parameters[call.receiver.targetParameterIndex];
-      // A guarded optional receiver is read at its nullable storage: the call passes the presence-narrowed value, whose
+      // An optional-chain receiver is read at its nullable storage: the chain passes the presence-narrowed value, whose
       // conversion to the parameter is the optional receiver's own sealed conversion.
-      record(selection.source.sourceReceiver?.expression, guardedReceiverStorage ??
+      record(selection.source.sourceReceiver?.expression, chainReceiverStorage ??
         (parameter === undefined ? undefined : csharpTargetParameterValueType(parameter, "value")),
         "required", at(owner, { kind: "receiver" }));
     }

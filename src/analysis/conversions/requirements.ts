@@ -231,7 +231,7 @@ export function collectCsharpConversionRequirements(input: CsharpConversionRequi
     if (call?.sourceResult !== undefined) {
       classifyPair(call.sourceResult.nativeType, call.sourceResult.selectedType, "explicit", node);
     }
-    if (call !== undefined && (call.optionalCallee !== undefined || call.optionalReceiver?.guard === true)) {
+    if (call !== undefined && (call.optionalCallee !== undefined || call.optionalReceiver !== undefined)) {
       const source = call.sourceResult?.selectedType ?? (call.target?.kind === "resolved"
         ? call.target.call.targetMember.returnType : undefined);
       const target = call.selectedResultType;
