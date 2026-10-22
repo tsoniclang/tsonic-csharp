@@ -21,6 +21,7 @@ import {
 import { requireCsharpNativeExpressionUse } from "../../expressions/native-uses.js";
 import { csharpPlannedValue, type CsharpPlannedValue } from "../../expressions/planned-values.js";
 import { buildCsharpPlannedValue } from "../../expressions/planned-value-composition.js";
+import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import { planCsharpObjectInitialization, type CsharpPlannedObjectInitializer } from "../../expressions/planned-initializers.js";
 
 export function planObjectLiteralExpression(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner, state?: DestructuringPlannerState
@@ -55,8 +56,15 @@ function planObjectLiteralExpressionWithObjectShape(node: Node, sourceFile: Sour
   if (type === undefined) {
     failCsharpPlannerInvariant("An admitted native object literal requires its constructible native type.", node);
   }
-  const captures = planCsharpObjectCaptureAssignments(objectShape, node, input, diagnostics, state);
-  if (captures === undefined) failCsharpPlannerInvariant("An admitted native object literal requires its sealed capture initialization.", node);
+  const authoredCaptures = planCsharpObjectCaptureAssignments(objectShape, node, input, diagnostics, state);
+  if (authoredCaptures === undefined) failCsharpPlannerInvariant("An admitted native object literal requires its sealed capture initialization.", node);
+  // A required member the literal does not author starts at its storage default; the selected call writes it.
+  const captures = [...authoredCaptures, ...selected.initialization.deferred.map(member => {
+    const memberType = csharpTypeFromTargetTypeRef(member.carrier, input.scope.typeParameterNames)
+      ?? failCsharpPlannerInvariant("An admitted deferred object member requires its native storage type.", node);
+    return { kind: "AssignmentExpression" as const, name: member.name, carrier: member.carrier,
+      expression: { kind: "DefaultExpression" as const, type: memberType, nullForgiving: true } };
+  })];
   const assignments: CsharpPlannedObjectInitializer[] = [];
   for (const { property } of selected.members) {
     const planned = planObjectShapeLiteralAssignment(property, objectShape, sourceFile, input, diagnostics, planExpression);

@@ -1,4 +1,5 @@
 import type { Node } from "@tsonic/tsts";
+import { targetTypeRefKey } from "../../target-model/types/equality.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { sourceDeclarationIsModuleScoped, sourceEnclosingCallable, sourceParameterIsProperty, type TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
@@ -14,7 +15,6 @@ import type { CsharpTypeDefinitions } from "../../target-model/types/source-unio
 import { getCsharpTaskResultTargetType } from "../../target-model/types/carriers/delegates.js";
 import { getCsharpGeneratorProtocol } from "../../target-model/types/carriers/generators.js";
 import { isCsharpRefLikeTargetType } from "../../target-model/types/ref-like.js";
-import { targetTypeRefKey } from "../../target-model/types/equality.js";
 import { analyzeCsharpRefLikeLiveness, analyzeCsharpRefLikeEvaluation } from "./ref-like-liveness.js";
 
 export interface CsharpNativePlacementInput {
@@ -72,8 +72,8 @@ export function analyzeCsharpRefLikePlacements(input: CsharpNativePlacementInput
   const inspect = (type: TargetTypeRef | undefined, node: Node, physicalShape?: CsharpObjectShapeFact): void => {
     if (type === undefined) return;
     const pending = [type];
-    // Keyed by type identity, not object identity: source-union arms are instantiated afresh on every read, so a
-    // recursive union (`Tree<V> = V | readonly Tree<V>[]`) would otherwise expand without end.
+    // Visited by structural key: a recursive source union (type Tree = number | readonly Tree[]) instantiates fresh arm
+    // carriers on every expansion, so object identity would never close the walk.
     const visited = new Set<string>();
     while (pending.length > 0) {
       const current = pending.pop()!;

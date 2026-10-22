@@ -284,34 +284,41 @@ function objectAssignMember(
       targetType,
     );
   }
+  // A fresh object-literal target (`Object.assign({ count }, { label })`) is constructed at the call's merged result
+  // shape, so the assignment writes every source property into a declared member of the returned object.
+  const targetExpression = context.source.sourceArguments[0]?.expression;
+  const merged = targetExpression !== undefined && context.host.ast.is.IsObjectLiteralExpression(targetExpression)
+    ? context.inputs.resultType : undefined;
+  const assignedType = merged !== undefined && merged.kind === "target-named" && "csharpGeneratedStructuralStorage" in merged &&
+    merged.csharpGeneratedStructuralStorage === true ? merged : targetType;
   const targetShape = targetType === undefined
     ? undefined
-    : context.inputs.objectShape.get(context.source.sourceArguments[0]?.expression);
+    : context.inputs.objectShape.get(targetExpression);
   const sourceShape = sourceType === undefined
     ? undefined
     : context.inputs.objectShape.get(context.source.sourceArguments[1]?.expression);
-  return targetType === undefined ||
+  return targetType === undefined || assignedType === undefined ||
       context.source.sourceArguments.length !== 2 ||
       sourceType === undefined ||
       targetShape === undefined ||
       sourceShape === undefined
     ? undefined
     : staticMethod(
-        `Tsonic.CSharp.Js.Object.assign:${targetTypeIdentity(targetType)}`,
+        `Tsonic.CSharp.Js.Object.assign:${targetTypeIdentity(assignedType)}`,
         "assign",
         "assign",
         objectRuntimeType,
         [
-          targetParameter("target", targetType, {
+          targetParameter("target", assignedType, {
             csharpAcceptsCheckedSourceArgument: true,
           }),
           targetParameter("source", sourceType),
         ],
-        targetType,
+        assignedType,
         objectShapeProjectionOptions(
           context,
           context.source.sourceArguments[0],
-          targetType,
+          assignedType,
           "assign",
           0,
           { kind: "argument", index: 0 },

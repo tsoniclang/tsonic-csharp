@@ -20,6 +20,11 @@ export type CsharpObjectLiteralEmission = {
 export interface CsharpObjectInitialization {
   readonly inlineUnique: boolean;
   readonly slots: readonly { readonly name: string; readonly carrier: TargetTypeRef; readonly initializeAbsence: boolean }[];
+  /**
+   * Required data members of the constructed shape that the literal does not author (an Object.assign target built at
+   * the merged result shape); they start at their storage default and the selected call writes them.
+   */
+  readonly deferred: readonly { readonly name: string; readonly carrier: TargetTypeRef }[];
 }
 
 export interface CsharpObjectLiteralRecords {

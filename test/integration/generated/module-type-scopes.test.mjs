@@ -68,7 +68,10 @@ for (const surface of [undefined, "js"]) {
     assert.doesNotMatch(source, /\b(?:CookieOptions_[0-9]+|Entry_[0-9]+|cookie_options)\b/u);
     assert.doesNotMatch(source, /\(\(T argument0\) =>/u);
     assert.match(source, /new __TsonicModule_[\da-f]+\.Entry<string>\("left"\)/u);
-    assert.match(source, /new __TsonicModule_[\da-f]+\.Entry<double>\(4\)/u);
+    // The native surface prints the int token, the js surface a double literal (RULINGS 2026-10-22, native integer
+    // literal printing).
+    assert.match(source, surface === undefined ? /new __TsonicModule_[\da-f]+\.Entry<double>\(4\)/u
+      : /new __TsonicModule_[\da-f]+\.Entry<double>\(4D\)/u);
     assert.match(source, /new __TsonicModule_[\da-f]+\.Entry<long>\(exact\)/u);
     assert.match(source, /__TsonicModule_[\da-f]+\.Status\.Done/u);
   });
