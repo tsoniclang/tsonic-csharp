@@ -1,15 +1,23 @@
 import assert from "node:assert/strict";
 import { analyzeSourceLiteralValues, createTargetSourceProgram } from "@tsonic/target-api/source";
 import { analyzeCsharpExpectedTypes } from "../../dist/analysis/expected-types/analyze.js";
-import { compileCsharpTarget } from "../../dist/backend/compile.js";
 import { createCsharpProviderRelationResolver } from "../../dist/providers/native/projection/relation-resolution.js";
-import { compileCsharpSource } from "./direct-csharp-session.mjs";
+import { compileCsharpSource, compileCsharpAnalysisTarget } from "./direct-csharp-session.mjs";
 import { csharpProgramSourceFiles } from "./program-source-files.mjs";
+import { csharpAsyncGeneratorTargetType, csharpGeneratorTargetType } from "../../dist/target-model/types/carriers/generators.js";
+
+// The published generator fact of a declaration carries its protocol; its declared carrier is the protocol's generator type.
+export function publishedGeneratorCarrier(records, node) {
+  const fact = records.generator.get(node);
+  if (fact === undefined) return undefined;
+  const protocol = { yieldType: fact.yieldType, returnType: fact.returnType, nextType: fact.nextType };
+  return fact.kind === "async" ? csharpAsyncGeneratorTargetType(protocol) : csharpGeneratorTargetType(protocol);
+}
 
 export function compileCsharpNativeUseSource(options) {
   let nativeStage;
   const compiled = compileCsharpSource({ ...options, compileTarget(request, observer) {
-    const result = compileCsharpTarget(request, observer);
+    const result = compileCsharpAnalysisTarget(request, observer);
     nativeStage = { source: request.input.source, diagnostics: result.diagnostics };
     return result;
   } });
@@ -38,7 +46,7 @@ export function createExpectedNativeUseOwner(compiled) {
   }
   const contracts = nodes.flatMap(node => {
     const declared = records.returnContract.get(node);
-    const returnType = records.generatorTargetType.get(node) ?? (declared?.kind === "resolved" ? declared.type : undefined);
+    const returnType = publishedGeneratorCarrier(records, node) ?? (declared?.kind === "resolved" ? declared.type : undefined);
     return returnType === undefined ? [] : [{ sourceDeclaration: node, returnType }];
   });
   const policy = { ast, sourceFiles: csharpProgramSourceFiles(program), navigation: source.navigation,

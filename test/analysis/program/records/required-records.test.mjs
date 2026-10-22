@@ -6,6 +6,7 @@ import { assertCsharpRequiredRecords, requireCsharpRecord } from "../../../../di
 import { targetUseSiteRef } from "@tsonic/target-api/analysis";
 import {
   compileCsharpRequiredRecordSource,
+  csharpDerivedRecordFamilies,
   csharpRecordInput,
   csharpRecordsOmitting,
   csharpRequiredRecordFailure,
@@ -72,7 +73,7 @@ function failure(family, subject) {
 }
 
 function readingRecords(base, reads) {
-  return Object.freeze(Object.fromEntries(Object.keys(base).map(family => [family, Object.freeze({ get(...key) {
+  return Object.freeze(Object.fromEntries(Object.keys(base).map(family => [family, Object.freeze({ ...base[family], get(...key) {
     reads.push(family);
     return base[family].get(...key);
   } })])));
@@ -81,9 +82,17 @@ function readingRecords(base, reads) {
 test("the record input fixture is the exact inverse of the mandatory assembly", () => {
   const assembled = createCsharpProgramRecords(csharpRecordInput(records), []);
   const names = Object.keys(records);
-  assert.equal(Object.isFrozen(assembled) && Object.keys(assembled).length === 119 && names.length === 119, true,
-    "the assembly returns every current record family, frozen");
-  assert.equal(names.every(family => assembled[family] === records[family]), true, "every assembled reader is the published reader");
+  assert.equal(Object.isFrozen(assembled) && Object.keys(assembled).length === names.length &&
+    names.every(family => Object.hasOwn(assembled, family)), true, "the assembly returns every published record family, frozen");
+  assert.equal(names.filter(family => !csharpDerivedRecordFamilies.includes(family))
+    .every(family => assembled[family] === records[family]), true, "every passed-through reader is the published reader");
+  assert.equal(assembled.compilation.get() === records.compilation.get() && assembled.sourceName.get === records.sourceName.get &&
+    assembled.nativeUse.get === records.nativeUse.get && assembled.nativeOrder.get === records.nativeOrder.get, true,
+    "derived readers answer from the published values");
+  assert.deepEqual(assembled.nameInventory.get(), records.nameInventory.get(), "the derived name inventory is the published one");
+  assert.equal(records.objectShapeArtifact.artifacts.every(artifact =>
+    assembled.jsonObjectShape.get(artifact.fact) === records.jsonObjectShape.get(artifact.fact)), true,
+    "the derived JSON object shapes are the published ones");
 });
 
 test("the assembly has no optional requirement list", () => {
@@ -160,7 +169,9 @@ for (const family of families) {
     const [present, omitted] = subjects[family];
     const reads = [];
     const observed = readingRecords(csharpRecordsOmitting(records, family, omitted), reads);
-    assert.throws(() => createCsharpProgramRecords(csharpRecordInput(observed), [requirement(family, omitted)]), failure(family, omitted),
+    const input = csharpRecordInput(observed);
+    reads.length = 0; // the fixture reads derived inputs while it is built; only the assembly's reads are counted
+    assert.throws(() => createCsharpProgramRecords(input, [requirement(family, omitted)]), failure(family, omitted),
       "the omitted subject fails the mandatory assembly");
     assert.equal(reads.length === 1 && reads[0] === family, true, "only the required family is read, once");
     reads.length = 0;
