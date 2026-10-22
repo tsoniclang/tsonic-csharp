@@ -80,13 +80,6 @@ export const callablesCarrierRegistry: readonly TargetCarrierRegistryEntry<Targe
     frozen: false,
   },
   {
-    id: "src/analysis/callables/parameters.ts#analyzeCsharpCallableParameterEmission",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/callables/parameters.ts", symbol: "analyzeCsharpCallableParameterEmission" },
-    counterpart: { module: "src/analysis/callables/parameter-signature.ts", symbol: "recordCallableParameterSignatureFacts" },
-    frozen: false,
-  },
-  {
     id: "src/policy/types/project/static-members.ts#resolveCsharpStaticMemberReceiver",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/policy/types/project/static-members.ts", symbol: "resolveCsharpStaticMemberReceiver" },
@@ -196,27 +189,6 @@ export const callablesCarrierRegistry: readonly TargetCarrierRegistryEntry<Targe
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/analysis/source-evidence/types/resolution/source-profiles.ts", symbol: "resolveSignatureParameterEvidence" },
     counterpart: { module: "src/analysis/source-evidence/types/resolution/source-evidence.ts", symbol: "resolveRustSignatureParameterEvidence" },
-    frozen: false,
-  },
-  {
-    id: "src/analysis/callables/source-call-emission.ts#analyzeCsharpSourceCallEmission",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/callables/source-call-emission.ts", symbol: "analyzeCsharpSourceCallEmission" },
-    counterpart: { module: "src/analysis/callables/source-callable-value.ts", symbol: "analyzeRustSourceCallableEmission" },
-    frozen: false,
-  },
-  {
-    id: "src/analysis/declarations/structural-interfaces.ts#analyzeCsharpStructuralInterfaceEmission",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/declarations/structural-interfaces.ts", symbol: "analyzeCsharpStructuralInterfaceEmission" },
-    counterpart: { module: "src/policy/types/objects/member-storage.ts", symbol: "rustStructuralMethodStorageCarrier" },
-    frozen: false,
-  },
-  {
-    id: "src/analysis/objects/shapes/member-evidence.ts#createCsharpObjectShapeMemberResolver",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/objects/shapes/member-evidence.ts", symbol: "createCsharpObjectShapeMemberResolver" },
-    counterpart: { module: "src/target-model/types/projections.ts", symbol: "rustSourcePropertyTargetType" },
     frozen: false,
   },
 ]);
