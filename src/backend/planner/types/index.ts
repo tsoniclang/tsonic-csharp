@@ -8,9 +8,6 @@ export {
   getCsharpTypeFromSemanticType,
 } from "./semantic-types.js";
 export {
-  sameCsharpType,
-} from "../../target-ast/inspection/type-equality.js";
-export {
   nullableCsharpType,
   predefined,
   qualifiedCsharpType,

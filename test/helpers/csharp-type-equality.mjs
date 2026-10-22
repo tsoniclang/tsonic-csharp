@@ -1,8 +1,6 @@
-import type {
-  CsharpTypeNode,
-} from "../syntax/index.js";
-
-export function sameCsharpType(left: CsharpTypeNode, right: CsharpTypeNode): boolean {
+// Structural equality of two C# type syntax nodes, for tests that compare planned types. Product code never compares
+// generated syntax (dependency-boundaries.test.mjs); it reads the sealed decision instead.
+export function sameCsharpType(left, right) {
   if (left.kind !== right.kind) {
     return false;
   }
@@ -22,7 +20,7 @@ export function sameCsharpType(left: CsharpTypeNode, right: CsharpTypeNode): boo
       }
       const leftArgs = left.typeArguments ?? [];
       const rightArgs = right.typeArguments ?? [];
-      return leftArgs.length === rightArgs.length && leftArgs.every((arg, index) => sameCsharpType(arg, rightArgs[index]!));
+      return leftArgs.length === rightArgs.length && leftArgs.every((arg, index) => sameCsharpType(arg, rightArgs[index]));
     }
     case "QualifiedName": {
       if (right.kind !== "QualifiedName" || left.name !== right.name || !sameCsharpType(left.left, right.left)) {
@@ -30,7 +28,7 @@ export function sameCsharpType(left: CsharpTypeNode, right: CsharpTypeNode): boo
       }
       const leftArgs = left.typeArguments ?? [];
       const rightArgs = right.typeArguments ?? [];
-      return leftArgs.length === rightArgs.length && leftArgs.every((arg, index) => sameCsharpType(arg, rightArgs[index]!));
+      return leftArgs.length === rightArgs.length && leftArgs.every((arg, index) => sameCsharpType(arg, rightArgs[index]));
     }
     case "AliasQualifiedName":
       return right.kind === "AliasQualifiedName" &&
@@ -41,7 +39,7 @@ export function sameCsharpType(left: CsharpTypeNode, right: CsharpTypeNode): boo
     case "TupleType":
       return right.kind === "TupleType" &&
         left.elements.length === right.elements.length &&
-        left.elements.every((element, index) => sameCsharpType(element, right.elements[index]!));
+        left.elements.every((element, index) => sameCsharpType(element, right.elements[index]));
     case "PointerType":
       return right.kind === "PointerType" && sameCsharpType(left.pointee, right.pointee);
     case "FunctionPointerType":
@@ -49,14 +47,14 @@ export function sameCsharpType(left: CsharpTypeNode, right: CsharpTypeNode): boo
         left.callingConvention === right.callingConvention &&
         stringListsEqual(left.callingConventionModifiers, right.callingConventionModifiers) &&
         left.parameters.length === right.parameters.length &&
-        left.parameters.every((parameter, index) => sameCsharpType(parameter, right.parameters[index]!)) &&
+        left.parameters.every((parameter, index) => sameCsharpType(parameter, right.parameters[index])) &&
         sameCsharpType(left.returnType, right.returnType);
     case "NullableType":
       return right.kind === "NullableType" && sameCsharpType(left.inner, right.inner);
   }
 }
 
-function stringListsEqual(left: readonly string[] | undefined, right: readonly string[] | undefined): boolean {
+function stringListsEqual(left, right) {
   return (left ?? []).length === (right ?? []).length &&
     (left ?? []).every((value, index) => value === (right ?? [])[index]);
 }
