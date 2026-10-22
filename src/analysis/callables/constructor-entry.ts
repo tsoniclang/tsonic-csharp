@@ -1,13 +1,13 @@
 import type { AstReader, Node } from "@tsonic/tsts";
-import { HasSourceKind, KindSuperKeyword } from "@tsonic/target-api/source";
+import { AsCallExpression, AsExpressionStatement, HasSourceKind, KindSuperKeyword } from "@tsonic/target-api/source";
 import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
 
 export function csharpConstructorBaseCall(ast: AstReader, constructor: Node): Node | undefined {
   const body = ast.body(constructor);
   const first = body === undefined ? undefined : ast.as.AsBlock(body)?.Statements?.Nodes[0];
-  const expression = first === undefined ? undefined : ast.as.AsExpressionStatement(first)?.Expression;
-  const call = expression === undefined ? undefined : ast.as.AsCallExpression(expression);
+  const expression = AsExpressionStatement(ast, first)?.Expression;
+  const call = AsCallExpression(ast, expression);
   return call?.Expression !== undefined && HasSourceKind(ast, call.Expression, KindSuperKeyword) ? expression : undefined;
 }
 

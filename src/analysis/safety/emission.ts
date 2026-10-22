@@ -1,5 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
+import { AsExpressionStatement } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpSafetyApplicationFactIndex } from "../../target-model/records/safety.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
@@ -111,7 +112,7 @@ export function analyzeCsharpSafetyEmission(input: {
     }
     if (ast.is.IsBlock(node)) {
       const first = ast.statements(node)[0];
-      const expression = first === undefined ? undefined : ast.as.AsExpressionStatement(first)?.Expression;
+      const expression = AsExpressionStatement(ast, first)?.Expression;
       const marker = expression === undefined ? undefined : input.safety.safetyOperation.get(expression);
       if (marker?.kind === "unsafe-context" && marker.fact.kind === "remaining-block") { context = false; permission = true; }
     }

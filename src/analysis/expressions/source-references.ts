@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram, SourceDeclarationReference, SourceProjectReference } from "@tsonic/target-api/source";
-import { sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
+import { AsPropertyAccessExpression, sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpIdentifierEmission } from "../../target-model/records/source-references.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
@@ -38,7 +38,7 @@ export function analyzeCsharpSourceReferences(input: { readonly source: TargetSo
     references.set(node, { value, declaration: declarationReference });
     const sourceFile = ast.getSourceFile(node);
     if (sourceFile === undefined) failTargetAnalysisInvariant("tsonic-csharp", "Checked source reference requires its original source module.", node);
-    const name = ast.as.AsPropertyAccessExpression(node)?.name;
+    const name = AsPropertyAccessExpression(ast, node)?.name;
     const memberReference = value ?? (name === undefined ? undefined : input.source.navigation.referenceFor(name));
     const external = (reference: SourceProjectReference | SourceDeclarationReference | undefined): boolean => reference !== undefined && reference.sourceFile !== sourceFile &&
       (reference.sourceFile.IsDeclarationFile || input.files.providerSourceFile.get(reference.sourceFile) === true);

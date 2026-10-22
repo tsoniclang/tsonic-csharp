@@ -28,7 +28,8 @@ export function analyzeCsharpDictionaryLiterals(ast: AstReader, demand: CsharpNa
     const parts: CsharpDictionaryLiteral["parts"][number][] = [];
     for (const property of properties) {
       if (property === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted dictionary literal requires dense checked source members.", node);
-      const spread = ast.as.AsSpreadAssignment(property);
+      // AstReader casts do not test the node kind; each member form is selected by its kind first.
+      const spread = ast.is.IsSpreadAssignment(property) ? ast.as.AsSpreadAssignment(property) : undefined;
       if (spread !== undefined) {
         const expression = spread.Expression;
         const selected = expression === undefined ? undefined : demand.nativeUse.expression(expression)?.use;
@@ -38,8 +39,8 @@ export function analyzeCsharpDictionaryLiterals(ast: AstReader, demand: CsharpNa
         }
         parts.push(Object.freeze({ kind: "spread", property, expression, copy: parts.length === 0 })); continue;
       }
-      const assignment = ast.as.AsPropertyAssignment(property);
-      const shorthand = ast.as.AsShorthandPropertyAssignment(property);
+      const assignment = ast.is.IsPropertyAssignment(property) ? ast.as.AsPropertyAssignment(property) : undefined;
+      const shorthand = ast.is.IsShorthandPropertyAssignment(property) ? ast.as.AsShorthandPropertyAssignment(property) : undefined;
       if (assignment === undefined && shorthand === undefined) {
         refuse(property, ast.is.IsMethodDeclaration(property) ? "Record dictionary object literal methods require finalized callable value carrier facts before C# emission."
           : "Record dictionary object literal member is outside the current C# planning surface."); continue;

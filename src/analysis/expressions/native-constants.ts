@@ -1,5 +1,5 @@
 import type { AstReader, Node } from "@tsonic/tsts";
-import { KindNullKeyword } from "@tsonic/target-api/source";
+import { AsParenthesizedExpression, KindNullKeyword } from "@tsonic/target-api/source";
 import type { SourceLiteralIndex } from "@tsonic/target-api/source";
 import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
 import type { CsharpExactLiteralRecipe, CsharpExactLiteralSelectionIndex } from "../../target-model/conversions/exact-literals.js";
@@ -30,7 +30,7 @@ export function analyzeCsharpNativeConstants(input: { readonly ast: AstReader; r
     if (carriers.has(key)) return;
     let literalNode = node;
     for (;;) {
-      const expression = input.ast.as.AsParenthesizedExpression(literalNode)?.Expression;
+      const expression = AsParenthesizedExpression(input.ast, literalNode)?.Expression;
       if (expression === undefined) break;
       literalNode = expression;
     }
