@@ -10,6 +10,9 @@ import { analyzeCsharpObjectShapes } from "../../../dist/analysis/objects/analyz
 import { namedTargetTypeImplicitlyAccepts } from "../../../dist/policy/conversions/carriers.js";
 import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
+import { completeCsharpAnalysisRequest } from "../../helpers/analysis-request.mjs";
+
+const analyzeCompletedCsharpProgram = request => analyzeCsharpTargetProgram(completeCsharpAnalysisRequest(request));
 
 const noNativeImplementations = () => { throw new Error("An empty implementation domain cannot query a native relation"); };
 const exactNativePolicy = { projectTypes: { directSupertypes: () => undefined },
@@ -371,7 +374,7 @@ export function project(): string {
       return original.ast[name](...arguments_);
     }])),
   } };
-  const analysis = analyzeCsharpTargetProgram({
+  const analysis = analyzeCompletedCsharpProgram({
     input: { source, sourcePackages: checked.sourcePackages, project: checked.project, target: checked.target,
       runtimeActivatedCapabilityIds: [], runtimeReferences: [], paths: checked.paths },
     configuration: createCsharpTargetConfiguration(checked.target, checked.paths.projectRoot, checked.paths.targetOutputRoot),

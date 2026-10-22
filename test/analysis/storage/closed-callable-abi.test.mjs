@@ -9,6 +9,9 @@ import { getCsharpDelegateSignature } from "../../../dist/target-model/types/car
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { completeCsharpAnalysisRequest } from "../../helpers/analysis-request.mjs";
+
+const analyzeCompletedCsharpProgram = request => analyzeCsharpTargetProgram(completeCsharpAnalysisRequest(request));
 
 function fixture(body) {
   const checked = checkCsharpSource({ surface: "js", sourceText: `
@@ -19,7 +22,7 @@ function fixture(body) {
   assert.equal(checked.sourceDiagnosticsText, "", "strict checking");
   assert.equal(checked.extensionDiagnostics.length, 0, "extension checking");
   const source = createTargetSourceProgram(checked.source);
-  const analysis = analyzeCsharpTargetProgram({
+  const analysis = analyzeCompletedCsharpProgram({
     input: { source, sourcePackages: checked.sourcePackages, project: checked.project, target: checked.target,
       runtimeActivatedCapabilityIds: [], runtimeReferences: [], paths: checked.paths },
     configuration: createCsharpTargetConfiguration(checked.target, checked.paths.projectRoot, checked.paths.targetOutputRoot),

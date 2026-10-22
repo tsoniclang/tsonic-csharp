@@ -7,6 +7,9 @@ import { analyzeCsharpTargetProgram } from "../../../dist/analysis/program/index
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { createCsharpTargetConfiguration } from "../../../dist/compilation/configuration.js";
 import { isCsharpJsValueTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { completeCsharpAnalysisRequest } from "../../helpers/analysis-request.mjs";
+
+const analyzeCompletedCsharpProgram = request => analyzeCsharpTargetProgram(completeCsharpAnalysisRequest(request));
 
 test("a later guarded extraction cannot promote its broad producer storage", () => {
   const checked = checkCsharpSource({ surface: "js", sourceText: `
@@ -20,7 +23,7 @@ test("a later guarded extraction cannot promote its broad producer storage", () 
   assert.equal(checked.sourceDiagnosticsText, "");
   assert.deepEqual(checked.extensionDiagnostics, []);
   const source = createTargetSourceProgram(checked.source);
-  const analysis = analyzeCsharpTargetProgram({
+  const analysis = analyzeCompletedCsharpProgram({
     input: { source, sourcePackages: checked.sourcePackages, project: checked.project, target: checked.target,
       runtimeActivatedCapabilityIds: [], runtimeReferences: [], paths: checked.paths },
     configuration: createCsharpTargetConfiguration(checked.target, checked.paths.projectRoot, checked.paths.targetOutputRoot),

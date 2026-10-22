@@ -16,6 +16,9 @@ import { planClassMemberModifiers } from "../../../dist/backend/planner/declarat
 import { planCsharpAdmittedMemberName } from "../../../dist/backend/planner/declarations/modifiers.js";
 import { analyzeCsharpProjectCallableAdapters } from "../../../dist/analysis/project-types/callable-adapters.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
+import { completeCsharpAnalysisRequest } from "../../helpers/analysis-request.mjs";
+
+const analyzeCompletedCsharpProgram = request => analyzeCsharpTargetProgram(completeCsharpAnalysisRequest(request));
 
 const nativeMemberNames = Object.freeze({ issues: Object.freeze([]), memberHiding: Object.freeze([]) });
 
@@ -36,7 +39,7 @@ test("a rejected native inheritance acquisition keeps its complete diagnostic be
     providers: [createDotnetReflectionTypeDataProvider()], providerPolicies: [],
   });
   let acquisitions = 0;
-  const result = analyzeCsharpTargetProgram({
+  const result = analyzeCompletedCsharpProgram({
     input: { source, sourcePackages: checked.sourcePackages, project: checked.project, target: checked.target,
       runtimeActivatedCapabilityIds: [], runtimeReferences: [], paths: checked.paths },
     configuration: createCsharpTargetConfiguration(checked.target, checked.paths.projectRoot, checked.paths.targetOutputRoot),
@@ -245,7 +248,7 @@ test("a published C# program carries the sealed plan and planning composes its o
   ` });
   assert.equal(checked.sourceDiagnosticsText, "");
   const source = createTargetSourceProgram(checked.source);
-  const analysis = analyzeCsharpTargetProgram({
+  const analysis = analyzeCompletedCsharpProgram({
     input: { source, sourcePackages: checked.sourcePackages, project: checked.project, target: checked.target,
       runtimeActivatedCapabilityIds: [], runtimeReferences: [], paths: checked.paths },
     configuration: createCsharpTargetConfiguration(checked.target, checked.paths.projectRoot, checked.paths.targetOutputRoot),

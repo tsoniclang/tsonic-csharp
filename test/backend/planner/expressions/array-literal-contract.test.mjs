@@ -14,12 +14,15 @@ import { planNativeCollectionArrayLiteralExpression } from "../../../../dist/bac
 import { csharpListTargetType, csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/index.js";
 import { csharpTypeFromTargetTypeRef } from "../../../../dist/backend/planner/types/target-types.js";
 import { printCsharpCompilationUnit } from "../../../../dist/print/source/printer.js";
+import { completeCsharpAnalysisRequest } from "../../../helpers/analysis-request.mjs";
+
+const analyzeCompletedCsharpProgram = request => analyzeCsharpTargetProgram(completeCsharpAnalysisRequest(request));
 
 test("native collection construction fills only its declared native builder", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ sourceText: freshArraySpreadCostSource });
   assertCsharpCompilationSucceeded(compiled);
   const source = createTargetSourceProgram(compiled.source);
-  const analysis = analyzeCsharpTargetProgram({
+  const analysis = analyzeCompletedCsharpProgram({
     input: { source, sourcePackages: compiled.sourcePackages, project: compiled.project, target: compiled.target,
       runtimeActivatedCapabilityIds: [], runtimeReferences: [], paths: compiled.paths },
     configuration: createCsharpTargetConfiguration(compiled.target, compiled.paths.projectRoot, compiled.paths.targetOutputRoot),

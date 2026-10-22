@@ -6,6 +6,9 @@ import { createCsharpTargetConfiguration } from "../../../../dist/compilation/co
 import { createCsharpProviderRelationResolver } from "../../../../dist/providers/native/projection/relation-resolution.js";
 import { checkCsharpSource, assertCsharpCheckingSucceeded } from "../../../helpers/direct-csharp-session.mjs";
 import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
+import { completeCsharpAnalysisRequest } from "../../../helpers/analysis-request.mjs";
+
+const analyzeCompletedCsharpProgram = request => analyzeCsharpTargetProgram(completeCsharpAnalysisRequest(request));
 
 function fixture(surface) {
   const checked = checkCsharpSource({ surface, sourceText: `
@@ -15,7 +18,7 @@ function fixture(surface) {
   ` });
   assertCsharpCheckingSucceeded(checked);
   const source = createTargetSourceProgram(checked.source);
-  const analyzed = analyzeCsharpTargetProgram({
+  const analyzed = analyzeCompletedCsharpProgram({
     input: { source, sourcePackages: checked.sourcePackages, project: checked.project, target: checked.target,
       runtimeActivatedCapabilityIds: [], runtimeReferences: [], paths: checked.paths },
     configuration: createCsharpTargetConfiguration(checked.target, checked.paths.projectRoot, checked.paths.targetOutputRoot),

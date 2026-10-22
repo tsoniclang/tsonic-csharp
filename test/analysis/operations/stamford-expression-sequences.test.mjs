@@ -8,13 +8,16 @@ import { createCsharpProviderRelationResolver } from "../../../dist/providers/na
 import { createCsharpTargetConfiguration } from "../../../dist/compilation/configuration.js";
 import { csharpBinarySelectionsEqual } from "../../../dist/analysis/expected-types/binary-equality.js";
 import { csharpSourcePrimitiveTargetType, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
+import { completeCsharpAnalysisRequest } from "../../helpers/analysis-request.mjs";
+
+const analyzeCompletedCsharpProgram = request => analyzeCsharpTargetProgram(completeCsharpAnalysisRequest(request));
 
 for (const surface of [undefined, "js"]) {
   test(`shared comma source retains all exact selected operand and result contracts on ${surface ?? "native"}`, () => {
     const checked = checkCsharpSource({ sourceText: nativeExpressionSequencesSource, surface });
     assertCsharpCheckingSucceeded(checked);
     const source = createTargetSourceProgram(checked.source);
-    const analysis = analyzeCsharpTargetProgram({
+    const analysis = analyzeCompletedCsharpProgram({
       input: { source, sourcePackages: checked.sourcePackages, project: checked.project, target: checked.target,
         runtimeActivatedCapabilityIds: [], runtimeReferences: [], paths: checked.paths },
       configuration: createCsharpTargetConfiguration(checked.target, checked.paths.projectRoot, checked.paths.targetOutputRoot),

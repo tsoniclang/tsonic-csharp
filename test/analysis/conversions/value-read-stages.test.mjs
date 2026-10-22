@@ -7,6 +7,9 @@ import { analyzeCsharpValueReadStages } from "../../../dist/analysis/conversions
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { createCsharpTargetConfiguration } from "../../../dist/compilation/configuration.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
+import { completeCsharpAnalysisRequest } from "../../helpers/analysis-request.mjs";
+
+const analyzeCompletedCsharpProgram = request => analyzeCsharpTargetProgram(completeCsharpAnalysisRequest(request));
 
 const same = (left, right) => left === right || (left !== undefined && right !== undefined && targetTypeRefEquals(left, right));
 const type = name => Object.freeze({ kind: "source-primitive", name });
@@ -92,7 +95,7 @@ function analyzed(sourceText, surface) {
   const checked = checkCsharpSource({ sourceText, surface });
   assertCsharpCheckingSucceeded(checked);
   const program = createTargetSourceProgram(checked.source);
-  const result = analyzeCsharpTargetProgram({
+  const result = analyzeCompletedCsharpProgram({
     input: { source: program, sourcePackages: checked.sourcePackages, project: checked.project, target: checked.target,
       runtimeActivatedCapabilityIds: [], runtimeReferences: [], paths: checked.paths },
     configuration: createCsharpTargetConfiguration(checked.target, checked.paths.projectRoot, checked.paths.targetOutputRoot),

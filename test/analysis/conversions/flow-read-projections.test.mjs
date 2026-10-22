@@ -9,6 +9,9 @@ import { createCsharpTargetConfiguration } from "../../../dist/compilation/confi
 import { planFlowReadUseSiteProjection } from "../../../dist/backend/planner/expressions/flow-read-projections.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { completeCsharpAnalysisRequest } from "../../helpers/analysis-request.mjs";
+
+const analyzeCompletedCsharpProgram = request => analyzeCsharpTargetProgram(completeCsharpAnalysisRequest(request));
 
 function analysisRequest(sourceText, surface = "native") {
   const checked = checkCsharpSource({ sourceText, surface });
@@ -28,7 +31,7 @@ function fixture(sourceText, surface = "native") {
   const source = { ...original, ast: { ...original.ast,
     parent(node) { assert.equal(closed, false, "parent queries finish before publication"); return original.ast.parent(node); },
   } };
-  const result = analyzeCsharpTargetProgram({
+  const result = analyzeCompletedCsharpProgram({
     ...request,
     input: { ...request.input, source },
   });
@@ -349,7 +352,7 @@ for (const surface of ["native", "js"]) {
     let planned = 0;
     let materialized = 0;
     const result = runTargetCompilationStages({
-      analyze: () => analyzeCsharpTargetProgram({ ...request, input: { ...request.input, source } }),
+      analyze: () => analyzeCompletedCsharpProgram({ ...request, input: { ...request.input, source } }),
       plan() { planned += 1; throw new Error("rejected source must not reach planning"); },
       materialize() { materialized += 1; throw new Error("rejected source must not emit artifacts"); },
     });

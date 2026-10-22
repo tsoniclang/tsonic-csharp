@@ -18,6 +18,9 @@ import { createCsharpTargetConfiguration } from "../../../dist/compilation/confi
 import { collectCsharpCapabilityContributions } from "../../../dist/providers/native/acquisition/contributions.js";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { csharpExceptionTargetType, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
+import { completeCsharpAnalysisRequest } from "../../helpers/analysis-request.mjs";
+
+const analyzeCompletedCsharpProgram = request => analyzeCsharpTargetProgram(completeCsharpAnalysisRequest(request));
 
 test("retained-provider catch reads select exact readonly C# Error flow and observation facts", () => {
   const capability = createTsonicPlugin();
@@ -31,7 +34,7 @@ test("retained-provider catch reads select exact readonly C# Error flow and obse
     selectedCapabilities: [capability],
     selectedSurfaces: checked.targetPack.surfaces.filter(surface => surface.id === "js"),
   }));
-  const analysis = analyzeCsharpTargetProgram({
+  const analysis = analyzeCompletedCsharpProgram({
     input: { source, sourcePackages: checked.sourcePackages, project: checked.project, target: checked.target,
       runtimeActivatedCapabilityIds: [], runtimeReferences: [], paths: checked.paths },
     configuration: createCsharpTargetConfiguration(checked.target, checked.paths.projectRoot, checked.paths.targetOutputRoot),

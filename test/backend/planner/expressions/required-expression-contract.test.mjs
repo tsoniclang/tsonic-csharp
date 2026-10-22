@@ -14,6 +14,9 @@ import { csharpAbsenceTargetType, csharpSourcePrimitiveTargetType, targetTypeRef
 import { selectCsharpConversion } from "../../../../dist/policy/conversions/core.js";
 import { requireExpressionPlan } from "../../../../dist/backend/planner/expressions/required-plan.js";
 import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
+import { completeCsharpAnalysisRequest } from "../../../helpers/analysis-request.mjs";
+
+const analyzeCompletedCsharpProgram = request => analyzeCsharpTargetProgram(completeCsharpAnalysisRequest(request));
 
 function fixture() {
   const checked = checkCsharpSource({ surface: "js", sourceText: `
@@ -25,7 +28,7 @@ function fixture() {
     "ordinary source checks without annotations or altered semantics");
   const source = createTargetSourceProgram(checked.source);
   const providers = createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] });
-  const analysis = analyzeCsharpTargetProgram({
+  const analysis = analyzeCompletedCsharpProgram({
     input: { source, sourcePackages: checked.sourcePackages, project: checked.project, target: checked.target,
       runtimeActivatedCapabilityIds: [], runtimeReferences: [], paths: checked.paths },
     configuration: createCsharpTargetConfiguration(checked.target, checked.paths.projectRoot, checked.paths.targetOutputRoot),
