@@ -5,6 +5,12 @@ import { csharpTargetNamedType, csharpStringTargetType, csharpSourcePrimitiveTar
 import { csharpCollectionElementRead } from "../../../dist/policy/operations/collections/element-reads.js";
 import { planCsharpCollectionElementRead, planCsharpCollectionIndexedIteration } from "../../../dist/backend/planner/expressions/collection-reads.js";
 import { planCsharpSequenceAppendStatements } from "../../../dist/backend/planner/expressions/sequence-conversions.js";
+import { csharpTypeEmissionRecord } from "../../helpers/planning-records.mjs";
+
+// The planner reads each collection's read and length selection from the sealed type emission record.
+const typeEmission = csharpTypeEmissionRecord();
+const planning = { scope: {}, program: { records: { typeEmission } } };
+const plannerInvariant = message => error => error instanceof Error && error.phase === "planning" && error.message === message;
 
 const element = csharpStringTargetType();
 const physical = csharpTargetNamedType("example.NativeValues", undefined, csharpQualifiedTypeRenderShape("example", "NativeValues"), { allowsRefLikeTypeArguments: [],
@@ -24,10 +30,10 @@ const index = { kind: "IdentifierName", name: "index" };
 test("native indexed reads share one exact typed member selection and AST lowering without wrappers", () => {
   assert.deepEqual(csharpCollectionElementRead(carrier), { kind: "method", element, member });
   assert.deepEqual(csharpCollectionElementRead(physical), { kind: "indexer", element });
-  assert.deepEqual(planCsharpCollectionElementRead(physical, receiver, index), {
+  assert.deepEqual(planCsharpCollectionElementRead(physical, receiver, index, planning), {
     kind: "ElementAccessExpression", receiver, arguments: [index],
   });
-  const planned = planCsharpCollectionElementRead(carrier, receiver, index);
+  const planned = planCsharpCollectionElementRead(carrier, receiver, index, planning);
   assert.equal(planned.kind, "InvocationExpression");
   assert.equal(planned.callee.name, "read");
   assert.equal(planned.callee.receiver.name, "NativeReads");
@@ -53,29 +59,33 @@ test("native read signatures fail closed for wrong physical receiver, width, res
   ]) {
     const selected = { ...carrier, csharpIndexableReadMember: changed };
     assert.equal(csharpCollectionElementRead(selected).kind, "invalid", JSON.stringify(changed));
-    assert.equal(planCsharpCollectionElementRead(selected, receiver, index), undefined);
+    assert.equal(typeEmission.get(selected).collectionRead, undefined, "the analysis seals no read for an invalid signature");
+    assert.throws(() => planCsharpCollectionElementRead(selected, receiver, index, planning),
+      plannerInvariant("An admitted collection read requires its exact sealed native access."));
   }
   assert.equal(csharpCollectionElementRead({ ...carrier, csharpReadOnlyIndexableElementType: undefined }).kind, "invalid");
 });
 
 test("native readonly indexed iteration and identity spreads consume the exact read method without boxing or bypass", () => {
   const append = value => ({ kind: "ExpressionStatement", expression: value });
-  const loop = planCsharpCollectionIndexedIteration(carrier, receiver, "elementIndex", value => [append(value)]);
+  const loop = planCsharpCollectionIndexedIteration(carrier, receiver, "elementIndex", value => [append(value)], planning);
   assert.equal(loop.kind, "ForStatement");
   assert.deepEqual(loop.condition.right, { kind: "SimpleMemberAccessExpression", receiver, name: "Count" });
   assert.equal(loop.body.statements[0].expression.callee.name, "read");
   assert.equal(loop.body.statements[0].expression.arguments[1].expression.name, "elementIndex");
   const source = { carrier, expression: receiver, elements: [{ carrier: element, conversion: { kind: "identity" },
     type: { kind: "PredefinedType", name: "string" } }], lengthMember: "Count" };
-  const input = { scope: {}, names: { temporaryName: () => "selectedIndex" } };
+  const input = { ...planning, names: { temporaryName: () => "selectedIndex" } };
   const statements = planCsharpSequenceAppendStatements({}, source, receiver, {}, input, [], element, append);
   assert.equal(statements[0].kind, "ForStatement");
   assert.equal(statements[0].body.statements[0].expression.callee.name, "read");
   assert.equal(statements[0].body.statements[0].expression.arguments[1].expression.name, "selectedIndex");
   const serialized = JSON.stringify(statements);
   assert.doesNotMatch(serialized, /ForEachStatement|AppendSequence|IEnumerable|ObjectCreationExpression/u);
-  assert.equal(planCsharpCollectionIndexedIteration({ ...carrier, csharpIndexableLengthMemberName: undefined }, receiver,
-    "elementIndex", value => [append(value)]), undefined);
-  assert.equal(planCsharpCollectionIndexedIteration({ ...carrier, csharpIndexableReadMember: { ...member, returnType: owner } },
-    receiver, "elementIndex", value => [append(value)]), undefined);
+  assert.throws(() => planCsharpCollectionIndexedIteration({ ...carrier, csharpIndexableLengthMemberName: undefined }, receiver,
+    "elementIndex", value => [append(value)], planning),
+  plannerInvariant("An admitted indexed iteration requires its selected native length member."));
+  assert.throws(() => planCsharpCollectionIndexedIteration({ ...carrier, csharpIndexableReadMember: { ...member, returnType: owner } },
+    receiver, "elementIndex", value => [append(value)], planning),
+  plannerInvariant("An admitted collection read requires its exact sealed native access."));
 });
