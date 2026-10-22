@@ -17,7 +17,7 @@ import type {
 import { createCsharpObjectShapePolicy } from "../objects/shapes/api.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/object-shape-members.js";
 import { csharpObjectShapeMemberRetainsNativeReference } from "../../policy/types/objects/member-reads.js";
-import { resolveCsharpObjectShapeMemberReadTargetType } from "../operations/provider/object-shape-members.js";
+import { resolveCsharpObjectShapeMemberReadTargetType } from "../operations/members/object-shape-members.js";
 import { isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import type { CsharpPlanningRepresentationQueries, CsharpTypePolicy, CsharpTypePolicyBaseHost } from "../source-evidence/types/resolution/model.js";
 import { createCsharpTypeResolutionServices } from "../source-evidence/types/resolution/engine.js";

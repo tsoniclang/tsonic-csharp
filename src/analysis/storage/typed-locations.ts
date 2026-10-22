@@ -2,8 +2,8 @@ import type { CsharpTypedLocationStorageSelection } from "../../target-model/rec
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { AsVariableDeclaration } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import { selectCsharpTargetProperty } from "../operations/provider/selected-members.js";
-import { selectCsharpTargetElement } from "../operations/provider/selected-members.js";
+import { selectCsharpTargetProperty } from "../operations/members/selected-members.js";
+import { selectCsharpTargetElement } from "../operations/members/selected-members.js";
 import { targetTypeRefEquals, type TargetTypeRef } from "../../policy/types/index.js";
 
 import { classifyCsharpStorageReceiver } from "../../policy/operations/typed-locations/storage.js";

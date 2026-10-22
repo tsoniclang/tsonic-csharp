@@ -4,7 +4,7 @@ import { sourceErrorConstructorCostProof, sourceErrorConstructorProof, sourceExp
   sourceJsErrorConstructorProof, sourceOwnedErrorConstructorProof } from "../../../../tsonic/test/fixtures/source-error-constructors.mjs";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
-import { selectCsharpInheritedConstructorTarget } from "../../../dist/analysis/operations/provider/calls/implicit-super.js";
+import { selectCsharpInheritedConstructorTarget } from "../../../dist/analysis/operations/members/calls/implicit-super.js";
 
 for (const surface of [undefined, "js"]) {
   const profile = surface ?? "native";

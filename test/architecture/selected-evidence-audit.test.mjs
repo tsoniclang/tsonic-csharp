@@ -124,9 +124,9 @@ test("C# consumes shared source semantics instead of raw compiler query containe
 
 test("operation selection consumes atomic shared semantic decisions", () => {
   const required = new Map([
-    ["src/analysis/operations/provider/calls/selection.ts", ".operations.call("],
-    ["src/analysis/operations/provider/property-selection.ts", ".operations.propertyAccess("],
-    ["src/analysis/operations/provider/element-selection.ts", ".operations.elementAccess("],
+    ["src/analysis/operations/members/calls/selection.ts", ".operations.call("],
+    ["src/analysis/operations/members/property-selection.ts", ".operations.propertyAccess("],
+    ["src/analysis/operations/members/element-selection.ts", ".operations.elementAccess("],
   ]);
   const violations = [];
   for (const [file, method] of required) {
@@ -177,8 +177,8 @@ test("generic method type arguments come only from shared selected call evidence
   }
   assert.deepEqual([...consumerCounts.entries()].sort(), [
     ["src/analysis/conversions/requirements.ts", 1],
-    ["src/analysis/operations/provider/calls/instantiation.ts", 1],
-    ["src/analysis/operations/provider/calls/type-arguments.ts", 3],
+    ["src/analysis/operations/members/calls/instantiation.ts", 1],
+    ["src/analysis/operations/members/calls/type-arguments.ts", 3],
     ["src/analysis/source-evidence/types/resolution/calls.ts", 4],
     ["src/analysis/source-evidence/types/resolution/expressions.ts", 1],
     ["src/analysis/source-profiles/js/regexp-protocol.ts", 1],

@@ -2,7 +2,7 @@ import type { CsharpNativeRefReturnSelection, CsharpTypedLocationOperationSelect
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import { AsVariableDeclaration } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import { selectCsharpTargetCall, selectCsharpTargetElement, selectCsharpTargetProperty } from "./provider/selected-members.js";
+import { selectCsharpTargetCall, selectCsharpTargetElement, selectCsharpTargetProperty } from "./members/selected-members.js";
 import { csharpRuntimeLocationPointee, getCsharpDelegateSignature, targetTypeRefEquals, targetTypeRefKey, type TargetTypeRef } from "../../policy/types/index.js";
 import { readCsharpSourceTypedLocationOperation } from "../../source/extension/typed-locations.js";
 

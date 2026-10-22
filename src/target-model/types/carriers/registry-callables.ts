@@ -104,14 +104,14 @@ export const callablesCarrierRegistry: readonly TargetCarrierRegistryEntry<Targe
     id: "src/analysis/source-evidence/types/resolution/call-api.ts#resolveSourceCallArgumentParameter",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/analysis/source-evidence/types/resolution/call-api.ts", symbol: "resolveSourceCallArgumentParameter" },
-    counterpart: { module: "src/analysis/operations/provider/calls/input-contract.ts", symbol: "selectedRustCheckedCallInputCarrier" },
+    counterpart: { module: "src/analysis/operations/members/calls/input-contract.ts", symbol: "selectedRustCheckedCallInputCarrier" },
     frozen: false,
   },
   {
     id: "src/analysis/source-evidence/types/resolution/public-api.ts#resolveSelectedResult",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/analysis/source-evidence/types/resolution/public-api.ts", symbol: "resolveSelectedResult" },
-    counterpart: { module: "src/analysis/operations/provider/member-carriers.ts", symbol: "instantiateRustSelectedMemberCarrier" },
+    counterpart: { module: "src/analysis/operations/members/member-carriers.ts", symbol: "instantiateRustSelectedMemberCarrier" },
     frozen: false,
   },
   {
@@ -139,7 +139,7 @@ export const callablesCarrierRegistry: readonly TargetCarrierRegistryEntry<Targe
     id: "src/analysis/source-evidence/types/resolution/expressions.ts#resolveMemberAccessTargetType",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/analysis/source-evidence/types/resolution/expressions.ts", symbol: "resolveMemberAccessTargetType" },
-    counterpart: { module: "src/analysis/operations/provider/member-carriers.ts", symbol: "instantiateRustSelectedMemberCarrier" },
+    counterpart: { module: "src/analysis/operations/members/member-carriers.ts", symbol: "instantiateRustSelectedMemberCarrier" },
     frozen: false,
   },
   {
@@ -153,7 +153,7 @@ export const callablesCarrierRegistry: readonly TargetCarrierRegistryEntry<Targe
     id: "src/analysis/source-evidence/types/resolution/declarations.ts#resolveSelectedDeclarationResult",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/analysis/source-evidence/types/resolution/declarations.ts", symbol: "resolveSelectedDeclarationResult" },
-    counterpart: { module: "src/analysis/operations/provider/member-carriers.ts", symbol: "instantiateRustSelectedMemberCarrier" },
+    counterpart: { module: "src/analysis/operations/members/member-carriers.ts", symbol: "instantiateRustSelectedMemberCarrier" },
     frozen: false,
   },
   {

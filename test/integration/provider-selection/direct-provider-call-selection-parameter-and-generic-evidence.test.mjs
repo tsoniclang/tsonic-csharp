@@ -19,7 +19,7 @@ import {
   targetParameter,
   test,
 } from "../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
-import { instantiateCsharpProviderCall } from "../../../dist/analysis/operations/provider/calls/instantiation.js";
+import { instantiateCsharpProviderCall } from "../../../dist/analysis/operations/members/calls/instantiation.js";
 import {
   csharpNullableReferenceTargetType,
   csharpNullableValueTargetType,

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { resolveCsharpObjectShapeMemberReadTargetType } from "../../../dist/analysis/operations/provider/object-shape-members.js";
+import { resolveCsharpObjectShapeMemberReadTargetType } from "../../../dist/analysis/operations/members/object-shape-members.js";
 import {
   compileCsharpSource,
 } from "../../helpers/direct-csharp-session.mjs";

@@ -29,10 +29,10 @@ import { AsForInOrOfStatement, sourceClassFieldIsTypeOnly } from "@tsonic/target
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { selectCsharpJsObjectLiteralOperation } from "../../policy/operations/js-values/selection.js";
 import { selectCsharpJsValueCallOperation, selectCsharpJsValueBinaryOperation, selectCsharpJsValueReceiverExpressionOperation, selectCsharpJsValueUnaryOperation, selectCsharpJsTypeofOperation, selectCsharpJsValueCondition, selectCsharpJsValueVoidOperation } from "./js-values.js";
-import { selectCsharpProviderValue } from "./provider/values.js";
-import { selectCsharpTargetProperty } from "./provider/selected-members.js";
-import { selectCsharpTargetElement } from "./provider/selected-members.js";
-import { selectCsharpTargetCall } from "./provider/selected-members.js";
+import { selectCsharpProviderValue } from "./members/values.js";
+import { selectCsharpTargetProperty } from "./members/selected-members.js";
+import { selectCsharpTargetElement } from "./members/selected-members.js";
+import { selectCsharpTargetCall } from "./members/selected-members.js";
 import { sourceOperatorFromKindName } from "../../target-model/syntax/operators.js";
 import { selectCsharpNativePointerOperation } from "./pointers/native-pointers.js";
 import { selectCsharpJsArrayMutation } from "./collections/js-array-mutations.js";
