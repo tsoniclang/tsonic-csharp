@@ -2,6 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { jsCallPolicy, jsMemberIdentity } from "../../../dist/policy/operations/source-profiles/js/common.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
+import { sealInvocationOnlyCallableArguments } from "../../../dist/policy/operations/source-profiles/js/invocation-arguments.js";
+
+// Source-profile selection seals the invocation-only callable arguments of a selected JS call after the policy selects
+// it (analysis/source-profiles/policy-selection.ts); a call that cannot be sealed is rejected.
+function sealed(result, context) {
+  if (result?.kind !== "resolved") return result;
+  const call = sealInvocationOnlyCallableArguments(context, result.call);
+  return call === undefined ? { kind: "rejected" } : { kind: "resolved", call };
+}
 
 const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
 const callable = csharpDelegateTargetType("System.Func", [integer], integer);
@@ -22,7 +31,7 @@ function fixture(overrides = {}) {
   const identity = { owner: "js", kind: "member", declaringName: "ArrayConstructor", name: "from", ...overrides };
   const policy = jsCallPolicy(jsMemberIdentity(identity.declaringName, identity.name), () => member, { kind: "none" });
   const host = { ast: { is: { IsSpreadElement: () => false } } };
-  return { parameters, member, source, identity, select: () => policy.select({ source, identity, host }) };
+  return { parameters, member, source, identity, select: () => sealed(policy.select({ source, identity, host }), { source, identity }) };
 }
 
 test("invocation-only effects seal exact selected callable arguments immutably", () => {
@@ -50,7 +59,7 @@ test("catalog source slots map through the exact target receiver offset and reor
   input.source.sourceReceiver = { expression: {} };
   const policy = jsCallPolicy(jsMemberIdentity("Array", "find"), () => input.member,
     { kind: "target-parameter", targetParameterIndex: 0 });
-  const selected = policy.select({ source: input.source, identity: input.identity });
+  const selected = sealed(policy.select({ source: input.source, identity: input.identity }), { source: input.source, identity: input.identity });
   assert.equal(selected.kind, "resolved");
   assert.equal(selected.call.invocationOnlyCallableArgumentIndexes[0], 0, "source argument zero, not target parameter one");
   assert.equal(selected.call.arguments[0].targetParameterIndex, 1);
@@ -58,7 +67,8 @@ test("catalog source slots map through the exact target receiver offset and reor
   reordered.parameters.reverse();
   const reorderPolicy = jsCallPolicy(jsMemberIdentity("ArrayConstructor", "from"), () => reordered.member,
     { kind: "none" }, { targetParameterBySourceParameter: [1, 0] });
-  const reorderSelected = reorderPolicy.select({ source: reordered.source, identity: reordered.identity });
+  const reorderSelected = sealed(reorderPolicy.select({ source: reordered.source, identity: reordered.identity }),
+    { source: reordered.source, identity: reordered.identity });
   assert.equal(reorderSelected.kind, "resolved");
   assert.equal(reorderSelected.call.invocationOnlyCallableArgumentIndexes[0], 1, "effect follows source slot through explicit mapping");
   assert.equal(reorderSelected.call.arguments[1].targetParameterIndex, 0);
