@@ -36,9 +36,10 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
     const name = policy.ast.name(node);
     if (policy.ast.is.IsVariableDeclaration(node) && name !== undefined &&
       (policy.ast.is.IsObjectBindingPattern(name) || policy.ast.is.IsArrayBindingPattern(name))) {
-      // An annotated destructuring declaration converts its initializer to the annotated type first; without an
-      // annotation the initializer keeps its own operation value.
-      record(initializer, typeNode === undefined ? valueReadStages.get(initializer)?.operationValue : evidence.nodeTargetType.get(typeNode),
+      // An annotated destructuring declaration whose initializer is an array or object literal types the literal at the
+      // annotation; any other initializer keeps its own operation value and is destructured member by member.
+      const literal = policy.ast.is.IsArrayLiteralExpression(initializer) || policy.ast.is.IsObjectLiteralExpression(initializer);
+      record(initializer, typeNode === undefined || !literal ? valueReadStages.get(initializer)?.operationValue : evidence.nodeTargetType.get(typeNode),
         "required", slot === undefined ? undefined : at(node, slot));
       return;
     }
