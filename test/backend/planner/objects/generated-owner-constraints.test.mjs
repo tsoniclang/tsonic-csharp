@@ -1,22 +1,34 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { renderObjectShapeTypeParameters } from "../../../../dist/backend/planner/objects/declarations/type-parameters.js";
+import { analyzeCsharpObjectShapeEmission } from "../../../../dist/analysis/objects/declaration-emission.js";
+import { objectShapeArtifactKey } from "../../../../dist/analysis/program/records/object-shape-keys.js";
 
 const parameter = Object.freeze({ kind: "type-parameter", identity: "outer", name: "Outer" });
 const declaration = {};
 const subject = {};
 const fact = {
-  targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "tsonic.shape:owner", typeArguments: [parameter] },
+  targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "tsonic.shape:owner", typeArguments: [parameter],
+    csharpRender: { kind: "named", name: "Owner" } },
   members: [{ sourceKey: { kind: "property", name: "value" }, sourceName: "value", targetName: "value",
     memberKind: "property", type: parameter }],
 };
 
+// The object-shape emission analysis selects the owner's native binders and refuses unclosed constraints before
+// sealing; the planner renders the selected binders. A refusal leaves nothing to render.
 function render(resolution, selected = fact) {
-  const diagnostics = [];
   const finalized = { ...selected, targetType: { ...selected.targetType, typeArguments:
     selected.targetType.typeArguments.map(argument => argument.identity !== "outer" ? argument
       : { ...argument, csharpDeclaration: declaration, csharpConstraints: resolution }) } };
-  const result = renderObjectShapeTypeParameters(new Map([["outer", "OuterNative"]]), finalized, diagnostics, subject);
+  const artifact = { key: objectShapeArtifactKey(finalized), fact: finalized, capabilities: [], materialization: "synthetic", typeParameterNames: [] };
+  const analysis = analyzeCsharpObjectShapeEmission({ ast: { is: { IsObjectLiteralExpression: () => false } }, nodes: [],
+    nativeDemand: { entries: [] }, bindings: { bindingPatternProjection: { get: () => undefined } },
+    demand: { artifacts: [artifact], get: key => key === artifact.key ? artifact : undefined },
+    shapes: { knownShapes: () => [] },
+    names: { typeParameterNames: [{ identity: "outer", name: "OuterNative" }], reservedNames: [] } });
+  const diagnostics = [...analysis.issues];
+  const result = diagnostics.length !== 0 ? undefined
+    : renderObjectShapeTypeParameters(new Map([["outer", "OuterNative"]]), finalized, analysis.records, subject);
   return { result, diagnostics };
 }
 
