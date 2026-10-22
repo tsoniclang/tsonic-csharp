@@ -78,7 +78,9 @@ function flexibleInteger(contribution: CsharpNumericArrayContribution): boolean 
 
 function fits(candidate: TargetTypeRef, contribution: CsharpNumericArrayContribution): boolean {
   const { carrier, literal } = contribution;
-  if (flexibleInteger(contribution) && candidate.kind === "source-primitive" &&
+  // A literal already carried as that float (`1e100` read as a JS number) keeps its value; exactness only guards an
+  // integer literal that inference would move into a floating carrier.
+  if (flexibleInteger(contribution) && !targetTypeRefEquals(candidate, carrier) && candidate.kind === "source-primitive" &&
     (candidate.name === "float32" || candidate.name === "float64") && literal?.numeric?.kind === "authored" &&
     !sourceNumericLiteralIsExactlyRepresentableAsBinaryFloat(literal.numeric.token, candidate.name)) return false;
   if (targetTypeRefEquals(candidate, carrier)) return true;
