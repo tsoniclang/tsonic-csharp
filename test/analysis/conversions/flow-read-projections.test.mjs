@@ -43,7 +43,9 @@ for (const surface of ["native", "js"]) {
     const compiled = compileCsharpSource({ sourceText, surface });
     assertCsharpCompilationSucceeded(compiled);
     const generated = compiled.artifacts.get("src/Index.cs");
-    assert.equal(generated.includes("maybe ?? 0D"), true, "the absence consumer reads the native nullable once");
+    // The literal keeps its surface's source representation (checkpoint output): an int32 token on native, float64 on js.
+    assert.equal(generated.includes(surface === "js" ? "maybe ?? 0D" : "maybe ?? 0)"), true,
+      "the absence consumer reads the native nullable once");
     assert.equal(executeCsharpConstruction(compiled, `absence-binding-${surface}`, false, false, [],
       "System.Console.WriteLine(Tsonic.Generated.Index.run());"), "17\n");
   });

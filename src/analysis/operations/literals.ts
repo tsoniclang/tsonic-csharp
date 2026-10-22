@@ -4,7 +4,7 @@ import type { SourceLiteralIndex } from "@tsonic/target-api/source";
 import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
 import type { CsharpExactLiteralSelectionIndex } from "../../target-model/conversions/exact-literals.js";
 import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
-import { csharpStringTargetType, csharpBigIntegerTargetType, getCsharpNullableElementTargetType, targetTypeRefEquals } from "../../target-model/types/index.js";
+import { csharpStringTargetType, csharpBigIntegerTargetType, targetTypeRefEquals } from "../../target-model/types/index.js";
 import { createCsharpLiteralEmissionProducer } from "../program/records/literal-emission.js";
 import type { CsharpLiteralEmission } from "../../target-model/records/literal-emission.js";
 
@@ -32,12 +32,7 @@ export function analyzeCsharpLiteralAdmission(input: { readonly ast: AstReader; 
       const source = read?.source;
       const selected = input.exact.exactLiteral.get(node, source);
       const number = input.literals.literalValue.get(node)?.number;
-      // A literal consumed as float64 through an exact literal conversion keeps its source token, so it is emitted as a
-      // C# double literal; an integer token would otherwise stay a C# int literal (`0` instead of `0D`).
-      const consumed = use.kind === "converted" ? getCsharpNullableElementTargetType(use.target) ?? use.target : undefined;
-      const consumedFloat64 = consumed?.kind === "source-primitive" && consumed.name === "float64" &&
-        input.exact.exactLiteral.get(node, use.kind === "converted" ? use.target : undefined)?.kind === "source-representation";
-      if ((source?.kind === "source-primitive" && source.name === "float64" || consumedFloat64) && number !== undefined) {
+      if (source?.kind === "source-primitive" && source.name === "float64" && number !== undefined) {
         producer.publish(node, { kind: "float64", value: number }); published.add(node);
       } else if (selected?.kind === "resolved") {
         producer.publish(node, { kind: "exact", recipe: selected.recipe }); published.add(node);
