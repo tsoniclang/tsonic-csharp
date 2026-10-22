@@ -1,11 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { contextualAsyncResultSource, ordinaryAsyncResultSource } from "../../../../../tsonic/test/fixtures/contextual-async-results.mjs";
-import { checkCsharpSource, assertCsharpCheckingSucceeded } from "../../../helpers/direct-csharp-session.mjs";
-import { analyzeCsharpAnalysisProgram } from "../../../../dist/analysis/program/index.js";
-import { createCsharpProviderRelationResolver } from "../../../../dist/providers/native/projection/relation-resolution.js";
-import { createCsharpTargetConfiguration } from "../../../../dist/compilation/configuration.js";
+import { analyzeCsharpSource, assertCsharpCheckingSucceeded } from "../../../helpers/direct-csharp-session.mjs";
 import { createCsharpPlanningContext, createCsharpMemberPlanningContext } from "../../../../dist/backend/planner/context.js";
 import { createDestructuringPlannerState } from "../../../../dist/backend/planner/bindings/index.js";
 import { planLocalDeclaration } from "../../../../dist/backend/planner/bindings/locals.js";
@@ -16,9 +12,6 @@ import {
   csharpSourcePrimitiveTargetType, getCsharpDelegateSignature, getCsharpTaskResultTargetType, targetTypeRefEquals,
 } from "../../../../dist/target-model/types/index.js";
 import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
-import { completeCsharpAnalysisRequest } from "../../../helpers/analysis-request.mjs";
-
-const analyzeCompletedCsharpProgram = request => analyzeCsharpAnalysisProgram(completeCsharpAnalysisRequest(request));
 
 const localSource = `
   class Reply { constructor(public count: number) {} }
@@ -144,7 +137,7 @@ for (const surface of [undefined, "js"]) {
     planTopLevelVariableStatement(statement, input.file, context, diagnostics, () => assert.fail("Unexpected type declaration"), members, statements,
       createDestructuringPlannerState(input.file, input.source.ast), false);
     assert.equal(diagnostics.length, 0);
-    const name = context.names.resolve(input.source.ast.name(declaration));
+    const name = input.program.records.sourceName.get(input.source.ast.name(declaration));
     assert.equal(name.kind, "resolved", "exact source identifier including native keyword escaping");
     const method = members.find(member => member.kind === "MethodDeclaration" && member.name === name.name);
     const signature = getCsharpDelegateSignature(input.program.records.storageType.get(declaration));
@@ -163,15 +156,10 @@ for (const surface of [undefined, "js"]) {
 }
 
 function fixture(surface, sourceText) {
-  const checked = checkCsharpSource({ surface, sourceText });
-  assertCsharpCheckingSucceeded(checked);
-  const source = createTargetSourceProgram(checked.source);
-  const analysis = analyzeCompletedCsharpProgram({
-    input: { source, sourcePackages: checked.sourcePackages, project: checked.project, target: checked.target,
-      runtimeActivatedCapabilityIds: [], runtimeReferences: [], paths: checked.paths },
-    configuration: createCsharpTargetConfiguration(checked.target, checked.paths.projectRoot, checked.paths.targetOutputRoot),
-    providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
-  });
+  // The analysis acquires runtime metadata and native inheritance through the session's real providers.
+  const analyzed = analyzeCsharpSource({ surface, sourceText });
+  assertCsharpCheckingSucceeded(analyzed);
+  const { source, analysis } = analyzed;
   assert.equal(analysis.kind, "resolved");
   assert.equal(analysis.diagnostics.length, 0);
   const program = analysis.value;

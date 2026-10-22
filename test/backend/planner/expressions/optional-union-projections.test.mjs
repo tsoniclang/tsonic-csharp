@@ -4,6 +4,7 @@ import test from "node:test";
 import { csharpNullableTargetType, csharpRuntimeUnionTargetType, csharpStringTargetType, csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/index.js";
 import { planCsharpRuntimeUnionProjection } from "../../../../dist/backend/planner/expressions/runtime-union-projections.js";
 import { admitCsharpConversionSelection } from "../../../../dist/analysis/conversions/validation.js";
+import { csharpTypeEmissionRecord } from "../../../helpers/planning-records.mjs";
 
 test("nullable union projections require exact payload and absence facts", () => {
   const string = csharpStringTargetType();

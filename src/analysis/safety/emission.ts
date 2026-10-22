@@ -92,12 +92,17 @@ export function analyzeCsharpSafetyEmission(input: {
     if (input.admitted(node) && (operation?.kind === "load" || operation?.kind === "store" || operation?.kind === "offset") && !explicit.has(node))
       issues.push({ code: "CSHARP_NATIVE_POINTER_UNSAFE_CONTEXT_REQUIRED", category: "error", source: "tsonic-csharp", sourceNode: node,
         message: `C# native-pointer '${operation.kind}' requires an explicit unsafecontext()/unsafe() source region.` });
-    if (input.admitted(node) && operation !== undefined && operation.kind !== "not-native-pointer" && operation.kind !== "rejected" && operation.kind !== "layout-query") {
+    // Layout queries fold to constants and raw pointer identity (RawPointer.Same/Hash) is a managed call; neither emits
+    // pointer syntax, so neither needs a C# unsafe context.
+    if (input.admitted(node) && operation !== undefined && operation.kind !== "not-native-pointer" && operation.kind !== "rejected" &&
+      operation.kind !== "layout-query" && operation.kind !== "raw-identity") {
       context = true;
       if (operation.kind === "load" || operation.kind === "store") permission = true;
     }
+    // Every safety marker is position-checked, including one in an erased statement: an incomplete builder statement
+    // (`safety(selected);`) is erased from output and so never admitted, and must be refused rather than dropped.
     const selected = input.safety.safetyOperation.get(node);
-    if (selected !== undefined && input.admitted(node)) {
+    if (selected !== undefined) {
       const issue = sourceSafetyPositionIssue(ast, node, selected, subject => input.safety.safetyOperation.get(subject));
       if (issue === "marker-runtime") refuse("CSHARP_SAFETY_MARKER_RUNTIME_POSITION_UNSUPPORTED",
         "C# declaration safety markers must be complete standalone expression statements.");
@@ -116,7 +121,10 @@ export function analyzeCsharpSafetyEmission(input: {
       const marker = expression === undefined ? undefined : input.safety.safetyOperation.get(expression);
       if (marker?.kind === "unsafe-context" && marker.fact.kind === "remaining-block") { context = false; permission = true; }
     }
-    const value = Object.freeze({ context, permission: permission || !preview && context,
+    // An erased statement (a safety builder, an attribute application or a block marker) emits nothing, so nothing in
+    // it can require an unsafe context or unsafe permission from its enclosing declaration or compilation.
+    const erased = input.operations.erasedStatement.get(node) === true;
+    const value = Object.freeze({ context: !erased && context, permission: !erased && (permission || !preview && context),
       moduleContext: ast.is.IsSourceFile(node) && children.some(child => runtimeStatement(child.node) && child.selection.context) });
     subjects.set(node, value);
     const placements = new Map<CsharpSafetyPlacement, readonly "unsafe"[]>();

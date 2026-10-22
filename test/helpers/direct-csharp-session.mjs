@@ -31,13 +31,14 @@ import { analyzeCsharpAnalysisProgram, sealCsharpAnalysisProgram } from "../../d
 import { planCsharpOutput } from "../../dist/backend/planner/program/planning.js";
 import { createCsharpPlanningContext } from "../../dist/backend/planner/context.js";
 import { materializeCsharpOutputPlan } from "../../dist/backend/emission/materialize.js";
+import { compileWithCsharpReferenceValidation } from "../../dist/backend/compile.js";
 
 // The stages of compileCsharpTarget, with the observer receiving the complete analysis program (records plus the
 // analysis catalogs) so analysis tests can read the catalogs. The planner receives the sealed program exactly as
 // analyzeCsharpTargetProgram produces it.
 export function compileCsharpAnalysisTarget(request, observer) {
   let analysis;
-  return runTargetCompilationStages({
+  return compileWithCsharpReferenceValidation(request, () => runTargetCompilationStages({
     analyze: () => {
       const analyzed = analyzeCsharpAnalysisProgram(request);
       if (analyzed.kind === "rejected") return analyzed;
@@ -46,7 +47,7 @@ export function compileCsharpAnalysisTarget(request, observer) {
     },
     plan: program => planCsharpOutput(createCsharpPlanningContext(program)),
     materialize: materializeCsharpOutputPlan,
-  }, { analyzed: () => observer?.analyzed?.(analysis), planned: value => observer?.planned?.(value) });
+  }, { analyzed: () => observer?.analyzed?.(analysis), planned: value => observer?.planned?.(value) }));
 }
 
 function createCheckedCsharpSource(options) {
@@ -173,6 +174,49 @@ export function checkCsharpSource(options) {
   const checked = createCheckedCsharpSource(options);
   checked.targetSession.close();
   return checked;
+}
+
+// Analysis only, through the session's real provider acquisition and relation resolver (the analysis acquires runtime
+// metadata and native inheritance before it seals). Returns the complete analysis result and the request's source.
+export function analyzeCsharpSource(options) {
+  let analysis;
+  let source;
+  const checked = createCheckedCsharpSource({ ...options, compileTarget: request => {
+    source = request.input.source;
+    analysis = analyzeCsharpAnalysisProgram(request);
+    return analysis.kind === "rejected" ? analysis : { kind: "resolved", diagnostics: analysis.diagnostics, value: { artifacts: [] } };
+  } });
+  try {
+    const runtime = checked.targetSession.runtimeContributions();
+    checked.targetSession.compile({
+      source: createTargetSourceProgram(checked.source),
+      sourcePackages: checked.sourcePackages,
+      project: checked.project,
+      target: checked.target,
+      runtimeActivatedCapabilityIds: [],
+      runtimeReferences: [...(runtime.references ?? []), ...(options.runtimeReferences ?? [])],
+      paths: checked.paths,
+    });
+  } finally {
+    checked.targetSession.close();
+  }
+  assert.notEqual(analysis, undefined, "the session ran the C# analysis");
+  return { ...checked, source, analysis };
+}
+
+// Runs `use` with the complete analysis request of a real compilation session (its live providers, classified
+// project and runtime acquisition), then finishes that compilation. C# member naming reads the native System.Object
+// and System.ValueType member inventories, so analysis cannot run against an empty provider resolver.
+export function withCsharpSessionRequest(options, use) {
+  let reached = false;
+  let value;
+  const compiled = compileCsharpSource({ ...options, compileTarget(request, observer) {
+    reached = true;
+    value = use(request);
+    return compileCsharpAnalysisTarget(request, observer);
+  } });
+  assert.equal(reached, true, `the checked source reaches the C# target: ${compiled.sourceDiagnosticsText}`);
+  return { compiled, value };
 }
 
 export function compileCsharpSource(options) {

@@ -126,7 +126,12 @@ function planCsharpNativeLayout(typeParameterNames: ReadonlyMap<string, string> 
 
 function numeric(value: number): CsharpExpression { return { kind: "NumericLiteralExpression", value }; }
 
+/**
+ * A native layout size. A size within the int range prints as a plain constant (C# converts a non-negative int
+ * constant to nuint implicitly; pre-rewrite output); a larger size keeps its exact unsigned bits as a nuint cast.
+ */
 export function csharpNativeSizeLiteral(value: bigint): CsharpExpression {
+  if (value <= 2147483647n) return { kind: "NumericLiteralExpression", value: Number(value) };
   return { kind: "CastExpression", type: { kind: "PredefinedType", name: "nuint" },
     expression: { kind: "IntegerLiteralExpression", digits: value.toString(), suffix: "UL" } };
 }

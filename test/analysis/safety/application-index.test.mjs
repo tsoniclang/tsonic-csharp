@@ -26,9 +26,9 @@ const cases = [
     `safety<Value>().property(value => value.current).setter().requiresunsafe();`,
     { get: [], set: ["setter:requires-unsafe"] }],
   ["getter and setter contracts stay independent",
-    `safety<Value>().property(value => value.current).getter().safe();
+    `safety<Value>().property(value => value.current).getter().requiresunsafe();
 safety<Value>().property(value => value.current).setter().requiresunsafe();`,
-    { get: ["getter:safe"], set: ["setter:requires-unsafe"] }],
+    { get: ["getter:requires-unsafe"], set: ["setter:requires-unsafe"] }],
   ["a parenthesized builder statement is still one application",
     `(safety<Value>().property(value => value.current).getter().requiresunsafe());
 export function read(value: Value): int32 { return unsafecontext(value.current); }`,
@@ -46,7 +46,7 @@ function membership(body) {
     targetOptions: { languageDialect: "csharp15-preview", memorySafetyRules: "preview" } });
   assert.equal(compiled.sourceDiagnosticsText, "");
   const program = compiled.result.program;
-  assert.ok(program, "C# analysis publishes the program");
+  assert.ok(program, `C# analysis publishes the program: ${compiled.result.diagnostics.map(issue => `${issue.code}: ${issue.message}`).join(" | ")}`);
   const { ast } = compiled.source;
   const nodes = [];
   const visit = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
@@ -66,6 +66,20 @@ function membership(body) {
     index: placements(find(node => ast.is.IsIndexSignatureDeclaration(node))),
   };
 }
+
+// analysis/ owns all source admission (tsonic/docs/architecture/csharp-rust-structure.md, analysis/ row): a 'safe'
+// contract on a declaration without a safe-or-unsafe boundary is refused in analysis, so no program, plan or
+// artifacts are published (RULINGS 2026-10-22).
+test("C# safety membership: a getter safe contract is refused in analysis before any publication", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ sourceText: `${header}safety<Value>().property(value => value.current).getter().safe();
+safety<Value>().property(value => value.current).setter().requiresunsafe();
+`, targetOptions: { languageDialect: "csharp15-preview", memorySafetyRules: "preview" } });
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.result.diagnostics.filter(issue => issue.category === "error").map(issue => issue.code),
+    ["CSHARP_SAFE_DECLARATION_TARGET_UNSUPPORTED"], "the one source refusal of the safe contract");
+  assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+    "an analysis refusal publishes no program, plan or artifacts");
+});
 
 for (const [name, body, expected] of cases) {
   test(`C# safety membership: ${name}`, { timeout: 300_000 }, () => {

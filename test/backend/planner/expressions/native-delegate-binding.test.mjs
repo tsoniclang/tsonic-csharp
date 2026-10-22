@@ -30,11 +30,13 @@ function nativeDelegate(name, mode = "by-value", returnPassing) {
       ...(returnPassing === undefined ? {} : { returnPassing }) } });
 }
 
-function nativeBinding(source, target, expression, selected = selectCsharpConversion(policy, source, target, "implicit")) {
+// The planned operand is the planner's record of what the expression is (an authored lambda, a method group, or a value).
+function nativeBinding(source, target, expression, selected = selectCsharpConversion(policy, source, target, "implicit"),
+  operand = expression.kind === "LambdaExpression" ? { kind: "lambda", expression } : undefined) {
   assert.equal(selected.kind, "delegate-adapter");
   assert.equal(selected.strategy, "native-binding");
   const diagnostics = [];
-  const planned = planCsharpDelegateAdapter({}, {}, context([[source, target, selected]]), diagnostics, source, target, selected, expression, applyCsharpConversionSelection);
+  const planned = planCsharpDelegateAdapter({}, {}, context([[source, target, selected]]), diagnostics, source, target, selected, expression, applyCsharpConversionSelection, operand);
   assertNoTargetDiagnostics(diagnostics);
   assert.equal(planned !== undefined, true);
   return planned;

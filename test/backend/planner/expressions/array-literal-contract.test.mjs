@@ -1,33 +1,22 @@
 import { assertNoTargetDiagnostics } from "../../../../../tsonic/test/scripts/diagnostic-assertions.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../../helpers/direct-csharp-session.mjs";
+import { analyzeCsharpSource, compileCsharpSource, assertCsharpCompilationSucceeded } from "../../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../../helpers/native-construction.mjs";
 import { freshArraySpreadCostSource } from "../../../../../tsonic/test/fixtures/fresh-array-spread.mjs";
-import { analyzeCsharpAnalysisProgram } from "../../../../dist/analysis/program/index.js";
-import { createCsharpProviderRelationResolver } from "../../../../dist/providers/native/projection/relation-resolution.js";
-import { createCsharpTargetConfiguration } from "../../../../dist/compilation/configuration.js";
 import { createCsharpPlanningContext, createCsharpMemberPlanningContext } from "../../../../dist/backend/planner/context.js";
 import { planExpression } from "../../../../dist/backend/planner/expressions/index.js";
 import { planNativeCollectionArrayLiteralExpression } from "../../../../dist/backend/planner/expressions/array-literals/native-collection.js";
 import { csharpListTargetType, csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/index.js";
 import { csharpTypeFromTargetTypeRef } from "../../../../dist/backend/planner/types/render.js";
 import { printCsharpCompilationUnit } from "../../../../dist/print/source/printer.js";
-import { completeCsharpAnalysisRequest } from "../../../helpers/analysis-request.mjs";
 
-const analyzeCompletedCsharpProgram = request => analyzeCsharpAnalysisProgram(completeCsharpAnalysisRequest(request));
 
 test("native collection construction fills only its declared native builder", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ sourceText: freshArraySpreadCostSource });
   assertCsharpCompilationSucceeded(compiled);
-  const source = createTargetSourceProgram(compiled.source);
-  const analysis = analyzeCompletedCsharpProgram({
-    input: { source, sourcePackages: compiled.sourcePackages, project: compiled.project, target: compiled.target,
-      runtimeActivatedCapabilityIds: [], runtimeReferences: [], paths: compiled.paths },
-    configuration: createCsharpTargetConfiguration(compiled.target, compiled.paths.projectRoot, compiled.paths.targetOutputRoot),
-    providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
-  });
+  // The analysis acquires runtime metadata through the session's real providers.
+  const { source, analysis } = analyzeCsharpSource({ sourceText: freshArraySpreadCostSource });
   assert.equal(analysis.kind, "resolved");
   assertNoTargetDiagnostics(analysis.diagnostics);
   const arrays = [];

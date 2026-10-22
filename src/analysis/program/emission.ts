@@ -5,6 +5,7 @@ import { analyzeCsharpConstructorEmission } from "../declarations/classes/constr
 import { analyzeCsharpConstructorArguments } from "../declarations/classes/constructor-arguments.js";
 
 import type { Node } from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../target-model/types/model.js";
 
 import { analyzeCsharpNativeConstants } from "../operations/native-constants.js";
 import { analyzeCsharpBinaryEmission } from "../operations/binary-emission.js";
@@ -89,7 +90,7 @@ import { isCsharpNeverTargetType } from "../../target-model/types/carriers/scala
 
 import { analyzeCsharpNumericRepresentations } from "../numeric/representations.js";
 
-import { rejectedTargetStage, resolvedTargetStage, failTargetAnalysisInvariant, targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
+import { rejectedTargetStage, resolvedTargetStage, failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { createSourceSwitchCoverage, targetSourceSyntaxProgram } from "@tsonic/target-api/analysis";
 import type { TargetStageResult } from "@tsonic/target-api/artifacts";
 
@@ -128,7 +129,7 @@ export function finalizeCsharpNativeEmission(
   nativeValueCarriers: ReturnType<typeof analyzeCsharpNativeValueCarriers>,
   prerequisiteBinaryExecutionDriver: ReturnType<typeof composeCsharpBinaryExecutionDriver>,
 ): TargetStageResult<CsharpAnalysisProgram> {
-  const { input, configuration, providers } = request;
+  const { input, configuration } = request;
   const source = input.source;
   const sourceFiles = analysis.policy.sourceFiles;
   const literalValues = analysis.policy.literalValues;
@@ -155,7 +156,6 @@ export function finalizeCsharpNativeEmission(
   const dictionaryLiterals = analyzeCsharpDictionaryLiterals(source.ast, nativeDemand);
   const unionEquality = analyzeCsharpUnionEquality(sourceStorage.nodes, admittedOperations);
   const closedTypeTests = analyzeCsharpClosedTypeTests(sourceStorage.nodes, admittedOperations, typeDefinitions);
-  const jsValueBoxing = analyzeCsharpJsValueBoxing({ ast: source.ast, demand: nativeDemand, values: analysis.valueReads, exact: exactLiterals });
   const unaryEmission = analyzeCsharpUnaryEmission({ ast: source.ast, nodes: sourceStorage.nodes, admitted: admittedControlNode,
     operations: admittedOperations, literals: literalValues, exact: exactLiterals });
   const typeofEmission = analyzeCsharpTypeofEmission({ ast: source.ast, nodes: sourceStorage.nodes, admitted: admittedControlNode,
@@ -171,7 +171,6 @@ export function finalizeCsharpNativeEmission(
     ...dictionaryLiterals.issues,
     ...unionEquality.issues,
     ...closedTypeTests.issues,
-    ...jsValueBoxing.issues,
     ...unaryEmission.issues,
     ...typeofEmission.issues,
     ...receiverCallProperties.issues,
@@ -179,7 +178,7 @@ export function finalizeCsharpNativeEmission(
     ...jsCalls.issues,
     ...callAdmission.issues,
     ...optionalCallChains.issues,
-    ...analyzeCsharpConditions({ ast: source.ast, demand: nativeDemand, operations: admittedOperations, values: analysis.valueReads }),
+    ...analyzeCsharpConditions({ ast: source.ast, nodes: sourceStorage.nodes, demand: nativeDemand, operations: admittedOperations, values: analysis.valueReads }),
     ...analyzeCsharpVoidAdmission({ ast: source.ast, demand: nativeDemand, values: analysis.valueReads, operations: admittedOperations }),
     ...analyzeCsharpAwaitAdmission({ ast: source.ast, demand: nativeDemand, values: analysis.valueReads, operations: admittedOperations }),
     ...admittedIterations.issues,
@@ -202,6 +201,7 @@ export function finalizeCsharpNativeEmission(
     return failTargetAnalysisInvariant("tsonic-csharp",
       `Native consumption '${incomplete.site.role}' requires completed '${incomplete.reason}' evidence before publication.`, incomplete.expression);
   }
+  const boxSites: { readonly node: Node; readonly carrier: TargetTypeRef }[] = [];
   const objectShapeClosure = analyzeCsharpNativeArtifactDemand({
     ast: source.ast, sourceFiles, propertyNames: sourceSyntax.propertyNames,
     nativeDemand, participation: nativeParticipation.participation,
@@ -209,8 +209,13 @@ export function finalizeCsharpNativeEmission(
     valueReads: analysis.valueReads, operations: admittedOperations, storage: analysis.storage,
     callables: analysis.callables, captureStorage, callableAdapters, flowReads, declarations: analysis.declarations,
     bindingPatterns, conversions, nativeValueCarriers, sourceEvidence: analysis.sourceEvidence,
+    boxSites: { add: (node, carrier) => { boxSites.push({ node, carrier }); } },
   }, analysis.requiredRecords);
   if (objectShapeClosure.kind === "rejected") return objectShapeClosure;
+  // Boxing is planned after native demand: the demanded conversions name every value they box into the closed JS value.
+  const jsValueBoxing = analyzeCsharpJsValueBoxing({ ast: source.ast, demand: nativeDemand, values: analysis.valueReads,
+    exact: exactLiterals, boxSites });
+  if (jsValueBoxing.issues.length > 0) return rejectedTargetStage(jsValueBoxing.issues);
   const nativeMemberNames = analyzeCsharpNativeMemberNames({
     ast: source.ast, nodes: sourceStorage.nodes, nativeUse: nativeDemand.nativeUse,
     metadata: analysis.sourceEvidence, participation: nativeParticipation.participation,
@@ -297,7 +302,7 @@ export function finalizeCsharpNativeEmission(
   const indexedRecords = analyzeCsharpIndexedRecords(sourceStorage.nodes, admittedOperations);
   if (indexedRecords.issues.length !== 0) return rejectedTargetStage(indexedRecords.issues);
   const frozenDataProperties = analyzeCsharpFrozenDataProperties({ ast: source.ast, demand: objectShapeDemand, members: objectMembers.records,
-    storage: analysis.storage, operations: admittedOperations, attributes: attributeApplications });
+    storage: analysis.storage, operations: admittedOperations, attributes: attributeApplications, methodWrites: analysis.declarations.methodWrite });
   if (frozenDataProperties.issues.length !== 0) return rejectedTargetStage(frozenDataProperties.issues);
   const captureMethods = analyzeCsharpCaptureMethods(source.ast, captureStorage);
   if (captureMethods.issues.length !== 0) return rejectedTargetStage(captureMethods.issues);
@@ -306,14 +311,15 @@ export function finalizeCsharpNativeEmission(
   if (projectEmission.issues.length !== 0) return rejectedTargetStage(projectEmission.issues);
   const sourceReferences = analyzeCsharpSourceReferences({ source, nodes: sourceStorage.nodes, admitted: admittedControlNode,
     evidence: analysis.sourceEvidence, factories: classFactories, captures: captureStorage, demand: nativeDemand,
-    operations: admittedOperations, files: sourceOutputIdentities.records, backing: analysis.storage.nativeBacking });
+    operations: admittedOperations, files: sourceOutputIdentities.records, backing: analysis.storage.nativeBacking,
+    delegateAdapters: conversions.delegateAdapters, jsCalls: jsCalls.records });
   if (sourceReferences.issues.length !== 0) return rejectedTargetStage(sourceReferences.issues);
   const memberReceivers = analyzeCsharpMemberReceivers({ source, nodes: sourceStorage.nodes, operations: admittedOperations,
     references: sourceReferences.records, projects: projectEmission.records, factories: classFactories, admitted: admittedControlNode });
   if (memberReceivers.issues.length !== 0) return rejectedTargetStage(memberReceivers.issues);
   const propertyAdmission = analyzeCsharpPropertyAdmission({ ast: source.ast, nodes: sourceStorage.nodes,
-    operations: admittedOperations, admitted: admittedControlNode, projectDeclaration: node => source.navigation.isProjectDeclaration(node), receivers: memberReceivers.records,
-    modules: sourceReferences.records.sourceModuleReference });
+    operations: admittedOperations, admitted: admittedControlNode, projectDeclaration: node => source.navigation.isProjectDeclaration(node), receivers: memberReceivers.records, jsCalls: jsCalls.records,
+    modules: sourceReferences.records.sourceModuleReference, evidence: analysis.sourceEvidence });
   if (propertyAdmission.issues.length !== 0) return rejectedTargetStage(propertyAdmission.issues);
   // Native member names are selected only where the planner renders one: an admitted source member read and the
   // callee of an admitted native method call.
@@ -338,7 +344,7 @@ export function finalizeCsharpNativeEmission(
   if (typedLocationEmission.issues.length !== 0) return rejectedTargetStage(typedLocationEmission.issues);
   const typeEmission = analyzeCsharpTypeEmission({ ast: source.ast, nodes: sourceStorage.nodes, evidence: analysis.sourceEvidence,
     languageDialect: configuration.languageDialect,
-    extraTypes: [...typedLocationEmission.carriers, ...nativeLayouts.carriers, ...nativeDemand.entries.flatMap(({ use }) => use.kind === "erased" ? []
+    extraTypes: [...typedLocationEmission.carriers, ...nativeLayouts.carriers, ...restSequences.carriers, ...nativeDemand.entries.flatMap(({ use }) => use.kind === "erased" ? []
       : use.kind === "converted" ? [use.carrier, use.target] : [use.carrier]),
       ...sourceUnions.sourceUnions.get().flatMap(union => [union.carrier, union.storage, ...union.arms])],
     values: analysis.valueReads, storage: analysis.storage, shapes: objectShapeDemand, admitted: admittedControlNode });
@@ -354,7 +360,7 @@ export function finalizeCsharpNativeEmission(
   const sourceFileEmission = analyzeCsharpSourceFileEmission({ source, identities: sourceOutputIdentities.records,
     factories: classFactories, evidence: analysis.sourceEvidence, operations: admittedOperations,
     moduleInitialization: moduleInitialization.index, expectedTypes: analysis.expectedTypes,
-    declarations: callableDeclarations.records, names });
+    declarations: callableDeclarations.records, names, storage: analysis.storage });
   if (sourceFileEmission.issues.length !== 0) return rejectedTargetStage(sourceFileEmission.issues);
   const binaryExecutionDriver = composeCsharpBinaryExecutionDriver(prerequisiteBinaryExecutionDriver,
     [...promiseResults.results.values()].some(result => result.discard !== undefined) ? csharpJsEventLoopBinaryExecutionDriver : undefined);
@@ -397,8 +403,6 @@ export function finalizeCsharpNativeEmission(
     operations: admittedOperations, values: analysis.valueReads, demand: nativeDemand, evidence: analysis.sourceEvidence,
     modules: sourceModuleConstructions.index.sourceModuleConstruction, files: sourceOutputIdentities.records, arguments: targetArguments.records });
   if (constructionEmission.issues.length !== 0) return rejectedTargetStage(constructionEmission.issues);
-  const references = providers.validateReferences();
-  if (references.length !== 0) return rejectedTargetStage(references.map(diagnostic => targetDiagnosticFromExtension(undefined, diagnostic)));
   const recordInput: Omit<CsharpProgramRecordInput, "constructors"> = {
     propertyValueProjection: propertyValueProjection.records,
     arrayLiterals: arrayLiterals.records,

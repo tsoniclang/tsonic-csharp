@@ -20,6 +20,9 @@ import type { CsharpValueReadClassifications } from "../../target-model/records/
 import type { CsharpConversionIssue } from "../../target-model/records/conversions.js";
 
 import { substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
+import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
+import { getCsharpGenericOptionalParts } from "../../target-model/types/projections.js";
+import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
 
 import { selectCsharpPropertyProjections } from "./property-projections.js";
@@ -85,6 +88,7 @@ export function collectCsharpConversionRequirements(input: CsharpConversionRequi
       classifyArraySpreadElements(node, targetType, operations, valueReads);
     }
     classifyYieldResume(node);
+    classifyCoalescingPresent(node, operations);
     classifyInvocationUses(node, operations);
     classifySelectedTargetCallUses(operations.selectedCall.get(node)?.target ?? operations.selectedConstruction.get(node)?.target, valueReads);
     policy.ast.forEachChild(
@@ -154,6 +158,17 @@ export function collectCsharpConversionRequirements(input: CsharpConversionRequi
       for (const element of input.elements) {
         classifyPair(element, elementTarget, "implicit", input.expression);
       }
+    }
+  }
+
+  // A guarded ?? / ??= converts the left operand's present value to the selected result: the same present type the
+  // type emission publishes for the left carrier (generic optional element, Nullable<T> element, or the carrier itself).
+  function classifyCoalescingPresent(node: Node, operations: CsharpTargetOperationClassifications): void {
+    const selection = operations.binaryOperation.get(node)?.target;
+    if (selection?.kind !== "resolved" || (selection.sourceOperator !== "??" && selection.sourceOperator !== "??=")) return;
+    for (const left of new Set([selection.leftType, selection.leftInputType])) {
+      const present = getCsharpGenericOptionalParts(left)?.element ?? getCsharpNullableElementTargetType(left) ?? left;
+      if (!targetTypeRefEquals(present, selection.resultType)) classifyPair(present, selection.resultType, "implicit", node);
     }
   }
 
@@ -231,7 +246,7 @@ export function collectCsharpConversionRequirements(input: CsharpConversionRequi
     if (call?.sourceResult !== undefined) {
       classifyPair(call.sourceResult.nativeType, call.sourceResult.selectedType, "explicit", node);
     }
-    if (call !== undefined && (call.optionalCallee !== undefined || call.optionalReceiver?.guard === true)) {
+    if (call !== undefined && (call.optionalCallee !== undefined || call.optionalReceiver !== undefined)) {
       const source = call.sourceResult?.selectedType ?? (call.target?.kind === "resolved"
         ? call.target.call.targetMember.returnType : undefined);
       const target = call.selectedResultType;

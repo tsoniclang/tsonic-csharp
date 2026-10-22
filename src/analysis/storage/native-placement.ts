@@ -1,4 +1,5 @@
 import type { Node } from "@tsonic/tsts";
+import { targetTypeRefKey } from "../../target-model/types/equality.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { sourceDeclarationIsModuleScoped, sourceEnclosingCallable, sourceParameterIsProperty, type TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
@@ -71,11 +72,14 @@ export function analyzeCsharpRefLikePlacements(input: CsharpNativePlacementInput
   const inspect = (type: TargetTypeRef | undefined, node: Node, physicalShape?: CsharpObjectShapeFact): void => {
     if (type === undefined) return;
     const pending = [type];
-    const visited = new Set<TargetTypeRef>();
+    // Visited by structural key: a recursive source union (type Tree = number | readonly Tree[]) instantiates fresh arm
+    // carriers on every expansion, so object identity would never close the walk.
+    const visited = new Set<string>();
     while (pending.length > 0) {
       const current = pending.pop()!;
-      if (visited.has(current)) continue;
-      visited.add(current);
+      const key = targetTypeRefKey(current);
+      if (visited.has(key)) continue;
+      visited.add(key);
       if (current.kind === "array" || current.kind === "tuple") {
         const elements = current.kind === "array" ? [current.element] : current.elements;
         if (elements.some(isCsharpRefLikeTargetType)) reject(node,

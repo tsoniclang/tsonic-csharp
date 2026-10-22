@@ -25,14 +25,11 @@ export function analyzeCsharpThisEmission(input: {
     for (const reference of receiver.references) captured.set(reference, receiver.type);
   for (const node of input.nodes) for (const receiver of input.captures.captureClosure.get(node)?.method.receivers ?? [])
     for (const reference of receiver.references) captured.set(reference, receiver.type);
-  for (const shape of input.shapes.knownShapes()) {
+  for (const shape of input.shapes.knownShapes())
     for (const method of input.methods.objectMethods.get(shape) ?? []) bound.set(method.declaration, shape.targetType);
-    const literal = shape.methodImplementation?.declaration;
-    if (literal === undefined) continue;
-    for (const member of input.literals.objectLiteral.get(shape, literal)?.members ?? [])
-      if ((member.kind === "method" || member.kind === "accessor") && member.callable.receiver !== undefined)
-        bound.set(member.property, member.callable.receiver);
-  }
+  // Every object literal's receiver-bound method or accessor, including literals whose shape has no authored method
+  // implementation (an accessor-only literal lowers through receiver-taking getter and setter delegates).
+  for (const callable of input.literals.receiverBoundCallables) bound.set(callable.property, callable.receiver);
   const refuse = (node: Node, message: string): void => {
     issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message });
   };

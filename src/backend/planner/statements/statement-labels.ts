@@ -22,9 +22,9 @@ export function planLabeledStatement(
   if (selected === undefined) failCsharpPlannerInvariant("An admitted label lost its exact source control target.", node);
   const target: ControlLabelTarget = {
     source: node,
-    breakLabel: allocateControlLabel(state, "BreakStatement"),
+    breakLabel: allocateControlLabel(state, "BreakStatement", selected.name),
     ...(selected.loop !== undefined
-      ? { continueLabel: allocateControlLabel(state, "ContinueStatement"), loop: selected.loop, loopBody: selected.loopBody }
+      ? { continueLabel: allocateControlLabel(state, "ContinueStatement", selected.name), loop: selected.loop, loopBody: selected.loopBody }
       : {}),
   };
   state.controlLabels.push(target);

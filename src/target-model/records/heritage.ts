@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpStructuralInterfaceImplementation } from "../types/model.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpStructuralInterfaceImplementation, TargetTypeRef } from "../types/model.js";
 import type { CsharpSourceCallContract, CsharpSourceCallableContract } from "./source-callable-contract.js";
 import type { CsharpCallableParameterAdapter, CsharpCallableValueAdapter } from "./callable-adapters.js";
 import type { CsharpDefaultParameterContract } from "./declarations.js";
@@ -17,6 +17,8 @@ export interface CsharpStructuralInterfaceEvidence {
   readonly source: CsharpObjectShapeFact;
   readonly destination: CsharpObjectShapeFact;
   readonly members: readonly CsharpStructuralInterfaceMemberEvidence[];
+  /** The source declaration's own declared supertypes, in its own type parameters. */
+  readonly declaredSupertypes: readonly TargetTypeRef[];
 }
 
 export interface CsharpStructuralMethodForwarding {

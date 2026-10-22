@@ -39,24 +39,29 @@ export function analyzeCsharpCallableParameterEmission(input: {
       if (node === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted callable requires its dense checked parameter list.", owner);
       const parameter = input.ast.as.AsParameterDeclaration(node);
       if (parameter?.name === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted callable parameter requires its exact checked binding.", node);
-      if (input.ast.is.IsArrowFunction(owner) || input.ast.is.IsFunctionExpression(owner)) {
-        const native = input.storage.lambdaParameterType.get(node);
-        const runtime = input.declarations.runtimeDefault.get(node);
-        if (runtime !== undefined) {
-          if (native !== undefined && !targetTypeRefEquals(native, runtime.native.source))
-            failTargetAnalysisInvariant("tsonic-csharp", "A lambda default requires its exact native incoming parameter contract.", node);
-          lambdaEntries.set(node, Object.freeze({ kind: "default", declareIncoming: native === undefined }));
-        } else if (native === undefined) lambdaEntries.set(node, Object.freeze({ kind: "identity" }));
+      // Captured local functions are also planned as lambdas without a native incoming delegate parameter type, so they
+      // select identity or default entries; arrow and function expressions and object-literal methods (against their
+      // member delegate) carry one.
+      const native = input.storage.lambdaParameterType.get(node);
+      const runtime = input.declarations.runtimeDefault.get(node);
+      // A selected delegate whose parameter is the default's present type (`(x: number) => number` for `(x = 5) => x`)
+      // never omits the argument, so the default is never applied and the parameter is read as passed.
+      const presentOnly = runtime !== undefined && native !== undefined && !targetTypeRefEquals(native, runtime.native.source) &&
+        targetTypeRefEquals(getCsharpNullableElementTargetType(runtime.native.source) ?? runtime.native.source, native);
+      if (runtime !== undefined && !presentOnly) {
+        if (native !== undefined && !targetTypeRefEquals(native, runtime.native.source))
+          failTargetAnalysisInvariant("tsonic-csharp", "A lambda default requires its exact native incoming parameter contract.", node);
+        lambdaEntries.set(node, Object.freeze({ kind: "default", declareIncoming: native === undefined }));
+      } else if (native === undefined) lambdaEntries.set(node, Object.freeze({ kind: "identity" }));
+      else {
+        const target = input.storage.requiredStorageType.get(node);
+        if (target === undefined) failTargetAnalysisInvariant("tsonic-csharp", "C# lambda parameter storage requires its sealed native and source representations.", node);
+        if (targetTypeRefEquals(native, target)) lambdaEntries.set(node, Object.freeze({ kind: "identity" }));
         else {
-          const target = input.storage.requiredStorageType.get(node);
-          if (target === undefined) failTargetAnalysisInvariant("tsonic-csharp", "C# lambda parameter storage requires its sealed native and source representations.", node);
-          if (targetTypeRefEquals(native, target)) lambdaEntries.set(node, Object.freeze({ kind: "identity" }));
-          else {
-            if (!selectCsharpTypeEmission({ carrier: target })) { refuse(node, "The sealed lambda parameter storage type has no C# syntax representation."); continue; }
-            const conversion = input.conversions.conversion.get(native, target, "implicit");
-            if (conversion === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted native lambda parameter requires its exact source storage conversion.", node);
-            lambdaEntries.set(node, Object.freeze({ kind: "conversion", source: native, target, conversion }));
-          }
+          if (!selectCsharpTypeEmission({ carrier: target })) { refuse(node, "The sealed lambda parameter storage type has no C# syntax representation."); continue; }
+          const conversion = input.conversions.conversion.get(native, target, "implicit");
+          if (conversion === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted native lambda parameter requires its exact source storage conversion.", node);
+          lambdaEntries.set(node, Object.freeze({ kind: "conversion", source: native, target, conversion }));
         }
       }
       const carrier = input.storage.requiredStorageType.get(node) ?? input.values.valueRead.get(node)?.value;
@@ -68,7 +73,6 @@ export function analyzeCsharpCallableParameterEmission(input: {
         continue;
       }
       const rest = parameter.DotDotDotToken !== undefined;
-      const runtime = input.declarations.runtimeDefault.get(node);
       let defaultValue: CsharpParameterDefaultEmission = Object.freeze({ kind: "none" });
       if (runtime !== undefined) hasDefault ||= runtime.acceptsOmission;
       else {

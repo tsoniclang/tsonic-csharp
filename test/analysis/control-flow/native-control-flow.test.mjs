@@ -14,7 +14,6 @@ import { planCsharpGeneratedMethodCall } from "../../../dist/backend/planner/dec
 import { planBreakStatement, planContinueStatement, planReturnStatement } from "../../../dist/backend/planner/statements/statement-simple.js";
 import { planLocalDeclarationStatements } from "../../../dist/backend/planner/bindings/locals.js";
 import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types/render.js";
-import { getCsharpGeneratorProtocol } from "../../../dist/target-model/types/index.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 for (const surface of ["native", "js"]) {
@@ -103,7 +102,7 @@ test("generator return renders the native function's already selected return syn
   const statement = ast.children(ast.body(declaration))
     .find(node => node !== undefined && ast.is.IsReturnStatement(node));
   const context = createCsharpPlanningContext(program);
-  const protocol = getCsharpGeneratorProtocol(program.records.generatorTargetType.get(declaration));
+  const protocol = program.records.generator.get(declaration);
   assert.equal(protocol !== undefined && statement !== undefined, true,
     "the real published generator supplies the exact return statement and native protocol");
   const type = csharpTypeFromTargetTypeRef(protocol.returnType, context.scope.typeParameterNames);
@@ -163,10 +162,11 @@ for (const surface of ["native", "js"]) {
     assert.equal(compiled.sourceDiagnosticsText, "", "all source labels have exact checked break/continue targets");
     assert.equal(compiled.targetDiagnostics.length, 0, "native synthetic endpoints impose no authored identifier restriction");
     const output = compiled.artifacts.get("src/Index.cs");
-    assert.doesNotMatch(output, /__tsonic_label_(?:event|@|\$|outer|inner)/u,
-      "authored labels are source identities, never native endpoint fragments");
-    assert.match(output, /goto __tsonic_label_break\d+;/u, "checked break targets use deterministic synthetic names");
-    assert.match(output, /goto __tsonic_label_continue\d+;/u, "nested checked continue targets retain the selected loop");
+    // Generated endpoints carry the authored label as an identifier fragment (RULINGS 2026-10-22): any spelling compiles.
+    assert.doesNotMatch(output, /__tsonic_label_(?:@|\$)/u, "authored labels are spelled as identifier fragments, never raw");
+    assert.match(output, /goto __tsonic_label_event_break\d+;/u, "checked break targets use deterministic generated names");
+    assert.match(output, /goto __tsonic_label_x0024done_break\d+;/u, "non-identifier label characters are spelled as code units");
+    assert.match(output, /goto __tsonic_label_inner_continue\d+;/u, "nested checked continue targets retain the selected loop");
     executeCsharpConstruction(compiled, `native-control-labels-${surface}`, false, false, [], `
 if (Tsonic.Generated.Index.run() != 4 || Tsonic.Generated.Index.other() != 5)
     throw new System.Exception("native checked label identity");

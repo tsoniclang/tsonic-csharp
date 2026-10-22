@@ -1,18 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { checkCsharpSource, assertCsharpCheckingSucceeded } from "../../helpers/direct-csharp-session.mjs";
+import { withCsharpSessionRequest } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpAnalysisProgram } from "../../../dist/analysis/program/index.js";
-import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
-import { createCsharpTargetConfiguration } from "../../../dist/compilation/configuration.js";
 import { createCsharpObjectShapePropertyOrderIndex } from "../../../dist/analysis/objects/property-order.js";
 import { analyzeCsharpObjectShapes } from "../../../dist/analysis/objects/analyze.js";
 import { namedTargetTypeImplicitlyAccepts } from "../../../dist/policy/conversions/carriers.js";
 import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
-import { completeCsharpAnalysisRequest } from "../../helpers/analysis-request.mjs";
-
-const analyzeCompletedCsharpProgram = request => analyzeCsharpAnalysisProgram(completeCsharpAnalysisRequest(request));
 
 const noNativeImplementations = () => { throw new Error("An empty implementation domain cannot query a native relation"); };
 const exactNativePolicy = { projectTypes: { directSupertypes: () => undefined },
@@ -353,7 +347,7 @@ test("repeated carriers classify published occurrences and the final merge, neve
 });
 
 test("checked source publishes occurrence-specific and accessor orders before source readers become unavailable", () => {
-  const checked = checkCsharpSource({ surface: "js", sourceText: `
+  withCsharpSessionRequest({ surface: "js", sourceText: `
 export function project(): string {
   const first = { tail: "tail", 10: "ten", 2: "two", "01": "leading" };
   const second = { "01": "leading", tail: "tail", 2: "two", 10: "ten" };
@@ -364,44 +358,39 @@ export function project(): string {
     set current(next: string) { backing = next; },
   };
   return Object.keys(first).join(",") + Object.keys(second).join(",") + Object.keys(accessed).join(",");
-}` });
-  assertCsharpCheckingSucceeded(checked);
-  const original = createTargetSourceProgram(checked.source);
-  let sealed = false;
-  const source = { ...original, ast: { ...original.ast,
-    ...Object.fromEntries(["parent", "properties", "authoredRange"].map(name => [name, (...arguments_) => {
-      assert.equal(sealed, false, `${name} is an analysis-only own-property input`);
-      return original.ast[name](...arguments_);
-    }])),
-  } };
-  const analysis = analyzeCompletedCsharpProgram({
-    input: { source, sourcePackages: checked.sourcePackages, project: checked.project, target: checked.target,
-      runtimeActivatedCapabilityIds: [], runtimeReferences: [], paths: checked.paths },
-    configuration: createCsharpTargetConfiguration(checked.target, checked.paths.projectRoot, checked.paths.targetOutputRoot),
-    providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
-  });
-  assert.equal(analysis.kind, "resolved");
-  assert.equal(analysis.diagnostics.length, 0);
-  const literals = [];
-  const visit = node => {
-    if (source.ast.is.IsObjectLiteralExpression(node)) literals.push(node);
-    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
-  };
-  for (const file of source.navigation.sourceFiles) visit(file);
-  assert.equal(literals.length, 3);
-  sealed = true;
-  const orders = [["2", "10", "tail", "01"], ["2", "10", "01", "tail"], ["tail", "current"]];
-  for (const [ordinal, literal] of literals.entries()) {
-    const shape = analysis.value.objectShapes.resolveNode(literal);
-    assert.equal(shape !== undefined, true, `checked object occurrence ${ordinal}`);
-    for (const projection of ["keys", "values", "entries"]) {
-      const selection = analysis.value.objectShapes.propertyOrder(shape, literal, projection);
-      assert.equal(selection.kind, "resolved", `${projection} occurrence ${ordinal}`);
-      assert.deepEqual(selection.propertyOrder, orders[ordinal]);
-      assert.equal(Object.isFrozen(selection), true);
-      assert.equal(Object.isFrozen(selection.propertyOrder), true);
+}` }, request => {
+    const original = request.input.source;
+    let sealed = false;
+    const source = { ...original, ast: { ...original.ast,
+      ...Object.fromEntries(["parent", "properties", "authoredRange"].map(name => [name, (...arguments_) => {
+        assert.equal(sealed, false, `${name} is an analysis-only own-property input`);
+        return original.ast[name](...arguments_);
+      }])),
+    } };
+    const analysis = analyzeCsharpAnalysisProgram({ ...request, input: { ...request.input, source } });
+    assert.equal(analysis.kind, "resolved");
+    assert.equal(analysis.diagnostics.length, 0);
+    const literals = [];
+    const visit = node => {
+      if (source.ast.is.IsObjectLiteralExpression(node)) literals.push(node);
+      source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    };
+    for (const file of source.navigation.sourceFiles) visit(file);
+    assert.equal(literals.length, 3);
+    sealed = true;
+    const orders = [["2", "10", "tail", "01"], ["2", "10", "01", "tail"], ["tail", "current"]];
+    for (const [ordinal, literal] of literals.entries()) {
+      const shape = analysis.value.objectShapes.resolveNode(literal);
+      assert.equal(shape !== undefined, true, `checked object occurrence ${ordinal}`);
+      for (const projection of ["keys", "values", "entries"]) {
+        const selection = analysis.value.objectShapes.propertyOrder(shape, literal, projection);
+        assert.equal(selection.kind, "resolved", `${projection} occurrence ${ordinal}`);
+        assert.deepEqual(selection.propertyOrder, orders[ordinal]);
+        assert.equal(Object.isFrozen(selection), true);
+        assert.equal(Object.isFrozen(selection.propertyOrder), true);
+      }
+      assert.equal(analysis.value.objectShapes.propertyOrder({ ...shape, members: [...shape.members] }, literal, "keys").kind,
+        "rejected", "unadmitted evidence cannot reconstruct an order after sealing");
     }
-    assert.equal(analysis.value.objectShapes.propertyOrder({ ...shape, members: [...shape.members] }, literal, "keys").kind,
-      "rejected", "unadmitted evidence cannot reconstruct an order after sealing");
-  }
+  });
 });

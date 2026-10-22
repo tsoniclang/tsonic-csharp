@@ -10,26 +10,25 @@ import type { CsharpNativeDemandAnalysis } from "../../target-model/records/nati
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpSourceFileRecords } from "../../target-model/records/source-files.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
+import type { CsharpConversionClassifications } from "../../target-model/records/conversions.js";
+import type { CsharpJsCallRecords } from "../../target-model/records/js-value-calls.js";
 import { getCsharpDelegateSignature } from "../../target-model/types/carriers/delegates.js";
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 import { createCsharpSourceReferenceRecords } from "../program/records/source-references.js";
+import { selectCsharpEmittedExpressions } from "./emitted-expressions.js";
 
 export function analyzeCsharpSourceReferences(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];
   readonly admitted: (node: Node) => boolean; readonly evidence: CsharpSourceEvidenceIndex;
   readonly factories: CsharpClassFactoryIndex; readonly captures: CsharpCaptureStorage;
   readonly demand: CsharpNativeDemandAnalysis; readonly operations: CsharpTargetOperationClassifications;
-  readonly files: CsharpSourceFileRecords; readonly backing: CsharpStorageClassifications["nativeBacking"] }) {
+  readonly files: CsharpSourceFileRecords; readonly backing: CsharpStorageClassifications["nativeBacking"];
+  readonly delegateAdapters: CsharpConversionClassifications["delegateAdapters"]; readonly jsCalls: CsharpJsCallRecords }) {
   const { ast } = input.source;
   const identifiers = new Map<Node, CsharpIdentifierEmission>();
   const modules = new Map<Node, SourceProjectReference>();
   const references = new Map<Node, { readonly value: SourceProjectReference | undefined; readonly declaration: SourceDeclarationReference | undefined }>();
   const issues: TargetDiagnostic[] = [];
-  const required = new Set<Node>();
-  for (const node of input.nodes) if (input.admitted(node)) {
-    required.add(node);
-    const callee = input.operations.selectedCall.get(node)?.source?.sourceCallee.expression;
-    if (callee !== undefined) required.add(callee);
-  }
+  const required = selectCsharpEmittedExpressions({ ...input, ast });
   const moduleStatic = (node: Node): boolean => (ast.is.IsFunctionDeclaration(node) || ast.is.IsExportAssignment(node) ||
     ast.is.IsVariableDeclaration(node) || ast.is.IsBindingElement(node)) && sourceDeclarationIsModuleScoped(node, ast);
   for (const node of input.nodes) {
@@ -95,6 +94,15 @@ export function analyzeCsharpSourceReferences(input: { readonly source: TargetSo
       }
     }
     identifiers.set(node, { kind: "local", declaration, backing: declaration !== undefined && input.backing.get(declaration) !== undefined });
+  }
+  // A retained delegate adapter calls its stable binding by the binding declaration's own name, so that name is a
+  // reference to the binding: the same frame or local emission an ordinary read of the binding selects.
+  for (const node of input.nodes) if (ast.is.IsBlock(node)) for (const identity of input.delegateAdapters.get(node)) {
+    const name = ast.name(identity.declaration);
+    if (name === undefined || !ast.is.IsIdentifier(name) || identifiers.has(name)) continue;
+    identifiers.set(name, input.captures.captureClosure.get(identity.declaration) !== undefined
+      ? { kind: "frame", declaration: identity.declaration }
+      : { kind: "local", declaration: identity.declaration, backing: input.backing.get(identity.declaration) !== undefined });
   }
   return Object.freeze({ records: createCsharpSourceReferenceRecords({ identifiers, modules, references }), issues: Object.freeze(issues) });
 }

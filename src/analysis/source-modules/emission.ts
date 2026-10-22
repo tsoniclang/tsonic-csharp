@@ -13,7 +13,10 @@ import type { CsharpModuleInitializationIndex } from "../../target-model/records
 import type { CsharpExpectedTypeClassifications } from "../../target-model/records/expected-types.js";
 import type { CsharpCallableDeclarationRecords } from "../../target-model/records/callable-emission.js";
 import type { CsharpNamePlan } from "../../target-model/names/model.js";
-import { getCsharpLambdaSignature, getCsharpTaskResultTargetType, isCsharpVoidTargetType } from "../../target-model/types/index.js";
+import type { CsharpStorageRepresentationClassifications } from "../../target-model/records/storage.js";
+import {
+  getCsharpLambdaSignature, getCsharpTaskResultTargetType, isCsharpVoidTargetType, targetTypeRefEquals,
+} from "../../target-model/types/index.js";
 
 const moduleStatements = new Set([
   "KindImportDeclaration", "KindTypeAliasDeclaration", "KindExportDeclaration", "KindExportAssignment",
@@ -33,6 +36,7 @@ export function analyzeCsharpSourceFileEmission(input: {
   readonly expectedTypes: CsharpExpectedTypeClassifications;
   readonly declarations: CsharpCallableDeclarationRecords;
   readonly names: CsharpNamePlan;
+  readonly storage: Pick<CsharpStorageRepresentationClassifications, "storageType">;
 }) {
   const factories = new Map<SourceFile, readonly CsharpClassFactory[]>();
   const callables = new Map<Node, CsharpModuleCallableEmission>();
@@ -59,7 +63,13 @@ export function analyzeCsharpSourceFileEmission(input: {
           const visibility = input.moduleInitialization.callableVisibility.get(node);
           if (visibility === undefined) continue;
           const initializer = input.source.ast.as.AsVariableDeclaration(node)?.Initializer;
-          const carrier = initializer === undefined ? undefined : input.expectedTypes.callableTarget.get(initializer);
+          const implementation = initializer === undefined ? undefined : input.expectedTypes.callableTarget.get(initializer);
+          // A binding whose stored callable carrier differs from its implementation is promoted with the stored
+          // signature: callers and the module value see that carrier, and the method body is the adapted value.
+          const stored = input.storage.storageType.get(node);
+          const adapted = implementation !== undefined && stored !== undefined && getCsharpLambdaSignature(stored) !== undefined &&
+            !targetTypeRefEquals(stored, implementation);
+          const carrier = adapted ? stored : implementation;
           const form = initializer === undefined ? undefined : input.source.ast.is.IsArrowFunction(initializer) ? "arrow"
             : input.source.ast.is.IsFunctionExpression(initializer) ? "function" : undefined;
           const signature = getCsharpLambdaSignature(carrier);
@@ -71,14 +81,15 @@ export function analyzeCsharpSourceFileEmission(input: {
           if (declaration === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted module callable requires its finalized declaration contract.", node);
           const name = input.names.resolve(input.source.ast.name(node));
           if (name.kind !== "resolved") failTargetAnalysisInvariant("tsonic-csharp", "An admitted module callable requires its sealed native binding name.", node);
-          const result = declaration.async ? getCsharpTaskResultTargetType(signature.returnType) : signature.returnType;
+          const async = declaration.async && !adapted;
+          const result = async ? getCsharpTaskResultTargetType(signature.returnType) : signature.returnType;
           if (result === undefined) {
             refuse(node, "Direct callable planning requires its sealed lambda signature and body.");
             continue;
           }
           callables.set(node, Object.freeze({ declaration: node, initializer, name: name.name, visibility, carrier,
             parameters: Object.freeze(signature.parameters), returnCarrier: signature.returnType,
-            returnMode: isCsharpVoidTargetType(result) ? "void" : "value", async: declaration.async, form }));
+            returnMode: isCsharpVoidTargetType(result) ? "void" : "value", async, form, adapted }));
         }
       }
       if (!input.source.ast.is.IsExportAssignment(statement)) continue;

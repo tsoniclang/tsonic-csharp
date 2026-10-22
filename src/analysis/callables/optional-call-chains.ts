@@ -49,7 +49,8 @@ export function analyzeCsharpOptionalCallChains(ast: AstReader, nodes: readonly 
     steps.reverse();
     let actual = demand.nativeUse.expression(current)?.use;
     for (const step of steps) {
-      if (actual === undefined || actual.kind === "erased" || !targetTypeRefEquals(actual.carrier, step.guard ? step.storage : step.type)) {
+      // Every link of an optional chain is typed at its lifted storage; the chain narrows it to the present value.
+      if (actual === undefined || actual.kind === "erased" || !targetTypeRefEquals(actual.carrier, step.storage)) {
         refuse(step.node, "Optional receiver requires its exact native storage and present-value relation."); invalid = true; break;
       }
       actual = demand.nativeUse.expression(step.node)?.use;

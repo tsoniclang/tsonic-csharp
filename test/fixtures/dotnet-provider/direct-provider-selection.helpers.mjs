@@ -502,6 +502,9 @@ export function directProviderHost(options = {}) {
           definitionForTarget(target) {
             return options.projectTypeDefinitions?.get(target.id);
           },
+          definitionForId(id) {
+            return options.projectTypeDefinitions?.get(id);
+          },
         }),
         directSupertypes(type) {
           return options.projectDirectSupertypes?.get(type.id);

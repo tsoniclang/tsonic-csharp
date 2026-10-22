@@ -22,12 +22,13 @@ test("selected receivers preserve exact nested authored array representations", 
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
+  // On the js surface the index literal reads as float64 and selects the JSArray double indexer (pre-rewrite output).
   assert.match(
     compiled.artifacts.get("src/Index.cs"),
-    /public static long readLong\(Tsonic\.CSharp\.Js\.JSArray<Tsonic\.CSharp\.Js\.JSArray<long>> values\)[\s\S]*return values\[0\]\[0\];/u,
+    /public static long readLong\(Tsonic\.CSharp\.Js\.JSArray<Tsonic\.CSharp\.Js\.JSArray<long>> values\)[\s\S]*return values\[0D\]\[0D\];/u,
   );
   assert.match(
     compiled.artifacts.get("src/Index.cs"),
-    /public static float readFloat\(Tsonic\.CSharp\.Js\.JSArray<Tsonic\.CSharp\.Js\.JSArray<float>> values\)[\s\S]*return values\[0\]\[0\];/u,
+    /public static float readFloat\(Tsonic\.CSharp\.Js\.JSArray<Tsonic\.CSharp\.Js\.JSArray<float>> values\)[\s\S]*return values\[0D\]\[0D\];/u,
   );
 });

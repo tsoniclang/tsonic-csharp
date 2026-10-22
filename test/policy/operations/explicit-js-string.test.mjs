@@ -83,7 +83,7 @@ test("explicit C# JsString planning preserves never completion and rejects missi
   const selected = fixture();
   const input = { program: { records: {} } };
   const thrown = { kind: "ThrowStatement", expression: { kind: "IdentifierName", name: "failure" } };
-  const never = csharpPlannedEffect(csharpNeverTargetType(), [thrown]);
+  const never = csharpPlannedEffect(csharpNeverTargetType(), [thrown], "never");
   const result = planCsharpJsStringConversion(selected.node, selected.selection, selected.sourceFile, input, [], () => never);
   assert.equal(result === never, true);
   for (const source of [undefined, csharpPlannedEffect(csharpVoidTargetType(), [])]) {

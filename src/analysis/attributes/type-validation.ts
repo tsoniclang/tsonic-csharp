@@ -5,7 +5,7 @@ import type { CsharpTargetOperationClassifications } from "../../target-model/re
 
 import type { CsharpConversionClassifications, CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
-import { getCsharpTypeofRuntimeKind } from "../../policy/operations/syntax/runtime-kind.js";
+import { getCsharpTypeofRuntimeKind } from "../../target-model/types/runtime-kind.js";
 import { isCsharpAbsenceTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import { isAstNode, type TargetSourceProgram } from "@tsonic/target-api/source";
 import type { TsonicAttributeApplicationFactIndex } from "@tsonic/source-core/facts";

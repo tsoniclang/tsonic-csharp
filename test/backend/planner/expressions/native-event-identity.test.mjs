@@ -6,10 +6,12 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../../helpers/direct-csharp-session.mjs";
 import { buildUnsupportedMemberFixture } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
-import { planCsharpDelegateAdapter, planCsharpDelegateAdaptationBody } from "../../../../dist/backend/planner/expressions/callable-conversions.js";
+import { planCsharpDelegateAdapter } from "../../../../dist/backend/planner/expressions/callable-conversions.js";
 import { applyCsharpConversionSelection } from "../../../../dist/backend/planner/expressions/conversions.js";
 import { csharpDelegateTargetType } from "../../../../dist/target-model/types/carriers/delegates.js";
 import { selectCsharpConversion } from "../../../../dist/policy/conversions/index.js";
+import { admitCsharpConversionSelection } from "../../../../dist/analysis/conversions/validation.js";
+import { csharpDelegateContractRecord, csharpTypeEmissionRecord } from "../../../helpers/planning-records.mjs";
 
 const importSource = 'import { EventSignatures } from "@tsonic/dotnet/ProviderUnsupportedMemberFixtures.js";';
 
@@ -158,17 +160,19 @@ test("retained adapter planning rejects a stale activation or carrier and keeps 
   const selection = selectCsharpConversion(policy, source, target, "implicit");
   const identity = Object.freeze({ declaration: {}, scope: {}, source, target, selection });
   const node = {};
-  const base = { scope: { delegateAdapters: new Map([[identity, "adapter"]]) }, program: { records: { delegateAdapter: { get: expression => expression === node ? identity : undefined } } }, names: { temporaryName: () => assert.fail("retained native binding must not create per-use wrapper temporaries") } };
+  // The planner reads the sealed delegate contract and type emission the analysis publishes for the admitted conversion.
+  const records = { delegateContract: csharpDelegateContractRecord([[source, target, selection]]), typeEmission: csharpTypeEmissionRecord() };
+  const base = { scope: { delegateAdapters: new Map([[identity, "adapter"]]) }, program: { records: { ...records, delegateAdapter: { get: expression => expression === node ? identity : undefined } } }, names: { temporaryName: () => assert.fail("retained native binding must not create per-use wrapper temporaries") } };
   for (const context of [
     { ...base, scope: { delegateAdapters: new Map() } },
-    { ...base, program: { records: { delegateAdapter: { get: () => ({ ...identity,
+    { ...base, program: { records: { ...records, delegateAdapter: { get: () => ({ ...identity,
       target: csharpDelegateTargetType("System.Action", [{ kind: "source-primitive", name: "int64" }]) }) } } } },
   ]) {
     const diagnostics = [];
     assert.throws(() => planCsharpDelegateAdapter(node, {}, context, diagnostics, source, target, selection,
       { kind: "IdentifierName", name: "callback" }, applyCsharpConversionSelection),
     error => error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT" &&
-      error.message === "A retained native delegate adapter requires its exact sealed conversion and lexical declaration.");
+      error.message === "An admitted retained adapter requires its exact lexical native method.");
     assert.equal(diagnostics.length, 0);
   }
   const diagnostics = [];
@@ -183,12 +187,9 @@ test("retained adapter planning rejects a stale activation or carrier and keeps 
     [["byref-readwrite"], "Delegate adaptation cannot change or wrap native by-reference passing."],
     [["move"], "C# delegate adaptation requires exact renderable source and target signatures."],
   ]) {
+    // The ABI is validated once, by conversion admission in analysis; the planner only renders admitted contracts.
     const invalid = { ...source, csharpDelegateSignature: { ...source.csharpDelegateSignature, parameterPassingModes: modes } };
-    const failures = [];
-    assert.throws(() => planCsharpDelegateAdaptationBody(node, {}, base, failures, invalid, target, selection,
-      { kind: "IdentifierName", name: "callback" }, applyCsharpConversionSelection),
-    error => error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT" && error.message === message);
-    assert.equal(failures.length, 0);
+    assert.deepEqual(admitCsharpConversionSelection({}, invalid, target, selection), { kind: "rejected", reason: message });
   }
 });
 

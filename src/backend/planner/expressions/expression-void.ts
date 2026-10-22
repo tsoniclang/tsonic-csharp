@@ -23,5 +23,5 @@ export function planVoidExpression(node: Node, sourceFile: SourceFile, input: Cs
   if (selected.completion === "void") return { ...csharpPlannedEffect(target, prelude), effect: expression.effect };
   const result = planCsharpAbsentValue(target, input)
     ?? failCsharpPlannerInvariant("An admitted void result requires its native absence value.", node);
-  return csharpPlannedValue(target, result, prelude);
+  return csharpPlannedValue(target, result, prelude, false, true);
 }

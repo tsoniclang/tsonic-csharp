@@ -17,7 +17,7 @@ test("floor policy retains every native integer carrier supplied by exact provid
         memberName: "floor",
         memberKey: { kind: "property-key", name: "floor" },
       }))],
-      ast: { kindName: () => "KindMethodSignature" },
+      ast: { kindName: () => "KindMethodSignature", is: { IsSpreadElement: () => false } },
     });
     const selected = selectCsharpComposedSourceProfileCall(fixture.host, call.evidence, fixture.sourceFile);
     assert.equal(selected.kind, "resolved");

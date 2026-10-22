@@ -4,7 +4,7 @@ import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/targ
 import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
 import type { CsharpNativeExpressionRecord, CsharpNativeDiscardEmission } from "../../target-model/records/native-demand.js";
 import type { CsharpConversionClassifications } from "../../target-model/records/conversions.js";
-import type { TargetSourceProgram } from "@tsonic/target-api/source";
+import { KindEqualsToken, type TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpClassFactoryIndex } from "../../target-model/records/class-factories.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
@@ -20,7 +20,7 @@ export function analyzeCsharpExpressionEmission(input: { readonly source: Target
   const issues: TargetDiagnostic[] = [];
   for (const { site, use } of demand.entries) discards.set(site, use.kind === "erased" ? { kind: "sequence", steps: Object.freeze([]) }
     : use.kind === "location" ? { kind: "sequence", steps: Object.freeze([...use.children]) } : { kind: "effect", expression: use.expression });
-  const statementYields = statementOwnedYields(source.ast, nodes);
+  const { owned: statementYields, resumedOperands } = statementOwnedYields(source.ast, nodes);
   for (const node of new Set([...nodes, ...demand.entries.map(({ use }) => use.expression)])) {
     if (statementYields.has(node)) continue;
     const selected = demand.nativeUse.expression(node);
@@ -53,7 +53,8 @@ export function analyzeCsharpExpressionEmission(input: { readonly source: Target
     let storage: Node | undefined;
     if (core) {
       const handler = input.operations.nativeHandler.get(node);
-      if (!sourceKinds.has(ast.kindName(node)) && handler === undefined && input.evidence.sourceDefaultValue.get(node) === undefined) {
+      if (!sourceKinds.has(ast.kindName(node)) && !resumedOperands.has(node) && handler === undefined &&
+        input.evidence.sourceDefaultValue.get(node) === undefined) {
         issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message: "Expression is outside the current C# planning surface." }); continue;
       }
       if (ast.is.IsClassExpression(node) && input.factories.classFactory.get(node) === undefined) {
@@ -97,8 +98,12 @@ export function analyzeCsharpExpressionEmission(input: { readonly source: Target
 // The statement planners own a direct yield of an expression statement, a return statement, an identifier assignment's
 // right side or a variable initializer: they plan its operand and its resume value through the yield record, never the
 // yield as an expression. Those yields have no expression emission and are not refused as expression forms.
-function statementOwnedYields(ast: TargetSourceProgram["ast"], nodes: readonly Node[]): ReadonlySet<Node> {
+/** Statement-lowered yields. A plain assignment or statement owns its yield outright (no record); the yield of a compound
+ * assignment is lowered by its statement too, but the operator reads the resumed value, so it keeps a record. */
+function statementOwnedYields(ast: TargetSourceProgram["ast"], nodes: readonly Node[]):
+  { readonly owned: ReadonlySet<Node>; readonly resumedOperands: ReadonlySet<Node> } {
   const owned = new Set<Node>();
+  const resumedOperands = new Set<Node>();
   const direct = (expression: Node | undefined): void => {
     const selected = directCsharpSourceYieldExpression(ast, expression);
     if (selected !== undefined) owned.add(selected);
@@ -108,11 +113,17 @@ function statementOwnedYields(ast: TargetSourceProgram["ast"], nodes: readonly N
       const expression = ast.as.AsExpressionStatement(node)?.Expression;
       direct(expression);
       const binary = expression !== undefined && ast.is.IsBinaryExpression(expression) ? ast.as.AsBinaryExpression(expression) : undefined;
-      if (binary?.Left !== undefined && ast.is.IsIdentifier(binary.Left)) direct(binary.Right);
+      if (binary?.Left !== undefined && ast.is.IsIdentifier(binary.Left)) {
+        if (ast.operatorKindName(expression!) === KindEqualsToken) direct(binary.Right);
+        else {
+          const resumed = directCsharpSourceYieldExpression(ast, binary.Right);
+          if (resumed !== undefined) resumedOperands.add(resumed);
+        }
+      }
     } else if (ast.is.IsReturnStatement(node)) direct(ast.as.AsReturnStatement(node)?.Expression);
     else if (ast.is.IsVariableDeclaration(node)) direct(ast.as.AsVariableDeclaration(node)?.Initializer);
   }
-  return owned;
+  return { owned, resumedOperands };
 }
 
 const forwarded = new Set(["KindVoidExpression", "KindAsExpression", "KindTypeAssertionExpression", "KindNonNullExpression",

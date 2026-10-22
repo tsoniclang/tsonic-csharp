@@ -10,7 +10,8 @@ import { createCsharpJsValueBoxingProducer } from "../program/records/js-value-b
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 
 export function analyzeCsharpJsValueBoxing(input: { readonly ast: AstReader; readonly demand: CsharpNativeDemandAnalysis;
-  readonly values: CsharpValueReadClassifications; readonly exact: CsharpExactLiteralSelectionIndex }) {
+  readonly values: CsharpValueReadClassifications; readonly exact: CsharpExactLiteralSelectionIndex;
+  readonly boxSites: readonly { readonly node: Node; readonly carrier: TargetTypeRef }[] }) {
   const producer = createCsharpJsValueBoxingProducer();
   const issues: TargetDiagnostic[] = [];
   const requests = new Map<Node, Map<string, TargetTypeRef>>();
@@ -28,6 +29,8 @@ export function analyzeCsharpJsValueBoxing(input: { readonly ast: AstReader; rea
     request(use.expression, read?.source);
     request(use.expression, read?.value);
   }
+  // Conversions inside adapters, structural forwarding and class dispatch box values anchored at their declaration.
+  for (const site of input.boxSites) request(site.node, site.carrier);
   for (const [node, carriers] of requests) for (const carrier of carriers.values()) {
     if (isCsharpJsValueTargetType(carrier)) { producer.publish(node, carrier, { kind: "identity" }); continue; }
     const exact = input.exact.exactLiteral.get(node, carrier);

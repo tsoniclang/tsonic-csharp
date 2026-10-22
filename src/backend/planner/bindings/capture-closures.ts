@@ -8,7 +8,7 @@ import { csharpCaptureFrameExpression, csharpCapturedBindingExpression } from ".
 import { csharpTypeFromObjectShapeFact } from "../objects/planning.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { allocateExpressionTemp, getCsharpLocalBindingName } from "./binding-state.js";
-import { planThisExpression } from "../expressions/expression-this.js";
+import { planCapturedReceiverOwnerValue } from "../expressions/expression-this.js";
 import type { CsharpPlannedCallableReference } from "../expressions/planned-values.js";
 
 export function planCsharpNamedSelfCaptureContext(
@@ -74,8 +74,7 @@ export function planCsharpFrameClosureReference(
     }
     for (const receiver of selected.frame.receivers) {
       const reference = receiver.references[0];
-      const file = reference === undefined ? undefined : input.program.source.ast.getSourceFile(reference);
-      const expression = reference === undefined || file === undefined ? undefined : planThisExpression(reference, file, input, diagnostics);
+      const expression = reference === undefined ? undefined : planCapturedReceiverOwnerValue(reference, input);
       if (expression === undefined) failCsharpPlannerInvariant("An admitted callable capture requires its exact native receiver.", node);
       assignments.push({ kind: "AssignmentExpression", name: receiver.fieldName, expression });
     }

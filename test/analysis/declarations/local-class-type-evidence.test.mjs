@@ -106,8 +106,10 @@ if (Tsonic.Generated.Index.run() != 7) throw new System.Exception("native class 
     const source = createTargetSourceProgram(compiled.source);
     assert.equal(source.ast.is.IsClassExpression(issues[0].sourceNode), true,
       "the refusal remains on the exact local class declaration");
-    assert.equal(compiled.result.program !== undefined && compiled.artifacts.size === 0, true,
-      "C375 retains the current late refusal and no artifacts until CH11 publishes the exact entry list");
+    // analysis/ owns all source admission (tsonic/docs/architecture/csharp-rust-structure.md, analysis/ row): the
+    // factory refusal is an analysis refusal, so no program, plan or artifact is published (RULINGS 2026-10-22).
+    assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+      "C375 is refused in analysis with no program, plan or artifacts until CH11 publishes the exact entry list");
   });
 }
 

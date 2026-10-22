@@ -13,6 +13,11 @@ import { selectCsharpTypedLocationStorage } from "../storage/typed-locations.js"
 
 import { selectCsharpNativeTypedLocationOperation, nativeRefReturnFromMember } from "../../policy/operations/typed-locations/selection.js";
 
+/** The user-facing refusal of a typed-location operation the policy rejected. */
+export function csharpTypedLocationLoweringRefusal(operation: string, reason: string): string {
+  return `C# '${operation}' lowering requires one exact finalized typed-location operation. ${reason}`;
+}
+
 export function selectCsharpTypedLocationOperation(
   input: CsharpPolicyContext, node: Node, sourceFile: SourceFile,
 ): CsharpTypedLocationOperationSelection {

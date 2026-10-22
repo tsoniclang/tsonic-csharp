@@ -20,11 +20,18 @@ export type CsharpObjectLiteralEmission = {
 export interface CsharpObjectInitialization {
   readonly inlineUnique: boolean;
   readonly slots: readonly { readonly name: string; readonly carrier: TargetTypeRef; readonly initializeAbsence: boolean }[];
+  /**
+   * Required data members of the constructed shape that the literal does not author (an Object.assign target built at
+   * the merged result shape); they start at their storage default and the selected call writes them.
+   */
+  readonly deferred: readonly { readonly name: string; readonly carrier: TargetTypeRef }[];
 }
 
 export interface CsharpObjectLiteralRecords {
   readonly objectLiteral: { readonly get: (shape: CsharpObjectShapeFact, node: Node) => CsharpObjectLiteralEmission | undefined };
   readonly objectLiteralMember: { readonly get: (shape: CsharpObjectShapeFact, node: Node) => CsharpObjectLiteralMemberEmission | undefined };
+  /** Every object-literal method or accessor whose body receives the object as its receiver, with that receiver carrier. */
+  readonly receiverBoundCallables: readonly { readonly property: Node; readonly receiver: TargetTypeRef }[];
 }
 
 export interface CsharpObjectLiteralCallableEmission {

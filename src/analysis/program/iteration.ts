@@ -196,6 +196,7 @@ export function analyzeCsharpRepresentationIteration(
   const callableCreations = analyzeCsharpCallableCreations({
     ast: source.ast, nodes: sourceStorage.nodes, captures: captureStorage, contracts: callables,
     expectedTypes, storage: storageRepresentations, evidence: sourceEvidence, conversions: preparedConversions,
+    literals: typeHost.literalValues,
   });
   const participation = analyzeCsharpNativeParticipation({
     ast: source.ast, storage: sourceStorage, navigation: source.navigation,

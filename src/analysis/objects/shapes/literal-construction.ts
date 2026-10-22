@@ -80,8 +80,12 @@ export function createCsharpLiteralShapeResolver(
     const copiedMethods = host.ast.properties(objectLiteral).some(property => property !== undefined &&
       host.ast.is.IsSpreadAssignment(property)) && expectedShape.members.some(csharpObjectShapeMethodRequiresProtocol);
     const ownsImplementation = expectedShape.methodImplementation?.declaration === objectLiteral;
+    // A concrete generated shape (an interface intersection, no contract to implement) is constructed directly: its
+    // methods are delegate fields that the literal's methods initialize, so method bodies need no own implementation.
+    const concreteTarget = implemented === undefined &&
+      (expectedShape.targetType as CsharpTargetNamedTypeRef).csharpGeneratedStructuralStorage === true;
     if (accessors.kind === "none" && implemented === expectedShape.implements &&
-      (!nativeMethodLiteral || ownsImplementation) && !copiedMethods) {
+      (!nativeMethodLiteral || ownsImplementation || concreteTarget) && !copiedMethods) {
       return { kind: "resolved", shape: expectedShape };
     }
     if (copiedMethods) {

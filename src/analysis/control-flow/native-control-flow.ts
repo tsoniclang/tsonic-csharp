@@ -168,12 +168,14 @@ export function admitCsharpStatementBindings(
       const clause = ast.as.AsCatchClause(node);
       const declaration = clause?.VariableDeclaration;
       const name = declaration === undefined ? undefined : ast.name(declaration);
-      if (declaration === undefined || name === undefined || !order.some(step =>
-        step.kind === "construct" && step.construct === declaration)) continue;
+      // Destructuring the caught value reads it (a thrown null or primitive fails the pattern in JS), so an emitted
+      // catch clause refuses the pattern whether or not its bindings are used; dropping it would change behaviour.
       if (name !== undefined && (ast.is.IsObjectBindingPattern(name) || ast.is.IsArrayBindingPattern(name))) {
         refuse(name, "Catch destructuring requires a closed thrown-value carrier; unknown catch values cannot trickle into C#.");
         continue;
       }
+      if (declaration === undefined || name === undefined || !order.some(step =>
+        step.kind === "construct" && step.construct === declaration)) continue;
       const throwable = operations.throwable.get(name);
       if (throwable === undefined) {
         refuse(name, "Catch variable has no sealed C# throwable classification.");

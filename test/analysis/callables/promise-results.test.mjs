@@ -11,7 +11,8 @@ for (const [name, statement, discarded] of [
   ["awaited", "return await leaf();", 0],
 ]) {
   test(`C# publishes the selected Promise result use: ${name}`, () => {
-    const compiled = compileCsharpSource({ surface: "js", sourceText: `
+    // Executable output: its startup record carries the selected binary execution driver (a library has none).
+    const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText: `
       async function leaf(): Promise<number> { return 1; }
       export async function outer(flag: boolean): Promise<number> { ${statement} return 0; }
     ` });

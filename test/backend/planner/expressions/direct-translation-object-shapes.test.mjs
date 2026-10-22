@@ -209,6 +209,8 @@ test("object-literal method receiver requirements replan every implementation of
   assert.deepEqual(compiled.targetDiagnostics, []);
   const source = compiled.artifacts.get("src/Index.cs") ?? "";
   const shapes = compiled.artifacts.get("generated/TsonicObjectShapes.cs") ?? "";
+  // Object-literal methods are delegate fields; the implementation whose body reads the receiver stores a delegate that
+  // takes it and its method passes this (RULINGS 2026-10-23, delegate-field method values).
   assert.equal((source.match(/__tsonic_shape_method_\w+ =/gu) ?? []).length, 2);
   assert.match(
     shapes,

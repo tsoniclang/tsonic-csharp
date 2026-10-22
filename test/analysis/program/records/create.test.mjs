@@ -1,42 +1,31 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { analyzeCsharpAnalysisProgram } from "../../../../dist/analysis/program/index.js";
-import { createCsharpTargetConfiguration } from "../../../../dist/compilation/configuration.js";
-import { createCsharpProviderRelationResolver } from "../../../../dist/providers/native/projection/relation-resolution.js";
-import { checkCsharpSource, assertCsharpCheckingSucceeded } from "../../../helpers/direct-csharp-session.mjs";
+import { withCsharpSessionRequest } from "../../../helpers/direct-csharp-session.mjs";
 import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
-import { completeCsharpAnalysisRequest } from "../../../helpers/analysis-request.mjs";
-
-const analyzeCompletedCsharpProgram = request => analyzeCsharpAnalysisProgram(completeCsharpAnalysisRequest(request));
 
 function fixture(surface) {
-  const checked = checkCsharpSource({ surface, sourceText: `
+  return withCsharpSessionRequest({ surface, sourceText: `
     import type { int32 } from "@tsonic/core/types.js";
     export function add(left: int32, right: int32): int32 { return left + right; }
     export const total: int32 = add(2, 3);
-  ` });
-  assertCsharpCheckingSucceeded(checked);
-  const source = createTargetSourceProgram(checked.source);
-  const analyzed = analyzeCompletedCsharpProgram({
-    input: { source, sourcePackages: checked.sourcePackages, project: checked.project, target: checked.target,
-      runtimeActivatedCapabilityIds: [], runtimeReferences: [], paths: checked.paths },
-    configuration: createCsharpTargetConfiguration(checked.target, checked.paths.projectRoot, checked.paths.targetOutputRoot),
-    providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
-  });
-  assert.equal(analyzed.kind === "resolved", true, `${surface}: valid source analysis`);
-  const program = analyzed.value;
-  const nodes = [];
-  const pending = [...csharpProgramSourceFiles(program)];
-  while (pending.length > 0) {
-    const node = pending.pop();
-    nodes.push(node);
-    source.ast.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
-  }
-  const call = nodes.find(node => source.ast.is.IsCallExpression(node));
-  const declaration = nodes.find(node => source.ast.is.IsFunctionDeclaration(node));
-  assert.equal(call !== undefined && declaration !== undefined, true, `${surface}: exact source subjects`);
-  return { program, call, declaration };
+  ` }, request => {
+    const source = request.input.source;
+    const analyzed = analyzeCsharpAnalysisProgram(request);
+    assert.equal(analyzed.kind === "resolved", true, `${surface}: valid source analysis`);
+    const program = analyzed.value;
+    const nodes = [];
+    const pending = [...csharpProgramSourceFiles(program)];
+    while (pending.length > 0) {
+      const node = pending.pop();
+      nodes.push(node);
+      source.ast.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
+    }
+    const call = nodes.find(node => source.ast.is.IsCallExpression(node));
+    const declaration = nodes.find(node => source.ast.is.IsFunctionDeclaration(node));
+    assert.equal(call !== undefined && declaration !== undefined, true, `${surface}: exact source subjects`);
+    return { program, call, declaration };
+  }).value;
 }
 
 for (const surface of ["native", "js"]) {

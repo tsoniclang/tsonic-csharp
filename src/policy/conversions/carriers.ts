@@ -172,6 +172,13 @@ export function selectNullableConversion(
         : { kind: "nullable-map", sourceElement, targetElement, conversion: elementConversion };
     }
   }
+  // C# boxes a Nullable<T> to any reference type T itself boxes to: a value boxes to T, an absent value to the null
+  // reference, so source absence stays the null reference the nullable carrier already represents.
+  if (sourceElement !== undefined && targetElement === undefined && !isCsharpNullableReferenceTargetType(source) &&
+    !targetTypeRefEquals(sourceElement, target)) {
+    const boxed = selectCsharpConversion(input, sourceElement, target, "implicit");
+    if (boxed.kind === "implicit" && boxed.proof === "reference") return { kind: "implicit", proof: "reference" };
+  }
   if (sourceElement !== undefined && targetTypeRefEquals(sourceElement, target)) {
     return mode === "explicit"
       ? isCsharpNullableReferenceTargetType(source)

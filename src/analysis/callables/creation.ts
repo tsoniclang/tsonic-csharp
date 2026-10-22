@@ -1,4 +1,6 @@
 import type { AstReader, Node } from "@tsonic/tsts";
+import { HasSyntacticModifier, ModifierFlagsAsync, type SourceLiteralIndex } from "@tsonic/target-api/source";
+import { csharpLiteralReturnsFit } from "./return-expressions.js";
 import type { CsharpCaptureStorage } from "../../target-model/records/capture-storage.js";
 import type { CsharpExpectedTypeClassifications } from "../../target-model/records/expected-types.js";
 
@@ -6,7 +8,7 @@ import type { CsharpSourceEvidenceIndex } from "../../target-model/records/sourc
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
 import type { CsharpConversionClassifications } from "../../target-model/records/conversions.js";
 import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
-import { getCsharpLambdaSignature } from "../../target-model/types/carriers/delegates.js";
+import { getCsharpLambdaSignature, getCsharpTaskResultTargetType } from "../../target-model/types/carriers/delegates.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
@@ -23,6 +25,7 @@ export interface CsharpCallableCreationInput {
   readonly storage: Pick<CsharpStorageClassifications, "lambdaParameterType">;
   readonly evidence: Pick<CsharpSourceEvidenceIndex, "nodeTargetType" | "compileTimeMetadata">;
   readonly conversions: Pick<CsharpConversionClassifications, "conversion">;
+  readonly literals: SourceLiteralIndex;
 }
 
 export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInput): CsharpCallableCreationIndex {
@@ -67,7 +70,17 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
             (native.paramsArray === true) === (signature.restParameterIndex === index);
         })) return false;
       const completion = input.conversions.conversion.get(contract.returnType, signature.returnType, "implicit");
-      return completion !== undefined && csharpConversionIsApplicable(completion, "implicit");
+      // An async body completes the delegate's task with each returned value, so Func<long, Task<long>> matches the
+      // contextual Func<long, Task<long?>> when its result converts implicitly.
+      const async = HasSyntacticModifier(input.ast, node, ModifierFlagsAsync);
+      const bodyResult = async ? getCsharpTaskResultTargetType(contract.returnType) : undefined;
+      const delegateResult = async ? getCsharpTaskResultTargetType(signature.returnType) : undefined;
+      const awaited = bodyResult === undefined || delegateResult === undefined ? undefined
+        : input.conversions.conversion.get(bodyResult, delegateResult, "implicit");
+      // A literal-only body returns through the delegate's own return context, so `() => 9n` matches Func<long>.
+      return completion !== undefined && csharpConversionIsApplicable(completion, "implicit") ||
+        awaited !== undefined && csharpConversionIsApplicable(awaited, "implicit") ||
+        csharpLiteralReturnsFit(input.ast, input.literals, node, signature.returnType);
     }
   }
   return producer.seal();

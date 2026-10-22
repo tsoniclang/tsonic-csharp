@@ -29,6 +29,8 @@ export interface CsharpExpectedTypePropagation {
     readonly arrayLiteralCarrier: (expression: Node, targetType: TargetTypeRef) => TargetTypeRef | undefined;
     readonly constructionCarrier: (expression: Node, targetType: TargetTypeRef) => TargetTypeRef | undefined;
     readonly objectShape: (expression: Node, targetType: TargetTypeRef) => CsharpObjectShapeFact | undefined;
+    /** The reason an object literal has no construction at this expected type (its shape construction was rejected). */
+    readonly constructionRejection: (expression: Node, targetType: TargetTypeRef) => string | undefined;
     readonly intrinsicTarget: (expression: Node, targetType: TargetTypeRef) => boolean;
     readonly propertyKeyRequests: readonly CsharpExactLiteralRequest[];
     readonly propertyKeys: (expression: Node, carrier: TargetTypeRef) => readonly CsharpNativePropertyKeyBinding[] | undefined;
@@ -45,6 +47,7 @@ export function createCsharpExpectedTypePropagation(
   const arrayCarriers = new WeakMap<Node, Map<string, TargetTypeRef>>();
   const nonArrayCarriers = new WeakMap<Node, Map<string, TargetTypeRef>>();
   const objectConstructions = new WeakMap<Node, Map<string, CsharpObjectShapeFact>>();
+  const constructionRejections = new WeakMap<Node, Map<string, string>>();
   const intrinsicTargets = new WeakMap<Node, Set<string>>();
   const positionsByOwner = new WeakMap<Node, ReadonlyMap<Node, number>>();
   const propertyKeys = new WeakMap<Node, Map<string, readonly CsharpNativePropertyKeyBinding[]>>();
@@ -61,6 +64,8 @@ export function createCsharpExpectedTypePropagation(
         (arrayCarriers.get(expression) ?? nonArrayCarriers.get(expression))?.get(targetTypeRefKey(targetType)),
       objectShape: (expression: Node, targetType: TargetTypeRef) =>
         objectConstructions.get(expression)?.get(targetTypeRefKey(targetType)),
+      constructionRejection: (expression: Node, targetType: TargetTypeRef) =>
+        constructionRejections.get(expression)?.get(targetTypeRefKey(targetType)),
       intrinsicTarget: (expression: Node, targetType: TargetTypeRef) =>
         intrinsicTargets.get(expression)?.has(targetTypeRefKey(targetType)) === true,
       propertyKeyRequests: Object.freeze([...propertyKeyRequests]),
@@ -207,6 +212,12 @@ export function createCsharpExpectedTypePropagation(
       expression,
     );
     if (resolution?.kind !== "resolved") {
+      // A rejected construction keeps its reason: the literal's expected use stays pending and reports it.
+      if (resolution?.kind === "rejected") {
+        const reasons = constructionRejections.get(expression) ?? new Map<string, string>();
+        reasons.set(targetTypeRefKey(targetType), resolution.reason);
+        constructionRejections.set(expression, reasons);
+      }
       return;
     }
     recordObjectShape(expression, targetType, resolution.shape);
@@ -255,6 +266,10 @@ export function createCsharpExpectedTypePropagation(
       } else if (policy.ast.is.IsShorthandPropertyAssignment(property)) {
         record(policy.ast.name(property), selected.member.type, strength, member(property),
           selected.member.exactNumericStorage === true);
+      } else if (policy.ast.is.IsMethodDeclaration(property) && selected.member.memberKind === "method") {
+        // An object-literal method initializes its member's delegate field, so that delegate is its callable target
+        // (parameters and defaults lower against it, as for an arrow property).
+        record(property, selected.member.type, strength);
       }
     }
   }

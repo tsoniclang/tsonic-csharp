@@ -24,12 +24,17 @@ System.GC.KeepAlive(read);
 `);
   });
 
-  test(`lexical loop activations retain copied and live captures in ${surface}`, { timeout: 300_000 }, () => {
+  // headerEvaluation declares loop bindings named 'index' inside a function body that also declares 'let index': C#
+  // CS0136. PORT-MAP (names/plan.ts): authored values keep their spelling and native CS0136 collisions reject before
+  // sealing (RULINGS 2026-10-23), so the C# target refuses each nested binding and publishes nothing.
+  test(`lexical loop activations refuse C# CS0136 binding collisions before publication in ${surface}`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface, sourceText: loopCaptureStorageSource });
-    assertCsharpCompilationSucceeded(compiled);
-    assert.equal(/\bdynamic\b|Unsafe\.|Activator/u.test([...compiled.artifacts.values()].join("\n")), false);
-    executeCsharpConstruction(compiled, `loop-capture-storage-${surface}`,
-      false, false, [], "Tsonic.Generated.Index.main();");
+    assert.equal(compiled.sourceDiagnosticsText, "");
+    assert.deepEqual(compiled.result.diagnostics.map(({ code, message }) => ({ code, message })), Array.from({ length: 2 }, () => ({
+      code: "CSHARP_INVALID_IDENTIFIER",
+      message: "Authored binding 'index' conflicts with an enclosing C# local declaration space (CS0136); its spelling cannot be changed.",
+    })));
+    assert.equal(compiled.artifacts.size, 0);
   });
 
   test(`repeated named-self creation within one live activation remains distinct in ${surface}`, { timeout: 300_000 }, () => {

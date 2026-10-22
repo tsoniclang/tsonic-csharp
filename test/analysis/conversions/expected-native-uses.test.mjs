@@ -10,7 +10,7 @@ import { collectCsharpExpectedNativeUseSites } from "../../../dist/analysis/expe
 import { csharpNativeUseSite } from "../../../dist/target-model/records/native-demand.js";
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
-import { createExpectedNativeUseOwner } from "../../helpers/expected-native-uses.mjs";
+import { createExpectedNativeUseOwner, publishedGeneratorCarrier } from "../../helpers/expected-native-uses.mjs";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 function owners(sourceText, surface = "native", targetOptions) {
@@ -26,7 +26,7 @@ function owners(sourceText, surface = "native", targetOptions) {
   for (const file of csharpProgramSourceFiles(program)) walk(file);
   const contracts = nodes.filter(node => ast.is.IsFunctionDeclaration(node) && ast.body(node) !== undefined).flatMap(node => {
     const declared = records.returnContract.get(node);
-    const returnType = records.generatorTargetType.get(node) ?? (declared?.kind === "resolved" ? declared.type : undefined);
+    const returnType = publishedGeneratorCarrier(records, node) ?? (declared?.kind === "resolved" ? declared.type : undefined);
     return returnType === undefined ? [] : [{ sourceDeclaration: node, returnType }];
   });
   const privateOwner = createExpectedNativeUseOwner(compiled);

@@ -8,7 +8,7 @@ import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
 import { planSelectedCsharpBinaryOperation } from "./selected-binary.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import { type CsharpPlannedValue } from "./planned-values.js";
+import { csharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { buildCsharpPlannedValue, composeCsharpPlannedValues, projectCsharpPlannedValue } from "./planned-value-composition.js";
 
 export function planTypedArrayMutation(
@@ -53,16 +53,13 @@ export function planTypedArrayMutation(
   const selected: CsharpExpression = { kind: "IdentifierName", name };
   const owner: CsharpExpression = { kind: "SimpleMemberAccessExpression", receiver: selected, name: "Item1" };
   const offset: CsharpExpression = { kind: "SimpleMemberAccessExpression", receiver: selected, name: "Item2" };
+  // The element read of the compound assignment is the held element (owner.Get(offset)) at its element carrier; its
+  // receiver and index are evaluated once, by the tuple above.
   const left = selection.calculation.left;
-  const previous = state.expressionOverrides.get(left);
-  state.expressionOverrides.set(left, invoke(owner, "Get", [offset]));
-  let value: CsharpPlannedValue | undefined;
-  try {
-    value = planSelectedCsharpBinaryOperation(node, selection.calculation, sourceFile, input, diagnostics, planExpression, state);
-  } finally {
-    if (previous === undefined) state.expressionOverrides.delete(left);
-    else state.expressionOverrides.set(left, previous);
-  }
+  const element = csharpPlannedValue(selection.calculation.leftType, invoke(owner, "Get", [offset]));
+  const planCalculationOperand: ExpressionPlanner = (subject, file, context, errors, nested) =>
+    subject === left ? element : planExpression(subject, file, context, errors, nested);
+  const value = planSelectedCsharpBinaryOperation(node, selection.calculation, sourceFile, input, diagnostics, planCalculationOperand, state);
   const result = projectCsharpPlannedValue(node, sourceFile, input, diagnostics, value,
     expression => invoke(owner, "Set", [offset, expression]), selection.resultType);
   return composeCsharpPlannedValues(node, sourceFile, input, diagnostics, [receiver, index], values =>

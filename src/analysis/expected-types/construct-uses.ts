@@ -4,6 +4,7 @@ import { csharpCallableValueType } from "../../policy/types/callables/value-type
 import { csharpSourceArgumentExpectedType, csharpTargetParameterValueType, getCsharpGeneratorProtocol,
   resolveCsharpObjectShapeMemberBySelectedSubject } from "../../policy/types/index.js";
 import { csharpSelectedTargetArgumentBindings, csharpSourceOwnedArgumentBindings, csharpProviderArgumentSourceCarrier } from "../../policy/operations/members/native-use-arguments.js";
+import { isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import type { CsharpNativeUseSlot } from "../../target-model/records/native-demand.js";
 import type { CsharpTargetCallSelection } from "../../target-model/records/member-selections.js";
 import type { ResolvedSourceCallInfo } from "../../target-model/records/source-calls.js";
@@ -36,8 +37,11 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
     const name = policy.ast.name(node);
     if (policy.ast.is.IsVariableDeclaration(node) && name !== undefined &&
       (policy.ast.is.IsObjectBindingPattern(name) || policy.ast.is.IsArrayBindingPattern(name))) {
-      record(initializer, valueReadStages.get(initializer)?.operationValue, "required",
-        slot === undefined ? undefined : at(node, slot));
+      // An annotated destructuring declaration whose initializer is an array or object literal types the literal at the
+      // annotation; any other initializer keeps its own operation value and is destructured member by member.
+      const literal = policy.ast.is.IsArrayLiteralExpression(initializer) || policy.ast.is.IsObjectLiteralExpression(initializer);
+      record(initializer, typeNode === undefined || !literal ? valueReadStages.get(initializer)?.operationValue : evidence.nodeTargetType.get(typeNode),
+        "required", slot === undefined ? undefined : at(node, slot));
       return;
     }
     const target = policy.ast.is.IsParameterDeclaration(node) ? declarations.runtimeDefault.get(node)?.valueType : undefined;
@@ -74,10 +78,19 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
     else if (location?.kind === "location-bind" || location?.kind === "location-project" || location?.kind === "location-view") {
       for (const [index, argument] of location.arguments.entries()) record(argument.expression, argument.type, "required", intrinsic("argument", index));
     }
+    // An instance member selected on a receiver whose member storage is a JS value (`options.cert.length` with cert
+    // stored as TsValue on a provider options object) reads the receiver at the member's declaring type.
+    const property = policy.ast.is.IsPropertyAccessExpression(node) ? operations.selectedProperty.get(node)?.selection : undefined;
+    const receiverStorage = property?.kind === "resolved" ? operations.sourceMember.get(property.source.receiver.expression)?.rawReadType : undefined;
+    if (property?.kind === "resolved" && property.receiver.kind === "instance" && property.targetMember.declaringType !== undefined &&
+      !isCsharpJsValueTargetType(property.targetMember.declaringType) && isCsharpJsValueTargetType(receiverStorage)) {
+      record(property.source.receiver.expression, property.targetMember.declaringType, "required", at(node, { kind: "receiver" }));
+    }
     if (handler === undefined) {
       const call = operations.selectedCall.get(node);
       if (call?.form.kind === "target") {
-        if (call.target?.kind === "resolved") recordSelectedCall(node, call.target);
+        if (call.target?.kind === "resolved") recordSelectedCall(node, call.target,
+          call.optionalReceiver?.storage);
         else if (call.source !== undefined) recordSourceArguments(node, call.source, call.sourceArgumentParameterTypes, call.sourceArgumentGrouping);
       }
       const construction = operations.selectedConstruction.get(node);
@@ -152,11 +165,15 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
         effectiveIndex: binding.effectiveArgumentIndex, sourceParameterIndex: binding.sourceParameterIndex }, withheld });
   }
 
-  function recordSelectedCall(owner: Node, selection: Extract<CsharpTargetCallSelection, { readonly kind: "resolved" }>): void {
+  function recordSelectedCall(owner: Node, selection: Extract<CsharpTargetCallSelection, { readonly kind: "resolved" }>,
+    chainReceiverStorage?: TargetTypeRef): void {
     const call = selection.call;
     if (call.receiver.kind === "target-parameter") {
       const parameter = call.targetMember.parameters[call.receiver.targetParameterIndex];
-      record(selection.source.sourceReceiver?.expression, parameter === undefined ? undefined : csharpTargetParameterValueType(parameter, "value"),
+      // An optional-chain receiver is read at its nullable storage: the chain passes the presence-narrowed value, whose
+      // conversion to the parameter is the optional receiver's own sealed conversion.
+      record(selection.source.sourceReceiver?.expression, chainReceiverStorage ??
+        (parameter === undefined ? undefined : csharpTargetParameterValueType(parameter, "value")),
         "required", at(owner, { kind: "receiver" }));
     }
     const bindings = csharpSelectedTargetArgumentBindings(call);
@@ -175,7 +192,11 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
       if (sequence !== undefined) recordedSequences.add(argument.sourceArgumentIndex);
       const expression = sequence?.expression ?? selection.source.sourceArguments[argument.sourceArgumentIndex]?.expression;
       const mapping = mappings?.get(argument.effectiveArgumentIndex);
-      const target = sequence?.sourceType ?? csharpProviderArgumentSourceCarrier(mapping) ??
+      // A property-projected argument (Intl options) is read at its own value: the call projects its selected properties
+      // into the TsValue parameter, so the argument itself is not boxed.
+      const projected = argument.targetParameter.csharpValueProjection === "properties" && expression !== undefined &&
+        !policy.ast.is.IsObjectLiteralExpression(expression) ? valueReadStages.get(expression)?.operationValue : undefined;
+      const target = sequence?.sourceType ?? projected ?? csharpProviderArgumentSourceCarrier(mapping) ??
         sourceArgumentExpectedType(expression, argument.targetParameter, argument.sourceForm);
       const binding = bySource.get(argument.sourceArgumentIndex)?.get(argument.effectiveArgumentIndex);
       record(expression, target, "required", { owner,

@@ -1,49 +1,30 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { resolvedTargetStage, runTargetCompilationStages } from "@tsonic/target-api/artifacts";
-import { checkCsharpSource, assertCsharpCheckingSucceeded, compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
+import { compileCsharpSource, assertCsharpCompilationSucceeded, withCsharpSessionRequest } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpAnalysisProgram } from "../../../dist/analysis/program/index.js";
-import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
-import { createCsharpTargetConfiguration } from "../../../dist/compilation/configuration.js";
 import { planFlowReadUseSiteProjection } from "../../../dist/backend/planner/expressions/flow-read-projections.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
-import { completeCsharpAnalysisRequest } from "../../helpers/analysis-request.mjs";
-
-const analyzeCompletedCsharpProgram = request => analyzeCsharpAnalysisProgram(completeCsharpAnalysisRequest(request));
-
-function analysisRequest(sourceText, surface = "native") {
-  const checked = checkCsharpSource({ sourceText, surface });
-  assertCsharpCheckingSucceeded(checked);
-  const source = createTargetSourceProgram(checked.source);
-  return { source, request: {
-    input: { source, sourcePackages: checked.sourcePackages, project: checked.project, target: checked.target,
-      runtimeActivatedCapabilityIds: [], runtimeReferences: [], paths: checked.paths },
-    configuration: createCsharpTargetConfiguration(checked.target, checked.paths.projectRoot, checked.paths.targetOutputRoot),
-    providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
-  } };
-}
 
 function fixture(sourceText, surface = "native") {
-  const { source: original, request } = analysisRequest(sourceText, surface);
-  let closed = false;
-  const source = { ...original, ast: { ...original.ast,
-    parent(node) { assert.equal(closed, false, "parent queries finish before publication"); return original.ast.parent(node); },
-  } };
-  const result = analyzeCompletedCsharpProgram({
-    ...request,
-    input: { ...request.input, source },
-  });
-  assert.equal(result.kind === "resolved", true, result.diagnostics.map(value => value.message).join("\n"));
-  const nodes = [];
-  function visit(node) {
-    nodes.push(node);
-    original.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
-  }
-  for (const file of original.navigation.sourceFiles) visit(file);
-  closed = true;
-  return { program: result.value, nodes, ast: original.ast, navigation: original.navigation };
+  return withCsharpSessionRequest({ sourceText, surface }, request => {
+    const original = request.input.source;
+    let closed = false;
+    const source = { ...original, ast: { ...original.ast,
+      parent(node) { assert.equal(closed, false, "parent queries finish before publication"); return original.ast.parent(node); },
+    } };
+    const result = analyzeCsharpAnalysisProgram({ ...request, input: { ...request.input, source } });
+    assert.equal(result.kind === "resolved", true, result.diagnostics.map(value => value.message).join("\n"));
+    const nodes = [];
+    function visit(node) {
+      nodes.push(node);
+      original.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    }
+    for (const file of original.navigation.sourceFiles) visit(file);
+    closed = true;
+    return { program: result.value, nodes, ast: original.ast, navigation: original.navigation };
+  }).value;
 }
 
 for (const surface of ["native", "js"]) {
@@ -62,7 +43,9 @@ for (const surface of ["native", "js"]) {
     const compiled = compileCsharpSource({ sourceText, surface });
     assertCsharpCompilationSucceeded(compiled);
     const generated = compiled.artifacts.get("src/Index.cs");
-    assert.equal(generated.includes("maybe ?? 0D"), true, "the absence consumer reads the native nullable once");
+    // The literal keeps its surface's source representation (checkpoint output): an int32 token on native, float64 on js.
+    assert.equal(generated.includes(surface === "js" ? "maybe ?? 0D" : "maybe ?? 0)"), true,
+      "the absence consumer reads the native nullable once");
     assert.equal(executeCsharpConstruction(compiled, `absence-binding-${surface}`, false, false, [],
       "System.Console.WriteLine(Tsonic.Generated.Index.run());"), "17\n");
   });
@@ -337,7 +320,8 @@ for (const surface of ["native", "js"]) {
   });
 
   test(`${surface} ambiguous runtime-read evidence rejects before program publication or planning`, () => {
-    const { source: original, request } = analysisRequest("export function read(value: number): number { return value; }", surface);
+    withCsharpSessionRequest({ sourceText: "export function read(value: number): number { return value; }", surface }, request => {
+    const original = request.input.source;
     const declaration = original.ast.statements(original.navigation.sourceFiles[0])[0];
     const statement = original.ast.statements(original.ast.body(declaration))[0];
     const subject = original.ast.as.AsReturnStatement(statement).Expression;
@@ -352,7 +336,7 @@ for (const surface of ["native", "js"]) {
     let planned = 0;
     let materialized = 0;
     const result = runTargetCompilationStages({
-      analyze: () => analyzeCompletedCsharpProgram({ ...request, input: { ...request.input, source } }),
+      analyze: () => analyzeCsharpAnalysisProgram({ ...request, input: { ...request.input, source } }),
       plan() { planned += 1; throw new Error("rejected source must not reach planning"); },
       materialize() { materialized += 1; throw new Error("rejected source must not emit artifacts"); },
     });
@@ -365,6 +349,7 @@ for (const surface of ["native", "js"]) {
     assert.match(result.diagnostics[0].message, /checked source value refinement is ambiguous/u);
     assert.equal(planned, 0);
     assert.equal(materialized, 0);
+    });
   });
 }
 

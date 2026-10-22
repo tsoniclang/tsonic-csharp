@@ -11,6 +11,7 @@ import { csharpNativeUseSite } from "../../../../dist/target-model/records/nativ
 import { csharpPlannedValue } from "../../../../dist/backend/planner/expressions/planned-values.js";
 import { csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/index.js";
 import { printCsharpExpression } from "../../../../dist/print/source/printer.js";
+import { csharpTypeEmissionRecord } from "../../../helpers/planning-records.mjs";
 
 const int32 = csharpSourcePrimitiveTargetType("int32");
 const float64 = csharpSourcePrimitiveTargetType("float64");
@@ -129,6 +130,7 @@ test("the one sealed native binary plans its operands in order with their select
   const records = { nativeExpression: { get: node => node === binary ? { use: native, physical: native, conversion: undefined } : undefined },
     nativeBinaryEmission: { get: (node, selection) => node === binary && selection === selected ? emission : undefined },
     int32Remainder: { get: () => false },
+    typeEmission: csharpTypeEmissionRecord(),
     expectedBinary: { get: () => assert.fail("the planner cannot reselect") } };
   const input = { scope: {}, program: { source: { ast: current.ast }, records } };
   const diagnostics = [];

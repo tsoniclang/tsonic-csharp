@@ -8,7 +8,7 @@ import { AsAwaitExpression, AsNoSubstitutionTemplateLiteral, AsStringLiteral,
   Node_Text, SourceKind } from "@tsonic/target-api/source";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
-import { planIntegerLiteral, planCsharpExactLiteralRecipe } from "./literal-conversions.js";
+import { planCsharpExactLiteralRecipe } from "./literal-conversions.js";
 import { requireCsharpStringRuntimeCarrier } from "./expression-literal-carriers.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { planThisExpression } from "./expression-this.js";
@@ -16,6 +16,7 @@ import { planCsharpAwaitCompletion } from "./await-completions.js";
 import type { CsharpPlannedValue } from "./planned-values.js";
 import { planCsharpExpressionCompletion } from "./planned-value-composition.js";
 import { readCsharpNativeExpressionCarrier } from "./native-uses.js";
+import { planCsharpAbsenceLiteral } from "./optional-storage.js";
 
 export function tryPlanSourceSyntaxExpression(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner): CsharpPlannedValue | undefined {
@@ -38,19 +39,12 @@ export function tryPlanSourceSyntaxExpression(node: Node, sourceFile: SourceFile
       }
       const type = csharpTypeFromTargetTypeRef(selection.carrier, input.scope.typeParameterNames)
         ?? failCsharpPlannerInvariant("An admitted bigint requires its native value type.", node);
-      const storage = selection.storage;
-      const argumentsList: CsharpExpression[] = storage.kind === "bytes" ? [
-        { kind: "CollectionExpression", elements: storage.bytes.map(value => ({ kind: "ExpressionElement", expression: { kind: "LiteralExpression", value } })) },
-        { kind: "LiteralExpression", value: true }, { kind: "LiteralExpression", value: false },
-      ] : [planIntegerLiteral(input.scope.typeParameterNames, storage.value, { kind: "source-primitive", name: storage.kind })
-        ?? failCsharpPlannerInvariant("An admitted bigint requires its exact native scalar bits.", node)];
-      const created: CsharpExpression = { kind: "ObjectCreationExpression", type,
-        arguments: argumentsList.map(expression => ({ kind: "Argument", expression })) };
-      return value(selection.negative ? { kind: "PrefixUnaryExpression", operatorToken: { kind: "MinusToken" }, operand: created } : created);
+      return value({ kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression", receiver: type, name: "Parse" },
+        arguments: [{ kind: "Argument", expression: { kind: "LiteralExpression", value: selection.decimal } }] });
     }
     case KindTrueKeyword: return value({ kind: "LiteralExpression", value: true });
     case KindFalseKeyword: return value({ kind: "LiteralExpression", value: false });
-    case KindNullKeyword: return value({ kind: "LiteralExpression", value: null });
+    case KindNullKeyword: return value(planCsharpAbsenceLiteral(readCsharpNativeExpressionCarrier(input, node), input));
     case KindThisKeyword:
     case KindSuperKeyword: {
       const selected = value(SourceKind(input.program.source.ast, node) === KindThisKeyword

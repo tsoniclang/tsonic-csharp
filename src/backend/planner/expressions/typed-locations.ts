@@ -14,11 +14,10 @@ import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { planCsharpNativeMemoryCall } from "./native-memory.js";
 import { planCsharpIndexedLocation } from "./indexed-locations.js";
-import { csharpPlannedValue } from "./planned-values.js";
 import { buildCsharpPlannedValue, projectCsharpPlannedValue, projectCsharpPlannedMember, planCsharpExpressionCompletion } from "./planned-value-composition.js";
 import { readCsharpNativeExpressionCarrier } from "./native-uses.js";
 import { captureCsharpPlannedLocation } from "./planned-locations.js";
-import { translateCsharpPropertyAccess } from "./selected-property.js";
+import { planCsharpSourceMemberName } from "./source-member-names.js";
 
 export function planCsharpTypedLocationOperation(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner, state?: DestructuringPlannerState): CsharpPlannedValue | undefined {
@@ -147,12 +146,9 @@ function planValuePropertyLocation(storage: Extract<CsharpTypedLocationStorage, 
   const receiverName = allocateSyntheticParameter(state);
   const valueName = allocateSyntheticParameter(state);
   const receiver = identifier(receiverName);
-  const accessPlan = translateCsharpPropertyAccess(storage.expression, sourceFile, { ...input, storageExpression: storage.expression }, diagnostics,
-    expression => expression === storage.receiverStorage.expression ? { ...csharpPlannedValue(storage.receiverStorage.valueType, receiver), address: { kind: "root" } } : undefined);
-  if (accessPlan === undefined || accessPlan.completion.kind !== "value" || accessPlan.prelude.length !== 0)
-    failCsharpPlannerInvariant("An admitted value-field accessor requires its exact sealed native owner and member operands.", storage.expression);
-  const address = requiredMember(accessPlan, storage.expression);
-  const access = member(address.receiver.expression, address.name);
+  // An intermediate link is a location, never a value read: it has no native expression use, and a flow-narrowed read
+  // type does not apply to it. Its accessor is the sealed source field over the owner location's receiver.
+  const access = member(receiver, valueFieldName(storage, input));
   const bound = renderBound(storage, input);
   const type = nativeType(storage.valueType, input, storage.expression);
   return projectCsharpPlannedValue(storage.expression, sourceFile, input, diagnostics, owner, value => bound === undefined
@@ -193,6 +189,17 @@ function requiredAddress(planned: CsharpPlannedValue, node: Node): CsharpPlanned
   let address = planned.address;
   while (address?.kind === "parenthesized") address = address.operand.address;
   return address ?? failCsharpPlannerInvariant("An admitted native location requires its exact rendered address operands.", node);
+}
+
+function valueFieldName(storage: Extract<CsharpTypedLocationStorage, { readonly kind: "value-property-storage" }>,
+  input: CsharpPlanningContext): string {
+  const property = input.program.records.selectedProperty.get(storage.expression);
+  const selected = input.program.records.sourceMemberEmission.get(storage.expression);
+  if (property?.selection.kind !== "source-owned" || property.receiverProjection !== undefined ||
+    property.selection.source.receiver.expression !== storage.receiverStorage.expression ||
+    selected?.kind !== "member" || selected.methodValue || selected.static)
+    failCsharpPlannerInvariant("An admitted value-field location requires its exact sealed source field over the owner location.", storage.expression);
+  return planCsharpSourceMemberName(storage.expression, false, input);
 }
 
 function requiredMember(planned: CsharpPlannedValue, node: Node): Extract<CsharpPlannedAddress, { readonly kind: "member" }> {

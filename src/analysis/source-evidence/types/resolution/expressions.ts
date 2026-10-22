@@ -316,12 +316,29 @@ export function resolveNonNullExpressionType(
 }
 
 export function resolveProjectThisTargetType(
+  scope: CsharpTypeResolutionScope,
+  node: Node,
+): TargetTypeRef | undefined {
+  if (scope.host.ast.kindName(node) !== "KindThisKeyword" && !scope.host.ast.is.IsThisTypeNode(node)) {
+    return undefined;
+  }
+  return projectInstanceTargetTypeAt(scope, node);
+}
+
+// The receiver of a 'super(...)' call is the instance under construction: the enclosing class's own this, which
+// reaches the base constructor through its heritage path. (The checked type of the super keyword in call position is
+// the base constructor function, not an instance.)
+export function resolveProjectConstructingReceiverTargetType(
+  scope: CsharpTypeResolutionScope,
+  superKeyword: Node,
+): TargetTypeRef | undefined {
+  return projectInstanceTargetTypeAt(scope, superKeyword);
+}
+
+function projectInstanceTargetTypeAt(
   { host }: CsharpTypeResolutionScope,
   node: Node,
 ): TargetTypeRef | undefined {
-  if (host.ast.kindName(node) !== "KindThisKeyword" && !host.ast.is.IsThisTypeNode(node)) {
-    return undefined;
-  }
   let current = host.ast.parent(node);
   while (current !== undefined) {
     if (host.ast.is.IsArrowFunction(current)) {

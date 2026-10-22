@@ -55,6 +55,9 @@ export function analyzeCsharpFlowReadProjections(
         ? operations.selectedProperty.get(node)?.selection : operations.selectedElement.get(node)?.target;
       return selected?.kind === "source-owned" && selected.source.accessMode === "read" && !selected.source.callCallee;
     }
+    // The parameter named by a type predicate (`value is Buffer`) is a type position, never a runtime read.
+    const parent = policy.ast.parent(node);
+    if (parent !== undefined && policy.ast.kindName(parent) === "KindTypePredicate") return false;
     const reference = policy.navigation.sourceReferenceFor(node);
     if (reference === undefined) return false;
     let reads = runtimeReads.get(reference.declaration);

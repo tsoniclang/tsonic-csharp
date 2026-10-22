@@ -13,4 +13,3 @@ export type {
 } from "../../target-model/records/typed-location-storage.js";
 export * from "./syntax/typeof.js";
 
-export { getCsharpTypeofRuntimeKind } from "./syntax/runtime-kind.js";

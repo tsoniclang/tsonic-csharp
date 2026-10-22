@@ -204,14 +204,19 @@ test("local storage has one final carrier and no syntax, lambda or source-eviden
     { label: "absent storage", type: undefined, message: "finalized native storage carrier" },
     { label: "unrenderable storage", type: { kind: "opaque", id: "missing" }, message: "renderable native storage carrier" },
   ]) {
+    // The renderer reads the sealed local binding completion, whose carrier analysis selected from the storage record.
     const corrupted = createCsharpPlanningContext({ ...program, records: { ...program.records,
-      storageType: { get: node => node === declaration ? control.type : program.records.storageType.get(node) } } });
+      localBinding: { get: node => node === declaration
+        ? { ...program.records.localBinding.get(node), carrier: control.type } : program.records.localBinding.get(node) } } });
     assert.throws(() => planLocalDeclaration(declaration, file, corrupted, diagnostics,
       createDestructuringPlannerState(declaration, ast), { kind: "LiteralExpression", value: 7 }),
     error => error.message.includes(control.message), `${control.label}: only corrupted admitted storage is an invariant`);
   }
   const opaque = Object.freeze({ kind: "opaque", id: "missing" });
-  const issues = admitCsharpNativeStorageBindings(ast, [declaration], program.records.nativeUse,
+  // The pre-seal admission reads the analysis native-use catalog, whose construct order marks the declaration as
+  // admitted native code; the sealed record carries only expression uses.
+  const nativeUse = { ...program.records.nativeUse, order: node => node === declaration ? [] : undefined };
+  const issues = admitCsharpNativeStorageBindings(ast, [declaration], nativeUse,
     { ...program.records, storageType: { get: () => opaque } }, program.records.nativeRefReturn,
     program.records.nativeParticipation, program.records.compileTimeMetadata, program.records.nativeUnreachable);
   assert.equal(issues.length, 1, "the actual pre-seal owner refuses an unrenderable local carrier once");

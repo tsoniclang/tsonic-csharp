@@ -1,7 +1,7 @@
 import { type SourceNativeValueGuard } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 
-import { getCsharpTypeofRuntimeKind } from "../syntax/runtime-kind.js";
+import { getCsharpTypeofRuntimeKind } from "../../../target-model/types/runtime-kind.js";
 import { getCsharpJsArrayElementTargetType } from "../../../target-model/types/carriers/collections.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import type { CsharpClosedTypePredicate } from "../../../target-model/operations/type-tests.js";

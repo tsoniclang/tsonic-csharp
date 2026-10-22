@@ -16,7 +16,7 @@ const node = Object.freeze({});
 function analyzeConstant(subject, carrier, selection, literal) {
   const input = {
     ast: { as: { AsParenthesizedExpression: () => undefined }, kindName: () => "NumericLiteral",
-      is: { IsVoidExpression: () => false, IsNoSubstitutionTemplateLiteral: () => false } },
+      is: { IsParenthesizedExpression: () => false, IsVoidExpression: () => false, IsNoSubstitutionTemplateLiteral: () => false } },
     demand: { entries: [{ use: { kind: "value", expression: subject, carrier } }] },
     literals: { literalValue: { get: () => literal } }, exact: { exactLiteral: { get: () => selection } },
     values: { valueRead: { get: () => ({ source: carrier, value: carrier }) } },

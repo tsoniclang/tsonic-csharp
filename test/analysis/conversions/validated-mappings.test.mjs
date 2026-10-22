@@ -11,6 +11,7 @@ import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types
 import { csharpNullableTargetType, csharpRuntimeUnionTargetType, csharpSourcePrimitiveTargetType,
   csharpStringTargetType } from "../../../dist/target-model/types/index.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
+import { csharpTypeEmissionRecord } from "../../helpers/planning-records.mjs";
 
 const mappingRejected = { kind: "rejected", reason: "Union conversion requires exact sealed arm coverage and native absence correspondence." };
 const projectionRejected = { kind: "rejected", reason: "Union projection requires exact sealed payload and absence correspondence." };

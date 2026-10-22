@@ -1,33 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { checkCsharpSource, withCsharpSessionRequest } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpAnalysisProgram } from "../../../dist/analysis/program/index.js";
-import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
-import { createCsharpTargetConfiguration } from "../../../dist/compilation/configuration.js";
 import { getCsharpDelegateSignature } from "../../../dist/target-model/types/carriers/delegates.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
-import { completeCsharpAnalysisRequest } from "../../helpers/analysis-request.mjs";
-
-const analyzeCompletedCsharpProgram = request => analyzeCsharpAnalysisProgram(completeCsharpAnalysisRequest(request));
 
 function fixture(body) {
-  const checked = checkCsharpSource({ surface: "js", sourceText: `
+  const checkOptions = { surface: "js", sourceText: `
     import type { int } from "@tsonic/csharp/types.js";
     function unknown(mapper: (value: int) => int): (value: int) => int { return mapper; }
     export function run(values: int[], step: int) { ${body} }
-  ` });
+  ` };
+  const checked = checkCsharpSource(checkOptions);
   assert.equal(checked.sourceDiagnosticsText, "", "strict checking");
   assert.equal(checked.extensionDiagnostics.length, 0, "extension checking");
-  const source = createTargetSourceProgram(checked.source);
-  const analysis = analyzeCompletedCsharpProgram({
-    input: { source, sourcePackages: checked.sourcePackages, project: checked.project, target: checked.target,
-      runtimeActivatedCapabilityIds: [], runtimeReferences: [], paths: checked.paths },
-    configuration: createCsharpTargetConfiguration(checked.target, checked.paths.projectRoot, checked.paths.targetOutputRoot),
-    providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
-  });
+  const { source, analysis } = withCsharpSessionRequest(checkOptions, request => ({ source: request.input.source,
+    analysis: analyzeCsharpAnalysisProgram(request) })).value;
   assert.equal(analysis.kind, "resolved", analysis.diagnostics.map(diagnostic => diagnostic.code).join(","));
   assert.equal(analysis.diagnostics.length, 0, "exact native analysis");
   const variables = new Map();

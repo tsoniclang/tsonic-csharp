@@ -134,6 +134,9 @@ export function analyzeCsharpProjectCallableAdapters(
         Object.freeze({ sourceName: read.member.targetName, declaration, member: write.member }));
         continue;
       }
+      // A base class overload signature (a bodiless, non-abstract method beside its implementation) emits no native method:
+      // the implementation alone carries every overload, so it is no inherited native slot to adapt or override.
+      if (!isCsharpSourceCallableArtifactDeclaration(policy.ast, contractDeclaration)) continue;
       hasProjectBaseContract = true;
       const contract = instantiateCsharpInheritedCallable(policy, original, implementation, receiver);
       if (contract === undefined) { reject(declaration, "An inherited callable has no exact instantiated native signature."); continue; }

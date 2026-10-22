@@ -9,12 +9,15 @@ import type { CsharpTargetNamedTypeRef } from "../../target-model/types/model.js
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 import { createCsharpPropertyAdmissionRecords } from "../program/records/property-admission.js";
+import { selectCsharpEmittedExpressions } from "../operations/emitted-expressions.js";
 
 export function analyzeCsharpPropertyAdmission(input: { readonly ast: AstReader; readonly nodes: readonly Node[];
   readonly operations: CsharpTargetOperationClassifications; readonly admitted: (node: Node) => boolean;
   readonly projectDeclaration: (node: Node) => boolean;
+  readonly jsCalls: import("../../target-model/records/js-value-calls.js").CsharpJsCallRecords;
   readonly receivers: import("../../target-model/records/member-receivers.js").CsharpMemberReceiverRecords;
-  readonly modules: import("../../target-model/records/source-references.js").CsharpSourceReferenceRecords["sourceModuleReference"] }) {
+  readonly modules: import("../../target-model/records/source-references.js").CsharpSourceReferenceRecords["sourceModuleReference"];
+  readonly evidence: Pick<import("../../target-model/records/source-evidence.js").CsharpSourceEvidenceIndex, "sourceDefaultValue" | "sourceArgument"> }) {
   const properties = new Map<Node, CsharpAdmittedPropertyClassification>();
   const members = new Map<Node, CsharpSourceMemberEmission>();
   const unions = new Map<Node, CsharpUnionPropertyProjection>();
@@ -52,8 +55,11 @@ export function analyzeCsharpPropertyAdmission(input: { readonly ast: AstReader;
       (declaration === undefined || !input.projectDeclaration(declaration))) {
       refuse(node, "The exact selected property is neither provider-owned, source-profile-owned, nor declared by this project."); return;
     }
+    // An object-shape method read that is not its call reads the stored method value through its per-method accessor
+    // (native demand requests that accessor for exactly these reads), so copies and comparisons see one delegate; a
+    // method group would create a new delegate per read. Optional methods are always read from storage.
     const methodValue = objectShape !== undefined && shapeMember?.kind === "resolved" && shapeMember.member.memberKind === "method" &&
-      (!selection.source.callCallee || shapeMember.member.optional === true);
+      (shapeMember.member.optional === true || !selection.source.callCallee);
     const generic = getCsharpMethodValue(rawReadType);
     const sourceProperty = declaration !== undefined && (ast.is.IsPropertyDeclaration(declaration) || ast.is.IsPropertySignatureDeclaration(declaration) ||
       ast.is.IsGetAccessorDeclaration(declaration) || sourceParameterIsProperty(ast, declaration));
@@ -86,12 +92,7 @@ export function analyzeCsharpPropertyAdmission(input: { readonly ast: AstReader;
     } else members.set(node, { kind: "member", methodValue, flow,
       static: input.receivers.memberReceiver.get(selection.source.receiver.expression, selection.source.receiver.valueDeclaration)?.kind === "type" });
   };
-  const required = new Set<Node>();
-  for (const node of input.nodes) if (input.admitted(node)) {
-    required.add(node);
-    const callee = input.operations.selectedCall.get(node)?.source?.sourceCallee.expression;
-    if (callee !== undefined) required.add(callee);
-  }
+  const required = selectCsharpEmittedExpressions(input);
   for (const node of required) {
     const element = input.operations.selectedElement.get(node);
     if (element?.target?.kind === "source-owned" && element.sourceOwned !== undefined) admitMember(node, element.target, element.sourceOwned);

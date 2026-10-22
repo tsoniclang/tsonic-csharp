@@ -141,7 +141,14 @@ export function analyzeCsharpBindingPatterns(
         } else if (variable?.Initializer !== undefined) {
           root = node;
           admitSource(name, variable.Initializer, sourceFile, "Destructuring source expression");
-          if (completesWithValue(variable.Initializer)) analyzePattern(name, variable.Initializer, sourceFile, undefined);
+          // An annotated declaration whose initializer is an array or object literal destructures the literal at its
+          // annotated (contextual) type; any other initializer is destructured at its own value.
+          const literal = ast.is.IsArrayLiteralExpression(variable.Initializer) || ast.is.IsObjectLiteralExpression(variable.Initializer);
+          const annotated = literal ? ast.typeNode(node) : undefined;
+          if (completesWithValue(variable.Initializer)) {
+            analyzePattern(name, variable.Initializer, sourceFile,
+              annotated === undefined ? undefined : input.evidence.nodeTargetType.get(annotated));
+          }
         }
       }
     } else if (ast.is.IsParameterDeclaration(node)) {

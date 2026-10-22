@@ -44,6 +44,9 @@ export function planCsharpNativeExpression(
   const physical = emission.physical ?? failCsharpPlannerInvariant("An admitted expression requires its physical emission use.", node);
   const planned = render(physical);
   if (planned === undefined || planned.completion.kind === "never" || selected.kind !== "converted") return planned;
+  // An expression planned as its storage (a nullish test's operand, a by-reference argument, a read-modify-write
+  // target) is the storage itself: like its flow-read projection, its use conversion is not applied.
+  if (input.storageExpression === node) return planned;
   if (emission.integerTruncation !== undefined) return planned;
   if (selected.completion.kind === "void") return csharpPlannedEffect(selected.target, planCsharpPlannedDiscard(planned));
   const conversion = emission.conversion ?? failCsharpPlannerInvariant("An admitted converted expression requires its selected native conversion.", node);
@@ -90,7 +93,7 @@ export function planCsharpNativeExpression(
         : ast.is.IsAsExpression(node) ? ast.as.AsAsExpression(node)?.Expression : ast.as.AsTypeAssertion(node)?.Expression;
       if (inner === undefined) return failCsharpPlannerInvariant("A native forwarded expression requires its operand.", node);
       const value = planners.planExpression(inner, sourceFile, input, diagnostics, state);
-      if (!ast.is.IsParenthesizedExpression(node)) return value;
+      if (!ast.is.IsParenthesizedExpression(node) || value?.completion.kind === "void") return value;
       const parenthesized = mapCsharpPlannedValue(value, use.carrier,
         expression => ({ kind: "ParenthesizedExpression", expression }), value?.constant === true);
       return parenthesized === undefined || value?.completion.kind !== "value" ? parenthesized : { ...parenthesized,

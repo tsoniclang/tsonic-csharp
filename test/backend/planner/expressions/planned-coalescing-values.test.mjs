@@ -128,8 +128,9 @@ test("expression-only generic optional and broad values retain their own lazy st
 });
 
 test("a nonreturning fallback stays absent-only and a nonreturning left has no branch", () => {
+  // The completion kind is explicit: callers pass the sealed completion (planned-values.ts), never inferred from the carrier.
   const stopped = csharpPlannedEffect(csharpNeverTargetType(), [effect("beforeFailure"),
-    { kind: "ThrowStatement", expression: identifier("original") }]);
+    { kind: "ThrowStatement", expression: identifier("original") }], "never");
   const planned = planCsharpCoalescingValue(node, node, context(), [],
     csharpPlannedValue(csharpNullableTargetType(integer), call("left")), stopped, integer);
   const branch = planned.prelude[1];
@@ -149,8 +150,10 @@ test("coalescing cannot invent a value from void or an unavailable selected conv
     "void fallback needs an independently admitted absence conversion");
   const diagnostics = [];
   const optional = csharpNullableTargetType(integer);
-  assert.equal(planCsharpCoalescingValue(node, node, context(() => undefined), diagnostics, left,
-    csharpPlannedValue(optional, identifier("completed"), [effect("pending")]), optional) === undefined, true,
-  "missing present conversion rejects without relabeling");
-  assert.equal(diagnostics.length, 1);
+  // A conversion analysis did not seal is a planner invariant (RULINGS: missing records are refused, never relabeled).
+  assert.throws(() => planCsharpCoalescingValue(node, node, context(() => undefined), diagnostics, left,
+    csharpPlannedValue(optional, identifier("completed"), [effect("pending")]), optional),
+  error => error.phase === "planning" && error.message === "C# planning requires a sealed target conversion classification that analysis did not produce.",
+  "missing present conversion is never relabeled");
+  assert.equal(diagnostics.length, 0);
 });

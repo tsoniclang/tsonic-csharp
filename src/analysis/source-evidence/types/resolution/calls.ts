@@ -1,4 +1,5 @@
 import type { CsharpSourceCallContract } from "../../../../target-model/records/source-callable-contract.js";
+import { resolveProjectConstructingReceiverTargetType } from "./expressions.js";
 import { csharpSourceCallArgumentParameter } from "../../../../policy/types/callables/source-callable-contract.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
@@ -210,6 +211,16 @@ export function resolveSourceCallSelectedType(
   if (receiverInstantiation.kind === "resolved") {
     return receiverInstantiation.type;
   }
+  // A provider declaration has no semantics, so its authored parameter type is not resolved above, and the checker's
+  // instantiated parameter type loses source primitive aliases (`int32[]` reads as `number[]`). The declared (generic)
+  // parameter type with the call's own type-argument substitutions is the exact parameter.
+  if (authored === undefined && authoredTypeNode !== undefined && declaration !== undefined &&
+    !host.hasSemantics(authoredSourceFile)) {
+    const declared = host.semantics(selectedSourceFile).declarations.declaredValueType(declaration);
+    const generic = declared === undefined ? undefined : scope.resolveTypeWithState(declared, selectedSourceFile, nextState(state));
+    const substituted = generic === undefined ? undefined : substituteTargetTypeParameters(generic, instantiation.substitutions);
+    if (generic !== undefined && substituted !== undefined && !targetTypeRefEquals(generic, substituted)) return substituted;
+  }
   if (excludedSourceArgumentIndexes !== undefined) {
     if (authored !== undefined) return instantiated;
     if (source.sourceSelectedMethodTypeArguments?.some(argument => argument.explicitTypeNode === undefined)) return undefined;
@@ -400,13 +411,14 @@ export function sourceCallSelectedDeclaration(
 }
 
 export function resolveSourceCallReceiverTargetType(
-  { host, resolveSelectedReceiverTargetType, resolveSourceOwnedConstructionResult, resolveTypeWithState, resolveNodeWithState }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   selectedSourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
+  const { host, resolveSelectedReceiverTargetType, resolveSourceOwnedConstructionResult, resolveTypeWithState, resolveNodeWithState } = scope;
   if (host.ast.kindName(source.sourceCallee.expression) === "KindSuperKeyword") {
-    return resolveNodeWithState(source.sourceCallee.expression, selectedSourceFile, nextState(state));
+    return resolveProjectConstructingReceiverTargetType(scope, source.sourceCallee.expression);
   }
   if (host.ast.is.IsNewExpression(source.call) && (
     host.ast.is.IsClassDeclaration(source.sourceCallee.selectedDeclaration) &&

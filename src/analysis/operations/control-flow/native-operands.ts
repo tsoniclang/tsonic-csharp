@@ -16,6 +16,7 @@ import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpSelectedTargetArgumentBindings, csharpSourceOwnedArgumentBindings, csharpProviderArgumentSourceCarrier } from "../../../policy/operations/members/native-use-arguments.js";
 import { sourceOperatorFromKindName } from "../../../target-model/syntax/operators.js";
 import { csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
+import { csharpRuntimeLocationTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 
 export interface CsharpNativeOperandInput {
   readonly ast: AstReader;
@@ -130,7 +131,8 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
       case "memory-binding": {
         const memory = handler.selection;
         return memory.kind === "field" ? chosen(intrinsic(memory.expression, "value", memory.type))
-          : memory.kind === "record" ? chosen(memory.fields.flatMap((field, index) => intrinsic(field.expression, "argument", field.member.type, index)))
+          : memory.kind === "record" ? chosen(memory.fields.flatMap((field, index) =>
+            intrinsic(field.expression, "argument", csharpRuntimeLocationTargetType(field.member.type), index)))
           : refused("operation-unresolved");
       }
       case "explicit-safety": {
@@ -167,8 +169,12 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
             return chosen(use(storage.expression, { kind: "intrinsic-operand", operand: "location" }, undefined, "location"));
           }
           case "location-allocate": return chosen(intrinsic(location.initialExpression, "initial", location.pointeeType));
-          case "location-load": return chosen(intrinsic(location.location.expression, "location", location.locationType));
-          case "location-store": return chosen([...intrinsic(location.location.expression, "location", location.locationType), ...intrinsic(location.valueExpression, "value", location.pointeeType)]);
+          // A native ref-return operand is the call's own variable reference, read and assigned as its pointee value.
+          case "location-load": return chosen(intrinsic(location.location.expression, "location",
+            location.location.kind === "native-ref-return" ? location.pointeeType : location.locationType));
+          case "location-store": return chosen([...intrinsic(location.location.expression, "location",
+            location.location.kind === "native-ref-return" ? location.pointeeType : location.locationType),
+          ...intrinsic(location.valueExpression, "value", location.pointeeType)]);
           case "location-equal": return chosen([...intrinsic(location.leftExpression, "left", location.parameterType), ...intrinsic(location.rightExpression, "right", location.parameterType)]);
           case "rejected": return refused("operation-unresolved");
         }
@@ -212,7 +218,10 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
     if (call.unionCall.kind === "resolved") return chosen([...use(call.unionCall.receiver, { kind: "receiver" }), ...guarded(arguments_)]);
     const callee = call.sourceCall;
     if (callee === undefined || callee.kind === "rejected" || callee.kind === "union-method") return refused("operation-unresolved");
-    if (callee.kind === "function" || callee.kind === "value") return argumentsFirst(use(callee.expression, { kind: "callee" }), guarded(arguments_));
+    // A declared function is called by its declaration reference (a static method group), never evaluated as a value,
+    // so it has no runtime callee use; only a callee value is evaluated before the arguments.
+    if (callee.kind === "function") return argumentsFirst([], guarded(arguments_));
+    if (callee.kind === "value") return argumentsFirst(use(callee.expression, { kind: "callee" }), guarded(arguments_));
     const access = call.source.sourceCalleeAccess;
     const receiver = receiverUses(callee.receiver);
     const key = guarded(access?.kind === "element" ? use(access.argument.expression, { kind: "key" }) : []);
@@ -321,7 +330,9 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
       (ast.is.IsFunctionDeclaration(reference.declaration) || ast.is.IsVariableDeclaration(reference.declaration) ||
         ast.is.IsBindingElement(reference.declaration) || ast.is.IsExportAssignment(reference.declaration))) return chosen([]);
     const selection = operations.selectedProperty.get(node)?.selection;
-    if (selection?.kind === "resolved") return chosen(selection.receiver.kind === "instance" ? receiverUses(selection.source.receiver) : []);
+    // The receiver is evaluated unless the member is static (no receiver): an instance member reads through it and a
+    // target-parameter member (for example Error.stack through ErrorObject.stack(error)) passes it as its argument.
+    if (selection?.kind === "resolved") return chosen(selection.receiver.kind === "none" ? [] : receiverUses(selection.source.receiver));
     if (selection?.kind === "source-owned") return chosen(receiverUses(selection.source.receiver));
     if (selection?.kind === "rejected") return refused("operation-unresolved", undefined, undefined, selection.diagnostic);
     return selection?.kind === "union-property" ? chosen(use(ast.as.AsPropertyAccessExpression(node)?.Expression, { kind: "receiver" })) : refused("operation-unresolved");

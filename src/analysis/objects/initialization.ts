@@ -40,8 +40,14 @@ export function analyzeCsharpObjectInitialization(node: Node, shape: CsharpObjec
         exits ||= never(member.expression); break;
     }
   }
+  const authored = new Set(members.flatMap(member => member.kind === "spread" ? member.fields.map(field => field.target)
+    : [member.member.targetName]));
+  const deferred = shape.members.flatMap(member => member.memberKind === "property" && member.optional !== true &&
+    member.accessor === undefined && !authored.has(member.targetName) && !slots.has(member.targetName)
+    ? [Object.freeze({ name: member.targetName, carrier: member.type })] : []);
+  for (const member of deferred) append(member.name, member.carrier, false);
   if (!exits && [...slots.values()].some(slot => !slot.definite)) issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error",
     source: "tsonic-csharp", sourceNode: node, message: "Native object construction requires a definite value for every required storage member." });
-  return { value: Object.freeze({ inlineUnique, slots: Object.freeze([...slots.values()].map(({ name, carrier, initializeAbsence }) =>
+  return { value: Object.freeze({ inlineUnique, deferred: Object.freeze(deferred), slots: Object.freeze([...slots.values()].map(({ name, carrier, initializeAbsence }) =>
     Object.freeze({ name, carrier, initializeAbsence }))) }), issues: Object.freeze(issues) };
 }

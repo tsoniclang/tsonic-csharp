@@ -3,6 +3,7 @@ import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
+import { getCsharpNullableElementTargetType, isCsharpAbsenceTargetType } from "../../../target-model/types/index.js";
 
 function optionalStorage(storage: TargetTypeRef, input: CsharpPlanningContext) {
   return input.program.records.typeEmission.get(storage)?.optionalStorage
@@ -54,4 +55,15 @@ export function planCsharpPresentValueGuard(storage: TargetTypeRef, _present: Ta
   const type = csharpTypeFromTargetTypeRef(selected.present, input.scope.typeParameterNames)
     ?? failCsharpPlannerInvariant("An admitted optional guard requires its native payload type.");
   return { condition: { kind: "IsPatternExpression", expression: value, type, designation: name }, value: bound };
+}
+
+/**
+ * An authored null or undefined whose carrier is the native absence storage prints as that storage's default value
+ * (`default(object?)`): a bare `null` has no C# type, so it cannot stand as a tuple element or a typed operand.
+ */
+export function planCsharpAbsenceLiteral(carrier: TargetTypeRef | undefined, input: CsharpPlanningContext): CsharpExpression {
+  const absence = carrier === undefined ? undefined : getCsharpNullableElementTargetType(carrier) ?? carrier;
+  const type = absence === undefined || !isCsharpAbsenceTargetType(absence) ? undefined
+    : csharpTypeFromTargetTypeRef(carrier!, input.scope.typeParameterNames);
+  return type === undefined ? { kind: "LiteralExpression", value: null } : { kind: "DefaultExpression", type };
 }
