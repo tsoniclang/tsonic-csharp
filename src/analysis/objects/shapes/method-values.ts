@@ -45,10 +45,12 @@ export function retainCsharpMethodValueContracts(
     if (contract === undefined) {
       const signature = csharpPresentObjectShapeMethod(member);
       if (signature === undefined) return member;
+      // A method value is stored as its delegate (an object-literal method initializes a delegate field), so every
+      // shape that holds or copies it agrees on one storage type. Only a value no delegate can carry (a generic or
+      // optional method) is stored under its single-method protocol.
+      if (!csharpObjectShapeMethodRequiresProtocol(member)) return member;
       const protocol = createStructuralObjectShapeTarget([signature], undefined, environment, true);
       const ownProtocol = targetTypeRefEquals(shape.targetType, protocol);
-      if (!ownProtocol && !csharpObjectShapeMethodRequiresProtocol(member) &&
-        csharpObjectShapeMethodDeclaration(shape, member) === undefined) return member;
       contract = protocol;
       if (!ownProtocol) remember({ targetType: contract, members: [{ ...signature, methodValueContract: contract }] });
     }

@@ -5,7 +5,6 @@ import type { CsharpTargetOperationClassifications, CsharpSourceOwnedMemberClass
 import type { CsharpTargetPropertySelection, CsharpTargetElementSelection } from "../../target-model/records/member-selections.js";
 import type { CsharpAdmittedPropertyClassification, CsharpSourceMemberEmission, CsharpUnionPropertyProjection } from "../../target-model/records/property-admission.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
-import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import type { CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
@@ -56,13 +55,11 @@ export function analyzeCsharpPropertyAdmission(input: { readonly ast: AstReader;
       (declaration === undefined || !input.projectDeclaration(declaration))) {
       refuse(node, "The exact selected property is neither provider-owned, source-profile-owned, nor declared by this project."); return;
     }
-    // A method read through its value storage (the per-method accessor) is a method value only when the read carrier
-    // is that method-value carrier, or the member is optional storage. A method read in a delegate carrier is the
-    // method group, which C# converts to the delegate.
-    const readCarrier = selectedReadType ?? rawReadType;
+    // An object-shape method read that is not its call reads the stored method value through its per-method accessor
+    // (native demand requests that accessor for exactly these reads), so copies and comparisons see one delegate; a
+    // method group would create a new delegate per read. Optional methods are always read from storage.
     const methodValue = objectShape !== undefined && shapeMember?.kind === "resolved" && shapeMember.member.memberKind === "method" &&
-      (shapeMember.member.optional === true ||
-        !selection.source.callCallee && getCsharpMethodValue(getCsharpNullableElementTargetType(readCarrier) ?? readCarrier) !== undefined);
+      (shapeMember.member.optional === true || !selection.source.callCallee);
     const generic = getCsharpMethodValue(rawReadType);
     const sourceProperty = declaration !== undefined && (ast.is.IsPropertyDeclaration(declaration) || ast.is.IsPropertySignatureDeclaration(declaration) ||
       ast.is.IsGetAccessorDeclaration(declaration) || sourceParameterIsProperty(ast, declaration));
