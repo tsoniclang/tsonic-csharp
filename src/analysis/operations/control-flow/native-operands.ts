@@ -169,8 +169,12 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
             return chosen(use(storage.expression, { kind: "intrinsic-operand", operand: "location" }, undefined, "location"));
           }
           case "location-allocate": return chosen(intrinsic(location.initialExpression, "initial", location.pointeeType));
-          case "location-load": return chosen(intrinsic(location.location.expression, "location", location.locationType));
-          case "location-store": return chosen([...intrinsic(location.location.expression, "location", location.locationType), ...intrinsic(location.valueExpression, "value", location.pointeeType)]);
+          // A native ref-return operand is the call's own variable reference, read and assigned as its pointee value.
+          case "location-load": return chosen(intrinsic(location.location.expression, "location",
+            location.location.kind === "native-ref-return" ? location.pointeeType : location.locationType));
+          case "location-store": return chosen([...intrinsic(location.location.expression, "location",
+            location.location.kind === "native-ref-return" ? location.pointeeType : location.locationType),
+          ...intrinsic(location.valueExpression, "value", location.pointeeType)]);
           case "location-equal": return chosen([...intrinsic(location.leftExpression, "left", location.parameterType), ...intrinsic(location.rightExpression, "right", location.parameterType)]);
           case "rejected": return refused("operation-unresolved");
         }
