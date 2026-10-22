@@ -50,10 +50,10 @@ for (const surface of ["native", "js"]) for (const [name, body] of programs) {
       construct: "native object-shape artifact", producer: "analyzeCsharpNativeArtifactDemand" };
     assertCsharpRequiredRecords(program.records, [row]);
     const missing = Object.freeze({ ...demand, get: key => key === row.key ? undefined : demand.get(key) });
-    assert.throws(() => createCsharpProgramRecords({ ...csharpRecordInput(program.records), objectShapeDemand: missing }, [row]),
+    assert.throws(() => createCsharpProgramRecords(csharpRecordInput({ ...program.records, objectShapeArtifact: missing }), [row]),
       /Required C# semantic plan 'objectShapeArtifact'/u, "a missing actual artifact prevents publication");
     const invalidContext = createCsharpPlanningContext({ ...program, records: { ...program.records, objectShapeArtifact: missing } });
-    assert.throws(() => invalidContext.artifacts.objectShapeHasCapability(demand.artifacts[0].fact, "json-serialization"),
+    assert.throws(() => csharpObjectShapeArtifact(invalidContext, demand.artifacts[0].fact),
       /sealed artifact record/u, "an impossible missing record cannot become a false capability answer");
     assert.throws(() => assertCsharpRequiredRecords(program.records, [{ ...row, key: "foreign-owner" }]),
       /Required C# semantic plan 'objectShapeArtifact'/u, "a different artifact is not evidence for this owner");
