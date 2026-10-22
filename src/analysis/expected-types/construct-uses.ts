@@ -4,6 +4,7 @@ import { csharpCallableValueType } from "../../policy/types/callables/value-type
 import { csharpSourceArgumentExpectedType, csharpTargetParameterValueType, getCsharpGeneratorProtocol,
   resolveCsharpObjectShapeMemberBySelectedSubject } from "../../policy/types/index.js";
 import { csharpSelectedTargetArgumentBindings, csharpSourceOwnedArgumentBindings, csharpProviderArgumentSourceCarrier } from "../../policy/operations/members/native-use-arguments.js";
+import { isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import type { CsharpNativeUseSlot } from "../../target-model/records/native-demand.js";
 import type { CsharpTargetCallSelection } from "../../target-model/records/member-selections.js";
 import type { ResolvedSourceCallInfo } from "../../target-model/records/source-calls.js";
@@ -76,6 +77,14 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
     } else if (location?.kind === "location-hash") record(location.locationExpression, location.parameterType, "required", intrinsic("location"));
     else if (location?.kind === "location-bind" || location?.kind === "location-project" || location?.kind === "location-view") {
       for (const [index, argument] of location.arguments.entries()) record(argument.expression, argument.type, "required", intrinsic("argument", index));
+    }
+    // An instance member selected on a receiver whose member storage is a JS value (`options.cert.length` with cert
+    // stored as TsValue on a provider options object) reads the receiver at the member's declaring type.
+    const property = policy.ast.is.IsPropertyAccessExpression(node) ? operations.selectedProperty.get(node)?.selection : undefined;
+    const receiverStorage = property?.kind === "resolved" ? operations.sourceMember.get(property.source.receiver.expression)?.rawReadType : undefined;
+    if (property?.kind === "resolved" && property.receiver.kind === "instance" && property.targetMember.declaringType !== undefined &&
+      !isCsharpJsValueTargetType(property.targetMember.declaringType) && isCsharpJsValueTargetType(receiverStorage)) {
+      record(property.source.receiver.expression, property.targetMember.declaringType, "required", at(node, { kind: "receiver" }));
     }
     if (handler === undefined) {
       const call = operations.selectedCall.get(node);
