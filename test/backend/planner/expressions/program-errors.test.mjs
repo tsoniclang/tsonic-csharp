@@ -28,7 +28,10 @@ test("native throw planning requires its exact sealed operand, source carrier an
   for (const selected of [undefined, { ...classification, expression: declaration },
     { ...classification, sourceCarrier: csharpStringTargetType() }]) {
     const changed = { ...program, records: { ...program.records, throwValue: { get: () => selected } } };
-    const issues = admitCsharpStatementBindings(source.ast, [statement], program.records.nativeUse,
+    // The pre-seal native-use view the admission reads, rebuilt from the published nativeUse/nativeOrder/nativeExpression records.
+    const nativeUse = { get: site => program.records.nativeUse.get(site), order: node => program.records.nativeOrder.get(node),
+      expression: node => program.records.nativeExpression.get(node) };
+    const issues = admitCsharpStatementBindings(source.ast, [statement], nativeUse,
       changed.records, program.records, program.records.generator, program.records.nativeParticipation,
       program.records.compileTimeMetadata, program.records.valueRead);
     assert.equal(issues.length, 1, "one pre-seal owner rejects each original invalid throw classification");
@@ -43,20 +46,22 @@ test("native throw planning requires its exact sealed operand, source carrier an
   error => error.message.includes("An admitted throw lost its selected native error carrier."),
   "only bypassing successful admission reaches the separate missing-record invariant");
   assert.equal(missingDiagnostics.length, 0, "corrupted published evidence never repeats a source refusal");
-  const native = program.records.nativeUse.expression(classification.expression);
+  const native = program.records.nativeExpression.get(classification.expression);
   assert.equal(native !== undefined && native.use.kind !== "erased", true, "the actual throw operand has one admitted native use");
   const invalidTarget = csharpStringTargetType();
   const invalidUse = { ...native.use, kind: "converted", input: native.use.completion,
     target: invalidTarget, mode: "implicit", completion: { kind: "value", type: invalidTarget } };
   const changed = { ...program, records: { ...program.records,
     throwValue: { get: () => ({ ...classification, targetCarrier: invalidTarget }) },
-    nativeUse: { ...program.records.nativeUse,
-      expression: node => node === classification.expression ? { site: native.site, use: invalidUse }
-        : program.records.nativeUse.expression(node),
-      get: site => site === native.site ? invalidUse : program.records.nativeUse.get(site),
-    } } };
+    nativeUse: { get: site => site === native.site ? invalidUse : program.records.nativeUse.get(site) },
+    // The converted use carries no sealed conversion: the analysis selected none for Exception to String.
+    nativeExpression: { get: node => node === classification.expression
+      ? { ...native, use: invalidUse, physical: native.physical ?? native.use, conversion: undefined }
+      : program.records.nativeExpression.get(node) },
+  } };
   const invalid = [];
-  const message = "C# planning requires a sealed implicit expression conversion from 'target:System.Exception<>' to 'target:System.String<>'.";
+  // The conversion is sealed on the expression record (records.nativeExpression), so the planner's invariant names that record.
+  const message = "An admitted converted expression requires its selected native conversion.";
   assert.throws(() => planThrowStatement(statement, source.ast.getSourceFile(statement), { ...context, program: changed }, invalid),
     error => error instanceof Error && error.phase === "planning" &&
       error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT" &&

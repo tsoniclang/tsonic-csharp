@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { checkCsharpSource } from "../../../helpers/direct-csharp-session.mjs";
-import { analyzeCsharpTargetProgram } from "../../../../dist/analysis/program/index.js";
+import { analyzeCsharpAnalysisProgram } from "../../../../dist/analysis/program/index.js";
 import { createCsharpProviderRelationResolver } from "../../../../dist/providers/native/projection/relation-resolution.js";
 import { createCsharpTargetConfiguration } from "../../../../dist/compilation/configuration.js";
 import { createCsharpPlanningContext } from "../../../../dist/backend/planner/context.js";
@@ -16,7 +16,7 @@ import { requireExpressionPlan } from "../../../../dist/backend/planner/expressi
 import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
 import { completeCsharpAnalysisRequest } from "../../../helpers/analysis-request.mjs";
 
-const analyzeCompletedCsharpProgram = request => analyzeCsharpTargetProgram(completeCsharpAnalysisRequest(request));
+const analyzeCompletedCsharpProgram = request => analyzeCsharpAnalysisProgram(completeCsharpAnalysisRequest(request));
 
 function fixture() {
   const checked = checkCsharpSource({ surface: "js", sourceText: `
@@ -65,16 +65,17 @@ function fixture() {
     arguments: Object.freeze(selected.arguments.map(argument => argument.sourceArgumentIndex === 1
       ? Object.freeze({ ...argument, targetParameter: parameter }) : argument)),
   });
-  const actual = program.records.nativeUse.expression(radix);
+  const actual = program.records.nativeExpression.get(radix);
   assert.equal(actual !== undefined && actual.use.kind !== "erased", true, "the original argument has its exact native context");
   const wrongUse = Object.freeze({ ...actual.use, kind: "converted", carrier: absence,
     input: Object.freeze({ kind: "value", type: absence }), completion: Object.freeze({ kind: "value", type: number }),
     target: number, mode: "implicit", literal: undefined });
   const changed = Object.freeze({ ...program,
     records: Object.freeze({ ...program.records,
-      nativeUse: Object.freeze({ ...program.records.nativeUse,
-        expression: node => node === radix ? Object.freeze({ site: actual.site, use: wrongUse }) : program.records.nativeUse.expression(node),
-        get: site => site === actual.site ? wrongUse : program.records.nativeUse.get(site) }),
+      nativeUse: Object.freeze({ get: site => site === actual.site ? wrongUse : program.records.nativeUse.get(site) }),
+      nativeExpression: Object.freeze({ get: node => node === radix
+        ? Object.freeze({ ...actual, use: wrongUse, physical: actual.physical ?? actual.use, conversion: rejection })
+        : program.records.nativeExpression.get(node) }),
       selectedCall: Object.freeze({ get: node => node === call ? Object.freeze({ ...classification,
         target: Object.freeze({ ...classification.target, call: wrongCall }) }) : program.records.selectedCall.get(node) }),
       expressionConversion: Object.freeze({ get: (node, from, to, mode) => node === radix && mode === "implicit"

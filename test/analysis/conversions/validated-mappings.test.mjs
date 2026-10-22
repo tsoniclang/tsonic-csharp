@@ -96,7 +96,7 @@ for (const surface of ["native", "js"]) {
       program.source.ast.text(node) === "value" && program.source.ast.is.IsReturnStatement(program.source.ast.parent(node)));
     assert.equal(returned.length, 1);
     const source = program.records.valueRead.get(returned[0]).value;
-    const native = program.records.nativeUse.expression(returned[0])?.use;
+    const native = program.records.nativeExpression.get(returned[0])?.use;
     assert.equal(native?.kind === "converted", true, "the actual return has an exact native conversion");
     const target = native.target;
     const selection = program.records.expressionConversion.get(returned[0], source, target, "implicit");

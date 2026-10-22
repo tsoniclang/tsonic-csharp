@@ -92,7 +92,7 @@ test("the assembly has no optional requirement list", () => {
 });
 
 test("native-use requirements preserve owner, semantic slot and context, not just the expression", () => {
-  const entry = nodes.map(node => records.nativeUse.expression(node)).find(entry => entry?.use.kind !== "erased" &&
+  const entry = nodes.map(node => records.nativeExpression.get(node)).find(entry => entry?.use.kind !== "erased" &&
     entry?.use.completion.kind === "value");
   assert.equal(entry !== undefined, true, "the real program has an admitted exact native conversion use");
   const row = { family: "nativeUse", subject: entry.use.expression, site: entry.site, construct, producer };
@@ -104,7 +104,7 @@ test("native-use requirements preserve owner, semantic slot and context, not jus
 });
 
 test("exact conversion requirements cannot fall back to another expression or conversion mode", () => {
-  const entry = nodes.map(node => records.nativeUse.expression(node)).find(entry => entry?.use.kind !== "erased" &&
+  const entry = nodes.map(node => records.nativeExpression.get(node)).find(entry => entry?.use.kind !== "erased" &&
     entry?.use.completion.kind === "value");
   assert.equal(entry !== undefined, true, "the real program contains a completing native conversion use");
   const use = entry.use;
@@ -125,7 +125,7 @@ test("the seal rejects an omitted exact literal at its own source and native tar
     .map(node => ast.as.AsVariableDeclaration(node).Initializer);
   assert.equal(literals.length, 2, "two real checked literal subjects");
   const rows = literals.map(subject => ({ family: "exactLiteral", subject,
-    target: records.nativeUse.expression(subject).use.carrier, construct, producer }));
+    target: records.nativeExpression.get(subject).use.carrier, construct, producer }));
   assert.equal(rows.every(row => records.exactLiteral.get(row.subject, row.target)?.kind === "resolved"), true,
     "both native literal producers publish their exact target");
   assertCsharpRequiredRecords(records, rows);
@@ -141,7 +141,7 @@ test("the seal rejects an omitted exact literal at its own source and native tar
 test("a conversion premise cannot borrow the exact expression classification", () => {
   const subject = nodes.find(node => ast.is.IsVariableDeclaration(node) && ast.text(ast.name(node)) === "firstLiteral");
   const expression = ast.as.AsVariableDeclaration(subject).Initializer;
-  const use = records.nativeUse.expression(expression).use;
+  const use = records.nativeExpression.get(expression).use;
   const row = { family: "conversion", subject: expression, source: use.carrier,
     target: use.kind === "converted" ? use.target : use.carrier,
     mode: use.kind === "converted" ? use.mode : "implicit", construct, producer };

@@ -152,7 +152,7 @@ function nativeArrayElements(program) {
   const ast = program.source.ast;
   const visit = node => {
     if (ast.is.IsArrayLiteralExpression(node)) {
-      const use = program.records.nativeUse.expression(node)?.use;
+      const use = program.records.nativeExpression.get(node)?.use;
       assert.equal(use?.kind === "constructed", true, "every native array has one admitted physical construction");
       const element = getCsharpArrayLiteralElementTargetType(use.carrier);
       if (ast.elements(node).length === 4 && ast.is.IsStringLiteral(ast.elements(node)[0])) unionDestinations.push(element);

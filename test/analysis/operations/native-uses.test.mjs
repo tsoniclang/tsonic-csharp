@@ -36,7 +36,7 @@ function owners(sourceText, surface = "native") {
     nativeExpressionIssues: [],
     declarations: records, objectShapes: program.objectShapes,
     exactLiteral: records.exactLiteral, propertyKeyBindings: expression => {
-      const use = records.nativeUse.expression(expression)?.use;
+      const use = records.nativeExpression.get(expression)?.use;
       return use === undefined || use.kind === "erased" ? undefined : use.propertyKeys;
     },
     valueReads: records, participation, bindingPatterns, callableCreation: { get: node => {
@@ -87,7 +87,7 @@ for (const surface of ["native", "js"]) test(`${surface} finite native uses cove
   assert.equal(conditional !== undefined && conditional.use.children.length === 3, true, "condition and two alternatives are explicit");
   assert.equal(Object.isFrozen(demand) && Object.isFrozen(demand.entries) && demand.entries.every(entry => Object.isFrozen(entry.use)), true, "native-uses:67: Object.isFrozen(demand) && Object.isFrozen(demand.entries) && demand.entries.every(entry =");
   assert.equal(Object.hasOwn(value.program.records, "nativeUse"), true, "the final owner publishes the one canonical native-use family");
-  assert.equal(typeof value.program.records.nativeUse.expression, "function", "the backend consumes exact sealed emission contexts");
+  assert.equal(typeof value.program.records.nativeExpression.get, "function", "the backend consumes exact sealed emission contexts");
 });
 
 test("class initialization, base constructor arguments and callable defaults each have one native root", () => {

@@ -458,7 +458,7 @@ for (const surface of ["native", "js"]) test(`${surface} actual native delegate 
   };
   for (const file of csharpProgramSourceFiles(program)) visit(file);
   assert.equal(returns.length, 1, "the source has one actual native variant return use");
-  const use = program.records.nativeUse.expression(returns[0])?.use;
+  const use = program.records.nativeExpression.get(returns[0])?.use;
   assert.equal(use?.kind === "converted" && use.input.kind === "value", true,
     "the exact consumed callable source and destination are retained");
   const selected = program.records.expressionConversion.get(returns[0], use.input.type, use.target, use.mode);
@@ -509,7 +509,7 @@ test("transparent wrappers of discarded callable creation remain erased without 
   };
   for (const file of csharpProgramSourceFiles(program)) visit(file);
   assert.equal(wrappers.length, 3, "all three authored creation effects are represented");
-  for (const wrapper of wrappers) assert.equal(program.records.nativeUse.expression(wrapper)?.use.kind === "erased", true,
+  for (const wrapper of wrappers) assert.equal(program.records.nativeExpression.get(wrapper)?.use.kind === "erased", true,
     "a transparent wrapper inherits only its actual discarded child, never a pending source failure");
 });
 
@@ -557,7 +557,7 @@ function owners(sourceText, surface = "js") {
     nativeExpressionIssues: [],
     declarations: records, objectShapes: program.objectShapes,
     exactLiteral: records.exactLiteral, propertyKeyBindings: expression => {
-      const use = records.nativeUse.expression(expression)?.use;
+      const use = records.nativeExpression.get(expression)?.use;
       return use === undefined || use.kind === "erased" ? undefined : use.propertyKeys;
     },
     valueReads: records, participation: records.nativeParticipation, bindingPatterns, callableCreation: { get: () => undefined },

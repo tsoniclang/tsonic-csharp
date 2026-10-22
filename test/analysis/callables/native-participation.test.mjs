@@ -119,7 +119,7 @@ for (const surface of ["native", "js"]) for (const example of ambientCases) test
     assert.equal(declaration !== undefined && program.records.nativeParticipation.get(declaration) === "erased", true,
       `${example.name}: the canonical native participation owner, not a diagnostic filter, erases ${name}`);
   }
-  for (const reference of references) assert.equal(program.records.nativeUse.expression(reference.reference) === undefined, true,
+  for (const reference of references) assert.equal(program.records.nativeExpression.get(reference.reference) === undefined, true,
     `${example.name}: an erased checked reference is not published as a runtime native use`);
   const output = [...compiled.artifacts].filter(([path]) => path.endsWith(".cs")).map(([, text]) => text).join("\n");
   for (const name of example.forbidden) assert.equal(output.includes(name), false,

@@ -38,7 +38,7 @@ function constructedArrays(program) {
     if (ast.is.IsVariableDeclaration(node)) {
       const initializer = ast.as.AsVariableDeclaration(node)?.Initializer;
       if (initializer !== undefined && ast.is.IsArrayLiteralExpression(initializer)) {
-        const use = program.records.nativeUse.expression(initializer)?.use;
+        const use = program.records.nativeExpression.get(initializer)?.use;
         assert.equal(use?.kind === "constructed", true, `${ast.text(ast.name(node))}: the actual array construction is admitted`);
         selected.set(ast.text(ast.name(node)), getCsharpArrayLiteralElementTargetType(use.carrier));
       }
@@ -93,12 +93,12 @@ function actualDestinationEvidence(program, expected, label) {
     const physical = getCsharpArrayLiteralElementTargetType(read?.value);
     assert.equal(physical?.kind === "source-primitive" && physical.name === kind, true,
       `${label}/${kind}: the array's own inferred physical storage is the actual destination`);
-    const constructed = program.records.nativeUse.expression(node)?.use;
+    const constructed = program.records.nativeExpression.get(node)?.use;
     assert.equal(constructed?.kind === "constructed" &&
       getCsharpArrayLiteralElementTargetType(constructed.carrier)?.name === kind, true,
     `${label}/${kind}: one actual native construction, not an end-only array conversion or copy`);
     const signed = ast.elements(node)[1];
-    const use = signed === undefined ? undefined : program.records.nativeUse.expression(signed)?.use;
+    const use = signed === undefined ? undefined : program.records.nativeExpression.get(signed)?.use;
     assert.equal(use?.kind === "converted" && use.input.kind === "value" && use.input.type.kind === "source-primitive" &&
       use.input.type.name === "int32" && use.target.kind === "source-primitive" && use.target.name === kind &&
       use.completion.kind === "value" && use.completion.type.kind === "source-primitive" && use.completion.type.name === kind,
@@ -116,7 +116,7 @@ function actualUnionDestinationEvidence(program, label) {
   for (const file of csharpProgramSourceFiles(program)) visit(file);
   assert.equal(nodes.length, 1, `${label}: the original physical construction is observed`);
   const expression = nodes[0];
-  const use = program.records.nativeUse.expression(expression)?.use;
+  const use = program.records.nativeExpression.get(expression)?.use;
   const element = getCsharpArrayLiteralElementTargetType(use?.carrier);
   const arms = getCsharpRuntimeUnionArms(element, program.typeDefinitions);
   assert.equal(use?.kind === "constructed" && arms?.length === 2 &&
@@ -125,7 +125,7 @@ function actualUnionDestinationEvidence(program, label) {
   `${label}: an actual closed heterogeneous destination reaches the single native construction`);
   for (const node of ast.elements(expression).slice(1)) {
     const literal = program.records.exactLiteral.get(node, csharpSourcePrimitiveTargetType("float64"));
-    const native = program.records.nativeUse.expression(node)?.use;
+    const native = program.records.nativeExpression.get(node)?.use;
     assert.equal(literal?.kind === "source-representation" && native?.kind === "converted" &&
       native.input.kind === "value" && native.input.type.kind === "source-primitive" && native.input.type.name === "float64" &&
       targetTypeRefKey(native.target) === targetTypeRefKey(element), true,
@@ -246,7 +246,7 @@ for (const surface of ["native", "js"]) {
     for (const file of csharpProgramSourceFiles(program)) visit(file);
     assert.equal(call !== undefined && array !== undefined, true, "the actual call and source construction remain present");
     const grouping = program.records.selectedCall.get(call)?.sourceArgumentGrouping;
-    const constructed = program.records.nativeUse.expression(array)?.use;
+    const constructed = program.records.nativeExpression.get(array)?.use;
     assert.equal(grouping?.kind === "grouped" && grouping.arguments.length === 1 && constructed?.kind === "constructed" &&
       targetTypeRefKey(constructed.carrier) === targetTypeRefKey(grouping.arguments[0].type), true,
     "literal storage is the exact selected native array parameter, not a sorted peer requiring an array conversion or copy");

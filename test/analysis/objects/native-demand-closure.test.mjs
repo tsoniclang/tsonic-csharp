@@ -82,7 +82,7 @@ for (const surface of ["native", "js"]) test(`${surface}: source-only generic me
     export function run(): boolean { return identity().identity<int32>(7 as int32) === 7; }
   `, surface);
   const literal = nodes.find(node => source.ast.is.IsObjectLiteralExpression(node));
-  const selected = program.records.nativeUse.expression(literal)?.use;
+  const selected = program.records.nativeExpression.get(literal)?.use;
   const logical = program.records.storageType.get(literal);
   assert.equal(selected !== undefined && selected.kind !== "erased" && selected.objectShape !== undefined && logical !== undefined, true,
     "the control has both its source storage view and its actual native construction");

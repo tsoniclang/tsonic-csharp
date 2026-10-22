@@ -162,7 +162,7 @@ test("shorthand property keys never replace the same source node's runtime value
   for (const file of csharpProgramSourceFiles(program)) visit(file);
   const shorthand = nodes.find(node => program.source.ast.is.IsShorthandPropertyAssignment(node));
   const name = program.source.ast.name(shorthand);
-  const use = program.records.nativeUse.expression(name)?.use;
+  const use = program.records.nativeExpression.get(name)?.use;
   assert.equal(use !== undefined && use.kind !== "erased" && use.literal === undefined, true,
     "the runtime value remains a real identifier read, not the key's string literal");
   const target = csharpStringTargetType();
@@ -187,7 +187,7 @@ test("actual native dictionary construction carries its computed string key reci
   };
   for (const file of csharpProgramSourceFiles(program)) visit(file);
   const bindings = objects.flatMap(expression => {
-    const use = program.records.nativeUse.expression(expression)?.use;
+    const use = program.records.nativeExpression.get(expression)?.use;
     assert.equal(use !== undefined && use.kind !== "erased" && Object.isFrozen(use.propertyKeys), true,
       "each physical dictionary carries its own immutable key binding list");
     return use.propertyKeys;
