@@ -5,6 +5,7 @@ import { csharpPlannedValue, csharpPlannedEffect } from "../../../../dist/backen
 import { csharpSourcePrimitiveTargetType, csharpNeverTargetType, csharpVoidTargetType,
   csharpTargetNamedType, csharpNullableTargetType, csharpTsValueTargetType } from "../../../../dist/target-model/types/index.js";
 import { csharpOptionalStorageProjection } from "../../../../dist/target-model/types/projections.js";
+import { csharpTypeEmissionRecord } from "../../../helpers/planning-records.mjs";
 
 const integer = csharpSourcePrimitiveTargetType("uint64");
 const identifier = name => ({ kind: "IdentifierName", name });
@@ -15,7 +16,7 @@ const node = {};
 function context(select = () => assert.fail("identity needs no conversion")) {
   let count = 0;
   return { scope: {}, names: { temporaryName: name => `${name}_${count++}` }, program: { source: { ast: { pos: () => 1, end: () => 2, getSourceFile: () => undefined } },
-    records: { conversion: { get: select } } } };
+    records: { conversion: { get: select }, typeEmission: csharpTypeEmissionRecord() } } };
 }
 
 test("coalescing with exact native absence preserves one unchanged nullable input", () => {
@@ -26,7 +27,8 @@ test("coalescing with exact native absence preserves one unchanged nullable inpu
   for (const expression of [{ kind: "LiteralExpression", value: null }, {
     kind: "DefaultExpression", type: { kind: "NullableType", inner: { kind: "PredefinedType", name: "ulong" } },
   }]) {
-    const right = csharpPlannedValue(carrier, expression);
+    // The native-absence record marks an admitted absence; the planner receives it as the planned value's absent flag.
+    const right = csharpPlannedValue(carrier, expression, [], false, true);
     assert.equal(planCsharpCoalescingValue(node, node, input, [], left, right, carrier) === left, true,
       "retain the exact original input, prelude, native width and evaluation without branching or copying");
   }
