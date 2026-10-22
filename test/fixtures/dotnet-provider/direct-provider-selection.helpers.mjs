@@ -590,6 +590,9 @@ export function directProviderHost(options = {}) {
             isUnion() {
               return false;
             },
+            isNumberLike(type) {
+              return options.numberLikeTypes?.has(type) === true;
+            },
             effectiveTypeArguments(type) {
               return options.effectiveTypeArguments?.get(type) ?? [];
             },

@@ -31,6 +31,7 @@ function fixture(options = {}) {
         : symbol === rootSymbol && options.ambiguousOwner ? [alternativeDeclaration] : [],
     },
     types: {
+      isNumberLike: () => false,
       selectIndexedAccess: () => options.unresolved ? { kind: "deferred" }
         : { kind: "resolved", objectType: sourceType, indexType: source.argument.type,
           members: options.multiple ? [member, member] : [member] },
