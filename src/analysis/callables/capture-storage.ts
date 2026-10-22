@@ -209,14 +209,21 @@ export function analyzeCsharpCaptureStorage(
   const valueDeclarations = new Map<Node, Node[]>();
   const valueCreations = new Map<Node, SourceLexicalValueCreation>();
   const valueNames = new Map<Node, string>();
+  // A function value inside compile-time metadata or inside a discarded function value is never created at runtime.
+  const discardedCreation: CsharpLambdaCreation = Object.freeze({ kind: "discarded", staticBody: true });
+  const discardSubtree = (node: Node): void => {
+    if ((source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) && !lambdaCreations.has(node))
+      lambdaCreations.set(node, discardedCreation);
+    source.ast.forEachChild(node, child => { if (child !== undefined) discardSubtree(child); });
+  };
   const visitValues = (node: Node): void => {
-    if (evidence.compileTimeMetadata.get(node)) return;
+    if (evidence.compileTimeMetadata.get(node)) { discardSubtree(node); return; }
     if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) {
       const discarded = creationDemand.get(node);
       if (discarded === undefined) failTargetAnalysisInvariant("tsonic-csharp",
         "Lambda creation requires its original pre-seal checked source demand.", node);
       if (discarded) {
-        lambdaCreations.set(node, Object.freeze({ kind: "discarded", staticBody: true }));
+        discardSubtree(node);
         return;
       }
       if (getCsharpExpressionTreeDelegateType(expectedTypes.callableTarget.get(node)) !== undefined) {
