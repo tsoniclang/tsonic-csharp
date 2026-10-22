@@ -5,8 +5,8 @@ import { csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/t
 import { csharpPlannedValue, sequenceCsharpPlannedValues } from "../../../../dist/backend/planner/expressions/planned-values.js";
 import { evaluatedConstant } from "../../../../dist/backend/planner/expressions/builders.js";
 import { selectCsharpExactLiteralConversion } from "../../../../dist/policy/conversions/literals.js";
-import { analyzeCsharpNativeConstants } from "../../../../dist/analysis/expressions/native-constants.js";
-import { analyzeCsharpLiteralAdmission } from "../../../../dist/analysis/expressions/literals.js";
+import { analyzeCsharpNativeConstants } from "../../../../dist/analysis/operations/native-constants.js";
+import { analyzeCsharpLiteralAdmission } from "../../../../dist/analysis/operations/literals.js";
 import { planCsharpPlannedDiscard } from "../../../../dist/backend/planner/statements/statement-output.js";
 
 

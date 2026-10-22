@@ -336,7 +336,7 @@ export const nativeCarrierRegistry: readonly TargetCarrierRegistryEntry<TargetTy
     id: "src/policy/conversions/source-literals.ts#resolveCsharpSourceLiteralTargetType",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/policy/conversions/source-literals.ts", symbol: "resolveCsharpSourceLiteralTargetType" },
-    counterpart: { module: "src/analysis/expressions/selected-literals.ts", symbol: "normalizeSelectedLiteralCarrier" },
+    counterpart: { module: "src/analysis/source-evidence/types/resolution/selected-literals.ts", symbol: "normalizeSelectedLiteralCarrier" },
     frozen: false,
   },
   {
@@ -357,7 +357,7 @@ export const nativeCarrierRegistry: readonly TargetCarrierRegistryEntry<TargetTy
     id: "src/policy/types/collections/literal-construction.ts#selectCsharpArrayLiteralCarrier",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/policy/types/collections/literal-construction.ts", symbol: "selectCsharpArrayLiteralCarrier" },
-    counterpart: { module: "src/analysis/expressions/array-literals.ts", symbol: "resolveArrayLiteralCarrier" },
+    counterpart: { module: "src/analysis/operations/array-literals.ts", symbol: "resolveArrayLiteralCarrier" },
     frozen: false,
   },
   {
@@ -455,7 +455,7 @@ export const nativeCarrierRegistry: readonly TargetCarrierRegistryEntry<TargetTy
     id: "src/analysis/source-evidence/types/resolution/public-api.ts#resolveReadStorage",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/analysis/source-evidence/types/resolution/public-api.ts", symbol: "resolveReadStorage" },
-    counterpart: { module: "src/analysis/expressions/flow-read.ts", symbol: "applyFlowReadLane" },
+    counterpart: { module: "src/analysis/conversions/flow-read.ts", symbol: "applyFlowReadLane" },
     frozen: false,
   },
   {
@@ -469,7 +469,7 @@ export const nativeCarrierRegistry: readonly TargetCarrierRegistryEntry<TargetTy
     id: "src/analysis/source-evidence/types/resolution/public-api.ts#resolveValue",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/analysis/source-evidence/types/resolution/public-api.ts", symbol: "resolveValue" },
-    counterpart: { module: "src/analysis/expressions/carriers.ts", symbol: "resolveExpressionCarrier" },
+    counterpart: { module: "src/analysis/source-evidence/types/resolution/expression-carriers.ts", symbol: "resolveExpressionCarrier" },
     frozen: false,
   },
   {
@@ -483,7 +483,7 @@ export const nativeCarrierRegistry: readonly TargetCarrierRegistryEntry<TargetTy
     id: "src/analysis/source-evidence/types/resolution/public-api.ts#resolveSelectedValueWithState",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/analysis/source-evidence/types/resolution/public-api.ts", symbol: "resolveSelectedValueWithState" },
-    counterpart: { module: "src/analysis/expressions/value-resolution.ts", symbol: "resolveExpressionCarrierUncached" },
+    counterpart: { module: "src/analysis/source-evidence/types/resolution/expression-values.ts", symbol: "resolveExpressionCarrierUncached" },
     frozen: false,
   },
   {
@@ -574,14 +574,14 @@ export const nativeCarrierRegistry: readonly TargetCarrierRegistryEntry<TargetTy
     id: "src/analysis/source-evidence/types/resolution/contextual-literals.ts#resolveCsharpContextualLiteralCarrier",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/analysis/source-evidence/types/resolution/contextual-literals.ts", symbol: "resolveCsharpContextualLiteralCarrier" },
-    counterpart: { module: "src/analysis/expressions/selected-literals.ts", symbol: "normalizeSelectedLiteralCarrier" },
+    counterpart: { module: "src/analysis/source-evidence/types/resolution/selected-literals.ts", symbol: "normalizeSelectedLiteralCarrier" },
     frozen: false,
   },
   {
     id: "src/analysis/source-evidence/types/resolution/expressions.ts#resolveSelectedExpressionType",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/analysis/source-evidence/types/resolution/expressions.ts", symbol: "resolveSelectedExpressionType" },
-    counterpart: { module: "src/analysis/expressions/carriers.ts", symbol: "resolveExpressionCarrierBeforeFlowReadProjection" },
+    counterpart: { module: "src/analysis/source-evidence/types/resolution/expression-carriers.ts", symbol: "resolveExpressionCarrierBeforeFlowReadProjection" },
     frozen: false,
   },
   {
@@ -711,9 +711,9 @@ export const nativeCarrierRegistry: readonly TargetCarrierRegistryEntry<TargetTy
     frozen: false,
   },
   {
-    id: "src/analysis/expressions/binary-emission.ts#analyzeCsharpBinaryEmission",
+    id: "src/analysis/operations/binary-emission.ts#analyzeCsharpBinaryEmission",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/expressions/binary-emission.ts", symbol: "analyzeCsharpBinaryEmission" },
+    declaration: { module: "src/analysis/operations/binary-emission.ts", symbol: "analyzeCsharpBinaryEmission" },
     counterpart: { module: "src/analysis/operations/operators.ts", symbol: "resolvePostCheckBinaryCarrier" },
     frozen: false,
   },
@@ -763,7 +763,7 @@ export const nativeCarrierRegistry: readonly TargetCarrierRegistryEntry<TargetTy
     id: "src/policy/types/flow-read.ts#selectCsharpFlowReadCarrier",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/policy/types/flow-read.ts", symbol: "selectCsharpFlowReadCarrier" },
-    counterpart: { module: "src/analysis/expressions/flow-read.ts", symbol: "applyFlowReadLane" },
+    counterpart: { module: "src/analysis/conversions/flow-read.ts", symbol: "applyFlowReadLane" },
     frozen: false,
   },
   {

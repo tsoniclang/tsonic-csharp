@@ -6,7 +6,7 @@ import { csharpPlannedValue } from "../../../../dist/backend/planner/expressions
 import { csharpTsValueTargetType } from "../../../../dist/target-model/types/index.js";
 import { selectCsharpJsValueCallOperation } from "../../../../dist/analysis/operations/js-values.js";
 import { validateCsharpJsValueOperationSelection } from "../../../../dist/policy/operations/js-values/selection.js";
-import { analyzeCsharpJsCalls } from "../../../../dist/analysis/expressions/js-value-calls.js";
+import { analyzeCsharpJsCalls } from "../../../../dist/analysis/operations/js-value-call-emission.js";
 import { csharpTypeEmissionRecord } from "../../../helpers/planning-records.mjs";
 
 const carrier = csharpTsValueTargetType();

@@ -6,10 +6,10 @@ import { analyzeCsharpConstructorArguments } from "../declarations/classes/const
 
 import type { Node } from "@tsonic/tsts";
 
-import { analyzeCsharpNativeConstants } from "../expressions/native-constants.js";
-import { analyzeCsharpBinaryEmission } from "../expressions/binary-emission.js";
+import { analyzeCsharpNativeConstants } from "../operations/native-constants.js";
+import { analyzeCsharpBinaryEmission } from "../operations/binary-emission.js";
 import { analyzeCsharpDictionaryLiterals } from "../objects/dictionary-literals.js";
-import { analyzeCsharpExpressionEmission } from "../expressions/emission.js";
+import { analyzeCsharpExpressionEmission } from "../operations/expression-emission.js";
 import { analyzeCsharpLambdaEmission } from "../callables/lambda-emission.js";
 import { analyzeCsharpTypedLocationEmission } from "../storage/typed-location-emission.js";
 import { createCsharpPromiseResultRecords } from "./records/promise-results.js";
@@ -19,23 +19,23 @@ import { analyzeCsharpProjectCallableAdapters } from "../project-types/callable-
 
 import { createCsharpProgramRecords } from "./records/create.js";
 import { analyzeCsharpSourceArtifacts } from "../source-modules/artifacts.js";
-import { analyzeCsharpArrayLiterals } from "../expressions/array-literals.js";
+import { analyzeCsharpArrayLiterals } from "../operations/array-literals.js";
 import { analyzeCsharpPropertyAdmission } from "../objects/property-admission.js";
 import { analyzeCsharpOptionalCallChains } from "../callables/optional-call-chains.js";
 import { analyzeCsharpElementAdmission } from "../objects/element-admission.js";
-import { analyzeCsharpSourceReferences } from "../expressions/source-references.js";
+import { analyzeCsharpSourceReferences } from "../operations/source-references.js";
 import { analyzeCsharpMemberReceivers } from "../objects/member-receivers.js";
 import { analyzeCsharpSourceCallEmission } from "../callables/source-call-emission.js";
 import { analyzeCsharpTargetArguments } from "../callables/target-arguments.js";
 import { analyzeCsharpArgumentPassing } from "../callables/argument-passing.js";
 import { analyzeCsharpTargetCallEmission } from "../callables/target-call-emission.js";
 import { analyzeCsharpConstructionEmission } from "../project-types/construction-emission.js";
-import { analyzeCsharpLiteralAdmission } from "../expressions/literals.js";
+import { analyzeCsharpLiteralAdmission } from "../operations/literals.js";
 import { analyzeCsharpAwaitAdmission } from "../callables/await-admission.js";
-import { analyzeCsharpVoidAdmission } from "../expressions/expression-void.js";
-import { analyzeCsharpJsValueBoxing } from "../expressions/js-value-boxing.js";
-import { analyzeCsharpConditions } from "../expressions/conditions.js";
-import { analyzeCsharpTemplateStrings } from "../expressions/template-strings.js";
+import { analyzeCsharpVoidAdmission } from "../operations/expression-void.js";
+import { analyzeCsharpJsValueBoxing } from "../operations/js-value-boxing.js";
+import { analyzeCsharpConditions } from "../control-flow/conditions.js";
+import { analyzeCsharpTemplateStrings } from "../operations/template-strings.js";
 import { analyzeCsharpPropertyValueProjection } from "../conversions/property-value-projection.js";
 import { analyzeCsharpStructuralObjectEmission } from "../objects/structural-emission.js";
 import { analyzeCsharpAuthoredObjectMethods } from "../objects/authored-methods.js";
@@ -59,14 +59,14 @@ import { analyzeCsharpTypeEmission } from "../source-evidence/types/emission.js"
 import { analyzeCsharpNativeMemoryEmission } from "../operations/native-memory-emission.js";
 import { admitCsharpUnionProjections } from "../operations/union-projections.js";
 import { analyzeCsharpUnionEquality } from "../operations/union-equality.js";
-import { analyzeCsharpClosedTypeTests } from "../expressions/type-tests.js";
-import { analyzeCsharpTypeofEmission } from "../expressions/typeof-emission.js";
-import { analyzeCsharpUnaryEmission } from "../expressions/expression-unary.js";
-import { analyzeCsharpThisEmission } from "../expressions/expression-this.js";
+import { analyzeCsharpClosedTypeTests } from "../operations/type-test-emission.js";
+import { analyzeCsharpTypeofEmission } from "../operations/typeof-emission.js";
+import { analyzeCsharpUnaryEmission } from "../operations/expression-unary.js";
+import { analyzeCsharpThisEmission } from "../operations/expression-this.js";
 import { analyzeCsharpSourceMemberNames } from "../objects/source-member-names.js";
 import { analyzeCsharpReceiverCallProperties } from "../operations/receiver-call-property.js";
 import { analyzeCsharpRestSequences } from "../callables/rest-sequences.js";
-import { analyzeCsharpJsCalls } from "../expressions/js-value-calls.js";
+import { analyzeCsharpJsCalls } from "../operations/js-value-call-emission.js";
 import { analyzeCsharpCallAdmission } from "../callables/call-admission.js";
 import { analyzeCsharpIdentifierEmission } from "../names/source-identifiers.js";
 import { analyzeCsharpSourceFileEmission } from "../source-modules/emission.js";

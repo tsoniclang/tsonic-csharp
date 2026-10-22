@@ -7,7 +7,7 @@ import type { CsharpTargetOperationClassifications } from "../../target-model/re
 import type { CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
-import { csharpClosedTypeTestMatches } from "../operations/type-tests.js";
+import { csharpClosedTypeTestMatches } from "./type-tests.js";
 import { selectCsharpTypeEmission } from "../../policy/types/type-emission.js";
 import { createCsharpClosedTypeTestProducer } from "../program/records/type-tests.js";
 

@@ -3,7 +3,7 @@ import test from "node:test";
 import { selectCsharpClosedTypeTestPlan } from "../../../../dist/policy/operations/operators/type-tests.js";
 import { csharpClosedTypeTestMatches } from "../../../../dist/analysis/operations/type-tests.js";
 import { planCsharpClosedTypeTest } from "../../../../dist/backend/planner/expressions/type-tests.js";
-import { analyzeCsharpClosedTypeTests } from "../../../../dist/analysis/expressions/type-tests.js";
+import { analyzeCsharpClosedTypeTests } from "../../../../dist/analysis/operations/type-test-emission.js";
 import { csharpTypeEmissionRecord } from "../../../helpers/planning-records.mjs";
 
 // The type-test emission the analysis seals for one array-predicate call carrying the fact, and the planner context reading it.

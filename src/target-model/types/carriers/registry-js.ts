@@ -227,9 +227,9 @@ export const jsCarrierRegistry: readonly TargetCarrierRegistryEntry<TargetTypeRe
     frozen: false,
   },
   {
-    id: "src/analysis/expressions/borrowed-sequences.ts#resolveCsharpBorrowedSequenceElement",
+    id: "src/analysis/operations/borrowed-sequence-elements.ts#resolveCsharpBorrowedSequenceElement",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/expressions/borrowed-sequences.ts", symbol: "resolveCsharpBorrowedSequenceElement" },
+    declaration: { module: "src/analysis/operations/borrowed-sequence-elements.ts", symbol: "resolveCsharpBorrowedSequenceElement" },
     counterpart: { module: "src/target-model/types/carriers/js.ts", symbol: "rustJsArrayLikeElementTargetType" },
     frozen: false,
   },
