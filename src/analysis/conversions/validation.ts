@@ -6,6 +6,7 @@ import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpUnionPathsEqual } from "../../target-model/types/union-relations.js";
 import { csharpUnionArmMappingsMatch } from "../../policy/conversions/union-relations.js";
 import { csharpMetadataDescriptors } from "../../target-model/metadata/immutable.js";
+import { csharpDelegateSignatureHasSupportedPassingModes, csharpDelegateSignaturesMatchNativeBinding } from "../../target-model/types/carriers/delegates.js";
 import { csharpCarrierAdmitsSourceAbsence, getCsharpDelegateSignature, getCsharpGenericOptionalParts,
   getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType,
   isCsharpNullableReferenceTargetType } from "../../target-model/types/index.js";
@@ -127,9 +128,25 @@ export function admitCsharpConversionSelection(
         const sourceSignature = getCsharpDelegateSignature(current.source);
         const targetSignature = getCsharpDelegateSignature(current.target);
         if (sourceSignature === undefined || targetSignature === undefined ||
+          !csharpDelegateSignatureHasSupportedPassingModes(sourceSignature) ||
+          !csharpDelegateSignatureHasSupportedPassingModes(targetSignature) ||
           sourceSignature.parameters.length > targetSignature.parameters.length ||
           selected.parameterConversions.length !== sourceSignature.parameters.length) {
           return { kind: "rejected", reason: "C# delegate adaptation requires exact renderable source and target signatures." };
+        }
+        if (selected.strategy !== "native-binding" && selected.strategy !== "adaptation") {
+          return { kind: "rejected", reason: "Delegate conversion requires a sealed native binding or adaptation strategy." };
+        }
+        if (selected.strategy === "native-binding" && (!csharpDelegateSignaturesMatchNativeBinding(sourceSignature, targetSignature) ||
+          selected.parameterConversions.some(conversion => conversion.kind !== "identity") ||
+          selected.returnConversion.kind !== "identity" && !(selected.returnConversion.kind === "void-return" &&
+            isCsharpVoidTargetType(sourceSignature.returnType) && isCsharpVoidTargetType(targetSignature.returnType)))) {
+          return { kind: "rejected", reason: "A sealed native delegate binding requires identical parameter and return passing signatures." };
+        }
+        if (selected.strategy === "adaptation" && (sourceSignature.returnPassing !== undefined || targetSignature.returnPassing !== undefined ||
+          sourceSignature.parameterPassingModes.some(mode => mode !== "by-value") ||
+          targetSignature.parameterPassingModes.some(mode => mode !== "by-value"))) {
+          return { kind: "rejected", reason: "Delegate adaptation cannot change or wrap native by-reference passing." };
         }
         const children: CsharpConversionAdmissionInput[] = selected.parameterConversions.map((conversion, index) => ({
           kind: "enter", source: targetSignature.parameters[index], target: sourceSignature.parameters[index], selection: conversion,
