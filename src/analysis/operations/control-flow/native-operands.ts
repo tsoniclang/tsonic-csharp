@@ -212,7 +212,11 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
     if (call.unionCall.kind === "resolved") return chosen([...use(call.unionCall.receiver, { kind: "receiver" }), ...guarded(arguments_)]);
     const callee = call.sourceCall;
     if (callee === undefined || callee.kind === "rejected" || callee.kind === "union-method") return refused("operation-unresolved");
-    if (callee.kind === "function" || callee.kind === "value") return argumentsFirst(use(callee.expression, { kind: "callee" }), guarded(arguments_));
+    // A source function is called by name: the callee is a declaration reference, never an evaluated value, so it has no
+    // native use (a generic function returning a generic class has no closed C# value carrier at all). A callable value
+    // is evaluated before its arguments.
+    if (callee.kind === "function") return argumentsFirst([], guarded(arguments_));
+    if (callee.kind === "value") return argumentsFirst(use(callee.expression, { kind: "callee" }), guarded(arguments_));
     const access = call.source.sourceCalleeAccess;
     const receiver = receiverUses(callee.receiver);
     const key = guarded(access?.kind === "element" ? use(access.argument.expression, { kind: "key" }) : []);
