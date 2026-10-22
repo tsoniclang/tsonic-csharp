@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
-import { sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
+import { createTargetSourceProgram, sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 const pureSource = `
@@ -93,7 +93,7 @@ for (const surface of [undefined, "js"]) {
       "narrowMetadata", "wideMetadata", "fractionalMetadata", "negativeMetadata", "halfMetadata", "charMetadata", "shadowMetadata"]) {
       const declaration = namedVariable(program, name);
       assert.equal(program.records.compileTimeMetadata.get(declaration), true, `${name}: existing native erasure fact`);
-      assert.equal(program.sourceNavigation.declarationUseSummary(declaration).uses.every(use => use.kind === "type-only"), true,
+      assert.equal(createTargetSourceProgram(compiled.source).navigation.declarationUseSummary(declaration).uses.every(use => use.kind === "type-only"), true,
         `${name}: the actual checked declaration has only erased references`);
     }
     const wideInitializer = program.source.ast.as.AsVariableDeclaration(namedVariable(program, "wideMetadata"))?.Initializer;

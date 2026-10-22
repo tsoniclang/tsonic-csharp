@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { csharpProgramPromiseResults } from "../../helpers/program-source-files.mjs";
 
 for (const [name, statement, discarded] of [
   ["discarded", "leaf();", 1],
@@ -15,11 +16,11 @@ for (const [name, statement, discarded] of [
       export async function outer(flag: boolean): Promise<number> { ${statement} return 0; }
     ` });
     assert.deepEqual(compiled.targetDiagnostics.map(({ code, message }) => `${code}: ${message}`), []);
-    const results = compiled.result.program.promiseResults;
-    assert.equal(results instanceof Map, true);
-    assert.equal([...results.values()].filter(row => row.discard !== undefined).length, discarded);
-    if (discarded > 0) assert.equal(compiled.result.program.binaryExecutionDriver?.id, "tsonic.csharp.js.event-loop-v1");
-    for (const row of results.values()) assert.equal(Object.isFrozen(row), true);
+    const results = csharpProgramPromiseResults(compiled.result.program);
+    assert.equal(results.length > 0, true, "the result-use owner publishes the decisions");
+    assert.equal(results.filter(row => row.discard !== undefined).length, discarded);
+    if (discarded > 0) assert.equal(compiled.result.program.records.startup.get().driver?.id, "tsonic.csharp.js.event-loop-v1");
+    for (const row of results) assert.equal(Object.isFrozen(row), true);
   });
 }
 

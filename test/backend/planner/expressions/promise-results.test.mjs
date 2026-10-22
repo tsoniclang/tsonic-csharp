@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../../helpers/direct-csharp-session.mjs";
+import { csharpProgramPromiseResults } from "../../../helpers/program-source-files.mjs";
 
 for (const [name, statement, observed] of [
   ["ordinary", "leaf();", 1],
@@ -32,7 +33,7 @@ for (const [name, result, alternative, shape] of [
       export function run(flag: boolean): void { choose(flag); }
     ` });
     assert.deepEqual(compiled.targetDiagnostics.map(({ code, message }) => `${code}: ${message}`), []);
-    const rows = [...compiled.result.program.promiseResults.values()].filter(row => row.discard !== undefined);
+    const rows = csharpProgramPromiseResults(compiled.result.program).filter(row => row.discard !== undefined);
     assert.equal(rows.length, 1);
     assert.equal(rows[0].discard.kind, shape);
     const output = [...compiled.artifacts.values()].join("\n");
