@@ -376,7 +376,6 @@ export function analyzeCsharpOperationConstruct(
       : selectCsharpClosedTypeTestPlan(instanceSource, instancePredicate, undefined, policy.typeDefinitions);
     const jsValue = validateCsharpJsValueOperationSelection(selectCsharpJsValueBinaryOperation(
       policy, expression?.Left, expression?.Right, sourceFile, sourceOperator));
-    if (jsValue.kind === "rejected") issues?.push(Object.freeze({ node, code: "CSHARP_UNSUPPORTED_AST", message: jsValue.reason }));
     producer.binary.selected(node, Object.freeze({
         jsValue,
         target: selectCsharpBinaryOperation(
