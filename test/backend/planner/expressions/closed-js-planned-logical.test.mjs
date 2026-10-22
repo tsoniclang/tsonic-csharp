@@ -6,6 +6,8 @@ import { csharpPlannedValue } from "../../../../dist/backend/planner/expressions
 import { csharpTsValueTargetType } from "../../../../dist/target-model/types/index.js";
 import { selectCsharpJsValueBinaryOperation } from "../../../../dist/analysis/operations/js-values.js";
 import { validateCsharpJsValueOperationSelection } from "../../../../dist/policy/operations/js-values/selection.js";
+import { analyzeCsharpJsValueBoxing } from "../../../../dist/analysis/expressions/js-value-boxing.js";
+import { csharpTypeEmissionRecord } from "../../../helpers/planning-records.mjs";
 
 const carrier = csharpTsValueTargetType();
 const identifier = name => ({ kind: "IdentifierName", name });
@@ -16,11 +18,19 @@ test("closed logical RHS statement regions execute only in their selected native
   const policy = { types: { resolveNode: () => carrier, resolveReadStorage: () => undefined } };
   for (const [operator, expectedBranch] of [["&&", "thenBody"], ["||", "elseBody"], ["??", "thenBody"]]) {
     let count = 0;
-    const input = { program: { source: { ast: { pos: () => 1 } } }, scope: {},
+    const leftNode = {};
+    const rightNode = {};
+    // Both operands are closed JS values: the boxing analysis seals identity for each.
+    const boxing = analyzeCsharpJsValueBoxing({ ast: { is: {} }, values: { valueRead: { get: () => undefined } },
+      exact: { exactLiteral: { get: () => undefined } },
+      demand: { entries: [leftNode, rightNode].map(expression => ({ use: { kind: "value", expression, carrier } })) } });
+    assert.deepEqual(boxing.issues, []);
+    const input = { program: { source: { ast: { pos: () => 1 } }, records: { jsValueBoxing: boxing.records.jsValueBoxing,
+      typeEmission: csharpTypeEmissionRecord(), nativeConstant: { get: () => false }, nativeAbsence: { get: () => false } } }, scope: {},
       names: { temporaryName: () => `local${count++}` } };
     const selected = validateCsharpJsValueOperationSelection(selectCsharpJsValueBinaryOperation(policy, {}, {}, {}, operator));
     const diagnostics = [];
-    const planned = planCsharpJsValueLogical({}, {}, input, diagnostics, selected, {}, {},
+    const planned = planCsharpJsValueLogical({}, {}, input, diagnostics, selected, leftNode, rightNode,
       csharpPlannedValue(carrier, identifier("left"), [effect("leftPrelude")]),
       csharpPlannedValue(carrier, identifier("right"), [effect("rightPrelude")]));
     assertNoTargetDiagnostics(diagnostics);

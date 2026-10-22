@@ -3,6 +3,19 @@ import test from "node:test";
 import { selectCsharpClosedTypeTestPlan } from "../../../../dist/policy/operations/operators/type-tests.js";
 import { csharpClosedTypeTestMatches } from "../../../../dist/analysis/operations/type-tests.js";
 import { planCsharpClosedTypeTest } from "../../../../dist/backend/planner/expressions/type-tests.js";
+import { analyzeCsharpClosedTypeTests } from "../../../../dist/analysis/expressions/type-tests.js";
+import { csharpTypeEmissionRecord } from "../../../helpers/planning-records.mjs";
+
+// The type-test emission the analysis seals for one array-predicate call carrying the fact, and the planner context reading it.
+function sealedTypeTest(fact) {
+  const node = {};
+  return analyzeCsharpClosedTypeTests([node], { selectedCall: { get: subject => subject === node ? { form: { kind: "type-test", typeTest: fact } } : undefined },
+    binaryOperation: { get: () => undefined } }, undefined);
+}
+const planning = analysis => ({ scope: {}, program: { records: { closedTypeTestEmission: analysis.records.closedTypeTestEmission,
+  typeEmission: csharpTypeEmissionRecord() } } });
+const missingPlan = error => error instanceof Error && error.phase === "planning" &&
+  error.message === "An admitted type predicate requires its native emission plan.";
 import { csharpNullableTargetType, csharpRuntimeUnionTargetType, csharpStringTargetType,
   csharpTargetNamedType } from "../../../../dist/target-model/types/index.js";
 import { csharpJsArrayTargetType, csharpJsDateTargetType, csharpJsRegExpTargetType,
@@ -46,10 +59,11 @@ for (const kind of ["nominal", "array"]) test(`closed ${kind} tests reject missi
   const arms = fact.test.test.arms;
   assert.ok(Object.isFrozen(fact.test) && Object.isFrozen(arms) && arms.every(Object.isFrozen));
   const expression = { kind: "IdentifierName", name: "operand" };
-  const input = { scope: {}, program: {  } };
   const state = () => ({ nextTempIndex: 0, usedNames: new Set() });
   assert.equal(csharpClosedTypeTestMatches(fact), true);
-  assert.equal(planCsharpClosedTypeTest(expression, fact, input, state()).kind, "SwitchExpression");
+  const admitted = sealedTypeTest(fact);
+  assert.deepEqual(admitted.issues, []);
+  assert.equal(planCsharpClosedTypeTest(expression, fact, planning(admitted), state()).kind, "SwitchExpression");
   const cyclic = { kind: "optional", element: fact.test.element };
   cyclic.test = cyclic;
   for (const selected of [undefined, null, cyclic, { kind: "native" }, { kind: "constant", value: true },
@@ -60,13 +74,18 @@ for (const kind of ["nominal", "array"]) test(`closed ${kind} tests reject missi
       ({ ...fact.test, test: { ...fact.test.test, arms } }))]) {
     const altered = { ...fact, test: selected };
     assert.equal(csharpClosedTypeTestMatches(altered), false);
-    assert.equal(planCsharpClosedTypeTest(expression, altered, input, state()), undefined);
+    // The analysis refuses the forged test and seals no plan; the planner never plans an unsealed one.
+    const refused = sealedTypeTest(altered);
+    assert.equal(refused.issues.length, 1);
+    assert.throws(() => planCsharpClosedTypeTest(expression, altered, planning(refused), state()), missingPlan);
   }
   for (const changes of [{ predicate: undefined }, { predicate: null }, { predicate: { kind: "unknown" } },
     { predicate: { ...predicate, unexpected: true } }, { sourceCarrier: null },
     { sourceCarrier: csharpStringTargetType() }]) {
     const altered = { ...fact, ...changes };
     assert.equal(csharpClosedTypeTestMatches(altered), false);
-    assert.equal(planCsharpClosedTypeTest(expression, altered, input, state()), undefined);
+    // A missing predicate cannot come from a call classification; the analysis is exercised with defined predicates.
+    if (altered.predicate !== undefined && altered.predicate !== null) assert.equal(sealedTypeTest(altered).issues.length, 1);
+    assert.throws(() => planCsharpClosedTypeTest(expression, altered, planning(admitted), state()), missingPlan);
   }
 });

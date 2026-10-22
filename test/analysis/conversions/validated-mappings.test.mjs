@@ -174,7 +174,7 @@ test("planning consumes admitted mappings without a conversion validation servic
   const narrow = csharpRuntimeUnionTargetType([string, integer]);
   const wide = csharpRuntimeUnionTargetType([integer, boolean, string]);
   const widening = selectCsharpConversion(policy, narrow, wide, "implicit");
-  const context = { program: { source: { ast: { pos: () => 0, end: () => 5 } } }, scope: {}, names: { temporaryName: name => name } };
+  const context = { program: { source: { ast: { pos: () => 0, end: () => 5 } }, records: { typeEmission: csharpTypeEmissionRecord() } }, scope: {}, names: { temporaryName: name => name } };
   const diagnostics = [];
   const planned = planCsharpUnionMapping({}, { kind: "IdentifierName", name: "value" }, narrow, wide, widening, context, diagnostics);
   assertNoTargetDiagnostics(diagnostics);
@@ -182,7 +182,7 @@ test("planning consumes admitted mappings without a conversion validation servic
   const union = csharpRuntimeUnionTargetType([integer, string]);
   const projection = planCsharpRuntimeUnionProjection({}, csharpNullableTargetType(union), csharpNullableTargetType(string),
     { kind: "runtime-union-projection", path: [{ union, index: 1 }], armType: string, retainsAbsence: true },
-    { kind: "IdentifierName", name: "value" }, diagnostics, { scope: { typeParameterNames: new Map() }, program: {} });
+    { kind: "IdentifierName", name: "value" }, diagnostics, { scope: { typeParameterNames: new Map() }, program: { records: { typeEmission: csharpTypeEmissionRecord() } } });
   assertNoTargetDiagnostics(diagnostics);
   assert.equal(projection.kind, "InvocationExpression");
 });

@@ -31,7 +31,7 @@ test("union mappings require complete exact coverage and reject forged or numeri
   assert.equal(selectCsharpConversion(policy, wide, narrow, "implicit").kind, "rejected");
   const selection = selectCsharpFlowReadConversion(policy, csharpNullableTargetType(wide), csharpNullableTargetType(narrow));
   assert.deepEqual(selection, { kind: "union-map", coverage: "target", arms: narrowing });
-  const context = { program: { source: { ast: { pos: () => 0, end: () => 5 } } }, scope: {}, names: { temporaryName: name => name } };
+  const context = { program: { source: { ast: { pos: () => 0, end: () => 5 } }, records: { typeEmission: csharpTypeEmissionRecord() } }, scope: {}, names: { temporaryName: name => name } };
   const expression = { kind: "InvocationExpression", callee: { kind: "IdentifierName", name: "Next" }, arguments: [] };
   const diagnostics = [];
   const planned = planCsharpUnionMapping({}, expression, csharpNullableTargetType(wide), csharpNullableTargetType(narrow), selection, context, diagnostics);
@@ -60,7 +60,7 @@ test("nested union paths preserve each native grouping and reject stale intermed
   assert.deepEqual(arms.map(arm => arm.target.map(step => step.index)), [[1, 1], [0], [1, 0]]);
   assert.deepEqual(arms.map(arm => arm.carrier), [string, boolean, integer]);
   const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) } };
-  const context = { program: { source: { ast: { pos: () => 0, end: () => 5 } } }, scope: {}, names: { temporaryName: name => name } };
+  const context = { program: { source: { ast: { pos: () => 0, end: () => 5 } }, records: { typeEmission: csharpTypeEmissionRecord() } }, scope: {}, names: { temporaryName: name => name } };
   const expression = { kind: "IdentifierName", name: "original" };
   const selection = { kind: "union-map", coverage: "source", arms };
   const diagnostics = [];

@@ -11,6 +11,7 @@ import {
 } from "../../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { csharpTypeFromTargetTypeRef } from "../../../../dist/backend/planner/types/target-types.js";
 import { planCsharpNativeMemoryCall } from "../../../../dist/backend/planner/expressions/native-memory.js";
+import { analyzeCsharpNativeMemoryEmission } from "../../../../dist/analysis/operations/native-memory-emission.js";
 
 test("native runtime type applications preserve their exact C# payload and native AST", () => {
   const value = { kind: "source-primitive", name: "int64" };
@@ -35,8 +36,11 @@ test("native memory static qualification is literal item data and emits the exac
   }, name: "Runtime" }, name: "NativeLocation" };
   const layoutQualifier = { ...qualifier, name: "NativeLayout" };
   const value = { kind: "IdentifierName", name: "value" };
+  // The layout codec is planned from the emission the native memory analysis seals for a backed layout.
+  const records = analyzeCsharpNativeMemoryEmission({ nodes: [], operations: { nativePointer: { get: () => undefined } },
+    storage: { nativeBackings: [{ layout }], nativeArrays: [], nativeFields: [] } }).records;
   for (const method of ["Allocate", "ToRaw", "Reinterpret"]) {
-    assert.deepEqual(planCsharpNativeMemoryCall(undefined, method, value, layout), {
+    assert.deepEqual(planCsharpNativeMemoryCall(undefined, method, value, layout, records), {
       kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression", receiver: qualifier,
         name: method, typeArguments: [{ kind: "PredefinedType", name: "uint" }] },
       arguments: [{ kind: "Argument", expression: value }, { kind: "Argument", expression: {
