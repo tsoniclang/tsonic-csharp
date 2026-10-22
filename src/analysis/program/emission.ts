@@ -90,7 +90,7 @@ import { isCsharpNeverTargetType } from "../../target-model/types/carriers/scala
 
 import { analyzeCsharpNumericRepresentations } from "../numeric/representations.js";
 
-import { rejectedTargetStage, resolvedTargetStage, failTargetAnalysisInvariant, targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
+import { rejectedTargetStage, resolvedTargetStage, failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { createSourceSwitchCoverage, targetSourceSyntaxProgram } from "@tsonic/target-api/analysis";
 import type { TargetStageResult } from "@tsonic/target-api/artifacts";
 
@@ -129,7 +129,7 @@ export function finalizeCsharpNativeEmission(
   nativeValueCarriers: ReturnType<typeof analyzeCsharpNativeValueCarriers>,
   prerequisiteBinaryExecutionDriver: ReturnType<typeof composeCsharpBinaryExecutionDriver>,
 ): TargetStageResult<CsharpAnalysisProgram> {
-  const { input, configuration, providers } = request;
+  const { input, configuration } = request;
   const source = input.source;
   const sourceFiles = analysis.policy.sourceFiles;
   const literalValues = analysis.policy.literalValues;
@@ -312,13 +312,13 @@ export function finalizeCsharpNativeEmission(
   const sourceReferences = analyzeCsharpSourceReferences({ source, nodes: sourceStorage.nodes, admitted: admittedControlNode,
     evidence: analysis.sourceEvidence, factories: classFactories, captures: captureStorage, demand: nativeDemand,
     operations: admittedOperations, files: sourceOutputIdentities.records, backing: analysis.storage.nativeBacking,
-    delegateAdapters: conversions.delegateAdapters });
+    delegateAdapters: conversions.delegateAdapters, jsCalls: jsCalls.records });
   if (sourceReferences.issues.length !== 0) return rejectedTargetStage(sourceReferences.issues);
   const memberReceivers = analyzeCsharpMemberReceivers({ source, nodes: sourceStorage.nodes, operations: admittedOperations,
     references: sourceReferences.records, projects: projectEmission.records, factories: classFactories, admitted: admittedControlNode });
   if (memberReceivers.issues.length !== 0) return rejectedTargetStage(memberReceivers.issues);
   const propertyAdmission = analyzeCsharpPropertyAdmission({ ast: source.ast, nodes: sourceStorage.nodes,
-    operations: admittedOperations, admitted: admittedControlNode, projectDeclaration: node => source.navigation.isProjectDeclaration(node), receivers: memberReceivers.records,
+    operations: admittedOperations, admitted: admittedControlNode, projectDeclaration: node => source.navigation.isProjectDeclaration(node), receivers: memberReceivers.records, jsCalls: jsCalls.records,
     modules: sourceReferences.records.sourceModuleReference, evidence: analysis.sourceEvidence });
   if (propertyAdmission.issues.length !== 0) return rejectedTargetStage(propertyAdmission.issues);
   // Native member names are selected only where the planner renders one: an admitted source member read and the
@@ -403,8 +403,6 @@ export function finalizeCsharpNativeEmission(
     operations: admittedOperations, values: analysis.valueReads, demand: nativeDemand, evidence: analysis.sourceEvidence,
     modules: sourceModuleConstructions.index.sourceModuleConstruction, files: sourceOutputIdentities.records, arguments: targetArguments.records });
   if (constructionEmission.issues.length !== 0) return rejectedTargetStage(constructionEmission.issues);
-  const references = providers.validateReferences();
-  if (references.length !== 0) return rejectedTargetStage(references.map(diagnostic => targetDiagnosticFromExtension(undefined, diagnostic)));
   const recordInput: Omit<CsharpProgramRecordInput, "constructors"> = {
     propertyValueProjection: propertyValueProjection.records,
     arrayLiterals: arrayLiterals.records,

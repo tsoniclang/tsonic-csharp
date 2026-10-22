@@ -28,10 +28,11 @@ export function analyzeCsharpFrozenDataProperties(input: {
     for (const member of shape.members) {
       if (input.storage.nativeField.get(shape.targetType, member.targetName) !== undefined) invalid = member.sourceDeclarations?.[0] ?? true;
       if (member.accessor !== undefined) continue;
-      const selected = input.members.objectMember.get(shape, member);
-      if (selected === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted frozen object requires its native member storage selection.", member.sourceDeclarations?.[0]);
-      const name = objectShapeStorageMemberName(shape, member);
+      // A synthetic shape stores the member as its selected object member; a source artifact uses its class storage.
       if (artifact.materialization === "synthetic") {
+        const selected = input.members.objectMember.get(shape, member);
+        if (selected === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted frozen object requires its native member storage selection.", member.sourceDeclarations?.[0]);
+        const name = objectShapeStorageMemberName(shape, member);
         switch (selected.declaration.kind) {
           case "authored": case "accessor": break;
           case "native-backing": invalid = member.sourceDeclarations?.[0] ?? true; break;

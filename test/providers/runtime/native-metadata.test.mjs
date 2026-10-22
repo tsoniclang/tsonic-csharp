@@ -44,7 +44,8 @@ function fixture() {
   const project = classified.value;
   const preparation = Object.freeze({ sources: project.runtimeSources, projects: renderedRuntimeProjects(project),
     project: project.project, properties: project.properties, cacheRoot });
-  const wrapper = project.runtimeProjects[0];
+  // The wrapper project as printed for acquisition (runtime project instances carry no text since the port).
+  const wrapper = preparation.projects[0];
   return { root, source, runtime, cacheRoot, configuration, project, preparation, wrapper };
 }
 

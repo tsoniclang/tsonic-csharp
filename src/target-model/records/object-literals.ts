@@ -25,6 +25,8 @@ export interface CsharpObjectInitialization {
 export interface CsharpObjectLiteralRecords {
   readonly objectLiteral: { readonly get: (shape: CsharpObjectShapeFact, node: Node) => CsharpObjectLiteralEmission | undefined };
   readonly objectLiteralMember: { readonly get: (shape: CsharpObjectShapeFact, node: Node) => CsharpObjectLiteralMemberEmission | undefined };
+  /** Every object-literal method or accessor whose body receives the object as its receiver, with that receiver carrier. */
+  readonly receiverBoundCallables: readonly { readonly property: Node; readonly receiver: TargetTypeRef }[];
 }
 
 export interface CsharpObjectLiteralCallableEmission {

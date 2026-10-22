@@ -237,7 +237,7 @@ export function createCsharpProviderRelationResolver(
       return Object.freeze([...failures.values()]);
     },
     prepareRuntimeSources(preparation: CsharpProviderRuntimePreparation): CsharpProviderRuntimeAcquisition {
-      if (runtimePrepared) throw new TypeError("C# native runtime acquisition is prepared exactly once before analysis.");
+      if (runtimePrepared) throw new TypeError("C# native runtime acquisition inputs are prepared exactly once per analysis.");
       runtimePrepared = true;
       ordinaryIds.clear();
       ordinaryMetadata.clear();

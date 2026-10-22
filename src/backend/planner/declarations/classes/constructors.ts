@@ -130,7 +130,10 @@ function planBaseConstructorArguments(
       failCsharpPlannerInvariant("An admitted base constructor requires a dense source argument list.", callNode);
     }
     const carrier = selection?.sourceArgumentParameterTypes?.[index];
+    // A direct entry forwards each argument in its sealed source passing mode; a missing mode is never read as by-value.
     const selectedArgument = directEntry ? input.program.records.sourceArgument.get(argument) : undefined;
+    if (directEntry && selectedArgument?.kind !== "resolved")
+      failCsharpPlannerInvariant("C# call planning received an argument without sealed passing evidence.", argument);
     const plannedArgument = planCallArgument(argument, sourceFile, input, diagnostics, carrier, state,
       selectedArgument?.kind === "resolved" ? selectedArgument.argument.passingMode : undefined);
     if (plannedArgument === undefined) {

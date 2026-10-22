@@ -4,7 +4,6 @@ import { compileCsharpSource } from "../../../helpers/direct-csharp-session.mjs"
 import { createCsharpPlanningContext } from "../../../../dist/backend/planner/context.js";
 import { planExpression } from "../../../../dist/backend/planner/expressions/index.js";
 import { planCsharpMemoryBinding } from "../../../../dist/backend/planner/expressions/memory-bindings.js";
-import { planCsharpExplicitSafetyExpression } from "../../../../dist/backend/planner/safety/explicit-safety.js";
 import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
 
 test("the C# root reads its selected descriptor once and never queries a losing applicability family", () => {
@@ -62,12 +61,17 @@ test("a selected memory operand may fail but never delegates to a second rendere
 });
 
 test("selected safety rejection remains the original source diagnostic rather than an internal invariant", () => {
-  const diagnostics = [];
-  const selected = { kind: "safety-builder", fact: { kind: "builder-state" } };
-  assert.equal(planCsharpExplicitSafetyExpression({}, selected, {}, {}, diagnostics, undefined,
-    () => assert.fail("a rejected safety marker has no operand")) === undefined, true,
-    "the selected safety builder preserves its source rejection");
+  // Safety positions are checked by the safety analysis (analysis/safety/emission.ts); an incomplete builder statement
+  // is erased from output, so it reaches no planner and must be refused with its source code.
+  const compiled = compileCsharpSource({ sourceText: `
+    import { safety } from "@tsonic/core/lang.js";
+    import type { int32 } from "@tsonic/core/types.js";
+    export function selected(value: int32): int32 { return value; }
+    safety(selected);
+  ` });
+  const diagnostics = compiled.result.diagnostics;
   assert.equal(diagnostics.length === 1, true, "the selected safety builder emits exactly one diagnostic");
   assert.equal(diagnostics[0].code === "CSHARP_SAFETY_MARKER_RUNTIME_POSITION_UNSUPPORTED", true,
     `the original safety source code is retained: ${diagnostics[0].code}`);
+  assert.equal(compiled.result.artifacts.length, 0, "the selected safety builder preserves its source rejection");
 });

@@ -567,8 +567,8 @@ test("object-shape display names are readable, unique, and build-order invariant
   }], [{ canonicalName: candidates[0].canonicalName, identity: candidates[0].identity,
     displayName: forward.get(candidates[0].canonicalName) }]);
   const normalizedSource = printCsharpCompilationUnit(normalized);
-  assert.match(normalizedSource, /class Todo_InputShape_aaaaaaaaaaaa/u);
-  assert.match(normalizedSource, /Todo_InputShape_aaaaaaaaaaaa next/u);
+  assert.match(normalizedSource, /class Todo_InputShape_aaaaaaaaaaaa1\n/u);
+  assert.match(normalizedSource, /Todo_InputShape_aaaaaaaaaaaa1 next/u);
   assert.match(normalizedSource, /class __TsonicShape_first/u);
   assert.match(normalizedSource, /__TsonicShape_first unchanged/u);
 });

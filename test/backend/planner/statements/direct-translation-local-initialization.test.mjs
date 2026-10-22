@@ -204,8 +204,10 @@ test("local storage has one final carrier and no syntax, lambda or source-eviden
     { label: "absent storage", type: undefined, message: "finalized native storage carrier" },
     { label: "unrenderable storage", type: { kind: "opaque", id: "missing" }, message: "renderable native storage carrier" },
   ]) {
+    // The renderer reads the sealed local binding completion, whose carrier analysis selected from the storage record.
     const corrupted = createCsharpPlanningContext({ ...program, records: { ...program.records,
-      storageType: { get: node => node === declaration ? control.type : program.records.storageType.get(node) } } });
+      localBinding: { get: node => node === declaration
+        ? { ...program.records.localBinding.get(node), carrier: control.type } : program.records.localBinding.get(node) } } });
     assert.throws(() => planLocalDeclaration(declaration, file, corrupted, diagnostics,
       createDestructuringPlannerState(declaration, ast), { kind: "LiteralExpression", value: 7 }),
     error => error.message.includes(control.message), `${control.label}: only corrupted admitted storage is an invariant`);

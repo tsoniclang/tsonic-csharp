@@ -21,7 +21,8 @@ export function selectCsharpObjectMemberEmission(input: CsharpObjectMemberPolicy
   const emit = (declaration: CsharpObjectMemberDeclaration) => ({ kind: "selected" as const,
     value: Object.freeze({ member, receiverBound, methodStorage, boundStorage, declaration: Object.freeze(declaration) }) });
   const signature = (): CsharpObjectMethodSignature | undefined => {
-    if (metadata === undefined) return undefined;
+    // Delegate metadata without its return fact has no complete method signature.
+    if (metadata === undefined || metadata.returnType === undefined) return undefined;
     const optional = new Set(metadata.optionalParameterIndexes ?? []);
     const rest = metadata.restParameterIndex;
     if (optional.size !== (metadata.optionalParameterIndexes?.length ?? 0) ||

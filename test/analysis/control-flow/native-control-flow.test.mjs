@@ -162,10 +162,11 @@ for (const surface of ["native", "js"]) {
     assert.equal(compiled.sourceDiagnosticsText, "", "all source labels have exact checked break/continue targets");
     assert.equal(compiled.targetDiagnostics.length, 0, "native synthetic endpoints impose no authored identifier restriction");
     const output = compiled.artifacts.get("src/Index.cs");
-    assert.doesNotMatch(output, /__tsonic_label_(?:event|@|\$|outer|inner)/u,
-      "authored labels are source identities, never native endpoint fragments");
-    assert.match(output, /goto __tsonic_label_break\d+;/u, "checked break targets use deterministic synthetic names");
-    assert.match(output, /goto __tsonic_label_continue\d+;/u, "nested checked continue targets retain the selected loop");
+    // Generated endpoints carry the authored label as an identifier fragment (RULINGS 2026-10-22): any spelling compiles.
+    assert.doesNotMatch(output, /__tsonic_label_(?:@|\$)/u, "authored labels are spelled as identifier fragments, never raw");
+    assert.match(output, /goto __tsonic_label_event_break\d+;/u, "checked break targets use deterministic generated names");
+    assert.match(output, /goto __tsonic_label_x0024done_break\d+;/u, "non-identifier label characters are spelled as code units");
+    assert.match(output, /goto __tsonic_label_inner_continue\d+;/u, "nested checked continue targets retain the selected loop");
     executeCsharpConstruction(compiled, `native-control-labels-${surface}`, false, false, [], `
 if (Tsonic.Generated.Index.run() != 4 || Tsonic.Generated.Index.other() != 5)
     throw new System.Exception("native checked label identity");

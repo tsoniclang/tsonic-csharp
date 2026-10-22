@@ -18,8 +18,10 @@ function scenario() {
     declaredValueType: () => type, typeSymbol: () => symbol, primarySymbolDeclaration: () => declaration,
   } };
   const input = {
-    ast: { getSourceFile: () => file, kindName: node => node.kind === "literal" ? "KindNumericLiteral" : node.kind,
-      text: node => node.text, authoredRange: () => ({ kind: "synthetic" }),
+    // A literal operand is its own one-token source file, so the shared literal reader sees its authored token text.
+    ast: { getSourceFile: node => node.kind === "literal" ? node : file, getSourceText: source => source.text,
+      kindName: node => node.kind === "literal" ? "KindNumericLiteral" : node.kind, text: node => node.text,
+      authoredRange: node => node.kind === "literal" ? { kind: "authored", start: 0, end: node.text.length } : { kind: "synthetic" },
       is: { IsTypeParameterDeclaration: node => node === declaration, IsUnionTypeNode: () => false,
         IsParenthesizedTypeNode: () => false, IsIntersectionTypeNode: () => false,
         IsParenthesizedExpression: () => false, IsPrefixUnaryExpression: () => false },

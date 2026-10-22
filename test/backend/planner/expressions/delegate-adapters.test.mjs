@@ -45,8 +45,10 @@ test("native adapters snapshot an effectful callable once outside its invocation
 test("an adapted authored lambda invokes a native local function, never an inner source delegate", () => {
   const observed = { kind: "InvocationExpression", callee: { kind: "IdentifierName", name: "observe" }, arguments: [] };
   const diagnostics = [];
+  // The expression planner publishes an authored lambda as a lambda callable; the adapter never inspects the syntax.
+  const lambda = { kind: "LambdaExpression", parameters: [], body: observed };
   const planned = planCsharpDelegateAdapter({}, {}, context(), diagnostics, source, target, selection,
-    { kind: "LambdaExpression", parameters: [], body: observed }, applyCsharpConversionSelection);
+    lambda, applyCsharpConversionSelection, { kind: "lambda", expression: lambda });
   assertNoTargetDiagnostics(diagnostics);
   assert.equal(planned.kind, "LambdaExpression");
   const [local, invocation, returned] = planned.body.statements;
@@ -63,8 +65,9 @@ test("an adapted fixed self value reuses the exact initialized native slot witho
   const input = context();
   input.program.records.namedSelf.get = declaration => declaration === node ? { values: [{}] } : undefined;
   const diagnostics = [];
+  // Lambda creation publishes a proven fixed self as a direct method callable (callable.ts); the adapter reuses it.
   const planned = planCsharpDelegateAdapter(node, {}, input, diagnostics, source, target, selection,
-    expression, applyCsharpConversionSelection);
+    expression, applyCsharpConversionSelection, { kind: "method" });
   assertNoTargetDiagnostics(diagnostics);
   assert.equal(planned.kind, "LambdaExpression");
   assert.equal(planned.body.statements[0].expression.callee === expression, true, "reuse exact fixed local slot");
@@ -90,7 +93,9 @@ test("an adapted captured method binds its sealed native frame, not a source del
   const input = context();
   input.program.records.captureClosure.get = () => ({ method: { methodName: "invoke", type: source } });
   const diagnostics = [];
-  const planned = planCsharpDelegateAdapter({}, {}, input, diagnostics, source, target, selection, method, applyCsharpConversionSelection);
+  // The capture planner publishes the frame method as a captured-method callable (capture-closures.ts).
+  const planned = planCsharpDelegateAdapter({}, {}, input, diagnostics, source, target, selection, method, applyCsharpConversionSelection,
+    { kind: "captured-method", receiver: frame, name: "invoke" });
   assertNoTargetDiagnostics(diagnostics);
   assert.equal(planned.kind, "SwitchExpression");
   assert.equal(planned.expression, frame);

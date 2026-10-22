@@ -11,6 +11,7 @@ import type { CsharpTargetOperationClassifications } from "../../target-model/re
 import type { CsharpSourceFileRecords } from "../../target-model/records/source-files.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
 import type { CsharpConversionClassifications } from "../../target-model/records/conversions.js";
+import type { CsharpJsCallRecords } from "../../target-model/records/js-value-calls.js";
 import { getCsharpDelegateSignature } from "../../target-model/types/carriers/delegates.js";
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 import { createCsharpSourceReferenceRecords } from "../program/records/source-references.js";
@@ -21,7 +22,7 @@ export function analyzeCsharpSourceReferences(input: { readonly source: TargetSo
   readonly factories: CsharpClassFactoryIndex; readonly captures: CsharpCaptureStorage;
   readonly demand: CsharpNativeDemandAnalysis; readonly operations: CsharpTargetOperationClassifications;
   readonly files: CsharpSourceFileRecords; readonly backing: CsharpStorageClassifications["nativeBacking"];
-  readonly delegateAdapters: CsharpConversionClassifications["delegateAdapters"] }) {
+  readonly delegateAdapters: CsharpConversionClassifications["delegateAdapters"]; readonly jsCalls: CsharpJsCallRecords }) {
   const { ast } = input.source;
   const identifiers = new Map<Node, CsharpIdentifierEmission>();
   const modules = new Map<Node, SourceProjectReference>();

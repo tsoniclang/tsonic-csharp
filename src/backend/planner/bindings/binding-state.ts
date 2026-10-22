@@ -1,6 +1,6 @@
 import type {
   CsharpPlanningContext } from "../context.js";
-import { tryCsharpIdentifier } from "../../../target-model/names/identifiers.js";
+import { csharpIdentifierFragment, tryCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { CsharpExpression, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import type { AstReader,
@@ -350,9 +350,11 @@ export function allocateCatchValue(state: DestructuringPlannerState): string {
 export function allocateControlLabel(
   state: DestructuringPlannerState,
   purpose: "BreakStatement" | "ContinueStatement",
+  authoredLabel?: string,
 ): string {
   const suffix = purpose === "BreakStatement" ? "break" : "continue";
-  return allocateSyntheticName(state, `__tsonic_label_${suffix}`, "nextControlLabelIndex");
+  const label = authoredLabel === undefined ? "" : `${csharpIdentifierFragment(authoredLabel)}_`;
+  return allocateSyntheticName(state, `__tsonic_label_${label}${suffix}`, "nextControlLabelIndex");
 }
 
 export function allocateDestructuringTemp(state: DestructuringPlannerState): string {

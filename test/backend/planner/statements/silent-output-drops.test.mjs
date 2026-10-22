@@ -44,7 +44,10 @@ test("a thrown carrier without native syntax is refused at admission; corrupt pu
   const unrendered = csharpTargetNamedType("example.Unrendered", undefined, undefined, { allowsRefLikeTypeArguments: [],});
   const changed = { ...program, records: { ...program.records,
     throwValue: { get: node => node === statement ? { ...classification, targetCarrier: unrendered } : undefined } } };
-  const issues = admitCsharpStatementBindings(ast, [statement], program.records.nativeUse,
+  // The admission reads native demand's construct order (analysis-internal, not a published record) only as the gate
+  // that the throw statement participates natively.
+  const nativeUse = { ...program.records.nativeUse, order: node => node === statement ? [] : undefined };
+  const issues = admitCsharpStatementBindings(ast, [statement], nativeUse,
     changed.records, program.records, program.records.generator, program.records.nativeParticipation,
     program.records.compileTimeMetadata, program.records.valueRead);
   assert.equal(issues.length, 1, "exactly one pre-seal diagnostic reports the refused throw");
