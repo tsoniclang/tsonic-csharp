@@ -6,6 +6,8 @@ import { csharpPlannedValue } from "../../../../dist/backend/planner/expressions
 import { csharpTsValueTargetType } from "../../../../dist/target-model/types/index.js";
 import { selectCsharpJsValueCallOperation } from "../../../../dist/analysis/operations/js-values.js";
 import { validateCsharpJsValueOperationSelection } from "../../../../dist/policy/operations/js-values/selection.js";
+import { analyzeCsharpJsCalls } from "../../../../dist/analysis/expressions/js-value-calls.js";
+import { csharpTypeEmissionRecord } from "../../../helpers/planning-records.mjs";
 
 const carrier = csharpTsValueTargetType();
 const identifier = name => ({ kind: "IdentifierName", name });
@@ -30,21 +32,26 @@ function setup(optionalReceiver = false, optionalCall = false, element = false) 
       AsElementAccessExpression: () => ({ QuestionDotToken: optionalReceiver ? {} : undefined }),
     },
   };
-  const input = { program: { source: { ast: syntax } }, scope: {}, names: { temporaryName: () => `local${counter++}` } };
   const selected = validateCsharpJsValueOperationSelection(selectCsharpJsValueCallOperation(
     { types: { resolveNode: () => carrier } }, {}, {}, {}, element ? "element" : "property", optionalCall));
   const source = { sourceCallee: { expression: member }, sourceCalleeAccess: {
     kind: element ? "element" : "property", expression: member, receiver: { expression: receiver }, argument: { expression: key },
   } };
+  // The analysis publishes the closed call's emission plan from the selected JS-value operation; the planner renders it.
+  const analyze = operation => analyzeCsharpJsCalls(syntax, [call], { selectedCall: { get: node => node === call
+    ? { form: { kind: "js-value", operation }, source } : undefined } }, () => true);
+  const analysis = analyze(selected);
+  const input = { program: { source: { ast: syntax }, records: { jsCall: analysis.records.jsCall, typeEmission: csharpTypeEmissionRecord() } },
+    scope: {}, names: { temporaryName: () => `local${counter++}` } };
   const plan = subject => csharpPlannedValue(carrier, identifier(subject.kind),
     subject === argument ? [effect("argumentPrelude")] : subject === key ? [effect("keyPrelude")] : []);
   const diagnostics = [];
-  return { call, input, selected, source, plan, diagnostics };
+  return { call, input, selected, source, plan, diagnostics, analyze };
 }
 
 test("closed member call acquires original receiver and callee before argument preludes", () => {
   const context = setup();
-  const planned = planCsharpJsValueCall(context.call, {}, context.input, context.diagnostics, context.selected, context.source, context.plan);
+  const planned = planCsharpJsValueCall(context.call, {}, context.input, context.diagnostics, context.plan);
   assertNoTargetDiagnostics(context.diagnostics);
   assert.equal(planned.prelude[0].kind, "LocalDeclarationStatement");
   assert.deepEqual(planned.prelude[0].initializer, identifier("receiver"));
@@ -57,7 +64,7 @@ test("closed member call acquires original receiver and callee before argument p
 
 test("optional receiver owns key and argument preludes exclusively inside its native branch", () => {
   const context = setup(true, false, true);
-  const planned = planCsharpJsValueCall(context.call, {}, context.input, context.diagnostics, context.selected, context.source, context.plan);
+  const planned = planCsharpJsValueCall(context.call, {}, context.input, context.diagnostics, context.plan);
   assertNoTargetDiagnostics(context.diagnostics);
   const branch = planned.prelude.find(statement => statement.kind === "IfStatement");
   assert.ok(branch);
@@ -72,7 +79,7 @@ test("optional receiver owns key and argument preludes exclusively inside its na
 
 test("optional callee is checked after member acquisition and before argument completion", () => {
   const context = setup(false, true);
-  const planned = planCsharpJsValueCall(context.call, {}, context.input, context.diagnostics, context.selected, context.source, context.plan);
+  const planned = planCsharpJsValueCall(context.call, {}, context.input, context.diagnostics, context.plan);
   assertNoTargetDiagnostics(context.diagnostics);
   const branch = planned.prelude.find(statement => statement.kind === "IfStatement");
   assert.ok(branch);
@@ -84,7 +91,12 @@ test("optional callee is checked after member acquisition and before argument co
 
 test("closed call never reconstructs missing finalized counterpart evidence", () => {
   const context = setup(true, true);
-  assert.equal(planCsharpJsValueCall(context.call, {}, context.input, context.diagnostics,
-    { ...context.selected, receiverReadOperation: undefined }, context.source, context.plan), undefined);
-  assert.equal(context.diagnostics.length, 1);
+  // Missing member-read evidence is refused by the analysis, so no emission plan is published and the planner fails
+  // its invariant instead of reconstructing the read.
+  const refused = context.analyze({ ...context.selected, receiverReadOperation: undefined });
+  assert.equal(refused.issues.length, 1);
+  const input = { ...context.input, program: { ...context.input.program, records: { ...context.input.program.records, jsCall: refused.records.jsCall } } };
+  assert.throws(() => planCsharpJsValueCall(context.call, {}, input, context.diagnostics, context.plan),
+    error => error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT");
+  assert.equal(context.diagnostics.length, 0);
 });
