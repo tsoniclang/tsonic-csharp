@@ -1,7 +1,7 @@
 import type { CsharpCaptureFrame, CsharpCaptureStorage, CsharpCapturedBinding, CsharpLambdaCreation } from "../../target-model/records/capture-storage.js";
 import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import { sourceCallableDefinitionIsDiscarded, sourceBindingScope, sourceBindingHasSingleCaptureOwner, sourceNodeIdentity, sourceBindingCapturedBeforeInitialization, sourceLexicalFunctionValueCreation, sourceLexicalFunctionValueOrder } from "@tsonic/target-api/source";
+import { sourceCallableDefinitionIsDiscarded, sourceBindingScope, sourceBindingHasSingleCaptureOwner, sourceNodeIdentity, sourceBindingCapturedBeforeInitialization, sourceBindingCapturedBeforeFirstWrite, sourceLexicalFunctionValueCreation, sourceLexicalFunctionValueOrder } from "@tsonic/target-api/source";
 import { sourceClosedCallableArguments, sourceExpressionCallArgument } from "@tsonic/target-api/source";
 import type { SourceLexicalValueCreation } from "@tsonic/target-api/source";
 import { createHash } from "node:crypto";
@@ -145,7 +145,10 @@ export function analyzeCsharpCaptureStorage(
     const receivers = Object.freeze([...receiverMap.values()].map((receiver, index) => Object.freeze({ ...receiver, fieldName: `receiver${index}` })));
     const bindings = Object.freeze([...group].map(([declaration, type], index) => Object.freeze({
       declaration, type, fieldName: `value${index}`,
-      ...(sourceBindingCapturedBeforeInitialization(declaration, source.ast, source.navigation) ? { initialization: "deferred" as const } : {}),
+      // A binding captured before its initializer or, without one, before its first write is stored in the frame before it
+      // holds a value.
+      ...(sourceBindingCapturedBeforeInitialization(declaration, source.ast, source.navigation) ||
+        sourceBindingCapturedBeforeFirstWrite(declaration, source.ast, source.navigation) ? { initialization: "deferred" as const } : {}),
     })));
     const fields = [...bindings, ...parents.map(parent => ({ fieldName: parent.fieldName, type: parent.frame.shape.targetType })), ...receivers];
     const members: readonly CsharpObjectShapeMemberFact[] = Object.freeze(fields.map(field => Object.freeze({

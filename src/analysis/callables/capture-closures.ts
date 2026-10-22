@@ -1,6 +1,6 @@
 import type { CsharpFrameClosure } from "../../target-model/records/capture-storage.js";
 import type { Node } from "@tsonic/tsts";
-import { sourceCallableValueExpression, sourceBindingScope, sourceBindingIterationScope, sourceLexicalCaptures, sourceBindingCapturedBeforeInitialization, type TargetSourceProgram } from "@tsonic/target-api/source";
+import { sourceCallableValueExpression, sourceBindingScope, sourceBindingIterationScope, sourceLexicalCaptures, sourceBindingCapturedBeforeInitialization, sourceBindingCapturedBeforeFirstWrite, type TargetSourceProgram } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
@@ -82,7 +82,8 @@ export function selectCsharpFrameClosures(
         parameter => groups.get(scope!)?.has(parameter) === true);
     const selfInitializer = source.ast.is.IsVariableDeclaration(capture.declaration) &&
       sourceCallableValueExpression(source.ast, source.ast.as.AsVariableDeclaration(capture.declaration)?.Initializer) === candidate.declaration;
-    if (!iteration && !prepared && !selfInitializer && !sourceBindingCapturedBeforeInitialization(capture.declaration, source.ast, source.navigation)) continue;
+    if (!iteration && !prepared && !selfInitializer && !sourceBindingCapturedBeforeInitialization(capture.declaration, source.ast, source.navigation) &&
+      !sourceBindingCapturedBeforeFirstWrite(capture.declaration, source.ast, source.navigation)) continue;
     const type = evidence.storageTargetType.get(capture.declaration) ?? evidence.nodeTargetType.get(capture.declaration);
     if (scope === undefined || type === undefined) {
       issues.push({ node: capture.declaration,
