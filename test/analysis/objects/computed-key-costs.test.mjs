@@ -89,7 +89,7 @@ for (const surface of [undefined, "js"]) {
     assert.equal(compiled.result.program !== undefined && compiled.result.plan !== undefined, true, "actual source reaches sealed native planning");
     const observed = executeCsharpConstruction(compiled, `computed-key-costs-${surface ?? "native"}`,
       false, false, [], nativeProgram);
-    assert.equal(observed.trim(), "computed key costs: native-equivalent", "managed immutable string reads need no Rust owned/view conversion");
+    assert.equal(observed.trim(), "computed key costs: native-equivalent", "managed immutable string reads need no owned/view conversion");
   });
 }
 

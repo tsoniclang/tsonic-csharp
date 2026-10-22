@@ -16,7 +16,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const current = await loadCarrierRegistry(root);
 
 test("C# carrier registry covers the actual native kind union and every concrete constructor contract", () => {
-  assert.equal(current.files.has("src/target-model/types/carriers/registry.ts"), true);
+  assert.equal([...current.files.keys()].some(file => file.includes("carriers/registry")), false, "product source ships no registry");
   assert.deepEqual(validateCarrierRegistry(current.rows, current.vocabulary), []);
 });
 
@@ -79,7 +79,7 @@ test("unproduced native type vocabulary is rejected at the owning metadata bound
   assert.equal(isCsharpTargetTypeRef({ kind: "opaque", id: "checked:opaque" }), true);
 });
 
-test("C# constraints retain exactly the native projection producer vocabulary, not unused Rust constraints", () => {
+test("C# constraints retain exactly the native projection producer vocabulary, not another target's constraint vocabulary", () => {
   const source = [
     { kind: "implements", contract: { kind: "named", isByRefLike: false, constraintRequiresReferenceType: false, allowsRefLikeTypeArguments: [], metadataName: "Checked.Contract",
       targetId: "Checked, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null::Checked.Contract" } },

@@ -655,7 +655,7 @@ for (const [name, declarations, invoked] of cases) {
   });
 }
 
-test("C# adoption provenance has the same fixed Unicode/CRLF payload as Rust", () => {
+test("adoption provenance carries its fixed Unicode/CRLF payload independent of the project root", () => {
   const sourceText = 'const marker = "界😀";\r\nasync function identity<Value>(value: Value) {\r\n\treturn value;\r\n}\r\n' +
     "export function reject(promised: Promise<number>): void {\r\n\tvoid identity(promised);\r\n}";
   const compiled = compileCsharpSource({ surface: "js", projectRoot: "/another/csharp/src", sourceText });
@@ -663,7 +663,7 @@ test("C# adoption provenance has the same fixed Unicode/CRLF payload as Rust", (
   assert.deepEqual(issue.sourceSpan, { fileName: "index.ts", line: 6, column: 7, endLine: 6, endColumn: 25 },
     "exact actual instantiation coordinates, not the related declaration");
   assert.deepEqual(issue.evidence, ["declaration index.ts:2:1", "first-sensitive-operation index.ts:3:2"],
-    "byte-identical to the paired Rust expectation, independent of the physical checkout");
+    "byte-identical, independent of the physical checkout");
 });
 
 test("C# generic class adoption is refused at the checked constructor", () => {

@@ -3,8 +3,7 @@ import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
-// Paired with the Rust owner test test/analysis/safety/application-index.test.mjs: the same sources and the same
-// expected membership. Membership is decided once by @tsonic/target-api's createTargetSafetyApplicationIndex.
+// Membership is decided once by @tsonic/target-api's createTargetSafetyApplicationIndex.
 const header = `import { safety, unsafecontext } from "@tsonic/core/lang.js";
 import type { int32 } from "@tsonic/core/types.js";
 
