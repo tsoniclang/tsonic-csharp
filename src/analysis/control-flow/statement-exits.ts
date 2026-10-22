@@ -16,6 +16,7 @@ export function analyzeCsharpStatementExits(input: {
   readonly metadata: CsharpSourceEvidenceIndex["compileTimeMetadata"];
   readonly participation: CsharpNativeParticipationInput["participation"];
   readonly values: CsharpValueReadClassifications["valueRead"];
+  readonly switchCoversDiscriminant: (node: Node) => boolean;
   readonly required: CsharpRequiredRecord[];
 }): CsharpStatementExitRecords {
   const exits = analyzeSourceStatementExits(input.ast, input.nodes, {
@@ -23,6 +24,7 @@ export function analyzeCsharpStatementExits(input: {
       input.participation.get(node) === "erased" || input.operations.erasedStatement.get(node) === true,
     expressionExits: node => isCsharpNeverTargetType(input.values.get(node)?.value),
     guardResult: node => input.operations.nativeGuardResult.get(node),
+    switchCoversDiscriminant: input.switchCoversDiscriminant,
   });
   for (const subject of exits.keys()) {
     requireCsharpRecord(input.required, { family: "statementExit", subject, construct: input.ast.kindName(subject),

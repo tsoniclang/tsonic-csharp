@@ -91,7 +91,7 @@ import { isCsharpNeverTargetType } from "../../target-model/types/carriers/scala
 import { analyzeCsharpNumericRepresentations } from "../numeric/representations.js";
 
 import { rejectedTargetStage, resolvedTargetStage, failTargetAnalysisInvariant, targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
-import { targetSourceSyntaxProgram } from "@tsonic/target-api/analysis";
+import { createSourceSwitchCoverage, targetSourceSyntaxProgram } from "@tsonic/target-api/analysis";
 import type { TargetStageResult } from "@tsonic/target-api/artifacts";
 
 import { createCsharpSafetyApplicationFactIndex } from "../safety/application-index.js";
@@ -233,6 +233,7 @@ export function finalizeCsharpNativeEmission(
     analysis.sourceEvidence.compileTimeMetadata, nativeParticipation.participation,
     admittedOperations.nativeUnreachable);
   if (rawInterfaceIssues.length > 0) return rejectedTargetStage(rawInterfaceIssues);
+  const switchCoversDiscriminant = createSourceSwitchCoverage(source);
   const statementCompletions = analyzeCsharpStatementCompletions({ ast: source.ast, nodes: sourceStorage.nodes,
     returnContexts: analysis.expectedTypes.returnContext, returnContracts: analysis.declarations.returnContract,
     values: analysis.valueReads.valueRead,
@@ -243,13 +244,14 @@ export function finalizeCsharpNativeEmission(
         nativeParticipation.participation.get(node) === "erased",
       expressionExits: node => isCsharpNeverTargetType(analysis.valueReads.valueRead.get(node)?.value),
       guardResult: node => admittedOperations.nativeGuardResult.get(node),
+      switchCoversDiscriminant,
     } });
   const nativeControlIssues = analyzeCsharpNativeControlFlow(source, statementCompletions.controlExit, admittedControlNode);
   if (nativeControlIssues.length !== 0) return rejectedTargetStage(nativeControlIssues);
   const statementExits = analyzeCsharpStatementExits({ ast: source.ast, nodes: sourceStorage.nodes,
     operations: admittedOperations, metadata: analysis.sourceEvidence.compileTimeMetadata,
     participation: nativeParticipation.participation, values: analysis.valueReads.valueRead,
-    required: analysis.requiredRecords });
+    switchCoversDiscriminant, required: analysis.requiredRecords });
   const generators = analyzeCsharpGenerators({ ast: source.ast, nodes: sourceStorage.nodes, evidence: analysis.sourceEvidence,
     admitted: admittedControlNode, erased: node => analysis.sourceEvidence.compileTimeMetadata.get(node) === true ||
       admittedOperations.nativeUnreachable.get(node) === true || nativeParticipation.participation.get(node) === "erased",
