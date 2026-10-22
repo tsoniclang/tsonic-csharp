@@ -9,8 +9,8 @@ import { csharpTargetNamedType } from "../../../../dist/target-model/types/index
 import { selectCsharpDefaultValueContract } from "../../../../dist/policy/types/objects/binding-projection.js";
 import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
 
-const defaultMessage = "A runtime parameter default requires renderable sealed native value and incoming carriers.";
 const invariantMessage = "A runtime parameter default contract requires its authored parameter initializer.";
+const artifactInvariant = "An admitted native type requires its sealed artifact dependency set.";
 const sourceText = `import type { int32 } from "@tsonic/core/types.js";
 export function withDefault(t: [int32, string] = [1, "a"]): int32 {
   return t[0];
@@ -44,14 +44,11 @@ test("a runtime default whose sealed storage has no C# type syntax is reported, 
     native: selectCsharpDefaultValueContract(unrendered, unrendered, false) });
   const context = { ...createCsharpPlanningContext(program), program: changed };
   const diagnostics = [];
-  const selected = planCsharpRuntimeParameterDefault(withDefault, "incoming", ast.getSourceFile(withDefault), context,
-    diagnostics, createDestructuringPlannerState());
-  assert.equal(selected === undefined, true, "no lowering is selected");
-  assert.equal(diagnostics.length === 1, true, "exactly one diagnostic reports the unlowered default");
-  assert.equal(diagnostics[0]?.code === "CSHARP_UNSUPPORTED_AST" && diagnostics[0]?.category === "error", true,
-    "the refusal is an unsupported-construct error");
-  assert.equal(diagnostics[0]?.message === defaultMessage, true, "the refusal names the unlowered runtime default");
-  assert.equal(diagnostics[0]?.sourceNode === withDefault, true, "the refusal points at the parameter");
+  // Analysis seals renderable native storage for every runtime default; a sealed type without its emission record is
+  // a planner invariant (RULINGS: missing records are refused loudly), so the default is never silently dropped.
+  assert.throws(() => planCsharpRuntimeParameterDefault(withDefault, "incoming", ast.getSourceFile(withDefault), context,
+    diagnostics, createDestructuringPlannerState()), error => error.phase === "planning" && error.message === artifactInvariant, "the unrendered default fails as a planner invariant");
+  assert.equal(diagnostics.length, 0, "no diagnostic replaces the invariant");
 });
 
 test("a parameter list never loses a runtime-default parameter without a diagnostic", () => {
@@ -62,11 +59,10 @@ test("a parameter list never loses a runtime-default parameter without a diagnos
     native: selectCsharpDefaultValueContract(unrendered, unrendered, false) });
   const context = { ...createCsharpPlanningContext(program), program: changed };
   const diagnostics = [];
-  const planned = planParametersWithPrelude([withDefault], ast.getSourceFile(withDefault), context, diagnostics);
-  assert.equal(planned.parameters.length === 0, true, "the unlowered parameter is not emitted");
-  assert.equal(diagnostics.length === 1, true, "the parameter list reports exactly one diagnostic");
-  assert.equal(diagnostics[0]?.message === defaultMessage && diagnostics[0]?.sourceNode === withDefault, true,
-    "the one diagnostic reports the omitted parameter at the parameter");
+  // The parameter list cannot omit the parameter: the unrendered sealed default is a planner invariant.
+  assert.throws(() => planParametersWithPrelude([withDefault], ast.getSourceFile(withDefault), context, diagnostics),
+    error => error.phase === "planning" && error.message === artifactInvariant, "the unrendered default parameter fails as a planner invariant");
+  assert.equal(diagnostics.length, 0, "no diagnostic replaces the invariant");
 });
 
 test("a runtime default contract on a parameter without an initializer is a planner invariant", () => {
