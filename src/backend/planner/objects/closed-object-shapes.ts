@@ -82,7 +82,10 @@ export function renderObjectShapeProjectionMethod(
   statements.push({ kind: "ReturnStatement", expression });
   return {
     kind: "MethodDeclaration", name: declaration.methodName,
-    modifiers: [...planCsharpArtifactMemberHiding(memberNames, declaration.receiver, declaration.methodName), "public", "static"],
+    // The projection method is declared on the shape's class declaration, the generic template of an instantiated
+    // receiver, whose physical container holds the member-name decision.
+    modifiers: [...planCsharpArtifactMemberHiding(memberNames, declaration.receiver.declarationTemplate ?? declaration.receiver,
+      declaration.methodName), "public", "static"],
     ...(typeParameters.length === 0 ? {} : { typeParameters }), returnType: render(declaration.selection.resultType),
     parameters: [{ name: "receiver", type: render(declaration.receiver.targetType) }, ...(selected.kind === "has-own"
       ? [{ name: "key", type: { kind: "PredefinedType" as const, name: "string" as const } }]
