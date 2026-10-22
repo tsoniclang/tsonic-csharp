@@ -1,4 +1,5 @@
 import type { CsharpSourceCallContract } from "../../../../target-model/records/source-callable-contract.js";
+import { resolveProjectConstructingReceiverTargetType } from "./expressions.js";
 import { csharpSourceCallArgumentParameter } from "../../../../policy/types/callables/source-callable-contract.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
@@ -400,13 +401,14 @@ export function sourceCallSelectedDeclaration(
 }
 
 export function resolveSourceCallReceiverTargetType(
-  { host, resolveSelectedReceiverTargetType, resolveSourceOwnedConstructionResult, resolveTypeWithState, resolveNodeWithState }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   selectedSourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
+  const { host, resolveSelectedReceiverTargetType, resolveSourceOwnedConstructionResult, resolveTypeWithState, resolveNodeWithState } = scope;
   if (host.ast.kindName(source.sourceCallee.expression) === "KindSuperKeyword") {
-    return resolveNodeWithState(source.sourceCallee.expression, selectedSourceFile, nextState(state));
+    return resolveProjectConstructingReceiverTargetType(scope, source.sourceCallee.expression);
   }
   if (host.ast.is.IsNewExpression(source.call) && (
     host.ast.is.IsClassDeclaration(source.sourceCallee.selectedDeclaration) &&
