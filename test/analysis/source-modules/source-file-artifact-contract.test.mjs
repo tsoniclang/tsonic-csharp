@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { analyzeCsharpSourceArtifacts } from "../../../../dist/analysis/source-modules/artifacts.js";
+import { analyzeCsharpSourceArtifacts } from "../../../dist/analysis/source-modules/artifacts.js";
 
 function select(files, references = new Map(), constructions = []) {
   return analyzeCsharpSourceArtifacts({
