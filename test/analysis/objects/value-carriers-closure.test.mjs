@@ -215,6 +215,7 @@ test("bound value-field storage is renderable before its native declaration can 
 test("selected scalar and bound value fields retain their complete native rendering", async () => {
   const { createCsharpPlanningContext } = await import("../../../dist/backend/planner/context.js");
   const { planValueTypeDeclaration } = await import("../../../dist/backend/planner/declarations/value-types.js");
+  const { objectShapeBoundStorageMemberName } = await import("../../../dist/target-model/names/object-members.js");
   const { program, declaration, selected } = valueProgram();
   const member = Object.freeze({ sourceKey: Object.freeze({ kind: "property", name: "x" }), sourceName: "x", targetName: "x",
     memberKind: "property", type: selected.fields[0].carrier, bound: true });
@@ -224,6 +225,9 @@ test("selected scalar and bound value fields retain their complete native render
   ]) });
   const changed = { ...program, records: { ...program.records,
     nativeValueDeclaration: { get: node => node === declaration ? record : program.records.nativeValueDeclaration.get(node) },
+    // The injected bound cell is a physical member the sealed name analysis never saw; it hides no inherited member.
+    nativeMemberHiding: { get: subject => subject.kind === "value" && subject.container === declaration &&
+      subject.member === objectShapeBoundStorageMemberName(shape, member) ? false : program.records.nativeMemberHiding.get(subject) },
   } };
   const diagnostics = [];
   const planned = planValueTypeDeclaration(declaration, program.source.ast.getSourceFile(declaration),
