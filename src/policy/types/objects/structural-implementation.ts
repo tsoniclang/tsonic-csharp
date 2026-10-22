@@ -53,6 +53,17 @@ export function selectCsharpStructuralInterfaceImplementation(
     methods.push({ sourceName: read.targetName, declaration: pair.declaration, member: pair.openDestination });
   }
   const sourceParameters = csharpFreeTypeParameterIdentities([template.targetType]);
+  // A source declaration that declares the destination interface (`class InterfaceHead<T> implements Head<T>`) relates
+  // their type parameters by that declaration even when a member's shape differs (a reshaped rest parameter).
+  if (destinationTemplate !== undefined && destinationTemplate.targetType.kind === "target-named") {
+    const declaredId = destinationTemplate.targetType.id;
+    const declared = evidence.declaredSupertypes.filter(type => type.kind === "target-named" && type.id === declaredId);
+    const bindings = declared.length === 1
+      ? inferCsharpTargetTypeParameterBindings(destinationTemplate.targetType, declared[0]!, parameterIdentities) : undefined;
+    for (const [identity, type] of bindings ?? []) {
+      if (!inferredArguments.has(identity) && !ambiguousArguments.has(identity)) inferredArguments.set(identity, type);
+    }
+  }
   if (destinationTemplate !== undefined) {
     const supplied = inferCsharpTargetTypeParameterBindings(destinationTemplate.targetType, destination.targetType, parameterIdentities);
     const sourceArguments = inferCsharpTargetTypeParameterBindings(template.targetType, source.targetType, sourceParameters);

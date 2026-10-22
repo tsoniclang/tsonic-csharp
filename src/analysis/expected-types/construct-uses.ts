@@ -80,7 +80,8 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
     if (handler === undefined) {
       const call = operations.selectedCall.get(node);
       if (call?.form.kind === "target") {
-        if (call.target?.kind === "resolved") recordSelectedCall(node, call.target);
+        if (call.target?.kind === "resolved") recordSelectedCall(node, call.target,
+          call.optionalReceiver?.storage);
         else if (call.source !== undefined) recordSourceArguments(node, call.source, call.sourceArgumentParameterTypes, call.sourceArgumentGrouping);
       }
       const construction = operations.selectedConstruction.get(node);
@@ -155,11 +156,15 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
         effectiveIndex: binding.effectiveArgumentIndex, sourceParameterIndex: binding.sourceParameterIndex }, withheld });
   }
 
-  function recordSelectedCall(owner: Node, selection: Extract<CsharpTargetCallSelection, { readonly kind: "resolved" }>): void {
+  function recordSelectedCall(owner: Node, selection: Extract<CsharpTargetCallSelection, { readonly kind: "resolved" }>,
+    chainReceiverStorage?: TargetTypeRef): void {
     const call = selection.call;
     if (call.receiver.kind === "target-parameter") {
       const parameter = call.targetMember.parameters[call.receiver.targetParameterIndex];
-      record(selection.source.sourceReceiver?.expression, parameter === undefined ? undefined : csharpTargetParameterValueType(parameter, "value"),
+      // An optional-chain receiver is read at its nullable storage: the chain passes the presence-narrowed value, whose
+      // conversion to the parameter is the optional receiver's own sealed conversion.
+      record(selection.source.sourceReceiver?.expression, chainReceiverStorage ??
+        (parameter === undefined ? undefined : csharpTargetParameterValueType(parameter, "value")),
         "required", at(owner, { kind: "receiver" }));
     }
     const bindings = csharpSelectedTargetArgumentBindings(call);
@@ -178,7 +183,11 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
       if (sequence !== undefined) recordedSequences.add(argument.sourceArgumentIndex);
       const expression = sequence?.expression ?? selection.source.sourceArguments[argument.sourceArgumentIndex]?.expression;
       const mapping = mappings?.get(argument.effectiveArgumentIndex);
-      const target = sequence?.sourceType ?? csharpProviderArgumentSourceCarrier(mapping) ??
+      // A property-projected argument (Intl options) is read at its own value: the call projects its selected properties
+      // into the TsValue parameter, so the argument itself is not boxed.
+      const projected = argument.targetParameter.csharpValueProjection === "properties" && expression !== undefined &&
+        !policy.ast.is.IsObjectLiteralExpression(expression) ? valueReadStages.get(expression)?.operationValue : undefined;
+      const target = sequence?.sourceType ?? projected ?? csharpProviderArgumentSourceCarrier(mapping) ??
         sourceArgumentExpectedType(expression, argument.targetParameter, argument.sourceForm);
       const binding = bySource.get(argument.sourceArgumentIndex)?.get(argument.effectiveArgumentIndex);
       record(expression, target, "required", { owner,

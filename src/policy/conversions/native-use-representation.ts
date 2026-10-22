@@ -4,6 +4,7 @@ import { targetUseSiteIdentity, type TargetUseSiteRef } from "@tsonic/target-api
 import { csharpNativeUseSite, type CsharpExpectedNativeUse, type CsharpNativeUseSlot } from "../../target-model/records/native-demand.js";
 
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
+import { csharpSourcePrimitiveTargetType } from "../../target-model/types/carriers/scalar-types.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 
 import type { CsharpNativeRepresentationInput } from "../model/native-use-representation.js";
@@ -55,7 +56,10 @@ export function selectCsharpNativeUseRepresentation(input: CsharpNativeRepresent
   }
   if (!input.absent) {
     if (input.literal === undefined) return pending("literal-unrequested");
-    if (input.literal.kind === "rejected") return pending("literal-rejected", input.literal.reason);
+    // An explicit conversion of a numeric literal outside its target range (`1e40 as float32`) reads the literal as a
+    // double and casts it, as C# does; an implicit use stays refused.
+    if (input.literal.kind === "rejected") return input.mode === "explicit" && ast.is.IsNumericLiteral(expression)
+      ? selected("convert", csharpSourcePrimitiveTargetType("float64")) : pending("literal-rejected", input.literal.reason);
     if (input.literal.kind === "resolved") return construct(input.constructionCarrier ?? target, none, input.literal.recipe);
   }
   if (input.constructionCarrier !== undefined && !ast.is.IsArrayLiteralExpression(expression) && !ast.is.IsObjectLiteralExpression(expression)) {

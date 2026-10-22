@@ -14,6 +14,7 @@ import { getCsharpTypeFromProjectSourceReference } from "../types/project-source
 import type { CsharpPlannedValue, CsharpPlannedAddressOperand } from "./planned-values.js";
 import { planCsharpExpressionCompletion } from "./planned-value-composition.js";
 import { readCsharpNativeExpressionCarrier } from "./native-uses.js";
+import { planCsharpAbsenceLiteral } from "./optional-storage.js";
 
 export function planCsharpIdentifierValue(identifier: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[], state?: DestructuringPlannerState): CsharpPlannedValue | undefined {
@@ -69,7 +70,7 @@ export function planIdentifierExpression(identifier: Node, sourceFile: SourceFil
       const reference = input.program.records.sourceReferenceIdentity.get(identifier)?.value;
       return getCsharpTypeFromProjectSourceReference(reference, input, diagnostics) ?? failCsharpPlannerInvariant("An admitted project class requires its exact native type reference.", identifier);
     }
-    case "absence": return { kind: "LiteralExpression", value: null };
+    case "absence": return planCsharpAbsenceLiteral(readCsharpNativeExpressionCarrier(input, identifier), input);
     case "provider": {
       const receiver = csharpTypeFromTargetTypeRef(selected.owner, input.scope.typeParameterNames);
       if (receiver === undefined) failCsharpPlannerInvariant("An admitted provider value requires its exact native declaring type.", identifier);

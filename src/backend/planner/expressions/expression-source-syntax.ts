@@ -16,6 +16,7 @@ import { planCsharpAwaitCompletion } from "./await-completions.js";
 import type { CsharpPlannedValue } from "./planned-values.js";
 import { planCsharpExpressionCompletion } from "./planned-value-composition.js";
 import { readCsharpNativeExpressionCarrier } from "./native-uses.js";
+import { planCsharpAbsenceLiteral } from "./optional-storage.js";
 
 export function tryPlanSourceSyntaxExpression(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner): CsharpPlannedValue | undefined {
@@ -43,7 +44,7 @@ export function tryPlanSourceSyntaxExpression(node: Node, sourceFile: SourceFile
     }
     case KindTrueKeyword: return value({ kind: "LiteralExpression", value: true });
     case KindFalseKeyword: return value({ kind: "LiteralExpression", value: false });
-    case KindNullKeyword: return value({ kind: "LiteralExpression", value: null });
+    case KindNullKeyword: return value(planCsharpAbsenceLiteral(readCsharpNativeExpressionCarrier(input, node), input));
     case KindThisKeyword:
     case KindSuperKeyword: {
       const selected = value(SourceKind(input.program.source.ast, node) === KindThisKeyword

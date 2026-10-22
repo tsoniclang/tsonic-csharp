@@ -75,7 +75,13 @@ export function analyzeCsharpBinaryEmission(input: { readonly source: TargetSour
     if (!input.admitted(node) || !ast.is.IsBinaryExpression(node) || borrowedControls.has(node)) continue;
     const form = input.operations.operatorForm.get(node);
     if (form === "destructuring-assignment") continue;
-    if (form === "js-array-mutation" || form === "type-test" || form === "typeof-comparison") { forms.set(node, { kind: form }); continue; }
+    if (form === "js-array-mutation" || form === "type-test" || form === "typeof-comparison") {
+      forms.set(node, { kind: form });
+      // A typed-element compound assignment (words[0] += value) plans its calculation as the selected binary operation.
+      const mutation = form === "js-array-mutation" ? input.operations.jsArrayMutation.get(node) : undefined;
+      if (mutation?.kind === "set-typed-element" && mutation.calculation !== undefined) addNative(node, mutation.calculation);
+      continue;
+    }
     const syntax = ast.as.AsBinaryExpression(node);
     const left = syntax?.Left;
     const right = syntax?.Right;
@@ -117,5 +123,11 @@ export function analyzeCsharpBinaryEmission(input: { readonly source: TargetSour
     forms.set(node, { kind: "native", selection: selected.target });
   }
   for (const { use } of input.demand.entries) if (use.kind !== "erased" && use.binary !== undefined) addNative(use.expression, use.binary);
+  // An ordered switch plans each case test as its selected comparison at the case clause.
+  for (const node of input.nodes) {
+    const selected = input.operations.switchStatement.get(node);
+    if (selected?.kind !== "ordered" || !input.admitted(node)) continue;
+    for (const clause of selected.clauses) if (clause.comparison !== undefined) addNative(clause.node, clause.comparison);
+  }
   return Object.freeze({ records: createCsharpBinaryEmissionRecords(forms, native), issues: Object.freeze(issues) });
 }

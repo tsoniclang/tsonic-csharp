@@ -33,7 +33,9 @@ export function selectCsharpEmittedExpressions(input: CsharpCallPlanningRecords 
     if (callee === undefined) continue;
     const jsReceiver = input.jsCalls.jsCall.get(node)?.receiver;
     if (jsReceiver !== undefined) emitted.add(jsReceiver);
-    if (csharpCallIsPlannedAsSourceCall(node, input) || callee === jsReceiver) emitted.add(callee);
+    // A runtime-union call plans its receiver and a per-arm dispatcher; its callee is not planned as a property.
+    const unionCall = input.operations.selectedCall.get(node)?.unionCall.kind === "resolved";
+    if (csharpCallIsPlannedAsSourceCall(node, input) && !unionCall || callee === jsReceiver) emitted.add(callee);
     else unplannedCallees.add(callee);
   }
   for (const callee of unplannedCallees) emitted.delete(callee);

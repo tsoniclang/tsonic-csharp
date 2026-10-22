@@ -16,6 +16,7 @@ import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpSelectedTargetArgumentBindings, csharpSourceOwnedArgumentBindings, csharpProviderArgumentSourceCarrier } from "../../../policy/operations/members/native-use-arguments.js";
 import { sourceOperatorFromKindName } from "../../../target-model/syntax/operators.js";
 import { csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
+import { csharpRuntimeLocationTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 
 export interface CsharpNativeOperandInput {
   readonly ast: AstReader;
@@ -130,7 +131,8 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
       case "memory-binding": {
         const memory = handler.selection;
         return memory.kind === "field" ? chosen(intrinsic(memory.expression, "value", memory.type))
-          : memory.kind === "record" ? chosen(memory.fields.flatMap((field, index) => intrinsic(field.expression, "argument", field.member.type, index)))
+          : memory.kind === "record" ? chosen(memory.fields.flatMap((field, index) =>
+            intrinsic(field.expression, "argument", csharpRuntimeLocationTargetType(field.member.type), index)))
           : refused("operation-unresolved");
       }
       case "explicit-safety": {

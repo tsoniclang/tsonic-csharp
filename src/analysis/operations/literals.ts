@@ -23,7 +23,9 @@ export function analyzeCsharpLiteralAdmission(input: { readonly ast: AstReader; 
     const node = use.expression;
     const target = use.kind === "converted" ? use.target : use.carrier;
     const exact = input.exact.exactLiteral.get(node, target);
-    if (exact?.kind === "rejected") { refuse(node, exact.reason); continue; }
+    // An explicit conversion (`1e40 as float32`) keeps the literal at its source type and casts it, as C# does; only an
+    // implicit use must be exactly representable in its target.
+    if (exact?.kind === "rejected" && !(use.kind === "converted" && use.mode === "explicit")) { refuse(node, exact.reason); continue; }
     if (use.literal !== undefined) continue;
     const read = input.values.valueRead.get(node);
     const carrier = read?.value;
@@ -31,7 +33,9 @@ export function analyzeCsharpLiteralAdmission(input: { readonly ast: AstReader; 
       const source = read?.source;
       const selected = input.exact.exactLiteral.get(node, source);
       const number = input.literals.literalValue.get(node)?.number;
-      if (source?.kind === "source-primitive" && source.name === "float64" && number !== undefined) {
+      const castFloat64 = use.kind === "converted" && use.mode === "explicit" && use.input.kind === "value" &&
+        use.input.type.kind === "source-primitive" && use.input.type.name === "float64";
+      if ((source?.kind === "source-primitive" && source.name === "float64" || castFloat64) && number !== undefined) {
         producer.publish(node, { kind: "float64", value: number }); published.add(node);
       } else if (selected?.kind === "resolved") {
         producer.publish(node, { kind: "exact", recipe: selected.recipe }); published.add(node);

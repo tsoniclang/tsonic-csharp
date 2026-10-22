@@ -43,7 +43,11 @@ export function analyzeCsharpCallableParameterEmission(input: {
       // expressions carry a native incoming delegate parameter type, so the others select identity or default entries.
       const native = input.storage.lambdaParameterType.get(node);
       const runtime = input.declarations.runtimeDefault.get(node);
-      if (runtime !== undefined) {
+      // A selected delegate whose parameter is the default's present type (`(x: number) => number` for `(x = 5) => x`)
+      // never omits the argument, so the default is never applied and the parameter is read as passed.
+      const presentOnly = runtime !== undefined && native !== undefined && !targetTypeRefEquals(native, runtime.native.source) &&
+        targetTypeRefEquals(getCsharpNullableElementTargetType(runtime.native.source) ?? runtime.native.source, native);
+      if (runtime !== undefined && !presentOnly) {
         if (native !== undefined && !targetTypeRefEquals(native, runtime.native.source))
           failTargetAnalysisInvariant("tsonic-csharp", "A lambda default requires its exact native incoming parameter contract.", node);
         lambdaEntries.set(node, Object.freeze({ kind: "default", declareIncoming: native === undefined }));
