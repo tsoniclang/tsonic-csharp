@@ -16,7 +16,7 @@ import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../../ty
 import { planBlockStatements } from "../../statements/planning.js";
 import { planCsharpGeneratedMethodCall } from "../generated-methods.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
-import { planThisExpression } from "../../expressions/expression-this.js";
+import { planCapturedReceiverOwnerValue } from "../../expressions/expression-this.js";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { planCsharpParameterPropertyAssignments } from "./parameter-properties.js";
 
@@ -101,8 +101,7 @@ export function planCsharpPreparedConstructor(
     frames.set(bodyNode, receiver);
     for (const captured of frame.receivers) {
       const reference = captured.references[0]!;
-      const file = input.program.source.ast.getSourceFile(reference);
-      const expression = file === undefined ? undefined : planThisExpression(reference, file, input, diagnostics);
+      const expression = planCapturedReceiverOwnerValue(reference, input);
       if (expression === undefined) failCsharpPlannerInvariant("An admitted constructor receiver requires its native expression.", reference);
       restored.push({ kind: "ExpressionStatement", expression: {
       kind: "AssignmentExpression", left: { kind: "SimpleMemberAccessExpression", receiver, name: captured.fieldName },
