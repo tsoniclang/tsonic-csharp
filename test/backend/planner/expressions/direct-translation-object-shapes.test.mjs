@@ -215,8 +215,9 @@ test("object-literal method receiver requirements replan every implementation of
   const implementations = [...shapes.matchAll(/public class (ObjectShape_[a-f0-9]{12,64}) : (ObjectShape_[a-f0-9]{12,64})[^{]*\{([\s\S]*?)\n    \}/gu)];
   assert.equal(implementations.length, 2);
   assert.equal(new Set(implementations.map(match => match[2])).size, 1, "both implement the one structural interface");
-  assert.deepEqual(implementations.map(match => /public double read\(\)\s*\{\s*return (this\.value|3D);\s*\}/u.exec(match[3])?.[1]).sort(),
-    ["3D", "this.value"]);
+  // The native int literal keeps its int token (RULINGS 2026-10-22).
+  assert.deepEqual(implementations.map(match => /public double read\(\)\s*\{\s*return (this\.value|3);\s*\}/u.exec(match[3])?.[1]).sort(),
+    ["3", "this.value"]);
   assert.match(shapes, /public interface ObjectShape_[a-f0-9]{12,64}\s*\{\s*double value \{ get; set; \}\s*double read\(\);/u);
   assert.equal((source.match(/new ObjectShape_[a-f0-9]{12,64}\s*\{/gu) ?? []).length, 2);
 });
