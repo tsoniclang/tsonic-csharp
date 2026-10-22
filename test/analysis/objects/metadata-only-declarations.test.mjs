@@ -3,10 +3,10 @@ import test from "node:test";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 const pureSource = `
 import type { char, float16, float32, int64, uint8 } from "@tsonic/core/types.js";
-import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 const nativeKey = "value";
 interface Holder { [nativeKey]: number; }
 const literalKey = "literal";

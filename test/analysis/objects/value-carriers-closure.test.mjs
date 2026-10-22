@@ -4,6 +4,7 @@ import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { resolvedTargetStage, runTargetCompilationStages } from "@tsonic/target-api/artifacts";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 function fixture(changes = {}) {
   const type = Object.freeze({});
@@ -133,7 +134,6 @@ function valueProgram() {
   const compiled = compileCsharpSource({ sourceText: `
 import { field, struct } from "@tsonic/core/lang.js";
 import type { int32, int64 } from "@tsonic/core/types.js";
-import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 export const Point = struct({ x: field<int32>(), y: field<int64>() });
 export type Point = typeof Point;
 ` });

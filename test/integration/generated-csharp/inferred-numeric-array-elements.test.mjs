@@ -12,6 +12,7 @@ import { csharpEnumerableTargetType } from "../../../dist/target-model/types/car
 import { combineCsharpTargetUnionMembers } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { isCsharpStringTargetType, isCsharpJsStringTargetType } from "../../../dist/target-model/types/identity.js";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 const destinationBodies = {
   Alias: (element, name) => `type ${name}Values = ${element}[];
@@ -69,7 +70,6 @@ unionDestinationPrograms.push(
 
 const sourceText = `
 import type { float32, float64, int16, uint16, int32, uint32, int64, decimal as nativeDecimal } from "@tsonic/core/types.js";
-import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 export function bare(signed: int32, unsigned: uint32) { const bareValues = [signed, unsigned]; return bareValues; }
 export function reverse(signed: int32, unsigned: uint32) { const reverseValues = [unsigned, signed]; return reverseValues; }
 export function left(signed: int32, unsigned: uint32) { const leftValues = [signed, unsigned, 1]; return leftValues; }

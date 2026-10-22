@@ -10,6 +10,7 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 import { csharpDelegateTargetType, getCsharpDelegateSignature } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { analyzeCsharpProjectCallableAdapters } from "../../../dist/analysis/project-types/callable-adapters.js";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 const unexpectedNativeDispatchRead = () => assert.fail("this structural fixture has no authored native dispatch domain");
 const emptyNativeDispatch = Object.freeze({
   names: Object.freeze({ resolve: unexpectedNativeDispatchRead }),
@@ -71,7 +72,6 @@ for (const surface of ["native", "js"]) test(`${surface}: native class delegate 
   { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
 import type { int32 } from "@tsonic/core/types.js";
-import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 class HandlerBox { run: (value: int32) => int32 = (value) => value; }
 function make(): HandlerBox { return { run(value: int32): int32 { return value + 1; } }; }
 export function run(): boolean { const handler = make(); return handler.run(6) === 7; }

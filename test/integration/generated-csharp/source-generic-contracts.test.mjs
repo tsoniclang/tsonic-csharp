@@ -19,6 +19,7 @@ import { nullishNeverSource } from "../../../../tsonic/test/fixtures/nullish-nev
 import { pointerOwnerNarrowingSource } from "../../../../tsonic/test/fixtures/pointer-owner-narrowing.mjs";
 import { bigintTruncationSource } from "../../../../tsonic/test/fixtures/bigint-truncation.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 for (const surface of [undefined, "js"]) {
   test(`generic absence preserves values and lazy fallback (${surface ?? "native"})`, { timeout: 300_000 }, () => {
@@ -133,7 +134,6 @@ for (const surface of [undefined, "js"]) {
   test(`module declarations are not source absence expressions (${surface ?? "native"})`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
 import type { int32 } from "@tsonic/core/types.js";
-import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 export class State { count: int32; constructor(count: int32) { this.count = count; } }
 export let state: State;
 export let absent: State | undefined = undefined;

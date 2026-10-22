@@ -6,6 +6,7 @@ import { planThrowStatement } from "../../../../dist/backend/planner/statements/
 import { csharpTargetNamedType } from "../../../../dist/target-model/types/index.js";
 import { createTsonicPlugin } from "../../../../../csharp-nodejs/dist/index.js";
 import { admitCsharpStatementBindings } from "../../../../dist/analysis/control-flow/native-control-flow.js";
+import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
 
 const throwMessage = "Throw statements require C# type syntax for the sealed thrown carrier 'target:example.Unrendered<>' before C# emission.";
 
@@ -63,7 +64,6 @@ test("a thrown carrier without native syntax is refused at admission; corrupt pu
 
 const headerSource = `
 import type { IncomingMessage } from "node:http";
-import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
 type NativeHeaders = IncomingMessage["headersDistinct"];
 export function joinFromHeaders(headers: NativeHeaders, key: string): string {
   const values = headers[key];
