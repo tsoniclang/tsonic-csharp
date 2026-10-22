@@ -5,6 +5,20 @@ import { getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carr
 import { renderObjectShapeTypeParameters } from "../../../dist/backend/planner/objects/declarations/type-parameters.js";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { analyzeCsharpObjectShapeEmission } from "../../../dist/analysis/objects/declaration-emission.js";
+import { objectShapeArtifactKey } from "../../../dist/analysis/program/records/object-shape-keys.js";
+
+// The object-shape emission analysis selects a generated owner's native binders (refusing unclosed constraints);
+// the planner renders the selected binders.
+function renderOwner(shape, diagnostics) {
+  const artifact = { key: objectShapeArtifactKey(shape), fact: shape, capabilities: [], materialization: "synthetic", typeParameterNames: [] };
+  const analysis = analyzeCsharpObjectShapeEmission({ ast: { is: { IsObjectLiteralExpression: () => false } }, nodes: [],
+    nativeDemand: { entries: [] }, bindings: { bindingPatternProjection: { get: () => undefined } },
+    demand: { artifacts: [artifact], get: key => key === artifact.key ? artifact : undefined },
+    shapes: { knownShapes: () => [] }, names: { typeParameterNames: [], reservedNames: [] } });
+  diagnostics.push(...analysis.issues);
+  return analysis.issues.length !== 0 ? undefined : renderObjectShapeTypeParameters(undefined, shape, analysis.records, undefined);
+}
 
 const parameter = (identity, name = identity) => ({ kind: "type-parameter", identity, name });
 const resolved = constraints => ({ kind: "resolved", constraints });
@@ -64,7 +78,9 @@ test("recursive arm producers seal exact generic binders before publishing refer
     assert.equal(argument.identity, binder.identity, "exact source binder identity");
     assert.equal(argument.csharpDeclaration === declaration, true, "opaque source declaration retained");
     assert.equal(Object.isFrozen(argument.csharpConstraints), true, "sealed native evidence");
-    const emitted = renderObjectShapeTypeParameters(undefined, shape, [], {});
+    const diagnostics = [];
+    const emitted = renderOwner(shape, diagnostics);
+    assert.deepEqual(diagnostics, []);
     assert.deepEqual(emitted, [{ name: "Value", constraints: [{ kind: "KeywordConstraint", keyword: "struct" }] }]);
   }
   constraints.length = 0;
@@ -93,7 +109,7 @@ test("unavailable or unsupported recursive owner constraints never become uncons
     const selected = scenario([parameter("value", "Value")], () => resolution);
     assert.equal(selected.resolve().kind, "resolved", "unsupported evidence remains explicit");
     const diagnostics = [];
-    assert.equal(renderObjectShapeTypeParameters(undefined, selected.shapes[0], diagnostics, {}) === undefined, true);
+    assert.equal(renderOwner(selected.shapes[0], diagnostics) === undefined, true);
     assert.equal(diagnostics.length, 1, "one bounded native owner diagnostic");
     assert.equal(diagnostics[0].message, resolution.reason, "no guessed unconstrained binder");
   }

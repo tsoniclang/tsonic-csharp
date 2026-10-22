@@ -12,6 +12,7 @@ import { csharpAbsenceTargetType, csharpNullableTargetType, csharpRuntimeUnionTa
 import { csharpSourceUnionTargetType } from "../../../dist/target-model/types/source-union-definitions.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { csharpUnionArmMappingsMatch, selectCsharpUnionArmMapping } from "../../../dist/policy/conversions/union-relations.js";
+import { csharpTypeEmissionRecord } from "../../helpers/planning-records.mjs";
 import { planCsharpUnionMapping } from "../../../dist/backend/planner/expressions/union-mappings.js";
 
 const reference = (name, arguments_) => csharpTargetNamedType(`fixture.${name}`, arguments_, { kind: "named", name }, { allowsRefLikeTypeArguments: ((arguments_) ?? []).map(() => false),});
@@ -47,7 +48,7 @@ function planningContext(policy) {
   analysis.close({ entries: Object.freeze([]) }, []);
   const conversions = analysis.seal();
   return { program: { source: { ast: { pos: () => 0, end: () => 5 } },
-    records: { conversion: conversions.conversion },
+    records: { conversion: conversions.conversion, typeEmission: csharpTypeEmissionRecord() },
     typeDefinitions: policy.typeDefinitions }, scope: {}, names: { temporaryName: name => name } };
 }
 

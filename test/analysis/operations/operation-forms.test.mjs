@@ -7,6 +7,7 @@ import { targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { selectCsharpCallForm } from "../../../dist/policy/operations/members/selection/call-forms.js";
 import { planCsharpOptionalReceiverChain } from "../../../dist/backend/planner/expressions/target-members/selected-call/optional-chain.js";
+import { analyzeCsharpOptionalCallChains } from "../../../dist/analysis/callables/optional-call-chains.js";
 import { createExpectedNativeUseOwner } from "../../helpers/expected-native-uses.mjs";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { selectCsharpSourceFlowCall } from "../../../dist/policy/operations/flow/source-flow.js";
@@ -323,8 +324,14 @@ test("optional-chain routing reads the canonical disposition even when another f
     const classification = { form, selectedResultType: type, optionalReceiver: { expression: receiver, storage: type, type, guard: true } };
     let receiverPlans = 0;
     const diagnostics = [];
+    // The chain analysis seals the routing from the canonical call form: direct for a resolved JS call, guarded otherwise.
+    const selectedCall = { get: subject => subject === node ? classification : undefined };
+    const chains = analyzeCsharpOptionalCallChains({ is: { IsCallExpression: subject => subject === node } }, [node], { selectedCall },
+      { nativeUse: { expression: subject => subject === receiver ? { use: { kind: "value", expression: receiver, carrier: type } } : undefined } },
+      () => true);
+    assert.deepEqual(chains.issues, [], `${name}/${operation.kind}: the chain is admitted`);
     const result = planCsharpOptionalReceiverChain(node, {}, {
-      program: { records: { selectedCall: { get: subject => subject === node ? classification : undefined } },
+      program: { records: { selectedCall, optionalCallChain: chains.records.optionalCallChain },
         source: { ast: { is: { IsCallExpression: () => false } } } },
     }, diagnostics, () => { receiverPlans += 1; return undefined; }, () => undefined, () => { throw new Error("unreachable call renderer"); });
     assert.equal(result.handled, operation.kind !== "resolved", `${name}/${operation.kind}: exact prior chain ownership`);
