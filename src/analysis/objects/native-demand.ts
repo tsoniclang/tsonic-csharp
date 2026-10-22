@@ -454,7 +454,13 @@ export function analyzeCsharpNativeArtifactDemand(
       if (member?.kind === "resolved") {
         if (member.member.memberKind !== "method") {
           refuse(property, `Object literal callable property '${member.member.sourceName}' cannot bind lexical 'this' without an exact receiver-bearing method contract.`);
-        } else accept(property, engine.requireObjectShapeMethodReceiver(shape, member.member));
+        } else {
+          // The receiver requirement applies to the registered artifact (with the contracts the literal implements),
+          // not the literal's bare use shape, so it meets the copy refusal instead of a spurious definition conflict.
+          const registered = input.objectShapes.resolveTarget(shape.targetType)
+            ?? failTargetAnalysisInvariant("tsonic-csharp", "An object literal's shape requires its registered artifact.", property);
+          accept(property, engine.requireObjectShapeMethodReceiver(registered, member.member));
+        }
       }
     }
   }
