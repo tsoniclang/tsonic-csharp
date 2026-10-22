@@ -105,7 +105,8 @@ function topLevelIndex(statements, predicate, label) {
 }
 
 const iteration = functionNamed(paths.iteration, "analyzeCsharpRepresentationIteration");
-const entry = functionNamed(paths.analyze, "analyzeCsharpTargetProgram");
+// The provider boundary lives in the complete-program entry; analyzeCsharpTargetProgram only seals its result.
+const entry = functionNamed(paths.analyze, "analyzeCsharpAnalysisProgram");
 const program = functionNamed(paths.analyze, "analyzeCsharpTargetProgramBeforeSeal");
 const emission = functionNamed(paths.emission, "finalizeCsharpNativeEmission");
 const evaluate = descendants(program).find(node => ast.is.IsMethodDeclaration(node) && named(node, "evaluate"));
