@@ -52,10 +52,6 @@ export function sealCsharpAnalysisProgram(program: CsharpAnalysisProgram): Cshar
 export function analyzeCsharpAnalysisProgram(
   request: CsharpTargetAnalysisRequest,
 ): TargetStageResult<CsharpAnalysisProgram> {
-  const references = request.providers.validateReferences();
-  if (references.length !== 0) {
-    return rejectedTargetStage(references.map(diagnostic => targetDiagnosticFromExtension(undefined, diagnostic)));
-  }
   if (request.providerAcquisition.kind === "rejected") {
     return rejectedTargetStage([targetDiagnosticFromExtension(undefined, request.providerAcquisition.diagnostic)]);
   }

@@ -31,13 +31,14 @@ import { analyzeCsharpAnalysisProgram, sealCsharpAnalysisProgram } from "../../d
 import { planCsharpOutput } from "../../dist/backend/planner/program/planning.js";
 import { createCsharpPlanningContext } from "../../dist/backend/planner/context.js";
 import { materializeCsharpOutputPlan } from "../../dist/backend/emission/materialize.js";
+import { compileWithCsharpReferenceValidation } from "../../dist/backend/compile.js";
 
 // The stages of compileCsharpTarget, with the observer receiving the complete analysis program (records plus the
 // analysis catalogs) so analysis tests can read the catalogs. The planner receives the sealed program exactly as
 // analyzeCsharpTargetProgram produces it.
 export function compileCsharpAnalysisTarget(request, observer) {
   let analysis;
-  return runTargetCompilationStages({
+  return compileWithCsharpReferenceValidation(request, () => runTargetCompilationStages({
     analyze: () => {
       const analyzed = analyzeCsharpAnalysisProgram(request);
       if (analyzed.kind === "rejected") return analyzed;
@@ -46,7 +47,7 @@ export function compileCsharpAnalysisTarget(request, observer) {
     },
     plan: program => planCsharpOutput(createCsharpPlanningContext(program)),
     materialize: materializeCsharpOutputPlan,
-  }, { analyzed: () => observer?.analyzed?.(analysis), planned: value => observer?.planned?.(value) });
+  }, { analyzed: () => observer?.analyzed?.(analysis), planned: value => observer?.planned?.(value) }));
 }
 
 function createCheckedCsharpSource(options) {
