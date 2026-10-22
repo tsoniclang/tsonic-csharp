@@ -248,8 +248,14 @@ export function reconcileInferredReturnTargetContract(
           return optional === undefined ? [] : [optional];
         }) : [])],
   );
-  return selected.kind === "resolved"
-    ? { kind: "resolved", type: selected.target }
+  if (selected.kind === "resolved") return { kind: "resolved", type: selected.target };
+  // Mutually convertible carriers (an empty source struct and the empty object) tie as equally specific. When every
+  // returned value already has one carrier that accepts every required source, the return keeps that carrier: the
+  // returned values then need no conversion at all.
+  const single = observed.every(type => targetTypeRefEquals(type, observed[0]!)) ? observed[0]! : undefined;
+  const actual = single === undefined ? undefined : selectCsharpCommonImplicitTarget(policy, requiredSources, [single]);
+  return actual?.kind === "resolved"
+    ? { kind: "resolved", type: actual.target }
     : {
         kind: "rejected",
         reason:
