@@ -13,8 +13,8 @@ import type { CsharpCallableContractIndex } from "../../target-model/records/cal
 import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
 import type { CsharpGenericProjectionIndex } from "../../target-model/records/type-projections.js";
 import { closeCsharpProjectCallableContracts } from "../project-types/callable-contracts.js";
-import { selectCsharpClosedCallableContext } from "./contextual-inputs.js";
-import type { CsharpClosedCallableContext } from "./contextual-inputs.js";
+import { selectCsharpClosedCallableContext } from "../expected-types/callable-contexts.js";
+import type { CsharpClosedCallableContext } from "../expected-types/callable-contexts.js";
 import { csharpCallableValueType } from "../../policy/types/callables/value-type.js";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
