@@ -115,6 +115,9 @@ function createCheckedCsharpSource(options) {
       noLib: true,
       module: "esnext",
       moduleResolution: "bundler",
+      // Real projects compile with module nodenext under a type-module package, so every project file is a module.
+      // esnext with the default detection would treat import-free fixtures as scripts and reject top-level await.
+      moduleDetection: "force",
       strict: true,
       ...(options.compilerOptions ?? {}),
     },
