@@ -211,6 +211,16 @@ export function resolveSourceCallSelectedType(
   if (receiverInstantiation.kind === "resolved") {
     return receiverInstantiation.type;
   }
+  // A provider declaration has no semantics, so its authored parameter type is not resolved above, and the checker's
+  // instantiated parameter type loses source primitive aliases (`int32[]` reads as `number[]`). The declared (generic)
+  // parameter type with the call's own type-argument substitutions is the exact parameter.
+  if (authored === undefined && authoredTypeNode !== undefined && declaration !== undefined &&
+    !host.hasSemantics(authoredSourceFile)) {
+    const declared = host.semantics(selectedSourceFile).declarations.declaredValueType(declaration);
+    const generic = declared === undefined ? undefined : scope.resolveTypeWithState(declared, selectedSourceFile, nextState(state));
+    const substituted = generic === undefined ? undefined : substituteTargetTypeParameters(generic, instantiation.substitutions);
+    if (generic !== undefined && substituted !== undefined && !targetTypeRefEquals(generic, substituted)) return substituted;
+  }
   if (excludedSourceArgumentIndexes !== undefined) {
     if (authored !== undefined) return instantiated;
     if (source.sourceSelectedMethodTypeArguments?.some(argument => argument.explicitTypeNode === undefined)) return undefined;
