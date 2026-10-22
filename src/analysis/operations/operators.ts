@@ -6,7 +6,7 @@ import type { CsharpOperationSelection, CsharpResolvedBinaryOperation, CsharpRes
 import { selectCsharpAssignmentLocation } from "./assignment-location.js";
 
 import { selectCsharpGenericNumericOperation } from "./numeric/generic.js";
-import { resolveCsharpContextualLiteralCarrier } from "../types/resolution/contextual-literals.js";
+import { resolveCsharpContextualLiteralCarrier } from "../source-evidence/types/resolution/contextual-literals.js";
 
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";

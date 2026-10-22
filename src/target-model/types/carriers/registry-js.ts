@@ -213,17 +213,17 @@ export const jsCarrierRegistry: readonly TargetCarrierRegistryEntry<TargetTypeRe
     frozen: false,
   },
   {
-    id: "src/analysis/types/resolution/source-profiles.ts#resolveCsharpSourceProfileBaseType",
+    id: "src/analysis/source-evidence/types/resolution/source-profiles.ts#resolveCsharpSourceProfileBaseType",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/types/resolution/source-profiles.ts", symbol: "resolveCsharpSourceProfileBaseType" },
-    counterpart: { module: "src/analysis/types/resolution/providers.ts", symbol: "resolveSourceProfileCarrier" },
+    declaration: { module: "src/analysis/source-evidence/types/resolution/source-profiles.ts", symbol: "resolveCsharpSourceProfileBaseType" },
+    counterpart: { module: "src/analysis/source-evidence/types/resolution/providers.ts", symbol: "resolveSourceProfileCarrier" },
     frozen: false,
   },
   {
-    id: "src/analysis/types/resolution/source-profiles.ts#resolveSourceProfileType",
+    id: "src/analysis/source-evidence/types/resolution/source-profiles.ts#resolveSourceProfileType",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/types/resolution/source-profiles.ts", symbol: "resolveSourceProfileType" },
-    counterpart: { module: "src/analysis/types/resolution/providers.ts", symbol: "resolveSourceProfileCarrier" },
+    declaration: { module: "src/analysis/source-evidence/types/resolution/source-profiles.ts", symbol: "resolveSourceProfileType" },
+    counterpart: { module: "src/analysis/source-evidence/types/resolution/providers.ts", symbol: "resolveSourceProfileCarrier" },
     frozen: false,
   },
   {

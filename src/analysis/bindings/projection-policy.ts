@@ -8,10 +8,10 @@ import { getCsharpCollectionElementTargetType } from "../../target-model/types/c
 import { resolveCsharpObjectShapeMemberBySourceContract } from "../../target-model/types/object-shape-members.js";
 
 import type { CsharpRecursiveObjectShapePolicy } from "../objects/shapes/model.js";
-import type { CsharpRecursiveTypeResolver, CsharpTypeResolutionState } from "../types/resolution/model.js";
+import type { CsharpRecursiveTypeResolver, CsharpTypeResolutionState } from "../source-evidence/types/resolution/model.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpArrayBindingProjectionTarget, resolveCsharpArrayBindingCarrier } from "../../policy/types/collections/binding-array-carrier.js";
-import { nextState } from "../types/resolution/state.js";
+import { nextState } from "../source-evidence/types/resolution/state.js";
 
 export interface CsharpBindingProjectionPolicyHost {
   readonly ast: AstReader;

@@ -27,7 +27,7 @@ import { resolvedTargetStage } from "@tsonic/target-api/artifacts";
 
 import { createCsharpTypeAnalysis } from "./type-system.js";
 import type { CsharpTypeAnalysis } from "./type-system.js";
-import type { CsharpPlanningRepresentationQueries } from "../types/resolution/model.js";
+import type { CsharpPlanningRepresentationQueries } from "../source-evidence/types/resolution/model.js";
 import type { ResolvedSourceCallInfo } from "../../target-model/records/source-calls.js";
 import { analyzeCsharpAttributeApplications } from "../attributes/application-index.js";
 

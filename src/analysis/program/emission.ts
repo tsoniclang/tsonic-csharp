@@ -55,7 +55,7 @@ import { analyzeCsharpMethodEmission } from "../declarations/classes/methods.js"
 import { analyzeCsharpClassEmission } from "../declarations/classes/planning.js";
 import { analyzeCsharpProjectEmission } from "../project-types/emission.js";
 import { analyzeCsharpTypeParameterEmission } from "../declarations/type-parameters.js";
-import { analyzeCsharpTypeEmission } from "../types/emission.js";
+import { analyzeCsharpTypeEmission } from "../source-evidence/types/emission.js";
 import { analyzeCsharpNativeMemoryEmission } from "../operations/native-memory-emission.js";
 import { admitCsharpUnionProjections } from "../operations/union-projections.js";
 import { analyzeCsharpUnionEquality } from "../operations/union-equality.js";

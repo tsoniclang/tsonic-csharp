@@ -1,6 +1,6 @@
 import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../policy/types/index.js";
-import type { CsharpTypePolicy } from "../types/resolution/model.js";
+import type { CsharpTypePolicy } from "../source-evidence/types/resolution/model.js";
 
 import type { CsharpTypeParameterConstraint, CsharpTypeParameterConstraintResolution } from "../../target-model/types/generic-constraints.js";
 

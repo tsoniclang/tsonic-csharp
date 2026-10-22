@@ -1,6 +1,6 @@
 // Planner unit fixtures read the same record families the analysis publishes. These builders produce those records
 // with the analysis's own producers, so a fixture never hand-writes a decision the analysis owns.
-import { analyzeCsharpTypeEmission } from "../../dist/analysis/types/emission.js";
+import { analyzeCsharpTypeEmission } from "../../dist/analysis/source-evidence/types/emission.js";
 import { admitCsharpDelegateEmission } from "../../dist/analysis/conversions/callable-emission.js";
 import { createCsharpDelegateContractProducer } from "../../dist/analysis/program/records/callable-conversions.js";
 import { createCsharpSourceProfileInputs } from "../../dist/analysis/program/records/source-profile-inputs.js";

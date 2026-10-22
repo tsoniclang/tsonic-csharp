@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { tsonicFixedArrayFactKey } from "@tsonic/source-core/facts";
-import { createCsharpFixedArrayTypeQuery } from "../../../../dist/analysis/types/resolution/source-markers.js";
+import { createCsharpFixedArrayTypeQuery } from "../../../../dist/analysis/source-evidence/types/resolution/source-markers.js";
 import {
   assertCsharpCheckingSucceeded,
   assertCsharpCompilationSucceeded,

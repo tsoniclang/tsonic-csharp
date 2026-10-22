@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { sourceDeclarationReferenceFactSubjects, sourceFactSubjectsForNode } from "../../../dist/analysis/types/resolution/source-evidence.js";
+import { sourceDeclarationReferenceFactSubjects, sourceFactSubjectsForNode } from "../../../dist/analysis/source-evidence/types/resolution/source-evidence.js";
 
 test("source declaration evidence preserves declaration-only index selections", () => {
   const declaration = {};

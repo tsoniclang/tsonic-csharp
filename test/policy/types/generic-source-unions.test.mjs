@@ -4,7 +4,7 @@ import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/c
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { inferCsharpTargetTypeParameterBindings, substituteObjectShapeFactTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
-import { selectCsharpAuthoredUnionRefinement, sourceRefinementOnlyRemovesNullish } from "../../../dist/analysis/types/resolution/source-union-refinement.js";
+import { selectCsharpAuthoredUnionRefinement, sourceRefinementOnlyRemovesNullish } from "../../../dist/analysis/source-evidence/types/resolution/source-union-refinement.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
 import { selectCsharpObjectLiteralUnionCarrier } from "../../../dist/analysis/objects/shapes/union-construction.js";
 import { csharpSourceUnionTargetType } from "../../../dist/target-model/types/source-union-definitions.js";

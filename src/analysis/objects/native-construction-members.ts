@@ -5,7 +5,7 @@ import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-mo
 import { csharpObjectShapeMemberRetainsNativeReference } from "../../policy/types/objects/member-reads.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
-import type { CsharpTypePolicyBaseHost } from "../types/resolution/model.js";
+import type { CsharpTypePolicyBaseHost } from "../source-evidence/types/resolution/model.js";
 import { csharpProviderSelectsNumericStorage } from "./shapes/provider-construction.js";
 import { csharpObjectShapesEqual } from "../../target-model/types/object-shape-equality.js";
 

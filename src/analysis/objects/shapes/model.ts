@@ -3,7 +3,7 @@ import type { CsharpObjectShapePolicy } from "../../../target-model/records/obje
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../../target-model/records/project-types.js";
-import type { CsharpPlanningRepresentationQueries, CsharpRecursiveTypeResolver, CsharpTypePolicyBaseHost, CsharpTypeResolutionState } from "../../types/resolution/model.js";
+import type { CsharpPlanningRepresentationQueries, CsharpRecursiveTypeResolver, CsharpTypePolicyBaseHost, CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
 
 export type CsharpStructuralUnionResolution =
   | { readonly kind: "not-applicable" }

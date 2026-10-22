@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { resolveCompositionalSourceTypeAlias } from "../../../dist/analysis/types/resolution/source-references.js";
+import { resolveCompositionalSourceTypeAlias } from "../../../dist/analysis/source-evidence/types/resolution/source-references.js";
 
 function fixture(alias = "export type View<Value> = { readonly [Key in keyof Value]: Value[Key] }", use = "View<Box>") {
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/project",

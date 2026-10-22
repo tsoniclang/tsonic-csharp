@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCsharpSourceUnionIndex } from "../../../dist/analysis/types/resolution/source-unions.js";
+import { createCsharpSourceUnionIndex } from "../../../dist/analysis/source-evidence/types/resolution/source-unions.js";
 import { csharpRuntimeUnionTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../dist/target-model/types/index.js";
 
 test("source union evidence preserves generic bindings and rejects ambiguous native members", () => {

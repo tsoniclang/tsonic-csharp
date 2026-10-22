@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { selectCsharpSourceCallResult } from "../../../dist/analysis/types/resolution/call-results.js";
+import { selectCsharpSourceCallResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import {
   csharpNullableTargetType, csharpRuntimeUnionTargetType,
   csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTaskTargetType,

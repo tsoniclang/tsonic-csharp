@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { bindCsharpSourceDeclarationArguments, bindCsharpSourceTypeArguments } from "../../../dist/analysis/types/resolution/generic-arguments.js";
+import { bindCsharpSourceDeclarationArguments, bindCsharpSourceTypeArguments } from "../../../dist/analysis/source-evidence/types/resolution/generic-arguments.js";
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/index.js";
 
 function fixture() {

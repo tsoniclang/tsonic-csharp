@@ -1,5 +1,5 @@
 import type { ExtensionFactSubject } from "@tsonic/tsts";
-import type { CsharpTypePolicyHost } from "../types/resolution/model.js";
+import type { CsharpTypePolicyHost } from "../source-evidence/types/resolution/model.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/object-shape-members.js";
 import { csharpMethodValueType, csharpObjectShapeMethodDeclaration, csharpPresentObjectShapeMethod } from "../../target-model/types/method-values.js";

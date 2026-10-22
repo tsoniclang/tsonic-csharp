@@ -1,6 +1,6 @@
 import type { SourceFile } from "@tsonic/tsts";
 import type { ResolvedSourceCallInfo } from "../../target-model/records/source-calls.js";
-import type { CsharpTypePolicyBaseHost, CsharpTypePolicy } from "../types/resolution/model.js";
+import type { CsharpTypePolicyBaseHost, CsharpTypePolicy } from "../source-evidence/types/resolution/model.js";
 import type { CsharpSourceCalleeSelection } from "../../target-model/operations/source-callees.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import { getCsharpCallableValueSignature, getCsharpDelegateSignature } from "../../target-model/types/carriers/delegates.js";

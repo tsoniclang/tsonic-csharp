@@ -1,11 +1,11 @@
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
 import type { CsharpObjectShapePolicyHost } from "./model.js";
-import type { CsharpTypeResolutionState } from "../../types/resolution/model.js";
+import type { CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { ExtensionFactSubject, Node, Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { sourceTypeIsAuthoredEmptyObject } from "@tsonic/target-api/source";
-import { nextState } from "../../types/resolution/state.js";
+import { nextState } from "../../source-evidence/types/resolution/state.js";
 import { classifyCsharpSourceProfileType } from "../../../policy/identities/source-types.js";
 
 interface SelectedObjectShapeSource {

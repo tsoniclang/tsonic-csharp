@@ -4,7 +4,7 @@ import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { selectCsharpConversion, selectCsharpExpressionConversion } from "../../policy/conversions/index.js";
 import type { CsharpConversionMode, CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import { csharpTargetBindingFact, isCsharpReferenceCarrier, targetTypeRefKey, targetTypeRefEquals } from "../../policy/types/index.js";
-import { isSourceOwnedCallableRuntimeCarrierSubject, isSourceOwnedProjectReference } from "../types/resolution/source-ownership.js";
+import { isSourceOwnedCallableRuntimeCarrierSubject, isSourceOwnedProjectReference } from "../source-evidence/types/resolution/source-ownership.js";
 
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpClosedShapeMemberProjection } from "../../target-model/records/closed-object-shapes.js";

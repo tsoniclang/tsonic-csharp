@@ -13,7 +13,7 @@ import { targetTypeRefEquals, targetTypeRefKey } from "../../../dist/target-mode
 import { csharpObjectShapeContractKey } from "../../../dist/target-model/types/object-shape-identity.js";
 import { csharpObjectShapesEqual } from "../../../dist/target-model/types/object-shape-equality.js";
 import { csharpConstraintsRequireReference, csharpTypeParameterConstraintResolutionKey } from "../../../dist/target-model/types/generic-constraints.js";
-import { resolveTypeParameter } from "../../../dist/analysis/types/resolution/source-evidence.js";
+import { resolveTypeParameter } from "../../../dist/analysis/source-evidence/types/resolution/source-evidence.js";
 import { csharpTypeParameterConstraintsEqual } from "../../../dist/policy/constraints/type-parameter-constraints.js";
 import { resolveCsharpTypeParameterConstraints } from "../../../dist/analysis/constraints/type-parameter-constraints.js";
 import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";

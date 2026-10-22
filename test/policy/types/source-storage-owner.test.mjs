@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { sourceValueDeclaration } from "../../../dist/analysis/types/resolution/calls.js";
-import { resolveSelectedValueWithState, resolveStorage } from "../../../dist/analysis/types/resolution/public-api.js";
+import { sourceValueDeclaration } from "../../../dist/analysis/source-evidence/types/resolution/calls.js";
+import { resolveSelectedValueWithState, resolveStorage } from "../../../dist/analysis/source-evidence/types/resolution/public-api.js";
 
 function fixture(kind, project) {
   const expression = { kind };

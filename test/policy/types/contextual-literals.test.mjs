@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resolveCsharpContextualLiteralCarrier } from "../../../dist/analysis/types/resolution/contextual-literals.js";
+import { resolveCsharpContextualLiteralCarrier } from "../../../dist/analysis/source-evidence/types/resolution/contextual-literals.js";
 import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
 import { csharpReadOnlyListTargetType } from "../../../dist/target-model/types/carriers/collections.js";
 

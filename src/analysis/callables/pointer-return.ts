@@ -1,8 +1,8 @@
 import type { CsharpPointerReturnContract } from "../../target-model/records/pointer-return.js";
 import type { Node } from "@tsonic/tsts";
-import type { CsharpTypeResolutionScope } from "../types/resolution/scope.js";
-import type { CsharpTypeResolutionState } from "../types/resolution/model.js";
-import { nextState } from "../types/resolution/state.js";
+import type { CsharpTypeResolutionScope } from "../source-evidence/types/resolution/scope.js";
+import type { CsharpTypeResolutionState } from "../source-evidence/types/resolution/model.js";
+import { nextState } from "../source-evidence/types/resolution/state.js";
 
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { combineCsharpTargetUnionMembers, csharpRuntimeLocationTargetType, csharpRuntimeLocationPointee } from "../../target-model/types/carriers/runtime-carriers.js";

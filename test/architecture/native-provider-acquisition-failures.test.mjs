@@ -8,7 +8,7 @@ import { createCsharpProviderRelationResolver } from "../../dist/providers/nativ
 import { csharpReferenceIdentityCarrier } from "../../dist/policy/operations/operators/reference-equality.js";
 import { validateBinaryTargetSemantics } from "../../dist/policy/operations/operators/operator-validation.js";
 import { isCsharpThrowableType } from "../../dist/analysis/project-types/throwable-types.js";
-import { resolveSourceProfileType } from "../../dist/analysis/types/resolution/source-profiles.js";
+import { resolveSourceProfileType } from "../../dist/analysis/source-evidence/types/resolution/source-profiles.js";
 import { validateCsharpProviderConstraints } from "../../dist/analysis/constraints/provider-satisfaction.js";
 import { selectCsharpNativeMemoryLayout } from "../../dist/analysis/operations/pointers/native-memory.js";
 import { createCsharpTypeDefinitionRegistry } from "../../dist/analysis/project-types/type-definitions.js";

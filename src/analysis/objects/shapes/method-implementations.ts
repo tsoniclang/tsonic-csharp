@@ -1,8 +1,8 @@
 import type { Node } from "@tsonic/tsts";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../../target-model/types/model.js";
 import type { CsharpObjectShapePolicyHost } from "./model.js";
-import type { CsharpTypeResolutionState } from "../../types/resolution/model.js";
-import { nextState } from "../../types/resolution/state.js";
+import type { CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
+import { nextState } from "../../source-evidence/types/resolution/state.js";
 import type { CsharpObjectMethodSourceCapture } from "../../../target-model/records/native-value-carriers.js";
 
 export function selectCsharpObjectMethodImplementation(
