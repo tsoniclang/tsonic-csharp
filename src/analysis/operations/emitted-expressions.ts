@@ -6,7 +6,7 @@ import type { CsharpJsCallRecords } from "../../target-model/records/js-value-ca
 
 export type CsharpCallPlanningRecords = {
   readonly operations: Pick<CsharpTargetOperationClassifications, "selectedCall" | "nativeHandler">;
-  readonly evidence: Pick<CsharpSourceEvidenceIndex, "sourceDefaultValue">;
+  readonly evidence: Pick<CsharpSourceEvidenceIndex, "sourceDefaultValue" | "sourceArgument">;
 };
 
 /**
@@ -41,11 +41,14 @@ export function selectCsharpEmittedExpressions(input: CsharpCallPlanningRecords 
 }
 
 /**
- * A call the planner dispatches to its source-owned call path, in the planner's order: not a source default value, not
- * planned by a native handler, and not a type-test, keep-alive or JS-value form.
+ * A call the planner dispatches to its source-owned call path, in the planner's order: not a by-reference passing marker
+ * (`out(value)`: the enclosing call passes the marked storage expression itself), not a source default value, not planned
+ * by a native handler, and not a type-test, keep-alive or JS-value form.
  */
 export function csharpCallIsPlannedAsSourceCall(node: Node, records: CsharpCallPlanningRecords): boolean {
   const call = records.operations.selectedCall.get(node);
+  const argument = records.evidence.sourceArgument.get(node);
+  if (argument?.kind === "resolved" && argument.argument.passingMode !== "by-value" && argument.argument.storageExpression !== node) return false;
   if (call?.target?.kind !== "source-owned" || records.evidence.sourceDefaultValue.get(node) !== undefined ||
     records.operations.nativeHandler.get(node) !== undefined) return false;
   const form = call.form.kind;
