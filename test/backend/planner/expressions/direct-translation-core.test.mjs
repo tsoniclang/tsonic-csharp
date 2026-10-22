@@ -493,10 +493,10 @@ test("direct JS translation retains an object literal's exact selected value sha
     {
         public static string keys(string text)
         {
-            return Tsonic.CSharp.Js.Array.join(new ObjectShape_515db29c74b5
+            return Tsonic.CSharp.Js.Array.join(ObjectShape_515db29c74b5.__tsonicObjectKeys_22efd9788f44(new ObjectShape_515db29c74b5
             {
                 text = text,
-            }.__tsonicObjectKeys_48e9fd789833(), ",");
+            }), ",");
         }
     }
 }
@@ -508,8 +508,12 @@ test("direct JS translation retains an object literal's exact selected value sha
     public class ObjectShape_515db29c74b5
     {
         public required string text;
-        public Tsonic.CSharp.Js.JSArray<string> __tsonicObjectKeys_48e9fd789833()
+        public static Tsonic.CSharp.Js.JSArray<string> __tsonicObjectKeys_22efd9788f44(ObjectShape_515db29c74b5 receiver)
         {
+            if (receiver is null)
+            {
+                throw new System.NullReferenceException();
+            }
             return new Tsonic.CSharp.Js.JSArray<string>(new string[] { "text" });
         }
     }
@@ -547,9 +551,10 @@ test("direct JS translation emits exact closed own-property projections", () => 
   const source = compiled.artifacts.get("src/Index.cs");
   const shapes = compiled.artifacts.get("generated/TsonicObjectShapes.cs");
   assert.doesNotMatch(source, /Tsonic\.CSharp\.Js\.Object\.(?:keys|values|entries|hasOwn)/u);
-  assert.match(source, /\.__tsonicObjectKeys_[a-f0-9]{12}\(\)/u);
-  assert.match(source, /\.__tsonicObjectValues_[a-f0-9]{12}\(\)/u);
-  assert.match(source, /\.__tsonicObjectEntries_[a-f0-9]{12}\(\)/u);
+  // Projections are static shape helpers taking the receiver (checkpoint output).
+  assert.match(source, /ObjectShape_[a-f0-9]{12}\.__tsonicObjectKeys_[a-f0-9]{12}\(value\)/u);
+  assert.match(source, /ObjectShape_[a-f0-9]{12}\.__tsonicObjectValues_[a-f0-9]{12}\(value\)/u);
+  assert.match(source, /ObjectShape_[a-f0-9]{12}\.__tsonicObjectEntries_[a-f0-9]{12}\(value\)/u);
   assert.equal(source.match(/\.__tsonicObjectHasOwn_[a-f0-9]{12}\(/gu)?.length, 2);
   assert.match(
     shapes,
@@ -565,8 +570,8 @@ test("direct JS translation emits exact closed own-property projections", () => 
   );
   assert.match(shapes, /new string\[\] \{ "tail", "current" \}/u);
   assert.match(shapes, /__tsonic_shape_accessor_getter_/u);
-  assert.match(shapes, /public Tsonic\.CSharp\.Js\.JSArray<string> __tsonicObjectValues_/u);
-  assert.match(shapes, /public Tsonic\.CSharp\.Js\.JSArray<\(string, string\)> __tsonicObjectEntries_/u);
+  assert.match(shapes, /public static Tsonic\.CSharp\.Js\.JSArray<string> __tsonicObjectValues_/u);
+  assert.match(shapes, /public static Tsonic\.CSharp\.Js\.JSArray<\(string, string\)> __tsonicObjectEntries_/u);
   assert.match(
     shapes,
     /key == "01" \|\| key == "10" \|\| key == "2" \|\| key == "tail"/u,
