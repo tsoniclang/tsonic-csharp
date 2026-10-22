@@ -116,5 +116,11 @@ export function analyzeCsharpBinaryEmission(input: { readonly source: TargetSour
     forms.set(node, { kind: "native", selection: selected.target });
   }
   for (const { use } of input.demand.entries) if (use.kind !== "erased" && use.binary !== undefined) addNative(use.expression, use.binary);
+  // An ordered switch plans each case test as its selected comparison at the case clause.
+  for (const node of input.nodes) {
+    const selected = input.operations.switchStatement.get(node);
+    if (selected?.kind !== "ordered" || !input.admitted(node)) continue;
+    for (const clause of selected.clauses) if (clause.comparison !== undefined) addNative(clause.node, clause.comparison);
+  }
   return Object.freeze({ records: createCsharpBinaryEmissionRecords(forms, native), issues: Object.freeze(issues) });
 }
