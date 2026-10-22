@@ -23,8 +23,9 @@ const analyzeCompletedCsharpProgram = request => analyzeCsharpAnalysisProgram(co
 const nativeMemberNames = Object.freeze({ issues: Object.freeze([]), memberHiding: Object.freeze([]) });
 
 test("native dispatch requires its completed narrow inputs instead of the retired five-argument API", () => {
-  assert.throws(() => analyzeCsharpProjectCallableAdapters({}, {}, {}, {}, {}), TypeError,
-    "the replaced producer API has no optional legacy native-dispatch route");
+  assert.throws(() => analyzeCsharpProjectCallableAdapters({}, {}, {}, {}, {}), error => error instanceof Error &&
+    error.message.includes("Native callable dispatch requires the open authored-name lookup and completed storage and participation inputs."),
+  "the replaced producer API has no optional legacy native-dispatch route");
 });
 
 test("a rejected native inheritance acquisition keeps its complete diagnostic before program publication", () => {
@@ -123,8 +124,8 @@ for (const surface of ["native", "js"]) {
     const declaration = ast.statements(csharpProgramSourceFiles(program)[0]).find(node => ast.is.IsClassDeclaration(node));
     const field = ast.members(declaration).find(node => node !== undefined && ast.is.IsPropertyDeclaration(node));
     assert.equal(field !== undefined, true, "the separate corruption control starts with a real admitted field");
-    assert.throws(() => planCsharpAdmittedMemberName({ ...program.names,
-      resolve: () => ({ kind: "rejected", reason: "corrupted admitted name" }) }, ast.name(field)),
+    assert.throws(() => planCsharpAdmittedMemberName({ sourceName: { get: () => ({ kind: "rejected", reason: "corrupted admitted name" }) } },
+      ast.name(field)),
     /An admitted native member lost its final representable name/u, "corruption is an invariant, not a second source-refusal owner");
   });
 }
@@ -175,7 +176,7 @@ test("the sealed C# name plan is a frozen pure lookup with no allocation port", 
   const plan = builder.seal(bindingRoots, nativeMemberNames);
   assert.equal(builder.seal(bindingRoots, nativeMemberNames), plan);
   assert.ok(Object.isFrozen(plan));
-  assert.deepEqual(Object.keys(plan).sort(), ["generatedMethodTypeParameters", "issues", "memberHiding", "reservedNames", "resolve", "typeParameterNames"]);
+  assert.deepEqual(Object.keys(plan).sort(), ["generatedMethodTypeParameters", "issues", "reservedNames", "resolve", "typeParameterNames"]);
   assert.equal(Object.isFrozen(plan.typeParameterNames) && plan.typeParameterNames.length === 0, true,
     "a source with no type/value conflict has no fabricated binder rename");
   assert.equal("temporaryName" in plan, false);
@@ -257,7 +258,7 @@ test("a published C# program carries the sealed plan and planning composes its o
   assert.equal(analysis.kind, "resolved");
   const program = analysis.value;
   assert.ok(Object.isFrozen(program.names));
-  assert.deepEqual(Object.keys(program.names).sort(), ["generatedMethodTypeParameters", "issues", "memberHiding", "reservedNames", "resolve", "typeParameterNames"]);
+  assert.deepEqual(Object.keys(program.names).sort(), ["generatedMethodTypeParameters", "issues", "reservedNames", "resolve", "typeParameterNames"]);
   assert.equal("temporaryName" in program.names, false);
   assert.ok(program.classFactories.length > 0);
   for (const factory of program.classFactories) {
@@ -473,21 +474,21 @@ for (const surface of ["native", "js"]) {
     for (const owner of ["Base", "Hidden", "Derived", "Implemented"]) {
       const member = observations.find(entry => entry.owner === owner && entry.name === "read");
       assert.equal(member !== undefined, true, `${owner}: the actual authored method is retained`);
-      assert.equal(program.names.memberHiding.get({ kind: "source", declaration: member.node, role: "member" }), owner === "Hidden",
+      assert.equal(program.records.nativeMemberHiding.get({ kind: "source", declaration: member.node, role: "member" }), owner === "Hidden",
         `${owner}: only the exact hidden native signature gets new, not overrides or interface implementation`);
     }
     const companion = observations.find(entry => entry.owner === "Generic" && entry.name === "GetHashCode");
-    assert.equal(companion !== undefined && program.names.memberHiding.get({ kind: "source", declaration: companion.node, role: "member" }) === true, true,
+    assert.equal(companion !== undefined && program.records.nativeMemberHiding.get({ kind: "source", declaration: companion.node, role: "member" }) === true, true,
       "the separate static companion uses its actual native Object root, not the generic instance's source heritage");
-    assert.equal(Object.isFrozen(program.names.memberHiding), true, "hiding is immutable published data");
+    assert.equal(Object.isFrozen(program.records.nativeMemberHiding), true, "hiding is immutable published data");
     let syntaxReads = 0;
     const foreign = Object.defineProperty({}, "kind", { get() { syntaxReads += 1; throw Error("late name syntax"); } });
-    assert.equal(program.names.memberHiding.get({ kind: "source", declaration: foreign, role: "member" }) === undefined && syntaxReads === 0, true,
+    assert.equal(program.records.nativeMemberHiding.get({ kind: "source", declaration: foreign, role: "member" }) === undefined && syntaxReads === 0, true,
       "the sealed hiding getter never computes or inspects a foreign syntax node");
     const hidden = observations.find(entry => entry.owner === "Hidden" && entry.name === "read").node;
-    const context = createCsharpPlanningContext({ ...program, names: { ...program.names,
-      memberHiding: { get: subject => subject.kind === "source" && subject.declaration === hidden
-        ? undefined : program.names.memberHiding.get(subject) } } });
+    const context = createCsharpPlanningContext({ ...program, records: { ...program.records,
+      nativeMemberHiding: { get: subject => subject.kind === "source" && subject.declaration === hidden
+        ? undefined : program.records.nativeMemberHiding.get(subject) } } });
     assert.throws(() => planClassMemberModifiers(hidden, ast.name(hidden), context,
       { kind: "source", declaration: hidden, role: "member" }),
       error => error.message.includes("final physical-container hiding decision"),
