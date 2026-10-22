@@ -340,13 +340,6 @@ export const nativeCarrierRegistry: readonly TargetCarrierRegistryEntry<TargetTy
     frozen: false,
   },
   {
-    id: "src/policy/types/selected-type-evidence.ts#retainCsharpBroadValueCarrier",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/policy/types/selected-type-evidence.ts", symbol: "retainCsharpBroadValueCarrier" },
-    counterpart: { module: "src/target-model/types/carriers/native.ts", symbol: "rustTsValueTargetType" },
-    frozen: false,
-  },
-  {
     id: "src/policy/types/selected-type-evidence.ts#reconcileCsharpSelectedTargetType",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/policy/types/selected-type-evidence.ts", symbol: "reconcileCsharpSelectedTargetType" },
@@ -414,13 +407,6 @@ export const nativeCarrierRegistry: readonly TargetCarrierRegistryEntry<TargetTy
     kinds: ["target-named"],
     declaration: { module: "src/policy/types/project/declaration-carriers.ts", symbol: "projectDefinitionTargetType" },
     counterpart: { module: "src/analysis/types/resolution/project.ts", symbol: "resolveProjectSourceCarrier" },
-    frozen: false,
-  },
-  {
-    id: "src/policy/types/project/static-members.ts#resolveCsharpStaticMemberReceiver",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/policy/types/project/static-members.ts", symbol: "resolveCsharpStaticMemberReceiver" },
-    counterpart: { module: "src/target-model/types/carriers/class-constructors.ts", symbol: "rustClassConstructorTargetType" },
     frozen: false,
   },
   {
@@ -508,13 +494,6 @@ export const nativeCarrierRegistry: readonly TargetCarrierRegistryEntry<TargetTy
     frozen: false,
   },
   {
-    id: "src/analysis/types/resolution/public-api.ts#resolveSelectedResult",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/types/resolution/public-api.ts", symbol: "resolveSelectedResult" },
-    counterpart: { module: "src/analysis/operations/provider/member-carriers.ts", symbol: "instantiateRustSelectedMemberCarrier" },
-    frozen: false,
-  },
-  {
     id: "src/analysis/types/resolution/public-api.ts#resolveTypedLocationOperationPointee",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/analysis/types/resolution/public-api.ts", symbol: "resolveTypedLocationOperationPointee" },
@@ -526,13 +505,6 @@ export const nativeCarrierRegistry: readonly TargetCarrierRegistryEntry<TargetTy
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/analysis/types/resolution/public-api.ts", symbol: "resolveTypedLocationOperationPointeeWithState" },
     counterpart: { module: "src/analysis/operations/pointers/native-memory.ts", symbol: "resolveRustMemoryLayoutPointee" },
-    frozen: false,
-  },
-  {
-    id: "src/analysis/types/resolution/constructors.ts#resolveCsharpConstructorValueType",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/types/resolution/constructors.ts", symbol: "resolveCsharpConstructorValueType" },
-    counterpart: { module: "src/analysis/types/resolution/constructors.ts", symbol: "resolveRustConstructInstance" },
     frozen: false,
   },
   {
@@ -613,31 +585,10 @@ export const nativeCarrierRegistry: readonly TargetCarrierRegistryEntry<TargetTy
     frozen: false,
   },
   {
-    id: "src/analysis/types/resolution/expressions.ts#resolveMemberAccessTargetType",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/types/resolution/expressions.ts", symbol: "resolveMemberAccessTargetType" },
-    counterpart: { module: "src/analysis/operations/provider/member-carriers.ts", symbol: "instantiateRustSelectedMemberCarrier" },
-    frozen: false,
-  },
-  {
     id: "src/analysis/types/resolution/expressions.ts#resolveNonNullExpressionType",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/analysis/types/resolution/expressions.ts", symbol: "resolveNonNullExpressionType" },
     counterpart: { module: "src/policy/operations/flow/absence-use.ts", symbol: "rustSourceAbsenceReadCarrier" },
-    frozen: false,
-  },
-  {
-    id: "src/analysis/types/resolution/expressions.ts#resolveSourceOwnedConstructionResult",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/types/resolution/expressions.ts", symbol: "resolveSourceOwnedConstructionResult" },
-    counterpart: { module: "src/analysis/types/resolution/constructors.ts", symbol: "resolveRustConstructInstance" },
-    frozen: false,
-  },
-  {
-    id: "src/analysis/types/resolution/declarations.ts#resolveSelectedDeclarationResult",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/types/resolution/declarations.ts", symbol: "resolveSelectedDeclarationResult" },
-    counterpart: { module: "src/analysis/operations/provider/member-carriers.ts", symbol: "instantiateRustSelectedMemberCarrier" },
     frozen: false,
   },
   {
@@ -718,27 +669,6 @@ export const nativeCarrierRegistry: readonly TargetCarrierRegistryEntry<TargetTy
     frozen: false,
   },
   {
-    id: "src/policy/operations/source-profiles/type-carriers.ts#selectCsharpSourceProfileCarrier",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/policy/operations/source-profiles/type-carriers.ts", symbol: "selectCsharpSourceProfileCarrier" },
-    counterpart: { module: "src/policy/operations/source-profiles/type-carriers.ts", symbol: "resolveSourceProfileCarrierFromArguments" },
-    frozen: false,
-  },
-  {
-    id: "src/analysis/types/resolution/source-profiles.ts#resolveCsharpSourceProfileBaseType",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/types/resolution/source-profiles.ts", symbol: "resolveCsharpSourceProfileBaseType" },
-    counterpart: { module: "src/analysis/types/resolution/providers.ts", symbol: "resolveSourceProfileCarrier" },
-    frozen: false,
-  },
-  {
-    id: "src/analysis/types/resolution/source-profiles.ts#resolveSourceProfileType",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/types/resolution/source-profiles.ts", symbol: "resolveSourceProfileType" },
-    counterpart: { module: "src/analysis/types/resolution/providers.ts", symbol: "resolveSourceProfileCarrier" },
-    frozen: false,
-  },
-  {
     id: "src/analysis/types/resolution/source-profiles.ts#resolveUnionType",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/analysis/types/resolution/source-profiles.ts", symbol: "resolveUnionType" },
@@ -774,13 +704,6 @@ export const nativeCarrierRegistry: readonly TargetCarrierRegistryEntry<TargetTy
     frozen: false,
   },
   {
-    id: "src/analysis/declarations/interfaces/structural.ts#analyzeCsharpStructuralInterfaceEmission",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/declarations/interfaces/structural.ts", symbol: "analyzeCsharpStructuralInterfaceEmission" },
-    counterpart: { module: "src/policy/types/objects/member-storage.ts", symbol: "rustStructuralMethodStorageCarrier" },
-    frozen: false,
-  },
-  {
     id: "src/analysis/declarations/type-parameters.ts#analyzeCsharpTypeParameterEmission",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/analysis/declarations/type-parameters.ts", symbol: "analyzeCsharpTypeParameterEmission" },
@@ -795,24 +718,10 @@ export const nativeCarrierRegistry: readonly TargetCarrierRegistryEntry<TargetTy
     frozen: false,
   },
   {
-    id: "src/analysis/expressions/borrowed-sequences.ts#resolveCsharpBorrowedSequenceElement",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/expressions/borrowed-sequences.ts", symbol: "resolveCsharpBorrowedSequenceElement" },
-    counterpart: { module: "src/target-model/types/carriers/js.ts", symbol: "rustJsArrayLikeElementTargetType" },
-    frozen: false,
-  },
-  {
     id: "src/analysis/objects/element-admission.ts#analyzeCsharpElementAdmission",
     kinds: ["tuple"],
     declaration: { module: "src/analysis/objects/element-admission.ts", symbol: "analyzeCsharpElementAdmission" },
     counterpart: { module: "src/analysis/types/resolution/tuples.ts", symbol: "resolveRustTupleElementTargetType" },
-    frozen: false,
-  },
-  {
-    id: "src/analysis/objects/shapes/member-evidence.ts#createCsharpObjectShapeMemberResolver",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/objects/shapes/member-evidence.ts", symbol: "createCsharpObjectShapeMemberResolver" },
-    counterpart: { module: "src/target-model/types/projections.ts", symbol: "rustSourcePropertyTargetType" },
     frozen: false,
   },
   {
