@@ -12,11 +12,18 @@ import { csharpTargetNamedType } from "../../../../dist/target-model/types/facto
 import { printCsharpExpression } from "../../../../dist/print/source/printer.js";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../../helpers/direct-csharp-session.mjs";
 import { assertNoTargetDiagnostics } from "../../../../../tsonic/test/scripts/diagnostic-assertions.mjs";
+import { admitCsharpConversionSelection } from "../../../../dist/analysis/conversions/validation.js";
+import { admitCsharpDelegateOperand } from "../../../../dist/analysis/conversions/callable-emission.js";
+import { createCsharpDelegateContractProducer } from "../../../../dist/analysis/program/records/callable-conversions.js";
+import { admitCsharpDelegateEmission } from "../../../../dist/analysis/conversions/callable-emission.js";
+import { csharpDelegateContractRecord } from "../../../helpers/planning-records.mjs";
 
 const integer = { kind: "source-primitive", name: "int32" };
 const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId() { return { kind: "missing" }; } }, target: {} };
-const context = { scope: {}, program: { records: { directCallableReference: { get: () => undefined },
-  captureClosure: { get: () => undefined } } }, names: { temporaryName: () => assert.fail("Native bindings must not allocate wrapper temporaries") } };
+// Each binding plans against the delegate contract the analysis publishes for its one admitted conversion.
+const context = conversions => ({ scope: {}, program: { records: { delegateContract: csharpDelegateContractRecord(conversions),
+  directCallableReference: { get: () => undefined }, captureClosure: { get: () => undefined } } },
+  names: { temporaryName: () => assert.fail("Native bindings must not allocate wrapper temporaries") } });
 
 function nativeDelegate(name, mode = "by-value", returnPassing) {
   return csharpTargetNamedType(`Fixture.${name}`, undefined, { kind: "named", name, usingNamespace: ["Fixture"] }, { allowsRefLikeTypeArguments: [], delegateSignature: { parameters: [integer], parameterPassingModes: [mode], returnType: integer,
@@ -27,7 +34,7 @@ function nativeBinding(source, target, expression, selected = selectCsharpConver
   assert.equal(selected.kind, "delegate-adapter");
   assert.equal(selected.strategy, "native-binding");
   const diagnostics = [];
-  const planned = planCsharpDelegateAdapter({}, {}, context, diagnostics, source, target, selected, expression, applyCsharpConversionSelection);
+  const planned = planCsharpDelegateAdapter({}, {}, context([[source, target, selected]]), diagnostics, source, target, selected, expression, applyCsharpConversionSelection);
   assertNoTargetDiagnostics(diagnostics);
   assert.equal(planned !== undefined, true);
   return planned;
@@ -67,34 +74,39 @@ test("mutated native-binding selections and unsupported byref lambdas fail close
   const source = csharpDelegateTargetType("System.Func", [integer], integer);
   const target = nativeDelegate("Target");
   const selected = selectCsharpConversion(policy, source, target, "implicit");
-  for (const [from, to, selection, expression, message] of [
-    [source, nativeDelegate("RefTarget", "byref-readwrite"), selected, { kind: "IdentifierName", name: "original" },
+  // Conversion admission owns these refusals: a mutated selection never becomes an admitted conversion.
+  for (const [from, to, selection, message] of [
+    [source, nativeDelegate("RefTarget", "byref-readwrite"), selected,
       "A sealed native delegate binding requires identical parameter and return passing signatures."],
-    [source, target, { ...selected, parameterConversions: [{ kind: "implicit", proof: "numeric" }] }, { kind: "IdentifierName", name: "original" },
+    [source, target, { ...selected, parameterConversions: [{ kind: "implicit", proof: "numeric" }] },
       "A sealed native delegate binding requires identical parameter and return passing signatures."],
-    [source, target, { ...selected, strategy: "unselected" }, { kind: "IdentifierName", name: "original" },
+    [source, target, { ...selected, strategy: "unselected" },
       "Delegate conversion requires a sealed native binding or adaptation strategy."],
   ]) {
+    assert.deepEqual(admitCsharpConversionSelection(policy, from, to, selection), { kind: "rejected", reason: message });
     const diagnostics = [];
-    assert.throws(() => planCsharpDelegateAdapter({}, {}, context, diagnostics, from, to, selection, expression, applyCsharpConversionSelection),
-      error => error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT" && error.message === message);
+    assert.throws(() => planCsharpDelegateAdapter({}, {}, context([]), diagnostics, from, to, selection,
+      { kind: "IdentifierName", name: "original" }, applyCsharpConversionSelection),
+    error => error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT", "no admitted conversion, no published contract");
     assert.equal(diagnostics.length, 0);
   }
   {
-    const diagnostics = [];
-    assert.equal(planCsharpDelegateAdapter({}, {}, context, diagnostics, nativeDelegate("RefSource", "byref-readwrite"),
-      nativeDelegate("RefTarget", "byref-readwrite"), selected,
-      { kind: "LambdaExpression", parameters: [], body: { kind: "IdentifierName", name: "original" } }, applyCsharpConversionSelection) === undefined, true);
-    assert.equal(diagnostics.length, 1);
+    // An inline authored lambda cannot bind a by-reference native delegate: the delegate operand admission refuses it.
+    const lambda = {};
+    const refSource = nativeDelegate("RefSource", "byref-readwrite");
+    const refTarget = nativeDelegate("RefTarget", "byref-readwrite");
+    const producer = createCsharpDelegateContractProducer();
+    admitCsharpDelegateEmission(producer, refSource, refTarget, selected);
+    const issues = admitCsharpDelegateOperand({ is: { IsArrowFunction: node => node === lambda, IsFunctionExpression: () => false } },
+      { captureClosure: { get: () => undefined }, lambdaCreation: { get: () => ({ kind: "inline" }) } },
+      producer, lambda, refSource, refTarget, selected);
+    assert.deepEqual(issues.map(issue => issue.message),
+      ["A by-reference native delegate binding requires an exact native method group or delegate value."]);
   }
   for (const modes of [undefined, [], new Array(1), ["move"], ["by-value", "by-value"]]) {
     const from = { ...source, csharpDelegateSignature: { ...source.csharpDelegateSignature, parameterPassingModes: modes } };
-    const diagnostics = [];
-    assert.throws(() => planCsharpDelegateAdapter({}, {}, context, diagnostics, from, target,
-      { ...selected, strategy: "adaptation" }, { kind: "IdentifierName", name: "original" }, applyCsharpConversionSelection),
-    error => error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT" &&
-      error.message === "C# delegate adaptation requires exact renderable source and target signatures.");
-    assert.equal(diagnostics.length, 0);
+    assert.deepEqual(admitCsharpConversionSelection(policy, from, target, { ...selected, strategy: "adaptation" }), { kind: "rejected",
+      reason: "C# delegate adaptation requires exact renderable source and target signatures." });
   }
 });
 

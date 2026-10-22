@@ -8,15 +8,18 @@ import { csharpAbsenceTargetType, csharpTsValueTargetType } from "../../../../di
 import { csharpDelegateTargetType, isCsharpSourceDelegateTargetType } from "../../../../dist/target-model/types/carriers/delegates.js";
 import { csharpNullableTargetType } from "../../../../dist/target-model/types/carriers/nullable.js";
 import { csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
+import { csharpDelegateContractRecord, csharpTypeEmissionRecord } from "../../../helpers/planning-records.mjs";
 
 const number = csharpSourcePrimitiveTargetType("float64");
 const source = csharpDelegateTargetType("System.Action", []);
 const target = csharpDelegateTargetType("System.Func", [number], csharpNullableTargetType(number));
 const selection = { kind: "delegate-adapter", strategy: "adaptation", parameterConversions: [], returnConversion: { kind: "void-return" } };
 
-function context() {
+// The analysis publishes one delegate contract per admitted conversion and the type emission of every carrier.
+function context(conversions = [[source, target, selection]]) {
   const allocated = new Set();
-  return { scope: {}, program: { records: { directCallableReference: { get: () => undefined },
+  return { scope: {}, program: { records: { delegateContract: csharpDelegateContractRecord(conversions),
+    typeEmission: csharpTypeEmissionRecord(), directCallableReference: { get: () => undefined },
     captureClosure: { get: () => undefined },
     namedSelf: { get: () => undefined } } }, names: { temporaryName(preferred) {
     let name = preferred;
@@ -112,11 +115,14 @@ test("native adapters reject missing signatures and mismatched conversion arity"
     [source, target, { ...selection, parameterConversions: [{ kind: "identity" }] }],
     [target, source, selection],
   ]) {
+    // The analysis owns the refusal: the selection never becomes an admitted conversion.
+    assert.deepEqual(admitCsharpConversionSelection({}, from, to, selected), { kind: "rejected",
+      reason: "C# delegate adaptation requires exact renderable source and target signatures." });
+    // Without an admitted conversion there is no published contract, and the planner fails closed.
     const diagnostics = [];
-    assert.throws(() => planCsharpDelegateAdapter({}, {}, context(), diagnostics, from, to, selected,
+    assert.throws(() => planCsharpDelegateAdapter({}, {}, context([]), diagnostics, from, to, selected,
       { kind: "IdentifierName", name: "original" }, applyCsharpConversionSelection),
-    error => error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT" &&
-      error.message === "C# delegate adaptation requires exact renderable source and target signatures.");
+    error => error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT");
     assert.equal(diagnostics.length, 0);
   }
 });
