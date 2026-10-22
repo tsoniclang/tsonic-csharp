@@ -212,7 +212,10 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
     if (call.unionCall.kind === "resolved") return chosen([...use(call.unionCall.receiver, { kind: "receiver" }), ...guarded(arguments_)]);
     const callee = call.sourceCall;
     if (callee === undefined || callee.kind === "rejected" || callee.kind === "union-method") return refused("operation-unresolved");
-    if (callee.kind === "function" || callee.kind === "value") return argumentsFirst(use(callee.expression, { kind: "callee" }), guarded(arguments_));
+    // A declared function is called by its declaration reference (a static method group), never evaluated as a value,
+    // so it has no runtime callee use; only a callee value is evaluated before the arguments.
+    if (callee.kind === "function") return argumentsFirst([], guarded(arguments_));
+    if (callee.kind === "value") return argumentsFirst(use(callee.expression, { kind: "callee" }), guarded(arguments_));
     const access = call.source.sourceCalleeAccess;
     const receiver = receiverUses(callee.receiver);
     const key = guarded(access?.kind === "element" ? use(access.argument.expression, { kind: "key" }) : []);
