@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, rmdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import type { ExtensionDiagnostic } from "@tsonic/tsts";
@@ -57,17 +57,21 @@ function acquireGeneratedProject(
   toolchain: DotnetProviderToolchain,
 ): NativeResult<readonly string[]> {
   publishText(project.path, project.text);
+  const directory = join(preparation.cacheRoot, "csharp", "runtime-metadata", hash(project.path));
+  const arguments_ = nativeProperties(preparation, toolchain);
+  const proofPath = join(directory, "proof.json");
+  // A published proof is verified without the build lock: the evaluation restores nothing and writes only a private
+  // preprocess file, so concurrent cache hits run in parallel. Any mismatch or failure takes the locked path below.
+  const verified = verifiedPublishedReferences(project.path, arguments_, directory, proofPath, preparation, toolchain);
+  if (verified !== undefined) return { kind: "resolved", value: verified };
   const lock = acquireBuildLock(`${project.path}.metadata.lock`);
   if (lock.kind === "rejected") return lock;
   try {
-    const directory = join(preparation.cacheRoot, "csharp", "runtime-metadata", hash(project.path));
     mkdirSync(directory, { recursive: true });
     const preprocessedPath = join(directory, "imports.xml");
-    const arguments_ = nativeProperties(preparation, toolchain);
-    const evaluated = evaluateProject(project.path, arguments_, preprocessedPath, toolchain);
+    const evaluated = evaluateProject(project.path, arguments_, preprocessedPath, toolchain, "restore");
     if (evaluated.kind === "rejected") return evaluated;
     const inputFingerprint = projectFingerprint(evaluated.value, preprocessedPath, preparation, toolchain);
-    const proofPath = join(directory, "proof.json");
     const cached = readBuildProof(proofPath);
     if (cached !== undefined && cached.inputFingerprint === inputFingerprint &&
       validFileHashes(cached.outputs) && validFileHashes(cached.references)) {
@@ -78,7 +82,7 @@ function acquireGeneratedProject(
       "-p:BuildProjectReferences=false", "-p:UseSharedCompilation=false", ...arguments_,
     ], toolchain);
     if (built.kind === "rejected") return built;
-    const after = evaluateProject(project.path, arguments_, preprocessedPath, toolchain);
+    const after = evaluateProject(project.path, arguments_, preprocessedPath, toolchain, "restore");
     if (after.kind === "rejected") return after;
     if (projectFingerprint(after.value, preprocessedPath, preparation, toolchain) !== inputFingerprint) {
       return rejected("DOTNET_RUNTIME_METADATA_INPUTS_CHANGED", "Runtime MSBuild inputs changed while native metadata was being acquired.", { project: project.path });
@@ -144,14 +148,41 @@ function acquireUserReferences(
   return { kind: "resolved", value: Object.freeze(uniqueFiles(references)) };
 }
 
+function verifiedPublishedReferences(
+  projectPath: string,
+  arguments_: readonly string[],
+  directory: string,
+  proofPath: string,
+  preparation: CsharpProviderRuntimePreparation,
+  toolchain: DotnetProviderToolchain,
+): readonly string[] | undefined {
+  const published = readBuildProof(proofPath);
+  if (published === undefined) return undefined;
+  const preprocessedPath = join(directory, `${randomUUID()}.imports.xml`);
+  try {
+    const evaluated = evaluateProject(projectPath, arguments_, preprocessedPath, toolchain, "existing-assets");
+    return evaluated.kind === "resolved" &&
+      projectFingerprint(evaluated.value, preprocessedPath, preparation, toolchain) === published.inputFingerprint &&
+      validFileHashes(published.outputs) && validFileHashes(published.references)
+      ? published.references.map(reference => reference.path) : undefined;
+  } finally {
+    rmSync(preprocessedPath, { force: true });
+  }
+}
+
+// "restore" runs NuGet restore first and may update the shared intermediate files, so only the lock holder uses it.
+// "existing-assets" reads the restore outputs already on disk and disables the assembly-reference state file, so it
+// writes nothing that another evaluation of the same project reads or writes.
 function evaluateProject(
   projectPath: string,
   arguments_: readonly string[],
   preprocessedPath: string,
   toolchain: DotnetProviderToolchain,
+  mode: "restore" | "existing-assets",
 ): NativeResult<NativeProjectFacts> {
   const evaluated = runNative([
-    "msbuild", projectPath, "-nologo", "-verbosity:quiet", `-maxcpucount:${nativeChildren()}`, "-restore", "-p:BuildProjectReferences=false",
+    "msbuild", projectPath, "-nologo", "-verbosity:quiet", `-maxcpucount:${nativeChildren()}`,
+    ...(mode === "restore" ? ["-restore"] : ["-p:DisableRarCache=true"]), "-p:BuildProjectReferences=false",
     "-t:ResolveReferences,GetTargetPath", "-getTargetResult:GetTargetPath",
     `-getProperty:${projectProperties}`, `-getItem:${projectItems}`, ...arguments_,
   ], toolchain);
