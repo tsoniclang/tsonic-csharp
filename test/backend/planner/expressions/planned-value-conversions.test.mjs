@@ -4,6 +4,7 @@ import { convertCsharpPlannedValue } from "../../../../dist/backend/planner/expr
 import { csharpPlannedValue, csharpPlannedEffect } from "../../../../dist/backend/planner/expressions/planned-values.js";
 import { csharpVoidTargetType, csharpNeverTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpNullableTargetType } from "../../../../dist/target-model/types/carriers/nullable.js";
+import { csharpTypeEmissionRecord } from "../../../helpers/planning-records.mjs";
 
 const integer = { kind: "source-primitive", name: "uint64" };
 const identifier = { kind: "IdentifierName", name: "exact" };
@@ -12,12 +13,15 @@ const prelude = [{ kind: "ExpressionStatement", expression: {
 } }];
 const node = {};
 const input = selection => ({ scope: {}, program: { source: { ast: { pos: () => 0, end: () => 1, getSourceFile: () => undefined } },
-  records: { conversion: { get: selection } } } });
+  records: { conversion: { get: selection }, typeEmission: csharpTypeEmissionRecord() } } });
+// A missing or refused sealed conversion is post-seal corruption: the planner fails with its invariant, not a diagnostic.
+const plannerInvariant = message => error => error instanceof Error && error.phase === "planning" &&
+  error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT" && error.message === message;
 
 test("planned completion identity and never preserve native evaluation without conversion", () => {
   const context = input(() => assert.fail("identity and never require no conversion"));
   const present = csharpPlannedValue(integer, identifier, prelude);
-  const stopped = csharpPlannedEffect(csharpNeverTargetType(), prelude);
+  const stopped = csharpPlannedEffect(csharpNeverTargetType(), prelude, "never");
   assert.equal(convertCsharpPlannedValue(node, node, context, [], present, integer, "implicit"), present);
   assert.equal(convertCsharpPlannedValue(node, node, context, [], stopped, integer, "implicit"), stopped);
 });
@@ -47,13 +51,15 @@ test("void completion preserves effects and admits only a native absence destina
     csharpNullableTargetType(integer), "implicit");
   assert.deepEqual(optional.prelude, prelude);
   assert.equal(optional.completion.expression.kind, "DefaultExpression");
-  assert.equal(convertCsharpPlannedValue(node, node, context, diagnostics, effect, integer, "implicit") === undefined, true);
+  assert.throws(() => convertCsharpPlannedValue(node, node, context, diagnostics, effect, integer, "implicit"),
+    plannerInvariant("C# conversion reached planning after pre-seal refusal: void is not a value"));
+  assert.equal(diagnostics.length, 0, "the refused selection appends no source diagnostic");
 });
 
 test("planned conversion does not relabel an unavailable sealed carrier relation", () => {
   const diagnostics = [];
-  const result = convertCsharpPlannedValue(node, node, input(() => undefined), diagnostics,
-    csharpPlannedValue(integer, identifier, prelude), csharpNullableTargetType(integer), "implicit");
-  assert.equal(result === undefined, true);
-  assert.equal(diagnostics.length, 1);
+  assert.throws(() => convertCsharpPlannedValue(node, node, input(() => undefined), diagnostics,
+    csharpPlannedValue(integer, identifier, prelude), csharpNullableTargetType(integer), "implicit"),
+  plannerInvariant("C# planning requires a sealed target conversion classification that analysis did not produce."));
+  assert.equal(diagnostics.length, 0, "the missing relation is never relabeled as a source diagnostic");
 });

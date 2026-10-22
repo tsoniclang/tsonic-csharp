@@ -81,7 +81,7 @@ test("an absent or rejected baseline cannot publish operands or silently plan wi
       propagate(current, binary, int32);
       assert.equal(current.operands.length, 0, `${label}, eligibility ${eligible}: no invented operand demand`);
       assert.equal(current.reads.length, eligible ? 1 : 0, `${label}, eligibility ${eligible}: only an eligible operation asks for context`);
-      assert.throws(() => planCsharpNativeExpression(binary, {}, { program: { records: { nativeUse: { expression: () => undefined } } } }, [],
+      assert.throws(() => planCsharpNativeExpression(binary, {}, { program: { records: { nativeExpression: { get: () => undefined } } } }, [],
         { planExpression: () => assert.fail("no operand plan"), planSourceExpression: () => assert.fail("no source fallback") }),
       /exact pre-seal native emission context/u, `${label}: an impossible missing record is an invariant, not a second source rejection`);
     }
@@ -123,7 +123,11 @@ test("the one sealed native binary plans its operands in order with their select
   propagate(current, binary, int32);
   const native = { kind: "constructed", expression: binary, carrier: int32,
     completion: { kind: "value", type: int32 }, children: [], evaluation: { kind: "sequence", steps: [] }, binary: selected };
-  const records = { nativeUse: { expression: node => node === binary ? { use: native } : undefined },
+  // The analysis's native binary emission for a plain int32 '+': binary syntax, no location, no suspension.
+  const emission = { selection: selected, syntax: "binary", storage: left, location: undefined, rightSuspends: false,
+    narrowedCoalescing: false, nativeBoolean: false, retainOther: true };
+  const records = { nativeExpression: { get: node => node === binary ? { use: native, physical: native, conversion: undefined } : undefined },
+    nativeBinaryEmission: { get: (node, selection) => node === binary && selection === selected ? emission : undefined },
     int32Remainder: { get: () => false },
     expectedBinary: { get: () => assert.fail("the planner cannot reselect") } };
   const input = { scope: {}, program: { source: { ast: current.ast }, records } };

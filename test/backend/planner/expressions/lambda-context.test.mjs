@@ -3,6 +3,7 @@ import test from "node:test";
 import { getLambdaTargetContext } from "../../../../dist/backend/planner/expressions/callable.js";
 import { csharpDelegateTargetType } from "../../../../dist/target-model/types/carriers/delegates.js";
 import { csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
+import { csharpTypeEmissionRecord } from "../../../helpers/planning-records.mjs";
 
 const number = csharpSourcePrimitiveTargetType("float64");
 const physical = csharpDelegateTargetType("System.Action", []);
@@ -13,7 +14,7 @@ function context(node, nativeBody, self = false) {
     scope: { ...(nativeBody ? { nativeCallableBody: { declaration: node, carrier: physical } } : {}) },
     program: { source: { ast: { kindName: () => "KindArrowFunction" } },
       records: { namedSelf: { get: () => self ? { values: [{}] } : undefined },
-        callableTarget: { get: () => self ? physical : contextual } } },
+        callableTarget: { get: () => self ? physical : contextual }, typeEmission: csharpTypeEmissionRecord() } },
     types: { classifications: { resolveNode: () => assert.fail("the planner never chooses creation from node metadata") } },
   };
 }
@@ -29,7 +30,8 @@ test("a native callable body without its sealed signature rejects rather than gu
   const node = {};
   const input = context(node, true);
   input.scope.nativeCallableBody = { declaration: node };
-  assert.equal(getLambdaTargetContext(node, input) === undefined, true);
+  assert.throws(() => getLambdaTargetContext(node, input), error => error instanceof Error && error.phase === "planning" &&
+    error.message === "An admitted lambda requires its sealed native delegate signature.");
 });
 
 test("ordinary contextual lambdas and observed self preserve their existing exact signature owners", () => {
