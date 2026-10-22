@@ -13,6 +13,21 @@ export function tryCsharpIdentifier(value: string): string | undefined {
   return csharpReservedIdentifiers.has(value) ? `@${value}` : value;
 }
 
+/**
+ * Spells an authored source name as a fragment of a generated C# identifier: ASCII letters, digits and `_` stay, every
+ * other UTF-16 code unit is written as `x` and its four hexadecimal digits (`$done` → `x0024done`). The fragment is
+ * never a whole identifier; generated names prefix it and add their own unique counter.
+ */
+export function csharpIdentifierFragment(value: string): string {
+  let fragment = "";
+  for (let index = 0; index < value.length; index++) {
+    const unit = value.charCodeAt(index);
+    const char = value[index]!;
+    fragment += /[A-Za-z0-9_]/.test(char) ? char : `x${unit.toString(16).padStart(4, "0")}`;
+  }
+  return fragment;
+}
+
 export function isPlainCsharpIdentifier(value: string): boolean {
   return tryCsharpIdentifier(value) === value;
 }
