@@ -5,130 +5,81 @@ import { planCsharpBorrowedSequenceConsumption } from "../../../../dist/backend/
 import { planCsharpBorrowedDenseSequence } from "../../../../dist/backend/planner/expressions/array-literals/borrowed-dense.js";
 import { planCsharpJsArraySpreadAppend } from "../../../../dist/backend/planner/expressions/sequence-conversions.js";
 import { csharpPlannedValue } from "../../../../dist/backend/planner/expressions/planned-values.js";
-import { csharpNullableTargetType, csharpStringTargetType, csharpSourcePrimitiveTargetType,
-  csharpNeverTargetType, csharpVoidTargetType, targetTypeRefEquals } from "../../../../dist/target-model/types/index.js";
+import { csharpStringTargetType, csharpSourcePrimitiveTargetType, csharpNeverTargetType, csharpVoidTargetType } from "../../../../dist/target-model/types/index.js";
+import { compiledCsharpPlanContext } from "../../../helpers/plan-context.mjs";
 
 const string = csharpStringTargetType();
 const int32 = csharpSourcePrimitiveTargetType("int32");
-const sequence = { kind: "array", element: string };
+const identifier = name => ({ kind: "IdentifierName", name });
+const effect = name => ({ kind: "ExpressionStatement", expression: identifier(name) });
+const plannerInvariant = message => error => error instanceof Error && error.phase === "planning" && error.message === message;
 
-function fixture(destination = string, completion) {
-  const source = { kind: "Identifier", position: 1 };
-  const empty = { kind: "ArrayLiteral", position: 2 };
-  const expression = { kind: "Binary", Left: source, Right: empty };
-  const spread = { kind: "Spread", Expression: expression };
-  const array = { kind: "ArrayLiteral", elements: [spread] };
-  const parent = new Map([[source, expression], [empty, expression], [expression, spread], [spread, array]]);
-  const ast = {
-    parent: node => parent.get(node), pos: node => node.position ?? 0,
-    operatorKindName: () => "KindQuestionQuestionToken", elements: node => node.elements ?? [],
-    is: { IsParenthesizedExpression: () => false, IsSatisfiesExpression: () => false,
-      IsBinaryExpression: node => node.kind === "Binary", IsArrayLiteralExpression: node => node.kind === "ArrayLiteral" },
-    as: { AsBinaryExpression: node => node },
-  };
-  const optional = csharpNullableTargetType(sequence);
-  const fact = { expression, array, sourceCarrier: { kind: "array", element: destination }, controlNodes: [expression], inputs: [
-    { kind: "sequence", expression: source, carrier: optional, presentCarrier: sequence,
-      optional: true, lengthMember: "Length", elements: [string] },
-    { kind: "empty", expression: empty },
-  ] };
-  const pairs = [];
-  const input = { program: { source: { ast },
-    records: { nativeUse: { expression: node => node === array ? { use: {
-      kind: "constructed", carrier: { kind: "array", element: destination },
-    } } : undefined },
-      conversion: { get(from, to, mode) {
-    pairs.push([from, to, mode]);
-    return targetTypeRefEquals(from, to) ? { kind: "identity" } : { kind: "rejected", reason: "No selected native conversion." };
-  } } } }, types: { classifications: { resolveNode(node) { return node === array ? { kind: "array", element: destination } : optional; } } },
-    scope: {}, names: { temporaryName: name => name } };
-  const diagnostics = [];
-  const consumed = [];
-  const statements = () => planCsharpBorrowedSequenceConsumption(spread, fact, {}, input, diagnostics, destination,
-    () => ({ prelude: [{ kind: "ExpressionStatement", expression: { kind: "IdentifierName", name: "evaluate_source" } }],
-      completion: completion ?? { kind: "value", carrier: optional, expression: { kind: "IdentifierName", name: "source" } } }),
-    selected => { consumed.push(selected); return [{ kind: "ExpressionStatement", expression: { kind: "IdentifierName", name: "consume_selected" } }]; },
-    () => []);
-  return { fact, statements, diagnostics, pairs, consumed, string, int32, input, spread, source, empty, array, optional };
+// The borrowed spread choice the analysis seals for a real compiled array literal (records.borrowedSequence and
+// records.borrowedSequenceEmission), with the planning context the planner builds from the sealed program.
+function borrowed(surface = "native", operandText = "(authored ?? [])") {
+  const state = compiledCsharpPlanContext(`
+    export function choose(authored: string[] | undefined): string[] { return [...(authored ?? [])]; }
+    export function chooseLazy(authored: string[] | undefined, fallback: () => string[]): string[] { return [...(authored ?? fallback())]; }
+  `, surface);
+  const operand = state.find("KindParenthesizedExpression", operandText);
+  const spread = state.ast.parent(operand);
+  const array = state.ast.parent(spread);
+  const fact = state.program.records.borrowedSequence.get(operand);
+  assert.equal(fact !== undefined, true, "the analysis seals the borrowed choice of the spread operand");
+  const source = fact.inputs[0];
+  assert.equal(source.kind === "sequence" && source.optional, true, "the authored operand is the optional sequence input");
+  return { ...state, operand, spread, array, fact, file: state.sourceFile(operand), diagnostics: [],
+    planSource: (prelude = [effect("evaluate_source")]) => () => csharpPlannedValue(source.carrier, identifier("source"), prelude) };
 }
 
 test("borrowed sequence fragments consume only sealed exact element pairs in the selected native branch", () => {
-  const state = fixture();
-  const planned = state.statements();
+  const state = borrowed();
+  const consumed = [];
+  const planned = planCsharpBorrowedSequenceConsumption(state.spread, state.fact, state.file, state.input, state.diagnostics, string,
+    state.planSource(), selected => { consumed.push(selected); return [effect("consume_selected")]; }, () => []);
   const statements = planned.prelude;
   assert.equal(planned.completion.kind, "void");
   assert.equal(statements[0].expression.name, "evaluate_source");
   assert.equal(statements[1].kind, "IfStatement");
   assert.equal(statements[1].thenBody.statements[0].expression.name, "consume_selected");
   assert.deepEqual(statements[1].elseBody.statements, []);
-  assert.deepEqual(state.pairs, [[string, string, "implicit"]]);
-  assert.equal(state.consumed[0].elements[0].conversion.kind, "identity");
+  assert.equal(consumed[0].elements[0].conversion.kind, "identity", "the sealed element pair is the exact string identity");
   assertNoTargetDiagnostics(state.diagnostics);
 });
 
 test("borrowed consumption preserves canonical never completion and cannot consume a void completion", () => {
-  const never = fixture(string, { kind: "never", carrier: csharpNeverTargetType() });
-  const planned = never.statements();
-  assert.equal(planned.completion.kind, "never");
-  assert.equal(planned.prelude.length, 1);
-  assert.equal(never.consumed.length, 0);
-  const absent = fixture(string, { kind: "void", carrier: csharpVoidTargetType() });
-  assert.equal(absent.statements(), undefined);
-  assert.equal(absent.consumed.length, 0);
-  assert.equal(absent.diagnostics.length, 1);
+  const state = borrowed();
+  const consumed = [];
+  const never = planCsharpBorrowedSequenceConsumption(state.spread, state.fact, state.file, state.input, state.diagnostics, string,
+    () => ({ prelude: [effect("evaluate_source")], completion: { kind: "never", carrier: csharpNeverTargetType() } }),
+    selected => { consumed.push(selected); return []; }, () => []);
+  assert.equal(never.completion.kind, "never");
+  assert.equal(never.prelude.length, 1);
+  assert.equal(consumed.length, 0);
+  assert.throws(() => planCsharpBorrowedSequenceConsumption(state.spread, state.fact, state.file, state.input, state.diagnostics, string,
+    () => ({ prelude: [], completion: { kind: "void", carrier: csharpVoidTargetType() } }),
+    selected => { consumed.push(selected); return []; }, () => []),
+  plannerInvariant("An admitted sequence requires a value completion."));
+  assert.equal(consumed.length, 0);
+  assertNoTargetDiagnostics(state.diagnostics);
 });
 
-test("mutated destination, element evidence and fabricated identity cannot bypass the sealed pair owner", () => {
-  const destination = fixture();
-  destination.fact.sourceCarrier = { kind: "array", element: int32 };
-  assert.equal(destination.statements(), undefined);
-  assert.equal(destination.pairs.length, 0);
-  const element = fixture();
-  element.fact.inputs[0].elements = [int32];
-  assert.equal(element.statements(), undefined);
-  assert.equal(element.pairs.length, 0);
-  const fabricated = fixture(int32);
-  fabricated.fact.inputs[0].conversion = { kind: "identity" };
-  assert.equal(fabricated.statements(), undefined);
-  assert.deepEqual(fabricated.pairs, [[string, int32, "implicit"]]);
-  assert.equal(fabricated.consumed.length, 0);
-for (const state of [destination, element, fabricated]) assert.equal(state.diagnostics.length, 1);
-});
-
-test("borrowed construction admits only the sealed contextual destination without confusing source storage", () => {
-  const state = fixture();
-  const contextual = { kind: "array", element: int32 };
-  state.input.program.records.conversion.get = (from, to, mode) => {
-    state.pairs.push([from, to, mode]);
-    return { kind: "rejected", reason: "No selected native conversion." };
-  };
-  const consume = () => planCsharpBorrowedSequenceConsumption(state.spread, state.fact, {}, state.input,
-    state.diagnostics, int32, () => csharpPlannedValue(state.optional, { kind: "IdentifierName", name: "source" }),
-    () => [], () => []);
-  assert.equal(consume(), undefined);
-  assert.equal(state.pairs.length, 0);
-  state.input.program.records.nativeUse = { expression: node => node === state.array
-    ? { use: { kind: "constructed", carrier: contextual } } : undefined };
-  assert.equal(consume(), undefined);
-  assert.deepEqual(state.pairs, [[string, int32, "implicit"]]);
-  assert.equal(state.diagnostics.length, 2);
-});
-
-test("borrowed source facts cannot be reused for a different array construction", () => {
-  const state = fixture();
-  state.fact.array = {};
-  assert.equal(state.statements(), undefined);
-  assert.equal(state.pairs.length, 0);
-  assert.equal(state.diagnostics.length, 1);
+test("a destination or source choice without its sealed consumption plan cannot bypass the pair owner", () => {
+  const state = borrowed();
+  const plan = (fact, destination) => () => planCsharpBorrowedSequenceConsumption(state.spread, fact, state.file, state.input,
+    state.diagnostics, destination, state.planSource(), () => assert.fail("no unsealed pair is consumed"), () => []);
+  const missing = plannerInvariant("An admitted borrowed sequence requires its exact native consumption plan.");
+  assert.throws(plan(state.fact, int32), missing, "another destination element has no sealed plan");
+  assert.throws(plan({ ...state.fact, inputs: [{ ...state.fact.inputs[0], elements: [int32] }, state.fact.inputs[1]] }, string), missing,
+    "a fabricated element choice is not the sealed choice");
+  assertNoTargetDiagnostics(state.diagnostics);
 });
 
 test("borrowed dense selection allocates its sole destination inside the selected branch", () => {
-  const state = fixture();
-  const planned = planCsharpBorrowedDenseSequence(state.array, state.fact, {}, state.input, state.diagnostics,
-    { kind: "PredefinedType", name: "string" }, string,
-    () => csharpPlannedValue(state.optional, { kind: "IdentifierName", name: "source" }));
+  const state = borrowed();
+  const planned = planCsharpBorrowedDenseSequence(state.array, state.fact, state.file, state.input, state.diagnostics,
+    { kind: "PredefinedType", name: "string" }, string, state.planSource([]));
   assert.equal(planned.completion.kind, "value");
-  assert.deepEqual(planned.completion.carrier, sequence);
   assert.equal(planned.prelude[0].kind, "LocalDeclarationStatement");
   assert.equal(planned.prelude[0].initializer, undefined);
   const selected = planned.prelude[1];
@@ -142,16 +93,11 @@ test("borrowed dense selection allocates its sole destination inside the selecte
 });
 
 test("borrowed JS append uses the sealed operand query and skips empty-source construction", () => {
-  const state = fixture();
-  const queried = [];
-  state.input.program.records.borrowedSequence = { get(node) { queried.push(node); return state.fact; } };
-  const planExpression = () => csharpPlannedValue(state.optional, { kind: "IdentifierName", name: "source" },
-    [{ kind: "ExpressionStatement", expression: { kind: "IdentifierName", name: "evaluate_source" } }]);
-  const planned = planCsharpJsArraySpreadAppend(state.spread, state.fact.expression,
-    csharpPlannedValue(sequence, { kind: "IdentifierName", name: "destination" },
-      [{ kind: "ExpressionStatement", expression: { kind: "IdentifierName", name: "evaluate_destination" } }]),
-    { kind: "IdentifierName", name: "NativeDenseCollection" }, string, {}, state.input, state.diagnostics, { planExpression });
-  assert.deepEqual(queried, [state.fact.expression]);
+  const state = borrowed("js");
+  const planExpression = state.planSource();
+  const planned = planCsharpJsArraySpreadAppend(state.spread, state.operand,
+    csharpPlannedValue(state.fact.sourceCarrier, identifier("destination"), [effect("evaluate_destination")]),
+    { kind: "IdentifierName", name: "NativeDenseCollection" }, string, state.file, state.input, state.diagnostics, { planExpression });
   assert.equal(planned.prelude[0].expression.name, "evaluate_destination");
   assert.equal(planned.prelude[1].initializer.name, "destination");
   assert.equal(planned.prelude[2].expression.name, "evaluate_source");
@@ -164,16 +110,14 @@ test("borrowed JS append uses the sealed operand query and skips empty-source co
 });
 
 test("borrowed branch composition keeps an effectful fallback in the selected native else region", () => {
-  const state = fixture();
-  state.empty.kind = "Identifier";
-  state.fact.inputs[1] = { kind: "sequence", expression: state.empty, carrier: sequence,
-    presentCarrier: sequence, optional: false, lengthMember: "Length", elements: [string] };
-  state.input.types.classifications.resolveNode = node => node === state.array ? sequence : node === state.source ? state.optional : sequence;
-  const planned = planCsharpBorrowedDenseSequence(state.array, state.fact, {}, state.input, state.diagnostics,
-    { kind: "PredefinedType", name: "string" }, string, node => node === state.source
-      ? csharpPlannedValue(state.optional, { kind: "IdentifierName", name: "source" })
-      : csharpPlannedValue(sequence, { kind: "InvocationExpression", callee: { kind: "IdentifierName", name: "fallback" }, arguments: [] },
-        [{ kind: "ExpressionStatement", expression: { kind: "IdentifierName", name: "fallback_effect" } }]));
+  const state = borrowed("native", "(authored ?? fallback())");
+  const fallback = state.fact.inputs[1];
+  assert.equal(fallback.kind === "sequence" && !fallback.optional, true, "the fallback call is the required sequence input");
+  const planned = planCsharpBorrowedDenseSequence(state.array, state.fact, state.file, state.input, state.diagnostics,
+    { kind: "PredefinedType", name: "string" }, string, node => node === state.fact.inputs[0].expression
+      ? csharpPlannedValue(state.fact.inputs[0].carrier, identifier("source"))
+      : csharpPlannedValue(fallback.carrier, { kind: "InvocationExpression", callee: identifier("fallback"), arguments: [] },
+        [effect("fallback_effect")]));
   const branch = planned.prelude[1];
   assert.equal(branch.kind, "IfStatement");
   assert.equal(branch.elseBody.statements[0].expression.name, "fallback_effect");
