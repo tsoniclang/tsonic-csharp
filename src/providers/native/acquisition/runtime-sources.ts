@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, isAbsolute, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import type { ExtensionDiagnostic } from "@tsonic/tsts";
 import type { CsharpProviderRuntimePreparation, CsharpProviderRuntimeAcquisition } from "../../model/relation-resolver.js";
 import type { CsharpRuntimeProjectInstance } from "../../../target-model/project/runtime.js";
@@ -58,7 +58,11 @@ function acquireGeneratedProject(
 ): NativeResult<readonly string[]> {
   publishText(project.path, project.text);
   const directory = join(preparation.cacheRoot, "csharp", "runtime-metadata", hash(project.path));
-  const arguments_ = nativeProperties(preparation, toolchain);
+  // The acquired metadata is built into output and intermediate directories private to this cache entry. A build of a
+  // generated project that references the runtime project writes the project's default bin/obj instead, so it never
+  // replaces the assemblies a running compilation has snapshotted as its references.
+  const arguments_ = Object.freeze([...nativeProperties(preparation, toolchain),
+    `-p:OutDir=${join(directory, "bin")}${sep}`, `-p:IntermediateOutputPath=${join(directory, "obj")}${sep}`]);
   const proofPath = join(directory, "proof.json");
   // A published proof is verified without the build lock: the evaluation restores nothing and writes only a private
   // preprocess file, so concurrent cache hits run in parallel. Any mismatch or failure takes the locked path below.

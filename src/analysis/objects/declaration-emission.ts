@@ -62,7 +62,10 @@ export function analyzeCsharpObjectShapeEmission(input: {
   }
   for (const artifact of input.demand.artifacts) {
     if (emissions.get(artifact.key)?.kind === "runtime") continue;
-    if (artifact.capabilities.includes("enumerable-keys")) {
+    // A structural contract is declared as an interface whose implementations supply their own key order at run
+    // time; only a concrete shape needs its static authored order.
+    if (artifact.capabilities.includes("enumerable-keys") &&
+      (artifact.fact.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract !== true) {
       const order = input.shapes.propertyOrder(artifact.fact, undefined, "keys");
       if (order.kind === "rejected") refuse(order.reason);
       else keys.set(artifact.key, Object.freeze(order.propertyOrder));

@@ -34,6 +34,8 @@ export function csharpSourceProfileInputs(host, sourceFile, { values = [], resul
     ...host,
     semantics: host.semantics ?? (() => ({ types: { isNumberLike: () => false, relationship: () => undefined } })),
     ast: host.ast ?? { is: { IsSpreadElement: () => false } },
+    projectTypes: host.projectTypes ?? { directSupertypes: () => [] },
+    providers: host.providers ?? { findTargetBindingByTargetId: () => ({ kind: "missing", reason: "The fixture has no providers." }) },
     types: { resolveType: () => undefined, resolveNode: () => undefined, resolveSelectedValue: () => undefined,
       resolveSelectedType: () => undefined, ...host.types },
   };

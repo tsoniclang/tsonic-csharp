@@ -8,7 +8,7 @@ import { csharpCaptureFrameName, getCsharpLocalBindingName } from "./binding-sta
 import { csharpTypeFromObjectShapeFact } from "../objects/planning.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import { planThisExpression } from "../expressions/expression-this.js";
+import { planCapturedReceiverOwnerValue } from "../expressions/expression-this.js";
 
 export function csharpCaptureFrameExpression(
   scope: Node, input: CsharpPlanningContext, state?: DestructuringPlannerState,
@@ -59,8 +59,7 @@ export function planCsharpCaptureFrame(
   }
   for (const receiver of frame.receivers) {
     const reference = receiver.references[0]!;
-    const file = input.program.source.ast.getSourceFile(reference);
-    const expression = receivers.get(receiver.owner) ?? (file === undefined ? undefined : planThisExpression(reference, file, input, diagnostics));
+    const expression = receivers.get(receiver.owner) ?? planCapturedReceiverOwnerValue(reference, input);
     if (expression === undefined) failCsharpPlannerInvariant("An admitted capture receiver requires its exact native value.", reference);
     assignments.push({ kind: "AssignmentExpression", name: receiver.fieldName, expression });
   }

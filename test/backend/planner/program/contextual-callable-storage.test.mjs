@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { contextualAsyncResultSource, ordinaryAsyncResultSource } from "../../../../../tsonic/test/fixtures/contextual-async-results.mjs";
-import { checkCsharpSource, assertCsharpCheckingSucceeded, withCsharpSessionRequest } from "../../../helpers/direct-csharp-session.mjs";
-import { analyzeCsharpAnalysisProgram } from "../../../../dist/analysis/program/index.js";
+import { analyzeCsharpSource, assertCsharpCheckingSucceeded } from "../../../helpers/direct-csharp-session.mjs";
 import { createCsharpPlanningContext, createCsharpMemberPlanningContext } from "../../../../dist/backend/planner/context.js";
 import { createDestructuringPlannerState } from "../../../../dist/backend/planner/bindings/index.js";
 import { planLocalDeclaration } from "../../../../dist/backend/planner/bindings/locals.js";
@@ -138,7 +137,7 @@ for (const surface of [undefined, "js"]) {
     planTopLevelVariableStatement(statement, input.file, context, diagnostics, () => assert.fail("Unexpected type declaration"), members, statements,
       createDestructuringPlannerState(input.file, input.source.ast), false);
     assert.equal(diagnostics.length, 0);
-    const name = context.names.resolve(input.source.ast.name(declaration));
+    const name = input.program.records.sourceName.get(input.source.ast.name(declaration));
     assert.equal(name.kind, "resolved", "exact source identifier including native keyword escaping");
     const method = members.find(member => member.kind === "MethodDeclaration" && member.name === name.name);
     const signature = getCsharpDelegateSignature(input.program.records.storageType.get(declaration));
@@ -157,11 +156,10 @@ for (const surface of [undefined, "js"]) {
 }
 
 function fixture(surface, sourceText) {
-  const checkOptions = { surface, sourceText };
-  const checked = checkCsharpSource(checkOptions);
-  assertCsharpCheckingSucceeded(checked);
-  const { source, analysis } = withCsharpSessionRequest(checkOptions, request => ({ source: request.input.source,
-    analysis: analyzeCsharpAnalysisProgram(request) })).value;
+  // The analysis acquires runtime metadata and native inheritance through the session's real providers.
+  const analyzed = analyzeCsharpSource({ surface, sourceText });
+  assertCsharpCheckingSucceeded(analyzed);
+  const { source, analysis } = analyzed;
   assert.equal(analysis.kind, "resolved");
   assert.equal(analysis.diagnostics.length, 0);
   const program = analysis.value;

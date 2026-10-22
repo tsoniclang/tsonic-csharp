@@ -1,10 +1,9 @@
 import { assertNoTargetDiagnostics } from "../../../../../tsonic/test/scripts/diagnostic-assertions.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compileCsharpSource, assertCsharpCompilationSucceeded, withCsharpSessionRequest } from "../../../helpers/direct-csharp-session.mjs";
+import { analyzeCsharpSource, compileCsharpSource, assertCsharpCompilationSucceeded } from "../../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../../helpers/native-construction.mjs";
 import { freshArraySpreadCostSource } from "../../../../../tsonic/test/fixtures/fresh-array-spread.mjs";
-import { analyzeCsharpAnalysisProgram } from "../../../../dist/analysis/program/index.js";
 import { createCsharpPlanningContext, createCsharpMemberPlanningContext } from "../../../../dist/backend/planner/context.js";
 import { planExpression } from "../../../../dist/backend/planner/expressions/index.js";
 import { planNativeCollectionArrayLiteralExpression } from "../../../../dist/backend/planner/expressions/array-literals/native-collection.js";
@@ -12,11 +11,12 @@ import { csharpListTargetType, csharpSourcePrimitiveTargetType } from "../../../
 import { csharpTypeFromTargetTypeRef } from "../../../../dist/backend/planner/types/render.js";
 import { printCsharpCompilationUnit } from "../../../../dist/print/source/printer.js";
 
+
 test("native collection construction fills only its declared native builder", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ sourceText: freshArraySpreadCostSource });
   assertCsharpCompilationSucceeded(compiled);
-  const { source, analysis } = withCsharpSessionRequest({ sourceText: freshArraySpreadCostSource }, request => ({
-    source: request.input.source, analysis: analyzeCsharpAnalysisProgram(request) })).value;
+  // The analysis acquires runtime metadata through the session's real providers.
+  const { source, analysis } = analyzeCsharpSource({ sourceText: freshArraySpreadCostSource });
   assert.equal(analysis.kind, "resolved");
   assertNoTargetDiagnostics(analysis.diagnostics);
   const arrays = [];
