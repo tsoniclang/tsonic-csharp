@@ -43,7 +43,9 @@ export function planArrayBindingPattern(
   const bindingCarrier = source.bindingCarrier;
   const elements = AsBindingPattern(input.program.source.ast, patternNode)?.Elements?.Nodes ?? [];
   return elements.flatMap((elementNode, index) => {
-    if (elementNode === undefined || input.program.source.ast.kindName(elementNode) === "KindOmittedExpression") {
+    // An elision is a binding element without a name; it binds nothing, as in the analysis that admitted the pattern.
+    if (elementNode === undefined || input.program.source.ast.kindName(elementNode) === "KindOmittedExpression" ||
+      AsBindingElement(input.program.source.ast, elementNode)?.name === undefined) {
       return [];
     }
     const fact = input.program.records.bindingPatternProjection.get(elementNode);
