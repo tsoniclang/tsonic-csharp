@@ -64,7 +64,8 @@ if (result.Item1 != null || result.Item2 != 5 || result.Item3 != 0 || result.Ite
     const { node, fact } = absent[0];
     const pattern = ast.parent(node);
     const records = { ...program.records, bindingPatternProjection: { get: selected => selected === node
-      ? { ...fact, element: { ...fact.element, carrier: csharpSourcePrimitiveTargetType("int32") } }
+      // A carrier the program renders (number) but which has no absence value; int32 has no sealed type emission on js.
+      ? { ...fact, element: { ...fact.element, carrier: csharpSourcePrimitiveTargetType("float64") } }
       : program.records.bindingPatternProjection.get(selected) } };
     const corrupted = { ...program, records };
     const diagnostics = [];

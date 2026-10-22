@@ -37,9 +37,6 @@ export function planCsharpProjectCallableAdapters(
     }
     const planned = planCsharpCallableArguments(node, adapter.contract, rendered as CsharpParameter[], method.parameters,
       adapter.parameters, sourceFile, input, diagnostics);
-    if (planned === undefined) {
-      failCsharpPlannerInvariant("An admitted native adapter lost its exact logical argument stream.", node);
-    }
     const call: CsharpExpression = { kind: "InvocationExpression", callee: {
       kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: "this" }, name: method.name,
       ...((method.typeParameters?.length ?? 0) === 0 ? {} : { typeArguments: method.typeParameters!.map(parameter => ({ kind: "IdentifierName" as const, name: parameter.name })) }),
