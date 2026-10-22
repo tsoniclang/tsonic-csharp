@@ -43,7 +43,9 @@ for (const surface of [undefined, "js"]) {
     ` });
     executeCsharpConstruction(compiled, `native-rest-boundary-${surface ?? "native"}`);
     const source = compiled.artifacts.get("src/Index.cs");
-    assert.match(source, /sum\(1(?:\.0)?, 2(?:\.0)?, 3(?:\.0)?\)/u);
+    // The native surface prints the int tokens; the js surface, where the literals read as float64, prints 1D
+    // (RULINGS 2026-10-22, native integer literal printing).
+    assert.match(source, surface === undefined ? /sum\(1, 2, 3\)/u : /sum\(1D, 2D, 3D\)/u);
     assert.match(source, /return global::Tsonic\.Generated\.Index\.sum\(values\);/u);
     assert.doesNotMatch(source, /sum\(\[\.\. values\]\)/u);
   });
