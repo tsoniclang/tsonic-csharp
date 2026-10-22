@@ -1,11 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { contextualAsyncResultSource, ordinaryAsyncResultSource } from "../../../../../tsonic/test/fixtures/contextual-async-results.mjs";
-import { checkCsharpSource, assertCsharpCheckingSucceeded } from "../../../helpers/direct-csharp-session.mjs";
+import { checkCsharpSource, assertCsharpCheckingSucceeded, withCsharpSessionRequest } from "../../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpAnalysisProgram } from "../../../../dist/analysis/program/index.js";
-import { createCsharpProviderRelationResolver } from "../../../../dist/providers/native/projection/relation-resolution.js";
-import { createCsharpTargetConfiguration } from "../../../../dist/compilation/configuration.js";
 import { createCsharpPlanningContext, createCsharpMemberPlanningContext } from "../../../../dist/backend/planner/context.js";
 import { createDestructuringPlannerState } from "../../../../dist/backend/planner/bindings/index.js";
 import { planLocalDeclaration } from "../../../../dist/backend/planner/bindings/locals.js";
@@ -16,9 +13,6 @@ import {
   csharpSourcePrimitiveTargetType, getCsharpDelegateSignature, getCsharpTaskResultTargetType, targetTypeRefEquals,
 } from "../../../../dist/target-model/types/index.js";
 import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
-import { completeCsharpAnalysisRequest } from "../../../helpers/analysis-request.mjs";
-
-const analyzeCompletedCsharpProgram = request => analyzeCsharpAnalysisProgram(completeCsharpAnalysisRequest(request));
 
 const localSource = `
   class Reply { constructor(public count: number) {} }
@@ -163,15 +157,11 @@ for (const surface of [undefined, "js"]) {
 }
 
 function fixture(surface, sourceText) {
-  const checked = checkCsharpSource({ surface, sourceText });
+  const checkOptions = { surface, sourceText };
+  const checked = checkCsharpSource(checkOptions);
   assertCsharpCheckingSucceeded(checked);
-  const source = createTargetSourceProgram(checked.source);
-  const analysis = analyzeCompletedCsharpProgram({
-    input: { source, sourcePackages: checked.sourcePackages, project: checked.project, target: checked.target,
-      runtimeActivatedCapabilityIds: [], runtimeReferences: [], paths: checked.paths },
-    configuration: createCsharpTargetConfiguration(checked.target, checked.paths.projectRoot, checked.paths.targetOutputRoot),
-    providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
-  });
+  const { source, analysis } = withCsharpSessionRequest(checkOptions, request => ({ source: request.input.source,
+    analysis: analyzeCsharpAnalysisProgram(request) })).value;
   assert.equal(analysis.kind, "resolved");
   assert.equal(analysis.diagnostics.length, 0);
   const program = analysis.value;

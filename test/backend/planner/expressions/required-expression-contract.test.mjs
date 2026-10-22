@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { checkCsharpSource } from "../../../helpers/direct-csharp-session.mjs";
+import { checkCsharpSource, withCsharpSessionRequest } from "../../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpAnalysisProgram } from "../../../../dist/analysis/program/index.js";
-import { createCsharpProviderRelationResolver } from "../../../../dist/providers/native/projection/relation-resolution.js";
-import { createCsharpTargetConfiguration } from "../../../../dist/compilation/configuration.js";
 import { createCsharpPlanningContext } from "../../../../dist/backend/planner/context.js";
 import { planExpression, planCallArgument } from "../../../../dist/backend/planner/expressions/index.js";
 import * as expressionEntry from "../../../../dist/backend/planner/expressions/index.js";
@@ -14,75 +11,70 @@ import { csharpAbsenceTargetType, csharpSourcePrimitiveTargetType, targetTypeRef
 import { selectCsharpConversion } from "../../../../dist/policy/conversions/core.js";
 import { requireExpressionPlan } from "../../../../dist/backend/planner/expressions/required-plan.js";
 import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
-import { completeCsharpAnalysisRequest } from "../../../helpers/analysis-request.mjs";
-
-const analyzeCompletedCsharpProgram = request => analyzeCsharpAnalysisProgram(completeCsharpAnalysisRequest(request));
 
 function fixture() {
-  const checked = checkCsharpSource({ surface: "js", sourceText: `
+  const checkOptions = { surface: "js", sourceText: `
     export function run(): boolean { return parseInt("0x10", undefined) === 16; }
     export function effect(): void { void parseInt("10"); }
     export function fail(): never { throw new Error("failure"); }
-  ` });
+  ` };
+  const checked = checkCsharpSource(checkOptions);
   assert.equal(checked.sourceDiagnosticsText === "" && checked.extensionDiagnostics.length === 0, true,
     "ordinary source checks without annotations or altered semantics");
-  const source = createTargetSourceProgram(checked.source);
-  const providers = createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] });
-  const analysis = analyzeCompletedCsharpProgram({
-    input: { source, sourcePackages: checked.sourcePackages, project: checked.project, target: checked.target,
-      runtimeActivatedCapabilityIds: [], runtimeReferences: [], paths: checked.paths },
-    configuration: createCsharpTargetConfiguration(checked.target, checked.paths.projectRoot, checked.paths.targetOutputRoot),
-    providers,
-  });
-  assert.equal(analysis.kind === "resolved" && analysis.diagnostics.length === 0, true, "baseline analysis succeeds");
-  const program = analysis.value;
-  const nodes = [];
-  const pending = [...csharpProgramSourceFiles(program)];
-  while (pending.length !== 0) {
-    const node = pending.pop();
-    nodes.push(node);
-    source.ast.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
-  }
-  const call = nodes.find(node => source.ast.is.IsCallExpression(node)
-    && program.records.selectedCall.get(node)?.source.sourceArguments.length === 2);
-  assert.equal(call !== undefined, true, "exact original call with explicitly absent radix");
-  const classification = program.records.selectedCall.get(call);
-  assert.equal(classification?.target?.kind === "resolved", true, "native operation is finalized");
-  const selected = classification.target.call;
-  const radix = classification.source.sourceArguments[1].expression;
-  const number = csharpSourcePrimitiveTargetType("float64");
-  const absence = csharpAbsenceTargetType();
-  const rejection = Object.freeze(selectCsharpConversion({
-    typeDefinitions: program.typeDefinitions, projectTypes: program.projectTypes,
-    objectShapes: program.objectShapes, providers, target: checked.target,
-  }, absence, number, "implicit"));
-  assert.equal(rejection.kind === "rejected", true, "real native absence-to-number conversion rejects");
-  const original = selected.arguments.find(argument => argument.sourceArgumentIndex === 1).targetParameter;
-  const parameter = Object.freeze({ ...original, type: number });
-  const wrongCall = Object.freeze({ ...selected,
-    targetMember: Object.freeze({ ...selected.targetMember,
-      parameters: Object.freeze(selected.targetMember.parameters.map((value, index) => index === 1 ? parameter : value)) }),
-    arguments: Object.freeze(selected.arguments.map(argument => argument.sourceArgumentIndex === 1
-      ? Object.freeze({ ...argument, targetParameter: parameter }) : argument)),
-  });
-  const actual = program.records.nativeExpression.get(radix);
-  assert.equal(actual !== undefined && actual.use.kind !== "erased", true, "the original argument has its exact native context");
-  const wrongUse = Object.freeze({ ...actual.use, kind: "converted", carrier: absence,
-    input: Object.freeze({ kind: "value", type: absence }), completion: Object.freeze({ kind: "value", type: number }),
-    target: number, mode: "implicit", literal: undefined });
-  const changed = Object.freeze({ ...program,
-    records: Object.freeze({ ...program.records,
-      nativeUse: Object.freeze({ get: site => site === actual.site ? wrongUse : program.records.nativeUse.get(site) }),
-      nativeExpression: Object.freeze({ get: node => node === radix
-        ? Object.freeze({ ...actual, use: wrongUse, physical: actual.physical ?? actual.use, conversion: rejection })
-        : program.records.nativeExpression.get(node) }),
-      selectedCall: Object.freeze({ get: node => node === call ? Object.freeze({ ...classification,
-        target: Object.freeze({ ...classification.target, call: wrongCall }) }) : program.records.selectedCall.get(node) }),
-      expressionConversion: Object.freeze({ get: (node, from, to, mode) => node === radix && mode === "implicit"
-        && targetTypeRefEquals(from, absence) && targetTypeRefEquals(to, number)
-        ? rejection : program.records.expressionConversion.get(node, from, to, mode) }) }),
-  });
-  return { source, program, changed, call, radix, number, rejection };
+  return withCsharpSessionRequest(checkOptions, request => {
+    const source = request.input.source;
+    const providers = request.providers;
+    const analysis = analyzeCsharpAnalysisProgram(request);
+    assert.equal(analysis.kind === "resolved" && analysis.diagnostics.length === 0, true, "baseline analysis succeeds");
+    const program = analysis.value;
+    const nodes = [];
+    const pending = [...csharpProgramSourceFiles(program)];
+    while (pending.length !== 0) {
+      const node = pending.pop();
+      nodes.push(node);
+      source.ast.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
+    }
+    const call = nodes.find(node => source.ast.is.IsCallExpression(node)
+      && program.records.selectedCall.get(node)?.source.sourceArguments.length === 2);
+    assert.equal(call !== undefined, true, "exact original call with explicitly absent radix");
+    const classification = program.records.selectedCall.get(call);
+    assert.equal(classification?.target?.kind === "resolved", true, "native operation is finalized");
+    const selected = classification.target.call;
+    const radix = classification.source.sourceArguments[1].expression;
+    const number = csharpSourcePrimitiveTargetType("float64");
+    const absence = csharpAbsenceTargetType();
+    const rejection = Object.freeze(selectCsharpConversion({
+      typeDefinitions: program.typeDefinitions, projectTypes: program.projectTypes,
+      objectShapes: program.objectShapes, providers, target: checked.target,
+    }, absence, number, "implicit"));
+    assert.equal(rejection.kind === "rejected", true, "real native absence-to-number conversion rejects");
+    const original = selected.arguments.find(argument => argument.sourceArgumentIndex === 1).targetParameter;
+    const parameter = Object.freeze({ ...original, type: number });
+    const wrongCall = Object.freeze({ ...selected,
+      targetMember: Object.freeze({ ...selected.targetMember,
+        parameters: Object.freeze(selected.targetMember.parameters.map((value, index) => index === 1 ? parameter : value)) }),
+      arguments: Object.freeze(selected.arguments.map(argument => argument.sourceArgumentIndex === 1
+        ? Object.freeze({ ...argument, targetParameter: parameter }) : argument)),
+    });
+    const actual = program.records.nativeExpression.get(radix);
+    assert.equal(actual !== undefined && actual.use.kind !== "erased", true, "the original argument has its exact native context");
+    const wrongUse = Object.freeze({ ...actual.use, kind: "converted", carrier: absence,
+      input: Object.freeze({ kind: "value", type: absence }), completion: Object.freeze({ kind: "value", type: number }),
+      target: number, mode: "implicit", literal: undefined });
+    const changed = Object.freeze({ ...program,
+      records: Object.freeze({ ...program.records,
+        nativeUse: Object.freeze({ get: site => site === actual.site ? wrongUse : program.records.nativeUse.get(site) }),
+        nativeExpression: Object.freeze({ get: node => node === radix
+          ? Object.freeze({ ...actual, use: wrongUse, physical: actual.physical ?? actual.use, conversion: rejection })
+          : program.records.nativeExpression.get(node) }),
+        selectedCall: Object.freeze({ get: node => node === call ? Object.freeze({ ...classification,
+          target: Object.freeze({ ...classification.target, call: wrongCall }) }) : program.records.selectedCall.get(node) }),
+        expressionConversion: Object.freeze({ get: (node, from, to, mode) => node === radix && mode === "implicit"
+          && targetTypeRefEquals(from, absence) && targetTypeRefEquals(to, number)
+          ? rejection : program.records.expressionConversion.get(node, from, to, mode) }) }),
+    });
+    return { source, program, changed, call, radix, number, rejection };
+  }).value;
 }
 
 test("required expression boundaries diagnose silent rejected conversions without accepting omitted source", () => {
