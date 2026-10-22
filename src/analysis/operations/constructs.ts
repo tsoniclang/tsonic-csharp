@@ -38,6 +38,7 @@ import { selectCsharpNativePointerOperation } from "./pointers/native-pointers.j
 import { selectCsharpJsArrayMutation } from "./collections/js-array-mutations.js";
 import { selectCsharpJsStringConversion } from "./strings/explicit-js-string.js";
 import { csharpTypedLocationLoweringRefusal, selectCsharpNativeRefReturn, selectCsharpTypedLocationOperation } from "./typed-locations.js";
+import { selectCsharpRefusedTypedLocationOperandCall } from "./typed-location-operands.js";
 import { selectCsharpRegularExpressionLiteral } from "./syntax/regexp-literal.js";
 import { selectCsharpResourceManagement } from "../control-flow/resource-management.js";
 import { selectCsharpSourceFlowCall } from "../../policy/operations/flow/source-flow.js";
@@ -170,8 +171,12 @@ export function analyzeCsharpOperationConstruct(
     producer.nativePointer.selected(node, nativePointer,
     );
     const typedLocation = selectCsharpTypedLocationOperation(policy, node, sourceFile);
-    if (typedLocation.kind === "rejected") issues?.push(Object.freeze({ node, code: "CSHARP_UNSUPPORTED_AST",
-      message: csharpTypedLocationLoweringRefusal(typedLocation.operation, typedLocation.reason) }));
+    if (typedLocation.kind === "rejected") {
+      const root = selectCsharpRefusedTypedLocationOperandCall(policy, node, sourceFile);
+      if (root === undefined) issues?.push(Object.freeze({ node, code: "CSHARP_UNSUPPORTED_AST",
+        message: csharpTypedLocationLoweringRefusal(typedLocation.operation, typedLocation.reason) }));
+      else if (!issues?.some(issue => issue.node === root.node && issue.code === root.code)) issues?.push(root);
+    }
     producer.typedLocation.selected(node, typedLocation);
   }
   if (ast.is.IsCallExpression(node)) {

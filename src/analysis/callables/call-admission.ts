@@ -6,6 +6,7 @@ import type { CsharpAdmittedCallClassification } from "../../target-model/record
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 import { createCsharpCallAdmissionRecords } from "../program/records/call-admission.js";
+import { csharpTargetCallRefusal } from "./call-refusals.js";
 
 export function analyzeCsharpCallAdmission(ast: AstReader, nodes: readonly Node[], operations: CsharpTargetOperationClassifications,
   reads: CsharpValueReadClassifications, admitted: (node: Node) => boolean) {
@@ -40,14 +41,10 @@ export function analyzeCsharpCallAdmission(ast: AstReader, nodes: readonly Node[
     }
     const target = classification.target;
     if (target === undefined) { refuse(node, "CSHARP_TARGET_CALL_CLASSIFICATION_INCOMPLETE", "The sealed C# call classification selected neither a JS-value operation nor a target call."); continue; }
-    switch (target.kind) {
-      case "resolved":
-      case "source-owned": values.set(node, { ...common, form, target }); break;
-      case "rejected": issues.push(targetDiagnosticFromExtension(node, target.diagnostic)); break;
-      case "missing": refuse(node, "CSHARP_TARGET_CALL_NOT_CLOSED", target.reason); break;
-      case "conflict": refuse(node, "CSHARP_TARGET_CALL_IDENTITY_CONFLICT", target.reason); break;
-      case "ambiguous": refuse(node, "CSHARP_TARGET_CALL_AMBIGUOUS", target.reason, target.candidates.map(candidate => `candidate=${candidate}`)); break;
-    }
+    if (target.kind === "resolved" || target.kind === "source-owned") { values.set(node, { ...common, form, target }); continue; }
+    if (target.kind === "rejected") { issues.push(targetDiagnosticFromExtension(node, target.diagnostic)); continue; }
+    const refusal = csharpTargetCallRefusal(target);
+    if (refusal !== undefined) refuse(node, refusal.code, refusal.message, refusal.evidence);
   }
   return Object.freeze({ records: createCsharpCallAdmissionRecords(values), issues: Object.freeze(issues) });
 }
