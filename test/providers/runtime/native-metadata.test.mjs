@@ -16,6 +16,12 @@ import { materializeCsharpOutputPlan } from "../../../dist/backend/emission/mate
 import { planCsharpProjectFile } from "../../../dist/backend/planner/project/project-artifacts.js";
 import { createCsharpCompilationRecords } from "../../../dist/analysis/program/records/compilation.js";
 import { printCsharpProjectFile } from "../../../dist/print/project/manifest.js";
+import { printCsharpRuntimeProject } from "../../../dist/print/project/runtime.js";
+
+// The compilation session hands provider acquisition each runtime project with its printed MSBuild text.
+function renderedRuntimeProjects(project) {
+  return project.runtimeProjects.map(runtime => ({ ...runtime, text: printCsharpRuntimeProject(runtime) }));
+}
 
 const repository = resolve(new URL("../../..", import.meta.url).pathname);
 const framework = "net10.0";
@@ -36,7 +42,7 @@ function fixture() {
   const classified = classifyCsharpProjectConfiguration(configuration, csharpRuntimeSourceContributions(runtime).references, cacheRoot);
   assert.equal(classified.kind, "resolved", "the actual selected runtime graph is classified once");
   const project = classified.value;
-  const preparation = Object.freeze({ sources: project.runtimeSources, projects: project.runtimeProjects,
+  const preparation = Object.freeze({ sources: project.runtimeSources, projects: renderedRuntimeProjects(project),
     project: project.project, properties: project.properties, cacheRoot });
   const wrapper = project.runtimeProjects[0];
   return { root, source, runtime, cacheRoot, configuration, project, preparation, wrapper };
@@ -93,7 +99,7 @@ test("Error and Exception roots select the actual published metadata names and k
   assert.equal(classified.kind, "resolved", "the selected actual core runtime is classified");
   const project = classified.value;
   const inputs = { root, cacheRoot, wrapper: project.runtimeProjects[0], preparation: Object.freeze({
-    sources: project.runtimeSources, projects: project.runtimeProjects, project: project.project,
+    sources: project.runtimeSources, projects: renderedRuntimeProjects(project), project: project.project,
     properties: project.properties, cacheRoot }) };
   const provider = resolver(inputs);
   const routes = [];
@@ -227,7 +233,7 @@ test("runtime native selection sees all actually selected project references bef
       ordered.flatMap(source => csharpRuntimeSourceContributions(source).references), cacheRoot);
     assert.equal(classified.kind, "resolved", `graph ${orderIndex}: actual selected runtime classification`);
     const project = classified.value;
-    const provider = resolver({ preparation: Object.freeze({ sources: project.runtimeSources, projects: project.runtimeProjects,
+    const provider = resolver({ preparation: Object.freeze({ sources: project.runtimeSources, projects: renderedRuntimeProjects(project),
       project: project.project, properties: project.properties, cacheRoot }) });
     let bindingIds;
     for (const phase of ["cold", "warm"]) {
