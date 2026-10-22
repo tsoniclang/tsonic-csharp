@@ -140,6 +140,12 @@ export function createCsharpObjectShapePropertyOrderIndex(
   completedNativeShapes: () => Iterable<CsharpObjectShapeFact>,
   nativeImplementationAccepts: (source: TargetTypeRef, target: TargetTypeRef) => boolean,
 ) {
+  if (typeof completedNativeShapes !== "function") {
+    throw new TypeError("C# own-property analysis requires its completed native shape input.");
+  }
+  if (typeof nativeImplementationAccepts !== "function") {
+    throw new TypeError("C# own-property analysis requires its canonical native implementation relation.");
+  }
   const producer = createCsharpObjectShapePropertyOrderProducer();
   let implementations: ReadonlyMap<string, readonly { readonly shape: CsharpObjectShapeFact; readonly contract: TargetTypeRef }[]> | undefined;
   return Object.freeze({
