@@ -192,7 +192,9 @@ test("the sealed C# name plan is a frozen pure lookup with no allocation port", 
 });
 
 for (const surface of ["native", "js"]) {
-  test(`native nested shadowing is selected once before seal on ${surface}`, () => {
+  // Authored binding spellings are kept (PORT-MAP names/plan.ts): a binding shadowing an enclosing local or parameter of
+  // the same C# function body is a native CS0136 collision, refused once by the name plan before sealing.
+  test(`native nested shadowing is refused once before seal on ${surface}`, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
       type Handler = ($value: number) => number;
       export function run(value: number): number {
@@ -201,28 +203,11 @@ for (const surface of ["native", "js"]) {
         return result;
       }
     ` });
-    assertCsharpCompilationSucceeded(compiled);
-    const program = compiled.result.program;
-    assert.equal(program.names.issues.length, 0, "unused signature parameters never enter native name validation");
-    const ast = program.source.ast;
-    let declaration;
-    const visit = node => {
-      if (ast.is.IsVariableDeclaration(node) && ast.text(ast.name(node)) === "value") declaration = node;
-      ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
-    };
-    csharpProgramSourceFiles(program).forEach(visit);
-    const selected = program.names.resolve(ast.name(declaration));
-    assert.equal(selected.kind === "resolved" && selected.name === "value_1", true,
-      "the native CS0136 shadowing constraint is solved by the sole pre-seal name owner");
-    const references = createTargetSourceProgram(compiled.source).navigation.referencesToDeclaration(declaration);
-    assert.equal(references.length > 0, true, "the checked declaration has actual bound reference witnesses");
-    for (const reference of references) {
-      if (ast.is.IsIdentifier(reference)) assert.equal(program.names.resolve(reference) === selected, true,
-        "every bound reference consumes the identical selected native name");
-    }
-    executeCsharpConstruction(compiled, `native-shadow-name-${surface}`, false, false, [], `
-if (Tsonic.Generated.Index.run(7) != 9) throw new System.Exception("native shadowing name plan");
-`);
+    assert.equal(compiled.sourceDiagnosticsText, "", "nested shadowing is checked source");
+    assert.deepEqual(compiled.targetDiagnostics.map(({ code, message }) => [code, message]), [["CSHARP_INVALID_IDENTIFIER",
+      "Authored binding 'value' conflicts with an enclosing C# local declaration space (CS0136); its spelling cannot be changed."]],
+    "one refusal for the nested binding; the unused signature parameter never enters native name validation");
+    assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true, "no partial program or artifact");
   });
 }
 

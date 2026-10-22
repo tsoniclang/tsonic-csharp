@@ -5,7 +5,9 @@ import {
   compileCsharpSource,
 } from "../../../helpers/direct-csharp-session.mjs";
 
-test("expression-bodied call arguments retain their exact renamed lambda binding", () => {
+// Authored binding spellings are kept (PORT-MAP names/plan.ts); a lowered lambda's parameter may shadow the enclosing
+// parameter in C# 8 and later, so it is emitted with its authored name.
+test("expression-bodied call arguments retain their exact authored lambda binding", () => {
   const compiled = compileCsharpSource({
     surface: "js",
     sourceText: `
@@ -30,9 +32,9 @@ namespace Tsonic.Generated
         {
             Tsonic.CSharp.Js.JSArray<int> values = Tsonic.CSharp.Js.JSArray<int>.of([1, 2]);
             Tsonic.CSharp.Js.JSArray<int> __tsonic_value_161 = values;
-            static int __tsonic_callable_180(int language_1, int __tsonic_param0)
+            static int __tsonic_callable_180(int language, int __tsonic_param0)
             {
-                return language_1 + 1;
+                return language + 1;
             }
             return Tsonic.CSharp.Js.JSArrayStatics.fromDense<int, int>(__tsonic_value_161, (Func<int, int, int>)__tsonic_callable_180);
         }
@@ -56,7 +58,7 @@ test("an exported dense integer array retains exact callback and result carriers
   assert.deepEqual(compiled.targetDiagnostics, []);
   const source = compiled.artifacts.get("src/Index.cs");
   assert.match(source, /JSArray<int> map\(Tsonic\.CSharp\.Js\.JSArray<int> values, int language\)/u);
-  assert.match(source, /static int __tsonic_callable_157\(int language_1, int __tsonic_param0\)\s*\{\s*return language_1 \+ 1;\s*\}/u);
+  assert.match(source, /static int __tsonic_callable_157\(int language, int __tsonic_param0\)\s*\{\s*return language \+ 1;\s*\}/u);
   assert.match(source, /fromDense<int, int>\(__tsonic_value_138, \(Func<int, int, int>\)__tsonic_callable_157\)/u);
   assert.doesNotMatch(source, /new Func|Dictionary|Reflection|\.Invoke/u, "sealed invocation-only binding has no fresh delegate or adapter cost");
   assert.doesNotMatch(source, /JSArray<double>|JSArray<int\?>/u);

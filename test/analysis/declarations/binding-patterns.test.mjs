@@ -391,7 +391,8 @@ for (const surface of ["native", "js"]) {
         const [head, ...tail] = [5, 6, 7];
         const { inner: { value: nestedValue } } = { inner: { value: 8 } };
         let loop = 0;
-        for (const { first, ...rest } of [source]) loop += first + rest.second;
+        // Distinct names: authored spellings are kept, and a same-body shadow is a native CS0136 refusal.
+        for (const { first: loopFirst, ...loopRest } of [source]) loop += loopFirst + loopRest.second;
         return consume(rest) + returned.second + closure() + parameter(source) + value + head + tail[0] + nestedValue + loop;
       }
     ` });
