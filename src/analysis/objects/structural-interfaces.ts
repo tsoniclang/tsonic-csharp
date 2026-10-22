@@ -65,7 +65,8 @@ export function selectCsharpStructuralInterface(
     }));
   }
   const selectedImplementation = selectCsharpStructuralInterfaceImplementation(policy,
-    { sourceNode: expression, source, destination, members: Object.freeze(members) });
+    { sourceNode: expression, source, destination, members: Object.freeze(members),
+      declaredSupertypes: Object.freeze([...policy.projectTypes.directSupertypes(template.targetType) ?? []]) });
   if (selectedImplementation === undefined) return undefined;
   if (destination.targetType.kind !== "target-named" ||
     (destination.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind !== "interface") {
