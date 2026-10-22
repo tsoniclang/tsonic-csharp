@@ -72,7 +72,8 @@ function fixture(kind = "identifier", options = {}) {
 
 function select(input, classStorage = "field", storage = physical) {
   return classifyCsharpNativeLocation(input.policy, input.expression, sourceFile, () => classStorage === null ? undefined
-    : { kind: classStorage, readonly: input.storage.writable === false }, storage);
+    : { kind: classStorage, readonly: input.storage.writable === false }, storage,
+  node => input.policy.types.resolveReadStorage(node, sourceFile));
 }
 
 for (const kind of ["variable", "parameter", "binding"]) {
