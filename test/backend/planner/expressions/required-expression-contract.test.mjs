@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { checkCsharpSource } from "../../../helpers/direct-csharp-session.mjs";
-import { analyzeCsharpAnalysisProgram } from "../../../../dist/analysis/program/index.js";
+import { analyzeCsharpSource } from "../../../helpers/direct-csharp-session.mjs";
 import { createCsharpProviderRelationResolver } from "../../../../dist/providers/native/projection/relation-resolution.js";
-import { createCsharpTargetConfiguration } from "../../../../dist/compilation/configuration.js";
 import { createCsharpPlanningContext } from "../../../../dist/backend/planner/context.js";
 import { planExpression, planCallArgument } from "../../../../dist/backend/planner/expressions/index.js";
 import * as expressionEntry from "../../../../dist/backend/planner/expressions/index.js";
@@ -16,24 +13,18 @@ import { requireExpressionPlan } from "../../../../dist/backend/planner/expressi
 import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
 import { completeCsharpAnalysisRequest } from "../../../helpers/analysis-request.mjs";
 
-const analyzeCompletedCsharpProgram = request => analyzeCsharpAnalysisProgram(completeCsharpAnalysisRequest(request));
-
 function fixture() {
-  const checked = checkCsharpSource({ surface: "js", sourceText: `
+  // The analysis acquires runtime metadata through the session's real providers.
+  const checked = analyzeCsharpSource({ surface: "js", sourceText: `
     export function run(): boolean { return parseInt("0x10", undefined) === 16; }
     export function effect(): void { void parseInt("10"); }
     export function fail(): never { throw new Error("failure"); }
   ` });
   assert.equal(checked.sourceDiagnosticsText === "" && checked.extensionDiagnostics.length === 0, true,
     "ordinary source checks without annotations or altered semantics");
-  const source = createTargetSourceProgram(checked.source);
+  const { source, analysis } = checked;
+  // The absence-to-number conversion below is independent of provider bindings.
   const providers = createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] });
-  const analysis = analyzeCompletedCsharpProgram({
-    input: { source, sourcePackages: checked.sourcePackages, project: checked.project, target: checked.target,
-      runtimeActivatedCapabilityIds: [], runtimeReferences: [], paths: checked.paths },
-    configuration: createCsharpTargetConfiguration(checked.target, checked.paths.projectRoot, checked.paths.targetOutputRoot),
-    providers,
-  });
   assert.equal(analysis.kind === "resolved" && analysis.diagnostics.length === 0, true, "baseline analysis succeeds");
   const program = analysis.value;
   const nodes = [];
