@@ -65,6 +65,8 @@ export interface CsharpNativeArtifactDemandInput extends CsharpObjectShapeDemand
   readonly conversions: CsharpConversionClassifications;
   readonly nativeValueCarriers: CsharpNativeValueCarriers;
   readonly sourceEvidence: Pick<CsharpSourceEvidenceIndex, "compileTimeMetadata" | "generatorTargetType" | "yield" | "yieldTargetType">;
+  /** Receives every (value anchor, source carrier) pair the demanded conversions box into the closed JS value. */
+  readonly boxSites: { readonly add: (node: Node, carrier: TargetTypeRef) => void };
 }
 
 export function analyzeCsharpNativeArtifactDemand(
@@ -191,6 +193,7 @@ export function analyzeCsharpNativeArtifactDemand(
   }
 
   function demandBox(node: Node, source: TargetTypeRef): void {
+    input.boxSites.add(node, source);
     if (isCsharpJsValueTargetType(source)) return;
     const shape = input.objectShapes.resolveTarget(source);
     if (shape !== undefined && !isCsharpValueTypeTargetType(shape.targetType) &&

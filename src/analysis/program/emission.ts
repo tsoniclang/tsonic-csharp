@@ -5,6 +5,7 @@ import { analyzeCsharpConstructorEmission } from "../declarations/classes/constr
 import { analyzeCsharpConstructorArguments } from "../declarations/classes/constructor-arguments.js";
 
 import type { Node } from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../target-model/types/model.js";
 
 import { analyzeCsharpNativeConstants } from "../operations/native-constants.js";
 import { analyzeCsharpBinaryEmission } from "../operations/binary-emission.js";
@@ -155,7 +156,6 @@ export function finalizeCsharpNativeEmission(
   const dictionaryLiterals = analyzeCsharpDictionaryLiterals(source.ast, nativeDemand);
   const unionEquality = analyzeCsharpUnionEquality(sourceStorage.nodes, admittedOperations);
   const closedTypeTests = analyzeCsharpClosedTypeTests(sourceStorage.nodes, admittedOperations, typeDefinitions);
-  const jsValueBoxing = analyzeCsharpJsValueBoxing({ ast: source.ast, demand: nativeDemand, values: analysis.valueReads, exact: exactLiterals });
   const unaryEmission = analyzeCsharpUnaryEmission({ ast: source.ast, nodes: sourceStorage.nodes, admitted: admittedControlNode,
     operations: admittedOperations, literals: literalValues, exact: exactLiterals });
   const typeofEmission = analyzeCsharpTypeofEmission({ ast: source.ast, nodes: sourceStorage.nodes, admitted: admittedControlNode,
@@ -171,7 +171,6 @@ export function finalizeCsharpNativeEmission(
     ...dictionaryLiterals.issues,
     ...unionEquality.issues,
     ...closedTypeTests.issues,
-    ...jsValueBoxing.issues,
     ...unaryEmission.issues,
     ...typeofEmission.issues,
     ...receiverCallProperties.issues,
@@ -202,6 +201,7 @@ export function finalizeCsharpNativeEmission(
     return failTargetAnalysisInvariant("tsonic-csharp",
       `Native consumption '${incomplete.site.role}' requires completed '${incomplete.reason}' evidence before publication.`, incomplete.expression);
   }
+  const boxSites: { readonly node: Node; readonly carrier: TargetTypeRef }[] = [];
   const objectShapeClosure = analyzeCsharpNativeArtifactDemand({
     ast: source.ast, sourceFiles, propertyNames: sourceSyntax.propertyNames,
     nativeDemand, participation: nativeParticipation.participation,
@@ -209,8 +209,13 @@ export function finalizeCsharpNativeEmission(
     valueReads: analysis.valueReads, operations: admittedOperations, storage: analysis.storage,
     callables: analysis.callables, captureStorage, callableAdapters, flowReads, declarations: analysis.declarations,
     bindingPatterns, conversions, nativeValueCarriers, sourceEvidence: analysis.sourceEvidence,
+    boxSites: { add: (node, carrier) => { boxSites.push({ node, carrier }); } },
   }, analysis.requiredRecords);
   if (objectShapeClosure.kind === "rejected") return objectShapeClosure;
+  // Boxing is planned after native demand: the demanded conversions name every value they box into the closed JS value.
+  const jsValueBoxing = analyzeCsharpJsValueBoxing({ ast: source.ast, demand: nativeDemand, values: analysis.valueReads,
+    exact: exactLiterals, boxSites });
+  if (jsValueBoxing.issues.length > 0) return rejectedTargetStage(jsValueBoxing.issues);
   const nativeMemberNames = analyzeCsharpNativeMemberNames({
     ast: source.ast, nodes: sourceStorage.nodes, nativeUse: nativeDemand.nativeUse,
     metadata: analysis.sourceEvidence, participation: nativeParticipation.participation,
