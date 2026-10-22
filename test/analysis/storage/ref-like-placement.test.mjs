@@ -127,14 +127,16 @@ test("constraint carriers use their single exact source or native producer witho
   const providers = { findTargetBindingByTargetId() { nativeLookups += 1; return { kind: "missing" }; } };
   const arguments_ = new Map([[parameter.identity, integer]]);
   const constraint = { kind: "implements", contract: sourceCarrier.id, typeArguments: [parameter] };
-  const catalog = { definitions: [sourceDefinition], targetTypeForDeclaration(selected, types) {
+  // The catalog answers definitions by target id (definitionForId), the lookup the sealed catalog publishes.
+  const definitionForId = id => id === sourceDefinition.id ? sourceDefinition : undefined;
+  const catalog = { definitions: [sourceDefinition], definitionForId, targetTypeForDeclaration(selected, types) {
     assert.equal(selected === declaration, true, "the source declaration identity is exact");
     assert.equal(types.length === 1 && types[0] === integer, true, "the canonical producer receives substituted arguments");
     return sourceCarrier;
   } };
   assert.equal(implementedConstraintType({ providers, projectTypes: { catalog } }, constraint, arguments_) === sourceCarrier,
     true, "source generic metadata is retained from its real carrier producer");
-  const missing = { definitions: [sourceDefinition], targetTypeForDeclaration() { return undefined; } };
+  const missing = { definitions: [sourceDefinition], definitionForId, targetTypeForDeclaration() { return undefined; } };
   assert.equal(implementedConstraintType({ providers, projectTypes: { catalog: missing } }, constraint, arguments_) === undefined,
     true, "missing known-source proof is not native metadata");
   assert.equal(nativeLookups, 0, "a known source identity never falls through to a native provider");

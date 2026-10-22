@@ -75,7 +75,11 @@ test("object rest projection consumes exact checked binding identity and retains
       assert.equal(selectedState.sourceStorageSubject === subject, true, "retained selection context");
       assert.equal(policy.resolveProjection(rest, file, state) === undefined, true, "reentrant binding fails closed");
       return { targetType };
-    } },
+    },
+    // A selected physical rest carrier resolves to its own shape; the rest binding stores the object-shape copy of the
+    // shape, and this fixture's shapes are their own copies.
+    resolveTarget: selected => ({ targetType: selected }),
+    resolveCopyShape: shape => shape },
   };
   policy = createCsharpBindingProjectionPolicy(host);
   const selected = policy.resolveProjection(rest, file, state);
