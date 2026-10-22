@@ -46,6 +46,10 @@ function fixture(arguments_ = [integer, text], selectedConversion) {
     publish: () => publishCsharpNativeArtifactDemand(selectCsharpObjectShapePublication(engine.close(), { typeParameterNames: [] })) };
 }
 
+// Projection methods are generated artifact members; none hides an inherited native member.
+const noMemberHiding = { get: () => false };
+const planning = scope => ({ scope, program: { records: { nativeMemberHiding: noMemberHiding } } });
+
 function resultType(kind, receiver) {
   if (kind === "assign") return receiver.targetType;
   if (kind === "has-own") return { kind: "source-primitive", name: "bool" };
@@ -69,7 +73,7 @@ for (const reversed of [false, true]) for (const kind of ["assign", "keys", "val
     assert.equal(artifact.fact === current.declaration && artifact.projections.length === 2, true, "one physical generic declaration contains both exact methods");
     const readsBeforeRendering = current.conversions.length;
     const diagnostics = [];
-    const methods = renderObjectShapeProjectionMethods({ scope: { typeParameterNames: new Map() } }, artifact.projections, diagnostics);
+    const methods = renderObjectShapeProjectionMethods(planning({ typeParameterNames: new Map() }), artifact.projections, diagnostics);
     assert.equal(diagnostics.length === 0 && methods.length === 2, true, "both nonempty closed contracts render without substituting a concrete field into its generic template");
     assert.equal(new Set(methods.map(method => method.name)).size, 2, "receiver identity participates in native method identity");
     for (const request of requests) {
@@ -105,7 +109,7 @@ test("partially open projections close every actual free native binder and prese
   assert.equal(new Set(binding.typeParameterNames.map(selected => selected.name)).size, 2, "method binder names do not collide with each other");
   assert.equal(binding.typeParameterNames.every(selected => selected.name !== "Value"), true, "method names do not shadow the declaration binder");
   const diagnostics = [];
-  const methods = renderObjectShapeProjectionMethods({ scope: { typeParameterNames: new Map([[parameter.identity, "Value"]]) } }, [binding], diagnostics);
+  const methods = renderObjectShapeProjectionMethods(planning({ typeParameterNames: new Map([[parameter.identity, "Value"]]) }), [binding], diagnostics);
   assert.equal(diagnostics.length, 0);
   assert.equal(methods[0].typeParameters.length, 2);
   assert.equal(methods[0].typeParameters.some(selected => selected.constraints?.some(constraint => constraint.kind === "KeywordConstraint" &&
@@ -174,7 +178,7 @@ for (const kind of ["optional", "conditional"]) for (const reversed of [false, t
           "only an actual emitted constraint dependency becomes an additional native binder");
       }
       const diagnostics = [];
-      const methods = renderObjectShapeProjectionMethods({ scope: { typeParameterNames: new Map() } }, [binding], diagnostics);
+      const methods = renderObjectShapeProjectionMethods(planning({ typeParameterNames: new Map() }), [binding], diagnostics);
       assert.equal(diagnostics.length === 0 && methods.length === 1, true, "the full physical binder environment is renderable");
       if (receiver.members[0].type === projected) {
         const name = binding.typeParameterNames.find(parameter => parameter.identity === projected.identity).name;
@@ -194,7 +198,7 @@ test("a projected parameter already owned by the declaration is not redeclared b
     receiver, selected, declarations, [], { kind: "has-own", keys: ["value"] }), declarations);
   assert.equal(binding.typeParameters.length, 0, "the existing class binder satisfies the emitted physical parameter");
   const diagnostics = [];
-  const methods = renderObjectShapeProjectionMethods({ scope: { typeParameterNames: new Map([[projected.identity, "Storage"]]) } }, [binding], diagnostics);
+  const methods = renderObjectShapeProjectionMethods(planning({ typeParameterNames: new Map([[projected.identity, "Storage"]]) }), [binding], diagnostics);
   assert.equal(diagnostics.length, 0);
   assert.equal(methods[0].parameters[0].type.typeArguments[0].name, "Storage", "no source dependency is substituted for the physical class binder");
 });
@@ -222,7 +226,7 @@ test("null checks are selected only for exact native reference receivers, never 
       { kind: "has-own", resultType: { kind: "source-primitive", name: "bool" }, propertyOrder: [] }, [], [], { kind: "has-own", keys: [] }), []);
     assert.equal(binding.receiverRequiresNullCheck, expected, `${name}: one pre-seal reference obligation`);
     const diagnostics = [];
-    const methods = renderObjectShapeProjectionMethods({ scope: { typeParameterNames: new Map() } }, [binding], diagnostics);
+    const methods = renderObjectShapeProjectionMethods(planning({ typeParameterNames: new Map() }), [binding], diagnostics);
     assert.equal(diagnostics.length, 0, `${name}: render without boxing or weaker generic evidence`);
     assert.equal(methods[0].body.statements[0].kind === "IfStatement", expected, `${name}: syntax reads only the admitted null-check obligation`);
   }
@@ -259,7 +263,7 @@ test("actual optional and conditional physical projection methods compile and re
   for (const { binding } of inverses) assert.equal(binding.receiverRequiresNullCheck, false,
     "native struct, ref-like and unconstrained physical receivers never acquire a boxing null check");
   const diagnostics = [];
-  const methods = renderObjectShapeProjectionMethods({ scope: { typeParameterNames: new Map([[parameter.identity, "Value"]]) } },
+  const methods = renderObjectShapeProjectionMethods(planning({ typeParameterNames: new Map([[parameter.identity, "Value"]]) }),
     [...bindings, ...inverses.map(inverse => inverse.binding)], diagnostics);
   assert.equal(diagnostics.length, 0, "every complete typed native method is rendered");
   const syntax = printCsharpCompilationUnit({ kind: "CompilationUnit", usings: [], members: [{ kind: "NamespaceDeclaration", name: "ProjectionProof", members: [
