@@ -30,16 +30,13 @@ test("RegExp literal emission consumes the direct JS-surface policy selection", 
 test("RegExp literal emission fails closed without the explicit JS target relation", () => {
   const node = regexpNode("value", "g");
   const diagnostics = [];
-  const expression = planRegularExpressionLiteral(
-    node,
-    directInput(node, undefined),
-    diagnostics,
-  );
-
-  assert.equal(expression, undefined);
-  assert.deepEqual(diagnostics.map((diagnostic) => diagnostic.code), [
-    "CSHARP_JS_REGEXP_TARGET_NOT_PROVEN",
-  ]);
+  const input = directInput(node, undefined);
+  // The operation analysis selects the refusal (and reports it before sealing); the planner never plans it.
+  assert.equal(input.program.records.regularExpression.get(node).kind, "rejected");
+  assert.equal(input.program.records.regularExpression.get(node).code, "CSHARP_JS_REGEXP_TARGET_NOT_PROVEN");
+  assert.throws(() => planRegularExpressionLiteral(node, input, diagnostics), error => error instanceof Error &&
+    error.phase === "planning" && error.message === "A rejected regular-expression literal cannot reach planning.");
+  assert.deepEqual(diagnostics, []);
 });
 
 test("RegExp literal emission preserves complete ECMAScript syntax for the runtime", () => {

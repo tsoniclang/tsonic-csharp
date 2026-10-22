@@ -301,7 +301,7 @@ test(".NET provider cache fingerprints reference contents rather than mutable pa
 });
 
 test("C# reflection framework policy has no installed-runtime version selector", () => {
-  const optionsSource = readFileSync(join(repoRoot, "src/options/csharp-target-options.ts"), "utf8");
+  const optionsSource = readFileSync(join(repoRoot, "src/options/target.ts"), "utf8");
 
   assert.doesNotMatch(optionsSource, /--list-runtimes/u);
   assert.doesNotMatch(optionsSource, /readCsharpFrameworkReferenceRuntimeAssemblies/u);
