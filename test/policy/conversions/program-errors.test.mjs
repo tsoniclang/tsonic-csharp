@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { selectCsharpProgramErrorCarrier, selectCsharpThrownOperandCarrier } from "../../../dist/policy/conversions/program-error.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/index.js";
+import { isCsharpThrowableType } from "../../../dist/analysis/project-types/throwable-types.js";
 import { csharpExceptionTargetType, csharpRuntimeErrorTargetType, csharpRuntimeUnionTargetType,
   csharpNullableTargetType, csharpSourcePrimitiveTargetType, csharpTargetNamedType,
   csharpTsValueTargetType } from "../../../dist/target-model/types/index.js";
@@ -16,17 +17,18 @@ const host = {
   target: {},
 };
 
+// The analysis decides source throwability (analysis/project-types/throwable-types.ts) and hands it to the policy.
 test("native error alternatives share one exact reference projection without boxing", () => {
   for (const arms of [[source, native], [native, source], [derived, native], [native, derived, source]]) {
     const carrier = csharpRuntimeUnionTargetType(arms);
-    assert.deepEqual(selectCsharpProgramErrorCarrier(host, carrier), native);
+    assert.deepEqual(selectCsharpProgramErrorCarrier(host, carrier, isCsharpThrowableType(host, carrier)), native);
     const conversion = selectCsharpConversion(host, carrier, native, "implicit");
     assert.equal(conversion.kind, "runtime-union-reference");
     assert.deepEqual(conversion.arms, arms);
     assert.deepEqual(conversion.target, native);
   }
   for (const carrier of [native, source, derived, csharpNullableTargetType(native)]) {
-    assert.equal(selectCsharpProgramErrorCarrier(host, carrier), carrier);
+    assert.equal(selectCsharpProgramErrorCarrier(host, carrier, isCsharpThrowableType(host, carrier)), carrier);
   }
 });
 
@@ -35,15 +37,15 @@ test("throw selection rejects absence, non-errors and value-type admission", () 
   for (const carrier of [undefined, unrelated, csharpSourcePrimitiveTargetType("uint64"),
     csharpRuntimeUnionTargetType([source, unrelated]),
     csharpRuntimeUnionTargetType([source, value]), csharpRuntimeUnionTargetType([source, csharpNullableTargetType(native)])]) {
-    assert.equal(selectCsharpProgramErrorCarrier(host, carrier), undefined);
+    assert.equal(selectCsharpProgramErrorCarrier(host, carrier, isCsharpThrowableType(host, carrier)), undefined);
   }
 });
 
 test("throw selection requires the native hierarchy instead of a same-spelled source name", () => {
   const local = csharpTargetNamedType("Project.Error", undefined, { kind: "named", name: "Error" }, { allowsRefLikeTypeArguments: [],});
   const cyclic = { ...host, projectTypes: { directSupertypes: carrier => carrier === local ? [unrelated] : [local] } };
-  assert.equal(selectCsharpProgramErrorCarrier(cyclic, local), undefined);
-  assert.equal(selectCsharpProgramErrorCarrier(cyclic, csharpRuntimeUnionTargetType([native, local])), undefined);
+  assert.equal(selectCsharpProgramErrorCarrier(cyclic, local, isCsharpThrowableType(cyclic, local)), undefined);
+  assert.equal(selectCsharpProgramErrorCarrier(cyclic, csharpRuntimeUnionTargetType([native, local]), isCsharpThrowableType(cyclic, csharpRuntimeUnionTargetType([native, local]))), undefined);
 });
 
 test("a checked closed-value cast is not native throwable evidence", () => {
@@ -51,6 +53,6 @@ test("a checked closed-value cast is not native throwable evidence", () => {
   const selected = { ...host, objectShapes: { resolveTarget: () => undefined } };
   const conversion = selectCsharpConversion(selected, closed, native, "implicit");
   assert.equal(conversion.kind, "js-value-cast");
-  assert.equal(selectCsharpProgramErrorCarrier(selected, closed), undefined);
-  assert.deepEqual(selectCsharpThrownOperandCarrier(selected, closed), closed);
+  assert.equal(selectCsharpProgramErrorCarrier(selected, closed, isCsharpThrowableType(selected, closed)), undefined);
+  assert.deepEqual(selectCsharpThrownOperandCarrier(selected, closed, isCsharpThrowableType(selected, closed)), closed);
 });
