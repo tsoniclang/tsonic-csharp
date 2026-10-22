@@ -321,6 +321,10 @@ export function analyzeCsharpNativeDemand(
     if (flow === undefined) return pending(site, expression, "completion-unresolved");
     const selectedCarrier = expected?.carrier ?? selected.carrier;
     const inputCompletion = selectCsharpNativeCompletion(selectedCarrier, flow);
+    // A value whose checked source type resolved to no C# carrier (for example a structural view of foreign fields the
+    // project does not own) is unsupported source, refused at its first native consumption.
+    if (inputCompletion === undefined && selectedCarrier === undefined) return pending(site, expression, "completion-unresolved",
+      "The checked source value has no closed C# type representation.", "CSHARP_UNSUPPORTED_AST");
     if (inputCompletion === undefined) return pending(site, expression, "completion-unresolved");
     const physical = inputCompletion.kind === "void" && discarded ? csharpVoidTargetType() : selectedCarrier;
     if (physical === undefined) return pending(site, expression, "completion-unresolved");

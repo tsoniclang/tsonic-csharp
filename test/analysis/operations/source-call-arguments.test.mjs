@@ -64,18 +64,18 @@ test("tuple spreads preserve exact per-call refusal without admitting a prefix",
     export function prefixed(values: [int32, int32]): int32 { return triple(1 as int32, ...values); }
   ` });
   assert.equal(compiled.sourceDiagnosticsText, "");
-  const selected = calls(compiled);
-  assert.equal(selected.length, 2);
-  assert.equal(compiled.result.diagnostics.length, 2);
-  assert.equal(compiled.artifacts.size, 0);
-  for (const call of selected) {
-    const grouping = call.classification?.sourceArgumentGrouping;
-    assert.equal(grouping?.kind, "refused", call.text);
-    assert.equal("arguments" in grouping || "groups" in grouping, false, `${call.text}: no partial prefix`);
-    assert.equal(compiled.result.diagnostics.some(diagnostic => diagnostic.sourceNode === call.node &&
-      diagnostic.code === "CSHARP_UNSUPPORTED_AST" && diagnostic.message === "Source-owned arguments have no exact native parameter grouping."), true,
-    `${call.text}: original refusal on original call`);
-  }
+  // analysis/ owns all source admission (tsonic/docs/architecture/csharp-rust-structure.md, analysis/ row): the grouping
+  // refusal is an analysis refusal, so no program, plan or artifacts are published (RULINGS 2026-10-22).
+  assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+    "no program, plan or artifacts after the refusal");
+  const ast = compiled.source.ast;
+  const text = node => String(ast.getSourceText(ast.getSourceFile(node))).slice(ast.pos(node), ast.end(node)).trim();
+  const refused = compiled.result.diagnostics.map(diagnostic => [diagnostic.code, diagnostic.message,
+    ast.is.IsCallExpression(diagnostic.sourceNode) ? text(diagnostic.sourceNode) : undefined]);
+  assert.deepEqual(refused.sort((left, right) => String(left[2]).localeCompare(String(right[2]))), [
+    ["CSHARP_UNSUPPORTED_AST", "Source-owned arguments have no exact native parameter grouping.", "pair(...values)"],
+    ["CSHARP_UNSUPPORTED_AST", "Source-owned arguments have no exact native parameter grouping.", "triple(1 as int32, ...values)"],
+  ], "one original refusal on each original call; no prefix is admitted");
 });
 
 test("native grouping preserves receiver, sequence and argument evaluation once in source order", () => {

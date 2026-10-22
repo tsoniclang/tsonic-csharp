@@ -450,7 +450,7 @@ test("method and raw-adapter planners reject only corrupted admitted contracts",
     callableDispatch: { get: node => node === method ? { ...dispatch, adapters: [{ contract: dispatch.implementation,
       parameters: [] }] } : program.records.callableDispatch.get(node) } } });
   assert.throws(() => planCsharpProjectCallableAdapters(method, planned, file, invalidStream, diagnostics),
-    error => error.message.includes("exact logical argument stream"),
+    error => error.message.includes("complete native argument adaptation"),
     "one admitted parameter adapter per physical destination is a producer guarantee");
   assert.equal(diagnostics.length, 0, "a corrupted stream is distinct from a child's existing source refusal");
 });

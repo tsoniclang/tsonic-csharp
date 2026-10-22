@@ -201,11 +201,11 @@ export function applyCsharpConversionSelection(
     case "nullable-reference":
       return { kind: "PostfixUnaryExpression", operand: expression, operatorToken: { kind: "ExclamationToken" } };
     case "nullable-value":
+      // Both an authored assertion and a narrowing proven by analysis (a sealed flow read) are non-null here; C# flow
+      // analysis cannot see TypeScript narrowing, so the access is explicit in both cases (RULINGS 2026-10-22, CS8629).
       return {
         kind: "SimpleMemberAccessExpression",
-        receiver: selection.asserted
-          ? { kind: "PostfixUnaryExpression", operand: expression, operatorToken: { kind: "ExclamationToken" } }
-          : expression,
+        receiver: { kind: "PostfixUnaryExpression", operand: expression, operatorToken: { kind: "ExclamationToken" } },
         name: "Value",
       };
     case "runtime-union-projection":

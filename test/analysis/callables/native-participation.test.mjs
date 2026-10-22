@@ -158,7 +158,6 @@ for (const surface of ["native", "js"]) {
         get current(): number { return 1; }
       }
       export interface Shape { required(value: number): number; optional?(value: number): number }
-      export namespace Space { export const one = 1; }
       export function outer(): number {
         function used(): number { return 1; }
         function unused(): number { return 2; }
@@ -179,13 +178,29 @@ for (const surface of ["native", "js"]) {
       "KindGetAccessor:current:body",
       "KindMethodSignature:required:signature",
       "KindMethodSignature:optional:erased",
-      "KindModuleDeclaration:Space:erased",
       "KindFunctionDeclaration:outer:body",
       "KindFunctionDeclaration:used:body",
       "KindFunctionDeclaration:unused:erased",
       "KindArrowFunction::erased",
       "KindArrowFunction:kept:body",
     ]);
+  });
+
+  // analysis/ owns all source admission (tsonic/docs/architecture/csharp-rust-structure.md, analysis/ row): a top-level
+  // namespace is refused in analysis and publishes no program, plan or artifacts (RULINGS 2026-10-22).
+  test(`${surface} a top-level namespace is refused in analysis before any publication`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      export namespace Space { export const one = 1; }
+      export function run(): number { return 1; }
+    ` });
+    assertCsharpCheckingSucceeded(compiled);
+    const issues = compiled.result.diagnostics.filter(issue => issue.category === "error");
+    assert.deepEqual(issues.map(({ code, message }) => [code, message]),
+      [["CSHARP_UNSUPPORTED_AST", "Top-level statement is outside the current C# planning surface."]],
+      "the namespace keeps its one source refusal");
+    assert.equal(compiled.source.ast.is.IsModuleDeclaration(issues[0].sourceNode), true, "the refusal is on the namespace");
+    assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+      "an analysis refusal publishes no program, plan or artifacts");
   });
 
   test(`${surface} a local function that owns a capture frame keeps a frame body`, () => {

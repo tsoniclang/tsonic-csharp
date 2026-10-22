@@ -343,7 +343,7 @@ export function finalizeCsharpNativeEmission(
   if (typedLocationEmission.issues.length !== 0) return rejectedTargetStage(typedLocationEmission.issues);
   const typeEmission = analyzeCsharpTypeEmission({ ast: source.ast, nodes: sourceStorage.nodes, evidence: analysis.sourceEvidence,
     languageDialect: configuration.languageDialect,
-    extraTypes: [...typedLocationEmission.carriers, ...nativeLayouts.carriers, ...nativeDemand.entries.flatMap(({ use }) => use.kind === "erased" ? []
+    extraTypes: [...typedLocationEmission.carriers, ...nativeLayouts.carriers, ...restSequences.carriers, ...nativeDemand.entries.flatMap(({ use }) => use.kind === "erased" ? []
       : use.kind === "converted" ? [use.carrier, use.target] : [use.carrier]),
       ...sourceUnions.sourceUnions.get().flatMap(union => [union.carrier, union.storage, ...union.arms])],
     values: analysis.valueReads, storage: analysis.storage, shapes: objectShapeDemand, admitted: admittedControlNode });

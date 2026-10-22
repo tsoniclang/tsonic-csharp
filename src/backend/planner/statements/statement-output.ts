@@ -93,6 +93,10 @@ export function planDiscardedExpression(
   expression: CsharpExpression,
   targetType: TargetTypeRef | undefined,
 ): CsharpExpression | undefined {
+  let operand = expression;
+  while (operand.kind === "ParenthesizedExpression") operand = operand.expression;
+  // A discarded literal or default value has no effect; C# cannot discard a typeless null (CS8183).
+  if (operand.kind === "LiteralExpression" || operand.kind === "DefaultExpression") return undefined;
   const task = getCsharpTaskResultTargetType(getCsharpNullableElementTargetType(targetType) ?? targetType);
   return task === undefined && isValidCsharpExpressionStatement(expression)
     ? expression
