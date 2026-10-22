@@ -12,7 +12,7 @@ import { sourceCallableTypeParametersMatch, resolveSourceCallReceiverTargetType 
 import { csharpSourceTypeParameter } from "../../../dist/source/extension/type-parameters.js";
 import { selectSourceCallParameterSlots } from "../../../../tsonic/packages/target-api/dist/source-semantics/call-parameter-slots.js";
 import { resolveCallableEvidence } from "../../../dist/analysis/source-evidence/types/resolution/source-profiles.js";
-import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/constraints/type-parameter-environment.js";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
 
 const integer = { kind: "source-primitive", name: "int64" };
 const string = { kind: "source-primitive", name: "string" };

@@ -4,7 +4,7 @@ import type { CsharpProviderCallSelectionHost } from "../../../policy/model/prov
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { ResolvedSourceCallInfo } from "../../../target-model/records/source-calls.js";
 import type { CsharpSourceProfileInputFacts, CsharpSourceProfileInputRequirements, CsharpCustomRegExpProtocol, CustomRegExpProtocolKind } from "../../../target-model/records/source-profile-inputs.js";
-import { csharpSourceHasNumericConstraint } from "../../constraints/numeric-evidence.js";
+import { csharpSourceHasNumericConstraint } from "../../source-evidence/types/resolution/numeric-constraint-evidence.js";
 import { isCsharpThrowableType } from "../../project-types/throwable-types.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { analyzeCsharpCustomRegExpProtocol } from "../../operations/source-profiles/js/regexp-protocol.js";

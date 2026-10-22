@@ -6,7 +6,7 @@ import type { CsharpObjectShapeProjectionDeclaration } from "../../target-model/
 import type { CsharpObjectShapeFact, CsharpObjectShapeProjection, TargetTypeRef } from "../../target-model/types/model.js";
 
 import { visitCsharpTargetTypeParameters } from "../../target-model/types/generic-references.js";
-import { closeCsharpOwnerTypeParameterEnvironment } from "../constraints/owner-environment.js";
+import { closeCsharpOwnerTypeParameterEnvironment } from "../source-evidence/types/resolution/owner-type-parameter-environment.js";
 import { isCsharpReferenceCarrier } from "../../target-model/types/identity.js";
 import { csharpObjectShapeAssignmentMembers, csharpObjectShapeProjectionMembers, csharpObjectShapeProjectionMethodName } from "../../target-model/types/object-shape-projection.js";
 import { getCsharpJsArrayElementTargetType } from "../../target-model/types/carriers/collections.js";

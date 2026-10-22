@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { csharpSourceHasNumericConstraint } from "../../../dist/analysis/constraints/numeric-evidence.js";
+import { csharpSourceHasNumericConstraint } from "../../../dist/analysis/source-evidence/types/resolution/numeric-constraint-evidence.js";
 import { selectCsharpGenericNumericOperation } from "../../../dist/analysis/operations/numeric/generic.js";
 import { csharpBinarySelectionsEqual } from "../../../dist/analysis/expected-types/binary-equality.js";
 

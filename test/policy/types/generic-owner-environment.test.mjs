@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { closeCsharpOwnerTypeParameterEnvironment, csharpObjectShapeTypeParameters } from "../../../dist/analysis/constraints/owner-environment.js";
+import { closeCsharpOwnerTypeParameterEnvironment, csharpObjectShapeTypeParameters } from "../../../dist/analysis/source-evidence/types/resolution/owner-type-parameter-environment.js";
 import { csharpFreeTypeParameterIdentities, visitCsharpTargetTypeParameters } from "../../../dist/target-model/types/generic-references.js";
 import { isCsharpTargetTypeRef, snapshotCsharpTargetTypes } from "../../../dist/target-model/types/snapshot.js";
 import { csharpTargetTypeComponents } from "../../../dist/target-model/types/components.js";
 import { createCsharpMetadataBudget, maximumCsharpMetadataEntries, maximumCsharpMetadataDepth } from "../../../dist/target-model/metadata/immutable.js";
 import { csharpSourceTypeParameter } from "../../../dist/source/extension/type-parameters.js";
-import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/constraints/type-parameter-environment.js";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
 import { createStructuralObjectShapeTarget } from "../../../dist/analysis/objects/shapes/construction.js";
 import { substituteTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
@@ -15,7 +15,7 @@ import { csharpObjectShapesEqual } from "../../../dist/target-model/types/object
 import { csharpConstraintsRequireReference, csharpTypeParameterConstraintResolutionKey } from "../../../dist/target-model/types/generic-constraints.js";
 import { resolveTypeParameter } from "../../../dist/analysis/source-evidence/types/resolution/source-evidence.js";
 import { csharpTypeParameterConstraintsEqual } from "../../../dist/policy/constraints/type-parameter-constraints.js";
-import { resolveCsharpTypeParameterConstraints } from "../../../dist/analysis/constraints/type-parameter-constraints.js";
+import { resolveCsharpTypeParameterConstraints } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-constraints.js";
 import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
 import { csharpDelegateTargetType, csharpTaskTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpListTargetType, csharpEnumerableTargetType } from "../../../dist/target-model/types/carriers/collections.js";

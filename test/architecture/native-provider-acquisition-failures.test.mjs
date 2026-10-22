@@ -9,7 +9,7 @@ import { csharpReferenceIdentityCarrier } from "../../dist/policy/operations/ope
 import { validateBinaryTargetSemantics } from "../../dist/policy/operations/operators/operator-validation.js";
 import { isCsharpThrowableType } from "../../dist/analysis/project-types/throwable-types.js";
 import { resolveSourceProfileType } from "../../dist/analysis/source-evidence/types/resolution/source-profiles.js";
-import { validateCsharpProviderConstraints } from "../../dist/analysis/constraints/provider-satisfaction.js";
+import { validateCsharpProviderConstraints } from "../../dist/analysis/operations/members/calls/constraint-satisfaction.js";
 import { selectCsharpNativeMemoryLayout } from "../../dist/analysis/operations/pointers/native-memory.js";
 import { createCsharpTypeDefinitionRegistry } from "../../dist/analysis/project-types/type-definitions.js";
 import { analyzeCsharpProjectTypePolicy } from "../../dist/analysis/project-types/catalog/resolution.js";

@@ -206,9 +206,9 @@ export const callablesCarrierRegistry: readonly TargetCarrierRegistryEntry<Targe
     frozen: false,
   },
   {
-    id: "src/analysis/declarations/interfaces/structural.ts#analyzeCsharpStructuralInterfaceEmission",
+    id: "src/analysis/declarations/structural-interfaces.ts#analyzeCsharpStructuralInterfaceEmission",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/declarations/interfaces/structural.ts", symbol: "analyzeCsharpStructuralInterfaceEmission" },
+    declaration: { module: "src/analysis/declarations/structural-interfaces.ts", symbol: "analyzeCsharpStructuralInterfaceEmission" },
     counterpart: { module: "src/policy/types/objects/member-storage.ts", symbol: "rustStructuralMethodStorageCarrier" },
     frozen: false,
   },

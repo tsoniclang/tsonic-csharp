@@ -10,7 +10,7 @@ import type { CsharpNamePlan } from "../../target-model/names/model.js";
 import { tryCsharpIdentifier } from "../../target-model/names/identifiers.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 import { csharpFreeTypeParameterIdentities } from "../../target-model/types/generic-references.js";
-import { csharpObjectShapeTypeParameters } from "../constraints/owner-environment.js";
+import { csharpObjectShapeTypeParameters } from "../source-evidence/types/resolution/owner-type-parameter-environment.js";
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 import { createCsharpObjectShapeEmissionRecords } from "../program/records/object-shape-emission.js";
 import { analyzeCsharpObjectShapeNames } from "./display-names.js";

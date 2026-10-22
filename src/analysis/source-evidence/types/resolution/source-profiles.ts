@@ -16,7 +16,7 @@ import { csharpTargetTypeFromBinding } from "../../../../policy/types/storage/bi
 import { definedValues } from "./source-evidence.js";
 import { nextState } from "./state.js";
 import { csharpRuntimeParameterDefault } from "../../../../policy/types/storage/parameter-defaults.js";
-import { resolveCsharpCallableTypeParameters } from "../../../constraints/callable-type-parameters.js";
+import { resolveCsharpCallableTypeParameters } from "./callable-type-parameters.js";
 import type { SourceStorageSubject } from "@tsonic/target-api/analysis";
 import { csharpSourceStorageContext } from "./source-storage-projection.js";
 

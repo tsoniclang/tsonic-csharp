@@ -25,16 +25,16 @@ import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../ta
 import {
   analyzeCsharpProjectTypePolicy,
 } from "../project-types/catalog/resolution.js";
-import type { CsharpBindingProjectionPolicy } from "../bindings/projection-policy.js";
-import { createCsharpBindingProjectionPolicy } from "../bindings/projection-policy.js";
+import type { CsharpBindingProjectionPolicy } from "../control-flow/binding-projections.js";
+import { createCsharpBindingProjectionPolicy } from "../control-flow/binding-projections.js";
 import {
   csharpTargetTypeComponents,
 } from "../../target-model/types/components.js";
 import type {
   TargetTypeRef,
 } from "../../target-model/types/model.js";
-import { createCsharpTypeParameterEnvironment } from "../constraints/type-parameter-environment.js";
-import { resolveCsharpTypeParameterConstraints } from "../constraints/type-parameter-constraints.js";
+import { createCsharpTypeParameterEnvironment } from "../source-evidence/types/resolution/type-parameter-environment.js";
+import { resolveCsharpTypeParameterConstraints } from "../source-evidence/types/resolution/type-parameter-constraints.js";
 
 export interface CsharpTypeSystem {
   readonly typeDefinitions: import("../../target-model/types/source-union-definitions.js").CsharpTypeDefinitions;

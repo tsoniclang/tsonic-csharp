@@ -4,7 +4,7 @@ import { csharpEmptyObjectTargetType } from "../../../target-model/types/carrier
 
 import { targetTypeRefKey } from "../../../target-model/types/equality.js";
 import { type CsharpTypeParameterConstraintResolver } from "../../../target-model/types/generic-references.js";
-import { csharpObjectShapeTypeParameters, closeCsharpOwnerTypeParameterEnvironment } from "../../constraints/owner-environment.js";
+import { csharpObjectShapeTypeParameters, closeCsharpOwnerTypeParameterEnvironment } from "../../source-evidence/types/resolution/owner-type-parameter-environment.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
 
 import { selectCsharpStructuralObjectCarrier } from "../../../policy/types/objects/shape-carriers.js";

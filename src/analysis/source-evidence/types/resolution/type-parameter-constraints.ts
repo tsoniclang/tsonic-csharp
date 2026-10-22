@@ -1,10 +1,10 @@
 import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../policy/types/index.js";
-import type { CsharpTypePolicy } from "../source-evidence/types/resolution/model.js";
+import type { TargetTypeRef } from "../../../../policy/types/index.js";
+import type { CsharpTypePolicy } from "./model.js";
 
-import type { CsharpTypeParameterConstraint, CsharpTypeParameterConstraintResolution } from "../../target-model/types/generic-constraints.js";
+import type { CsharpTypeParameterConstraint, CsharpTypeParameterConstraintResolution } from "../../../../target-model/types/generic-constraints.js";
 
-import { csharpTypeParameterConstraintKey, csharpTypeParameterConstraintOrder, selectCsharpNativeTypeParameterConstraint } from "../../policy/constraints/type-parameter-constraints.js";
+import { csharpTypeParameterConstraintKey, csharpTypeParameterConstraintOrder, selectCsharpNativeTypeParameterConstraint } from "../../../../policy/constraints/type-parameter-constraints.js";
 export interface CsharpTypeParameterConstraintPolicyHost {
   readonly ast: AstReader;
   readonly types: Pick<CsharpTypePolicy, "resolveNode">;

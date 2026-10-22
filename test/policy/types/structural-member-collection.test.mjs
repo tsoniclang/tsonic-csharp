@@ -3,7 +3,7 @@ import test from "node:test";
 import { createCsharpObjectShapeMemberResolver } from "../../../dist/analysis/objects/shapes/member-evidence.js";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
-import { resolveCsharpCallableTypeParameters } from "../../../dist/analysis/constraints/callable-type-parameters.js";
+import { resolveCsharpCallableTypeParameters } from "../../../dist/analysis/source-evidence/types/resolution/callable-type-parameters.js";
 import { csharpSourceTypeParameter } from "../../../dist/source/extension/type-parameters.js";
 import { csharpOptionalStorageProjection, getCsharpGenericOptionalParts } from "../../../dist/target-model/types/projections.js";
 

@@ -8,7 +8,7 @@ import { csharpNullableReferenceTargetType, csharpNullableTargetType } from "../
 import { conversionIsImplicitlyApplicable } from "../../../dist/policy/conversions/core.js";
 import { createCompilerSessionFromFiles } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { createCsharpBindingProjectionPolicy } from "../../../dist/analysis/bindings/projection-policy.js";
+import { createCsharpBindingProjectionPolicy } from "../../../dist/analysis/control-flow/binding-projections.js";
 
 const int32 = csharpSourcePrimitiveTargetType("int32");
 const string = csharpStringTargetType();

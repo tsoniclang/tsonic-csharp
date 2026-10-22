@@ -10,7 +10,7 @@ import { selectCsharpProviderPointerResult } from "../../pointers/provider-resul
 
 import { csharpRuntimeLocationTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
 
-import { validateCsharpProviderConstraints } from "../../../constraints/provider-satisfaction.js";
+import { validateCsharpProviderConstraints } from "./constraint-satisfaction.js";
 
 import type { CsharpProviderArgumentMapping, CsharpSelectedTargetCall } from "../../../../target-model/records/members.js";
 import type { ResolvedSourceCallInfo } from "../../../../target-model/records/source-calls.js";

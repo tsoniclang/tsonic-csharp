@@ -46,7 +46,7 @@ import { analyzeCsharpFrozenDataProperties } from "../objects/frozen-data-proper
 import { analyzeCsharpCaptureMethods } from "../objects/capture-methods.js";
 import { analyzeCsharpDeclarationModifiers } from "../declarations/classes/modifiers.js";
 import { analyzeCsharpNativeDeclarationForms } from "../declarations/native-forms.js";
-import { analyzeCsharpStructuralInterfaceEmission } from "../declarations/interfaces/structural.js";
+import { analyzeCsharpStructuralInterfaceEmission } from "../declarations/structural-interfaces.js";
 import { analyzeCsharpLexicalValues } from "../callables/lexical-values.js";
 import { analyzeCsharpClassFieldInitialization } from "../project-types/class-initialization.js";
 import { analyzeCsharpCallableParameterEmission } from "../callables/parameters.js";

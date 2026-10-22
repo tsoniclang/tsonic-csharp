@@ -5,8 +5,8 @@ import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 import { createCsharpProjectTypeCatalog } from "../../../dist/analysis/project-types/catalog.js";
 import { createCsharpObjectShapePolicy } from "../../../dist/analysis/objects/shapes/api.js";
-import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/constraints/type-parameter-environment.js";
-import { resolveCsharpTypeParameterConstraints } from "../../../dist/analysis/constraints/type-parameter-constraints.js";
+import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
+import { resolveCsharpTypeParameterConstraints } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-constraints.js";
 
 function fixture() {
   const checked = createCompilerSessionFromFiles({

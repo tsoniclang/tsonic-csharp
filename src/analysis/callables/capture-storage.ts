@@ -19,7 +19,7 @@ import { csharpTargetNamedType } from "../../target-model/types/factories.js";
 import { selectCsharpGenericFrameClosures } from "./generic-closures.js";
 import { getCsharpMethodValue, csharpObjectShapeMethodDeclaration } from "../../target-model/types/method-values.js";
 import type { CsharpSourceNameResolver } from "../names/plan.js";
-import { createCsharpTypeParameterEnvironment } from "../constraints/type-parameter-environment.js";
+import { createCsharpTypeParameterEnvironment } from "../source-evidence/types/resolution/type-parameter-environment.js";
 
 import { csharpCapturedMemberAccess } from "./captured-member-access.js";
 import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";

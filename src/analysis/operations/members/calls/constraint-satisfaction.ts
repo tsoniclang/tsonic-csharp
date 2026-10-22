@@ -1,22 +1,22 @@
-import { csharpProviderBindingFromResolution } from "../../providers/model/relation-resolver.js";
+import { csharpProviderBindingFromResolution } from "../../../../providers/model/relation-resolver.js";
 import type { AstReader, SourceFile, Type } from "@tsonic/tsts";
-import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
+import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
-import type { CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
-import type { CsharpTargetBindingFact, CsharpTargetMember, CsharpTargetTypeParameter, TargetConstraint, TargetTypeRef } from "../../target-model/types/model.js";
-import { csharpTargetBindingFact } from "../../target-model/types/model.js";
-import { getCsharpNullableElementTargetType, isCsharpNullableReferenceTargetType, isCsharpValueTypeTargetType, targetTypeRefKey } from "../../target-model/types/index.js";
-import type { CsharpTypeParameterConstraint } from "../../target-model/types/generic-constraints.js";
-import { csharpTypeParameterConstraintsImply } from "../../policy/constraints/type-parameter-constraints.js";
-import { resolveCsharpTypeParameterConstraints } from "./type-parameter-constraints.js";
-import type { CsharpSelectedTargetMethodTypeArgument } from "../../target-model/records/members.js";
-import { implementedConstraintType, namedTargetTypeImplicitlyAccepts } from "../../policy/conversions/carriers.js";
-import type { CsharpTypeQueries } from "../../policy/model/type-resolution.js";
-import type { CsharpProjectTypePolicy } from "../../target-model/records/project-types.js";
-import { substituteTargetConstraint } from "../../policy/types/index.js";
-import { readCsharpSourceStruct } from "../../source/extension/markers.js";
+import type { CsharpProviderRelationResolver } from "../../../../providers/model/relation-resolver.js";
+import type { CsharpTargetBindingFact, CsharpTargetMember, CsharpTargetTypeParameter, TargetConstraint, TargetTypeRef } from "../../../../target-model/types/model.js";
+import { csharpTargetBindingFact } from "../../../../target-model/types/model.js";
+import { getCsharpNullableElementTargetType, isCsharpNullableReferenceTargetType, isCsharpValueTypeTargetType, targetTypeRefKey } from "../../../../target-model/types/index.js";
+import type { CsharpTypeParameterConstraint } from "../../../../target-model/types/generic-constraints.js";
+import { csharpTypeParameterConstraintsImply } from "../../../../policy/constraints/type-parameter-constraints.js";
+import { resolveCsharpTypeParameterConstraints } from "../../../source-evidence/types/resolution/type-parameter-constraints.js";
+import type { CsharpSelectedTargetMethodTypeArgument } from "../../../../target-model/records/members.js";
+import { implementedConstraintType, namedTargetTypeImplicitlyAccepts } from "../../../../policy/conversions/carriers.js";
+import type { CsharpTypeQueries } from "../../../../policy/model/type-resolution.js";
+import type { CsharpProjectTypePolicy } from "../../../../target-model/records/project-types.js";
+import { substituteTargetConstraint } from "../../../../policy/types/index.js";
+import { readCsharpSourceStruct } from "../../../../source/extension/markers.js";
 
-import { isCsharpNonNullableValueType } from "../../policy/constraints/native-types.js";
+import { isCsharpNonNullableValueType } from "../../../../policy/constraints/native-types.js";
 export interface CsharpConstraintSatisfactionHost {
   readonly ast: AstReader;
   readonly providers: CsharpProviderRelationResolver;

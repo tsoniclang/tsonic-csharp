@@ -22,7 +22,7 @@ import { selectCsharpStructuralInterface } from "../../../dist/analysis/objects/
 import { analyzeCsharpObjectShapes } from "../../../dist/analysis/objects/analyze.js";
 import { selectCsharpStructuralInterfaceImplementation } from "../../../dist/policy/types/objects/structural-implementation.js";
 import { planCsharpStructuralInterfaceMembers } from "../../../dist/backend/planner/declarations/interfaces/structural.js";
-import { analyzeCsharpStructuralInterfaceEmission } from "../../../dist/analysis/declarations/interfaces/structural.js";
+import { analyzeCsharpStructuralInterfaceEmission } from "../../../dist/analysis/declarations/structural-interfaces.js";
 import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { substituteObjectShapeMemberTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";

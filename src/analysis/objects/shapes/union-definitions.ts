@@ -11,7 +11,7 @@ import { targetTypeRefKey } from "../../../target-model/types/equality.js";
 import { nextState } from "../../source-evidence/types/resolution/state.js";
 import { substituteTargetTypeParameters } from "../../../policy/types/resolution/substitution.js";
 import { visitCsharpTargetTypeParameters, type CsharpTypeParameterConstraintResolver } from "../../../target-model/types/generic-references.js";
-import { closeCsharpOwnerTypeParameterEnvironment } from "../../constraints/owner-environment.js";
+import { closeCsharpOwnerTypeParameterEnvironment } from "../../source-evidence/types/resolution/owner-type-parameter-environment.js";
 
 interface Definition {
   readonly arms: readonly TargetTypeRef[];
