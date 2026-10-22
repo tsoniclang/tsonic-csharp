@@ -106,10 +106,11 @@ export function analyzeCsharpBinaryEmission(input: { readonly source: TargetSour
       }
       forms.set(node, { kind: "element-write", receiver: element.Expression, key: element.ArgumentExpression, value: right, invocation: write }); continue;
     }
-    // A discarded expression whose presence alone is observed is planned from its native discarded-presence plan and
-    // never renders the selected binary operation.
+    // A discarded expression whose presence alone is observed is planned from its native discarded-presence plan, and an
+    // expression whose evaluation never completes is planned as its operand effects up to the first operand that never
+    // completes; neither renders the selected binary operation.
     const use = input.demand.nativeUse.expression(node)?.use;
-    if (use !== undefined && use.kind !== "erased" && use.discardedPresence !== undefined) continue;
+    if (use !== undefined && use.kind !== "erased" && (use.discardedPresence !== undefined || use.completion.kind === "never")) continue;
     if (selected.target.kind === "rejected") { refuse(node, selected.target.reason); continue; }
     addNative(node, selected.target);
     forms.set(node, { kind: "native", selection: selected.target });
