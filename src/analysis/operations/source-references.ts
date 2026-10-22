@@ -13,6 +13,7 @@ import type { CsharpStorageClassifications } from "../../target-model/records/st
 import { getCsharpDelegateSignature } from "../../target-model/types/carriers/delegates.js";
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 import { createCsharpSourceReferenceRecords } from "../program/records/source-references.js";
+import { selectCsharpEmittedExpressions } from "./emitted-expressions.js";
 
 export function analyzeCsharpSourceReferences(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];
   readonly admitted: (node: Node) => boolean; readonly evidence: CsharpSourceEvidenceIndex;
@@ -24,12 +25,7 @@ export function analyzeCsharpSourceReferences(input: { readonly source: TargetSo
   const modules = new Map<Node, SourceProjectReference>();
   const references = new Map<Node, { readonly value: SourceProjectReference | undefined; readonly declaration: SourceDeclarationReference | undefined }>();
   const issues: TargetDiagnostic[] = [];
-  const required = new Set<Node>();
-  for (const node of input.nodes) if (input.admitted(node)) {
-    required.add(node);
-    const callee = input.operations.selectedCall.get(node)?.source?.sourceCallee.expression;
-    if (callee !== undefined) required.add(callee);
-  }
+  const required = selectCsharpEmittedExpressions({ ...input, ast });
   const moduleStatic = (node: Node): boolean => (ast.is.IsFunctionDeclaration(node) || ast.is.IsExportAssignment(node) ||
     ast.is.IsVariableDeclaration(node) || ast.is.IsBindingElement(node)) && sourceDeclarationIsModuleScoped(node, ast);
   for (const node of input.nodes) {

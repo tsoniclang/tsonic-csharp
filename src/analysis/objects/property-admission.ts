@@ -9,12 +9,14 @@ import type { CsharpTargetNamedTypeRef } from "../../target-model/types/model.js
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 import { createCsharpPropertyAdmissionRecords } from "../program/records/property-admission.js";
+import { selectCsharpEmittedExpressions } from "../operations/emitted-expressions.js";
 
 export function analyzeCsharpPropertyAdmission(input: { readonly ast: AstReader; readonly nodes: readonly Node[];
   readonly operations: CsharpTargetOperationClassifications; readonly admitted: (node: Node) => boolean;
   readonly projectDeclaration: (node: Node) => boolean;
   readonly receivers: import("../../target-model/records/member-receivers.js").CsharpMemberReceiverRecords;
-  readonly modules: import("../../target-model/records/source-references.js").CsharpSourceReferenceRecords["sourceModuleReference"] }) {
+  readonly modules: import("../../target-model/records/source-references.js").CsharpSourceReferenceRecords["sourceModuleReference"];
+  readonly evidence: Pick<import("../../target-model/records/source-evidence.js").CsharpSourceEvidenceIndex, "sourceDefaultValue"> }) {
   const properties = new Map<Node, CsharpAdmittedPropertyClassification>();
   const members = new Map<Node, CsharpSourceMemberEmission>();
   const unions = new Map<Node, CsharpUnionPropertyProjection>();
@@ -86,20 +88,7 @@ export function analyzeCsharpPropertyAdmission(input: { readonly ast: AstReader;
     } else members.set(node, { kind: "member", methodValue, flow,
       static: input.receivers.memberReceiver.get(selection.source.receiver.expression, selection.source.receiver.valueDeclaration)?.kind === "type" });
   };
-  // A call selected through a provider or source-profile target renders its receiver and target member directly; its
-  // property-access callee is never planned as a property, so it is not admitted as one. Callees of source-owned calls
-  // are planned as source members and stay required.
-  const required = new Set<Node>();
-  const targetCallees = new Set<Node>();
-  for (const node of input.nodes) if (input.admitted(node)) {
-    required.add(node);
-    const call = input.operations.selectedCall.get(node);
-    const callee = call?.source?.sourceCallee.expression;
-    if (callee === undefined) continue;
-    if (call?.target?.kind === "source-owned") required.add(callee);
-    else targetCallees.add(callee);
-  }
-  for (const node of targetCallees) required.delete(node);
+  const required = selectCsharpEmittedExpressions(input);
   for (const node of required) {
     const element = input.operations.selectedElement.get(node);
     if (element?.target?.kind === "source-owned" && element.sourceOwned !== undefined) admitMember(node, element.target, element.sourceOwned);

@@ -318,7 +318,7 @@ export function finalizeCsharpNativeEmission(
   if (memberReceivers.issues.length !== 0) return rejectedTargetStage(memberReceivers.issues);
   const propertyAdmission = analyzeCsharpPropertyAdmission({ ast: source.ast, nodes: sourceStorage.nodes,
     operations: admittedOperations, admitted: admittedControlNode, projectDeclaration: node => source.navigation.isProjectDeclaration(node), receivers: memberReceivers.records,
-    modules: sourceReferences.records.sourceModuleReference });
+    modules: sourceReferences.records.sourceModuleReference, evidence: analysis.sourceEvidence });
   if (propertyAdmission.issues.length !== 0) return rejectedTargetStage(propertyAdmission.issues);
   // Native member names are selected only where the planner renders one: an admitted source member read and the
   // callee of an admitted native method call.

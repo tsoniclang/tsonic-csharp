@@ -92,7 +92,10 @@ export function analyzeCsharpSafetyEmission(input: {
     if (input.admitted(node) && (operation?.kind === "load" || operation?.kind === "store" || operation?.kind === "offset") && !explicit.has(node))
       issues.push({ code: "CSHARP_NATIVE_POINTER_UNSAFE_CONTEXT_REQUIRED", category: "error", source: "tsonic-csharp", sourceNode: node,
         message: `C# native-pointer '${operation.kind}' requires an explicit unsafecontext()/unsafe() source region.` });
-    if (input.admitted(node) && operation !== undefined && operation.kind !== "not-native-pointer" && operation.kind !== "rejected" && operation.kind !== "layout-query") {
+    // Layout queries fold to constants and raw pointer identity (RawPointer.Same/Hash) is a managed call; neither emits
+    // pointer syntax, so neither needs a C# unsafe context.
+    if (input.admitted(node) && operation !== undefined && operation.kind !== "not-native-pointer" && operation.kind !== "rejected" &&
+      operation.kind !== "layout-query" && operation.kind !== "raw-identity") {
       context = true;
       if (operation.kind === "load" || operation.kind === "store") permission = true;
     }

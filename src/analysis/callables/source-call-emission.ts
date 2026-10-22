@@ -13,6 +13,7 @@ import { csharpConversionIsApplicable } from "../../policy/conversions/applicabi
 import { getCsharpNullableElementTargetType } from "../../target-model/types/index.js";
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 import { createCsharpSourceCallEmissionRecords } from "../program/records/source-call-emission.js";
+import { csharpCallIsPlannedAsSourceCall } from "../operations/emitted-expressions.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 
 export function analyzeCsharpSourceCallEmission(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];
@@ -75,7 +76,7 @@ export function analyzeCsharpSourceCallEmission(input: { readonly source: Target
       }
     }
     if (construction?.target?.kind === "source-owned") admitArguments(node, construction.target.source, construction);
-    if (classification?.target?.kind !== "source-owned") continue;
+    if (classification?.target?.kind !== "source-owned" || !csharpCallIsPlannedAsSourceCall(node, input)) continue;
     const source = classification.target.source;
     if (classification.unionCall.kind === "rejected") { refuse(node, classification.unionCall.reason); continue; }
     admitArguments(node, source, classification);
