@@ -59,7 +59,7 @@ function owners(sourceText, surface = "native") {
     ...expected.constructions.propertyKeyRequests,
     ...expected.nativeUseSites.requests.flatMap(request =>
       request.expression === undefined ? [] : [{ expression: request.expression, target: request.targetType }]),
-  ]);
+  ], nodes);
   input.propertyKeyBindings = expected.constructions.propertyKeys;
   input.exactLiteral = exact.exactLiteral;
   input.expected = admitCsharpExpectedNativeUses(expected, { ast, exactLiteral: exact.exactLiteral, callableCreation: input.callableCreation,

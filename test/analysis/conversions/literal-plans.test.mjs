@@ -62,7 +62,7 @@ test("native property-key literals retain exact tokens and the identical source 
   const value = checkedPropertyKeys();
   const requests = value.names.map((expression, index) => ({ expression,
     target: index < 2 ? csharpStringTargetType() : primitive(index === 4 ? "decimal" : "int64"), propertyKey: value.selections[index] }));
-  const index = analyzeCsharpExactLiteralSelections(analyzeSourceLiteralValues(value.source.ast, value.source.navigation.sourceFiles), requests);
+  const index = analyzeCsharpExactLiteralSelections(analyzeSourceLiteralValues(value.source.ast, value.source.navigation.sourceFiles), requests, value.nodes);
   const selected = requests.map(request => index.exactLiteral.get(request.expression, request.target, "property-key"));
   assert.equal(selected.every(selection => selection?.kind === "resolved"), true, "all requested physical constants are admitted");
   assert.equal(selected[0].recipe.kind === "string" && selected[0].recipe.value === "plain", true, "ordinary property syntax is checked once");
@@ -88,7 +88,7 @@ test("an exact property-key requirement cannot borrow the same node's value lite
   const expression = value.names[2];
   const target = primitive("int64");
   const literalValues = analyzeSourceLiteralValues(value.source.ast, value.source.navigation.sourceFiles);
-  const onlyValue = analyzeCsharpExactLiteralSelections(literalValues, [{ expression, target }]);
+  const onlyValue = analyzeCsharpExactLiteralSelections(literalValues, [{ expression, target }], value.nodes);
   assert.equal(onlyValue.exactLiteral.get(expression, target)?.kind, "resolved", "the sibling value-purpose record really exists");
   assert.equal(onlyValue.exactLiteral.get(expression, target, "property-key") === undefined, true,
     "the property-key purpose never falls back to value evidence");
@@ -203,7 +203,7 @@ test("checked wide key recipes render and execute in an actual native Dictionary
   const value = checkedPropertyKeys();
   const target = primitive("int64");
   const index = analyzeCsharpExactLiteralSelections(analyzeSourceLiteralValues(value.source.ast, value.source.navigation.sourceFiles),
-    [2, 3].map(position => ({ expression: value.names[position], target, propertyKey: value.selections[position] })));
+    [2, 3].map(position => ({ expression: value.names[position], target, propertyKey: value.selections[position] })), value.nodes);
   const expressions = [2, 3].map(position => {
     const admitted = index.exactLiteral.get(value.names[position], target, "property-key");
     assert.equal(admitted?.kind === "resolved" && admitted.recipe.kind === "integer" && admitted.recipe.width === "int64" &&
@@ -306,6 +306,7 @@ test("exact literal selections exist only at requested keys and equal the native
   const wide = Object.freeze({});
   const text = Object.freeze({});
   const other = Object.freeze({});
+  const another = Object.freeze({});
   const wideValue = Object.freeze({ form: "bigint", integer: 3n });
   const textValue = Object.freeze({ form: "string", text: "x" });
   const index = analyzeCsharpExactLiteralSelections(literals([[wide, wideValue], [text, textValue]]), [
@@ -314,7 +315,7 @@ test("exact literal selections exist only at requested keys and equal the native
     Object.freeze({ expression: wide, target: csharpNullableTargetType(primitive("uint128")) }),
     Object.freeze({ expression: text, target: csharpStringTargetType() }),
     Object.freeze({ expression: other, target: primitive("int64") }),
-  ]);
+  ], [wide, text, other, another]);
   const exactLiteral = index.exactLiteral;
   assert.deepEqual(exactLiteral.get(wide, undefined), { kind: "not-applicable" }, "the explicit intrinsic request");
   for (const target of [primitive("int64"), csharpNullableTargetType(primitive("uint128"))]) {
@@ -328,7 +329,8 @@ test("exact literal selections exist only at requested keys and equal the native
   assert.equal(exactLiteral.get(wide, primitive("int32")), undefined, "an unrequested target stays unknown");
   const notLiteral = exactLiteral.get(other, primitive("int64"));
   assert.deepEqual(notLiteral, { kind: "not-applicable" }, "a node without a literal datum is never a literal conversion");
-  assert.equal(Object.isFrozen(notLiteral) && exactLiteral.get(Object.freeze({}), undefined) === notLiteral, true);
+  // The analysed node domain (the third argument) is where the shared non-literal datum applies.
+  assert.equal(Object.isFrozen(notLiteral) && exactLiteral.get(another, undefined) === notLiteral, true);
 });
 
 test("exact literal selections are materialized once per canonical key and published read-only", () => {
@@ -337,7 +339,7 @@ test("exact literal selections are materialized once per canonical key and publi
   const first = csharpNullableTargetType(primitive("int64"));
   const second = csharpNullableTargetType(primitive("int64"));
   const requests = [Object.freeze({ expression: node, target: first }), Object.freeze({ expression: node, target: second })];
-  const index = analyzeCsharpExactLiteralSelections(literals([[node, value]]), requests);
+  const index = analyzeCsharpExactLiteralSelections(literals([[node, value]]), requests, [node]);
   const selected = index.exactLiteral.get(node, first);
   assert.equal(selected.kind, "resolved");
   assert.equal(first !== second && index.exactLiteral.get(node, second) === selected, true, "one selection per canonical key");
@@ -355,14 +357,14 @@ test("exact native token plans are frozen once without treating a refused candid
   const index = analyzeCsharpExactLiteralSelections(literals([[node, value]]), [
     { expression: node, target: primitive("float32") }, { expression: node, target: primitive("float64") },
     { expression: node, target: primitive("float32") },
-  ]);
+  ], [node]);
   assert.deepEqual(index.exactLiteral.get(node, primitive("float32")),
     { kind: "rejected", reason: "Source numeric literal is outside the 'float32' range." });
   assert.deepEqual(index.exactLiteral.get(node, primitive("float64")), { kind: "source-representation" });
   assert.equal(index.exactLiteral.get(node, primitive("float32")) === index.exactLiteral.get(node, primitive("float32")), true,
     "duplicate requests read one materialized selection");
   const [decimal] = checkedSourceLiteralValues(["9007199254740993"]);
-  const exact = analyzeCsharpExactLiteralSelections(literals([[node, decimal]]), [{ expression: node, target: primitive("decimal") }]);
+  const exact = analyzeCsharpExactLiteralSelections(literals([[node, decimal]]), [{ expression: node, target: primitive("decimal") }], [node]);
   const selected = exact.exactLiteral.get(node, primitive("decimal"));
   assert.equal(selected.kind === "resolved" && selected.recipe.token.significand === "9007199254740993", true,
     "a selected native decimal keeps its authored value above 2^53");
@@ -465,7 +467,7 @@ test("a provider argument adapter's literal input step is requested by the selec
     assert.deepEqual(requests.map(request => request.target === undefined ? "intrinsic" : targetTypeRefKey(request.target)),
       [primitive(inputName), "intrinsic", primitive(readName), fixture.counter].map(type => type === "intrinsic" ? type : targetTypeRefKey(type)),
       `${inputName}: the selected call requests the adapter input; reads and the expected type request the rest`);
-    const exactLiteral = analyzeCsharpExactLiteralSelections(fixture.host.literalValues, requests).exactLiteral;
+    const exactLiteral = analyzeCsharpExactLiteralSelections(fixture.host.literalValues, requests, [fixture.literal]).exactLiteral;
     assert.deepEqual(exactLiteral.get(fixture.literal, primitive(inputName)), record, `${inputName}: the record at the adapter input`);
     const diagnostics = [];
     const rendered = applyCsharpConversionSelection(fixture.literal, fixture.sourceFile, {
@@ -530,7 +532,7 @@ test("actual literal uses prepare their selected union inner endpoint before the
     valueReads: { valueRead: { get: node => node === expression ? { value: source, source } : undefined } },
   });
   const requests = prepared.exactLiteralRequests;
-  const exact = analyzeCsharpExactLiteralSelections(literalValues, requests);
+  const exact = analyzeCsharpExactLiteralSelections(literalValues, requests, [expression]);
   const inner = exact.exactLiteral.get(expression, primitive("float32"));
   assert.equal(inner?.kind === "resolved" && inner.recipe.kind === "float" && inner.recipe.precision === "float32" &&
     inner.recipe.token.significand === "1.25", true, "the selected inner target exists before NativeDemand consumes exact literals");
