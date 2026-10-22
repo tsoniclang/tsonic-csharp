@@ -1,5 +1,5 @@
 import type { CsharpTypeofRuntimeKind, TargetTypeRef } from "../../../target-model/types/model.js";
-import type { CsharpTypeofResult } from "../../../target-model/types/runtime-kind.js";
+import { csharpTypeofResultsEqual, getCsharpTypeofResult, type CsharpTypeofResult } from "../../../target-model/types/runtime-kind.js";
 import type { CsharpExpression, CsharpSwitchExpressionArm } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { allocateExpressionTemp, type DestructuringPlannerState } from "../bindings/binding-state.js";
@@ -14,12 +14,16 @@ interface CsharpRuntimeCategoryComparison {
 
 export function planCsharpRuntimeCategory(
   expression: CsharpExpression,
-  _carrier: TargetTypeRef,
+  carrier: TargetTypeRef,
   category: CsharpTypeofResult,
   input: CsharpPlanningContext,
   state: DestructuringPlannerState,
   comparison?: CsharpRuntimeCategoryComparison,
 ): CsharpExpression | undefined {
+  // The sealed category must agree with its operand carrier; a forged or stale fact is refused. The sealed program has
+  // no type definitions, so only native class kinds (which need them) rest on the analysis record alone.
+  const expected = getCsharpTypeofResult(carrier);
+  if (expected !== undefined && !csharpTypeofResultsEqual(expected, category)) return undefined;
   return planRuntimeCategory(expression, category, input, state, comparison);
 }
 

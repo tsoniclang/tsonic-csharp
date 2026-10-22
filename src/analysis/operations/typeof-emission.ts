@@ -8,8 +8,7 @@ import type { CsharpTypeofOperationEmission } from "../../target-model/records/t
 import { getCsharpClassFactory } from "../../target-model/types/carriers/class-factories.js";
 import { sourceOperatorFromKindName } from "../../target-model/syntax/operators.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
-import { csharpTypeofResultsEqual } from "../../target-model/types/runtime-kind.js";
-import { getCsharpTypeofResult } from "../../policy/operations/syntax/runtime-kind.js";
+import { csharpTypeofResultsEqual, getCsharpTypeofResult } from "../../target-model/types/runtime-kind.js";
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 import { createCsharpTypeofEmissionProducer } from "../program/records/typeof-emission.js";
 
