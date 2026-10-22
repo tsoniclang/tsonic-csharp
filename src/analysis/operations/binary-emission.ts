@@ -87,7 +87,8 @@ export function analyzeCsharpBinaryEmission(input: { readonly source: TargetSour
       if (selected.jsValue.kind === "resolved") { forms.set(node, { kind: "js-value", left, right, invocation: selected.jsValue }); continue; }
     }
     if (form === "js-value-write") {
-      const property = ast.as.AsPropertyAccessExpression(left);
+      // The AST reader's views do not check the node kind, so the property branch is selected by kind.
+      const property = ast.is.IsPropertyAccessExpression(left) ? ast.as.AsPropertyAccessExpression(left) : undefined;
       if (property?.Expression !== undefined) {
         const classification = input.operations.selectedProperty.get(left);
         const shape = classification?.selection.kind === "source-owned" ? classification.sourceOwned?.jsValueProperty : undefined;
