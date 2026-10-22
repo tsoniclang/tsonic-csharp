@@ -30,6 +30,8 @@ export function consumeCsharpPlannedValue(
 export function planCsharpPlannedDiscard(
   planned: CsharpPlannedValue, explicit = false,
 ): readonly CsharpStatement[] {
+  // A discarded native constant or absence value has no effect; only its prelude remains.
+  if (planned.completion.kind === "value" && (planned.constant === true || planned.absent === true)) return planned.prelude;
   return consumeCsharpPlannedValue(planned, expression => {
     const statement = planCsharpDiscardedStatement(expression, planned.completion.carrier, explicit);
     return statement === undefined ? [] : [statement];
