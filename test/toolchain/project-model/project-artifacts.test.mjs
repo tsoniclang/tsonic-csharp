@@ -4,6 +4,7 @@ import { mkdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } fro
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { planCsharpProject, planCsharpProjectFile } from "../../../dist/backend/planner/project/project-artifacts.js";
+import { createCsharpCompilationRecords } from "../../../dist/analysis/program/records/compilation.js";
 import { materializeCsharpOutputPlan } from "../../../dist/backend/emission/materialize.js";
 import { createCsharpTargetPack } from "../../../dist/descriptor/target-pack.js";
 import { printCsharpProjectFile } from "../../../dist/print/project/manifest.js";
@@ -306,7 +307,8 @@ function fakeInput(options = {}, runtimeReferences = []) {
     throw new Error(project.diagnostics.map((diagnostic) =>
       diagnostic.message).join("\n"));
   }
-  return { program: { configuration, project: project.value }, host: { paths } };
+  return { program: { records: createCsharpCompilationRecords({ project: project.value, namespace: project.value.namespace,
+    languageDialect: configuration.languageDialect }) }, host: { paths } };
 }
 
 function ensureUserProjectFile(relativePath) {

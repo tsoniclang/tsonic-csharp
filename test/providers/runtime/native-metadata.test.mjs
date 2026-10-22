@@ -14,6 +14,7 @@ import { csharpNativeInheritanceLookup, csharpNativeTargetBindingFact } from "..
 import { csharpExceptionTargetType, csharpRuntimeErrorTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { materializeCsharpOutputPlan } from "../../../dist/backend/emission/materialize.js";
 import { planCsharpProjectFile } from "../../../dist/backend/planner/project/project-artifacts.js";
+import { createCsharpCompilationRecords } from "../../../dist/analysis/program/records/compilation.js";
 import { printCsharpProjectFile } from "../../../dist/print/project/manifest.js";
 
 const repository = resolve(new URL("../../..", import.meta.url).pathname);
@@ -189,7 +190,8 @@ test("runtime wrappers and generated project files retain the pre-move native by
     `    <DirectoryBuildPropsPath>${escaped(inputs.runtime.propertiesPath)}</DirectoryBuildPropsPath>`,
     "    <TsonicRuntimeArtifactsPath>$(MSBuildThisFileDirectory)artifacts/</TsonicRuntimeArtifactsPath>",
     "  </PropertyGroup>", `  <Import Project="${escaped(inputs.runtime.projectPath)}" />`, "</Project>", ""].join("\n");
-  const planned = planCsharpProjectFile({ program: { configuration: inputs.configuration, project: inputs.project } });
+  const planned = planCsharpProjectFile({ program: { records: createCsharpCompilationRecords({ project: inputs.project,
+    namespace: inputs.project.namespace, languageDialect: inputs.configuration.languageDialect }) } });
   assert.equal(planned.runtimeProjects === inputs.project.runtimeProjects, true, "the backend reads the one pre-seal plan");
   const materialized = materializeCsharpOutputPlan({ project: { kind: "generated", project: planned }, sources: [] });
   assert.equal(readFileSync(wrapper.path, "utf8"), previous, "the complete wrapper bytes retain the original formatter contract");

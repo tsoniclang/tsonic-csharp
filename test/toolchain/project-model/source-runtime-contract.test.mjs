@@ -12,6 +12,7 @@ import { resolveDotnetProviderToolPaths } from "../../../dist/providers/native/a
 import { createCsharpTargetConfiguration } from "../../../dist/compilation/configuration.js";
 import { classifyCsharpProjectConfiguration } from "../../../dist/compilation/project.js";
 import { planCsharpProjectFile } from "../../../dist/backend/planner/project/project-artifacts.js";
+import { createCsharpCompilationRecords } from "../../../dist/analysis/program/records/compilation.js";
 import { materializeCsharpOutputPlan } from "../../../dist/backend/emission/materialize.js";
 
 function csharpRuntimeProjectReference(selected, source) {
@@ -19,7 +20,8 @@ function csharpRuntimeProjectReference(selected, source) {
   const configuration = createCsharpTargetConfiguration(selected.target, process.cwd(), resolve(".temp/source-runtime-contract/out"));
   const classified = classifyCsharpProjectConfiguration(configuration, contributions.references, selected.paths.cacheRoot);
   assert.equal(classified.kind, "resolved", JSON.stringify(classified));
-  const project = planCsharpProjectFile({ program: { configuration, project: classified.value }, host: { paths: selected.paths } });
+  const project = planCsharpProjectFile({ program: { records: createCsharpCompilationRecords({ project: classified.value,
+    namespace: classified.value.namespace, languageDialect: configuration.languageDialect }) }, host: { paths: selected.paths } });
   materializeCsharpOutputPlan({ sources: [], project: { kind: "generated", project } });
   return project.references.find(reference => reference.include.endsWith("/" + source.projectPath.split("/").at(-1)));
 }
