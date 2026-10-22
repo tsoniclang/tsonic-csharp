@@ -5,13 +5,13 @@ import { csharpTaskTargetType } from "../../target-model/types/carriers/delegate
 import { csharpMethodValueCoversContract } from "../../target-model/types/method-values.js";
 import {
   HasSyntacticModifier,
-  isSourceCallableBodyBoundary,
   ModifierFlagsAsync,
   Node_Type,
 } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { selectCsharpConversion } from "../../policy/conversions/index.js";
 import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
+import { csharpLiteralReturnsFit, forEachCsharpDirectReturnExpression } from "../callables/return-expressions.js";
 import { selectCsharpCommonImplicitTarget } from "../conversions/common-target.js";
 import {
   csharpAbsenceTargetType,
@@ -181,7 +181,7 @@ function classifyReturnContract(
   };
   const observed: TargetTypeRef[] = [];
   let incomplete = false;
-  collectDirectReturnExpressions(policy, declaration, (expression) => {
+  forEachCsharpDirectReturnExpression(policy.ast, declaration, (expression) => {
     const type = valueReadStages.get(expression)?.returnedValue;
     if (type === undefined) {
       incomplete = true;
@@ -205,6 +205,14 @@ function classifyReturnContract(
   const contextualReturn = getCsharpDelegateSignature(evidence.contextualTargetType.get(declaration))?.returnType;
   if (contract.kind === "resolved" && isCsharpJsValueTargetType(contract.type) && contextualReturn !== undefined &&
     csharpConversionIsApplicable(selectCsharpConversion(policy, contract.type, contextualReturn, "implicit"), "implicit")) {
+    return { kind: "resolved", type: contextualReturn };
+  }
+  // An inferred synchronous return whose every returned expression is a literal exactly representable in the contextual
+  // return carrier takes that carrier: `() => 9n` under `() => int64` returns the long literal 9, not a BigInteger.
+  if (contract.kind === "resolved" && !asynchronous && contextualReturn !== undefined &&
+    !targetTypeRefEquals(contract.type, contextualReturn) &&
+    !csharpConversionIsApplicable(selectCsharpConversion(policy, contract.type, contextualReturn, "implicit"), "implicit") &&
+    csharpLiteralReturnsFit(policy.ast, policy.literalValues, declaration, contextualReturn)) {
     return { kind: "resolved", type: contextualReturn };
   }
   return contract.kind !== "resolved" || pointer === undefined ? contract
@@ -325,40 +333,6 @@ function collectTargetContractAlternatives(
     return;
   }
   alternatives.set(targetTypeRefKey(type), type);
-}
-
-function collectDirectReturnExpressions(
-  policy: CsharpPolicyContext,
-  declaration: Node,
-  consume: (expression: Node) => void,
-): void {
-  const body = policy.ast.body(declaration);
-  if (body === undefined) {
-    return;
-  }
-  if (policy.ast.is.IsArrowFunction(declaration) && !policy.ast.is.IsBlock(body)) {
-    consume(body);
-    return;
-  }
-  visit(body);
-
-  function visit(node: Node): void {
-    if (node !== body && isSourceCallableBodyBoundary(policy.ast, node)) {
-      return;
-    }
-    if (policy.ast.is.IsReturnStatement(node)) {
-      const expression = policy.ast.as.AsReturnStatement(node)?.Expression;
-      if (expression !== undefined) {
-        consume(expression);
-      }
-      return;
-    }
-    policy.ast.forEachChild(node, (child) => {
-      if (child !== undefined) {
-        visit(child);
-      }
-    });
-  }
 }
 
 function isCallableDeclaration(

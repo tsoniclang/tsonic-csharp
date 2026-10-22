@@ -1,4 +1,6 @@
 import type { AstReader, Node } from "@tsonic/tsts";
+import type { SourceLiteralIndex } from "@tsonic/target-api/source";
+import { csharpLiteralReturnsFit } from "./return-expressions.js";
 import type { CsharpCaptureStorage } from "../../target-model/records/capture-storage.js";
 import type { CsharpExpectedTypeClassifications } from "../../target-model/records/expected-types.js";
 
@@ -23,6 +25,7 @@ export interface CsharpCallableCreationInput {
   readonly storage: Pick<CsharpStorageClassifications, "lambdaParameterType">;
   readonly evidence: Pick<CsharpSourceEvidenceIndex, "nodeTargetType" | "compileTimeMetadata">;
   readonly conversions: Pick<CsharpConversionClassifications, "conversion">;
+  readonly literals: SourceLiteralIndex;
 }
 
 export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInput): CsharpCallableCreationIndex {
@@ -67,7 +70,9 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
             (native.paramsArray === true) === (signature.restParameterIndex === index);
         })) return false;
       const completion = input.conversions.conversion.get(contract.returnType, signature.returnType, "implicit");
-      return completion !== undefined && csharpConversionIsApplicable(completion, "implicit");
+      // A literal-only body returns through the delegate's own return context, so `() => 9n` matches Func<long>.
+      return completion !== undefined && csharpConversionIsApplicable(completion, "implicit") ||
+        csharpLiteralReturnsFit(input.ast, input.literals, node, signature.returnType);
     }
   }
   return producer.seal();
