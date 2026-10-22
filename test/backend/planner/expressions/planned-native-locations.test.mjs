@@ -9,6 +9,7 @@ import { planSelectedCsharpBinaryOperation } from "../../../../dist/backend/plan
 import { planCsharpTypedLocationOperation } from "../../../../dist/backend/planner/expressions/typed-locations.js";
 import { csharpRuntimeLocationTargetType } from "../../../../dist/target-model/types/index.js";
 import { csharpVoidTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
+import { csharpTypeEmissionRecord } from "../../../helpers/planning-records.mjs";
 
 const integer = { kind: "source-primitive", name: "int32" };
 const identifier = name => ({ kind: "IdentifierName", name });
@@ -27,12 +28,22 @@ function context() {
     program: { source: { ast },
       sourceNavigation: { expressionEffects: node => ({ suspends: node.suspends === true }) },
       records: { nativeLocation: { get: node => selections.get(node) },
+        typeEmission: csharpTypeEmissionRecord(), nativeConstant: { get: () => false }, nativeAbsence: { get: () => false },
         storageTargetType: { get: () => integer },
         selectedProperty: { get: node => properties.get(node) },
         selectedElement: { get: () => undefined },
         sourceMember: { get: node => properties.get(node)?.sourceOwned } } } };
   return { input, selections, properties, diagnostics: [] };
 }
+
+// A planned operand with the address recipe its expression planner publishes (root, member, element or parenthesized).
+function addressed(planned, address) {
+  return { ...planned, address };
+}
+const root = { kind: "root" };
+const member = (receiver, name = "Value", isStatic = false) => ({ kind: "member", receiver, name, static: isStatic });
+const element = (receiver, args) => ({ kind: "element", receiver, arguments: args });
+const plannerInvariant = message => error => error instanceof Error && error.phase === "planning" && error.message === message;
 
 function location(expression, assignment = "direct", passing = "byref-readwrite") {
   return { kind: "resolved", expression, storageType: integer, assignment, writable: true,
@@ -42,7 +53,7 @@ function location(expression, assignment = "direct", passing = "byref-readwrite"
 test("native local location capture retains the cell, not its present value, across suspension", () => {
   const { input, diagnostics } = context();
   const source = {};
-  const captured = captureCsharpPlannedLocation(source, {}, input, diagnostics, csharpPlannedValue(integer, identifier("cell")), location(source), true);
+  const captured = captureCsharpPlannedLocation(source, {}, input, diagnostics, addressed(csharpPlannedValue(integer, identifier("cell")), root), location(source), true);
   assert.deepEqual(captured.prelude, []);
   assert.deepEqual(captured.completion.expression, identifier("cell"));
   assertNoTargetDiagnostics(diagnostics);
@@ -53,7 +64,8 @@ test("a sealed native-backed cell captures its pointer handle rather than reread
   const source = {};
   const fact = { ...location(source), address: undefined, nativeCell: { kind: "local", layout: { pointeeType: integer } } };
   const expression = { kind: "SimpleMemberAccessExpression", receiver: call("handle"), name: "Value" };
-  const captured = captureCsharpPlannedLocation(source, {}, input, diagnostics, csharpPlannedValue(integer, expression), fact, true);
+  const captured = captureCsharpPlannedLocation(source, {}, input, diagnostics,
+    addressed(csharpPlannedValue(integer, expression), member({ expression: call("handle") })), fact, true);
   assert.equal(captured.prelude.length, 1);
   assert.equal(captured.prelude[0].initializer.callee.name, "handle");
   assert.equal(captured.prelude[0].refKind, undefined);
@@ -65,7 +77,8 @@ test("native indexed location snapshots only receiver and indices before later s
   const { input, diagnostics } = context();
   const source = {};
   const selected = { kind: "ElementAccessExpression", receiver: call("owner"), arguments: [call("index")] };
-  const captured = captureCsharpPlannedLocation(source, {}, input, diagnostics, csharpPlannedValue(integer, selected), location(source, "reference-receiver"), true);
+  const captured = captureCsharpPlannedLocation(source, {}, input, diagnostics,
+    addressed(csharpPlannedValue(integer, selected), element({ expression: call("owner") }, [call("index")])), location(source, "reference-receiver"), true);
   assert.deepEqual(captured.prelude.map(statement => statement.initializer.callee.name), ["owner", "index"]);
   assert.equal(captured.prelude.some(statement => statement.refKind !== undefined), false);
   assert.equal(captured.completion.expression.receiver.name, captured.prelude[0].name);
@@ -81,24 +94,29 @@ test("a native struct setter retains the exact receiver cell instead of making a
   const fact = { ...location(source, "unsupported"), address: undefined,
     receiver: { expression: receiver, storageType: integer, address: location(receiver).address } };
   const expression = { kind: "SimpleMemberAccessExpression", receiver: identifier("state"), name: "Value" };
-  const captured = captureCsharpPlannedLocation(source, {}, input, diagnostics, csharpPlannedValue(integer, expression), fact, true);
+  const planned = addressed(csharpPlannedValue(integer, expression), member({ expression: identifier("state"), address: root }));
+  const captured = captureCsharpPlannedLocation(source, {}, input, diagnostics, planned, fact, true);
   assert.deepEqual(captured.prelude, []);
   assert.deepEqual(captured.completion.expression, expression);
   assertNoTargetDiagnostics(diagnostics);
-  const missing = captureCsharpPlannedLocation(source, {}, input, diagnostics, csharpPlannedValue(integer, expression), { ...fact, receiver: undefined }, true);
-  assert.equal(missing, undefined);
-  assert.match(diagnostics[0].message, /receiver address/u);
+  // A value receiver without its sealed physical address is post-seal corruption, never a receiver copy.
+  selections.delete(receiver);
+  assert.throws(() => captureCsharpPlannedLocation(source, {}, input, diagnostics, planned, fact, true),
+    plannerInvariant("An admitted native value receiver requires its finalized physical address."));
+  assertNoTargetDiagnostics(diagnostics);
 });
 
 test("native reference receiver acquisition is once while static member locations need no receiver capture", () => {
   const { input, properties, diagnostics } = context();
   const source = {};
   const expression = { kind: "SimpleMemberAccessExpression", receiver: call("owner"), name: "Value" };
-  const captured = captureCsharpPlannedLocation(source, {}, input, diagnostics, csharpPlannedValue(integer, expression), location(source, "reference-receiver"), true);
+  const captured = captureCsharpPlannedLocation(source, {}, input, diagnostics,
+    addressed(csharpPlannedValue(integer, expression), member({ expression: call("owner") })), location(source, "reference-receiver"), true);
   assert.equal(captured.prelude.length, 1);
   assert.equal(captured.prelude[0].initializer.callee.name, "owner");
-  properties.set(source, { selection: { kind: "resolved", receiver: { kind: "none" } } });
-  const unchanged = captureCsharpPlannedLocation(source, {}, input, diagnostics, csharpPlannedValue(integer, expression), location(source), false);
+  // A static member location has no receiver operand to capture.
+  const unchanged = captureCsharpPlannedLocation(source, {}, input, diagnostics,
+    addressed(csharpPlannedValue(integer, expression), member({ expression: call("owner") }, "Value", true)), location(source), false);
   assert.deepEqual(unchanged.prelude, []);
 });
 
@@ -106,11 +124,14 @@ test("opaque native references use the existing managed-ref declaration only wit
   for (const passing of ["byref-readwrite", "byref-readonly"]) {
     const { input, diagnostics } = context();
     const source = {};
-    const captured = captureCsharpPlannedLocation(source, {}, input, diagnostics, csharpPlannedValue(integer, call("reference")), location(source, "direct", passing), false);
+    const opaque = { ...location(source, "direct", passing), opaque: true };
+    const captured = captureCsharpPlannedLocation(source, {}, input, diagnostics, csharpPlannedValue(integer, call("reference")), opaque, false);
     assert.equal(captured.prelude[0].refKind, passing === "byref-readonly" ? "ref-readonly" : "ref");
     assert.equal(captured.prelude[0].initializer.callee.name, "reference");
-    assert.equal(captureCsharpPlannedLocation(source, {}, input, diagnostics, csharpPlannedValue(integer, call("reference")), location(source), true), undefined);
-    assert.match(diagnostics[0].message, /cannot be held across/u);
+    // Binary emission refuses an opaque ref-return held across suspension before sealing; the planner treats it as corruption.
+    assert.throws(() => captureCsharpPlannedLocation(source, {}, input, diagnostics, csharpPlannedValue(integer, call("reference")), opaque, true),
+      plannerInvariant("An admitted native address requires its exact retained operands and non-suspending reference lifetime."));
+    assertNoTargetDiagnostics(diagnostics);
   }
 });
 
@@ -121,7 +142,8 @@ test("native this and base member locations preserve direct initialization and i
     const expression = { kind: "SimpleMemberAccessExpression", receiver: identifier(receiverName), name: "Value" };
     const prelude = [effect("earlier")];
     const captured = captureCsharpPlannedLocation(source, {}, input, diagnostics,
-      csharpPlannedValue(integer, expression, prelude), location(source, "reference-receiver"), true);
+      addressed(csharpPlannedValue(integer, expression, prelude), member({ expression: identifier(receiverName), receiverIdentity: true })),
+      location(source, "reference-receiver"), true);
     assert.deepEqual(captured.prelude, prelude);
     assert.deepEqual(captured.completion.expression, expression);
     assertNoTargetDiagnostics(diagnostics);
@@ -141,8 +163,8 @@ test("ordinary canonical composition snapshots values and only an exact location
 test("by-reference arguments preceding suspension capture the owner recipe without reading out storage", () => {
   const { input, diagnostics } = context();
   const source = {};
-  const first = { ...csharpPlannedValue(integer, { kind: "ElementAccessExpression", receiver: call("owner"), arguments: [call("index")] }),
-    passing: "out", nativeLocation: location(source, "reference-receiver") };
+  const first = { ...addressed(csharpPlannedValue(integer, { kind: "ElementAccessExpression", receiver: call("owner"), arguments: [call("index")] }),
+    element({ expression: call("owner") }, [call("index")])), passing: "out", nativeLocation: location(source, "reference-receiver") };
   const second = { ...csharpPlannedValue(integer, identifier("completed"), [effect("suspend")]), suspends: true };
   const planned = composeCsharpPlannedCall(source, {}, input, diagnostics, undefined,
     { operands: [first, second], arguments: values => values.map((expression, index) => ({ kind: "Argument", expression, ...(index === 0 ? { passing: "out" } : {}) })) },
@@ -159,10 +181,14 @@ test("compound assignment captures its old value before RHS effects and stores t
   const right = { suspends: true };
   selections.set(left, location(left, "reference-receiver"));
   input.program.records.storageType = { get: () => integer };
-  const locationPlan = csharpPlannedValue(integer, { kind: "ElementAccessExpression", receiver: call("owner"), arguments: [call("index")] });
+  const locationPlan = addressed(csharpPlannedValue(integer, { kind: "ElementAccessExpression", receiver: call("owner"), arguments: [call("index")] }),
+    element({ expression: call("owner") }, [call("index")]));
   const rightPlan = csharpPlannedValue(integer, identifier("completed"), [effect("suspend")]);
   const selection = { targetOperation: { kind: "operator", operator: "+=" }, left, right,
     leftInputType: integer, rightInputType: integer, resultType: integer };
+  // The native binary emission the analysis seals for a suspending compound assignment to an element cell.
+  input.program.records.nativeBinaryEmission = { get: (_node, selected) => selected === selection ? { selection, syntax: "assignment",
+    storage: left, location: selections.get(left), rightSuspends: true, narrowedCoalescing: false, nativeBoolean: false, retainOther: true } : undefined };
   const plan = subject => subject === left ? locationPlan : rightPlan;
   const planned = planSelectedCsharpBinaryOperation({}, selection, {}, input, diagnostics, plan, plan);
   assertNoTargetDiagnostics(diagnostics);
@@ -179,14 +205,16 @@ test("typed ref stores retain original managed storage before a later non-suspen
   const source = {};
   const value = {};
   selections.set(source, location(source));
-  input.types = { classifications: { resolveNode: () => csharpVoidTargetType() } };
-  input.program.records.nativeUse = Object.freeze({ expression: subject => subject === owner
+  input.program.records.nativeExpression = Object.freeze({ get: subject => subject === owner
     ? Object.freeze({ use: Object.freeze({ kind: "effect", carrier: csharpVoidTargetType() }) }) : undefined });
   const selected = { kind: "location-store", pointeeType: integer,
     locationType: csharpRuntimeLocationTargetType(integer), location: { kind: "native-ref-return", expression: source }, valueExpression: value };
+  // The typed-location emission the analysis seals for this store: the opaque writable ref-return address, no suspension.
+  input.program.records.typedLocationEmission = { get: node => node === owner
+    ? { selection: selected, storeAddress: { ...location(source), opaque: true }, suspends: false } : undefined };
   const plan = subject => subject === source ? csharpPlannedValue(integer, call("reference"))
     : csharpPlannedValue(integer, identifier("completed"), [effect("valueRegion")]);
-  const planned = planCsharpTypedLocationOperation(owner, selected, {}, input, diagnostics, plan, plan);
+  const planned = planCsharpTypedLocationOperation(owner, {}, input, diagnostics, plan);
   assertNoTargetDiagnostics(diagnostics);
   assert.equal(planned.completion.kind, "void");
   assert.equal(planned.prelude[0].refKind, "ref");
@@ -201,8 +229,8 @@ test("an explicitly absent completion carrier is rejected without choosing anoth
     expression: () => assert.fail("an absent supplied carrier cannot become another NativeUse lookup"),
   } }, source: { ast: { pos: () => 0, end: () => 1, getSourceFile: () => undefined } } },
     types: { classifications: { resolveNode: () => assert.fail("an absent carrier cannot become a source type lookup") } } };
-  const planned = planCsharpExpressionCompletion({}, {}, input, diagnostics, identifier("missing"), undefined);
-  assert.equal(planned === undefined, true, "missing required completion evidence is never defaulted");
-  assert.equal(diagnostics.length === 1 && diagnostics[0].message ===
-    "Native expression planning requires its exact finalized completion carrier.", true, "the original strict missing-carrier failure");
+  assert.throws(() => planCsharpExpressionCompletion({}, {}, input, diagnostics, identifier("missing"), undefined),
+    plannerInvariant("An admitted expression requires its finalized completion carrier."),
+    "missing required completion evidence is never defaulted");
+  assert.equal(diagnostics.length, 0, "the missing carrier is an invariant, not a source diagnostic");
 });
