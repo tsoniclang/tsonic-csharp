@@ -175,6 +175,34 @@ export function checkCsharpSource(options) {
   return checked;
 }
 
+// Analysis only, through the session's real provider acquisition and relation resolver (the analysis acquires runtime
+// metadata and native inheritance before it seals). Returns the complete analysis result and the request's source.
+export function analyzeCsharpSource(options) {
+  let analysis;
+  let source;
+  const checked = createCheckedCsharpSource({ ...options, compileTarget: request => {
+    source = request.input.source;
+    analysis = analyzeCsharpAnalysisProgram(request);
+    return analysis.kind === "rejected" ? analysis : { kind: "resolved", diagnostics: analysis.diagnostics, value: { artifacts: [] } };
+  } });
+  try {
+    const runtime = checked.targetSession.runtimeContributions();
+    checked.targetSession.compile({
+      source: createTargetSourceProgram(checked.source),
+      sourcePackages: checked.sourcePackages,
+      project: checked.project,
+      target: checked.target,
+      runtimeActivatedCapabilityIds: [],
+      runtimeReferences: [...(runtime.references ?? []), ...(options.runtimeReferences ?? [])],
+      paths: checked.paths,
+    });
+  } finally {
+    checked.targetSession.close();
+  }
+  assert.notEqual(analysis, undefined, "the session ran the C# analysis");
+  return { ...checked, source, analysis };
+}
+
 export function compileCsharpSource(options) {
   const projectRoot = options.projectRoot ?? "/project";
   let program;
