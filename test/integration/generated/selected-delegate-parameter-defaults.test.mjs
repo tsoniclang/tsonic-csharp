@@ -40,7 +40,9 @@ for (const surface of ["native", "js"]) {
     const compiled = compileCsharpSource({ surface, sourceText: source });
     assertCsharpCompilationSucceeded(compiled);
     const output = [...compiled.artifacts.values()].join("\n");
-    assert.equal(/double\? (__tsonic_param\d+)\) =>\s*\{\s*double x = \1 \?\? 5;/u.test(output), true,
+    // The default literal prints per surface (RULINGS 2026-10-22): the native int token `5`, the js float64 `5D`.
+    const defaultLiteral = surface === "js" ? "5D" : "5";
+    assert.equal(new RegExp(`double\\? (__tsonic_param\\d+)\\) =>\\s*\\{\\s*double x = \\1 \\?\\? ${defaultLiteral};`, "u").test(output), true,
       "a nullable selected delegate parameter still applies the default");
     assert.equal(/\(double (__tsonic_param\d+)\)[^\n]*\n?[^\n]*\1 \?\? 5/u.test(output), false,
       "a non-nullable selected delegate parameter is never coalesced");
