@@ -79,7 +79,8 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
     if (handler === undefined) {
       const call = operations.selectedCall.get(node);
       if (call?.form.kind === "target") {
-        if (call.target?.kind === "resolved") recordSelectedCall(node, call.target);
+        if (call.target?.kind === "resolved") recordSelectedCall(node, call.target,
+          call.optionalReceiver?.guard === true ? call.optionalReceiver.storage : undefined);
         else if (call.source !== undefined) recordSourceArguments(node, call.source, call.sourceArgumentParameterTypes, call.sourceArgumentGrouping);
       }
       const construction = operations.selectedConstruction.get(node);
@@ -154,11 +155,15 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
         effectiveIndex: binding.effectiveArgumentIndex, sourceParameterIndex: binding.sourceParameterIndex }, withheld });
   }
 
-  function recordSelectedCall(owner: Node, selection: Extract<CsharpTargetCallSelection, { readonly kind: "resolved" }>): void {
+  function recordSelectedCall(owner: Node, selection: Extract<CsharpTargetCallSelection, { readonly kind: "resolved" }>,
+    guardedReceiverStorage?: TargetTypeRef): void {
     const call = selection.call;
     if (call.receiver.kind === "target-parameter") {
       const parameter = call.targetMember.parameters[call.receiver.targetParameterIndex];
-      record(selection.source.sourceReceiver?.expression, parameter === undefined ? undefined : csharpTargetParameterValueType(parameter, "value"),
+      // A guarded optional receiver is read at its nullable storage: the call passes the presence-narrowed value, whose
+      // conversion to the parameter is the optional receiver's own sealed conversion.
+      record(selection.source.sourceReceiver?.expression, guardedReceiverStorage ??
+        (parameter === undefined ? undefined : csharpTargetParameterValueType(parameter, "value")),
         "required", at(owner, { kind: "receiver" }));
     }
     const bindings = csharpSelectedTargetArgumentBindings(call);
