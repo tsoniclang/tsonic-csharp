@@ -1,22 +1,36 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { guardCsharpFrozenDataProperties } from "../../../../dist/backend/planner/objects/frozen-data-properties.js";
+import { analyzeCsharpFrozenDataProperties } from "../../../../dist/analysis/objects/frozen-data-properties.js";
 import { objectShapeArtifactKey } from "../../../../dist/analysis/program/records/object-shape-keys.js";
 
 const integer = { kind: "PredefinedType", keyword: "int" };
-const input = { program: { records: { nativeField: { get: () => undefined } } } };
 
 function shape(members) {
   return { targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Owner" }, members };
 }
 
-function data(name, overrides = {}) {
-  return { sourceName: name, targetName: name, memberKind: "property", ...overrides };
+// A source-declared member: its declaration node carries the authored modifiers and the selected class storage.
+function data(name, { modifiers = [], storage = { kind: "property", readonly: false }, ...overrides } = {}) {
+  const declaration = { name, modifiers, storage };
+  return { sourceName: name, targetName: name, memberKind: "property", sourceDeclarations: [declaration], ...overrides };
 }
 
 function property(name, modifiers, overrides = {}) {
   return { kind: "PropertyDeclaration", name, modifiers, type: integer,
     autoGetter: true, autoSetter: true, ...overrides };
+}
+
+// The freeze decisions the analysis seals for one js-freeze source artifact.
+function sealed(selected, { nativeField = () => undefined, attributed = false } = {}) {
+  return analyzeCsharpFrozenDataProperties({
+    ast: { hasModifierKind: (declaration, kind) => declaration.modifiers.includes(kind), is: { IsMethodDeclaration: () => false } },
+    demand: { artifacts: [{ capabilities: ["js-freeze"], fact: selected, materialization: "source" }] },
+    members: { objectMember: { get: () => assert.fail("source artifacts use their class storage") } },
+    storage: { nativeField: { get: nativeField } },
+    operations: { classPropertyStorage: { get: declaration => declaration.storage } },
+    attributes: { attributeApplication: { get: () => attributed ? [{}] : [] } },
+  });
 }
 
 test("freeze guards only concrete native data storage, not abstract contracts or accessors", () => {
@@ -27,10 +41,13 @@ test("freeze guards only concrete native data storage, not abstract contracts or
   const concrete = property("value", ["public", "override"]);
   const diagnostics = [];
   const selected = shape([
-    data("abstractValue"), data("accessorValue", { accessor: { getter: true, setter: true } }),
-    data("staticValue"), data("readonlyValue", { readonly: true }), data("value"),
+    data("abstractValue", { modifiers: ["abstract"] }), data("accessorValue", { accessor: { getter: true, setter: true } }),
+    data("staticValue", { modifiers: ["static"] }), data("readonlyValue", { readonly: true, storage: { kind: "property", readonly: true } }),
+    data("value"),
   ]);
-  const context = { program: { ...input.program, names: { memberHiding: { get(subject) {
+  const analysis = sealed(selected);
+  assert.deepEqual(analysis.issues, [], "closed concrete storage");
+  const context = { program: { records: { frozenDataProperties: analysis.records.frozenDataProperties, nativeMemberHiding: { get(subject) {
     assert.equal(subject.kind, "artifact", "the concrete freeze slot has an admitted artifact identity");
     assert.equal(subject.container, objectShapeArtifactKey(selected), "the freeze slot retains its exact container");
     assert.equal(subject.role, "member", "the freeze slot reads its final member decision");
@@ -50,14 +67,9 @@ test("freeze guards only concrete native data storage, not abstract contracts or
 });
 
 test("freeze guards preserve the independent native-addressed and attributed field rejection", () => {
-  const field = { kind: "FieldDeclaration", name: "value", modifiers: ["public"], type: integer };
-  for (const [member, context] of [
-    [field, { program: { records: { nativeField: { get: () => ({}) } } } }],
-    [{ ...field, attributes: [{}] }, input],
-  ]) {
-    const diagnostics = [];
-    const result = guardCsharpFrozenDataProperties(shape([data("value")]), [member], context, diagnostics);
-    assert.equal(result.length, 0, "unsafe replacement rejected");
-    assert.deepEqual(diagnostics.map(diagnostic => diagnostic.code), ["CSHARP_FREEZE_STORAGE_NOT_CLOSED"]);
+  for (const options of [{ nativeField: () => ({}) }, { attributed: true }]) {
+    const analysis = sealed(shape([data("value", { storage: { kind: "field" } })]), options);
+    assert.deepEqual(analysis.issues.map(diagnostic => diagnostic.code), ["CSHARP_FREEZE_STORAGE_NOT_CLOSED"],
+      "unsafe replacement rejected before planning");
   }
 });

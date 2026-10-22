@@ -7,6 +7,18 @@ import { csharpNullableTargetType, csharpRuntimeUnionTargetType, csharpSourcePri
   csharpStringTargetType, csharpTargetNamedType } from "../../../../dist/target-model/types/index.js";
 import { printCsharpExpression } from "../../../../dist/print/source/printer.js";
 import { csharpPlannedValue } from "../../../../dist/backend/planner/expressions/planned-values.js";
+import { analyzeCsharpUnionEquality } from "../../../../dist/analysis/operations/union-equality.js";
+import { csharpTypeEmissionRecord } from "../../../helpers/planning-records.mjs";
+
+// The union equality the analysis seals for one binary node, and the planning context that reads it.
+function sealed(node, selection) {
+  return analyzeCsharpUnionEquality([node], { binaryOperation: { get: subject => subject === node ? { target: selection } : undefined } });
+}
+function planning(analysis) {
+  return { program: { source: { ast: { pos: () => 0 } }, records: { unionEquality: analysis.records.unionEquality,
+    typeEmission: csharpTypeEmissionRecord(), nativeConstant: { get: () => false }, nativeAbsence: { get: () => false } } },
+  scope: {}, names: { temporaryName: name => name } };
+}
 
 test("union equality rejects stale carriers, paths, operations, coverage and polarity", () => {
   const integer = csharpSourcePrimitiveTargetType("int64");
@@ -18,32 +30,25 @@ test("union equality rejects stale carriers, paths, operations, coverage and pol
   const operation = { kind: "union-equality", negated: false, arms };
   const selection = { kind: "resolved", sourceOperator: "===", targetOperation: operation,
     left: {}, right: {}, leftType: union, rightType: string, resultType: csharpSourcePrimitiveTargetType("bool") };
-  const input = { program: { records: { binaryOperation: { get: () => ({ target: selection }) } } }, scope: {},
-    types: { classifications: { resolveNode: () => selection.resultType } } };
+  const node = {};
+  const analysis = sealed(node, selection);
+  assert.deepEqual(analysis.issues, []);
+  const input = planning(analysis);
   const diagnostics = [];
   const state = () => ({ nextTempIndex: 0, usedNames: new Set() });
   const plan = node => csharpPlannedValue(node === selection.left ? union : string,
     { kind: "IdentifierName", name: "operand" });
-  const planned = planCsharpUnionEquality({}, selection, {}, input, diagnostics, plan, state());
+  const planned = planCsharpUnionEquality(node, selection, {}, input, diagnostics, plan, state());
   assertNoTargetDiagnostics(diagnostics);
   assert.equal(planned.completion.expression.kind, "SwitchExpression");
   assert.equal(planned.completion.expression.expression.elements.length, 2);
   assert.deepEqual(planned.prelude, []);
-  for (const mutation of [
-    { left: {} }, { leftType: string }, { rightType: integer }, { resultType: integer },
-    { sourceOperator: "!==" },
-    ...[undefined, null, [], [null], [{ ...arms[0], left: null }], [{ ...arms[0], operation: null }],
-      [{ ...arms[0], operation: { kind: "operator" } }],
-      [...arms, arms[0]], [{ ...arms[0], left: { ...arms[0].left, path: [] } }],
-      [{ ...arms[0], operation: { kind: "reference-identity", negated: false } }]].map(arms =>
-      ({ targetOperation: { ...operation, arms } })),
-    { targetOperation: { ...operation, negated: true } },
-  ]) {
-    diagnostics.length = 0;
-    assert.equal(planCsharpUnionEquality({}, { ...selection, ...mutation }, {}, input, diagnostics, () => {
-      assert.fail("invalid classification cannot plan operands");
-    }, state()), undefined);
-    assert.equal(diagnostics.length, 1);
+  // The analysis seals union equality from the operation classification and refuses a result carrier or polarity that
+  // disagrees with it; the planner no longer re-validates the sealed classification's carriers, paths or arms.
+  for (const mutation of [{ resultType: integer }, { sourceOperator: "!==" }, { targetOperation: { ...operation, negated: true } }]) {
+    const refused = sealed(node, { ...selection, ...mutation });
+    assert.equal(refused.issues.length, 1);
+    assert.equal(refused.records.unionEquality.get(node), undefined, "a refused equality publishes no plan");
   }
 });
 
@@ -63,11 +68,13 @@ test("nullable union equality plans canonical native presence guards with each o
       const selection = { kind: "resolved", sourceOperator: negated ? "!==" : "===",
         targetOperation: { kind: "union-equality", negated, arms }, left, right, leftType: union, rightType,
         resultType: csharpSourcePrimitiveTargetType("bool") };
-      const input = { program: { records: { binaryOperation: { get: () => ({ target: selection }) } } }, scope: {},
-        types: { classifications: { resolveNode: () => selection.resultType } } };
+      const node = {};
+      const analysis = sealed(node, selection);
+      assert.deepEqual(analysis.issues, []);
+      const input = planning(analysis);
       const seen = [];
       const diagnostics = [];
-      const planned = planCsharpUnionEquality({}, selection, {}, input, diagnostics, node => {
+      const planned = planCsharpUnionEquality(node, selection, {}, input, diagnostics, node => {
         seen.push(node);
         return csharpPlannedValue(node === left ? union : rightType, { kind: "InvocationExpression",
           callee: { kind: "IdentifierName", name: node === left ? "produceLeft" : "produceRight" }, arguments: [] });
@@ -85,14 +92,6 @@ test("nullable union equality plans canonical native presence guards with each o
       if (rightType !== union && rightType !== integer) assert.match(output, /\.Item2 is (?:string|Base) /u);
       assert.doesNotMatch(output, /\bnew\b|\bClone\b|\bDynamicInvoke\b|\(object\)|\.ToArray\(|\.ToList\(/u);
       if (negated) assert.match(output, /^!/u);
-      for (const mutation of [
-        { leftType: csharpRuntimeUnionTargetType([integer, text, base]) },
-        { targetOperation: { ...selection.targetOperation, arms: arms.slice(0, -1) } },
-      ]) {
-        assert.equal(planCsharpUnionEquality({}, { ...selection, ...mutation }, {}, input, [],
-          () => assert.fail("stale absence evidence cannot evaluate operands"),
-          { nextTempIndex: 0, usedNames: new Set() }), undefined);
-      }
     }
   }
 });
