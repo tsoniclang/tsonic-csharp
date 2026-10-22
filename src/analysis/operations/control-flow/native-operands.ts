@@ -321,7 +321,11 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
       (ast.is.IsFunctionDeclaration(reference.declaration) || ast.is.IsVariableDeclaration(reference.declaration) ||
         ast.is.IsBindingElement(reference.declaration) || ast.is.IsExportAssignment(reference.declaration))) return chosen([]);
     const selection = operations.selectedProperty.get(node)?.selection;
-    if (selection?.kind === "resolved") return chosen(selection.receiver.kind === "instance" ? receiverUses(selection.source.receiver) : []);
+    // A receiver-call property (a static target method taking the receiver as its one parameter) evaluates its receiver
+    // as that argument, exactly like an instance receiver; only static members without a receiver evaluate nothing.
+    if (selection?.kind === "resolved") return chosen(selection.receiver.kind === "instance" ||
+      selection.invocation.kind === "receiver-call" && selection.receiver.kind === "target-parameter"
+      ? receiverUses(selection.source.receiver) : []);
     if (selection?.kind === "source-owned") return chosen(receiverUses(selection.source.receiver));
     if (selection?.kind === "rejected") return refused("operation-unresolved", undefined, undefined, selection.diagnostic);
     return selection?.kind === "union-property" ? chosen(use(ast.as.AsPropertyAccessExpression(node)?.Expression, { kind: "receiver" })) : refused("operation-unresolved");
