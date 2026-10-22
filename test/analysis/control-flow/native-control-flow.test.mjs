@@ -63,12 +63,15 @@ for (const surface of ["native", "js"]) {
     csharpProgramSourceFiles(program).forEach(visit);
     assert.equal(forms.length, 2, "declaration and assignment sources are both covered");
     for (const form of forms) {
-      const original = program.records.nativeUse.expression(form.source);
+      const original = program.records.nativeExpression.get(form.source);
       assert.equal(original !== undefined, true, `${form.description}: exact final native use exists`);
-      const nativeUse = { ...program.records.nativeUse,
-        expression: node => node !== form.source ? program.records.nativeUse.expression(node)
-          : { ...original, use: { ...original.use,
-            completion: { kind: "value", type: { kind: "opaque", id: "corrupted-native-source" } } } } };
+      // The published expression record of the source, with a corrupted native completion.
+      const corrupted = { ...original, use: { ...original.use,
+        completion: { kind: "value", type: { kind: "opaque", id: "corrupted-native-source" } } } };
+      const nativeExpression = { get: node => node !== form.source ? program.records.nativeExpression.get(node) : corrupted };
+      // The pre-seal admission reads the native-use classification; rebuild it over the published use records.
+      const nativeUse = { get: site => program.records.nativeUse.get(site), order: node => program.records.nativeOrder.get(node),
+        expression: node => nativeExpression.get(node) };
       const issues = admitCsharpNativeStorageBindings(ast, [form.node], nativeUse, program.records,
         program.records.nativeRefReturn, program.records.nativeParticipation,
         program.records.compileTimeMetadata, program.records.nativeUnreachable);
@@ -78,7 +81,7 @@ for (const surface of ["native", "js"]) {
       assert.equal(issues[0].message, `${form.description} requires its admitted native source carrier before C# emission.`,
         `${form.description}: original refusal message`);
       const diagnostics = [];
-      const input = createCsharpPlanningContext({ ...program, records: { ...program.records, nativeUse } });
+      const input = createCsharpPlanningContext({ ...program, records: { ...program.records, nativeExpression } });
       assert.throws(() => getCsharpTypeForExpressionCarrier(form.source, input, diagnostics, form.subject, form.description),
         error => error.message.includes("admitted native source carrier rendering"),
         `${form.description}: bypassing admission is a separate renderer invariant`);
@@ -320,7 +323,7 @@ test("checked labeled transfers require their exact active renderer target", () 
     const message = ast.is.IsBreakStatement(transfer)
       ? "A checked labeled break lost its active native label target."
       : "A checked labeled continue lost its active native iteration target.";
-    assert.throws(() => render(transfer, ast, diagnostics, createDestructuringPlannerState()),
+    assert.throws(() => render(transfer, createCsharpPlanningContext(program), diagnostics, createDestructuringPlannerState()),
       error => error.message.includes(message), "only a deliberately missing active renderer stack reaches the invariant");
     assert.equal(diagnostics.length, 0, "invalid renderer state does not relabel a source program as unsupported");
   }
