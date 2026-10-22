@@ -48,7 +48,7 @@ test("closed declared fields admit only enumeration orders independent of source
     for (const member of current.shape.members) member.sourceDeclarations[0].kind = "signature";
     current.shape.targetType.csharpStructuralContract = true;
     const actual = fixture(names).shape;
-    actual.targetType = { kind: "target-named", id: "tsonic.shape:actual", csharpAllowsRefLikeTypeArguments: [],
+    actual.targetType = { kind: "target-named", id: "tsonic.shape:actual", csharpAllowsRefLikeTypeArguments: [], csharpGeneratedStructuralStorage: true,
       csharpRender: { kind: "named", name: "Actual" } };
     actual.implements = [current.shape.targetType];
     const index = createCsharpObjectShapePropertyOrderIndex(current.ast, () => {}, () => [actual], canonicalNativeRelation);
@@ -78,11 +78,11 @@ test("a structural view cannot lend an exact own set to absent, wider or prototy
     current.shape.targetType.csharpStructuralContract = true;
     current.shape.members[0].sourceDeclarations[0].kind = "signature";
     const exact = fixture(["value"]).shape;
-    exact.targetType = { kind: "target-named", id: "tsonic.shape:exact", csharpAllowsRefLikeTypeArguments: [],
+    exact.targetType = { kind: "target-named", id: "tsonic.shape:exact", csharpAllowsRefLikeTypeArguments: [], csharpGeneratedStructuralStorage: true,
       csharpRender: { kind: "named", name: "Exact" } };
     exact.implements = [current.shape.targetType];
     const actual = fixture(variant === "wider" || variant === "mixed" ? ["value", "extra"] : ["value"]).shape;
-    actual.targetType = { kind: "target-named", id: "tsonic.shape:actual", csharpAllowsRefLikeTypeArguments: [],
+    actual.targetType = { kind: "target-named", id: "tsonic.shape:actual", csharpAllowsRefLikeTypeArguments: [], csharpGeneratedStructuralStorage: true,
       csharpRender: { kind: "named", name: "Actual" },
       ...(variant === "prototype" ? { csharpSourceDeclarationKind: "class" } : {}) };
     actual.implements = [{ ...current.shape.targetType, id: variant === "foreign" ? "Foreign" : current.shape.targetType.id }];
@@ -127,7 +127,7 @@ test("the exact own-set domain uses native covariance and complete nested generi
       covariantTypeParameterIdentities: covariant ? [parameter.identity] : [] };
     const implementation = (id, argument, names) => {
       const shape = fixture(names).shape;
-      shape.targetType = named(`tsonic.shape:${id}`, []);
+      shape.targetType = named(`tsonic.shape:${id}`, [], { generatedStructuralStorage: true });
       shape.members[0] = { ...shape.members[0], type: argument };
       shape.implements = [read(argument)];
       return shape;
@@ -279,11 +279,11 @@ test("accessor arrangements and assignment input versus destination contracts st
   assert.equal(index.propertyOrder(readonly.shape, undefined, "assign").kind, "rejected", "readonly data is not writable target storage");
 });
 
-test("nominal, reserved and optional restrictions retain every operation's own proof", () => {
-  for (const mutation of ["nominal", "reserved", "optional", "malformed-accessor"]) {
+test("nominal and optional restrictions retain every operation's own proof", () => {
+  // Generated member names are allocated collision-free (e061b7d2), so an authored name can no longer reserve one.
+  for (const mutation of ["nominal", "optional", "malformed-accessor"]) {
     const current = fixture(["value"]);
     if (mutation === "nominal") current.shape.targetType.csharpSourceDeclarationKind = "class";
-    if (mutation === "reserved") current.shape.members[0].targetName = "__tsonicObjectConflict";
     if (mutation === "optional") current.shape.members[0].optional = true;
     if (mutation === "malformed-accessor") current.shape.members[0].accessor = { getter: true, setter: true };
     const index = createCsharpObjectShapePropertyOrderIndex(current.ast, () => {}, () => [], noNativeImplementations);
