@@ -3,6 +3,8 @@ import test from "node:test";
 import { createCsharpObjectShapeDemandEngine } from "../../../../dist/analysis/objects/native-demand-requests.js";
 import { publishCsharpNativeArtifactDemand } from "../../../../dist/analysis/program/records/native-demand.js";
 import { selectCsharpObjectShapePublication } from "../../../../dist/analysis/names/object-shapes.js";
+import { csharpJsArrayTargetType } from "../../../../dist/target-model/types/carriers/js.js";
+import { csharpStringTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
 
 import {
   csharpDelegateTargetType,
@@ -218,8 +220,9 @@ test("one exact native declaration retains every selected projection and each so
   const { demand, declaration, first, second } = genericCapabilityArtifacts();
   const firstSite = {};
   const secondSite = {};
+  // Object.keys produces the exact JS string array, validated when the projection is requested.
   const keys = demand.requireObjectShapeProjection(firstSite, first.targetType, {}, "keys",
-    { kind: "array", element: { kind: "source-primitive", name: "string" } }, "object-shape");
+    csharpJsArrayTargetType(csharpStringTargetType()), "object-shape");
   const hasOwn = demand.requireObjectShapeProjection(secondSite, second.targetType, {}, "has-own",
     { kind: "source-primitive", name: "bool" }, "object-shape");
   assert.equal(keys.kind === "accepted" && keys.projection !== undefined, true, "the actual first source projection is admitted");
