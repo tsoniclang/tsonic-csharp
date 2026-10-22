@@ -23,7 +23,31 @@ import {
   createCsharpTargetPack,
 } from "../../dist/public/index.js";
 import { createCsharpCompilationSession } from "../../dist/compilation/session.js";
-import { compileCsharpTarget } from "../../dist/backend/compile.js";
+import {
+  resolvedTargetStage,
+  runTargetCompilationStages,
+} from "../../../tsonic/packages/target-api/dist/public/artifacts.js";
+import { analyzeCsharpAnalysisProgram, sealCsharpAnalysisProgram } from "../../dist/analysis/program/index.js";
+import { planCsharpOutput } from "../../dist/backend/planner/program/planning.js";
+import { createCsharpPlanningContext } from "../../dist/backend/planner/context.js";
+import { materializeCsharpOutputPlan } from "../../dist/backend/emission/materialize.js";
+
+// The stages of compileCsharpTarget, with the observer receiving the complete analysis program (records plus the
+// analysis catalogs) so analysis tests can read the catalogs. The planner receives the sealed program exactly as
+// analyzeCsharpTargetProgram produces it.
+export function compileCsharpAnalysisTarget(request, observer) {
+  let analysis;
+  return runTargetCompilationStages({
+    analyze: () => {
+      const analyzed = analyzeCsharpAnalysisProgram(request);
+      if (analyzed.kind === "rejected") return analyzed;
+      analysis = analyzed.value;
+      return resolvedTargetStage(sealCsharpAnalysisProgram(analyzed.value), analyzed.diagnostics);
+    },
+    plan: program => planCsharpOutput(createCsharpPlanningContext(program)),
+    materialize: materializeCsharpOutputPlan,
+  }, { analyzed: () => observer?.analyzed?.(analysis), planned: value => observer?.planned?.(value) });
+}
 
 function createCheckedCsharpSource(options) {
   const projectRoot = options.projectRoot ?? "/project";
@@ -155,7 +179,7 @@ export function compileCsharpSource(options) {
   const projectRoot = options.projectRoot ?? "/project";
   let program;
   let plan;
-  const compileTarget = options.compileTarget ?? compileCsharpTarget;
+  const compileTarget = options.compileTarget ?? compileCsharpAnalysisTarget;
   const checked = createCheckedCsharpSource({ ...options, compileTarget: request => compileTarget(request, {
     analyzed(value) { program = value; },
     planned(value) { plan = value; },

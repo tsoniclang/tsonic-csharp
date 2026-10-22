@@ -1,5 +1,4 @@
 import type { analyzeCsharpNativeValueCarriers } from "../objects/value-carriers.js";
-import type { CsharpTargetProgram } from "../../target-model/program.js";
 import type { CsharpProgramRecordInput } from "./records/create.js";
 import type { CsharpRepresentationAnalysis } from "./iteration.js";
 import { analyzeCsharpConstructorEmission } from "../declarations/classes/constructors.js";
@@ -95,7 +94,7 @@ import { createSourceSwitchCoverage, targetSourceSyntaxProgram } from "@tsonic/t
 import type { TargetStageResult } from "@tsonic/target-api/artifacts";
 
 import { createCsharpSafetyApplicationFactIndex } from "../safety/application-index.js";
-import type { CsharpTargetAnalysisRequest } from "./model.js";
+import type { CsharpAnalysisProgram, CsharpTargetAnalysisRequest } from "./model.js";
 
 import { admitCsharpNativeDeclarations, admitCsharpRawInterfaceDeclarations } from "../declarations/index.js";
 import { analyzeCsharpNativeMemberNames } from "../names/index.js";
@@ -128,7 +127,7 @@ export function finalizeCsharpNativeEmission(
   promiseResults: ReturnType<typeof analyzeCsharpPromiseResults>,
   nativeValueCarriers: ReturnType<typeof analyzeCsharpNativeValueCarriers>,
   prerequisiteBinaryExecutionDriver: ReturnType<typeof composeCsharpBinaryExecutionDriver>,
-): TargetStageResult<CsharpTargetProgram> {
+): TargetStageResult<CsharpAnalysisProgram> {
   const { input, configuration, providers } = request;
   const source = input.source;
   const sourceFiles = analysis.policy.sourceFiles;
@@ -499,6 +498,14 @@ export function finalizeCsharpNativeEmission(
   return resolvedTargetStage(Object.freeze({
     records,
     host: Object.freeze({ paths: Object.freeze({ ...input.paths }), entryPoint: input.project.entryPoint }),
-    source: Object.freeze({ ast: source.ast }),
+    source,
+    sourceFiles,
+    sourceNavigation: source.navigation,
+    typeDefinitions,
+    projectTypes,
+    objectShapes: callableAdapters.objectShapes,
+    names,
+    classFactories: classFactories.factories,
+    captureFrames: captureStorage.frames,
   }));
 }

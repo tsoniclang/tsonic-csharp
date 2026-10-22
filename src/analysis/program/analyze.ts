@@ -10,13 +10,13 @@ import { analyzeCsharpProjectCallableAdapters } from "../project-types/callable-
 import { analyzeSourceLiteralValues } from "@tsonic/target-api/source";
 
 import { createTsonicPointerReturnQueries, createTsonicMemoryBindingIndex } from "@tsonic/source-core/facts";
-import { rejectedTargetStage, failTargetAnalysisInvariant, targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
+import { rejectedTargetStage, resolvedTargetStage, failTargetAnalysisInvariant, targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
 import { resolveTargetContractFixedPoint } from "@tsonic/target-api/analysis";
 import type { TargetStageResult, TargetDiagnostic } from "@tsonic/target-api/artifacts";
 
 import { createCsharpSourceAttributeApplicationIndex } from "../attributes/application-index.js";
 import { createCsharpSafetyApplicationFactIndex } from "../safety/application-index.js";
-import type { CsharpTargetAnalysisRequest } from "./model.js";
+import type { CsharpAnalysisProgram, CsharpTargetAnalysisRequest } from "./model.js";
 import { createCsharpSourceIdentityPolicy } from "../../source/extension/identities.js";
 
 import { csharpTargetRepresentationContractId } from "../../target-model/identities/identities.js";
@@ -35,9 +35,23 @@ import { analyzeCsharpNativeValueCarriers, analyzeCsharpObjectMethodSources } fr
 
 type CsharpAnalysisRejection = Extract<TargetStageResult<never>, { readonly kind: "rejected" }>;
 
+/** Seals the analysis program into the data-only program the backend plans from. */
 export function analyzeCsharpTargetProgram(
   request: CsharpTargetAnalysisRequest,
 ): TargetStageResult<CsharpTargetProgram> {
+  const analysis = analyzeCsharpAnalysisProgram(request);
+  return analysis.kind === "rejected" ? analysis : resolvedTargetStage(sealCsharpAnalysisProgram(analysis.value), analysis.diagnostics);
+}
+
+/** The sealed target program of a complete analysis program: its records, host and syntax tree only. */
+export function sealCsharpAnalysisProgram(program: CsharpAnalysisProgram): CsharpTargetProgram {
+  return Object.freeze({ records: program.records, host: program.host, source: Object.freeze({ ast: program.source.ast }) });
+}
+
+/** The complete analysis program: the sealed records with the analysis catalogs they were built from. */
+export function analyzeCsharpAnalysisProgram(
+  request: CsharpTargetAnalysisRequest,
+): TargetStageResult<CsharpAnalysisProgram> {
   const references = request.providers.validateReferences();
   if (references.length !== 0) {
     return rejectedTargetStage(references.map(diagnostic => targetDiagnosticFromExtension(undefined, diagnostic)));
@@ -55,7 +69,7 @@ export function analyzeCsharpTargetProgram(
 
 function analyzeCsharpTargetProgramBeforeSeal(
   request: CsharpTargetAnalysisRequest,
-): TargetStageResult<CsharpTargetProgram> {
+): TargetStageResult<CsharpAnalysisProgram> {
   const { input, configuration, providers } = request;
   const source = input.source;
   const aliasIssues = analyzeCsharpSourceAliasReexports(source.ast, source.navigation.sourceFiles);
