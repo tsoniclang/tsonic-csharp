@@ -1,4 +1,4 @@
-import { runTargetCompilationStages } from "@tsonic/target-api/artifacts";
+import { rejectedTargetStage, runTargetCompilationStages, targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
 import type {
   TargetCompilationObserver,
   TargetCompileResult,
@@ -17,9 +17,16 @@ export function compileCsharpTarget(
     Extract<ReturnType<typeof planCsharpOutput>, { readonly kind: "resolved" }>["value"]
   >,
 ): TargetCompileResult {
-  return runTargetCompilationStages({
+  const result = runTargetCompilationStages({
     analyze: () => analyzeCsharpTargetProgram(request),
     plan: program => planCsharpOutput(createCsharpPlanningContext(program)),
     materialize: materializeCsharpOutputPlan,
   }, observer);
+  // References are validated before analysis (analysis/program/analyze.ts) and once more after materialization: a
+  // reference that changed while the program was analyzed, planned or materialized rejects the whole result.
+  const after = request.providers.validateReferences();
+  return after.length === 0 ? result : rejectedTargetStage([
+    ...result.diagnostics,
+    ...after.map(diagnostic => targetDiagnosticFromExtension(undefined, diagnostic)),
+  ]);
 }

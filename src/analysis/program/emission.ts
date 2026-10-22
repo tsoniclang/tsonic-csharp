@@ -90,7 +90,7 @@ import { isCsharpNeverTargetType } from "../../target-model/types/carriers/scala
 
 import { analyzeCsharpNumericRepresentations } from "../numeric/representations.js";
 
-import { rejectedTargetStage, resolvedTargetStage, failTargetAnalysisInvariant, targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
+import { rejectedTargetStage, resolvedTargetStage, failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { createSourceSwitchCoverage, targetSourceSyntaxProgram } from "@tsonic/target-api/analysis";
 import type { TargetStageResult } from "@tsonic/target-api/artifacts";
 
@@ -129,7 +129,7 @@ export function finalizeCsharpNativeEmission(
   nativeValueCarriers: ReturnType<typeof analyzeCsharpNativeValueCarriers>,
   prerequisiteBinaryExecutionDriver: ReturnType<typeof composeCsharpBinaryExecutionDriver>,
 ): TargetStageResult<CsharpAnalysisProgram> {
-  const { input, configuration, providers } = request;
+  const { input, configuration } = request;
   const source = input.source;
   const sourceFiles = analysis.policy.sourceFiles;
   const literalValues = analysis.policy.literalValues;
@@ -403,8 +403,6 @@ export function finalizeCsharpNativeEmission(
     operations: admittedOperations, values: analysis.valueReads, demand: nativeDemand, evidence: analysis.sourceEvidence,
     modules: sourceModuleConstructions.index.sourceModuleConstruction, files: sourceOutputIdentities.records, arguments: targetArguments.records });
   if (constructionEmission.issues.length !== 0) return rejectedTargetStage(constructionEmission.issues);
-  const references = providers.validateReferences();
-  if (references.length !== 0) return rejectedTargetStage(references.map(diagnostic => targetDiagnosticFromExtension(undefined, diagnostic)));
   const recordInput: Omit<CsharpProgramRecordInput, "constructors"> = {
     propertyValueProjection: propertyValueProjection.records,
     arrayLiterals: arrayLiterals.records,
