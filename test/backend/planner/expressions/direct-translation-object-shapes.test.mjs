@@ -209,12 +209,16 @@ test("object-literal method receiver requirements replan every implementation of
   assert.deepEqual(compiled.targetDiagnostics, []);
   const source = compiled.artifacts.get("src/Index.cs") ?? "";
   const shapes = compiled.artifacts.get("generated/TsonicObjectShapes.cs") ?? "";
-  assert.equal((source.match(/__tsonic_shape_method_\w+ =/gu) ?? []).length, 2);
-  assert.match(
-    shapes,
-    /public required Func<ObjectShape_[a-f0-9]{12,64}, double> __tsonic_shape_method_/u,
-  );
-  assert.match(shapes, /return __tsonic_shape_method_\w+\(this\);/u);
+  // Each object literal is its own implementation of the structural shape (checkpoint output; the Phase B run already
+  // observed no delegate-backed method fields here): every implementation plans its own authored method, and only
+  // the one whose body reads the receiver reads it through this.
+  const implementations = [...shapes.matchAll(/public class (ObjectShape_[a-f0-9]{12,64}) : (ObjectShape_[a-f0-9]{12,64})[^{]*\{([\s\S]*?)\n    \}/gu)];
+  assert.equal(implementations.length, 2);
+  assert.equal(new Set(implementations.map(match => match[2])).size, 1, "both implement the one structural interface");
+  assert.deepEqual(implementations.map(match => /public double read\(\)\s*\{\s*return (this\.value|3D);\s*\}/u.exec(match[3])?.[1]).sort(),
+    ["3D", "this.value"]);
+  assert.match(shapes, /public interface ObjectShape_[a-f0-9]{12,64}\s*\{\s*double value \{ get; set; \}\s*double read\(\);/u);
+  assert.equal((source.match(/new ObjectShape_[a-f0-9]{12,64}\s*\{/gu) ?? []).length, 2);
 });
 
 test("object-literal callable properties remain ordinary delegates and reject unproven receiver binding", () => {

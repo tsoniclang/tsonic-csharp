@@ -11,7 +11,7 @@ export function analyzeCsharpTypeParameterEmission(input: { readonly ast: AstRea
   for (const node of new Set(input.nodes)) {
     if (!input.ast.is.IsTypeParameterDeclaration(node)) continue;
     const owner = input.ast.parent(node);
-    if (owner === undefined || !input.admitted(owner)) continue;
+    if (owner === undefined || !input.admitted(owner) || typeLevelOwner(input.ast, owner)) continue;
     const declaration = input.ast.as.AsTypeParameterDeclaration(node);
     const parameter = csharpSourceTypeParameter(node, input.ast);
     const name = input.ast.name(node);
@@ -32,4 +32,17 @@ export function analyzeCsharpTypeParameterEmission(input: { readonly ast: AstRea
     producer.publish(node, { identity: parameter.identity, name, constraints: resolution.constraints });
   }
   return Object.freeze({ records: producer.seal(), issues: Object.freeze(issues) });
+}
+
+const typeLevelOwnerKinds = new Set(["KindTypeAliasDeclaration", "KindMappedType", "KindInferType", "KindFunctionType",
+  "KindConstructorType"]);
+const signatureKinds = new Set(["KindCallSignature", "KindConstructSignature", "KindMethodSignature"]);
+
+/** A type parameter declared on a type-level construct has no native C# generic declaration (C# has no generic alias,
+ * mapped or conditional types, and a type-literal signature is erased into its carrier), so it needs no native
+ * constraint. Interface members keep theirs: interfaces are emitted. */
+function typeLevelOwner(ast: AstReader, owner: Node): boolean {
+  const kind = ast.kindName(owner);
+  if (typeLevelOwnerKinds.has(kind)) return true;
+  return signatureKinds.has(kind) && ast.parent(owner) !== undefined && ast.kindName(ast.parent(owner)!) === "KindTypeLiteral";
 }

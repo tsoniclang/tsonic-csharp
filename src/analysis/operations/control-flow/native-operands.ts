@@ -212,9 +212,8 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
     if (call.unionCall.kind === "resolved") return chosen([...use(call.unionCall.receiver, { kind: "receiver" }), ...guarded(arguments_)]);
     const callee = call.sourceCall;
     if (callee === undefined || callee.kind === "rejected" || callee.kind === "union-method") return refused("operation-unresolved");
-    // A source function is called by name: the callee is a declaration reference, never an evaluated value, so it has no
-    // native use (a generic function returning a generic class has no closed C# value carrier at all). A callable value
-    // is evaluated before its arguments.
+    // A declared function is called by its declaration reference (a static method group), never evaluated as a value,
+    // so it has no runtime callee use; only a callee value is evaluated before the arguments.
     if (callee.kind === "function") return argumentsFirst([], guarded(arguments_));
     if (callee.kind === "value") return argumentsFirst(use(callee.expression, { kind: "callee" }), guarded(arguments_));
     const access = call.source.sourceCalleeAccess;
@@ -325,11 +324,9 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
       (ast.is.IsFunctionDeclaration(reference.declaration) || ast.is.IsVariableDeclaration(reference.declaration) ||
         ast.is.IsBindingElement(reference.declaration) || ast.is.IsExportAssignment(reference.declaration))) return chosen([]);
     const selection = operations.selectedProperty.get(node)?.selection;
-    // A receiver-call property (a static target method taking the receiver as its one parameter) evaluates its receiver
-    // as that argument, exactly like an instance receiver; only static members without a receiver evaluate nothing.
-    if (selection?.kind === "resolved") return chosen(selection.receiver.kind === "instance" ||
-      selection.invocation.kind === "receiver-call" && selection.receiver.kind === "target-parameter"
-      ? receiverUses(selection.source.receiver) : []);
+    // The receiver is evaluated unless the member is static (no receiver): an instance member reads through it and a
+    // target-parameter member (for example Error.stack through ErrorObject.stack(error)) passes it as its argument.
+    if (selection?.kind === "resolved") return chosen(selection.receiver.kind === "none" ? [] : receiverUses(selection.source.receiver));
     if (selection?.kind === "source-owned") return chosen(receiverUses(selection.source.receiver));
     if (selection?.kind === "rejected") return refused("operation-unresolved", undefined, undefined, selection.diagnostic);
     return selection?.kind === "union-property" ? chosen(use(ast.as.AsPropertyAccessExpression(node)?.Expression, { kind: "receiver" })) : refused("operation-unresolved");

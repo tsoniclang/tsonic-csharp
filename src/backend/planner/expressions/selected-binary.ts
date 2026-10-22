@@ -93,16 +93,14 @@ export function planSelectedCsharpBinaryOperation(node: Node, selection: CsharpR
       planExpression(operand, sourceFile, input, diagnostics, state));
     const [left, right] = operands;
     if (left === undefined || right === undefined) return undefined;
-    // Both operands are still evaluated in order, then the decided result is produced. A literal operand has no
-    // effect to keep, and a bare null literal has no C# type, so it cannot be a tuple element.
-    return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [left, right], values => {
-      const result: CsharpExpression = { kind: "LiteralExpression", value: operation.value };
-      const effects = values.filter(value => value.kind !== "LiteralExpression");
-      return effects.length === 0 ? result : {
-        kind: "SimpleMemberAccessExpression",
-        receiver: { kind: "TupleExpression", elements: [...effects, result] },
-        name: `Item${effects.length + 1}`,
-      };
+    // The comparison result is the selected constant; the operands are still evaluated for their effects. A constant
+    // or absent operand has no effect (and an untyped null cannot be a tuple element), so it is not evaluated.
+    const evaluated = [left, right].filter(operand => operand.constant !== true && operand.absent !== true);
+    const result: CsharpExpression = { kind: "LiteralExpression", value: operation.value };
+    return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, evaluated, values => values.length === 0 ? result : {
+      kind: "SimpleMemberAccessExpression",
+      receiver: { kind: "TupleExpression", elements: [...values, result] },
+      name: `Item${values.length + 1}`,
     }, selection.resultType);
   }
   if (operation.kind === "nullish-test") {

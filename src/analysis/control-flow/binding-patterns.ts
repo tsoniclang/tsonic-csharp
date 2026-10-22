@@ -141,7 +141,12 @@ export function analyzeCsharpBindingPatterns(
         } else if (variable?.Initializer !== undefined) {
           root = node;
           admitSource(name, variable.Initializer, sourceFile, "Destructuring source expression");
-          if (completesWithValue(variable.Initializer)) analyzePattern(name, variable.Initializer, sourceFile, undefined);
+          // An annotated declaration destructures the value converted to its annotated type.
+          const annotated = ast.typeNode(node);
+          if (completesWithValue(variable.Initializer)) {
+            analyzePattern(name, variable.Initializer, sourceFile,
+              annotated === undefined ? undefined : input.evidence.nodeTargetType.get(annotated));
+          }
         }
       }
     } else if (ast.is.IsParameterDeclaration(node)) {
