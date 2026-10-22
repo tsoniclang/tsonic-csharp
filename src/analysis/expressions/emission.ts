@@ -9,6 +9,7 @@ import type { CsharpSourceEvidenceIndex } from "../../target-model/records/sourc
 import type { CsharpClassFactoryIndex } from "../../target-model/records/class-factories.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import { createCsharpExpressionEmissionRecords } from "../program/records/expression-emission.js";
+import { directCsharpSourceYieldExpression } from "../../target-model/syntax/yield-expression.js";
 
 export function analyzeCsharpExpressionEmission(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];
   readonly demand: CsharpNativeDemandAnalysis; readonly conversions: CsharpConversionClassifications;
@@ -19,7 +20,9 @@ export function analyzeCsharpExpressionEmission(input: { readonly source: Target
   const issues: TargetDiagnostic[] = [];
   for (const { site, use } of demand.entries) discards.set(site, use.kind === "erased" ? { kind: "sequence", steps: Object.freeze([]) }
     : use.kind === "location" ? { kind: "sequence", steps: Object.freeze([...use.children]) } : { kind: "effect", expression: use.expression });
+  const statementYields = statementOwnedYields(source.ast, nodes);
   for (const node of new Set([...nodes, ...demand.entries.map(({ use }) => use.expression)])) {
+    if (statementYields.has(node)) continue;
     const selected = demand.nativeUse.expression(node);
     if (selected === undefined) continue;
     const use = selected.use;
@@ -89,6 +92,27 @@ export function analyzeCsharpExpressionEmission(input: { readonly source: Target
     for (const visited of path) complete.add(visited);
   }
   return Object.freeze({ records: createCsharpExpressionEmissionRecords(expressions, discards), issues: Object.freeze(issues) });
+}
+
+// The statement planners own a direct yield of an expression statement, a return statement, an identifier assignment's
+// right side or a variable initializer: they plan its operand and its resume value through the yield record, never the
+// yield as an expression. Those yields have no expression emission and are not refused as expression forms.
+function statementOwnedYields(ast: TargetSourceProgram["ast"], nodes: readonly Node[]): ReadonlySet<Node> {
+  const owned = new Set<Node>();
+  const direct = (expression: Node | undefined): void => {
+    const selected = directCsharpSourceYieldExpression(ast, expression);
+    if (selected !== undefined) owned.add(selected);
+  };
+  for (const node of nodes) {
+    if (ast.is.IsExpressionStatement(node)) {
+      const expression = ast.as.AsExpressionStatement(node)?.Expression;
+      direct(expression);
+      const binary = expression !== undefined && ast.is.IsBinaryExpression(expression) ? ast.as.AsBinaryExpression(expression) : undefined;
+      if (binary?.Left !== undefined && ast.is.IsIdentifier(binary.Left)) direct(binary.Right);
+    } else if (ast.is.IsReturnStatement(node)) direct(ast.as.AsReturnStatement(node)?.Expression);
+    else if (ast.is.IsVariableDeclaration(node)) direct(ast.as.AsVariableDeclaration(node)?.Initializer);
+  }
+  return owned;
 }
 
 const forwarded = new Set(["KindVoidExpression", "KindAsExpression", "KindTypeAssertionExpression", "KindNonNullExpression",
