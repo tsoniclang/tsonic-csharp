@@ -12,6 +12,7 @@ import { csharpRuntimeLocationTargetType } from "../../target-model/types/carrie
 import { objectShapeBoundStorageMemberName } from "../../target-model/names/object-members.js";
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 import { createCsharpTypedLocationEmissionRecords } from "../program/records/typed-location-emission.js";
+import { csharpTypedLocationLoweringRefusal } from "../operations/typed-locations.js";
 
 export function analyzeCsharpTypedLocationEmission(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];
   readonly storage: CsharpStorageClassifications; readonly operations: CsharpTargetOperationClassifications;
@@ -22,7 +23,7 @@ export function analyzeCsharpTypedLocationEmission(input: { readonly source: Tar
   const carriers: TargetTypeRef[] = [];
   const refuse = (node: Node, message: string): void => { issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message }); };
   const locationIssue = (node: Node, kind: CsharpTypedLocationOperationKind, reason: string): void =>
-    refuse(node, `C# '${kind}' lowering requires one exact finalized typed-location operation. ${reason}`);
+    refuse(node, csharpTypedLocationLoweringRefusal(kind, reason));
   const admitStorage = (subject: CsharpTypedLocationStorage): void => {
     if (storage.has(subject)) return;
     const carrier = csharpRuntimeLocationTargetType(subject.valueType);

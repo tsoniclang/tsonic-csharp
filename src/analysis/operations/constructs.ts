@@ -37,7 +37,7 @@ import { sourceOperatorFromKindName } from "../../target-model/syntax/operators.
 import { selectCsharpNativePointerOperation } from "./pointers/native-pointers.js";
 import { selectCsharpJsArrayMutation } from "./collections/js-array-mutations.js";
 import { selectCsharpJsStringConversion } from "./strings/explicit-js-string.js";
-import { selectCsharpNativeRefReturn, selectCsharpTypedLocationOperation } from "./typed-locations.js";
+import { csharpTypedLocationLoweringRefusal, selectCsharpNativeRefReturn, selectCsharpTypedLocationOperation } from "./typed-locations.js";
 import { selectCsharpRegularExpressionLiteral } from "./syntax/regexp-literal.js";
 import { selectCsharpResourceManagement } from "../control-flow/resource-management.js";
 import { selectCsharpSourceFlowCall } from "../../policy/operations/flow/source-flow.js";
@@ -169,8 +169,10 @@ export function analyzeCsharpOperationConstruct(
       message: `C# native-pointer '${nativePointer.operation}' is not mapped: ${nativePointer.reason}` }));
     producer.nativePointer.selected(node, nativePointer,
     );
-    producer.typedLocation.selected(node, selectCsharpTypedLocationOperation(policy, node, sourceFile),
-    );
+    const typedLocation = selectCsharpTypedLocationOperation(policy, node, sourceFile);
+    if (typedLocation.kind === "rejected") issues?.push(Object.freeze({ node, code: "CSHARP_UNSUPPORTED_AST",
+      message: csharpTypedLocationLoweringRefusal(typedLocation.operation, typedLocation.reason) }));
+    producer.typedLocation.selected(node, typedLocation);
   }
   if (ast.is.IsCallExpression(node)) {
     const expression = ast.as.AsCallExpression(node);
