@@ -101,12 +101,13 @@ test("invocation-only captured callbacks use their native activation without sta
   assert.equal(input.selected.lambdaCreation.get(input.lambda).staticBody, false);
 });
 
-test("missing callable creation evidence remains conservative", () => {
+// Every function value of the analysed program has a sealed allocation decision; a node outside it has none, and reading
+// one is an analysis invariant rather than a fabricated fresh allocation.
+test("missing callable creation evidence is an invariant, not a default allocation", () => {
   const input = fixture("return invoke((entry: number) => entry + 1);");
-  const unknown = input.selected.lambdaCreation.get({});
-  assert.equal(unknown.kind, "fresh");
-  assert.equal(unknown.staticBody, false);
-  assert.equal(Object.isFrozen(unknown), true);
+  assert.throws(() => input.selected.lambdaCreation.get({}), error => error instanceof Error &&
+    error.message === "Lambda creation requires its exact admitted native allocation decision.");
+  assert.equal(Object.isFrozen(input.selected.lambdaCreation.get(input.lambda)), true);
 });
 
 for (const body of ["return invoke((entry: number) => entry + 1);", "return invoke((entry: number) => entry + value);"]) {
