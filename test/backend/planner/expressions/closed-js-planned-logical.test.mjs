@@ -21,7 +21,7 @@ test("closed logical RHS statement regions execute only in their selected native
     const leftNode = {};
     const rightNode = {};
     // Both operands are closed JS values: the boxing analysis seals identity for each.
-    const boxing = analyzeCsharpJsValueBoxing({ ast: { is: {} }, values: { valueRead: { get: () => undefined } },
+    const boxing = analyzeCsharpJsValueBoxing({ ast: { is: {} }, values: { valueRead: { get: () => undefined } }, boxSites: [],
       exact: { exactLiteral: { get: () => undefined } },
       demand: { entries: [leftNode, rightNode].map(expression => ({ use: { kind: "value", expression, carrier } })) } });
     assert.deepEqual(boxing.issues, []);

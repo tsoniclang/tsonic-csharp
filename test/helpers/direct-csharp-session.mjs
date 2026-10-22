@@ -203,6 +203,21 @@ export function analyzeCsharpSource(options) {
   return { ...checked, source, analysis };
 }
 
+// Runs `use` with the complete analysis request of a real compilation session (its live providers, classified
+// project and runtime acquisition), then finishes that compilation. C# member naming reads the native System.Object
+// and System.ValueType member inventories, so analysis cannot run against an empty provider resolver.
+export function withCsharpSessionRequest(options, use) {
+  let reached = false;
+  let value;
+  const compiled = compileCsharpSource({ ...options, compileTarget(request, observer) {
+    reached = true;
+    value = use(request);
+    return compileCsharpAnalysisTarget(request, observer);
+  } });
+  assert.equal(reached, true, `the checked source reaches the C# target: ${compiled.sourceDiagnosticsText}`);
+  return { compiled, value };
+}
+
 export function compileCsharpSource(options) {
   const projectRoot = options.projectRoot ?? "/project";
   let program;

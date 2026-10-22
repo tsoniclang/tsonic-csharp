@@ -1,13 +1,12 @@
 import assert from "node:assert/strict";
-import { compileCsharpTarget } from "../../dist/backend/compile.js";
-import { assertCsharpCompilationSucceeded, compileCsharpSource } from "./direct-csharp-session.mjs";
+import { assertCsharpCompilationSucceeded, compileCsharpSource, compileCsharpAnalysisTarget } from "./direct-csharp-session.mjs";
 import { csharpProgramSourceFiles } from "./program-source-files.mjs";
 
 export function compileCsharpRequiredRecordSource(sourceText, surface) {
   let request;
   const compiled = compileCsharpSource({ sourceText, surface, compileTarget(received, observer) {
     request = received;
-    return compileCsharpTarget(received, observer);
+    return compileCsharpAnalysisTarget(received, observer);
   } });
   assertCsharpCompilationSucceeded(compiled);
   const program = compiled.result.program;
@@ -22,42 +21,34 @@ export function compileCsharpRequiredRecordSource(sourceText, surface) {
   return { compiled, request, source, program, nodes };
 }
 
+// The record families the assembly derives from analysis inputs instead of passing through a published reader. The
+// sealed records do not retain those inputs exactly, so the fixture rebuilds them from the published readers; the
+// member-hiding entries are not retained at all and are rebuilt empty.
+export const csharpDerivedRecordFamilies = Object.freeze(["compilation", "sourceName", "nameInventory", "nativeMemberHiding", "jsonObjectShape", "nativeUse", "nativeOrder"]);
+
+// Every pass-through input of createCsharpProgramRecords is a group of record readers; the published records are one
+// such group, so each pass-through input is the records themselves.
+const passThroughInputs = Object.freeze(["constructors","propertyValueProjection","arrayLiterals","literalEmission","templateStrings","dictionaryLiterals","sourceArtifacts","safetyEmission","startup","sourceFileEmission","projectEmission","typeParameterEmission","typeEmission","nativeConstants","binaryEmission","expressionEmission","lambdaEmission","typedLocationEmission","promiseResults","nativeLayouts","unionEquality","closedTypeTests","typeofEmission","jsValueBoxing","unaryEmission","thisEmission","memberNames","receiverCallProperties","restSequences","jsCalls","callAdmission","propertyAdmission","optionalCallChains","elementAdmission","sourceReferences","memberReceivers","sourceCallEmission","targetArguments","argumentPassing","targetCallEmission","constructionEmission","captureMethods","frozenDataProperties","indexedRecords","objectLiterals","objectMembers","objectMethods","bindingIdentities","sourceFiles","objectShapes","objectShapeEmission","structuralObjectEmission","sourceUnions","classEmission","methods","callableDeclarations","callableParameters","classFields","lexicalValues","structuralInterfaces","nativeDeclarations","declarationModifiers","statementExits","statementCompletions","resourceScopes","localBindings","generators","nativeValueCarriers","literalValues","bindingPatterns","sourceEvidence","flowReads","valueReads","operations","expectedTypes","declarations","storage","conversions","exactLiterals","classFactories","classInitialization","captureStorage","callableCreations","numericRepresentations","typeProjections","callableAdapters","attributeApplications","safetyApplications","sourceModuleConstructions","moduleInitialization"]);
+
 export function csharpRecordInput(records) {
   const group = Object.freeze({ ...records });
+  const inventory = records.nameInventory.get();
   return Object.freeze({
+    ...Object.fromEntries(passThroughInputs.map(name => [name, group])),
+    names: Object.freeze({ resolve: records.sourceName.get, reservedNames: inventory.reservedNames,
+      typeParameterNames: inventory.typeParameterNames, generatedMethodTypeParameters: records.generatedMethodTypeParameters }),
+    compilation: records.compilation.get(),
+    nativeMemberNames: Object.freeze({ memberHiding: Object.freeze([]) }),
     objectShapeDemand: records.objectShapeArtifact,
-    nativeValueCarriers: group,
-    literalValues: group,
     nativeParticipation: Object.freeze({ participation: records.nativeParticipation }),
-    nativeDemand: group,
-    bindingPatterns: group,
-    sourceEvidence: group,
-    flowReads: group,
-    valueReads: group,
-    operations: group,
-    expectedTypes: group,
-    declarations: group,
-    storage: group,
-    conversions: group,
-    exactLiterals: group,
-    classFactories: group,
-    classInitialization: group,
-    captureStorage: group,
-    callableCreations: group,
-    numericRepresentations: group,
-    typeProjections: group,
-    callableAdapters: group,
-    attributeApplications: group,
-    safetyApplications: group,
-    sourceModuleConstructions: group,
-    moduleInitialization: group,
+    nativeDemand: Object.freeze({ nativeUse: Object.freeze({ get: records.nativeUse.get, order: records.nativeOrder.get }) }),
   });
 }
 
 export function csharpRecordsOmitting(records, family, subject, reads) {
   const reader = records[family];
   assert.equal(typeof reader?.get === "function", true, `${family}: an assembled record family`);
-  return Object.freeze({ ...records, [family]: Object.freeze({ get(node, ...context) {
+  return Object.freeze({ ...records, [family]: Object.freeze({ ...reader, get(node, ...context) {
     reads?.push(family);
     return node === subject ? undefined : reader.get(node, ...context);
   } }) });

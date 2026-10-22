@@ -144,7 +144,7 @@ test("constraint carriers use their single exact source or native producer witho
     { allowsRefLikeTypeArguments: [true] });
   const binding = { target: "csharp", id: nativeCarrier.id, kind: "interface", csharpType: nativeCarrier,
     typeParameters: [{ ...parameter, csharpAllowsRefLike: true }] };
-  const selected = implementedConstraintType({ projectTypes: { catalog: { definitions: [] } },
+  const selected = implementedConstraintType({ projectTypes: { catalog: { definitions: [], definitionForId: () => undefined } },
     providers: { findTargetBindingByTargetId: id => id === nativeCarrier.id ? { kind: "resolved", binding } : { kind: "missing" } } },
   { kind: "implements", contract: nativeCarrier.id, typeArguments: [integer] }, new Map());
   assert.equal(selected?.kind, "target-named", "native constraints retain their real named carrier");

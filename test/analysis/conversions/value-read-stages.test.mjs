@@ -1,15 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { checkCsharpSource, assertCsharpCheckingSucceeded } from "../../helpers/direct-csharp-session.mjs";
+import { withCsharpSessionRequest } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpAnalysisProgram } from "../../../dist/analysis/program/index.js";
 import { analyzeCsharpValueReadStages } from "../../../dist/analysis/conversions/value-read-stages.js";
-import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
-import { createCsharpTargetConfiguration } from "../../../dist/compilation/configuration.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
-import { completeCsharpAnalysisRequest } from "../../helpers/analysis-request.mjs";
-
-const analyzeCompletedCsharpProgram = request => analyzeCsharpAnalysisProgram(completeCsharpAnalysisRequest(request));
 
 const same = (left, right) => left === right || (left !== undefined && right !== undefined && targetTypeRefEquals(left, right));
 const type = name => Object.freeze({ kind: "source-primitive", name });
@@ -92,24 +86,19 @@ test("value-read stages are computed once, frozen, and sealed once", () => {
 });
 
 function analyzed(sourceText, surface) {
-  const checked = checkCsharpSource({ sourceText, surface });
-  assertCsharpCheckingSucceeded(checked);
-  const program = createTargetSourceProgram(checked.source);
-  const result = analyzeCompletedCsharpProgram({
-    input: { source: program, sourcePackages: checked.sourcePackages, project: checked.project, target: checked.target,
-      runtimeActivatedCapabilityIds: [], runtimeReferences: [], paths: checked.paths },
-    configuration: createCsharpTargetConfiguration(checked.target, checked.paths.projectRoot, checked.paths.targetOutputRoot),
-    providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
-  });
-  assert.equal(result.kind === "resolved", true, result.diagnostics?.map(value => value.message).join("\n"));
-  const nodes = [];
-  const pending = [...result.value.sourceFiles];
-  while (pending.length > 0) {
-    const node = pending.pop();
-    nodes.push(node);
-    program.ast.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
-  }
-  return { program: result.value, nodes, ast: program.ast };
+  return withCsharpSessionRequest({ sourceText, surface }, request => {
+    const program = request.input.source;
+    const result = analyzeCsharpAnalysisProgram(request);
+    assert.equal(result.kind === "resolved", true, result.diagnostics?.map(value => value.message).join("\n"));
+    const nodes = [];
+    const pending = [...result.value.sourceFiles];
+    while (pending.length > 0) {
+      const node = pending.pop();
+      nodes.push(node);
+      program.ast.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
+    }
+    return { program: result.value, nodes, ast: program.ast };
+  }).value;
 }
 
 for (const surface of ["native", "js"]) {

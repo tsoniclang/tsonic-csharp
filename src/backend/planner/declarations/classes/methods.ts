@@ -58,9 +58,10 @@ export function planMethodDeclaration(
     "declaration",
     input,
   );
-  const selected = input.program.records.methodDeclaration.get(node);
-  if (selected === undefined) failCsharpPlannerInvariant("An admitted method requires its selected native declaration name.", node);
-  const name = selected.name;
+  // An authored object-literal method is an artifact member: its sealed object-method record selected its name, which
+  // its member identity carries. A class method is named by its selected native declaration.
+  const name = subject.kind === "artifact" ? subject.member : (input.program.records.methodDeclaration.get(node)
+    ?? failCsharpPlannerInvariant("An admitted method requires its selected native declaration name.", node)).name;
   if (input.program.records.nativeParticipation.get(node) === "signature") {
     return {
       kind: "MethodDeclaration", name, modifiers,

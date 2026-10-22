@@ -14,7 +14,6 @@ import { planCsharpGeneratedMethodCall } from "../../../dist/backend/planner/dec
 import { planBreakStatement, planContinueStatement, planReturnStatement } from "../../../dist/backend/planner/statements/statement-simple.js";
 import { planLocalDeclarationStatements } from "../../../dist/backend/planner/bindings/locals.js";
 import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types/render.js";
-import { getCsharpGeneratorProtocol } from "../../../dist/target-model/types/index.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 for (const surface of ["native", "js"]) {
@@ -103,7 +102,7 @@ test("generator return renders the native function's already selected return syn
   const statement = ast.children(ast.body(declaration))
     .find(node => node !== undefined && ast.is.IsReturnStatement(node));
   const context = createCsharpPlanningContext(program);
-  const protocol = getCsharpGeneratorProtocol(program.records.generatorTargetType.get(declaration));
+  const protocol = program.records.generator.get(declaration);
   assert.equal(protocol !== undefined && statement !== undefined, true,
     "the real published generator supplies the exact return statement and native protocol");
   const type = csharpTypeFromTargetTypeRef(protocol.returnType, context.scope.typeParameterNames);

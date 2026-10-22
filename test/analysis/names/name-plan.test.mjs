@@ -252,7 +252,9 @@ test("a published C# program carries the sealed plan and planning composes its o
   }
   const reserved = [...program.names.reservedNames];
   const context = createCsharpPlanningContext(program);
-  assert.equal(context.names.resolve, program.names.resolve);
+  // The planner resolves authored names through the sealed sourceName record; its own names only allocate.
+  assert.equal(program.records.sourceName.get, program.names.resolve);
+  assert.equal("resolve" in context.names, false);
   const generated = context.names.temporaryName(program.classFactories[0].environmentName);
   assert.equal(reserved.includes(generated), false);
   assert.deepEqual([...program.names.reservedNames], reserved);

@@ -1,18 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createSourceStorageQuery, defaultSourceStorageLimits } from "@tsonic/target-api/analysis";
-import { assertCsharpCheckingSucceeded, assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { assertCsharpCheckingSucceeded, assertCsharpCompilationSucceeded, compileCsharpSource, compileCsharpAnalysisTarget } from "../../helpers/direct-csharp-session.mjs";
 import { compileCsharpNativeUseSource } from "../../helpers/expected-native-uses.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { analyzeCsharpNativeParticipation } from "../../../dist/analysis/callables/participation.js";
 import { analyzeCsharpTypeOnlyDeclarations } from "../../../dist/analysis/declarations/type-only.js";
-import { compileCsharpTarget } from "../../../dist/backend/compile.js";
 
 function analyze(sourceText, surface = "native") {
   let source;
   const compiled = compileCsharpSource({ sourceText, surface, compileTarget: (request, observer) => {
     source = request.input.source;
-    return compileCsharpTarget(request, observer);
+    return compileCsharpAnalysisTarget(request, observer);
   } });
   assertCsharpCheckingSucceeded(compiled);
   const program = compiled.result.program;
