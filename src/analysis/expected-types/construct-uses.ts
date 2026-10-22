@@ -182,7 +182,11 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
       if (sequence !== undefined) recordedSequences.add(argument.sourceArgumentIndex);
       const expression = sequence?.expression ?? selection.source.sourceArguments[argument.sourceArgumentIndex]?.expression;
       const mapping = mappings?.get(argument.effectiveArgumentIndex);
-      const target = sequence?.sourceType ?? csharpProviderArgumentSourceCarrier(mapping) ??
+      // A property-projected argument (Intl options) is read at its own value: the call projects its selected properties
+      // into the TsValue parameter, so the argument itself is not boxed.
+      const projected = argument.targetParameter.csharpValueProjection === "properties" && expression !== undefined &&
+        !policy.ast.is.IsObjectLiteralExpression(expression) ? valueReadStages.get(expression)?.operationValue : undefined;
+      const target = sequence?.sourceType ?? projected ?? csharpProviderArgumentSourceCarrier(mapping) ??
         sourceArgumentExpectedType(expression, argument.targetParameter, argument.sourceForm);
       const binding = bySource.get(argument.sourceArgumentIndex)?.get(argument.effectiveArgumentIndex);
       record(expression, target, "required", { owner,
