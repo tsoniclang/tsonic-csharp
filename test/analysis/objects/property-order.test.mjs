@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { checkCsharpSource, assertCsharpCheckingSucceeded } from "../../helpers/direct-csharp-session.mjs";
-import { analyzeCsharpTargetProgram } from "../../../dist/analysis/program/index.js";
+import { analyzeCsharpAnalysisProgram } from "../../../dist/analysis/program/index.js";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { createCsharpTargetConfiguration } from "../../../dist/compilation/configuration.js";
 import { createCsharpObjectShapePropertyOrderIndex } from "../../../dist/analysis/objects/property-order.js";
@@ -12,7 +12,7 @@ import { csharpTargetNamedType } from "../../../dist/target-model/types/factorie
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { completeCsharpAnalysisRequest } from "../../helpers/analysis-request.mjs";
 
-const analyzeCompletedCsharpProgram = request => analyzeCsharpTargetProgram(completeCsharpAnalysisRequest(request));
+const analyzeCompletedCsharpProgram = request => analyzeCsharpAnalysisProgram(completeCsharpAnalysisRequest(request));
 
 const noNativeImplementations = () => { throw new Error("An empty implementation domain cannot query a native relation"); };
 const exactNativePolicy = { projectTypes: { directSupertypes: () => undefined },

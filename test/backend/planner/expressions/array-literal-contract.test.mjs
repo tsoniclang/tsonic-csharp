@@ -5,7 +5,7 @@ import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../../helpers/native-construction.mjs";
 import { freshArraySpreadCostSource } from "../../../../../tsonic/test/fixtures/fresh-array-spread.mjs";
-import { analyzeCsharpTargetProgram } from "../../../../dist/analysis/program/index.js";
+import { analyzeCsharpAnalysisProgram } from "../../../../dist/analysis/program/index.js";
 import { createCsharpProviderRelationResolver } from "../../../../dist/providers/native/projection/relation-resolution.js";
 import { createCsharpTargetConfiguration } from "../../../../dist/compilation/configuration.js";
 import { createCsharpPlanningContext, createCsharpMemberPlanningContext } from "../../../../dist/backend/planner/context.js";
@@ -16,7 +16,7 @@ import { csharpTypeFromTargetTypeRef } from "../../../../dist/backend/planner/ty
 import { printCsharpCompilationUnit } from "../../../../dist/print/source/printer.js";
 import { completeCsharpAnalysisRequest } from "../../../helpers/analysis-request.mjs";
 
-const analyzeCompletedCsharpProgram = request => analyzeCsharpTargetProgram(completeCsharpAnalysisRequest(request));
+const analyzeCompletedCsharpProgram = request => analyzeCsharpAnalysisProgram(completeCsharpAnalysisRequest(request));
 
 test("native collection construction fills only its declared native builder", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ sourceText: freshArraySpreadCostSource });

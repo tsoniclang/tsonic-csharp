@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { analyzeCsharpTargetProgram } from "../../../../dist/analysis/program/index.js";
+import { analyzeCsharpAnalysisProgram } from "../../../../dist/analysis/program/index.js";
 import { createCsharpTargetConfiguration } from "../../../../dist/compilation/configuration.js";
 import { createCsharpProviderRelationResolver } from "../../../../dist/providers/native/projection/relation-resolution.js";
 import { checkCsharpSource, assertCsharpCheckingSucceeded } from "../../../helpers/direct-csharp-session.mjs";
 import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
 import { completeCsharpAnalysisRequest } from "../../../helpers/analysis-request.mjs";
 
-const analyzeCompletedCsharpProgram = request => analyzeCsharpTargetProgram(completeCsharpAnalysisRequest(request));
+const analyzeCompletedCsharpProgram = request => analyzeCsharpAnalysisProgram(completeCsharpAnalysisRequest(request));
 
 function fixture(surface) {
   const checked = checkCsharpSource({ surface, sourceText: `
@@ -44,7 +44,8 @@ for (const surface of ["native", "js"]) {
     const { program, call, declaration } = fixture(surface);
     assert.equal(Object.isFrozen(program) && Object.isFrozen(program.records), true, "sealed program and record port");
     const families = Object.entries(program.records);
-    assert.equal(families.length, 119, "118 native record families + immutable objectShapeArtifact demand");
+    // The sealed domain is the CsharpProgramRecords interface: 233 families after the rewrite moved planner decisions into records.
+    assert.equal(families.length, 233, "every sealed C# record family and nothing else");
     for (const name of ["memoryBinding", "nativePointer", "typedLocation", "jsStringConversion",
       "expectedType", "requiredExpectedType", "storageExpectedType", "exactIntegerConversion", "arrayLiteralCarrier", "expectedBinary"]) {
       assert.equal(Object.hasOwn(program.records, name), false, `${name}: applicability is not a backend capability`);

@@ -3,7 +3,7 @@ import test from "node:test";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { contextualAsyncResultSource, ordinaryAsyncResultSource } from "../../../../../tsonic/test/fixtures/contextual-async-results.mjs";
 import { checkCsharpSource, assertCsharpCheckingSucceeded } from "../../../helpers/direct-csharp-session.mjs";
-import { analyzeCsharpTargetProgram } from "../../../../dist/analysis/program/index.js";
+import { analyzeCsharpAnalysisProgram } from "../../../../dist/analysis/program/index.js";
 import { createCsharpProviderRelationResolver } from "../../../../dist/providers/native/projection/relation-resolution.js";
 import { createCsharpTargetConfiguration } from "../../../../dist/compilation/configuration.js";
 import { createCsharpPlanningContext, createCsharpMemberPlanningContext } from "../../../../dist/backend/planner/context.js";
@@ -16,7 +16,7 @@ import { csharpSourcePrimitiveTargetType, getCsharpDelegateSignature, getCsharpT
 import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
 import { completeCsharpAnalysisRequest } from "../../../helpers/analysis-request.mjs";
 
-const analyzeCompletedCsharpProgram = request => analyzeCsharpTargetProgram(completeCsharpAnalysisRequest(request));
+const analyzeCompletedCsharpProgram = request => analyzeCsharpAnalysisProgram(completeCsharpAnalysisRequest(request));
 
 const localSource = `
   class Reply { constructor(public count: number) {} }

@@ -3,13 +3,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
-import { analyzeCsharpTargetProgram } from "../../../dist/analysis/program/index.js";
+import { analyzeCsharpAnalysisProgram } from "../../../dist/analysis/program/index.js";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { createCsharpTargetConfiguration } from "../../../dist/compilation/configuration.js";
 import { isCsharpJsValueTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { completeCsharpAnalysisRequest } from "../../helpers/analysis-request.mjs";
 
-const analyzeCompletedCsharpProgram = request => analyzeCsharpTargetProgram(completeCsharpAnalysisRequest(request));
+const analyzeCompletedCsharpProgram = request => analyzeCsharpAnalysisProgram(completeCsharpAnalysisRequest(request));
 
 test("a later guarded extraction cannot promote its broad producer storage", () => {
   const checked = checkCsharpSource({ surface: "js", sourceText: `

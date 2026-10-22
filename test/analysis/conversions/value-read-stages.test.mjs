@@ -2,14 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { checkCsharpSource, assertCsharpCheckingSucceeded } from "../../helpers/direct-csharp-session.mjs";
-import { analyzeCsharpTargetProgram } from "../../../dist/analysis/program/index.js";
+import { analyzeCsharpAnalysisProgram } from "../../../dist/analysis/program/index.js";
 import { analyzeCsharpValueReadStages } from "../../../dist/analysis/conversions/value-read-stages.js";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { createCsharpTargetConfiguration } from "../../../dist/compilation/configuration.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { completeCsharpAnalysisRequest } from "../../helpers/analysis-request.mjs";
 
-const analyzeCompletedCsharpProgram = request => analyzeCsharpTargetProgram(completeCsharpAnalysisRequest(request));
+const analyzeCompletedCsharpProgram = request => analyzeCsharpAnalysisProgram(completeCsharpAnalysisRequest(request));
 
 const same = (left, right) => left === right || (left !== undefined && right !== undefined && targetTypeRefEquals(left, right));
 const type = name => Object.freeze({ kind: "source-primitive", name });

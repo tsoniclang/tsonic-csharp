@@ -3,7 +3,7 @@ import test from "node:test";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { resolvedTargetStage, runTargetCompilationStages } from "@tsonic/target-api/artifacts";
 import { checkCsharpSource, assertCsharpCheckingSucceeded, compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
-import { analyzeCsharpTargetProgram } from "../../../dist/analysis/program/index.js";
+import { analyzeCsharpAnalysisProgram } from "../../../dist/analysis/program/index.js";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { createCsharpTargetConfiguration } from "../../../dist/compilation/configuration.js";
 import { planFlowReadUseSiteProjection } from "../../../dist/backend/planner/expressions/flow-read-projections.js";
@@ -11,7 +11,7 @@ import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.j
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { completeCsharpAnalysisRequest } from "../../helpers/analysis-request.mjs";
 
-const analyzeCompletedCsharpProgram = request => analyzeCsharpTargetProgram(completeCsharpAnalysisRequest(request));
+const analyzeCompletedCsharpProgram = request => analyzeCsharpAnalysisProgram(completeCsharpAnalysisRequest(request));
 
 function analysisRequest(sourceText, surface = "native") {
   const checked = checkCsharpSource({ sourceText, surface });

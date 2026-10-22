@@ -3,14 +3,14 @@ import test from "node:test";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { nativeExpressionSequencesSource } from "../../../../tsonic/test/fixtures/native-expression-sequences.mjs";
 import { checkCsharpSource, assertCsharpCheckingSucceeded } from "../../helpers/direct-csharp-session.mjs";
-import { analyzeCsharpTargetProgram } from "../../../dist/analysis/program/index.js";
+import { analyzeCsharpAnalysisProgram } from "../../../dist/analysis/program/index.js";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { createCsharpTargetConfiguration } from "../../../dist/compilation/configuration.js";
 import { csharpBinarySelectionsEqual } from "../../../dist/analysis/expected-types/binary-equality.js";
 import { csharpSourcePrimitiveTargetType, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 import { completeCsharpAnalysisRequest } from "../../helpers/analysis-request.mjs";
 
-const analyzeCompletedCsharpProgram = request => analyzeCsharpTargetProgram(completeCsharpAnalysisRequest(request));
+const analyzeCompletedCsharpProgram = request => analyzeCsharpAnalysisProgram(completeCsharpAnalysisRequest(request));
 
 for (const surface of [undefined, "js"]) {
   test(`shared comma source retains all exact selected operand and result contracts on ${surface ?? "native"}`, () => {

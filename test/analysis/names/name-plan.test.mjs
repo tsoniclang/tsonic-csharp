@@ -5,7 +5,7 @@ import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { assertCsharpCompilationSucceeded, checkCsharpSource, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { createCsharpSourceNameBuilder } from "../../../dist/analysis/names/plan.js";
-import { analyzeCsharpTargetProgram } from "../../../dist/analysis/program/index.js";
+import { analyzeCsharpAnalysisProgram } from "../../../dist/analysis/program/index.js";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { createCsharpTargetConfiguration } from "../../../dist/compilation/configuration.js";
 import { createCsharpPlanningContext } from "../../../dist/backend/planner/context.js";
@@ -18,7 +18,7 @@ import { analyzeCsharpProjectCallableAdapters } from "../../../dist/analysis/pro
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 import { completeCsharpAnalysisRequest } from "../../helpers/analysis-request.mjs";
 
-const analyzeCompletedCsharpProgram = request => analyzeCsharpTargetProgram(completeCsharpAnalysisRequest(request));
+const analyzeCompletedCsharpProgram = request => analyzeCsharpAnalysisProgram(completeCsharpAnalysisRequest(request));
 
 const nativeMemberNames = Object.freeze({ issues: Object.freeze([]), memberHiding: Object.freeze([]) });
 

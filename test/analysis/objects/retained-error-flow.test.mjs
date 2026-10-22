@@ -12,7 +12,7 @@ import {
   checkCsharpSource,
   compileCsharpSource,
 } from "../../helpers/direct-csharp-session.mjs";
-import { analyzeCsharpTargetProgram } from "../../../dist/analysis/program/index.js";
+import { analyzeCsharpAnalysisProgram } from "../../../dist/analysis/program/index.js";
 import { createCsharpErrorStorageDemandQuery } from "../../../dist/analysis/objects/error-storage-demands.js";
 import { createCsharpTargetConfiguration } from "../../../dist/compilation/configuration.js";
 import { collectCsharpCapabilityContributions } from "../../../dist/providers/native/acquisition/contributions.js";
@@ -20,7 +20,7 @@ import { createCsharpProviderRelationResolver } from "../../../dist/providers/na
 import { csharpExceptionTargetType, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 import { completeCsharpAnalysisRequest } from "../../helpers/analysis-request.mjs";
 
-const analyzeCompletedCsharpProgram = request => analyzeCsharpTargetProgram(completeCsharpAnalysisRequest(request));
+const analyzeCompletedCsharpProgram = request => analyzeCsharpAnalysisProgram(completeCsharpAnalysisRequest(request));
 
 test("retained-provider catch reads select exact readonly C# Error flow and observation facts", () => {
   const capability = createTsonicPlugin();
