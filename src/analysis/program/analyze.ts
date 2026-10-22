@@ -298,6 +298,9 @@ function analyzeCsharpTargetProgramBeforeSeal(
         }];
       }
     }
+    // A use left pending because its own call was refused (its expected use could not close) reports that refusal.
+    const call = use.kind === "pending-use" && use.message === undefined ? analysis.operations.selectedCall.get(use.expression) : undefined;
+    if (call?.target?.kind === "rejected") return [targetDiagnosticFromExtension(use.expression, call.target.diagnostic)];
     if (use.message === undefined && use.reason !== "argument-refused" && use.reason !== "source-argument-rejected" &&
       use.reason !== "property-key-refused") return [];
     return [{ sourceNode: use.expression, source: "tsonic-csharp", category: "error",
