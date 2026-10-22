@@ -61,7 +61,7 @@ test("direct C# translation consumes the exact shared FixedArray contract", () =
     {
         public static byte update(byte[] values, int index)
         {
-            values[index] = 9;
+            values[index] = (byte)9;
             return values[0];
         }
         public static int size(byte[] values)

@@ -33,7 +33,8 @@ export function total(values: FixedArray<int32, 2>): int32 {
     assert.match(output, new RegExp(`public static int ${name}\\(byte\\[\\] values\\)\\s*\\{\\s*return values\\.Length;\\s*\\}`, "u"));
   }
   assert.match(output, /public static byte update\(byte\[\] values, int index\)/u);
-  assert.match(output, /values\[index\] = 9;/u);
+  // An int32 constant stored to a uint8 element is adapted with a native constant cast (source-literal-extraction).
+  assert.match(output, /values\[index\] = \(byte\)9;/u);
   assert.match(output, /return values\[0\];/u);
   assert.match(output, /public static int total\(int\[\] values\)/u);
   assert.match(output, /foreach \(int value in values\)/u);
