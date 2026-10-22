@@ -9,6 +9,7 @@ import {
 } from "../../../../dist/backend/planner/expressions/planned-values.js";
 import { csharpVoidTargetType, csharpNeverTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
 import { planCsharpDiscardedOperand } from "../../../../dist/backend/planner/statements/statement-output.js";
+import { csharpTypeEmissionRecord } from "../../../helpers/planning-records.mjs";
 
 const integer = { kind: "source-primitive", name: "int32" };
 const boolean = { kind: "source-primitive", name: "boolean" };
@@ -51,14 +52,14 @@ test("native division cannot move after a later region merely because its source
 
 test("native literals need no unnecessary capture but preserve all preceding effects", () => {
   const result = sequenceCsharpPlannedValues([
-    csharpPlannedValue(integer, { kind: "LiteralExpression", value: 3 }, [effect("earlier")]),
+    csharpPlannedValue(integer, { kind: "LiteralExpression", value: 3 }, [effect("earlier")], true),
     csharpPlannedValue(integer, identifier("later"), [effect("later")]),
   ], () => assert.fail("a literal is stable"), expressions => csharpPlannedValue(integer, expressions[0]));
   assert.deepEqual(result.prelude, [effect("earlier"), effect("later")]);
 });
 
 test("native termination preserves preceding evaluations and excludes later operands", () => {
-  const stopped = csharpPlannedEffect(csharpNeverTargetType(), [{ kind: "ThrowStatement", expression: identifier("failure") }]);
+  const stopped = csharpPlannedEffect(csharpNeverTargetType(), [{ kind: "ThrowStatement", expression: identifier("failure") }], "never");
   const result = sequenceCsharpPlannedValues([
     csharpPlannedValue(integer, identifier("earlier")), stopped, csharpPlannedValue(integer, identifier("later"), [effect("forbidden")]),
   ], capture, () => assert.fail("a terminated sequence has no value builder"));
@@ -71,7 +72,7 @@ test("native termination preserves preceding evaluations and excludes later oper
 test("statement-bearing branches remain selected, not eager", () => {
   const result = planCsharpPlannedBranch(csharpPlannedValue(boolean, identifier("enabled"), [effect("condition")]),
     csharpPlannedValue(integer, identifier("completed"), [effect("selected")]),
-    csharpPlannedValue(integer, identifier("fallback"), [effect("otherwise")]), integer, capture(integer));
+    csharpPlannedValue(integer, identifier("fallback"), [effect("otherwise")]), integer, capture(integer), "value");
   assert.deepEqual(result.prelude[0], effect("condition"));
   assert.equal(result.prelude[1].kind, "LocalDeclarationStatement");
   const branch = result.prelude[2];
@@ -83,18 +84,21 @@ test("statement-bearing branches remain selected, not eager", () => {
 
 test("pure branches preserve native conditional syntax without a temporary", () => {
   const result = planCsharpPlannedBranch(csharpPlannedValue(boolean, identifier("enabled")),
-    csharpPlannedValue(integer, identifier("selected")), csharpPlannedValue(integer, identifier("otherwise")), integer, undefined);
+    csharpPlannedValue(integer, identifier("selected")), csharpPlannedValue(integer, identifier("otherwise")), integer, undefined, "value");
   assert.equal(result.completion.expression.kind, "ConditionalExpression");
   assert.deepEqual(result.prelude, []);
 });
 
 test("void, never and unavailable values retain their distinct native planning outcomes", () => {
-  assert.equal(csharpPlannedEffect(integer, []), undefined);
+  // The completion kind of a carrier is the analysis's type-emission decision; the planner receives it explicitly.
+  const emission = csharpTypeEmissionRecord();
+  assert.deepEqual([integer, csharpVoidTargetType(), csharpNeverTargetType()].map(carrier => emission.get(carrier).completion),
+    ["value", "void", "never"]);
   const omitted = csharpPlannedEffect(csharpVoidTargetType(), [effect("voidCall")]);
   assert.equal(mapCsharpPlannedValue(omitted, integer, () => assert.fail("void is not a value")), undefined);
   assert.equal(mapCsharpPlannedValue(undefined, integer, () => assert.fail("missing is not a value")), undefined);
   assert.equal(planCsharpPlannedBranch(csharpPlannedValue(boolean, identifier("enabled")), omitted, omitted,
-    csharpVoidTargetType(), undefined).completion.kind, "void");
+    csharpVoidTargetType(), undefined, "void").completion.kind, "void");
 });
 
 test("an explicitly discarded native operand preserves earlier evaluation without a phantom value", () => {
@@ -114,7 +118,7 @@ test("an explicitly discarded native operand preserves earlier evaluation withou
 test("discarded pure literals add neither a temporary nor a native statement", () => {
   const result = sequenceCsharpPlannedValues([
     csharpPlannedValue(integer, identifier("receiver")),
-    planCsharpDiscardedOperand(csharpPlannedValue(integer, { kind: "LiteralExpression", value: 7 })),
+    planCsharpDiscardedOperand(csharpPlannedValue(integer, { kind: "LiteralExpression", value: 7 }, [], true)),
   ], () => assert.fail("a discarded literal has no effects"), expressions => csharpPlannedValue(integer, expressions[0]));
   assert.deepEqual(result.prelude, []);
   assert.deepEqual(result.completion.expression, identifier("receiver"));
@@ -132,7 +136,7 @@ test("native location captures retain their acquisition statements before discar
 
 test("discarded void and terminating operands use the same bounded ordered sequencer", () => {
   const omitted = planCsharpDiscardedOperand(csharpPlannedEffect(csharpVoidTargetType(), [effect("discarded")]));
-  const stopped = planCsharpDiscardedOperand(csharpPlannedEffect(csharpNeverTargetType(), [effect("stopped")]));
+  const stopped = planCsharpDiscardedOperand(csharpPlannedEffect(csharpNeverTargetType(), [effect("stopped")], "never"));
   const result = sequenceCsharpPlannedValues([csharpPlannedValue(integer, identifier("receiver")), omitted, stopped,
     csharpPlannedValue(integer, identifier("forbidden"), [effect("forbidden")])], capture,
   () => assert.fail("a terminated sequence cannot produce a value"));
