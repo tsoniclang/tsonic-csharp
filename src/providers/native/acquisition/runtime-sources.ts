@@ -1,12 +1,12 @@
 import { spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, rmdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
-import { performance } from "node:perf_hooks";
 import type { ExtensionDiagnostic } from "@tsonic/tsts";
 import type { CsharpProviderRuntimePreparation, CsharpProviderRuntimeAcquisition } from "../../model/relation-resolver.js";
 import type { CsharpRuntimeProjectInstance } from "../../../target-model/project/runtime.js";
 import { dotnetExtensionDiagnostic } from "../model/diagnostics.js";
+import { acquireNativeBuildLock } from "./build-lock.js";
 import { dotnetReflectionProviderIdentity } from "./provider-identity.js";
 import type { DotnetProviderToolchain } from "./toolchain.js";
 
@@ -108,7 +108,7 @@ function acquireGeneratedProject(
     publishText(proofPath, JSON.stringify(proof));
     return { kind: "resolved", value: Object.freeze(references) };
   } finally {
-    rmdirSync(`${project.path}.metadata.lock`);
+    lock.value();
   }
 }
 
@@ -275,20 +275,12 @@ function runNative(args: readonly string[], toolchain: DotnetProviderToolchain):
   );
 }
 
-function acquireBuildLock(path: string): NativeResult<true> {
-  const started = performance.now();
-  while (true) {
-    try {
-      mkdirSync(path);
-      return { kind: "resolved", value: true };
-    } catch (error) {
-      if (!isRecord(error) || error.code !== "EEXIST") throw error;
-      if (performance.now() - started >= 120_000) {
-        return rejected("DOTNET_RUNTIME_METADATA_BUILD_BUSY", "Timed out waiting for the actual runtime metadata build.", { path });
-      }
-      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
-    }
-  }
+function acquireBuildLock(path: string): NativeResult<() => void> {
+  const lock = acquireNativeBuildLock(path, 120_000);
+  return lock.kind === "held" ? { kind: "resolved", value: lock.release } : rejected(
+    "DOTNET_RUNTIME_METADATA_BUILD_BUSY", "Timed out waiting for the actual runtime metadata build.",
+    { path, owner: lock.owner ?? "the lock has no readable owner record" },
+  );
 }
 
 function readBuildProof(path: string): RuntimeBuildProof | undefined {
