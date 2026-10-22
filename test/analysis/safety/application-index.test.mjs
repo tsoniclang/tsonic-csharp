@@ -46,7 +46,7 @@ function membership(body) {
     targetOptions: { languageDialect: "csharp15-preview", memorySafetyRules: "preview" } });
   assert.equal(compiled.sourceDiagnosticsText, "");
   const program = compiled.result.program;
-  assert.ok(program, "C# analysis publishes the program");
+  assert.ok(program, `C# analysis publishes the program: ${compiled.result.diagnostics.map(issue => `${issue.code}: ${issue.message}`).join(" | ")}`);
   const { ast } = compiled.source;
   const nodes = [];
   const visit = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
