@@ -177,6 +177,20 @@ function verifiedPublishedReferences(
 // "restore" runs NuGet restore first and may update the shared intermediate files, so only the lock holder uses it.
 // "existing-assets" reads the restore outputs already on disk and disables the assembly-reference state file, so it
 // writes nothing that another evaluation of the same project reads or writes.
+// The environment an MSBuild evaluation of this project can observe: variables the preprocessed project reads as
+// properties (`$(Name)`) or through GetEnvironmentVariable, and the variables that configure the dotnet,
+// MSBuild and NuGet tools themselves. Other variables (shell state, per-process test bookkeeping) cannot change the
+// evaluation or the build, so they must not invalidate the published metadata proof.
+function projectObservableEnvironment(preprocessed: string): readonly (readonly [string, string])[] {
+  const referenced = new Set<string>();
+  for (const match of preprocessed.matchAll(/\$\(([A-Za-z_][A-Za-z0-9_-]*)\)/gu)) referenced.add(match[1]!.toUpperCase());
+  for (const match of preprocessed.matchAll(/GetEnvironmentVariable\(\s*'([^']+)'\s*\)/gu)) referenced.add(match[1]!.toUpperCase());
+  return Object.entries(process.env)
+    .filter((entry): entry is [string, string] => entry[1] !== undefined &&
+      (referenced.has(entry[0].toUpperCase()) || /^(?:DOTNET_|MSBUILD|NUGET_)/iu.test(entry[0])))
+    .sort(([left], [right]) => left.localeCompare(right, "en"));
+}
+
 function evaluateProject(
   projectPath: string,
   arguments_: readonly string[],
@@ -245,14 +259,15 @@ function projectFingerprint(
   const inputs = uniqueFiles(Object.entries(facts.Items).flatMap(([kind, items]) =>
     kind === "ProjectReference" ? [] : items.map(item => item.ReferenceAssembly || item.FullPath || item.Identity || ""))
     .filter(path => isAbsolute(path) && existsSync(path)));
+  const imported = readFileSync(preprocessedPath, "utf8");
   return hash(JSON.stringify({
-    importedProject: hash(readFileSync(preprocessedPath)),
+    importedProject: hash(imported),
     properties: facts.Properties,
     files: inputs.map(fileHash),
     sdk: toolchain,
     runtimeSources: preparation.sources,
     projects: preparation.projects,
-    environment: hash(JSON.stringify(Object.entries(process.env).sort(([left], [right]) => left.localeCompare(right, "en")))),
+    environment: hash(JSON.stringify(projectObservableEnvironment(imported))),
   }));
 }
 
