@@ -7,16 +7,11 @@ import { objectShapeStorageMemberName } from "../../target-model/names/object-me
 import { createCsharpSourceMemberNameRecords } from "../program/records/source-member-names.js";
 
 export function analyzeCsharpSourceMemberNames(input: { readonly ast: AstReader; readonly nodes: readonly Node[];
-  readonly operations: CsharpTargetOperationClassifications; readonly names: CsharpNamePlan; readonly admitted: (node: Node) => boolean }) {
+  readonly operations: CsharpTargetOperationClassifications; readonly names: CsharpNamePlan; readonly rendered: (node: Node) => boolean }) {
   const values = new Map<Node, CsharpSourceMemberName>();
   const issues: TargetDiagnostic[] = [];
-  const required = new Set<Node>();
-  for (const node of input.nodes) if (input.admitted(node)) {
-    required.add(node);
-    const callee = input.operations.selectedCall.get(node)?.source?.sourceCallee.expression;
-    if (callee !== undefined) required.add(callee);
-  }
-  for (const node of required) {
+  for (const node of input.nodes) {
+    if (!input.rendered(node)) continue;
     const property = input.operations.selectedProperty.get(node);
     const element = input.operations.selectedElement.get(node);
     const selection = property?.selection ?? element?.target;

@@ -227,8 +227,6 @@ export function finalizeCsharpNativeEmission(
   if (nativeMemberNames.issues.length > 0) return rejectedTargetStage(nativeMemberNames.issues);
   const names = analysis.names.seal(nativeDemand.requiredBindingRoots, nativeMemberNames);
   if (names.issues.length > 0) return rejectedTargetStage(names.issues);
-  const memberNames = analyzeCsharpSourceMemberNames({ ast: source.ast, nodes: sourceStorage.nodes, operations: admittedOperations, names, admitted: admittedControlNode });
-  if (memberNames.issues.length !== 0) return rejectedTargetStage(memberNames.issues);
   const objectShapeDemand = publishCsharpNativeArtifactDemand(selectCsharpObjectShapePublication(objectShapeClosure.value, names));
   const rawInterfaceIssues = admitCsharpRawInterfaceDeclarations(source.ast, sourceStorage.nodes,
     nativeDemand.nativeUse, callableAdapters.objectShapes, objectShapeDemand, analysis.storage,
@@ -316,6 +314,12 @@ export function finalizeCsharpNativeEmission(
     operations: admittedOperations, admitted: admittedControlNode, projectDeclaration: node => source.navigation.isProjectDeclaration(node), receivers: memberReceivers.records,
     modules: sourceReferences.records.sourceModuleReference });
   if (propertyAdmission.issues.length !== 0) return rejectedTargetStage(propertyAdmission.issues);
+  // Native member names are selected only where the planner renders one: an admitted source member read and the
+  // callee of an admitted native method call.
+  const memberNames = analyzeCsharpSourceMemberNames({ ast: source.ast, nodes: sourceStorage.nodes, operations: admittedOperations, names,
+    rendered: node => propertyAdmission.records.sourceMemberEmission.get(node)?.kind === "member" ||
+      memberReceivers.records.nativeMethodCallee.get(node) !== undefined });
+  if (memberNames.issues.length !== 0) return rejectedTargetStage(memberNames.issues);
   const elementAdmission = analyzeCsharpElementAdmission({ ast: source.ast, nodes: sourceStorage.nodes, operations: admittedOperations,
     demand: nativeDemand, admitted: admittedControlNode, receivers: memberReceivers.records, navigation: source.navigation });
   if (elementAdmission.issues.length !== 0) return rejectedTargetStage(elementAdmission.issues);
