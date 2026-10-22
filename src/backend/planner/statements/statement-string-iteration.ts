@@ -32,9 +32,7 @@ import {
   literalNumber,
   member,
 } from "../expressions/builders.js";
-import {
-  csharpTypeFromTargetTypeRef,
-} from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import type { CsharpAdmittedIteration } from "../../../target-model/records/selection.js";
 import type {
   CsharpStaticTargetMethod,

@@ -3,9 +3,13 @@ import type { CsharpPolicyContext } from "../../policy/model/context.js";
 
 import type { CsharpJsValueOperationSelection, CsharpJsValueReceiverOperation, CsharpJsValueCallKind } from "../../target-model/operations/js-values.js";
 import type { CsharpSourceOperator } from "../../target-model/syntax/operators.js";
-export type { CsharpJsValueInvocation, CsharpJsValueOperationSelection, CsharpJsValueReceiverOperation, CsharpJsValueCallKind } from "../../target-model/operations/js-values.js";
 
-import { selectCsharpJsValueReceiverOperation, selectCsharpNativeJsValueCallOperation, selectCsharpNativeJsValueBinaryOperation, selectCsharpNativeJsValueUnaryOperation, selectCsharpNativeJsValueTypeofOperation, selectCsharpNativeJsValueVoidOperation, selectCsharpNativeJsValueConditionOperation } from "../../policy/operations/js-values/selection.js";
+import {
+  selectCsharpJsValueReceiverOperation, selectCsharpNativeJsValueCallOperation,
+  selectCsharpNativeJsValueBinaryOperation, selectCsharpNativeJsValueUnaryOperation,
+  selectCsharpNativeJsValueTypeofOperation, selectCsharpNativeJsValueVoidOperation,
+  selectCsharpNativeJsValueConditionOperation,
+} from "../../policy/operations/js-values/selection.js";
 export function selectCsharpJsValueReceiverExpressionOperation(
   input: CsharpPolicyContext, receiver: Node | undefined, sourceFile: SourceFile,
   operation: CsharpJsValueReceiverOperation, optional = false,

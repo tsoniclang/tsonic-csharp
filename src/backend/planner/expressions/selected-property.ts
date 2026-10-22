@@ -11,9 +11,7 @@ import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type {
   ExpressionPlanner,
 } from "./expression-planner-types.js";
-import {
-  csharpTypeFromTargetTypeRef,
-} from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import type {
   CsharpPlanningContext,
 } from "../context.js";

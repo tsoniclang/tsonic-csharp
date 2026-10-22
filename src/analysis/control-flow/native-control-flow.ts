@@ -7,8 +7,9 @@ import type { CsharpTargetOperationClassifications } from "../../target-model/re
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
-import { csharpRuntimeLocationTargetType, csharpRuntimeNativeArrayTargetType,
-  isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
+import {
+  csharpRuntimeLocationTargetType, csharpRuntimeNativeArrayTargetType, isCsharpJsValueTargetType,
+} from "../../target-model/types/carriers/runtime-carriers.js";
 import { selectCsharpForInKeyBinding, selectCsharpForOfBinding } from "../operations/iteration/bindings.js";
 import type { CsharpAdmittedIteration, CsharpForInKeyBinding, CsharpForOfBinding,
   CsharpResolvedIteration } from "../../target-model/records/selection.js";

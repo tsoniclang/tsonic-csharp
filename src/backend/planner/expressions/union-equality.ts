@@ -7,7 +7,7 @@ import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpPlanningContext } from "../context.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
 import { allocateExpressionTemp, type DestructuringPlannerState } from "../bindings/binding-state.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planCsharpUnionPattern } from "./union-patterns.js";
 import { callStatic } from "./builders.js";

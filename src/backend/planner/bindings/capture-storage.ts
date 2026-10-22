@@ -6,7 +6,7 @@ import type { CsharpPlanningContext } from "../context.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import { csharpCaptureFrameName, getCsharpLocalBindingName } from "./binding-state.js";
 import { csharpTypeFromObjectShapeFact } from "../objects/planning.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planThisExpression } from "../expressions/expression-this.js";
 

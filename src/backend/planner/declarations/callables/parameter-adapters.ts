@@ -5,7 +5,7 @@ import type { CsharpSourceCallContract } from "../../../../target-model/records/
 import type { CsharpExpression, CsharpParameter, CsharpStatement } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import { applyCsharpConversionSelection } from "../../expressions/conversions.js";
-import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import { qualifiedCsharpType } from "../../types/index.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 

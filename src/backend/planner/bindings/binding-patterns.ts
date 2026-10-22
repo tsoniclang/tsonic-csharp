@@ -22,7 +22,7 @@ import { allocateDestructuringTemp } from "./binding-state.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planObjectBindingPattern } from "./binding-object-patterns.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
 import {
   planCsharpTypedLocationIdentityDeclaration,

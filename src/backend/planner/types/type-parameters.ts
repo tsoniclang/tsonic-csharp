@@ -3,7 +3,7 @@ import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpGenericConstraint, CsharpTypeParameter } from "../../target-ast/syntax/index.js";
 import { planIdentifierName } from "../names/source-identifiers.js";
-import { csharpTypeFromTargetTypeRef } from "./target-types.js";
+import { csharpTypeFromTargetTypeRef } from "./render.js";
 import type { CsharpTypeParameterConstraint } from "../../../target-model/types/generic-constraints.js";
 import type { CsharpProjectedType } from "../../../target-model/types/projections.js";
 import { sanitizeIdentifier } from "../../../target-model/names/identifiers.js";

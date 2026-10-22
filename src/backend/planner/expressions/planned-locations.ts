@@ -5,7 +5,7 @@ import type { CsharpExpression, CsharpStatement } from "../../target-ast/syntax/
 import type { CsharpPlanningContext } from "../context.js";
 import type { CsharpPlannedValue, CsharpPlannedAddressOperand, CsharpPlannedCapture, CsharpPlannedLocationCapture } from "./planned-values.js";
 import { csharpPlannedValue } from "./planned-values.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { captureCsharpPlannedValue } from "./planned-value-composition.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";

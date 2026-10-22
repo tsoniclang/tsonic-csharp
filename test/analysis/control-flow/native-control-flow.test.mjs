@@ -13,7 +13,7 @@ import { createDestructuringPlannerState } from "../../../dist/backend/planner/b
 import { planCsharpGeneratedMethodCall } from "../../../dist/backend/planner/declarations/generated-methods.js";
 import { planBreakStatement, planContinueStatement, planReturnStatement } from "../../../dist/backend/planner/statements/statement-simple.js";
 import { planLocalDeclarationStatements } from "../../../dist/backend/planner/bindings/locals.js";
-import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types/render.js";
 import { getCsharpGeneratorProtocol } from "../../../dist/target-model/types/index.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 

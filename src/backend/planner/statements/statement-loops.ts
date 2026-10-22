@@ -20,7 +20,7 @@ import type { DestructuringPlannerState } from "../bindings/index.js";
 import { planCsharpCaptureFrame, planCsharpCapturedInitialization } from "../bindings/capture-storage.js";
 import { planExpression } from "../expressions/index.js";
 import { planIdentifierExpression } from "../expressions/expression-source-references.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { planStringCodePointForOfStatement } from "./statement-string-iteration.js";
 import type { CsharpAdmittedIteration } from "../../../target-model/records/selection.js";
 import { applyCsharpConversionSelection } from "../expressions/conversions.js";
@@ -36,7 +36,6 @@ import { consumeCsharpPlannedValue } from "./statement-output.js";
 import { allocateExpressionTemp } from "../bindings/binding-state.js";
 import type { NestedStatementPlanner } from "./model.js";
 
-export { planForInStatement } from "./statement-for-in.js";
 
 export function planForOfStatement(
   statementNode: Node,

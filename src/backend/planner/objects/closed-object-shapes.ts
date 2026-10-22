@@ -5,7 +5,7 @@ import type { CsharpObjectShapeProjectionDeclaration } from "../../../target-mod
 import type { CsharpNativeMemberHidingReader } from "../../../target-model/records/native-member-names.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpExpression, CsharpMethodDeclaration, CsharpStatement, CsharpTypeNode, CsharpTypeParameter } from "../../target-ast/syntax/index.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { csharpGenericConstraintFromTargetTypeParameterConstraint } from "../types/type-parameters.js";
 import { planCsharpArtifactMemberHiding } from "../declarations/modifiers.js";
 import { qualifiedCsharpType } from "../types/primitives.js";

@@ -1,6 +1,6 @@
 import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import type { Node } from "@tsonic/tsts";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 

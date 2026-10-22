@@ -16,9 +16,7 @@ import {
 } from "../../target-ast/syntax/operator-tokens.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
-import {
-  csharpTypeFromTargetTypeRef,
-} from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import {
   callStatic,
   literalNumber,
@@ -30,10 +28,9 @@ import { allocateExpressionTemp } from "../bindings/binding-state.js";
 import { runtimeUnionArmProjection, runtimeUnionArmTest } from "./union-access.js";
 import { planCsharpUnionEquality } from "./union-equality.js";
 import { csharpPlannedValue, mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
-import { buildCsharpPlannedValue, planCsharpCoalescingValue, planCsharpValueBranch } from "./planned-value-composition.js";
+import { buildCsharpPlannedValue, planCsharpCoalescingValue, planCsharpValueBranch, captureCsharpPlannedValue } from "./planned-value-composition.js";
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { captureCsharpPlannedLocation } from "./planned-locations.js";
-import { captureCsharpPlannedValue } from "./planned-value-composition.js";
 import { planCsharpPlannedDiscard } from "../statements/statement-output.js";
 import { planCsharpConditionalValue } from "./conditional-values.js";
 

@@ -20,9 +20,7 @@ import type {
   CsharpTypeNode,
 } from "../../target-ast/syntax/index.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import {
-  csharpTypeFromTargetTypeRef,
-} from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import {
   qualifiedCsharpType,
 } from "../types/index.js";

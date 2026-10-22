@@ -52,7 +52,7 @@ import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planExpression } from "../expressions/index.js";
 import { planClassFactoryDeclaration, planClassFactoryIdentity } from "../declarations/classes/factories.js";
 import { sanitizeIdentifier } from "../../../target-model/names/identifiers.js";
-import { readNamespace } from "../project/project-artifacts.js";
+import { readNamespace } from "../project/project-options.js";
 import { isProviderVirtualSourceFile } from "./provider-virtual-source-files.js";
 import { sourceFileClassName } from "../artifacts/source-paths.js";
 import { planStatements } from "../statements/index.js";

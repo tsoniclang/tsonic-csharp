@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import { referenceQueryNode, type TargetSourceProgram } from "@tsonic/target-api/source";
+import { referenceQueryNode, type TargetSourceProgram, authoredTypeParameterNames, generatedTypeParameterNames } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpProjectTypeClassifications } from "../../target-model/records/project-types.js";
 import type { CsharpClassFactoryIndex } from "../../target-model/records/class-factories.js";
@@ -8,7 +8,7 @@ import { createCsharpProjectEmissionProducer } from "../program/records/project-
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpNamePlan } from "../../target-model/names/model.js";
 import type { CsharpGenericProjectionIndex } from "../../target-model/records/type-projections.js";
-import { csharpAuthoredTypeParameterNames, csharpGeneratedTypeParameterNames, csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
+import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
 
 export function analyzeCsharpProjectEmission(input: {
   readonly source: TargetSourceProgram;
@@ -29,9 +29,9 @@ export function analyzeCsharpProjectEmission(input: {
       const parameters = definition.outerTypeParameters.map(parameter => csharpSourceTypeParameter(parameter, input.source.ast));
       if (parameters.some(parameter => parameter === undefined))
         failTargetAnalysisInvariant("tsonic-csharp", "A lifted C# generic binder requires its sealed source identity.", node);
-      const selected = csharpGeneratedTypeParameterNames([
+      const selected = generatedTypeParameterNames([
         ...parameters.filter(parameter => parameter !== undefined), ...definition.outerTypeProjections,
-      ], [...csharpAuthoredTypeParameterNames(node, input.source.ast),
+      ], [...authoredTypeParameterNames(node, input.source.ast),
         ...input.names.typeParameterNames.map(parameter => parameter.name),
         ...input.projections.genericProjection.get(node).map(parameter => parameter.name)]);
       producer.names(node, [...selected].map(entry => Object.freeze(entry)));

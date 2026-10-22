@@ -3,7 +3,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpPlanningContext } from "../context.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "./expression-planner-types.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import type { CsharpPlannedValue } from "./planned-values.js";
 import { buildCsharpPlannedValue } from "./planned-value-composition.js";
 

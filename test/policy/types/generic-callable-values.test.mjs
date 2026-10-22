@@ -5,7 +5,7 @@ import { csharpDelegateTargetType, getCsharpCallableValueSignature, getCsharpDel
 import { csharpMethodValueType, getCsharpMethodValue } from "../../../dist/target-model/types/method-values.js";
 import { rebindCsharpMethodValueTypeParameters } from "../../../dist/policy/types/callables/method-values.js";
 import { targetTypeRefEquals, targetTypeRefIsClosed } from "../../../dist/target-model/types/equality.js";
-import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types/render.js";
 import { substituteTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
 import { csharpFreeTypeParameterIdentities } from "../../../dist/target-model/types/generic-references.js";
 

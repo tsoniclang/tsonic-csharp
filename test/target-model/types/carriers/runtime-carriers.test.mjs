@@ -6,10 +6,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createTestWorkspace } from "../../../../../tsonic/test/scripts/test-workspaces.mjs";
 import {
-  csharpRuntimeNativeArrayTargetType, csharpRuntimeNativeLayoutTargetType,
-  csharpRuntimeRecordFieldTargetType,
+  csharpRuntimeNativeArrayTargetType, csharpRuntimeNativeLayoutTargetType, csharpRuntimeRecordFieldTargetType,
 } from "../../../../dist/target-model/types/carriers/runtime-carriers.js";
-import { csharpTypeFromTargetTypeRef } from "../../../../dist/backend/planner/types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../../../../dist/backend/planner/types/render.js";
 import { planCsharpNativeMemoryCall } from "../../../../dist/backend/planner/expressions/native-memory.js";
 import { analyzeCsharpNativeMemoryEmission } from "../../../../dist/analysis/operations/native-memory-emission.js";
 

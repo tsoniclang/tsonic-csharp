@@ -1,6 +1,8 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpArgument, CsharpConstructorDeclaration, CsharpExpression, CsharpParameter, CsharpStatement, CsharpTypeNode } from "../../../target-ast/syntax/index.js";
+import type {
+  CsharpArgument, CsharpConstructorDeclaration, CsharpExpression, CsharpParameter, CsharpStatement, CsharpTypeNode,
+} from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
 import type { CsharpEntryBinding } from "../../bindings/binding-patterns.js";
@@ -9,7 +11,7 @@ import type { CsharpPlannedArgument } from "../../expressions/planned-values.js"
 import { allocateDestructuringTemp, csharpCaptureFrameName } from "../../bindings/binding-state.js";
 import { planCsharpCaptureFrame } from "../../bindings/capture-storage.js";
 import { csharpTypeFromObjectShapeFact } from "../../objects/planning.js";
-import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../../types/target-type-object-shapes.js";
 import { planBlockStatements } from "../../statements/planning.js";
 import { planCsharpGeneratedMethodCall } from "../generated-methods.js";

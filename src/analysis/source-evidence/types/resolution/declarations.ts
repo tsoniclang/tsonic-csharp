@@ -7,7 +7,7 @@ import { nextState } from "./state.js";
 import { readCsharpSourceField } from "../../../../source/extension/markers.js";
 import { sourceRefinementOnlyRemovesNullish } from "./source-union-refinement.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
-import { getCsharpGenericOptionalParts } from "../../../../target-model/types/carriers/runtime-carriers.js";
+import { getCsharpGenericOptionalParts } from "../../../../target-model/types/projections.js";
 import { csharpSourceStorageContext } from "./source-storage-projection.js";
 
 export function resolveSelectedDeclarationResult(

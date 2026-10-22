@@ -22,9 +22,7 @@ import {
   qualifiedCsharpType,
 } from "../types/index.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import {
-  csharpTypeFromTargetTypeRef,
-} from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import { runtimeUnionArmProjection, runtimeUnionArmTest } from "../expressions/union-access.js";
 

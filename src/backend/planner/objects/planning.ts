@@ -14,19 +14,15 @@ import type { Node } from "@tsonic/tsts";
 import type { CsharpObjectShapeDeclarationEmission } from "../../../target-model/records/object-shape-emission.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { csharpCompilationRequiresUnsafe, csharpObjectShapeSafetyModifiers } from "../safety/explicit-safety.js";
-import {
-  csharpTypeFromTargetTypeRef,
-} from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import type {
   CsharpObjectShapeFact,
 } from "../../../target-model/types/index.js";
 import {
 } from "../../../target-model/types/index.js";
-import {
-  renderObjectShapeInterfaces,
-  renderObjectShapeMembers,
-  renderObjectShapeTypeParameters,
-} from "./declarations.js";
+import { renderObjectShapeInterfaces, csharpClosedValueCarrierInterfaceType } from "./interfaces.js";
+import { renderObjectShapeMembers } from "./members.js";
+import { renderObjectShapeTypeParameters } from "./type-parameters.js";
 import {
   csharpJsonValueInterfaceType,
   renderJsonSerializableObjectShapeMethod,
@@ -38,17 +34,10 @@ import {
   finalizeCsharpCompilationUnit,
 } from "../program/compilation-unit.js";
 
-export {
-  objectShapeAccessorGetterStorageMemberName,
-  objectShapeAccessorSetterStorageMemberName,
-  objectShapeStorageMemberName,
-} from "../../../target-model/names/object-members.js";
-export { objectShapeMethodStorageTargetType } from "./object-shape-storage.js";
 
 import { guardCsharpFrozenDataProperties } from "./frozen-data-properties.js";
 import { renderCsharpStructuralInterfaceMembers } from "./structural-interfaces.js";
 import { renderCsharpMethodValueContracts } from "./method-values.js";
-import { csharpClosedValueCarrierInterfaceType } from "./interfaces.js";
 import { csharpEnumerableKeysContract, renderCsharpEnumerableKeys } from "./enumerable-keys.js";
 import { renderCsharpAuthoredObjectMethods } from "./authored-methods.js";
 import { renderCsharpCaptureFrameMethods } from "./capture-methods.js";

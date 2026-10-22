@@ -4,7 +4,7 @@ import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpTsValueTargetType } from "../../../target-model/types/index.js";
 import type { CsharpExpression, CsharpSwitchExpressionArm } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { planCsharpJsValueBox } from "./js-value-operations.js";
 import { planCsharpUnionPattern } from "./union-patterns.js";
 import { renderCsharpClosedShapeConversion } from "../objects/closed-object-shapes.js";

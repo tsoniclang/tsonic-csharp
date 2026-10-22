@@ -10,7 +10,7 @@ import { planCsharpBorrowedDenseSequence } from "./borrowed-dense.js";
 import { planCsharpSequenceAppendStatements, planCsharpSequenceLength, planCsharpSequenceValue } from "../sequence-conversions.js";
 import { csharpPlannedValue, type CsharpPlannedValue } from "../planned-values.js";
 import { composeCsharpPlannedValues } from "../planned-value-composition.js";
-import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 
 interface Contribution {
   readonly node: Node;

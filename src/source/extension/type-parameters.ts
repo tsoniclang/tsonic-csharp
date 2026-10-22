@@ -21,7 +21,3 @@ export function csharpSourceTypeParameter(declaration: Node, ast: AstReader): Ex
   return name.length === 0 ? undefined : Object.freeze({ kind: "type-parameter", identity, name, csharpDeclaration: declaration });
 }
 
-export {
-  generatedTypeParameterNames as csharpGeneratedTypeParameterNames,
-  authoredTypeParameterNames as csharpAuthoredTypeParameterNames,
-} from "@tsonic/target-api/source";

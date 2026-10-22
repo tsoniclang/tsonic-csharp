@@ -15,7 +15,7 @@ import {
   declareCsharpLocalBindingName,
 } from "../bindings/index.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import {
   csharpCatchExceptionType,
   csharpThrownValueToValueExpression,

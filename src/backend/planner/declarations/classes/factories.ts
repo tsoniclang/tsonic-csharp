@@ -2,13 +2,16 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpClassFactory } from "../../../../target-model/records/class-factories.js";
 import type { CsharpCaptureFrame } from "../../../../target-model/records/capture-storage.js";
-import type { CsharpClassDeclaration, CsharpConstructorDeclaration, CsharpExpression, CsharpInterfaceDeclaration, CsharpParameter, CsharpStatement, CsharpTypeMember, CsharpTypeNode } from "../../../target-ast/syntax/index.js";
+import type {
+  CsharpClassDeclaration, CsharpConstructorDeclaration, CsharpExpression, CsharpInterfaceDeclaration, CsharpParameter,
+  CsharpStatement, CsharpTypeMember, CsharpTypeNode,
+} from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import type { DestructuringPlannerState } from "../../bindings/index.js";
 import { csharpCaptureFrameExpression } from "../../bindings/capture-storage.js";
 import { getCsharpLocalBindingName } from "../../bindings/binding-state.js";
 import { csharpTypeFromObjectShapeFact } from "../../objects/planning.js";
-import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import { planExpression } from "../../expressions/index.js";
 import { planClassMembers } from "./members.js";
 import { createCsharpTypeParameterPlanningContext } from "../../names/type-parameters.js";

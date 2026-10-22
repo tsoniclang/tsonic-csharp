@@ -4,15 +4,14 @@ import type { CsharpAwaitAlternative, CsharpAwaitCompletion } from "../../../tar
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpTaskTargetType } from "../../../target-model/types/carriers/delegates.js";
 import { csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
-import type { CsharpExpression, CsharpSwitchExpressionArm } from "../../target-ast/syntax/index.js";
+import type { CsharpExpression, CsharpSwitchExpressionArm, CsharpStatement } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { planCsharpUnionPattern } from "./union-patterns.js";
 import { planCsharpUnionMapping } from "./union-mappings.js";
 import { csharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { captureCsharpPlannedValue, planCsharpExpressionCompletion } from "./planned-value-composition.js";
 import { planCsharpAbsentValue } from "./optional-storage.js";
-import type { CsharpStatement } from "../../target-ast/syntax/index.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function planCsharpAwaitCompletion(

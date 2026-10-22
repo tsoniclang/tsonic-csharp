@@ -3,12 +3,13 @@ import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import { AsVariableDeclaration } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { selectCsharpTargetCall, selectCsharpTargetElement, selectCsharpTargetProperty } from "./members/selected-members.js";
-import { csharpRuntimeLocationPointee, getCsharpDelegateSignature, targetTypeRefEquals, targetTypeRefKey, type TargetTypeRef } from "../../policy/types/index.js";
+import {
+  csharpRuntimeLocationPointee, getCsharpDelegateSignature, targetTypeRefEquals, targetTypeRefKey, type TargetTypeRef,
+} from "../../policy/types/index.js";
 import { readCsharpSourceTypedLocationOperation } from "../../source/extension/typed-locations.js";
 
 import { selectCsharpTypedLocationStorage } from "../storage/typed-locations.js";
 
-export type { CsharpTypedLocationDirectIdentity, CsharpTypedLocationStorage, CsharpTypedLocationStorageSelection } from "../../target-model/records/typed-location-storage.js";
 
 import { selectCsharpNativeTypedLocationOperation, nativeRefReturnFromMember } from "../../policy/operations/typed-locations/selection.js";
 

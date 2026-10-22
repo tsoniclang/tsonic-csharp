@@ -4,9 +4,7 @@ import type { CsharpTypeNode } from "../../../target-ast/syntax/index.js";
 import type {
   TargetTypeRef,
 } from "../../../../target-model/types/index.js";
-import {
-  csharpTypeFromTargetTypeRef,
-} from "../../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 
 export interface CsharpClassHeritage {

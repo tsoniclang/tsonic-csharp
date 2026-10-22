@@ -7,9 +7,7 @@ import type {
 } from "../../../target-model/types/index.js";
 import type { Node } from "@tsonic/tsts";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import {
-  csharpTypeFromTargetTypeRef,
-} from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { qualifiedCsharpType } from "../types/primitives.js";
 
 export function csharpClosedValueCarrierInterfaceType(): CsharpTypeNode {

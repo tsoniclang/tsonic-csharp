@@ -6,7 +6,7 @@ import type { CsharpPlannedObjectAssignment } from "../expressions/planned-initi
 import type { CsharpPlanningContext } from "../context.js";
 import { createCsharpMemberPlanningContext, createCsharpThisBindingPlanningContext } from "../context.js";
 import { planMethodDeclaration } from "../declarations/classes/methods.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { csharpTypeFromObjectShapeFact } from "./planning.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { CsharpObjectCaptureField } from "../../../target-model/records/object-methods.js";

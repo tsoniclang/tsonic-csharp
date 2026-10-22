@@ -22,9 +22,7 @@ import {
 import {
   allocateGeneratorDelegationNames,
 } from "../bindings/index.js";
-import {
-  csharpTypeFromTargetTypeRef,
-} from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { planExpression } from "../expressions/index.js";
 import { csharpPlannedValue } from "../expressions/planned-values.js";
 import { consumeCsharpPlannedValue } from "./statement-output.js";

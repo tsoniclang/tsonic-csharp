@@ -14,9 +14,7 @@ import {
 import type {
   CsharpExpression,
 } from "../../target-ast/syntax/index.js";
-import {
-  csharpTypeFromTargetTypeRef,
-} from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import type {
   CsharpPlanningContext,
 } from "../context.js";

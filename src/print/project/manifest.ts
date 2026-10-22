@@ -1,4 +1,5 @@
-import type { CsharpProjectFile, CsharpProjectReference } from "../../target-model/project/emission.js";
+import type { CsharpProjectFile } from "../../target-model/project/emission.js";
+import type { CsharpProjectReference } from "../../target-model/project/references.js";
 
 export function printCsharpProjectFile(project: CsharpProjectFile): string {
   return [

@@ -44,7 +44,7 @@ import { planCsharpLexicalFunctionValues } from "../declarations/callables/lexic
 import { withCsharpDelegateAdapterDeclarations, planCsharpDelegateAdapterDeclarations } from "../declarations/callables/delegate-identities.js";
 import { consumeCsharpPlannedValue } from "./statement-output.js";
 import { planIdentifierName } from "../names/source-identifiers.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { planLocalDeclarationStatements } from "../bindings/locals.js";
 import { planCsharpCaptureFrame, planCsharpCaptureEntryBindings } from "../bindings/capture-storage.js";
 import {
@@ -56,7 +56,8 @@ import {
   planForStatement,
 } from "./statement-for.js";
 import { planSwitchStatement } from "./switch-statements.js";
-import { planForInStatement, planForOfStatement } from "./statement-loops.js";
+import { planForInStatement } from "./statement-for-in.js";
+import { planForOfStatement } from "./statement-loops.js";
 import { planLabeledStatement } from "./statement-labels.js";
 import { withCsharpLoopContinuation, finishCsharpLoopBody } from "./loop-regions.js";
 import { planTryStatement } from "./statement-try.js";

@@ -28,9 +28,7 @@ import {
 import {
   planMethodModifiers,
 } from "./modifiers.js";
-import {
-  csharpTypeFromTargetTypeRef,
-} from "../../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import {
   planCsharpGeneratorFunction,

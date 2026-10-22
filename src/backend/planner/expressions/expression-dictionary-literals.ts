@@ -6,7 +6,7 @@ import type { CsharpPlanningContext } from "../context.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
 import { csharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { buildCsharpPlannedValue, projectCsharpPlannedValue } from "./planned-value-composition.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { csharpRecordOperation } from "../objects/indexed-records.js";
 import { planCsharpExactLiteralRecipe } from "./literal-conversions.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";

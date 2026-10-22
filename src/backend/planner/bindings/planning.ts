@@ -19,28 +19,6 @@ import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planExpression } from "../expressions/index.js";
 import { consumeCsharpPlannedValue } from "../statements/statement-output.js";
 
-export {
-  allocateCatchValue,
-  allocateControlLabel,
-  allocateForInNames,
-  allocateForOfItem,
-  allocateGeneratorNames,
-  allocateGeneratorDelegationNames,
-  allocateResourceScopeNames,
-  allocateStringIterationNames,
-  allocateSyntheticParameter,
-  createDestructuringPlannerState,
-  createNestedPlannerState,
-  declareCsharpLocalBindingName,
-  declareCsharpTypedLocationIdentityName,
-  getCsharpLocalBindingName,
-  getCsharpTypedLocationIdentityName,
-} from "./binding-state.js";
-export { planBindingPatternFromExpression } from "./binding-patterns.js";
-export type {
-  ControlLabelTarget,
-  DestructuringPlannerState,
-} from "./binding-state.js";
 
 export function planVariableBindingStatements(
   bindingName: Node | undefined,

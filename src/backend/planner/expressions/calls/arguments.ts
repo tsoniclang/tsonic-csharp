@@ -1,5 +1,5 @@
 import { applyCsharpConversionSelection } from "../conversions.js";
-import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import { planCsharpRestSequence } from "./rest-sequences.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import type { CsharpSelectedCallArgument, CsharpProviderArgumentMapping } from "../../../../target-model/records/members.js";

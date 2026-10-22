@@ -8,7 +8,7 @@ import type {
 import type { DestructuringPlannerState } from "../bindings/binding-state.js";
 import type { ExpressionPlanner } from "../expressions/expression-planner-types.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { planCsharpBindingDefaultValue } from "../bindings/optional-values.js";
 import type { CsharpDefaultValueContract } from "../../../target-model/records/value-projections.js";
 import type { CsharpObjectShapeFact } from "../../../target-model/types/index.js";

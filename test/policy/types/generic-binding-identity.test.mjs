@@ -3,10 +3,10 @@ import test from "node:test";
 import { targetTypeRefEquals, targetTypeRefKey, scopedTargetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { csharpTargetStorageIdentityEquals } from "../../../dist/policy/types/storage/storage-identity.js";
 import { substituteTargetTypeParameters, inferCsharpTargetTypeParameterBindings } from "../../../dist/policy/types/resolution/substitution.js";
-import { csharpGeneratedTypeParameterNames } from "../../../dist/source/extension/type-parameters.js";
+import { generatedTypeParameterNames } from "@tsonic/target-api/source";
 import { csharpFreeTypeParameterIdentities } from "../../../dist/target-model/types/generic-references.js";
 import { csharpObjectShapeTypeParameters } from "../../../dist/analysis/source-evidence/types/resolution/owner-type-parameter-environment.js";
-import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types/render.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpObjectShapeMemberTypeKey } from "../../../dist/target-model/types/object-shape-identity.js";
 import { dotnetTypeRefKey } from "../../../dist/providers/native/model/type-refs.js";
@@ -163,7 +163,7 @@ test("optional absence supplies no generic payload binding", () => {
 
 test("generated generic scopes reserve authored binders and render nested references consistently", () => {
   const reserved = { kind: "type-parameter", identity: "source:reserved/0", name: "CapturedT" };
-  const names = csharpGeneratedTypeParameterNames([outer, reserved], [inner.name]);
+  const names = generatedTypeParameterNames([outer, reserved], [inner.name]);
   assert.equal(names.get(outer.identity), "CapturedT2");
   assert.equal(names.get(reserved.identity), "CapturedT");
   assert.equal(names.has(inner.identity), false);

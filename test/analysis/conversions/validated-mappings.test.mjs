@@ -7,7 +7,7 @@ import { admitCsharpConversionSelection } from "../../../dist/analysis/conversio
 import { selectCsharpConversion, selectCsharpFlowReadConversion } from "../../../dist/policy/conversions/index.js";
 import { planCsharpUnionMapping } from "../../../dist/backend/planner/expressions/union-mappings.js";
 import { planCsharpRuntimeUnionProjection } from "../../../dist/backend/planner/expressions/runtime-union-projections.js";
-import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types/render.js";
 import { csharpNullableTargetType, csharpRuntimeUnionTargetType, csharpSourcePrimitiveTargetType,
   csharpStringTargetType } from "../../../dist/target-model/types/index.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";

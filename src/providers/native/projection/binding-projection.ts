@@ -11,10 +11,6 @@ import { type DotnetTargetMember } from "./members.js";
 import { csharpTargetMetadataFromDotnetTypeDeclaration, dotnetRenderShapeToCsharpRenderShape, requireDotnetTargetId } from "./type-ref.js";
 import { dotnetTypeRefToTargetTypeRef } from "./type-ref.js";
 
-export { dotnetConstraintToTargetConstraint } from "./constraints.js";
-export { dotnetTypeRefToTargetTypeRef } from "./type-ref.js";
-export type { DotnetTargetMember, DotnetTargetParameter } from "./members.js";
-
 export type DotnetTargetBindingFact = CsharpTargetBindingFact & {
   readonly csharpInheritance: readonly CsharpNativeInheritanceEntry[];
   readonly csharpInheritableMembers?: readonly CsharpNativeInheritedMember[];

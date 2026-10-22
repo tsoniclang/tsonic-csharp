@@ -53,9 +53,7 @@ import {
 import {
   directCsharpSourceYieldExpression,
 } from "../../../target-model/syntax/yield-expression.js";
-import {
-  csharpTypeFromTargetTypeRef,
-} from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 
 export function planReturnStatement(
   node: Node,

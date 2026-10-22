@@ -2,7 +2,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpPlanningContext } from "../../context.js";
-import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import type { ArrayLiteralPlanner } from "./types.js";
 import { planArrayLiteralExpression } from "./dense-array.js";
@@ -11,9 +11,6 @@ import { planNativeCollectionArrayLiteralExpression } from "./native-collection.
 import { planJsArrayLiteralExpression } from "./js-array.js";
 import type { CsharpPlannedValue } from "../planned-values.js";
 
-export type { ArrayLiteralPlanner } from "./types.js";
-export { planArrayLiteralExpression } from "./dense-array.js";
-export { planTupleLiteralExpression } from "./tuple.js";
 
 export function planArrayLiteralExpressionWithCarrier(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[], carrier: TargetTypeRef, planner: ArrayLiteralPlanner): CsharpPlannedValue | undefined {

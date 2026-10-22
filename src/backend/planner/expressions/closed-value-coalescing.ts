@@ -5,7 +5,7 @@ import type { CsharpPlanningContext } from "../context.js";
 import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import { allocateExpressionTemp, type DestructuringPlannerState } from "../bindings/binding-state.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
 import { planCsharpStorageIsAbsent } from "./optional-storage.js";
 import { planCsharpAssignmentLocation } from "./assignment-location.js";

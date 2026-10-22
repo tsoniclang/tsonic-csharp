@@ -4,7 +4,7 @@ import type { CsharpSelectedTargetCall } from "../../../target-model/records/mem
 import type { CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { csharpTypeFromObjectShapeFact } from "../objects/index.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function renderSelectedCsharpTargetMethodTypeArguments(selection: CsharpSelectedTargetCall, node: Node,

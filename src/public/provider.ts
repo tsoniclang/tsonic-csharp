@@ -31,11 +31,7 @@ export { csharpJsDateTargetType } from "../target-model/types/carriers/js.js";
 export { csharpJsArrayTargetType } from "../target-model/types/carriers/js.js";
 export { csharpJsTypedArrayTargetType } from "../target-model/types/carriers/js.js";
 export { csharpTsValueTargetType } from "../target-model/types/carriers/runtime-carriers.js";
-export {
-  csharpRuntimeUnionTargetType,
-  csharpAbsenceTargetType,
-  combineCsharpTargetUnionMembers,
-} from "../target-model/types/carriers/runtime-carriers.js";
+export { csharpRuntimeUnionTargetType, csharpAbsenceTargetType, combineCsharpTargetUnionMembers } from "../target-model/types/carriers/runtime-carriers.js";
 export {
   csharpProviderPolicyContribution,
 } from "../providers/model/provider-policy-contribution.js";
@@ -43,14 +39,20 @@ export { csharpProviderPolicyContributionKind } from "../target-model/metadata/p
 export type { CsharpProviderPolicyContribution, CsharpTargetBinaryExecutionDriver } from "../target-model/metadata/provider-metadata.js";
 export { csharpJsEventLoopBinaryExecutionDriver } from "../target-model/project/binary-execution-drivers.js";
 export {
-  assertCsharpProviderPolicyIsNonContradictory,
-  createCsharpProviderRejectionCatalog,
+  assertCsharpProviderPolicyIsNonContradictory, createCsharpProviderRejectionCatalog,
   createCsharpProviderRelationCatalog,
 } from "../providers/model/provider-relations.js";
 export type { CsharpProviderIdentityResult } from "../providers/model/provider-relations.js";
 export type { CsharpProviderArgumentAdapter } from "../target-model/conversions/selection.js";
-export type { CsharpProviderSourceIdentity, CsharpProviderTargetRejection, CsharpProviderTargetRejectionDiagnostic } from "../target-model/identities/provider-relations.js";
-export type { CsharpProviderBindingTypeArgumentSource, CsharpProviderMemberSourceIdentity, CsharpProviderObjectLiteralConstruction, CsharpProviderParameterRelation, CsharpProviderSignatureSourceIdentity, CsharpProviderSourceIdentityBase, CsharpProviderTargetRelation, CsharpProviderTypeParameterRelation, CsharpProviderTypeSourceIdentity, CsharpProviderValueSourceIdentity, CsharpTargetReceiverRelation } from "../target-model/identities/provider-relations.js";
+export type {
+  CsharpProviderSourceIdentity, CsharpProviderTargetRejection, CsharpProviderTargetRejectionDiagnostic,
+} from "../target-model/identities/provider-relations.js";
+export type {
+  CsharpProviderBindingTypeArgumentSource, CsharpProviderMemberSourceIdentity,
+  CsharpProviderObjectLiteralConstruction, CsharpProviderParameterRelation, CsharpProviderSignatureSourceIdentity,
+  CsharpProviderSourceIdentityBase, CsharpProviderTargetRelation, CsharpProviderTypeParameterRelation,
+  CsharpProviderTypeSourceIdentity, CsharpProviderValueSourceIdentity, CsharpTargetReceiverRelation,
+} from "../target-model/identities/provider-relations.js";
 export { substituteTargetTypeParameters } from "../policy/types/resolution/substitution.js";
 export { csharpApplyExternAliasToTargetBinding } from "../providers/native/projection/extern-aliases.js";
 export { csharpProviderVersion } from "../target-model/identities/source.js";

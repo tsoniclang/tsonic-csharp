@@ -3,7 +3,7 @@ import { AsExpressionWithTypeArguments, KindExpressionWithTypeArguments, KindIde
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTypeNode } from "../../target-ast/syntax/index.js";
-import { csharpTypeFromTargetTypeRef } from "./target-types.js";
+import { csharpTypeFromTargetTypeRef } from "./render.js";
 import { getCsharpTypeForNode } from "./type-node.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 

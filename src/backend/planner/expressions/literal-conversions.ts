@@ -5,10 +5,7 @@ import type {
 import type {
   CsharpExpression,
 } from "../../target-ast/syntax/index.js";
-import {
-  csharpTypeFromTargetTypeRef,
-  csharpTypeFromSourcePrimitiveKind,
-} from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef, csharpTypeFromSourcePrimitiveKind } from "../types/render.js";
 import type {
   TargetTypeRef,
 } from "../../../target-model/types/index.js";

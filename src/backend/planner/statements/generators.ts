@@ -24,9 +24,7 @@ import type {
 import {
   allocateGeneratorNames,
 } from "../bindings/index.js";
-import {
-  csharpTypeFromTargetTypeRef,
-} from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 
 export interface CsharpGeneratorFunctionPlan {
   readonly generatorType: TargetTypeRef;

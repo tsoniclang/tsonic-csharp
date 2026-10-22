@@ -13,9 +13,7 @@ import type {
   DestructuringPlannerState,
 } from "../bindings/index.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
-import {
-  csharpTypeFromTargetTypeRef,
-} from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { csharpRuntimeRawPointerTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { csharpNativeSizeLiteral, planCsharpNativeMemoryCall } from "./native-memory.js";

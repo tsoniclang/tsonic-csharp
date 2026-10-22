@@ -6,7 +6,7 @@ import type { CsharpModuleCallableEmission } from "../../../target-model/records
 import { createDestructuringPlannerState } from "../bindings/index.js";
 import { planCsharpArrowLambdaSyntax, planCsharpCapturedFunctionLambdaSyntax } from "../expressions/callable.js";
 import { planExpression } from "../expressions/index.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { planCsharpNativeMemberHiding } from "../declarations/modifiers.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 

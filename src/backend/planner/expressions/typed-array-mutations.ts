@@ -4,7 +4,7 @@ import type { CsharpTypedArrayMutation, CsharpTypedArrayUpdate } from "../../../
 import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { allocateExpressionTemp, type DestructuringPlannerState } from "../bindings/binding-state.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
 import { planSelectedCsharpBinaryOperation } from "./selected-binary.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";

@@ -1,9 +1,15 @@
-import type { CsharpNativeRefReturnSelection, CsharpTypedLocationOperand, CsharpTypedLocationOperationKind, CsharpTypedLocationOperationSelection } from "../../../target-model/records/typed-locations.js";
+import type {
+  CsharpNativeRefReturnSelection, CsharpTypedLocationOperand, CsharpTypedLocationOperationKind,
+  CsharpTypedLocationOperationSelection,
+} from "../../../target-model/records/typed-locations.js";
 import type { Node } from "@tsonic/tsts";
 
-import { csharpRuntimeLocationPointee, csharpRuntimeLocationTargetType, csharpDelegateTargetType, csharpNullableReferenceTargetType, isCsharpNullableReferenceTargetType, isCsharpValueTypeTargetType, isCsharpAbsenceTargetType, targetTypeRefEquals, type CsharpTargetMember, type TargetTypeRef } from "../../types/index.js";
+import {
+  csharpRuntimeLocationPointee, csharpRuntimeLocationTargetType, csharpDelegateTargetType,
+  csharpNullableReferenceTargetType, isCsharpNullableReferenceTargetType, isCsharpValueTypeTargetType,
+  isCsharpAbsenceTargetType, targetTypeRefEquals, type CsharpTargetMember, type TargetTypeRef,
+} from "../../types/index.js";
 
-export type { CsharpTypedLocationDirectIdentity, CsharpTypedLocationStorage, CsharpTypedLocationStorageSelection } from "../../../target-model/records/typed-location-storage.js";
 
 import type { CsharpSourceTypedLocationOperation } from "../../../source/extension/typed-locations.js";
 export function selectCsharpNativeTypedLocationOperation(

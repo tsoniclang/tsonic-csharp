@@ -2,7 +2,7 @@ import type { CsharpPlanningContext } from "../context.js";
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression } from "../../target-ast/syntax/index.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function planRegularExpressionLiteral(

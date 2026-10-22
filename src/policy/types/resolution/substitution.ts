@@ -1,9 +1,9 @@
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpRuntimeUnionTargetTypeRef, CsharpTargetNamedTypeRef, CsharpTaskTargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpNullableTargetType, isCsharpNullableReferenceTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
-import { csharpRuntimeUnionTargetType, getCsharpRuntimeUnionArms, getCsharpGenericOptionalParts, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpRuntimeUnionTargetType, getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
-import { csharpTypeProjection, type CsharpOptionalTypeProjection } from "../../../target-model/types/projections.js";
+import { csharpTypeProjection, getCsharpGenericOptionalParts, type CsharpOptionalTypeProjection } from "../../../target-model/types/projections.js";
 import { resolveCsharpOptionalStorage } from "../storage/optional-storage.js";
 import { csharpFreeTypeParameterIdentities } from "../../../target-model/types/generic-references.js";
 import type { CsharpTypeParameterConstraint } from "../../../target-model/types/generic-constraints.js";

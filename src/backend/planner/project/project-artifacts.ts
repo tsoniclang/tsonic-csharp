@@ -6,13 +6,6 @@ import {
   readReferencesOption,
 } from "./project-options.js";
 
-export type {
-  CsharpProjectFile,
-  CsharpProjectPlan,
-  CsharpProjectProperty,
-  CsharpProjectReference,
-} from "../../../target-model/project/emission.js";
-export { readNamespace } from "./project-options.js";
 
 export function planCsharpProject(
   input: CsharpPlanningContext,

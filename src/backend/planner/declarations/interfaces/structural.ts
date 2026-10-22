@@ -3,7 +3,7 @@ import type { CsharpObjectShapeFact, CsharpTargetParameter } from "../../../../t
 import { isCsharpVoidTargetType } from "../../../../target-model/types/identity.js";
 import type { CsharpExpression, CsharpParameter, CsharpTypeMember } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
-import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { planCsharpCallableArguments } from "../callables/parameter-adapters.js";
 import { applyCsharpConversionSelection } from "../../expressions/conversions.js";

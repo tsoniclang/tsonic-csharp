@@ -3,7 +3,7 @@ import { sourceClassFieldIsTypeOnly } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression, CsharpStatement } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
-import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import { planExpression } from "../../expressions/index.js";
 import { planCsharpAdmittedMemberName } from "../modifiers.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";

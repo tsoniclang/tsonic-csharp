@@ -1,15 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { csharpMethodValueType, csharpMethodValueCoversContract, csharpMethodValueContractsEqual, csharpPresentObjectShapeMethod } from "../../../dist/target-model/types/method-values.js";
+import {
+  csharpMethodValueType, csharpMethodValueCoversContract, csharpMethodValueContractsEqual,
+  csharpPresentObjectShapeMethod,
+} from "../../../dist/target-model/types/method-values.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { csharpObjectShapeMemberContractKey } from "../../../dist/target-model/types/object-shape-identity.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
-import { substituteTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
+import { substituteTargetTypeParameters, substituteObjectShapeFactTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
-import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types/render.js";
 import { retainCsharpMethodValueContracts } from "../../../dist/analysis/objects/shapes/method-values.js";
 import { csharpCopiedObjectShapeMembers } from "../../../dist/policy/types/objects/method-environments.js";
-import { substituteObjectShapeFactTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
 
 const owner = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "tsonic.shape:owner", typeArguments: [{ kind: "type-parameter", identity: "Outer", name: "Outer" }],
   csharpRender: { kind: "named", name: "Owner" } };

@@ -1,5 +1,4 @@
-import { resolvedNativeBinding } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
-import { nativeTypeFixture } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
+import { resolvedNativeBinding, nativeTypeFixture } from "../../../fixtures/dotnet-provider/native-inheritance.helpers.mjs";
 import assert from "node:assert/strict";
 import { resolve } from "node:path";
 import test from "node:test";
@@ -26,9 +25,7 @@ import {
   getCompleteDotnetModule,
   incrementalProviderDeclarationRequest,
 } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
-import {
-  createDotnetProviderToolRunner,
-} from "../../../../dist/providers/native/acquisition/tool.js";
+import { createDotnetProviderToolRunner } from "../../../../dist/providers/native/acquisition/tool.js";
 import { csharpSourceProfileContributions, csharpSourceProfileOwnerId } from "../../../../dist/source/profiles/declarations.js";
 
 function providerRefExportNames(value, moduleSpecifier, refs = new Set()) {

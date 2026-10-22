@@ -1,6 +1,6 @@
 import type { CsharpExpression, CsharpStatement } from "../../target-ast/syntax/index.js";
 import type { CsharpNativeMemoryLayout } from "../../../target-model/operations/native-memory.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { csharpRuntimeNativeArrayTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpNativeLayoutOwner, csharpNativeMemoryOwner } from "../../../target-model/names/native-memory.js";
 import { qualifiedCsharpType } from "../types/primitives.js";

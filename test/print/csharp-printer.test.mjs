@@ -2,10 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createCsharpNumericLiteralToken } from "../../dist/target-model/syntax/numeric-literals.js";
 import { isCsharpTargetTypeRef, snapshotCsharpTargetTypes } from "../../dist/target-model/types/snapshot.js";
-import {
-  csharpTypeFromTargetTypeRef,
-} from "../../dist/backend/planner/types/target-types.js";
-import { renderObjectShapeMembers } from "../../dist/backend/planner/objects/declarations.js";
+import { csharpTypeFromTargetTypeRef } from "../../dist/backend/planner/types/render.js";
+import { renderObjectShapeMembers } from "../../dist/backend/planner/objects/members.js";
 import { objectShapeArtifactKey } from "../../dist/analysis/program/records/object-shape-keys.js";
 import { analyzeCsharpObjectMemberEmission } from "../../dist/analysis/objects/member-emission.js";
 import {

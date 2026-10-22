@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { CsharpPlanningContext } from "../context.js";
 import type { CsharpConstructorDeclaration } from "../../target-ast/syntax/index.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { csharpSafetyModifiersForDeclaration } from "../safety/explicit-safety.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 

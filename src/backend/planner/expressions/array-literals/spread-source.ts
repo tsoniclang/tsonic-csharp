@@ -5,7 +5,7 @@ import type { CsharpConversionSelection } from "../../../../target-model/convers
 import type { CsharpPlanningContext } from "../../context.js";
 import type { CsharpExpression, CsharpTypeNode } from "../../../target-ast/syntax/index.js";
 import type { ExpressionPlanner } from "../expression-planner-types.js";
-import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import type { CsharpPlannedValue } from "../planned-values.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import type { CsharpSequenceEmission } from "../../../../target-model/records/array-literals.js";

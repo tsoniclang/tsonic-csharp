@@ -3,7 +3,7 @@ import { csharpObjectShapeArtifact } from "../../artifacts/object-shapes.js";
 import { AsClassDeclaration } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpClassDeclaration, CsharpConstructorDeclaration, CsharpStatement } from "../../../target-ast/syntax/index.js";
+import type { CsharpClassDeclaration, CsharpConstructorDeclaration, CsharpStatement, CsharpParameter } from "../../../target-ast/syntax/index.js";
 import { planAttributesForSubject } from "../attributes.js";
 import { planClassHeritage } from "./heritage.js";
 import { csharpClosedValueCarrierInterfaceType } from "../../objects/interfaces.js";
@@ -11,10 +11,12 @@ import { planCsharpStructuralInterfaceMembers } from "../interfaces/structural.j
 import { createCsharpTypeParameterPlanningContext } from "../../names/type-parameters.js";
 import { planOuterTypeParameters, planTypeParameters } from "../../types/type-parameters.js";
 import { planClassMembers } from "./members.js";
-import { csharpJsonValueInterfaceType, objectShapeRequiresJsonSerialization, renderJsonSerializableObjectShapeMethod } from "../../objects/json-object-shapes.js";
+import {
+  csharpJsonValueInterfaceType, objectShapeRequiresJsonSerialization, renderJsonSerializableObjectShapeMethod,
+} from "../../objects/json-object-shapes.js";
 import { getCsharpObjectShapeFactForNode } from "../../objects/fact-queries.js";
 import { planImplicitForwardingConstructors } from "../../project/type-constructors.js";
-import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import { csharpSafetyModifiersForDeclaration, withCsharpSafetyModifiers } from "../../safety/explicit-safety.js";
 import { guardCsharpFrozenDataProperties } from "../../objects/frozen-data-properties.js";
 import { createCsharpMemberPlanningContext } from "../../context.js";
@@ -22,7 +24,6 @@ import { classFactoryContext, completeLocalClassConstructor } from "./factories.
 import { planClassInitializationRegion } from "./initializers.js";
 import { renderObjectShapeProjectionMethods } from "../../objects/closed-object-shapes.js";
 import { planCsharpNativeMemberHiding } from "../modifiers.js";
-import type { CsharpParameter } from "../../../target-ast/syntax/index.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 
 export interface CsharpPlannedClass {

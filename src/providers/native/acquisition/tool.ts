@@ -5,13 +5,6 @@ import { resolveDotnetProviderToolPaths } from "./path-resolution.js";
 import type { DotnetProviderToolResult, DotnetProviderToolRunner, DotnetProviderToolRunnerOptions } from "./types.js";
 import { runProviderToolWorker } from "./worker.js";
 
-export type {
-  DotnetProviderToolIdentity,
-  DotnetProviderToolResolvedPaths,
-  DotnetProviderToolResult,
-  DotnetProviderToolRunner,
-  DotnetProviderToolRunnerOptions,
-} from "./types.js";
 
 export function createDotnetProviderToolRunner(options: DotnetProviderToolRunnerOptions): DotnetProviderToolRunner {
   const paths = resolveDotnetProviderToolPaths(options);

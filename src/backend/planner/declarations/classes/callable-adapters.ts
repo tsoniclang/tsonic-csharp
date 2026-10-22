@@ -5,7 +5,7 @@ import type { CsharpPlanningContext } from "../../context.js";
 import { isCsharpVoidTargetType } from "../../../../target-model/types/index.js";
 import { planCsharpCallableArguments } from "../callables/parameter-adapters.js";
 import { applyCsharpConversionSelection } from "../../expressions/conversions.js";
-import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 
 export function planCsharpProjectCallableAdapters(

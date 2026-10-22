@@ -7,7 +7,7 @@ import { getCsharpLocalBindingName, type DestructuringPlannerState } from "../bi
 import { getCsharpExpressionOverride } from "../bindings/binding-state.js";
 import { planFlowReadUseSiteProjection } from "./flow-read-projections.js";
 import { planCsharpSourceModuleValueReference } from "../bindings/module-values.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { csharpCapturedBindingExpression, csharpCaptureFrameExpression } from "../bindings/capture-storage.js";
 import { planCsharpFrameClosureReference } from "../bindings/capture-closures.js";
 import { getCsharpTypeFromProjectSourceReference } from "../types/project-source-types.js";

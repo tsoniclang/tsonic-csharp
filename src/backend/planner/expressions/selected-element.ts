@@ -5,7 +5,7 @@ import type { CsharpArgument, CsharpExpression } from "../../target-ast/syntax/i
 import type { CsharpPlanningContext } from "../context.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "./expression-planner-types.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { translateCsharpJsValueInvocation } from "./js-value-operations.js";
 import { applyCsharpConversionSelection } from "./conversions.js";
 import { translateCsharpSelectedReceiver } from "./receivers.js";

@@ -1,7 +1,7 @@
 import type { SourceFile, Type } from "@tsonic/tsts";
 import type { CsharpPlanningContext } from "../context.js";
 import type { CsharpTypeNode } from "../../target-ast/syntax/index.js";
-import { csharpTypeFromTargetTypeRef } from "./target-types.js";
+import { csharpTypeFromTargetTypeRef } from "./render.js";
 
 export function getCsharpTypeFromSemanticType(
   type: Type | undefined, sourceFile: SourceFile, input: CsharpPlanningContext,

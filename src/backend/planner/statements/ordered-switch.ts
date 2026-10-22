@@ -6,7 +6,7 @@ import type { CsharpPlanningContext } from "../context.js";
 import { allocateExpressionTemp, type DestructuringPlannerState } from "../bindings/binding-state.js";
 import { planExpression } from "../expressions/index.js";
 import { planSelectedCsharpBinaryOperation } from "../expressions/selected-binary.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import type { CsharpPlannedValue } from "../expressions/planned-values.js";
 import { consumeCsharpPlannedValue } from "./statement-output.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";

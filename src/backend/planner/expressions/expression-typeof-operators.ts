@@ -1,7 +1,7 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpPlanningContext } from "../context.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
 import { createDestructuringPlannerState, type DestructuringPlannerState } from "../bindings/binding-state.js";
 import { planCsharpRuntimeCategory } from "./runtime-category.js";

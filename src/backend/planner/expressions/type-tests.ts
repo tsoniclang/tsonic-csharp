@@ -4,7 +4,7 @@ import type { CsharpExpression, CsharpSwitchExpressionArm } from "../../target-a
 import type { CsharpPlanningContext } from "../context.js";
 import { allocateExpressionTemp, type DestructuringPlannerState } from "../bindings/binding-state.js";
 import { csharpTsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { qualifiedCsharpType } from "../types/index.js";
 import { runtimeUnionArmProjection, runtimeUnionArmTest } from "./union-access.js";
 import { evaluatedConstant } from "./builders.js";

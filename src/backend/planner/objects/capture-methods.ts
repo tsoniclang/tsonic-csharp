@@ -8,7 +8,7 @@ import { createCsharpMemberPlanningContext } from "../context.js";
 import { planCsharpArrowLambdaSyntax, planCsharpCapturedFunctionLambdaSyntax } from "../expressions/callable.js";
 import { planExpression } from "../expressions/index.js";
 import { planTypeParameters } from "../types/type-parameters.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planSourceFunctionDeclaration } from "../declarations/callables/functions.js";
 import { withCsharpSafetyModifiers } from "../safety/explicit-safety.js";

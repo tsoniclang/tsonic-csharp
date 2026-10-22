@@ -12,7 +12,6 @@ import { tryPlanTypeofComparisonExpression, tryPlanTypeTestExpression } from "./
 import { translateCsharpJsValueInvocation } from "./js-value-operations.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
-export { planTypeofExpression } from "./expression-typeof-operators.js";
 
 export function tryPlanBinaryExpression(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner, planCallArgument: CallArgumentPlanner,

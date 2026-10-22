@@ -8,9 +8,7 @@ import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../..
 import type { CsharpProviderRelationResolver } from "../../../../providers/model/relation-resolver.js";
 import type { CsharpSourceCallableContract } from "../../../../target-model/records/source-callable-contract.js";
 
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
-import type { CsharpSourceTargetTypeBinding } from "../../../../target-model/types/model.js";
-import type { CsharpObjectShapeFact } from "../../../../target-model/types/model.js";
+import type { TargetTypeRef, CsharpSourceTargetTypeBinding, CsharpObjectShapeFact } from "../../../../target-model/types/model.js";
 import type { CsharpObjectShapePolicy } from "../../../../target-model/records/object-shapes.js";
 import type { CsharpObjectMethodSources } from "../../../../target-model/records/native-value-carriers.js";
 
@@ -18,7 +16,6 @@ export type ResolvedSourceCallInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["call"]>
 >;
 
-export type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
 
 export interface CsharpPlanningRepresentationQueries {
   genericProjections(declaration: Node): readonly import("../../../../target-model/types/projections.js").CsharpProjectedType[];

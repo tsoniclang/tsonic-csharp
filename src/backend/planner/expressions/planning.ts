@@ -33,10 +33,8 @@ import { getCsharpTypeForNode } from "../types/index.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planClassFactoryExpression } from "../declarations/classes/factories.js";
 import { planRegularExpressionLiteral } from "./regular-expression-literals.js";
-import {
-  planTypeofExpression,
-  tryPlanBinaryExpression,
-} from "./operators.js";
+import { planTypeofExpression } from "./expression-typeof-operators.js";
+import { tryPlanBinaryExpression } from "./operators.js";
 import {
   planArrowFunctionExpression,
   planFunctionExpression,

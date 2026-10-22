@@ -7,7 +7,7 @@ import type { DestructuringPlannerState } from "./binding-state.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
 import type { ExpressionPlanner } from "../expressions/expression-planner-types.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { csharpConstructibleTypeFromObjectShapeFact, objectShapeStorageMemberName } from "../objects/index.js";
 import { planObjectShapeDefaultProjection } from "../objects/object-shape-defaults.js";
 import { consumeCsharpPlannedValue } from "../statements/statement-output.js";

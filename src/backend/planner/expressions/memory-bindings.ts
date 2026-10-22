@@ -3,7 +3,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpPlanningContext } from "../context.js";
 import type { CsharpObjectInitializerAssignment } from "../../target-ast/syntax/index.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { objectShapeBoundStorageMemberName } from "../../../target-model/names/object-members.js";
 import { objectShapeBoundStorageTargetType } from "../objects/object-shape-storage.js";

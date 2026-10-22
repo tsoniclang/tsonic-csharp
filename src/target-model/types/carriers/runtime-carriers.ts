@@ -1,5 +1,4 @@
-import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../model.js";
-import type { CsharpRuntimeUnionTargetTypeRef } from "../model.js";
+import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef, TargetTypeRef, CsharpRuntimeUnionTargetTypeRef } from "../model.js";
 import { csharpQualifiedTypeRenderShape } from "../render-shapes.js";
 import { csharpTargetNamedType } from "../factories.js";
 import { targetTypeRefKey } from "../equality.js";
@@ -198,4 +197,3 @@ export function getCsharpRuntimeUnionArms(
     : type === undefined ? undefined : definitions.sourceUnionArms(type);
 }
 
-export { getCsharpGenericOptionalParts } from "../projections.js";

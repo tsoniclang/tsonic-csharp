@@ -10,9 +10,11 @@ import { createCsharpPlanningContext, createCsharpMemberPlanningContext } from "
 import { createDestructuringPlannerState } from "../../../../dist/backend/planner/bindings/index.js";
 import { planLocalDeclaration } from "../../../../dist/backend/planner/bindings/locals.js";
 import { planTopLevelVariableStatement } from "../../../../dist/backend/planner/program/top-level-variables.js";
-import { csharpTypeFromTargetTypeRef } from "../../../../dist/backend/planner/types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../../../../dist/backend/planner/types/render.js";
 import { sameCsharpType } from "../../../helpers/csharp-type-equality.mjs";
-import { csharpSourcePrimitiveTargetType, getCsharpDelegateSignature, getCsharpTaskResultTargetType, targetTypeRefEquals } from "../../../../dist/target-model/types/index.js";
+import {
+  csharpSourcePrimitiveTargetType, getCsharpDelegateSignature, getCsharpTaskResultTargetType, targetTypeRefEquals,
+} from "../../../../dist/target-model/types/index.js";
 import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
 import { completeCsharpAnalysisRequest } from "../../../helpers/analysis-request.mjs";
 

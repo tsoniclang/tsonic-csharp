@@ -1,4 +1,4 @@
-import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import { renderSelectedCsharpTargetMethodTypeArguments } from "../selected-method-type-arguments.js";
 import { sourceCallIsOptional, translateArrayCreationCall } from "./helpers.js";
 import { translateCsharpSelectedReceiver } from "../receivers.js";

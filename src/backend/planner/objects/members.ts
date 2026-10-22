@@ -5,10 +5,13 @@ import type { CsharpStructuralObjectEmissionRecords } from "../../../target-mode
 import type { CsharpNativeMemberHidingReader } from "../../../target-model/records/native-member-names.js";
 import type { CsharpNativeLayoutRecords } from "../../../target-model/records/native-layout-emission.js";
 import type { CsharpExpression, CsharpParameter, CsharpTypeMember, CsharpTypeNode } from "../../target-ast/syntax/index.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { planCsharpArtifactMemberHiding } from "../declarations/modifiers.js";
 import { planCsharpNativeMemoryCall } from "../expressions/native-memory.js";
-import { objectShapeAccessorGetterStorageMemberName, objectShapeAccessorSetterStorageMemberName, objectShapeStorageMemberName, objectShapeBoundStorageMemberName } from "../../../target-model/names/object-members.js";
+import {
+  objectShapeAccessorGetterStorageMemberName, objectShapeAccessorSetterStorageMemberName,
+  objectShapeStorageMemberName, objectShapeBoundStorageMemberName,
+} from "../../../target-model/names/object-members.js";
 import { renderCsharpStructuralMethod } from "./structural-interfaces.js";
 import { renderCsharpDeferredCaptureMember } from "./deferred-captures.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";

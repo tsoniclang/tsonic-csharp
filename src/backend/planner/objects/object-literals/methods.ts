@@ -6,7 +6,7 @@ import type { CsharpExpression, CsharpTypeNode } from "../../../target-ast/synta
 import type { CsharpPlanningContext } from "../../context.js";
 import { createCsharpThisBindingPlanningContext } from "../../context.js";
 import { allocateSyntheticParameter, createDestructuringPlannerState } from "../../bindings/index.js";
-import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import { planLambdaBlockBody, planLambdaParameters, type LambdaTargetContext } from "../../expressions/callable.js";
 import { planLambdaParameterStorage } from "../../expressions/lambda-parameter-storage.js";
 import { csharpPlannedValue } from "../../expressions/planned-values.js";

@@ -12,7 +12,7 @@ import { createCsharpPlanningContext, createCsharpMemberPlanningContext } from "
 import { planExpression } from "../../../../dist/backend/planner/expressions/index.js";
 import { planNativeCollectionArrayLiteralExpression } from "../../../../dist/backend/planner/expressions/array-literals/native-collection.js";
 import { csharpListTargetType, csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/index.js";
-import { csharpTypeFromTargetTypeRef } from "../../../../dist/backend/planner/types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../../../../dist/backend/planner/types/render.js";
 import { printCsharpCompilationUnit } from "../../../../dist/print/source/printer.js";
 import { completeCsharpAnalysisRequest } from "../../../helpers/analysis-request.mjs";
 

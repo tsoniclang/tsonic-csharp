@@ -1,4 +1,4 @@
-import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import type { CsharpArgument, CsharpExpression, CsharpTypeNode } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";

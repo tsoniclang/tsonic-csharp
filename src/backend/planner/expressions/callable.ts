@@ -32,7 +32,7 @@ import type {
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planBlockStatements } from "../statements/index.js";
 import { planCsharpCaptureFrame, planCsharpCaptureEntryBindings } from "../bindings/capture-storage.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
 import {
   csharpVoidTargetType,

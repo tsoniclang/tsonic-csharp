@@ -20,9 +20,7 @@ import {
   planExpression,
 } from "../expressions/index.js";
 import { consumeCsharpPlannedValue } from "./statement-output.js";
-import {
-  csharpTypeFromTargetTypeRef,
-} from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import type { CsharpAdmittedIteration } from "../../../target-model/records/selection.js";
 import type {
   NestedStatementPlanner,

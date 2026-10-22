@@ -8,9 +8,7 @@ import type {
   CallArgumentPlanner,
   ExpressionPlanner,
 } from "./expression-planner-types.js";
-import {
-  translateCsharpCallExpression,
-} from "./calls/selected-call.js";
+import { translateCsharpCallExpression } from "./calls/entry.js";
 import type { CsharpPlannedValue } from "./planned-values.js";
 import type { DestructuringPlannerState } from "../bindings/binding-state.js";
 

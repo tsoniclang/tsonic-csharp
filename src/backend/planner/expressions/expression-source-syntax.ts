@@ -10,7 +10,7 @@ import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
 import { planIntegerLiteral, planCsharpExactLiteralRecipe } from "./literal-conversions.js";
 import { requireCsharpStringRuntimeCarrier } from "./expression-literal-carriers.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { planThisExpression } from "./expression-this.js";
 import { planCsharpAwaitCompletion } from "./await-completions.js";
 import type { CsharpPlannedValue } from "./planned-values.js";

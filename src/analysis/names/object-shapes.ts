@@ -1,11 +1,15 @@
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { type CsharpObjectShapeNameCandidate } from "../objects/display-names.js";
 import { type CsharpObjectShapeDemandHost } from "../objects/native-demand-batches.js";
-import { type CsharpObjectShapeDeclarationNaming, type CsharpObjectShapeDemandClosure, type CsharpPreparedObjectShapeProjection, type CsharpObjectShapeArtifact, type CsharpObjectShapeProjectionDeclaration, type CsharpObjectShapeDemandPublication } from "../../target-model/records/object-shape-demand.js";
+import {
+  type CsharpObjectShapeDeclarationNaming, type CsharpObjectShapeDemandClosure,
+  type CsharpPreparedObjectShapeProjection, type CsharpObjectShapeArtifact,
+  type CsharpObjectShapeProjectionDeclaration, type CsharpObjectShapeDemandPublication,
+} from "../../target-model/records/object-shape-demand.js";
 import { objectShapeArtifactKey } from "../program/records/object-shape-keys.js";
 import { type CsharpNamePlan } from "../../target-model/names/model.js";
 import { type CsharpObjectShapeFact } from "../../target-model/types/model.js";
-import { csharpAuthoredTypeParameterNames, csharpGeneratedTypeParameterNames } from "../../source/extension/type-parameters.js";
+import { authoredTypeParameterNames, generatedTypeParameterNames } from "@tsonic/target-api/source";
 
 export function selectCsharpObjectShapeDisplayNames(
   candidates: readonly CsharpObjectShapeNameCandidate[],
@@ -90,8 +94,8 @@ export function prepareCsharpObjectShapeDeclarationNames(
     Object.freeze({ identity: parameter.identity, name: parameter.name })));
   const reservedNames = [
     ...(host.captureStorage.captureFrameShape.get(fact.targetType)?.methods.flatMap(method =>
-      csharpAuthoredTypeParameterNames(method.declaration, host.ast)) ?? []),
-    ...(fact.methodImplementation === undefined ? [] : csharpAuthoredTypeParameterNames(fact.methodImplementation.declaration, host.ast)),
+      authoredTypeParameterNames(method.declaration, host.ast)) ?? []),
+    ...(fact.methodImplementation === undefined ? [] : authoredTypeParameterNames(fact.methodImplementation.declaration, host.ast)),
   ];
   return Object.freeze({ parameters: Object.freeze(parameters), reservedParameters: Object.freeze(reservedParameters),
     reservedNames: Object.freeze(reservedNames) });
@@ -101,7 +105,7 @@ export function publishCsharpObjectShapeProjectionDeclaration(
   prepared: CsharpPreparedObjectShapeProjection,
   declarationNames: readonly { readonly identity: string; readonly name: string }[],
 ): CsharpObjectShapeProjectionDeclaration {
-  const names = csharpGeneratedTypeParameterNames(prepared.typeParameters,
+  const names = generatedTypeParameterNames(prepared.typeParameters,
     [...declarationNames.map(parameter => parameter.name), "receiver", "source", "key"]);
   return Object.freeze({ ...prepared, typeParameterNames: Object.freeze([...names].map(([identity, name]) =>
     Object.freeze({ identity, name }))) });
@@ -120,7 +124,7 @@ export function selectCsharpObjectShapePublication(
     if (typeParameterNames === undefined) {
       const reserved = [...artifact.naming.reservedParameters.map(parameter => sourceNames.get(parameter.identity) ?? parameter.name),
         ...artifact.naming.reservedNames];
-      typeParameterNames = Object.freeze([...csharpGeneratedTypeParameterNames(artifact.naming.parameters, reserved)]
+      typeParameterNames = Object.freeze([...generatedTypeParameterNames(artifact.naming.parameters, reserved)]
         .map(([identity, name]) => Object.freeze({ identity, name })));
       declarationNames.set(declarationKey, typeParameterNames);
     }

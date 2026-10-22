@@ -1,16 +1,8 @@
 import type { TargetSelection } from "@tsonic/target-api";
 import type { CsharpLanguageDialect, CsharpMemorySafetyRules, CsharpOutputType } from "../target-model/configuration/model.js";
 import type { CsharpProjectReference } from "../target-model/project/references.js";
-import { defaultCsharpTargetFramework } from "../target-model/configuration/framework.js";
-import { parseCsharpTargetFramework } from "../target-model/configuration/framework.js";
+import { defaultCsharpTargetFramework, parseCsharpTargetFramework } from "../target-model/configuration/framework.js";
 
-export type {
-  CsharpLanguageDialect,
-  CsharpMemorySafetyRules,
-  CsharpOutputType,
-  CsharpTargetConfiguration,
-} from "../target-model/configuration/model.js";
-export type { CsharpProjectReference } from "../target-model/project/references.js";
 
 const supportedCsharpTargetOptionKeys = Object.freeze([
   "assemblyName",

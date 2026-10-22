@@ -7,11 +7,8 @@ import {
   test,
 } from "../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
 import {
-  assertCsharpProviderPolicyIsNonContradictory,
-  createCsharpProviderRejectionCatalog,
-  createCsharpProviderRelationCatalog,
-  providerMemberSourceIdentity,
-  providerSignatureSourceIdentity,
+  assertCsharpProviderPolicyIsNonContradictory, createCsharpProviderRejectionCatalog,
+  createCsharpProviderRelationCatalog, providerMemberSourceIdentity, providerSignatureSourceIdentity,
   providerTypeSourceIdentity,
 } from "../../../dist/providers/model/provider-relations.js";
 

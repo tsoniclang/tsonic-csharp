@@ -1,4 +1,4 @@
-import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import type { CsharpPlannedValue } from "../planned-values.js";
 import { projectCsharpPlannedValue } from "../planned-value-composition.js";
 import type { CsharpPlanningContext } from "../../context.js";

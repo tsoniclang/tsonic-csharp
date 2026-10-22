@@ -10,16 +10,11 @@ import type {
 import { planExpression } from "../expressions/index.js";
 import { planCsharpNativeMemoryCall } from "../expressions/native-memory.js";
 import { csharpRuntimeLocationTargetType, csharpRuntimeNativeArrayTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
-import { planVariableBindingStatements } from "./index.js";
-import {
-  declareCsharpLocalBindingName,
-} from "./index.js";
+import { planVariableBindingStatements, declareCsharpLocalBindingName } from "./index.js";
 import type { DestructuringPlannerState } from "./index.js";
 import type { CsharpEntryBinding } from "./binding-patterns.js";
 import { planCsharpCapturedInitialization } from "./capture-storage.js";
-import {
-  csharpTypeFromTargetTypeRef,
-} from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import {
   planCsharpAbsentValue,

@@ -3,7 +3,7 @@ import type { CsharpTypeofResult } from "../../../target-model/types/runtime-kin
 import type { CsharpExpression, CsharpSwitchExpressionArm } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { allocateExpressionTemp, type DestructuringPlannerState } from "../bindings/binding-state.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { runtimeUnionArmProjection, runtimeUnionArmTest } from "./union-access.js";
 import { evaluatedConstant } from "./builders.js";
 

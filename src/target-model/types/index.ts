@@ -6,6 +6,7 @@ export * from "./identity.js";
 export * from "./render-shapes.js";
 export * from "./carriers/nullable.js";
 export * from "./carriers/runtime-carriers.js";
+export { getCsharpGenericOptionalParts } from "./projections.js";
 export * from "./carriers/collections.js";
 export * from "./carriers/delegates.js";
 export * from "./carriers/generators.js";

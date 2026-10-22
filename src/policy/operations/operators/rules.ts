@@ -1,5 +1,10 @@
-import type { CsharpOperationSelection, CsharpResolvedBinaryOperation, CsharpResolvedUnaryOperation, CsharpTargetBinaryOperation } from "../../../target-model/records/operator-selection.js";
-import { validateBinaryTargetSemantics, validateUnaryTargetSemantics, isEquality, isRelational, isShift, isBitwise, isArithmetic } from "./operator-validation.js";
+import type {
+  CsharpOperationSelection, CsharpResolvedBinaryOperation, CsharpResolvedUnaryOperation, CsharpTargetBinaryOperation,
+} from "../../../target-model/records/operator-selection.js";
+import {
+  validateBinaryTargetSemantics, validateUnaryTargetSemantics, isEquality, isRelational, isShift, isBitwise,
+  isArithmetic,
+} from "./operator-validation.js";
 
 import { selectCsharpGuardedIntegerPromotion } from "../numeric/guarded.js";
 
@@ -7,12 +12,16 @@ import { sourceBooleanShortCircuitBranch as csharpBooleanShortCircuitBranch } fr
 
 import { selectCsharpReferenceEquality } from "./reference-equality.js";
 import { selectCsharpUnionEquality } from "./union-equality.js";
-import { selectCsharpExpressionConversion } from "../../conversions/selection.js";
+import { selectCsharpExpressionConversion } from "../../conversions/expression.js";
 import { csharpConversionIsApplicable } from "../../conversions/applicability.js";
 import type { Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../model/context.js";
 import type { TargetTypeRef } from "../../types/index.js";
-import { csharpSourcePrimitiveTargetType, csharpBigIntegerTargetType, getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms, isCsharpIntegralTargetType, isCsharpAbsenceTargetType, isCsharpStringTargetType, isCsharpJsValueTargetType, isCsharpReferenceCarrier, targetTypeRefEquals } from "../../types/index.js";
+import {
+  csharpSourcePrimitiveTargetType, csharpBigIntegerTargetType, getCsharpNullableElementTargetType,
+  getCsharpRuntimeUnionArms, isCsharpIntegralTargetType, isCsharpAbsenceTargetType, isCsharpStringTargetType,
+  isCsharpJsValueTargetType, isCsharpReferenceCarrier, targetTypeRefEquals,
+} from "../../types/index.js";
 import { csharpUnaryNumericPromotion, selectCsharpNumericBinaryPromotion } from "../numeric/promotion.js";
 import { csharpLiteralIsRepresentableAs } from "../../conversions/literals.js";
 import { csharpJsArrayCarrierId } from "../../../target-model/types/carriers/js.js";

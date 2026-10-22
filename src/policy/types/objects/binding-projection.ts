@@ -1,10 +1,16 @@
-import type { CsharpBindingElementProjection, CsharpBindingPatternSource, CsharpTupleDefaultUse, CsharpDefaultValueContract } from "../../../target-model/records/value-projections.js";
+import type {
+  CsharpBindingElementProjection, CsharpBindingPatternSource, CsharpTupleDefaultUse, CsharpDefaultValueContract,
+} from "../../../target-model/records/value-projections.js";
 
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 
-import { resolveCsharpObjectShapeMemberBySourceContract, resolveCsharpObjectShapeMemberBySourceKey, csharpObjectShapeMemberLookupFailureMessage } from "../../../target-model/types/object-shape-members.js";
+import {
+  resolveCsharpObjectShapeMemberBySourceContract, resolveCsharpObjectShapeMemberBySourceKey,
+  csharpObjectShapeMemberLookupFailureMessage,
+} from "../../../target-model/types/object-shape-members.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { csharpAbsenceTargetType, getCsharpGenericOptionalParts, isCsharpAbsenceTargetType, isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpAbsenceTargetType, isCsharpAbsenceTargetType, isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
 import { tryCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 
 import type { TargetTypeRef, CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../../target-model/types/model.js";

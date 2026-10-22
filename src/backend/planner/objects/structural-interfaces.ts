@@ -1,9 +1,14 @@
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../../target-model/types/model.js";
-import type { CsharpStructuralObjectEmissionRecords, CsharpStructuralMethodEmission, CsharpStructuralPropertyEmission } from "../../../target-model/records/structural-object-emission.js";
+import type {
+  CsharpStructuralObjectEmissionRecords, CsharpStructuralMethodEmission, CsharpStructuralPropertyEmission,
+} from "../../../target-model/records/structural-object-emission.js";
 import type { CsharpNativeMemberHidingReader } from "../../../target-model/records/native-member-names.js";
 import { planCsharpArtifactMemberHiding } from "../declarations/modifiers.js";
-import type { CsharpGenericConstraint, CsharpInterfaceMember, CsharpInterfaceMethodDeclaration, CsharpInterfacePropertyDeclaration } from "../../target-ast/syntax/index.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import type {
+  CsharpGenericConstraint, CsharpInterfaceMember, CsharpInterfaceMethodDeclaration,
+  CsharpInterfacePropertyDeclaration,
+} from "../../target-ast/syntax/index.js";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function renderCsharpStructuralInterfaceMembers(
