@@ -1,4 +1,5 @@
 import type { CsharpTargetMember, CsharpTargetParameter, TargetTypeRef } from "../../types/index.js";
+import { jsSourceCallableRefusal } from "@tsonic/js-source-profile";
 import { combineCsharpTargetUnionMembers, csharpIteratorResultTargetType, csharpSourcePrimitiveTargetType, csharpTaskTargetType, getCsharpGeneratorProtocol, getCsharpIteratorResultProtocol } from "../../../target-model/types/index.js";
 
 import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext, CsharpSourceProfileCallPolicyResult, CsharpSourceProfileIdentitySelector, CsharpSourceProfilePropertyPolicy, CsharpSourceProfilePropertyPolicyContext } from "../../model/source-profiles.js";
@@ -14,7 +15,7 @@ const owners: readonly CsharpSourceProfileOwner[] = Object.freeze([
 const instanceReceiver = { kind: "instance" } as const;
 
 type GeneratorKind = "sync" | "async";
-type GeneratorParameterType = "next-value" | "return-value" | "selected-argument";
+type GeneratorParameterType = "next-value" | "return-value";
 
 interface GeneratorDeclarationPolicy {
   readonly sourceName: "Generator" | "AsyncGenerator";
@@ -24,8 +25,6 @@ interface GeneratorDeclarationPolicy {
 interface GeneratorCallParameterPolicy {
   readonly name: string;
   readonly type: GeneratorParameterType;
-  readonly argumentIndex?: number;
-  readonly constraint?: "throwable";
 }
 
 interface GeneratorCallSignaturePolicy {
@@ -35,7 +34,7 @@ interface GeneratorCallSignaturePolicy {
 
 interface GeneratorCallPolicySpec {
   readonly identity: string;
-  readonly sourceName: "next" | "return" | "throw";
+  readonly sourceName: "next" | "return";
   readonly targetNames: Readonly<Record<GeneratorKind, string>>;
   readonly signatures: readonly GeneratorCallSignaturePolicy[];
 }
@@ -75,19 +74,6 @@ const generatorCallPolicySpecs = Object.freeze([
     targetNames: Object.freeze({ sync: "Return", async: "ReturnAsync" }),
     signatures: Object.freeze([
       generatorCallSignature(1, [{ name: "value", type: "return-value" }]),
-    ]),
-  },
-  {
-    identity: "tsonic.csharp.generator.raise",
-    sourceName: "throw",
-    targetNames: Object.freeze({ sync: "Throw", async: "ThrowAsync" }),
-    signatures: Object.freeze([
-      generatorCallSignature(1, [{
-        name: "error",
-        type: "selected-argument",
-        argumentIndex: 0,
-        constraint: "throwable",
-      }]),
     ]),
   },
 ] satisfies readonly GeneratorCallPolicySpec[]);
@@ -141,8 +127,8 @@ const iteratorResultPropertyPolicySpecs:
 export const csharpGeneratorSourceProfileCallPolicies:
   readonly CsharpSourceProfileCallPolicy[] = Object.freeze(
     owners.flatMap((owner) =>
-      generatorDeclarationPolicies.flatMap((declaration) =>
-        generatorCallPolicySpecs.map((policy) => ({
+      generatorDeclarationPolicies.flatMap((declaration) => [
+        ...generatorCallPolicySpecs.map((policy) => ({
           source: {
             owner,
             kind: "member" as const,
@@ -155,7 +141,15 @@ export const csharpGeneratorSourceProfileCallPolicies:
             return selectGeneratorCall(context, declaration, policy);
           },
         })),
-      ),
+        {
+          source: { owner, kind: "member" as const, declaringName: declaration.sourceName, name: "throw" },
+          select(): CsharpSourceProfileCallPolicyResult {
+            const refusal = jsSourceCallableRefusal({ ownerName: declaration.sourceName, memberName: "throw" });
+            if (refusal === undefined) throw new Error("The checked generator profile requires its shared throw-in refusal.");
+            return { kind: "rejected", diagnostic: generatorDiagnostic(refusal.code, 9100923, refusal.message) };
+          },
+        },
+      ]),
     ),
   );
 
@@ -194,7 +188,6 @@ function selectGeneratorCall(
     : csharpTaskTargetType(resultType);
   const parameterCount = context.source.sourceSelectedSignatureParameters.length;
   const parameters = generatorTargetParameters(
-    context,
     policy,
     parameterCount,
     protocol,
@@ -260,7 +253,6 @@ function selectIteratorResultProperty(
 }
 
 function generatorTargetParameters(
-  context: CsharpSourceProfileCallPolicyContext,
   policy: GeneratorCallPolicySpec,
   parameterCount: number,
   protocol: NonNullable<ReturnType<typeof getCsharpGeneratorProtocol>>,
@@ -271,12 +263,8 @@ function generatorTargetParameters(
     return undefined;
   }
   const parameters = signature.parameters.map((parameter) => {
-    const type = generatorParameterType(context, parameter, protocol);
-    return type === undefined ||
-        parameter.constraint === "throwable" &&
-          !context.inputs.throwableCarriers.has(type)
-      ? undefined
-      : targetParameter(parameter.name, type);
+    const type = generatorParameterType(parameter, protocol);
+    return type === undefined ? undefined : targetParameter(parameter.name, type);
   });
   return parameters.some((parameter) => parameter === undefined)
     ? undefined
@@ -284,7 +272,6 @@ function generatorTargetParameters(
 }
 
 function generatorParameterType(
-  context: CsharpSourceProfileCallPolicyContext,
   parameter: GeneratorCallParameterPolicy,
   protocol: NonNullable<ReturnType<typeof getCsharpGeneratorProtocol>>,
 ): TargetTypeRef | undefined {
@@ -293,13 +280,6 @@ function generatorParameterType(
       return protocol.nextType;
     case "return-value":
       return protocol.returnType;
-    case "selected-argument":
-      return parameter.argumentIndex === undefined
-        ? undefined
-        : resolveCsharpSelectedSourceValue(
-            context,
-            context.source.sourceArguments[parameter.argumentIndex],
-          );
   }
 }
 

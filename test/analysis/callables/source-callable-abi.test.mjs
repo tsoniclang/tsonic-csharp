@@ -11,12 +11,13 @@ test("source receiver annotations do not change generated callable, class or int
     class Box extends Base implements Reader {
       private stored: number;
       constructor(value: number) { super(); this.stored = value; }
-      read(RECEIVERvalue: number): number { return this.stored + value; }
+      read(RECEIVERvalue: number): number { return value + 1; }
+      readStored(value: number): number { return this.stored + value; }
       get value(): number { return this.stored; }
       set value(value: number) { this.stored = value; }
     }
     function bump(RECEIVERvalue: number): number { return value + 1; }
-    export function run(): number { const box = new Box(4); box.value = bump(box.value); return box.read(2); }
+    export function run(): number { const box = new Box(4); box.value = bump(box.value); return box.read(2) + box.readStored(2); }
   `;
   const plain = compileCsharpSource({ sourceText: sourceText.replaceAll("RECEIVER", "") });
   const annotated = compileCsharpSource({ sourceText: sourceText.replaceAll("RECEIVER", "this: void, ") });
