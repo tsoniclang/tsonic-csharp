@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { basename, join, sep } from "node:path";
+import { basename, dirname, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { createTestWorkspace } from "../../../../../tsonic/test/scripts/test-workspaces.mjs";
@@ -38,7 +38,7 @@ function fixture(invalid = false) {
   const projects = instantiateCsharpRuntimeSources(sources, "net10.0", cacheRoot)
     .map(project => ({ ...project, text: printCsharpRuntimeProject(project) }));
   const preparation = { sources, projects, cacheRoot, project: { kind: "generated" }, properties: [] };
-  return { root, sourcesRoot, preparation, toolchain: resolveDotnetProviderToolchain(root, "net10.0") };
+  return { root, sourcesRoot, propertiesPath, project, preparation, toolchain: resolveDotnetProviderToolchain(root, "net10.0") };
 }
 
 test("runtime metadata dependencies resolve the same isolated project-specific outputs on cold and warm acquisition", { timeout: 300_000 }, () => {
@@ -66,4 +66,46 @@ test("a dependency-coherent metadata build still refuses invalid native source",
   assert.equal(acquired.diagnostic.extensionCode, "DOTNET_RUNTIME_METADATA_BUILD_FAILED", "the native owner keeps its exact refusal");
   assert.equal(acquired.diagnostic.evidence.some(entry => typeof entry.details?.status === "number" && entry.details.status !== 0 &&
     String(entry.details?.stdout).includes("MissingValue")), true, "the actual native failure evidence remains available");
+});
+
+test("equal native project basenames keep their exact distinct output and intermediate identities", { timeout: 300_000 }, () => {
+  const current = fixture();
+  const left = join(current.sourcesRoot, "left", "Shared.csproj");
+  const right = join(current.sourcesRoot, "right", "Shared.csproj");
+  for (const [path, name, value] of [[left, "LeftValue", 1], [right, "RightValue", 2]]) {
+    const directory = dirname(path);
+    mkdirSync(directory);
+    writeFileSync(path, current.project("Value.cs").replace("<EnableDefaultCompileItems>",
+      `<AssemblyName>${name}</AssemblyName><EnableDefaultCompileItems>`));
+    writeFileSync(join(directory, "Value.cs"), `public sealed class ${name} { public int Read() => ${value}; }`);
+  }
+  const consumer = current.preparation.sources[0].projectPath;
+  writeFileSync(consumer, current.project("Consumer.cs", '<ProjectReference Include="$(TsonicLeftProject)" /><ProjectReference Include="$(TsonicRightProject)" />'));
+  writeFileSync(join(current.sourcesRoot, "Consumer.cs"),
+    "public sealed class ConsumerValue { public int Read() => new LeftValue().Read() + new RightValue().Read(); }");
+  const sources = [
+    { projectPath: consumer, propertiesPath: current.propertiesPath, dependencies: { TsonicLeftProject: left, TsonicRightProject: right } },
+    { projectPath: left, propertiesPath: current.propertiesPath, dependencies: {} },
+    { projectPath: right, propertiesPath: current.propertiesPath, dependencies: {} },
+  ];
+  const projects = instantiateCsharpRuntimeSources(sources, "net10.0", current.preparation.cacheRoot)
+    .map(project => ({ ...project, text: printCsharpRuntimeProject(project) }));
+  assert.equal(new Set(projects.map(project => project.artifactIdentity)).size, 3,
+    "the existing exact wrapper identities remain distinct without a basename restriction");
+  const artifactPaths = projects.map(project => project.text.match(/<TsonicRuntimeArtifactsPath>([^<]+)<\/TsonicRuntimeArtifactsPath>/)?.[1]);
+  assert.equal(artifactPaths.every(path => path !== undefined) && new Set(artifactPaths).size === 3, true,
+    "the one published formula renders a distinct artifact path for every exact project identity");
+  const acquired = acquireCsharpRuntimeSources({ ...current.preparation, sources, projects }, current.toolchain);
+  assert.equal(acquired.kind, "resolved", "both admitted same-basename dependencies are natively available to the consumer");
+  for (const [sourceProject, assembly] of [[left, "LeftValue.dll"], [right, "RightValue.dll"]]) {
+    const project = projects.find(project => project.sourceProject === sourceProject);
+    const references = acquired.references.filter(path => basename(path) === assembly);
+    assert.equal(references.length, 1, `${assembly}: exactly one actual native reference is acquired`);
+    assert.equal(references[0].includes(`${sep}${project.artifactIdentity}${sep}`), true,
+      `${assembly}: the output partition uses its original exact project identity`);
+    const identityStart = references[0].indexOf(`${sep}${project.artifactIdentity}${sep}`) + 1;
+    const family = references[0].slice(0, identityStart);
+    assert.equal(existsSync(join(family, project.artifactIdentity, "obj", "Shared", "net10.0", "project.assets.json")), true,
+      `${assembly}: the native restore assets also retain the distinct original project identity`);
+  }
 });

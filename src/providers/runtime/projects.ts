@@ -63,6 +63,7 @@ export function instantiateCsharpRuntimeSources(
     const identity = createHash("sha256").update(JSON.stringify([source.projectPath, source.propertiesPath, framework, dependencies])).digest("hex");
     const project = Object.freeze({
       path: join(cacheRoot, "csharp", "runtime", framework, identity, basename(source.projectPath)),
+      artifactIdentity: identity,
       sourceProject: source.projectPath,
       sourceProperties: source.propertiesPath,
       framework,

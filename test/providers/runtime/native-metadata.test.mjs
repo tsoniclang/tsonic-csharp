@@ -188,20 +188,21 @@ test("changed imported source content and corrupted native output invalidate run
   assert.equal(imported.id === repaired.id, false, "the changed native assembly version is actually rebuilt and reflected");
 });
 
-test("runtime wrappers and generated project files retain the pre-move native bytes", () => {
+test("runtime wrappers follow the one artifact-root and exact-project-identity formula", () => {
   const inputs = fixture();
   const wrapper = inputs.wrapper;
   const escaped = value => value.replace(/[%$@();'?*]/gu, character => `%${character.charCodeAt(0).toString(16).toUpperCase()}`)
     .replace(/&/gu, "&amp;").replace(/</gu, "&lt;").replace(/>/gu, "&gt;").replace(/"/gu, "&quot;").replace(/'/gu, "&apos;");
-  const previous = ["<Project>", "  <PropertyGroup>", `    <TargetFramework>${framework}</TargetFramework>`,
+  const expected = ["<Project>", "  <PropertyGroup>", `    <TargetFramework>${framework}</TargetFramework>`,
     `    <DirectoryBuildPropsPath>${escaped(inputs.runtime.propertiesPath)}</DirectoryBuildPropsPath>`,
-    "    <TsonicRuntimeArtifactsPath>$(MSBuildThisFileDirectory)artifacts/</TsonicRuntimeArtifactsPath>",
+    "    <TsonicRuntimeArtifactsRoot Condition=\"'$(TsonicRuntimeArtifactsRoot)' == ''\">$(MSBuildThisFileDirectory)artifacts/</TsonicRuntimeArtifactsRoot>",
+    `    <TsonicRuntimeArtifactsPath>$(TsonicRuntimeArtifactsRoot)${wrapper.artifactIdentity}/</TsonicRuntimeArtifactsPath>`,
     "  </PropertyGroup>", `  <Import Project="${escaped(inputs.runtime.projectPath)}" />`, "</Project>", ""].join("\n");
   const planned = planCsharpProjectFile({ program: { records: createCsharpCompilationRecords({ project: inputs.project,
     namespace: inputs.project.namespace, languageDialect: inputs.configuration.languageDialect }) } });
   assert.equal(planned.runtimeProjects === inputs.project.runtimeProjects, true, "the backend reads the one pre-seal plan");
   const materialized = materializeCsharpOutputPlan({ project: { kind: "generated", project: planned }, sources: [] });
-  assert.equal(readFileSync(wrapper.path, "utf8"), previous, "the complete wrapper bytes retain the original formatter contract");
+  assert.equal(readFileSync(wrapper.path, "utf8"), expected, "the complete wrapper bytes follow the single root-plus-exact-identity contract");
   const text = printCsharpProjectFile(planned);
   assert.equal(materialized.artifacts.find(artifact => artifact.kind === "project" && artifact.path === planned.path)?.text,
     text, "actual project materialization preserves the complete project bytes");

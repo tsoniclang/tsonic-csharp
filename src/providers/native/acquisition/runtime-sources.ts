@@ -61,7 +61,7 @@ function acquireGeneratedProject(
   const properties = nativeProperties(preparation, toolchain);
   const family = hash(JSON.stringify([preparation.projects.map(project => project.path), properties]));
   const artifacts = join(preparation.cacheRoot, "csharp", "runtime-metadata", "artifacts", family);
-  const arguments_ = Object.freeze([...properties, `-p:TsonicRuntimeArtifactsPath=${artifacts}${sep}`]);
+  const arguments_ = Object.freeze([...properties, `-p:TsonicRuntimeArtifactsRoot=${artifacts}${sep}`]);
   const proofPath = join(directory, "proof.json");
   // A published proof is verified without the build lock: the evaluation restores nothing and writes only a private
   // preprocess file, so concurrent cache hits run in parallel. Any mismatch or failure takes the locked path below.

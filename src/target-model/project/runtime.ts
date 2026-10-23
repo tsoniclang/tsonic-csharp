@@ -12,6 +12,7 @@ export interface CsharpRuntimeSourceProject {
 
 export interface CsharpRuntimeProjectInstance {
   readonly path: string;
+  readonly artifactIdentity: string;
   readonly sourceProject: string;
   readonly sourceProperties: string;
   readonly framework: string;
