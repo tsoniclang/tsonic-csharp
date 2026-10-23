@@ -1,6 +1,6 @@
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpObjectShapeDemand, CsharpObjectShapeArtifact } from "../../target-model/records/object-shape-demand.js";
-import { objectShapeArtifactKey } from "../program/records/object-shape-keys.js";
+import { objectShapeArtifactKey } from "../../target-model/records/object-shape-keys.js";
 import type { CsharpObjectShapeDeclarationEmission, CsharpObjectShapeEmission, CsharpObjectShapeParameter } from "../../target-model/records/object-shape-emission.js";
 import type { CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
 import { csharpStructuralObjectShapeIdentity, isCsharpJsValueObjectShapeTargetType } from "../../target-model/types/index.js";

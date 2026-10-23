@@ -3,7 +3,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpCaptureStorage } from "../../target-model/records/capture-storage.js";
 import type { CsharpCaptureMethodEmission } from "../../target-model/records/capture-methods.js";
 import { getCsharpExpressionTreeDelegateType, isCsharpVoidTargetType } from "../../target-model/types/index.js";
-import { objectShapeArtifactKey } from "../program/records/object-shape-keys.js";
+import { objectShapeArtifactKey } from "../../target-model/records/object-shape-keys.js";
 import { selectCsharpObjectLiteralCallable } from "../../policy/types/objects/object-literals.js";
 import { createCsharpCaptureMethodRecords } from "../program/records/capture-methods.js";
 

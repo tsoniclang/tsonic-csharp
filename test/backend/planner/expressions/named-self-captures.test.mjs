@@ -3,7 +3,7 @@ import test from "node:test";
 import { planCsharpNamedSelfCaptureContext } from "../../../../dist/backend/planner/bindings/capture-closures.js";
 import { createDestructuringPlannerState, csharpCaptureFrameName } from "../../../../dist/backend/planner/bindings/binding-state.js";
 import { analyzeCsharpObjectShapeEmission } from "../../../../dist/analysis/objects/declaration-emission.js";
-import { objectShapeArtifactKey } from "../../../../dist/analysis/program/records/object-shape-keys.js";
+import { objectShapeArtifactKey } from "../../../../dist/target-model/records/object-shape-keys.js";
 
 // The analysis materializes each captured activation frame's shape before sealing; the planner reads that sealed
 // emission for the frame it retains. 'registered' observes those reads.

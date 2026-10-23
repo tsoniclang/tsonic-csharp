@@ -20,9 +20,9 @@ import {
   isCsharpEmptyObjectTargetType,
   isSourceDeclaredNominalShape,
 } from "../../target-model/types/index.js";
-import { objectShapeArtifactKey } from "../program/records/object-shape-keys.js";
+import { objectShapeArtifactKey } from "../../target-model/records/object-shape-keys.js";
 import { objectShapeMaterialization } from "../../policy/types/objects/object-shape-materialization.js";
-import { objectShapeProjectionKey } from "../program/records/object-shape-keys.js";
+import { objectShapeProjectionKey } from "../../target-model/records/object-shape-keys.js";
 import { csharpObjectShapeMethodDeclaration } from "../../target-model/types/method-values.js";
 import type { CsharpObjectShapeDemandHost } from "./native-demand-batches.js";
 import type { CsharpObjectShapeProjectionAdmission } from "../../target-model/records/object-shape-demand.js";

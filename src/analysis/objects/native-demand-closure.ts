@@ -5,8 +5,8 @@ import type { CsharpObjectShapeProjectionAdmission } from "../../target-model/re
 import { csharpObjectShapesEqual, csharpObjectShapeAssignmentMembers, csharpObjectShapeProjectionMembers, getCsharpJsArrayElementTargetType, getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms, isCsharpClosedJsonRuntimeLeaf, isCsharpRecordDictionaryTargetType, isCsharpStringTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/index.js";
 import { rejected } from "./native-demand-batches.js";
 import { maximumJsonClosureDepth } from "./native-demand-batches.js";
-import { objectShapeArtifactKey } from "../program/records/object-shape-keys.js";
-import { objectShapeProjectionKey } from "../program/records/object-shape-keys.js";
+import { objectShapeArtifactKey } from "../../target-model/records/object-shape-keys.js";
+import { objectShapeProjectionKey } from "../../target-model/records/object-shape-keys.js";
 import { collectCsharpReferenceClosure } from "./native-demand-references.js";
 import { resolveCsharpSourceClassStorage } from "./native-demand-storage.js";
 import { selectCsharpJsonObjectShapeContract } from "../../policy/types/objects/json-object-shapes.js";

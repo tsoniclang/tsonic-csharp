@@ -6,7 +6,7 @@ import { renderObjectShapeTypeParameters } from "../../../dist/backend/planner/o
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { analyzeCsharpObjectShapeEmission } from "../../../dist/analysis/objects/declaration-emission.js";
-import { objectShapeArtifactKey } from "../../../dist/analysis/program/records/object-shape-keys.js";
+import { objectShapeArtifactKey } from "../../../dist/target-model/records/object-shape-keys.js";
 
 // The object-shape emission analysis selects a generated owner's native binders (refusing unclosed constraints);
 // the planner renders the selected binders.

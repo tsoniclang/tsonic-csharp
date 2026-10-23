@@ -8,7 +8,6 @@ import type { CsharpCallableParameterRecords } from "../../target-model/records/
 import type { CsharpCaptureStorage } from "../../target-model/records/capture-storage.js";
 import type { CsharpCallableCreationIndex } from "../../target-model/records/callable-values.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
-import type { CsharpExpectedTypeClassifications } from "../../target-model/records/expected-types.js";
 import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
 import type { CsharpTypeEmissionRecords } from "../../target-model/records/type-emission.js";
 import type { CsharpTargetArgumentRecords } from "../../target-model/records/target-arguments.js";
@@ -22,7 +21,7 @@ export function analyzeCsharpLambdaEmission(input: { readonly source: TargetSour
   readonly declarations: CsharpCallableDeclarationRecords;
   readonly parameters: CsharpCallableParameterRecords;
   readonly captures: CsharpCaptureStorage; readonly creations: CsharpCallableCreationIndex; readonly storage: CsharpStorageClassifications;
-  readonly expected: CsharpExpectedTypeClassifications; readonly values: CsharpValueReadClassifications; readonly types: CsharpTypeEmissionRecords;
+  readonly values: CsharpValueReadClassifications; readonly types: CsharpTypeEmissionRecords;
   readonly arguments: CsharpTargetArgumentRecords; readonly constants: CsharpNativeConstantRecords; readonly demand: CsharpNativeDemandAnalysis;
   readonly admitted: (node: Node) => boolean }) {
   const values = new Map<Node, CsharpLambdaBodyEmission>();
@@ -65,13 +64,15 @@ export function analyzeCsharpLambdaEmission(input: { readonly source: TargetSour
         `The sealed lambda parameter representation '${targetTypeRefKey(selected)}' conflicts with its exact selected C# delegate parameter representation '${targetTypeRefKey(expected)}'.`);
     }
     const result = input.types.typeEmission.get(signature.returnType);
-    if (HasSyntacticModifier(ast, node, ModifierFlagsAsync)) {
+    const asynchronous = HasSyntacticModifier(ast, node, ModifierFlagsAsync);
+    if (asynchronous) {
       if (result?.taskResult === undefined) { refuse(node, "Async lambda emission requires a finalized Task/Promise-returning delegate carrier fact before C# emission."); continue; }
       if (input.types.typeEmission.get(result.taskResult) === undefined) { refuse(node, "Async lambda emission requires a renderable Task/Promise result carrier before C# emission."); continue; }
     }
     const body = declaration?.Body;
+    const returnTarget = asynchronous ? result?.taskResult : signature.returnType;
     const completion = body === undefined || ast.is.IsBlock(body) ? undefined
-      : csharpVoidReturnCompletion(input.values.valueRead.get(body)?.value, input.expected.returnContext.get(node)?.target);
+      : csharpVoidReturnCompletion(input.values.valueRead.get(body)?.value, returnTarget);
     values.set(node, { completion });
     if (creation.kind !== "quotation") continue;
     if (ast.is.IsFunctionExpression(node)) { refuse(node, "A native expression-tree quotation requires expression-bodied arrow syntax, not a function-expression statement body."); continue; }

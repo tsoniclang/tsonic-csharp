@@ -31,7 +31,7 @@ import type { CsharpModuleInitializationIndex } from "../../target-model/records
 import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
 import type { CsharpCallableCreationIndex } from "../../target-model/records/callable-values.js";
 import type { CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
-import { objectShapeArtifactKey } from "../program/records/object-shape-keys.js";
+import { objectShapeArtifactKey } from "../../target-model/records/object-shape-keys.js";
 import { objectShapeStorageMemberName, objectShapeBoundStorageMemberName,
   objectShapeAccessorGetterStorageMemberName, objectShapeAccessorSetterStorageMemberName,
   csharpDeferredCaptureStorageNames, csharpFrozenStorageName, csharpJsonValueProjectionMethodName,
