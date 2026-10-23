@@ -35,7 +35,7 @@ export function analyzeCsharpLambdaEmission(input: { readonly source: TargetSour
     const signature = carrier === undefined ? undefined : input.types.typeEmission.get(carrier)?.lambda;
     if (signature === undefined) { refuse(node, "Lambda emission requires a contextual function/delegate type from TSTS or provider facts before C# emission."); continue; }
     const declaration = ast.as.AsArrowFunction(node) ?? ast.as.AsFunctionExpression(node);
-    const parameters = input.declarations.callableDeclaration.get(node)?.parameters;
+    const parameters = input.declarations.callableDeclaration.get(node)?.contract.parameters;
     if (parameters === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted lambda requires its checked source value parameters.", node);
     if (parameters.length > signature.parameters.length) {
       refuse(parameters[signature.parameters.length] ?? node, "The source lambda declares more parameters than its exact selected C# delegate representation."); continue;

@@ -119,7 +119,7 @@ for (const surface of ["native", "js"]) {
     const declarations = new Map(nodes.filter(node => ast.is.IsArrowFunction(node)).map(declaration => {
       const signature = getCsharpLambdaSignature(records.callableTarget.get(declaration));
       assert.equal(signature !== undefined, true, "each adapted lambda has its exact published signature");
-      const parameters = records.callableDeclaration.get(declaration).parameters;
+      const parameters = records.callableDeclaration.get(declaration).contract.parameters;
       const nativeParameters = Object.freeze(parameters.map((parameter, index) => {
         const type = records.lambdaParameterType.get(parameter);
         assert.equal(type !== undefined && targetTypeRefEquals(type, signature.parameters[index]), true,

@@ -414,7 +414,7 @@ function nativeCreations(value, overrides = {}) {
   const contract = declaration => {
     const result = records.returnContract.get(declaration);
     if (result?.kind !== "resolved") return undefined;
-    const parameters = records.callableDeclaration.get(declaration).parameters;
+    const parameters = records.callableDeclaration.get(declaration).contract.parameters;
     const nativeParameters = parameters.map(parameter => {
       const type = records.lambdaParameterType.get(parameter);
       return type === undefined ? undefined : { sourceParameter: parameter, targetParameter: { type, passingMode: "by-value" } };

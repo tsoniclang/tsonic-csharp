@@ -57,3 +57,33 @@ test("native-only constructor contracts contain no fabricated source vector", ()
   assert.equal(selectCsharpProjectConstructorAbi({ definition: { declaration: owner }, source: { parameters: [] },
     targetMember: { parameters: [] } }) === undefined, true, "missing native return evidence does not manufacture a contract");
 });
+
+test("native callable and class emission transport the original canonical contracts", () => {
+  const compiled = compileCsharpSource({ sourceText: `
+    class Box {
+      constructor(readonly value: number) {}
+      read(input: number): number { return this.value + input; }
+    }
+    export function run(): number { return new Box(4).read(2); }
+  ` });
+  assertCsharpCompilationSucceeded(compiled);
+  const program = compiled.result.program;
+  const { ast } = program.source;
+  const nodes = [];
+  const visit = node => { nodes.push(node); ast.forEachChild(node, visit); };
+  csharpProgramSourceFiles(program).forEach(visit);
+  const declaration = nodes.find(node => ast.is.IsClassDeclaration(node));
+  const constructor = nodes.find(node => ast.is.IsConstructorDeclaration(node));
+  const method = nodes.find(node => ast.is.IsMethodDeclaration(node));
+  const emitted = program.records.nativeClass.get(declaration);
+  assert.equal(emitted.constructorContracts.length, 1, "the single authored constructor is closed before publication");
+  const contract = emitted.constructorContracts[0];
+  assert.equal(contract.kind === "source" && contract.sourceDeclaration === constructor, true,
+    "the original constructor contract, not a copied source-vector field, is transported");
+  assert.equal(contract.parameters[0] === ast.parameters(constructor)[0], true,
+    "the original parameter identity survives the native class record");
+  assert.equal(Object.isFrozen(emitted.constructorContracts) && Object.isFrozen(contract), true,
+    "the class transports immutable existing evidence");
+  assert.equal(program.records.callableDeclaration.get(method).contract === program.records.callableDispatch.get(method).implementation, true,
+    "body and dispatch consume the identical presealed source contract");
+});

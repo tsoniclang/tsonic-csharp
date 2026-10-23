@@ -75,7 +75,10 @@ export function planConstructorDeclarations(
   const selected = owner === undefined ? undefined : input.program.records.nativeClass.get(owner);
   if (selected === undefined || selected.authoredConstructor !== node)
     failCsharpPlannerInvariant("An authored constructor requires its sealed native class source vector.", node);
-  const parameters = planParametersWithPrelude(selected.parameters, sourceFile, input, diagnostics, state);
+  const contract = selected.constructorContracts[0];
+  if (selected.constructorContracts.length !== 1 || contract?.kind !== "source" || contract.sourceDeclaration !== node)
+    failCsharpPlannerInvariant("An authored constructor requires its unique admitted source callable contract.", node);
+  const parameters = planParametersWithPrelude(contract.parameters, sourceFile, input, diagnostics, state);
   const constructor: CsharpConstructorDeclaration = {
       kind: "ConstructorDeclaration",
       name: className,

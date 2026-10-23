@@ -10,6 +10,7 @@ import type { CsharpNamePlan } from "../../../target-model/names/model.js";
 import { createCsharpClassEmissionRecords } from "../../program/records/class-emission.js";
 import { sourceObjectMemberDeclarations } from "@tsonic/target-api/source";
 import type { CsharpCallableContractIndex } from "../../../target-model/records/callable-values.js";
+import type { SourceCallableContract } from "../../../target-model/records/source-callable-contract.js";
 
 export function analyzeCsharpClassEmission(input: {
   readonly ast: AstReader;
@@ -48,6 +49,7 @@ export function analyzeCsharpClassEmission(input: {
     const implicit = input.projectTypes.implicitConstructorsForDeclaration(node);
     if (implicit === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted class requires its native implicit-constructor model.", node);
     const forwardingConstructors: CsharpForwardingConstructorEmission[] = [];
+    const constructorContracts: SourceCallableContract[] = [];
     for (const constructor of implicit) {
       const selected = selectCsharpForwardingConstructor(constructor.targetMember.parameters);
       const subject = constructor.source.declaration ?? constructor.definition.declaration;
@@ -55,7 +57,10 @@ export function analyzeCsharpClassEmission(input: {
         issues.push(Object.freeze({ code: selected.code, category: "error", source: "tsonic-csharp", sourceNode: subject, message: selected.message }));
         continue;
       }
-      for (const parameters of selected.variants) forwardingConstructors.push(Object.freeze({ subject, parameters }));
+      const contract = input.callables.get({ kind: "project-constructor", targetMemberId: constructor.targetMember.id });
+      if (contract === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted inherited constructor requires its canonical callable ABI.", subject);
+      constructorContracts.push(contract);
+      for (const parameters of selected.variants) forwardingConstructors.push(Object.freeze({ subject, contract, parameters }));
     }
     const implicitCount = forwardingConstructors.length;
     if (factory !== undefined && authoredConstructor === undefined && implicitCount > 1) {
@@ -66,7 +71,10 @@ export function analyzeCsharpClassEmission(input: {
     const authored = authoredConstructor === undefined ? undefined : input.callables.get({ kind: "declaration", declaration: authoredConstructor });
     if (authoredConstructor !== undefined && authored === undefined)
       failTargetAnalysisInvariant("tsonic-csharp", "An authored native constructor requires its checked source value vector.", authoredConstructor);
-    classes.set(node, Object.freeze({ parameters: authored === undefined ? Object.freeze([]) : authored.parameters,
+    if (authored !== undefined) constructorContracts.push(authored);
+    if (authored !== undefined && constructorContracts.length !== 1)
+      failTargetAnalysisInvariant("tsonic-csharp", "An authored constructor implementation has one canonical native ABI.", authoredConstructor);
+    classes.set(node, Object.freeze({ constructorContracts: Object.freeze(constructorContracts),
       forwardingConstructors: Object.freeze(forwardingConstructors), name: selectedName.name, abstract: definition.abstract, staticCompanion: definition.staticCompanion,
       instanceMembers: Object.freeze(members), staticMembers: Object.freeze(staticMembers), authoredConstructor,
       factoryConstructor: authoredConstructor === undefined ? implicitCount === 0 ? "default" : "implicit" : "authored" }));

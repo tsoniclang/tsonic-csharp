@@ -1,9 +1,10 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../types/model.js";
 import type { CsharpCaptureFrame } from "./capture-storage.js";
+import type { SourceCallableContract } from "./source-callable-contract.js";
 
 export interface CsharpNativeClassEmission {
-  readonly parameters: readonly Node[];
+  readonly constructorContracts: readonly SourceCallableContract[];
   readonly forwardingConstructors: readonly CsharpForwardingConstructorEmission[];
   readonly name: string;
   readonly abstract: boolean;
@@ -16,6 +17,7 @@ export interface CsharpNativeClassEmission {
 
 export interface CsharpForwardingConstructorEmission {
   readonly subject: Node;
+  readonly contract: SourceCallableContract;
   readonly parameters: readonly {
     readonly name: string;
     readonly carrier: TargetTypeRef;

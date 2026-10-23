@@ -17,7 +17,7 @@ test("authored this is a sealed erased receiver, never a native void parameter",
   for (const file of csharpProgramSourceFiles(program)) visit(file);
   const owner = nodes.find(node => ast.is.IsFunctionDeclaration(node) && ast.text(ast.name(node)) === "read");
   const [receiver, first, second] = ast.parameters(owner);
-  const values = program.records.callableDeclaration.get(owner)?.parameters;
+  const values = program.records.callableDeclaration.get(owner)?.contract.parameters;
   assert.equal(values !== undefined && !values.includes(receiver) && program.records.callableParameter.get(receiver) === undefined,
     true, "the sealed source vector excludes the pseudo receiver without a second receiver-membership record");
   assert.equal(program.records.callableParameter.get(first)?.kind, "parameter", "thisValue is still an actual value parameter");
