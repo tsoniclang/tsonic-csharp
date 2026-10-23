@@ -13,6 +13,7 @@ import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/recor
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
+import { isCsharpSourceCallableArtifactDeclaration } from "../../policy/types/callables/source-callable-contract.js";
 
 export function analyzeCsharpCallableParameterEmission(input: {
   readonly ast: AstReader;
@@ -36,6 +37,8 @@ export function analyzeCsharpCallableParameterEmission(input: {
   };
   for (const owner of owners) {
     if (owner === undefined || !input.admitted(owner)) continue;
+    if (!isCsharpSourceCallableArtifactDeclaration(input.ast, owner) &&
+      !input.ast.is.IsGetAccessorDeclaration(owner) && !input.ast.is.IsSetAccessorDeclaration(owner)) continue;
     const contract = input.callables.get({ kind: "declaration", declaration: owner });
     if (contract === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted callable requires its checked source value parameters.", owner);
     let hasDefault = false;
