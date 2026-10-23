@@ -8,6 +8,7 @@ import { createCompilerSessionFromFiles } from "@tsonic/tsts";
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const sourceRoot = join(repositoryRoot, "src");
 const paths = Object.freeze({
+  compile: "src/backend/compile.ts",
   analyze: "src/analysis/program/analyze.ts",
   iteration: "src/analysis/program/iteration.ts",
   emission: "src/analysis/program/emission.ts",
@@ -118,7 +119,40 @@ test("expected native provider failures return their original data before public
   const failures = callsTo(entry, "request.providers.failures");
   assert.equal(failures.length, 1, "the boundary reads the provider's retained refusal values once");
   assert.equal(position(calls[0]) < position(failures[0]), true, "retained failures are collected after analysis");
-  assert.equal(callsTo(entry, "request.providers.validateReferences").length, 1, "reference admission precedes source analysis");
+  const boundary = functionNamed(paths.compile, "compileWithCsharpReferenceValidation");
+  const validations = callsTo(boundary, "request.providers.validateReferences");
+  const compile = callsTo(boundary, "compile");
+  assert.equal(validations.length === 2 && compile.length === 1, true,
+    "the whole-compilation boundary validates native references before and after its one callback");
+  assert.equal(position(validations[0]) < position(compile[0]) && position(compile[0]) < position(validations[1]), true,
+    "reference admission precedes source analysis and native pins are checked again after materialization");
+  const before = descendants(boundary).filter(node => ast.is.IsIfStatement(node) &&
+    text(ast.as.AsIfStatement(node).Expression) === "before.length !== 0");
+  assert.equal(before.length === 1 && position(before[0]) < position(compile[0]) &&
+    descendants(before[0]).some(node => ast.is.IsReturnStatement(node)) &&
+    callsTo(before[0], "rejectedTargetStage").length === 1 && callsTo(before[0], "targetDiagnosticFromExtension").length === 1, true,
+    "a retained native-reference refusal returns its original diagnostic data without running compilation");
+  const compileEntry = functionNamed(paths.compile, "compileCsharpTarget");
+  const wrappers = callsTo(compileEntry, "compileWithCsharpReferenceValidation");
+  assert.equal(wrappers.length === 1 && text(ast.arguments(wrappers[0])[0]) === "request", true,
+    "the public compiler uses the same whole-compilation reference boundary once");
+  const callback = ast.arguments(wrappers[0])[1];
+  const stages = callsTo(callback, "runTargetCompilationStages");
+  const stageInput = stages.length === 1 ? ast.arguments(stages[0])[0] : undefined;
+  const analyzeStage = stageInput === undefined ? undefined : property(stageInput, "analyze");
+  const materializeStage = stageInput === undefined ? undefined : property(stageInput, "materialize");
+  const analysisCalls = analyzeStage === undefined ? [] : callsTo(analyzeStage, "analyzeCsharpTargetProgram");
+  assert.equal(ast.is.IsArrowFunction(callback) && stages.length === 1 && analysisCalls.length === 1 &&
+    text(ast.arguments(analysisCalls[0])[0]) === "request" &&
+    text(ast.as.AsPropertyAssignment(materializeStage)?.Initializer) === "materializeCsharpOutputPlan", true,
+    "source analysis and materialization both run inside the admitted compilation callback");
+  const final = ast.statements(ast.body(boundary)).at(-1);
+  const selected = ast.is.IsReturnStatement(final) ? ast.as.AsReturnStatement(final).Expression : undefined;
+  const completion = ast.is.IsConditionalExpression(selected) ? ast.as.AsConditionalExpression(selected) : undefined;
+  assert.equal(completion !== undefined && text(completion.Condition) === "after.length === 0" &&
+    text(completion.WhenTrue) === "result" && callsTo(completion.WhenFalse, "rejectedTargetStage").length === 1 &&
+    callsTo(completion.WhenFalse, "targetDiagnosticFromExtension").length === 1, true,
+    "post-materialization native pin failures reject publication with their original evidence");
   const refusal = descendants(entry).filter(node => ast.is.IsIfStatement(node) &&
     text(ast.as.AsIfStatement(node).Expression) === 'request.providerAcquisition.kind === "rejected"');
   assert.equal(refusal.length, 1, "runtime acquisition is admitted as a value before analysis");
