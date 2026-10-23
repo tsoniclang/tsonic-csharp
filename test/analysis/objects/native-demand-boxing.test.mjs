@@ -193,6 +193,7 @@ const originalPrograms = [
 for (const surface of ["native", "js"]) test(`${surface}: present native lambda inputs adapt without evaluating an absent-only default`, () => {
   const compiled = compileCsharpSource({ surface, sourceText: header + `
     let defaults: int32 = 0;
+    function defaultCount(): int32 { return defaults; }
     function fallback(): unknown { defaults += 1; return { count: 11 as int32 }; }
     function invoke(callback: (value: { count: int32 }) => boolean): boolean {
       return callback({ count: 7 as int32 });
@@ -201,8 +202,8 @@ for (const surface of ["native", "js"]) test(`${surface}: present native lambda 
     export function run(): boolean {
       defaults = 0;
       const selected = invoke((value: unknown = fallback()): boolean => typeof value === "object");
-      if (!selected || defaults !== 0) return false;
-      if (!optional() || defaults !== 1) return false;
+      if (!selected || defaultCount() !== 0) return false;
+      if (!optional() || defaultCount() !== 1) return false;
       return true;
     }
   ` });
