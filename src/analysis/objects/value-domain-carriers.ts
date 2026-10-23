@@ -79,6 +79,8 @@ export function analyzeCsharpValueDomainCarriers(
           selectedCarrier = component.kind === "array-element" ? getCsharpCollectionElementTargetType(selectedCarrier)
             : component.kind === "tuple-element"
               ? selectedCarrier?.kind === "tuple" ? selectedCarrier.elements[component.index] : undefined
+              : component.kind === "type-argument-slot"
+                ? selectedCarrier?.kind === "target-named" ? selectedCarrier.typeArguments?.[component.index] : undefined
               : selectedCarrier === undefined ? undefined : projectedMemberCarrier(component.declaration, selectedCarrier);
         }
         originCarriers.set(origin.subject, selectedCarrier);
