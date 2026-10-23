@@ -3,6 +3,7 @@ import { objectShapeMemberTargetName } from "../../../policy/identities/source-m
 import { createStructuralObjectShapeTarget, mergeCsharpObjectShapeSubjects } from "./construction.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { csharpObjectShapesEqual } from "../../../target-model/types/object-shape-equality.js";
+import { csharpObjectShapeContractKey } from "../../../target-model/types/object-shape-identity.js";
 import { isProjectSourceTargetType, projectClassIsObjectInitializable, requiresUnresolvedStructuralProjection, selectedObjectShapeSource, sourceSubjects, typeHasProjectOwnedShapeDeclaration, typeIsExcludedFromObjectShape } from "./source-evidence.js";
 import { readCsharpSourceField, readCsharpSourceStruct } from "../../../source/extension/markers.js";
 import { Node_Initializer } from "@tsonic/target-api/source";
@@ -227,7 +228,20 @@ export function createCsharpObjectShapePolicy(
     const key = targetTypeRefKey(shape.targetType);
     const existing = targetShapes.get(key);
     if (existing !== undefined && !csharpObjectShapesEqual(existing, shape)) {
-      failTargetAnalysisInvariant("tsonic-csharp", `C# object-shape target '${key}' resolved to contradictory structural contracts.`);
+      const existingContract = csharpObjectShapeContractKey(existing);
+      const incomingContract = csharpObjectShapeContractKey(shape);
+      let offset = 0;
+      while (offset < existingContract.length && offset < incomingContract.length &&
+        existingContract[offset] === incomingContract[offset]) {
+        offset += 1;
+      }
+      const start = Math.max(0, offset - 64);
+      const end = offset + 96;
+      failTargetAnalysisInvariant("tsonic-csharp",
+        `C# object-shape target '${key}' resolved to contradictory structural contracts. ` +
+        `Canonical contract offset ${offset}; existing length ${existingContract.length}, ` +
+        `excerpt ${JSON.stringify(existingContract.slice(start, end))}; ` +
+        `incoming length ${incomingContract.length}, excerpt ${JSON.stringify(incomingContract.slice(start, end))}.`);
     }
     const canonical = existing === undefined
       ? shape
