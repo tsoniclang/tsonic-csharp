@@ -156,6 +156,8 @@ test("one retained native runtime demand uses the actual wrapper reference and r
     assert.equal(statSync(output.path, { bigint: true }).mtimeNs, times[index], "warm metadata acquisition does not rebuild the runtime");
   }
   assert.equal(readFileSync(inputs.wrapper.path, "utf8"), inputs.wrapper.text, "the built wrapper is exactly the emitted wrapper");
+  assert.equal(provider.findTargetBindingByMetadataName("InheritanceProviderFixtures.ClosedBase", "ordinary").kind, "missing",
+    "acquired inheritance metadata never broadens the ordinary native query domain");
   console.log(JSON.stringify({ nativeRuntimeMetadata: { coldMilliseconds, sameSessionMilliseconds, newSessionMilliseconds,
     outputBytes: captured.outputs.reduce((total, output) => total + statSync(output.path).size, 0), inputFingerprint: captured.inputFingerprint } }));
 });

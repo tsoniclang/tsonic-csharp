@@ -317,10 +317,25 @@ test("wide optional signatures collect optional indexes once rather than scannin
 
 test("super construction obtains its exact selected native base environment", () => {
   const expression = {};
+  const constructor = {};
+  const owner = {};
   const base = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "fixture.Base", typeArguments: [integer] };
   const source = { sourceCallee: { expression } };
-  const selected = resolveSourceCallReceiverTargetType({ host: { ast: { kindName: () => "KindSuperKeyword" } },
-    resolveNodeWithState: node => { assert.equal(node === expression, true); return base; },
+  const selected = resolveSourceCallReceiverTargetType({ host: {
+    ast: { kindName: () => "KindSuperKeyword", parent: node => node === expression ? constructor : node === constructor ? owner : undefined,
+      hasModifierKind: () => false,
+      is: { IsArrowFunction: () => false, IsFunctionDeclaration: () => false, IsFunctionExpression: () => false,
+        IsMethodDeclaration: () => false, IsGetAccessorDeclaration: () => false, IsSetAccessorDeclaration: () => false,
+        IsConstructorDeclaration: node => node === constructor, IsPropertyDeclaration: () => false,
+        IsClassDeclaration: node => node === owner, IsClassExpression: () => false } },
+    projectTypeCatalog: { definitionForDeclaration: declaration => {
+      assert.equal(declaration === owner, true, "the actual construction class owns its native environment");
+      return { declaration: owner, typeParameterBindings: [] };
+    }, targetTypeForDeclaration: declaration => {
+      assert.equal(declaration === owner, true, "heritage instantiation consumes the exact enclosing class identity");
+      return base;
+    } },
+  }, resolveNodeWithState: () => assert.fail("super is construction syntax, never a runtime value lookup"),
   }, source, {}, { depth: 0 });
   assert.equal(selected === base, true, "heritage instantiation stays at the existing receiver owner");
 });
