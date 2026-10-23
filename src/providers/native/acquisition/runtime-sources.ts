@@ -58,11 +58,10 @@ function acquireGeneratedProject(
 ): NativeResult<readonly string[]> {
   publishText(project.path, project.text);
   const directory = join(preparation.cacheRoot, "csharp", "runtime-metadata", hash(project.path));
-  // The acquired metadata is built into output and intermediate directories private to this cache entry. A build of a
-  // generated project that references the runtime project writes the project's default bin/obj instead, so it never
-  // replaces the assemblies a running compilation has snapshotted as its references.
-  const arguments_ = Object.freeze([...nativeProperties(preparation, toolchain),
-    `-p:OutDir=${join(directory, "bin")}${sep}`, `-p:IntermediateOutputPath=${join(directory, "obj")}${sep}`]);
+  const properties = nativeProperties(preparation, toolchain);
+  const family = hash(JSON.stringify([preparation.projects.map(project => project.path), properties]));
+  const artifacts = join(preparation.cacheRoot, "csharp", "runtime-metadata", "artifacts", family);
+  const arguments_ = Object.freeze([...properties, `-p:TsonicRuntimeArtifactsPath=${artifacts}${sep}`]);
   const proofPath = join(directory, "proof.json");
   // A published proof is verified without the build lock: the evaluation restores nothing and writes only a private
   // preprocess file, so concurrent cache hits run in parallel. Any mismatch or failure takes the locked path below.
