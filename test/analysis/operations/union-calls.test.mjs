@@ -29,12 +29,9 @@ function fixture() {
   const union = csharpRuntimeUnionTargetType(arms);
   const semantics = { operations: { propertyAccess: () => ({ receiver: { expression: receiver, type: {} },
       selectedSymbol, selectedDeclaration: declarations[0], optionalChain: false }) },
-    types: { propertyInfos: () => [],
-      declarationSignatureInfo: declaration => {
-        const signature = checkedSignatures[declarations.indexOf(declaration)];
-        return signature === undefined ? undefined : { signature };
-      } },
+    types: { propertyInfos: () => [] },
     declarations: {
+      declarationSignature: declaration => checkedSignatures[declarations.indexOf(declaration)],
       signatureParameters: signature => signature.parameters,
       primarySymbolDeclaration: symbol => symbol.declaration,
     },
