@@ -27,7 +27,7 @@ function context(constructorArguments = new Map()) {
 const valueMember = name => ({ kind: "value", member: { memberKind: "property", targetName: name, type: integer }, initializer: {} });
 const spreadMember = (presence, fields) => ({ kind: "spread", presence, expression: {},
   fields: fields.map(([target, fieldCarrier]) => ({ target, carrier: fieldCarrier })) });
-const analyzed = (...members) => analyzeCsharpObjectInitialization({}, {}, members, [], () => false);
+const analyzed = (...members) => analyzeCsharpObjectInitialization({}, { targetType: carrier, members: [] }, members, [], () => false);
 function admitted(...members) {
   const result = analyzed(...members);
   assert.deepEqual(result.issues, []);
