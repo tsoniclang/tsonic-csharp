@@ -12,7 +12,8 @@ import {
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { selectCsharpConversion } from "../../policy/conversions/index.js";
 import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
-import { csharpSourceUnionLayoutsMatch } from "../../policy/conversions/union-relations.js";
+import { csharpSourceUnionLayoutsMatch, csharpSourceUnionReturnLayout } from "../../policy/conversions/union-relations.js";
+import { classifyCsharpSourceProfileType } from "../../policy/identities/source-types.js";
 import { csharpLiteralReturnsFit, forEachCsharpDirectReturnExpression } from "../callables/return-expressions.js";
 import { selectCsharpCommonImplicitTarget } from "../conversions/common-target.js";
 import {
@@ -192,8 +193,14 @@ function classifyReturnContract(
     }
   });
   if (authoredReturnType !== undefined) {
+    const queries = policy.semanticsFor(declaration);
+    const sourceReturn = authoredReturnNode === undefined ? undefined : queries.types.authoredType(authoredReturnNode);
+    const sourceResult = !asynchronous ? sourceReturn : sourceReturn !== undefined &&
+      classifyCsharpSourceProfileType(sourceReturn, queries, policy.ast)?.kind === "promise" ? queries.types.awaitedType(sourceReturn) : undefined;
     const actual = !incomplete && observed.length > 0 && observed.every(type => targetTypeRefEquals(type, observed[0]!))
-      && csharpSourceUnionLayoutsMatch(observed[0]!, observedBaseline) ? observed[0] : undefined;
+      && sourceResult !== undefined && csharpSourceUnionReturnLayout({ source: observed[0]!, target: observedBaseline,
+        sourceType: sourceResult, queries, ast: policy.ast, definitions: policy.typeDefinitions,
+        resolveType: type => policy.types.resolveType(type, queries.sourceFile) }) ? observed[0] : undefined;
     const type = actual === undefined ? authoredReturnType : asynchronous ? csharpTaskTargetType(actual) : actual;
     return { kind: "resolved", type,
       ...(pointer === undefined ? {} : { undefinedReturn: pointer.undefinedReturn, fallthroughUndefined: pointer.fallthroughUndefined }) };

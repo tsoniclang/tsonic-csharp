@@ -7,6 +7,10 @@ import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/type
 import { isCsharpStringTargetType, isCsharpJsStringTargetType } from "../../../dist/target-model/types/identity.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
+import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { analyzeCsharpDeclarations } from "../../../dist/analysis/declarations/analyze.js";
+import { csharpRuntimeUnionTargetType, csharpTargetNamedType, csharpStringTargetType } from "../../../dist/target-model/types/index.js";
 
 const header = 'import type { float32, float64, int16, uint16, int32, uint32, int64 } from "@tsonic/core/types.js";';
 const compile = (surface, body) => compileCsharpNativeUseSource({ surface, sourceText: `${header}\n${body}` });
@@ -16,6 +20,77 @@ const accepted = compiled => {
     compiled.targetDiagnostics.map(issue => `${issue.code}: ${issue.message}`).join(" | "));
   return compiled.result.program;
 };
+
+test("authored native generic return ABIs are not rewritten by a nested logical union permutation", () => {
+  const checked = checkCsharpSource({ sourceText: `
+    interface NativeBox<Value> { value: Value; }
+    interface NativeUnion<Left, Right> { left?: Left; right?: Right; }
+    type Logical = string | number;
+    type Values = readonly Logical[];
+    type Nested<Value> = readonly (string | Value)[][];
+    export function wrapper(value: NativeBox<Logical>): NativeBox<Logical> { return value; }
+    export function explicit(value: NativeBox<NativeUnion<string, number>>): NativeBox<NativeUnion<string, number>> { return value; }
+    export function nativeUnion(value: NativeUnion<string, number>): NativeUnion<string, number> { return value; }
+    export function alias(value: Values): Values { return value; }
+    export function nested(value: Nested<number>): Nested<number> { return value; }
+    export function tuple(value: [Values, Values]): [Values, Values] { return value; }
+  ` });
+  assert.equal(checked.sourceDiagnosticsText, "", "every declaration and alias uses actual checked semantic types");
+  const source = createTargetSourceProgram(checked.source);
+  const { ast } = source;
+  const file = checked.source.getSourceFile("/project/index.ts");
+  const text = csharpStringTargetType();
+  const numeric = csharpSourcePrimitiveTargetType("float64");
+  const producedUnion = csharpRuntimeUnionTargetType([text, numeric]);
+  const declaredUnion = csharpRuntimeUnionTargetType([numeric, text]);
+  const array = element => Object.freeze({ kind: "array", element });
+  const box = element => csharpTargetNamedType("fixture.NativeBox", [element],
+    { kind: "named", name: "NativeBox", genericArity: 1 }, { allowsRefLikeTypeArguments: [false] });
+  const carriers = new Map([
+    ["wrapper", [box(producedUnion), box(declaredUnion), false]],
+    ["explicit", [box(producedUnion), box(declaredUnion), false]],
+    ["nativeUnion", [producedUnion, declaredUnion, false]],
+    ["alias", [array(producedUnion), array(declaredUnion), true]],
+    ["nested", [array(array(producedUnion)), array(array(declaredUnion)), true]],
+    ["tuple", [{ kind: "tuple", elements: [array(producedUnion), array(producedUnion)] },
+      { kind: "tuple", elements: [array(declaredUnion), array(declaredUnion)] }, true]],
+  ]);
+  const authored = new Map();
+  const returned = new Map();
+  const declarations = [];
+  const visit = node => {
+    if (ast.is.IsFunctionDeclaration(node)) {
+      const selected = carriers.get(ast.text(ast.name(node)));
+      if (selected !== undefined) {
+        declarations.push(node);
+        authored.set(ast.typeNode(node), selected[1]);
+        const statement = ast.statements(ast.body(node))[0];
+        returned.set(ast.as.AsReturnStatement(statement).Expression, selected[0]);
+      }
+    }
+    ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  visit(file);
+  const absent = Object.freeze({ get: () => undefined });
+  const evidence = { compileTimeMetadata: absent, pointerReturn: absent, contextualTargetType: absent,
+    inferredCallableReturnType: absent, nodeTargetType: { get: node => authored.get(node) } };
+  const policy = { ast, sourceFiles: [file], semanticsFor: source.semantics.forNode,
+    types: { resolveType: (type, sourceFile) => {
+      const queries = source.semantics.forFile(sourceFile);
+      return queries.types.isStringLike(type) ? text : queries.types.isNumberLike(type) ? numeric : undefined;
+    } } };
+  const result = analyzeCsharpDeclarations(policy, evidence, { selectedProperty: absent },
+    { get: node => returned.has(node) ? { returnedValue: returned.get(node) } : undefined });
+  for (const declaration of declarations) {
+    const name = ast.text(ast.name(declaration));
+    const [produced, declared, selectable] = carriers.get(name);
+    const contract = result.returnContract.get(declaration);
+    assert.equal(contract?.kind, "resolved", `${name}: the actual declaration publishes one native return contract`);
+    assert.equal(contract.type === (selectable ? produced : declared), true,
+      `${name}: source-layout provenance, not nested-union presence, decides whether the native declaration ABI is selectable`);
+  }
+  assert.equal(declarations.length, 6, "all explicit native ABI negatives and source alias/nesting positives reach declaration analysis");
+});
 function arrays(program) {
   const selected = new Map();
   const ast = program.source.ast;
