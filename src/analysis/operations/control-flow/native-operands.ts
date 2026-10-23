@@ -104,6 +104,12 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
   const argumentsFirst = (head: readonly CsharpNativeChildUse[], arguments_: readonly CsharpNativeChildUse[],
     planningHead = head): CsharpNativeOperandSelection => chosen([...head, ...arguments_], "sequence", plan([...arguments_, ...planningHead]));
 
+  if (ast.is.IsPropertyAccessExpression(node)) {
+    const reference = input.navigation.referenceFor(node) ?? input.navigation.referenceFor(ast.name(node));
+    if (reference !== undefined && sourceDeclarationIsModuleScoped(reference.declaration, ast) &&
+      (ast.is.IsFunctionDeclaration(reference.declaration) || ast.is.IsVariableDeclaration(reference.declaration) ||
+        ast.is.IsBindingElement(reference.declaration) || ast.is.IsExportAssignment(reference.declaration))) return chosen([]);
+  }
   if (access === "location") {
     if (ast.is.IsPropertyAccessExpression(node)) return chosen(use(ast.as.AsPropertyAccessExpression(node)?.Expression, { kind: "receiver" }));
     if (ast.is.IsElementAccessExpression(node)) {
@@ -325,10 +331,6 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
       selected.sourceOperator === "++" || selected.sourceOperator === "--" ? "location" : undefined), "sequence", undefined, selected.resultType);
   }
   if (ast.is.IsPropertyAccessExpression(node)) {
-    const reference = input.navigation.referenceFor(node) ?? input.navigation.referenceFor(ast.name(node));
-    if (reference !== undefined && sourceDeclarationIsModuleScoped(reference.declaration, ast) &&
-      (ast.is.IsFunctionDeclaration(reference.declaration) || ast.is.IsVariableDeclaration(reference.declaration) ||
-        ast.is.IsBindingElement(reference.declaration) || ast.is.IsExportAssignment(reference.declaration))) return chosen([]);
     const selection = operations.selectedProperty.get(node)?.selection;
     // The receiver is evaluated unless the member is static (no receiver): an instance member reads through it and a
     // target-parameter member (for example Error.stack through ErrorObject.stack(error)) passes it as its argument.
