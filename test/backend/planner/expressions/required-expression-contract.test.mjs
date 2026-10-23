@@ -114,27 +114,29 @@ test("the required-expression guard preserves undefined, specific and prior-erro
   const priorError = Object.freeze({ code: "PRIOR", category: "error", source: "test", message: "Unrelated existing error." });
   const specificError = Object.freeze({ code: "SPECIFIC", category: "error", source: "test", message: "Exact owning rejection." });
   const warning = Object.freeze({ code: "WARNING", category: "warning", source: "test", message: "Warning is not a rejection." });
+  const missingCompletion = error => error instanceof Error && error.phase === "planning" &&
+    error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT" && error.diagnostic.source === "tsonic-csharp" &&
+    error.diagnostic.sourceNode === current.radix && error.message === "An admitted C# expression requires its native completion.";
   for (const [name, prior] of [["no prior error", []], ["prior error", [priorError]]]) {
     const missing = [...prior];
-    assert.equal(requireExpressionPlan(current.radix, missing, () => undefined) === undefined, true, `${name}: absent completion stays absent`);
-    assert.equal(missing.length, prior.length + 1, `${name}: exactly one new guard diagnostic`);
-    assert.equal(missing.at(-1).category === "error" && missing.at(-1).sourceNode === current.radix, true,
-      `${name}: the guard names the exact required expression`);
-    assert.equal(/Required C# expression planning/.test(missing.at(-1).message), true,
-      `${name}: the original required-expression assertion remains at its guard owner`);
+    assert.throws(() => requireExpressionPlan(current.radix, () => undefined), missingCompletion,
+      `${name}: absent completion throws the exact invariant at the required expression`);
+    assert.equal(missing.length === prior.length && missing.every((issue, index) => issue === prior[index]), true,
+      `${name}: the invariant does not append a source diagnostic or change prior diagnostics`);
     const specific = [...prior];
-    const rejected = requireExpressionPlan(current.radix, specific, () => { specific.push(specificError); return undefined; });
-    assert.equal(rejected === undefined, true, `${name}: a specific rejection has no completion`);
+    const rejection = Object.assign(new Error(specificError.message), { diagnostic: specificError });
+    assert.throws(() => requireExpressionPlan(current.radix, () => { specific.push(specificError); throw rejection; }),
+      error => error === rejection, `${name}: the exact owning failure crosses the guard unchanged`);
     assert.equal(specific.length === prior.length + 1 && specific.at(-1) === specificError, true,
       `${name}: the specific owning error is retained without duplication`);
     const valid = [...prior];
-    assert.equal(requireExpressionPlan(current.radix, valid, () => 7), 7, `${name}: a valid native completion is preserved`);
+    assert.equal(requireExpressionPlan(current.radix, () => 7), 7, `${name}: a valid native completion is preserved`);
     assert.equal(valid.length, prior.length, `${name}: a valid completion adds no diagnostic`);
     const warnings = [...prior];
-    const warned = requireExpressionPlan(current.radix, warnings, () => { warnings.push(warning); return undefined; });
-    assert.equal(warned === undefined, true, `${name}: a warning cannot fabricate a completion`);
-    assert.equal(warnings.length === prior.length + 2 && warnings[prior.length] === warning
-      && warnings.at(-1).category === "error" && /Required C# expression planning/.test(warnings.at(-1).message), true,
+    assert.throws(() => requireExpressionPlan(current.radix, () => { warnings.push(warning); return undefined; }),
+      missingCompletion, `${name}: a warning cannot fabricate a completion`);
+    assert.equal(warnings.length === prior.length + 1 && warnings[prior.length] === warning &&
+      prior.every((issue, index) => warnings[index] === issue), true,
     `${name}: warnings and prior errors cannot mask the missing current completion`);
   }
 });
@@ -150,12 +152,13 @@ test("required planning retains specific errors and valid value, void and never 
     "void and never functions remain explicitly represented");
   const specific = Object.freeze({ ...current.program,
     records: Object.freeze({ ...current.program.records,
-      sourceArgument: Object.freeze({ get: node => node === current.call ? undefined : current.program.records.sourceArgument.get(node) }) }),
+      argumentPassing: Object.freeze({ get: node => node === current.radix ? undefined : current.program.records.argumentPassing.get(node) }) }),
   });
   const diagnostics = [];
-  const planned = planExpression(current.call, current.source.ast.getSourceFile(current.call),
-    createCsharpPlanningContext(specific), diagnostics);
-  assert.equal(planned === undefined, true, "missing exact evidence still rejects");
-  assert.equal(diagnostics.length === 1 && /without sealed argument-passing evidence/.test(diagnostics[0].message), true,
-    "specific owning error is not duplicated by the required-expression guard");
+  assert.throws(() => planExpression(current.call, current.source.ast.getSourceFile(current.call),
+    createCsharpPlanningContext(specific), diagnostics), error => error instanceof Error && error.phase === "planning" &&
+      error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT" && error.diagnostic.sourceNode === current.radix &&
+      error.message === "An admitted native argument requires its exact source passing and storage plan.",
+  "missing exact passing evidence rejects at the current argument-plan boundary");
+  assert.equal(diagnostics.length, 0, "the exact invariant is not duplicated as a source diagnostic");
 });

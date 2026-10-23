@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { createCsharpExpectedUseCollection } from "../../../dist/analysis/expected-types/collection.js";
 import { createCsharpExpectedConstructUses } from "../../../dist/analysis/expected-types/construct-uses.js";
@@ -10,36 +9,21 @@ import { collectCsharpExpectedNativeUseSites } from "../../../dist/analysis/expe
 import { csharpNativeUseSite } from "../../../dist/target-model/records/native-demand.js";
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
-import { createExpectedNativeUseOwner, publishedGeneratorCarrier } from "../../helpers/expected-native-uses.mjs";
-import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
+import { createExpectedNativeUseOwner } from "../../helpers/expected-native-uses.mjs";
 
 function owners(sourceText, surface = "native", targetOptions) {
   const compiled = compileCsharpSource({ sourceText, surface, targetOptions });
   assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
   const program = compiled.result.program;
   assert.equal(program !== undefined, true, compiled.result.diagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
-  const source = createTargetSourceProgram(compiled.source);
-  const ast = source.ast;
-  const records = program.records;
-  const nodes = [];
-  const walk = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) walk(child); }); };
-  for (const file of csharpProgramSourceFiles(program)) walk(file);
-  const contracts = nodes.filter(node => ast.is.IsFunctionDeclaration(node) && ast.body(node) !== undefined).flatMap(node => {
-    const declared = records.returnContract.get(node);
-    const returnType = publishedGeneratorCarrier(records, node) ?? (declared?.kind === "resolved" ? declared.type : undefined);
-    return returnType === undefined ? [] : [{ sourceDeclaration: node, returnType }];
-  });
   const privateOwner = createExpectedNativeUseOwner(compiled);
+  const ast = privateOwner.source.ast;
+  const records = program.records;
+  const nodes = privateOwner.nodes;
   const input = {
-    policy: privateOwner.input.policy,
-    evidence: records,
+    ...privateOwner.input,
     operations: { ...records, nativePointer: { get() { assert.fail("losing raw pointer reader"); } },
       typedLocation: { get() { assert.fail("losing raw location reader"); } } },
-    objectShapes: program.objectShapes,
-    callables: { declarationContracts: contracts, closedInputType: () => undefined, get: () => undefined },
-    valueReadStages: { get: node => { const read = records.valueRead.get(node); return read === undefined ? undefined
-      : { literalTarget: read.selectedOperation ?? read.source, operationValue: read.selectedOperation ?? read.source }; } },
-    declarations: records,
   };
   const collection = createCsharpExpectedUseCollection(input.policy);
   const constructs = createCsharpExpectedConstructUses(input, collection);

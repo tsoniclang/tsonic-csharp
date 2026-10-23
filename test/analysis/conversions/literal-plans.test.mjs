@@ -525,7 +525,7 @@ test("actual literal uses prepare their selected union inner endpoint before the
   const analysis = analyzeCsharpConversions(policy, { compileTimeMetadata: { get: () => false } },
     { resolveNode: () => undefined, resolveTarget: () => undefined, registerStructuralInterface: () => false });
   const prepared = analysis.prepare({
-    operations: { nativeUnreachable: { get: () => false }, borrowedSequence: none, selectedCall: none,
+    operations: { nativeUnreachable: { get: () => false }, borrowedSequence: none, binaryOperation: none, selectedCall: none,
       selectedConstruction: none, unaryOperation: none },
     expectedTypes: { callableTarget: none, expectedType: { get: node => node === expression ? [target] : [] },
       exactIntegerConversion: { get: () => false } },
@@ -627,12 +627,12 @@ function sealedProviderCallConversions(fixture) {
   const shapes = { resolveNode: () => undefined, resolveTarget: () => undefined, registerStructuralInterface: () => false };
   const analysis = analyzeCsharpConversions(policy, evidence, shapes);
   const prepared = analysis.prepare({
-    operations: { nativeUnreachable: Object.freeze({ get: () => false }), borrowedSequence: none, selectedConstruction: none,
+    operations: { nativeUnreachable: Object.freeze({ get: () => false }), borrowedSequence: none, binaryOperation: none, selectedConstruction: none,
       unaryOperation: none, selectedCall: Object.freeze({ get: node => node === call ? { target: selected } : undefined }) },
     expectedTypes: { expectedType: Object.freeze({ get: node => node === literal ? [counter] : [] }),
       requiredExpectedType: Object.freeze({ get: () => [] }), callableTarget: none,
       exactIntegerConversion: Object.freeze({ get: () => false }) },
-    valueReads: { valueRead: Object.freeze({ get: node => node === literal ? { source: read } : undefined }) },
+    valueReads: { valueRead: Object.freeze({ get: node => node === literal ? { value: read, source: read } : undefined }) },
   });
   analysis.close({ entries: Object.freeze([]) }, []);
   const conversions = analysis.seal();

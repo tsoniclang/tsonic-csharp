@@ -355,6 +355,8 @@ export function analyzeCsharpSourceEvidence(
       targetTypeRefEquals(declaredTargetType, selectedTargetType);
     const flowReadTargetType = recordTargetType(selectCsharpFlowReadCarrier({
       exactSourceRead: refinement.kind === "resolved" && refinement.refinement.kind === "exact",
+      nativeSourceRead: refinement.kind === "resolved" && refinement.refinement.kind === "exact" &&
+        readStorageTargetType !== undefined && types.nativeFlowMembers(node, readStorageTargetType) !== undefined,
       unrelatedSourceTypesShareTargetRepresentation, selectedTargetType, readStorageTargetType, memberTargetTypes,
     }));
     refinements.set(node, Object.freeze({

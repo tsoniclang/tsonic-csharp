@@ -6,6 +6,9 @@ import { analyzeCsharpAnalysisProgram } from "../../../dist/analysis/program/ind
 import { planFlowReadUseSiteProjection } from "../../../dist/backend/planner/expressions/flow-read-projections.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { selectCsharpFlowReadCarrier } from "../../../dist/policy/conversions/flow-read.js";
+import { csharpRuntimeUnionTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../dist/target-model/types/index.js";
+import { arrayRecordRefinementSource } from "../../../../tsonic/test/fixtures/recursive-array-refinement.mjs";
 
 function fixture(sourceText, surface = "native") {
   return withCsharpSessionRequest({ sourceText, surface }, request => {
@@ -26,6 +29,35 @@ function fixture(sourceText, surface = "native") {
     return { program: result.value, nodes, ast: original.ast, navigation: original.navigation };
   }).value;
 }
+
+test("a proved native flow selection survives unchanged logical source types without widening unproved native reads", () => {
+  const integer = csharpSourcePrimitiveTargetType("int32");
+  const floating = csharpSourcePrimitiveTargetType("float64");
+  const text = csharpStringTargetType();
+  const storage = csharpRuntimeUnionTargetType([integer, text]);
+  const input = { exactSourceRead: true, nativeSourceRead: true,
+    unrelatedSourceTypesShareTargetRepresentation: false, selectedTargetType: text,
+    readStorageTargetType: storage, memberTargetTypes: undefined };
+  assert.equal(selectCsharpFlowReadCarrier(input), text, "the canonical native guard's selected physical payload remains authoritative");
+  assert.equal(selectCsharpFlowReadCarrier({ ...input, nativeSourceRead: false }), storage,
+    "logical identity without native flow proof does not invent a projection");
+  assert.equal(selectCsharpFlowReadCarrier({ ...input, nativeSourceRead: false,
+    selectedTargetType: floating, readStorageTargetType: integer }), integer,
+  "an unchanged source number cannot discard an exact native integer carrier");
+});
+
+test("actual array and record branches publish exact physical receiver projections before sealing", () => {
+  const value = fixture(arrayRecordRefinementSource, "js");
+  const receivers = value.nodes.filter(node => value.ast.is.IsPropertyAccessExpression(node) &&
+    value.ast.text(value.ast.as.AsPropertyAccessExpression(node).Name) === "length")
+    .map(node => value.ast.as.AsPropertyAccessExpression(node).Expression);
+  assert.equal(receivers.length > 0, true, "the actual checked source contains the native member reads");
+  for (const receiver of receivers) {
+    const projection = value.program.records.flowReadProjection.get(receiver);
+    assert.equal(projection?.kind === "conversion" && projection.selection.kind === "runtime-union-projection", true,
+      "both array and record branches consume a selected native payload instead of reading fields on the union struct");
+  }
+});
 
 for (const surface of ["native", "js"]) {
   test(`${surface} annotated destructuring keeps nullable storage at absence consumers`, () => {
