@@ -59,6 +59,45 @@ test("finite await joins multiple closed results and retains exact nested union 
   assert.ok(Object.isFrozen(completion.alternatives));
 });
 
+test("native Task completion preserves the exact physical result rather than renormalizing its generic ABI", () => {
+  const repeated = csharpRuntimeUnionTargetType([integer, integer]);
+  const reordered = csharpRuntimeUnionTargetType([string, integer]);
+  const nested = csharpRuntimeUnionTargetType([string, repeated]);
+  for (const [label, result] of [
+    ["duplicate generic slots", repeated],
+    ["native generic order", reordered],
+    ["nested native union", nested],
+    ["native array result", { kind: "array", element: nested }],
+    ["native optional result", csharpNullableTargetType(nested)],
+    ["native nested Task result", csharpTaskTargetType(nested)],
+  ]) {
+    const completion = selectCsharpAwaitCompletion(csharpTaskTargetType(result));
+    assert.equal(completion !== undefined, true, `${label}: a closed native Task is admitted`);
+    assert.equal(completion.result === result, true, `${label}: the actual native TResult is unchanged`);
+    assert.equal(completion.form, "direct", `${label}: one native await, not a result remapping`);
+    assert.equal(completion.alternatives.length, 1, `${label}: no invented completion alternatives`);
+    assert.equal(completion.alternatives[0].resultMapping, undefined, `${label}: no union reconstruction`);
+    assert.equal(completion.alternatives[0].resultPath.length, 0, `${label}: no new native union injection`);
+  }
+});
+
+test("identity await and equal native Task alternatives retain their actual carrier layout", () => {
+  const result = csharpRuntimeUnionTargetType([string, integer, integer]);
+  const identity = selectCsharpAwaitCompletion(result);
+  assert.equal(identity?.form, "identity", "a native non-Task result remains a synchronous value");
+  assert.equal(identity?.result === result, true, "identity await does not reorder or collapse native union slots");
+  const task = csharpTaskTargetType(result);
+  const completion = selectCsharpAwaitCompletion(csharpRuntimeUnionTargetType([task, task]));
+  assert.equal(completion?.result === result, true, "the same actual TResult requires no heterogeneous join");
+  assert.equal(completion?.alternatives.every(alternative => alternative.resultMapping === undefined && alternative.resultPath.length === 0), true,
+    "equal native Task alternatives retain their existing result without reconstructing its payload");
+  const optional = selectCsharpAwaitCompletion(csharpNullableTargetType(task));
+  assert.equal(optional !== undefined && targetTypeRefEquals(optional.result, csharpNullableTargetType(result)), true,
+    "a genuinely optional receiver adds only the native nullable result wrapper");
+  assert.equal(optional?.alternatives[0].result === result && optional.alternatives[0].resultMapping === undefined, true,
+    "receiver absence does not normalize the existing native TResult payload");
+});
+
 test("finite await rejects open carriers and recursive union definitions", () => {
   assert.equal(selectCsharpAwaitCompletion(undefined), undefined);
   assert.equal(selectCsharpAwaitCompletion(csharpTsValueTargetType()), undefined);

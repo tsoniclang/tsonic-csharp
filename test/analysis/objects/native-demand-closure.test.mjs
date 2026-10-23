@@ -24,6 +24,28 @@ const programs = [
   ["two separate same-role uses", `export function pair(left: int32, right: int32) { const first = { left }; const second = { right }; return { first, second }; }`],
 ];
 
+for (const surface of ["native", "js"]) test(`${surface}: selected native generic projections publish their exact constructible shape`, () => {
+  const { compiled, program, nodes } = compileCsharpRequiredRecordSource(`
+import { JsonSerializer } from "@tsonic/dotnet/System.Text.Json.js";
+import type { int32 } from "@tsonic/core/types.js";
+export interface Input { title: string; count: int32; }
+export function parse(json: string): Input | undefined { return JsonSerializer.Deserialize<Input>(json); }
+`, surface);
+  assertCsharpCompilationSucceeded(compiled);
+  const projections = nodes.flatMap(node => [program.records.selectedCall.get(node), program.records.selectedConstruction.get(node)]
+    .flatMap(classification => classification?.methodTypeArgumentProjections ?? []))
+    .filter(entry => entry.projection.kind === "resolved");
+  assert.equal(projections.length, 1, "the native generic call has one checked constructible projection");
+  for (const { projection } of projections) {
+    const artifact = program.records.objectShapeArtifact.get(objectShapeArtifactKey(projection.shape));
+    assert.equal(artifact !== undefined, true, "the selected physical shape is demanded before sealing");
+    assert.equal(artifact?.materialization, "synthetic", "an interface result uses its actual constructible implementation");
+    assert.equal(program.records.objectShapeEmission.get(projection.shape)?.kind, "synthetic", "the renderer receives the sealed native materialization");
+    assert.equal(artifact?.dependencies.every(key => program.records.objectShapeArtifact.get(key) !== undefined), true,
+      "the actual projected native generic shape has every required component");
+  }
+});
+
 for (const surface of ["native", "js"]) for (const [name, body] of programs) {
   test(`${surface}: ${name} has complete immutable artifact demand before planning`, () => {
     const { compiled, program, source, nodes } = compileCsharpRequiredRecordSource(header + body, surface);

@@ -388,14 +388,17 @@ export function analyzeCsharpNativeArtifactDemand(
     }
     if (input.ast.is.IsObjectLiteralExpression(node) && use.objectShape !== undefined) demandLiteral(node, use.objectShape, file);
     const selectedCall = input.operations.selectedCall.get(node);
-    const call = selectedCall?.target;
-    if (call !== undefined) demandCall(node, call, file);
+    const selectedConstruction = input.operations.selectedConstruction.get(node);
+    for (const classification of [selectedCall, selectedConstruction]) {
+      if (classification?.target !== undefined) demandCall(node, classification.target, file);
+      for (const { projection } of classification?.methodTypeArgumentProjections ?? []) {
+        if (projection.kind === "resolved") demandShape(projection.shape, node);
+      }
+    }
     if (selectedCall?.sourceResult !== undefined) demandPair(node, selectedCall.sourceResult.nativeType, selectedCall.sourceResult.selectedType, "explicit");
     const receiver = selectedCall?.optionalReceiver;
     if (receiver?.conversion !== undefined && receiver.parameterType !== undefined) demandConversion(receiver.expression,
       receiver.type, receiver.parameterType, receiver.conversion);
-    const construction = input.operations.selectedConstruction.get(node)?.target;
-    if (construction !== undefined) demandCall(node, construction, file);
     const binding = input.bindingPatterns.bindingPatternProjection.get(node);
     if (binding?.assignmentPattern !== undefined) visitAssignment(binding.assignmentPattern);
     if (input.ast.is.IsArrayLiteralExpression(node)) {
@@ -467,6 +470,7 @@ export function analyzeCsharpNativeArtifactDemand(
 
   function demandCall(node: Node, selection: CsharpTargetCallSelection, file: SourceFile): void {
     if (selection.kind !== "resolved") return;
+    for (const argument of selection.call.targetMethodTypeArguments) demandType(argument.targetType, node);
     if (selection.call.origin === "provider") for (const mapping of selection.call.argumentMappings) {
       if (mapping.kind === "by-value") demandConversion(node, mapping.sourceType, mapping.targetType, mapping.conversion);
     }

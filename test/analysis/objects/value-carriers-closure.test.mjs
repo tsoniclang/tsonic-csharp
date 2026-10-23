@@ -213,6 +213,7 @@ test("bound value-field storage is renderable before its native declaration can 
 });
 
 test("selected scalar and bound value fields retain their complete native rendering", async () => {
+  const { analyzeCsharpObjectMemberEmission } = await import("../../../dist/analysis/objects/member-emission.js");
   const { createCsharpPlanningContext } = await import("../../../dist/backend/planner/context.js");
   const { planValueTypeDeclaration } = await import("../../../dist/backend/planner/declarations/value-types.js");
   const { objectShapeBoundStorageMemberName } = await import("../../../dist/target-model/names/object-members.js");
@@ -223,8 +224,16 @@ test("selected scalar and bound value fields retain their complete native render
   const record = Object.freeze({ ...selected, fields: Object.freeze([
     Object.freeze({ ...selected.fields[0], bound: Object.freeze({ owner: shape, member }) }), selected.fields[1],
   ]) });
+  const members = analyzeCsharpObjectMemberEmission({ shapes: { knownShapes: () => [shape] },
+    demand: { artifacts: [], get: () => undefined }, captures: { captureFrameShape: { get: () => undefined } },
+    storage: { nativeField: { get: () => undefined } } });
+  assert.equal(members.issues.length, 0, "the actual member owner admits the injected native bound storage");
+  assert.equal(members.records.objectMember.get(shape, member)?.boundStorage !== undefined, true,
+    "the injected physical member has its sealed storage contract before planning");
   const changed = { ...program, records: { ...program.records,
     nativeValueDeclaration: { get: node => node === declaration ? record : program.records.nativeValueDeclaration.get(node) },
+    objectMember: { get: (owner, selectedMember) => owner === shape && selectedMember === member
+      ? members.records.objectMember.get(owner, selectedMember) : program.records.objectMember.get(owner, selectedMember) },
     // The injected bound cell is a physical member the sealed name analysis never saw; it hides no inherited member.
     nativeMemberHiding: { get: subject => subject.kind === "value" && subject.container === declaration &&
       subject.member === objectShapeBoundStorageMemberName(shape, member) ? false : program.records.nativeMemberHiding.get(subject) },
