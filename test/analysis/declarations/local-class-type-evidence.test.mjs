@@ -74,7 +74,8 @@ if (Tsonic.Generated.Index.run() != 7) throw new System.Exception("native class 
 `);
     const original = program.records;
     const records = { ...original, physicalStorageType: { get: () => ({ kind: "opaque", id: "missing" }) } };
-    const issues = admitCsharpNativeDeclarations(program.source.ast, [factory.declaration], records.nativeUse,
+    const nativeUse = { get: records.nativeUse.get, order: records.nativeOrder.get };
+    const issues = admitCsharpNativeDeclarations(program.source.ast, [factory.declaration], nativeUse,
       program.projectTypes, program.sourceNavigation, records, records, records.nativeParticipation, records.nativeUnreachable,
       records, records.callableDispatch, records.classFactory, records);
     assert.equal(issues.length, 1, "an actual non-frame capture's unrenderable physical carrier is refused before sealing");

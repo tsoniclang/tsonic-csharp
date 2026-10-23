@@ -19,7 +19,8 @@ test("floor policy retains every native integer carrier supplied by exact provid
       }))],
       ast: { kindName: () => "KindMethodSignature", is: { IsSpreadElement: () => false } },
     });
-    const selected = selectCsharpComposedSourceProfileCall(fixture.host, call.evidence, fixture.sourceFile);
+    const host = { ...fixture.host, types: { ...fixture.host.types, resolveSourceCallTypeArguments: () => [] } };
+    const selected = selectCsharpComposedSourceProfileCall(host, call.evidence, fixture.sourceFile);
     assert.equal(selected.kind, "resolved");
     const integral = !name.startsWith("float");
     assert.deepEqual(selected.call.targetMember.returnType, integral ? carrier : { kind: "source-primitive", name: "float64" });

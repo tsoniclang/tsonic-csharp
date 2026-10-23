@@ -40,6 +40,7 @@ function fixture(options = {}) {
   };
   const host = {
     semantics: () => semantics,
+    projectTypes: { directSupertypes: () => [] },
     ast: { kindName: () => options.index ? "KindIndexSignature" : "KindPropertySignature",
       getSourceFile: () => sourceFile, getFileName: () => "/project/foreign.ts", parent: () => undefined },
     sourceFacts: { getFact: (subject, key) => key === providerVirtualDeclarationFactKey

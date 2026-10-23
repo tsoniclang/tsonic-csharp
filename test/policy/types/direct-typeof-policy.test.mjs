@@ -5,11 +5,10 @@ import {
   csharpNullableTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
-  getCsharpTypeofRuntimeKind,
-  selectCsharpTypeofComparison,
 } from "../../../dist/policy/index.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
-import { getCsharpTypeofResult } from "../../../dist/target-model/types/runtime-kind.js";
+import { getCsharpTypeofResult, getCsharpTypeofRuntimeKind } from "../../../dist/target-model/types/runtime-kind.js";
+import { selectCsharpTypeofComparison } from "../../../dist/policy/operations/syntax/typeof.js";
 import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { createCsharpTypeDefinitionRegistry } from "../../../dist/analysis/project-types/type-definitions.js";
 import { selectCsharpClosedTypeTestPlan } from "../../../dist/policy/operations/operators/type-tests.js";
