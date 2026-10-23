@@ -1,14 +1,14 @@
 import { csharpDelegateTargetType, isCsharpVoidTargetType, type TargetTypeRef, getCsharpDelegateSignature, isCsharpSourceDelegateTargetType, targetTypeRefEquals } from "../index.js";
-import { type CsharpSourceCallableContract } from "../../../target-model/records/source-callable-contract.js";
+import { type CsharpSourceCallableSourceContract } from "../../../target-model/records/source-callable-contract.js";
 
 export function csharpCallableValueType(
-  callable: CsharpSourceCallableContract,
+  callable: CsharpSourceCallableSourceContract,
 ): TargetTypeRef | undefined {
   if (callable.methodTypeParameterIdentities.length !== 0) return undefined;
-  const parameters = callable.parameters.map(parameter => parameter.targetParameter.type);
-  const optionalParameterIndexes = callable.parameters.flatMap((parameter, index) =>
+  const parameters = callable.nativeParameters.map(parameter => parameter.targetParameter.type);
+  const optionalParameterIndexes = callable.nativeParameters.flatMap((parameter, index) =>
     parameter.targetParameter.optional === true ? [index] : []);
-  const rest = callable.parameters.flatMap((parameter, index) =>
+  const rest = callable.nativeParameters.flatMap((parameter, index) =>
     parameter.targetParameter.paramsArray === true ? [index] : []);
   if (rest.length > 1) return undefined;
   const returnsVoid = isCsharpVoidTargetType(callable.returnType);

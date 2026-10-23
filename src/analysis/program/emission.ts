@@ -262,17 +262,17 @@ export function finalizeCsharpNativeEmission(
     required: analysis.requiredRecords });
   if (generators.issues.length !== 0) return rejectedTargetStage(generators.issues);
   const callableDeclarations = analyzeCsharpCallableDeclarationEmission({ ast: source.ast, nodes: sourceStorage.nodes,
-    admitted: admittedControlNode, declarations: analysis.declarations, generators: generators.records });
+    admitted: admittedControlNode, declarations: analysis.declarations, generators: generators.records, callables: analysis.callables });
   if (callableDeclarations.issues.length !== 0) return rejectedTargetStage(callableDeclarations.issues);
   const lexicalValues = analyzeCsharpLexicalValues({ nodes: sourceStorage.nodes, navigation: source.navigation,
     captures: captureStorage, values: analysis.valueReads, metadata: analysis.sourceEvidence });
   if (lexicalValues.issues.length !== 0) return rejectedTargetStage(lexicalValues.issues);
-  const callableParameters = analyzeCsharpCallableParameterEmission({ ast: source.ast, source, nodes: sourceStorage.nodes,
+  const callableParameters = analyzeCsharpCallableParameterEmission({ ast: source.ast, callables: analysis.callables, nodes: sourceStorage.nodes,
     declarations: analysis.declarations, values: analysis.valueReads, storage: analysis.storage, conversions, literals: literalValues,
     exact: exactLiterals, admitted: admittedControlNode, required: analysis.requiredRecords });
   if (callableParameters.issues.length !== 0) return rejectedTargetStage(callableParameters.issues);
   const classEmission = analyzeCsharpClassEmission({ ast: source.ast, nodes: sourceStorage.nodes, projectTypes, factories: classFactories,
-    captures: captureStorage, storage: analysis.storage, names, admitted: admittedControlNode });
+    captures: captureStorage, storage: analysis.storage, names, admitted: admittedControlNode, callables: analysis.callables });
   if (classEmission.issues.length !== 0) return rejectedTargetStage(classEmission.issues);
   const sourceOutputIdentities = analyzeCsharpSourceOutputIdentities({ ast: source.ast, sourceFiles, paths: input.paths,
     namespace: request.project.namespace, sourceFacts: source.sourceFacts,
@@ -294,7 +294,7 @@ export function finalizeCsharpNativeEmission(
   if (objectMembers.issues.length !== 0) return rejectedTargetStage(objectMembers.issues);
   const objectLiterals = analyzeCsharpObjectLiterals({ source: sourceSyntax, demand: nativeDemand, shapes: callableAdapters.objectShapes,
     operations: admittedOperations, methods: objectMethods.records, members: objectMembers.records, storage: analysis.storage,
-    parameters: callableParameters.records });
+    callables: analysis.callables });
   if (objectLiterals.issues.length !== 0) return rejectedTargetStage(objectLiterals.issues);
   const thisEmission = analyzeCsharpThisEmission({ ast: source.ast, nodes: sourceStorage.nodes, admitted: admittedControlNode,
     captures: captureStorage, initialization: classInitialization, factories: classFactories, values: analysis.valueReads,

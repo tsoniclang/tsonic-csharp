@@ -3,7 +3,7 @@ import { AsParameterDeclaration } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression, CsharpParameter, CsharpStatement, CsharpTypeNode } from "../../../target-ast/syntax/index.js";
-import { allocateSyntheticParameter, createDestructuringPlannerState, declareCsharpLocalBindingName, planParameterBindingPrelude, plannedCsharpValueParameterNodes } from "../../bindings/index.js";
+import { allocateSyntheticParameter, createDestructuringPlannerState, declareCsharpLocalBindingName, planParameterBindingPrelude } from "../../bindings/index.js";
 import { planAttributesForSubject } from "../attributes.js";
 import type { DestructuringPlannerState } from "../../bindings/index.js";
 import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../../types/target-type-object-shapes.js";
@@ -22,11 +22,11 @@ export interface PlannedParameterList {
   readonly entryBindings: readonly CsharpEntryBinding[];
 }
 
-export function planParameters(parameterNodes: readonly (Node | undefined)[], sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[]): readonly CsharpParameter[] {
+export function planParameters(parameterNodes: readonly Node[], sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[]): readonly CsharpParameter[] {
   return planParametersWithPrelude(parameterNodes, sourceFile, input, diagnostics).parameters;
 }
 
-export function planParametersWithPrelude(parameterNodes: readonly (Node | undefined)[], sourceFile: SourceFile, input: CsharpPlanningContext,
+export function planParametersWithPrelude(parameterNodes: readonly Node[], sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[], state: DestructuringPlannerState = createDestructuringPlannerState()): PlannedParameterList {
   const parameters: CsharpParameter[] = [];
   const prelude: CsharpStatement[] = [];
@@ -39,7 +39,7 @@ export function planParametersWithPrelude(parameterNodes: readonly (Node | undef
     if (capture !== undefined) prelude.push(capture);
     if (capture === undefined && input.program.records.nativeBacking.get(node) === undefined) retainBinding({ name, type });
   };
-  for (const node of plannedCsharpValueParameterNodes(parameterNodes, input)) {
+  for (const node of parameterNodes) {
     const parameter = AsParameterDeclaration(input.program.source.ast, node);
     const emission = input.program.records.callableParameter.get(node);
     if (parameter?.name === undefined || emission?.kind !== "parameter") failCsharpPlannerInvariant("An admitted callable parameter requires its checked binding and sealed emission record.", node);

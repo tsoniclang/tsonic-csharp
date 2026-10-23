@@ -1,6 +1,5 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { SourceLiteralIndex } from "@tsonic/target-api/source";
-import { sourceCallableValueParameters, type TargetSourceProgram } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
 import type { CsharpValueReadClassifications, CsharpConversionClassifications } from "../../target-model/records/conversions.js";
@@ -13,10 +12,11 @@ import { createCsharpCallableParameterRecords } from "../program/records/paramet
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
+import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
 
 export function analyzeCsharpCallableParameterEmission(input: {
   readonly ast: AstReader;
-  readonly source: TargetSourceProgram;
+  readonly callables: CsharpCallableContractIndex;
   readonly nodes: readonly Node[];
   readonly declarations: CsharpDeclarationClassifications;
   readonly values: CsharpValueReadClassifications;
@@ -36,17 +36,12 @@ export function analyzeCsharpCallableParameterEmission(input: {
   };
   for (const owner of owners) {
     if (owner === undefined || !input.admitted(owner)) continue;
-    const parameters = sourceCallableValueParameters(input.ast, owner, input.source.semantics.forNode(owner));
-    if (parameters === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted callable requires its checked source value parameters.", owner);
+    const contract = input.callables.get({ kind: "declaration", declaration: owner });
+    if (contract === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted callable requires its checked source value parameters.", owner);
     let hasDefault = false;
-    for (const node of input.ast.parameters(owner)) {
-      if (node === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted callable requires its dense checked parameter list.", owner);
+    for (const node of contract.parameters) {
       const parameter = input.ast.as.AsParameterDeclaration(node);
       if (parameter?.name === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted callable parameter requires its exact checked binding.", node);
-      if (!parameters.includes(node)) {
-        values.set(node, Object.freeze({ kind: "receiver" }));
-        continue;
-      }
       // Captured local functions are also planned as lambdas without a native incoming delegate parameter type, so they
       // select identity or default entries; arrow and function expressions and object-literal methods (against their
       // member delegate) carry one.

@@ -265,7 +265,7 @@ export function analyzeCsharpNativeArtifactDemand(
     const callable = input.callables.get({ kind: "declaration", declaration: node });
     if (callable !== undefined) {
       demandType(callable.returnType, node);
-      for (const parameter of callable.parameters) demandType(parameter.targetParameter.type, parameter.sourceParameter);
+      for (const parameter of callable.nativeParameters) demandType(parameter.targetParameter.type, parameter.sourceParameter);
     }
     const returned = input.declarations.returnContract.get(node);
     if (returned?.kind === "resolved") demandType(returned.type, node);

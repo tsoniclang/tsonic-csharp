@@ -56,7 +56,7 @@ function resolveSelectedSourceCallParameter(
   }
   if (selected.kind === "rejected") return undefined;
   const callable = selected.contract;
-  const contractedParameter = callable?.parameters[parameterIndex];
+  const contractedParameter = callable?.nativeParameters[parameterIndex];
   if (callable !== undefined && contractedParameter !== undefined) {
     if (
       contractedParameter.sourceParameter !==
@@ -94,7 +94,7 @@ export function resolveSourceCallParameters(
   const callable = selected.contract;
   if (callable !== undefined) {
     if (!scope.sourceCallableTypeParametersMatch(source, callable, selected.kind)) return undefined;
-    const parameters = callable.parameters.map(parameter => {
+    const parameters = callable.nativeParameters.map(parameter => {
       const type = scope.resolveSourceCallableContractType(source, callable, parameter.targetParameter.type, sourceFile, { depth: 0 });
       return type === undefined ? undefined : Object.freeze({ ...parameter.targetParameter, type });
     });

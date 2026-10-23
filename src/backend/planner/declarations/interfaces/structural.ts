@@ -53,8 +53,8 @@ export function planCsharpStructuralInterfaceMembers(
         typeParameterNames: new Map([...input.scope.typeParameterNames ?? [], ...methodNames]) } };
       const returnType = csharpTypeFromTargetTypeRef(forwarding.contract.returnType, methodInput.scope.typeParameterNames);
       const typeArguments = forwarding.typeArguments.map(type => csharpTypeFromTargetTypeRef(type, methodInput.scope.typeParameterNames));
-      const parameters = forwarding.contract.parameters.map(parameter => renderParameter(parameter.targetParameter, methodInput));
-      const incoming = forwarding.implementation.parameters.map((parameter, index): CsharpParameter | undefined => {
+      const parameters = forwarding.contract.nativeParameters.map(parameter => renderParameter(parameter.targetParameter, methodInput));
+      const incoming = forwarding.implementation.nativeParameters.map((parameter, index): CsharpParameter | undefined => {
         const selected = renderParameter(parameter.targetParameter, methodInput);
         if (selected === undefined || parameter.targetParameter.optional !== true) return selected;
         return { ...selected, defaultValue: forwarding.parameterDefaults[index]?.kind === "nullable"

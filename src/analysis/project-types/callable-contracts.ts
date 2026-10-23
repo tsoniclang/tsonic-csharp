@@ -1,20 +1,20 @@
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type { CsharpSourceCallableContract } from "../../target-model/records/source-callable-contract.js";
+import type { CsharpSourceCallableSourceContract } from "../../target-model/records/source-callable-contract.js";
 import { admitCsharpCallableValueAdapter, type CsharpCallableConversionPolicy } from "../callables/adapters.js";
 import { csharpCallableParametersEqual, instantiateCsharpInheritedCallable } from "../callables/instantiation.js";
 
 export function closeCsharpProjectCallableContracts(
   policy: Pick<CsharpPolicyContext, "ast" | "navigation"> & CsharpCallableConversionPolicy,
-  contracts: readonly CsharpSourceCallableContract[],
-): readonly CsharpSourceCallableContract[] {
+  contracts: readonly CsharpSourceCallableSourceContract[],
+): readonly CsharpSourceCallableSourceContract[] {
   const original = new Map(contracts.map(contract => [contract.sourceDeclaration, contract]));
-  const resolved = new Map<Node, CsharpSourceCallableContract>();
+  const resolved = new Map<Node, CsharpSourceCallableSourceContract>();
   const active = new Set<Node>();
   return Object.freeze(contracts.map(resolve));
 
-  function resolve(implementation: CsharpSourceCallableContract): CsharpSourceCallableContract {
+  function resolve(implementation: CsharpSourceCallableSourceContract): CsharpSourceCallableSourceContract {
     const declaration = implementation.sourceDeclaration;
     const cached = resolved.get(declaration);
     if (cached !== undefined) return cached;

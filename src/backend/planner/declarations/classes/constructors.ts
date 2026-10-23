@@ -71,7 +71,11 @@ export function planConstructorDeclarations(
   const baseCall = entry.baseCall;
   const leadingSuperCall = baseCall === undefined ? undefined : AsCallExpression(input.program.source.ast, baseCall);
   const state = createDestructuringPlannerState(node, input.program.source.ast);
-  const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
+  const owner = input.program.source.ast.parent(node);
+  const selected = owner === undefined ? undefined : input.program.records.nativeClass.get(owner);
+  if (selected === undefined || selected.authoredConstructor !== node)
+    failCsharpPlannerInvariant("An authored constructor requires its sealed native class source vector.", node);
+  const parameters = planParametersWithPrelude(selected.parameters, sourceFile, input, diagnostics, state);
   const constructor: CsharpConstructorDeclaration = {
       kind: "ConstructorDeclaration",
       name: className,

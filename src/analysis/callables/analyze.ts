@@ -1,16 +1,14 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
-import { AsParameterDeclaration, HasSourceKind, KindIdentifier, sourceCallableValueParameters } from "@tsonic/target-api/source";
+import { selectCsharpSourceCallableAbi, selectCsharpProjectConstructorAbi } from "./source-callable-abi.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import { csharpNullableTargetType, getCsharpCallableValueSignature, isCsharpSourceCallableArtifactDeclaration, targetTypeRefEquals } from "../../policy/types/index.js";
-import type { CsharpProjectForwardingConstructor } from "../../target-model/records/project-types.js";
+import { getCsharpCallableValueSignature, isCsharpSourceCallableArtifactDeclaration, targetTypeRefEquals } from "../../policy/types/index.js";
 import type { CsharpTargetParameter, TargetTypeRef } from "../../policy/types/index.js";
 
-import type { CsharpSourceCallableContract, CsharpSourceCallableParameterContract } from "../../target-model/records/source-callable-contract.js";
+import type { CsharpSourceCallableSourceContract, CsharpSourceCallableContract } from "../../target-model/records/source-callable-contract.js";
 import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
 import type { CsharpSourceNameResolver } from "../names/index.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
-import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
 import type { CsharpGenericProjectionIndex } from "../../target-model/records/type-projections.js";
 import { closeCsharpProjectCallableContracts } from "../project-types/callable-contracts.js";
 import { selectCsharpClosedCallableContext } from "../expected-types/callable-contexts.js";
@@ -30,12 +28,12 @@ export function analyzeCsharpCallableContracts(
   operations: CsharpTargetOperationClassifications,
   conversions: CsharpCallableConversionPolicy,
 ): CsharpCallableContractIndex {
-  const byDeclaration = new Map<Node, CsharpSourceCallableContract>();
+  const byDeclaration = new Map<Node, CsharpSourceCallableSourceContract>();
   const closedContexts = new WeakMap<Node, CsharpClosedCallableContext>();
   const closedAliases = new Map<Node, Node>();
   const byProjectConstructor = new Map<string, CsharpSourceCallableContract>();
   const contracts: CsharpSourceCallableContract[] = [];
-  const declarationContracts: CsharpSourceCallableContract[] = [];
+  const declarationContracts: CsharpSourceCallableSourceContract[] = [];
   const checkedDeclarations: { readonly declaration: Node; readonly sourceFile: SourceFile }[] = [];
   for (const sourceFile of policy.sourceFiles) {
     visit(sourceFile, sourceFile);
@@ -50,7 +48,7 @@ export function analyzeCsharpCallableContracts(
     contracts[index] = contract;
   }
   for (const { declaration, sourceFile } of checkedDeclarations) {
-    const contract = sourceCallableContract(policy, evidence, declarations, names, declaration, sourceFile, projections, undefined);
+    const contract = selectCsharpSourceCallableAbi(policy, evidence, declarations, names, declaration, sourceFile, projections, undefined);
     if (contract !== undefined) {
       byDeclaration.set(declaration, contract);
       contracts.push(contract);
@@ -63,7 +61,7 @@ export function analyzeCsharpCallableContracts(
           definition.declaration,
         ) ?? []
     ) {
-      const contract = projectConstructorContract(constructor);
+      const contract = selectCsharpProjectConstructorAbi(constructor);
       if (contract !== undefined) {
         byProjectConstructor.set(constructor.targetMember.id, contract);
         contracts.push(contract);
@@ -91,9 +89,10 @@ export function analyzeCsharpCallableContracts(
 
   function visit(node: Node, sourceFile: SourceFile): void {
     if (evidence.compileTimeMetadata.get(node)) return;
-    if (isCsharpSourceCallableArtifactDeclaration(policy.ast, node)) {
-      const context = selectCsharpClosedCallableContext(source, policy, operations, node);
-      const contract = sourceCallableContract(
+    const accessor = policy.ast.is.IsGetAccessorDeclaration(node) || policy.ast.is.IsSetAccessorDeclaration(node);
+    if (isCsharpSourceCallableArtifactDeclaration(policy.ast, node) || accessor) {
+      const context = accessor ? undefined : selectCsharpClosedCallableContext(source, policy, operations, node);
+      const contract = selectCsharpSourceCallableAbi(
         policy,
         evidence,
         declarations,
@@ -133,180 +132,6 @@ export function analyzeCsharpCallableContracts(
   }
 }
 
-function sourceCallableContract(
-  policy: CsharpPolicyContext,
-  evidence: CsharpSourceEvidenceIndex,
-  declarations: CsharpDeclarationClassifications,
-  names: CsharpSourceNameResolver,
-  declaration: Node,
-  sourceFile: SourceFile,
-  projections: CsharpGenericProjectionIndex,
-  contextualInputs: readonly (TargetTypeRef | undefined)[] | undefined,
-): CsharpSourceCallableContract | undefined {
-  const returnContract = declarations.returnContract.get(declaration);
-  const returnType = evidence.generatorTargetType.get(declaration) ??
-    (returnContract?.kind === "resolved" ? returnContract.type : undefined) ??
-    getCsharpCallableValueSignature(evidence.contextualTargetType.get(declaration))
-      ?.returnType ??
-    constructorReturnType(policy, declaration, sourceFile);
-  if (returnType === undefined) {
-    return undefined;
-  }
-  const parameters: CsharpSourceCallableParameterContract[] = [];
-  const checked = policy.semantics(sourceFile).types.declarationSignatureInfo(declaration);
-  const valueParameters = sourceCallableValueParameters(policy.ast, declaration, policy.semantics(sourceFile));
-  if (checked === undefined || valueParameters === undefined) return undefined;
-  for (const [index, parameterNode] of valueParameters.entries()) {
-    const parameter = sourceParameterContract(
-      policy,
-      evidence,
-      declarations,
-      names,
-      parameterNode,
-      index,
-      contextualInputs?.[index],
-      checked.parameters.find(parameter => parameter.declaration === parameterNode)?.acceptsOmission,
-    );
-    if (parameter === undefined) {
-      return undefined;
-    }
-    parameters.push(parameter);
-  }
-  const methodTypeParameterIdentities = policy.ast.typeParameters(declaration).map(
-    (parameter) => parameter === undefined ? undefined : csharpSourceTypeParameter(parameter, policy.ast)?.identity,
-  );
-  if (
-    methodTypeParameterIdentities.some((name) =>
-      name === undefined || name.length === 0
-    ) ||
-    new Set(methodTypeParameterIdentities).size !== methodTypeParameterIdentities.length
-  ) {
-    return undefined;
-  }
-  const owner = sourceCallableReceiverTypeOwner(policy, declaration);
-  return Object.freeze({
-    sourceDeclaration: declaration,
-    methodTypeParameterIdentities: Object.freeze(
-      [...methodTypeParameterIdentities as string[], ...projections.genericProjection.get(declaration).map(parameter => parameter.identity)],
-    ),
-    methodAllowsRefLikeTypeArguments: Object.freeze([
-      ...methodTypeParameterIdentities.map(() => false), ...projections.genericProjection.get(declaration).map(() => false),
-    ]),
-    ...(owner === undefined ? {} : { receiverTypeOwner: owner }),
-    parameters: Object.freeze(parameters),
-    returnType,
-  });
-}
-
-function sourceParameterContract(
-  policy: CsharpPolicyContext,
-  evidence: CsharpSourceEvidenceIndex,
-  declarations: CsharpDeclarationClassifications,
-  names: CsharpSourceNameResolver,
-  parameterNode: Node | undefined,
-  parameterIndex: number,
-  contextualInput: TargetTypeRef | undefined,
-  acceptsOmission: boolean | undefined,
-): CsharpSourceCallableParameterContract | undefined {
-  if (parameterNode === undefined) {
-    return undefined;
-  }
-  const parameter = AsParameterDeclaration(policy.ast, parameterNode);
-  if (parameter === undefined) {
-    return undefined;
-  }
-  if (parameter.DotDotDotToken === undefined && acceptsOmission === undefined) return undefined;
-  const typeSubject = parameter.Type ?? parameter.name;
-  const selectedType = contextualInput ?? (typeSubject === undefined
-    ? undefined
-    : evidence.nodeTargetType.get(typeSubject));
-  if (selectedType === undefined) {
-    return undefined;
-  }
-  const questionToken = policy.ast.questionToken(parameterNode);
-  const targetType: TargetTypeRef = declarations.runtimeDefault.get(parameterNode)?.parameterType ??
-    (questionToken === undefined ? selectedType : csharpNullableTargetType(selectedType));
-  const resolvedName = HasSourceKind(
-      policy.ast,
-      parameter.name,
-      KindIdentifier,
-    )
-    ? names.resolve(parameter.name)
-    : undefined;
-  if (HasSourceKind(policy.ast, parameter.name, KindIdentifier) && resolvedName?.kind !== "resolved") return undefined;
-  const name = resolvedName?.kind === "resolved"
-    ? resolvedName.name
-    : `__tsonic_param${parameterIndex}`;
-  const targetParameter: CsharpTargetParameter = Object.freeze({
-    name,
-    type: targetType,
-    passingMode: "by-value",
-    ...(parameter.DotDotDotToken === undefined && acceptsOmission === true
-      ? { optional: true }
-      : {}),
-    ...(parameter.DotDotDotToken === undefined
-      ? {}
-      : { paramsArray: true }),
-  });
-  return Object.freeze({ sourceParameter: parameterNode, targetParameter });
-}
-
-function constructorReturnType(
-  policy: CsharpPolicyContext,
-  declaration: Node,
-  sourceFile: SourceFile,
-): TargetTypeRef | undefined {
-  if (!policy.ast.is.IsConstructorDeclaration(declaration)) {
-    return undefined;
-  }
-  const parent = policy.ast.parent(declaration);
-  return parent === undefined
-    ? undefined
-    : policy.types.resolveType(policy.semantics(sourceFile).declarations.declaredType(parent), sourceFile);
-}
-
-function sourceCallableReceiverTypeOwner(
-  policy: CsharpPolicyContext,
-  declaration: Node,
-): Node | undefined {
-  if (policy.ast.hasModifierKind(declaration, "static")) return undefined;
-  const parent = policy.ast.parent(declaration);
-  return parent !== undefined &&
-      (
-        policy.ast.is.IsClassDeclaration(parent) ||
-        policy.ast.is.IsClassExpression(parent) ||
-        policy.ast.is.IsInterfaceDeclaration(parent)
-      )
-    ? parent
-    : undefined;
-}
-
-function projectConstructorContract(
-  constructor: CsharpProjectForwardingConstructor,
-): CsharpSourceCallableContract | undefined {
-  const declaringType = constructor.targetMember.declaringType;
-  if (
-    declaringType === undefined ||
-    constructor.source.parameters.length !==
-      constructor.targetMember.parameters.length
-  ) {
-    return undefined;
-  }
-  return Object.freeze({
-    sourceDeclaration:
-      constructor.source.declaration ?? constructor.definition.declaration,
-    methodTypeParameterIdentities: Object.freeze([]),
-    methodAllowsRefLikeTypeArguments: Object.freeze([]),
-    receiverTypeOwner: constructor.definition.declaration,
-    parameters: Object.freeze(constructor.source.parameters.map(
-      (parameter, index) => Object.freeze({
-        sourceParameter: parameter.parameterDeclaration,
-        targetParameter: constructor.targetMember.parameters[index]!,
-      }),
-    )),
-    returnType: declaringType,
-  });
-}
 
 export function csharpCallableContractIndexesEqual(
   left: CsharpCallableContractIndex,
@@ -323,7 +148,9 @@ function callableContractEquals(
   left: CsharpSourceCallableContract,
   right: CsharpSourceCallableContract,
 ): boolean {
-  return left.sourceDeclaration === right.sourceDeclaration &&
+  return left.kind === right.kind && left.sourceDeclaration === right.sourceDeclaration &&
+    (left.kind === "native" || right.kind === "source" && left.parameters.length === right.parameters.length &&
+      left.parameters.every((parameter, index) => parameter === right.parameters[index])) &&
     left.receiverTypeOwner === right.receiverTypeOwner &&
     stringArraysEqual(
       left.methodTypeParameterIdentities,
@@ -334,9 +161,9 @@ function callableContractEquals(
     targetTypeRefEquals(left.returnType, right.returnType) &&
     (left.sourceReturnType === undefined ? right.sourceReturnType === undefined
       : right.sourceReturnType !== undefined && targetTypeRefEquals(left.sourceReturnType, right.sourceReturnType)) &&
-    left.parameters.length === right.parameters.length &&
-    left.parameters.every((parameter, index) => {
-      const other = right.parameters[index];
+    left.nativeParameters.length === right.nativeParameters.length &&
+    left.nativeParameters.every((parameter, index) => {
+      const other = right.nativeParameters[index];
       return other !== undefined &&
         parameter.sourceParameter === other.sourceParameter &&
         targetParameterEquals(

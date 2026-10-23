@@ -8,7 +8,7 @@ import type { CsharpProjectCallableAdapter, CsharpProjectCallableAdapters, Cshar
 import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
 import type { CsharpFinalStructuralInterfaceImplementation, CsharpStructuralMethodForwarding } from "../../target-model/records/heritage.js";
 import type { CsharpProjectTypeIssue } from "../../target-model/records/project-types.js";
-import type { CsharpSourceCallableContract } from "../../target-model/records/source-callable-contract.js";
+import type { CsharpSourceCallableSourceContract } from "../../target-model/records/source-callable-contract.js";
 import { csharpDelegateSignatureHasSupportedPassingModes, getCsharpDelegateSignature } from "../../target-model/types/carriers/delegates.js";
 import { scopedTargetTypeRefKey, targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 import type { CsharpStructuralInterfaceImplementation, CsharpTargetNamedTypeRef, CsharpTargetParameter, TargetTypeRef } from "../../target-model/types/model.js";
@@ -39,7 +39,7 @@ type NativeParameter = Extract<TargetTypeRef, { readonly kind: "type-parameter" 
 type MethodRequest = {
   readonly selected: CsharpStructuralInterfaceImplementation;
   readonly methods: Map<string, { readonly method: StructuralMethod; readonly contract: CsharpStructuralMethodForwarding["contract"];
-    readonly typeParameters: readonly NativeParameter[]; readonly nativeContract: CsharpSourceCallableContract | undefined }>;
+    readonly typeParameters: readonly NativeParameter[]; readonly nativeContract: CsharpSourceCallableSourceContract | undefined }>;
   readonly rejected: Set<string>;
 };
 
@@ -79,6 +79,18 @@ export function analyzeCsharpProjectCallableAdapters(
   }
   for (const implementation of callables.declarationContracts) {
     const declaration = implementation.sourceDeclaration;
+    if (policy.ast.is.IsMethodSignatureDeclaration(declaration)) {
+      byDeclaration.set(declaration, Object.freeze({ kind: "method", implementation,
+        overridesBase: false, hasDerivedOverride: false, adapters: Object.freeze([]) }));
+      continue;
+    }
+    const declarationOwner = policy.ast.parent(declaration);
+    if ((policy.ast.is.IsGetAccessorDeclaration(declaration) || policy.ast.is.IsSetAccessorDeclaration(declaration)) &&
+      declarationOwner !== undefined && (policy.ast.is.IsInterfaceDeclaration(declarationOwner) || policy.ast.is.IsTypeLiteralNode(declarationOwner))) {
+      byDeclaration.set(declaration, Object.freeze({ kind: "property", parameters: implementation.parameters,
+        overridesBase: false, hasDerivedOverride: false }));
+      continue;
+    }
     if (!policy.ast.is.IsMethodDeclaration(declaration)) continue;
     if (native.nativeUse.order(declaration) === undefined) continue;
     if (policy.ast.hasModifierKind(declaration, "static")) {
@@ -140,7 +152,7 @@ export function analyzeCsharpProjectCallableAdapters(
       hasProjectBaseContract = true;
       const contract = instantiateCsharpInheritedCallable(policy, original, implementation, receiver);
       if (contract === undefined) { reject(declaration, "An inherited callable has no exact instantiated native signature."); continue; }
-      const key = contract.parameters.map(parameter =>
+      const key = contract.nativeParameters.map(parameter =>
         `${parameter.targetParameter.passingMode}:${targetTypeRefKey(parameter.targetParameter.type)}`).join(";");
       if (seen.has(key)) continue;
       seen.add(key);
@@ -153,8 +165,8 @@ export function analyzeCsharpProjectCallableAdapters(
         else overridesBase = true;
         continue;
       }
-      const parameters = admitCsharpCallableParameterAdapters(policy, contract.parameters.map(parameter => parameter.targetParameter),
-        implementation.parameters.map(parameter => parameter.targetParameter));
+      const parameters = admitCsharpCallableParameterAdapters(policy, contract.nativeParameters.map(parameter => parameter.targetParameter),
+        implementation.nativeParameters.map(parameter => parameter.targetParameter));
       if (parameters === undefined || result === undefined) {
         reject(declaration, "An inherited callable requires an exact logical-argument and native-result adaptation.");
         continue;
@@ -182,7 +194,10 @@ export function analyzeCsharpProjectCallableAdapters(
         policy.projectTypes.catalog.definitionForDeclaration(policy.ast.parent(contract))?.kind === "class");
       const overridesBase = policy.ast.hasModifierKind(member, "static") ? false
         : projectBase ? dispatch?.overridesBase === true : overridesNativeProperty(member, definition.declaration, property?.readonly === true);
-      byDeclaration.set(member, Object.freeze({ kind: "property",
+      const contract = accessor ? callables.get({ kind: "declaration", declaration: member }) : undefined;
+      if (accessor && contract === undefined)
+        failTargetAnalysisInvariant("tsonic-csharp", "An admitted accessor requires its checked source value vector and native ABI.", member);
+      byDeclaration.set(member, Object.freeze({ kind: "property", parameters: accessor ? contract!.parameters : Object.freeze([]),
         overridesBase, hasDerivedOverride: dispatch?.hasDerivedOverride === true }));
     }
   }
@@ -268,17 +283,17 @@ export function analyzeCsharpProjectCallableAdapters(
           reject(method.declaration, "An interface method's native type arguments do not satisfy its implementation's generic constraints.");
           continue;
         }
-        const implementation: CsharpSourceCallableContract = substitutions.size === 0 ? instantiated : Object.freeze({ ...instantiated,
-          parameters: Object.freeze(instantiated.parameters.map(parameter => Object.freeze({ ...parameter,
+        const implementation: CsharpSourceCallableSourceContract = substitutions.size === 0 ? instantiated : Object.freeze({ ...instantiated,
+          nativeParameters: Object.freeze(instantiated.nativeParameters.map(parameter => Object.freeze({ ...parameter,
             targetParameter: Object.freeze({ ...parameter.targetParameter,
               type: substituteTargetTypeParameters(parameter.targetParameter.type, substitutions) }) }))),
           returnType: substituteTargetTypeParameters(instantiated.returnType, substitutions),
           ...(instantiated.sourceReturnType === undefined ? {} : {
             sourceReturnType: substituteTargetTypeParameters(instantiated.sourceReturnType, substitutions) }),
         });
-        const incoming = contract.parameters.map(parameter => parameter.targetParameter);
+        const incoming = contract.nativeParameters.map(parameter => parameter.targetParameter);
         const parameters = admitCsharpCallableParameterAdapters(policy, incoming,
-          implementation.parameters.map(parameter => parameter.targetParameter));
+          implementation.nativeParameters.map(parameter => parameter.targetParameter));
         const result = admitCsharpCallableResultAdapter(policy, implementation, contract.returnType);
         if (parameters === undefined || result === undefined) {
           refuse(method.declaration);
@@ -289,13 +304,13 @@ export function analyzeCsharpProjectCallableAdapters(
         const sameSignature = nativeMethod && !policy.ast.hasModifierKind(method.declaration, "private") &&
           !policy.ast.hasModifierKind(method.declaration, "protected") && method.sourceName === method.member.targetName &&
           sameGenericSignature &&
-          implementation.parameters.length === incoming.length && implementation.parameters.every((parameter, index) =>
+          implementation.nativeParameters.length === incoming.length && implementation.nativeParameters.every((parameter, index) =>
             parameter.targetParameter.passingMode === incoming[index]!.passingMode &&
             targetTypeRefEquals(parameter.targetParameter.type, incoming[index]!.type)) &&
           targetTypeRefEquals(implementation.returnType, contract.returnType);
         if (sameSignature && result.conversion.kind === "identity") continue;
         methods.push(Object.freeze({ ...method, forwarding: Object.freeze({ contract, implementation, typeArguments, typeParameters,
-          parameterDefaults: Object.freeze(implementation.parameters.map(parameter => declarations.runtimeDefault.get(parameter.sourceParameter))),
+          parameterDefaults: Object.freeze(implementation.nativeParameters.map(parameter => declarations.runtimeDefault.get(parameter.sourceParameter))),
           parameters, result }) }));
       }
       const finalized = finalizeCsharpStructuralInterfaceForwarding(policy, request.selected, Object.freeze(methods));
@@ -390,7 +405,7 @@ export function analyzeCsharpProjectCallableAdapters(
     return completed;
   }
 
-  function overridesNativeMethod(declaration: Node, implementation: CsharpSourceCallableContract, owner: Node | undefined): boolean {
+  function overridesNativeMethod(declaration: Node, implementation: CsharpSourceCallableSourceContract, owner: Node | undefined): boolean {
     const selectedName = native.names.resolve(policy.ast.name(declaration));
     if (selectedName.kind !== "resolved") return false;
     const name = selectedName.name.startsWith("@") ? selectedName.name.slice(1) : selectedName.name;
@@ -402,12 +417,12 @@ export function analyzeCsharpProjectCallableAdapters(
       if (member.static) continue;
       for (const slot of member.dispatchSlots) {
         if (slot.kind !== "method" || slot.genericParameterIds.length !== implementation.methodTypeParameterIdentities.length ||
-          slot.parameters.length !== implementation.parameters.length) continue;
+          slot.parameters.length !== implementation.nativeParameters.length) continue;
         const substitutions = new Map<string, TargetTypeRef>(slot.genericParameterIds.map((identity, index) => [identity,
           { kind: "type-parameter", identity: implementation.methodTypeParameterIdentities[index]!, name: "T" }]));
-        if (!slot.parameters.every((parameter, index) => parameter.passingMode === implementation.parameters[index]!.targetParameter.passingMode &&
+        if (!slot.parameters.every((parameter, index) => parameter.passingMode === implementation.nativeParameters[index]!.targetParameter.passingMode &&
           csharpTargetStorageIdentityEquals(substituteTargetTypeParameters(parameter.type, substitutions),
-            implementation.parameters[index]!.targetParameter.type))) continue;
+            implementation.nativeParameters[index]!.targetParameter.type))) continue;
         if (!slot.virtual || slot.final || slot.returnPassing !== "by-value") return false;
         return nativeReturnAccepted(implementation.returnType, slot, substitutions);
       }
@@ -467,7 +482,7 @@ export function analyzeCsharpProjectCallableAdapters(
   function addMethod(request: MethodRequest, method: StructuralMethod): void {
     const destinationOwner = policy.projectTypes.catalog.definitionForTarget(request.selected.interfaceType);
     let contract: CsharpStructuralMethodForwarding["contract"];
-    let nativeContract: CsharpSourceCallableContract | undefined;
+    let nativeContract: CsharpSourceCallableSourceContract | undefined;
     if (destinationOwner?.kind === "interface") {
       const destinationDeclarations = method.member.sourceDeclarations?.filter(declaration => policy.ast.parent(declaration) === destinationOwner.declaration) ?? [];
       const original = destinationDeclarations.length === 1 ? callables.get({ kind: "declaration", declaration: destinationDeclarations[0]! }) : undefined;
@@ -477,7 +492,7 @@ export function analyzeCsharpProjectCallableAdapters(
         refuse(method.declaration);
         return;
       }
-      contract = Object.freeze({ parameters: selected.parameters, returnType: selected.returnType });
+      contract = Object.freeze({ nativeParameters: selected.nativeParameters, returnType: selected.returnType });
       nativeContract = selected;
     } else {
       const signature = getCsharpDelegateSignature(method.member.type);
@@ -490,10 +505,10 @@ export function analyzeCsharpProjectCallableAdapters(
         ...(signature.restParameterIndex === index ? { paramsArray: true } : {}),
         ...(signature.optionalParameterIndexes?.includes(index) === true ? { optional: true } : {}),
       })));
-      contract = Object.freeze({ parameters: Object.freeze(parameters.map(targetParameter => Object.freeze({ targetParameter }))),
+      contract = Object.freeze({ nativeParameters: Object.freeze(parameters.map(targetParameter => Object.freeze({ targetParameter }))),
         returnType: signature.returnType });
       const identities = method.member.typeParameters?.map(parameter => parameter.identity) ?? [];
-      const contracts = new Map<Node, CsharpSourceCallableContract>();
+      const contracts = new Map<Node, CsharpSourceCallableSourceContract>();
       for (const declaration of new Set(method.member.sourceDeclarations ?? [])) {
         const selected = callables.get({ kind: "declaration", declaration });
         if (selected !== undefined && selected.methodTypeParameterIdentities.length === identities.length &&
@@ -511,7 +526,7 @@ export function analyzeCsharpProjectCallableAdapters(
     }
     const binders = new Map(typeParameters.map((parameter, index) => [parameter.identity, index]));
     const key = JSON.stringify([method.member.targetName, binders.size,
-      contract.parameters.map(({ targetParameter }) => [scopedTargetTypeRefKey(targetParameter.type, binders),
+      contract.nativeParameters.map(({ targetParameter }) => [scopedTargetTypeRefKey(targetParameter.type, binders),
         targetParameter.passingMode, targetParameter.paramsArray === true, targetParameter.optional === true]),
       scopedTargetTypeRefKey(contract.returnType, binders)]);
     if (request.rejected.has(key)) return;
@@ -524,7 +539,7 @@ export function analyzeCsharpProjectCallableAdapters(
   }
 
   function nativeParameters(
-    member: StructuralMethod["member"] | undefined, contract: CsharpSourceCallableContract,
+    member: StructuralMethod["member"] | undefined, contract: CsharpSourceCallableSourceContract,
   ): readonly NativeParameter[] | undefined {
     const permissions = contract.methodAllowsRefLikeTypeArguments;
     if (!Array.isArray(permissions) || permissions.length !== contract.methodTypeParameterIdentities.length ||

@@ -183,7 +183,7 @@ export function analyzeCsharpStorage(
       ? callables.get({ kind: "declaration", declaration: node })
       : undefined;
     const parameterTypes = selectedSignature === undefined
-      ? nativeContract?.parameters.map(parameter => parameter.targetParameter.type)
+      ? nativeContract?.nativeParameters.map(parameter => parameter.targetParameter.type)
       : selectedSignature.parameters;
     if (parameterTypes !== undefined) {
       if (parameters.length > parameterTypes.length) {

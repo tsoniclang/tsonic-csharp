@@ -1,5 +1,5 @@
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type { CsharpSourceCallableContract } from "../../target-model/records/source-callable-contract.js";
+import type { CsharpSourceCallableSourceContract } from "../../target-model/records/source-callable-contract.js";
 import { substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
 import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
@@ -9,23 +9,23 @@ import { csharpTargetTypeComponents } from "../../target-model/types/components.
 import { createCsharpMetadataBudget } from "../../target-model/metadata/immutable.js";
 
 export function csharpCallableParametersEqual(
-  left: CsharpSourceCallableContract, right: CsharpSourceCallableContract,
+  left: CsharpSourceCallableSourceContract, right: CsharpSourceCallableSourceContract,
 ): boolean {
-  return left.parameters.length === right.parameters.length && left.parameters.every((parameter, index) =>
-    parameter.targetParameter.passingMode === right.parameters[index]!.targetParameter.passingMode &&
-    targetTypeRefEquals(parameter.targetParameter.type, right.parameters[index]!.targetParameter.type));
+  return left.nativeParameters.length === right.nativeParameters.length && left.nativeParameters.every((parameter, index) =>
+    parameter.targetParameter.passingMode === right.nativeParameters[index]!.targetParameter.passingMode &&
+    targetTypeRefEquals(parameter.targetParameter.type, right.nativeParameters[index]!.targetParameter.type));
 }
 
 export function instantiateCsharpInheritedCallable(
-  policy: Pick<CsharpPolicyContext, "ast" | "projectTypes">, source: CsharpSourceCallableContract, implementation: CsharpSourceCallableContract,
+  policy: Pick<CsharpPolicyContext, "ast" | "projectTypes">, source: CsharpSourceCallableSourceContract, implementation: CsharpSourceCallableSourceContract,
   receiver: TargetTypeRef | undefined,
-): CsharpSourceCallableContract | undefined {
+): CsharpSourceCallableSourceContract | undefined {
   if (source.methodTypeParameterIdentities.length !== implementation.methodTypeParameterIdentities.length) return undefined;
   const substitutions = new Map<string, TargetTypeRef>();
   if (source.sourceDeclaration === implementation.sourceDeclaration) {
     if (source.methodTypeParameterIdentities.some((identity, index) => identity !== implementation.methodTypeParameterIdentities[index])) return undefined;
   } else {
-    const authored = (contract: CsharpSourceCallableContract) => policy.ast.typeParameters(contract.sourceDeclaration)
+    const authored = (contract: CsharpSourceCallableSourceContract) => policy.ast.typeParameters(contract.sourceDeclaration)
       .map(parameter => parameter === undefined ? undefined : csharpSourceTypeParameter(parameter, policy.ast));
     const sourceParameters = authored(source);
     const implementationParameters = authored(implementation);
@@ -33,7 +33,7 @@ export function instantiateCsharpInheritedCallable(
       sourceParameters.some((parameter, index) => parameter === undefined || parameter.identity !== source.methodTypeParameterIdentities[index]) ||
       implementationParameters.some((parameter, index) => parameter === undefined || parameter.identity !== implementation.methodTypeParameterIdentities[index])) return undefined;
     const selected = new Map<string, Extract<TargetTypeRef, { readonly kind: "type-parameter" }>>();
-    const pending = [implementation.returnType, ...implementation.parameters.map(parameter => parameter.targetParameter.type),
+    const pending = [implementation.returnType, ...implementation.nativeParameters.map(parameter => parameter.targetParameter.type),
       ...(implementation.sourceReturnType === undefined ? [] : [implementation.sourceReturnType])];
     const visited = new Set<TargetTypeRef>();
     const budget = createCsharpMetadataBudget();
@@ -59,15 +59,16 @@ export function instantiateCsharpInheritedCallable(
   };
   const result = instantiate(source.returnType);
   const sourceReturnType = source.sourceReturnType === undefined ? undefined : instantiate(source.sourceReturnType);
-  const parameters = source.parameters.map(parameter => {
+  const nativeParameters: CsharpSourceCallableSourceContract["nativeParameters"][number][] = [];
+  for (const parameter of source.nativeParameters) {
     const type = instantiate(parameter.targetParameter.type);
-    return type === undefined ? undefined : Object.freeze({ ...parameter, targetParameter: Object.freeze({ ...parameter.targetParameter, type }) });
-  });
-  return result === undefined || source.sourceReturnType !== undefined && sourceReturnType === undefined ||
-    parameters.some(parameter => parameter === undefined) ? undefined : Object.freeze({
+    if (type === undefined) return undefined;
+    nativeParameters.push(Object.freeze({ ...parameter, targetParameter: Object.freeze({ ...parameter.targetParameter, type }) }));
+  }
+  return result === undefined || source.sourceReturnType !== undefined && sourceReturnType === undefined ? undefined : Object.freeze({
     ...source, methodTypeParameterIdentities: implementation.methodTypeParameterIdentities,
     methodAllowsRefLikeTypeArguments: implementation.methodAllowsRefLikeTypeArguments, returnType: result,
     ...(sourceReturnType === undefined ? {} : { sourceReturnType }),
-    parameters: Object.freeze(parameters as CsharpSourceCallableContract["parameters"][number][]),
+    nativeParameters: Object.freeze(nativeParameters),
   });
 }

@@ -52,7 +52,7 @@ export function planSourceFunctionDeclaration(
   if (emission === undefined) failCsharpPlannerInvariant("An admitted source function requires its sealed native declaration plan.", node);
   const state = parent === undefined ? createDestructuringPlannerState(node, input.program.source.ast)
     : createNestedPlannerState(parent, node, input.program.source.ast);
-  const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
+  const parameters = planParametersWithPrelude(emission.parameters, sourceFile, input, diagnostics, state);
   const declaredReturnType = getExplicitReturnType(declaration.Type, node, "function declaration", sourceFile, input, diagnostics);
   const generatorSyntax = emission.generator;
   if (generatorSyntax) {

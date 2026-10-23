@@ -17,7 +17,7 @@ export function planCsharpProjectCallableAdapters(
   const methods: CsharpMethodDeclaration[] = [];
   for (const adapter of dispatch.adapters) {
     const returnType = csharpTypeFromTargetTypeRef(adapter.contract.returnType, input.scope.typeParameterNames);
-    const rendered = adapter.contract.parameters.map(({ sourceParameter, targetParameter }): CsharpParameter | undefined => {
+    const rendered = adapter.contract.nativeParameters.map(({ sourceParameter, targetParameter }): CsharpParameter | undefined => {
       const type = csharpTypeFromTargetTypeRef(targetParameter.type, input.scope.typeParameterNames);
       if (type === undefined) return undefined;
       const passing = targetParameter.passingMode === "byref-readwrite" ? "ref"

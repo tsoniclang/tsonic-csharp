@@ -108,8 +108,10 @@ function planInterfaceMethodDeclaration(
 ): CsharpInterfaceMethodDeclaration {
   input = createCsharpTypeParameterPlanningContext(node, input);
   const declaration = AsMethodSignatureDeclaration(input.program.source.ast, node)!;
+  const signature = input.program.records.callableDispatch.get(node);
+  if (signature?.kind !== "method") failCsharpPlannerInvariant("An interface method requires its sealed source signature vector.", node);
   const parameters = planParametersWithPrelude(
-    declaration.Parameters?.Nodes ?? [],
+    signature.implementation.parameters,
     sourceFile,
     input,
     diagnostics,

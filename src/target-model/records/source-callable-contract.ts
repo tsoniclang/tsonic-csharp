@@ -1,17 +1,25 @@
 import type { CsharpTargetParameter, TargetTypeRef } from "../types/model.js";
 import type { Node } from "@tsonic/tsts";
 
-export interface CsharpSourceCallableContract extends CsharpSourceCallContract {
+export interface CsharpSourceCallableSourceContract extends CsharpCallContract {
+  readonly kind: "source";
   readonly sourceDeclaration: Node;
-  readonly parameters: readonly CsharpSourceCallableParameterContract[];
+  readonly parameters: readonly Node[];
+  readonly nativeParameters: readonly CsharpSourceCallableParameterContract[];
 }
 
-export interface CsharpSourceCallContract {
+export interface CsharpSourceCallableNativeContract extends CsharpCallContract {
+  readonly kind: "native";
   readonly sourceDeclaration?: Node;
+}
+
+export type CsharpSourceCallableContract = CsharpSourceCallableSourceContract | CsharpSourceCallableNativeContract;
+
+interface CsharpCallContract {
   readonly methodTypeParameterIdentities: readonly string[];
   readonly methodAllowsRefLikeTypeArguments: readonly boolean[];
   readonly receiverTypeOwner?: Node;
-  readonly parameters: readonly CsharpSourceCallParameterContract[];
+  readonly nativeParameters: readonly CsharpSourceCallParameterContract[];
   readonly returnType: TargetTypeRef;
   readonly sourceReturnType?: TargetTypeRef;
 }

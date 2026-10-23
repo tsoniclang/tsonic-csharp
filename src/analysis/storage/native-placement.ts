@@ -218,14 +218,14 @@ export function analyzeCsharpRefLikePlacements(input: CsharpNativePlacementInput
     const declaration = contract.sourceDeclaration;
     if (!participates(declaration)) continue;
     inspect(contract.returnType, declaration);
-    for (const parameter of contract.parameters) {
+    for (const parameter of contract.nativeParameters) {
       inspect(parameter.targetParameter.type, parameter.sourceParameter);
       if (isCsharpRefLikeTargetType(parameter.targetParameter.type) && sourceParameterIsProperty(ast, parameter.sourceParameter)) {
         reject(parameter.sourceParameter, "CSHARP_REFLIKE_FIELD", "A native ref-like value cannot be stored in an ordinary source field.");
       }
     }
     if ((!ast.hasModifierKind(declaration, "async") && !input.generatorFor(declaration)) || ast.body(declaration) === undefined) continue;
-    for (const parameter of contract.parameters) if (isCsharpRefLikeTargetType(parameter.targetParameter.type)) reject(parameter.sourceParameter,
+    for (const parameter of contract.nativeParameters) if (isCsharpRefLikeTargetType(parameter.targetParameter.type)) reject(parameter.sourceParameter,
       "CSHARP_REFLIKE_ASYNC_PARAMETER", "A native async or iterator method cannot declare a ref-like parameter.");
     const owned = scopedBindings.get(declaration);
     if (owned !== undefined && owned.size > 0) analyzeCsharpRefLikeLiveness(input.source, declaration, owned, reject);

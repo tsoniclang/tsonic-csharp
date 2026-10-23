@@ -5,14 +5,14 @@ import { getCsharpGeneratorProtocol } from "../../../target-model/types/carriers
 import { getCsharpLambdaSignature, getCsharpTaskResultTargetType } from "../../../target-model/types/carriers/delegates.js";
 import type { CsharpReturnTargetContract } from "../../../target-model/records/declarations.js";
 import type { CsharpReturnContext } from "../../../target-model/records/return-contexts.js";
-import type { CsharpSourceCallableContract } from "../../../target-model/records/source-callable-contract.js";
+import type { CsharpSourceCallableSourceContract } from "../../../target-model/records/source-callable-contract.js";
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/source-evidence.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 
 export function selectCsharpCallableReturnContext(
   policy: Pick<CsharpPolicyContext, "ast">,
   evidence: Pick<CsharpSourceEvidenceIndex, "generator">,
-  callable: CsharpSourceCallableContract,
+  callable: CsharpSourceCallableSourceContract,
   contextualTarget?: TargetTypeRef,
 ): CsharpReturnContext | undefined {
   const selectedReturnType = getCsharpLambdaSignature(contextualTarget)?.returnType ?? callable.returnType;

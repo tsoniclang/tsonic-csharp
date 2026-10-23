@@ -57,13 +57,13 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
 
     function matches(candidate: TargetTypeRef): boolean {
       const signature = getCsharpLambdaSignature(candidate);
-      const parameters = contract?.parameters.map(parameter => parameter.sourceParameter);
+      const parameters = contract?.parameters;
       if (contract === undefined || parameters === undefined || signature === undefined || signature.parameterPassingModes.length !== signature.parameters.length ||
         parameters.length > signature.parameters.length ||
         signature.parameterPassingModes.slice(parameters.length).some(mode => mode !== "by-value") ||
         !parameters.every((parameter, index) => {
           if (parameter === undefined) return false;
-          const native = contract.parameters[index]?.targetParameter;
+          const native = contract.nativeParameters[index]?.targetParameter;
           const nativeParameter = input.storage.lambdaParameterType.get(parameter);
           return native !== undefined && nativeParameter !== undefined && targetTypeRefEquals(nativeParameter, signature.parameters[index]!) &&
             native.passingMode === signature.parameterPassingModes[index] &&

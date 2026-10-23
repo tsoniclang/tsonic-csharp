@@ -2,6 +2,7 @@ import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../types/model.js";
 
 export interface CsharpCallableDeclarationEmission {
+  readonly parameters: readonly Node[];
   readonly async: boolean;
   readonly returnCarrier: TargetTypeRef;
   readonly generator: boolean;

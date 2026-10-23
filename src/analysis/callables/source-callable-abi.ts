@@ -1,0 +1,194 @@
+import type { Node, SourceFile } from "@tsonic/tsts";
+import { AsParameterDeclaration, HasSourceKind, KindIdentifier, sourceCallableValueParameters } from "@tsonic/target-api/source";
+import type { CsharpPolicyContext } from "../../policy/model/context.js";
+import { csharpNullableTargetType, getCsharpCallableValueSignature } from "../../policy/types/index.js";
+import type { CsharpTargetParameter, TargetTypeRef } from "../../target-model/types/model.js";
+import type { CsharpProjectForwardingConstructor } from "../../target-model/records/project-types.js";
+import type { CsharpSourceCallableSourceContract, CsharpSourceCallableParameterContract, CsharpSourceCallableContract } from "../../target-model/records/source-callable-contract.js";
+import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
+import type { CsharpGenericProjectionIndex } from "../../target-model/records/type-projections.js";
+import type { CsharpSourceNameResolver } from "../names/index.js";
+import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
+import { csharpVoidTargetType } from "../../target-model/types/carriers/scalar-types.js";
+
+export function selectCsharpSourceCallableAbi(
+  policy: CsharpPolicyContext,
+  evidence: CsharpSourceEvidenceIndex,
+  declarations: CsharpDeclarationClassifications,
+  names: CsharpSourceNameResolver,
+  declaration: Node,
+  sourceFile: SourceFile,
+  projections: CsharpGenericProjectionIndex,
+  contextualInputs: readonly (TargetTypeRef | undefined)[] | undefined,
+): CsharpSourceCallableSourceContract | undefined {
+  const checked = policy.semantics(sourceFile).types.declarationSignatureInfo(declaration);
+  const valueParameters = sourceCallableValueParameters(policy.ast, declaration, policy.semantics(sourceFile));
+  if (checked === undefined || valueParameters === undefined) return undefined;
+  const accessor = policy.ast.is.IsGetAccessorDeclaration(declaration) || policy.ast.is.IsSetAccessorDeclaration(declaration);
+  const returnContract = declarations.returnContract.get(declaration);
+  const returnType = policy.ast.is.IsSetAccessorDeclaration(declaration) ? csharpVoidTargetType() : evidence.generatorTargetType.get(declaration) ??
+    (returnContract?.kind === "resolved" ? returnContract.type : undefined) ??
+    getCsharpCallableValueSignature(evidence.contextualTargetType.get(declaration))
+      ?.returnType ??
+    constructorReturnType(policy, declaration, sourceFile) ??
+    (accessor ? policy.types.resolveType(checked.returnType, sourceFile) : undefined);
+  if (returnType === undefined) {
+    return undefined;
+  }
+  const nativeParameters: CsharpSourceCallableParameterContract[] = [];
+  for (const [index, parameterNode] of valueParameters.entries()) {
+    const parameter = sourceParameterContract(
+      policy,
+      evidence,
+      declarations,
+      names,
+      parameterNode,
+      index,
+      contextualInputs?.[index],
+      checked.parameters.find(parameter => parameter.declaration === parameterNode)?.acceptsOmission,
+    );
+    if (parameter === undefined) {
+      return undefined;
+    }
+    nativeParameters.push(parameter);
+  }
+  const methodTypeParameterIdentities = policy.ast.typeParameters(declaration).map(
+    (parameter) => parameter === undefined ? undefined : csharpSourceTypeParameter(parameter, policy.ast)?.identity,
+  );
+  if (
+    methodTypeParameterIdentities.some((name) =>
+      name === undefined || name.length === 0
+    ) ||
+    new Set(methodTypeParameterIdentities).size !== methodTypeParameterIdentities.length
+  ) {
+    return undefined;
+  }
+  const owner = sourceCallableReceiverTypeOwner(policy, declaration);
+  return Object.freeze({
+    kind: "source",
+    sourceDeclaration: declaration,
+    methodTypeParameterIdentities: Object.freeze(
+      [...methodTypeParameterIdentities as string[], ...projections.genericProjection.get(declaration).map(parameter => parameter.identity)],
+    ),
+    methodAllowsRefLikeTypeArguments: Object.freeze([
+      ...methodTypeParameterIdentities.map(() => false), ...projections.genericProjection.get(declaration).map(() => false),
+    ]),
+    ...(owner === undefined ? {} : { receiverTypeOwner: owner }),
+    parameters: valueParameters,
+    nativeParameters: Object.freeze(nativeParameters),
+    returnType,
+  });
+}
+
+function sourceParameterContract(
+  policy: CsharpPolicyContext,
+  evidence: CsharpSourceEvidenceIndex,
+  declarations: CsharpDeclarationClassifications,
+  names: CsharpSourceNameResolver,
+  parameterNode: Node | undefined,
+  parameterIndex: number,
+  contextualInput: TargetTypeRef | undefined,
+  acceptsOmission: boolean | undefined,
+): CsharpSourceCallableParameterContract | undefined {
+  if (parameterNode === undefined) {
+    return undefined;
+  }
+  const parameter = AsParameterDeclaration(policy.ast, parameterNode);
+  if (parameter === undefined) {
+    return undefined;
+  }
+  if (parameter.DotDotDotToken === undefined && acceptsOmission === undefined) return undefined;
+  const typeSubject = parameter.Type ?? parameter.name;
+  const selectedType = contextualInput ?? (typeSubject === undefined
+    ? undefined
+    : evidence.nodeTargetType.get(typeSubject));
+  if (selectedType === undefined) {
+    return undefined;
+  }
+  const questionToken = policy.ast.questionToken(parameterNode);
+  const targetType: TargetTypeRef = declarations.runtimeDefault.get(parameterNode)?.parameterType ??
+    (questionToken === undefined ? selectedType : csharpNullableTargetType(selectedType));
+  const resolvedName = HasSourceKind(
+      policy.ast,
+      parameter.name,
+      KindIdentifier,
+    )
+    ? names.resolve(parameter.name)
+    : undefined;
+  if (HasSourceKind(policy.ast, parameter.name, KindIdentifier) && resolvedName?.kind !== "resolved") return undefined;
+  const name = resolvedName?.kind === "resolved"
+    ? resolvedName.name
+    : `__tsonic_param${parameterIndex}`;
+  const targetParameter: CsharpTargetParameter = Object.freeze({
+    name,
+    type: targetType,
+    passingMode: "by-value",
+    ...(parameter.DotDotDotToken === undefined && acceptsOmission === true
+      ? { optional: true }
+      : {}),
+    ...(parameter.DotDotDotToken === undefined
+      ? {}
+      : { paramsArray: true }),
+  });
+  return Object.freeze({ sourceParameter: parameterNode, targetParameter });
+}
+
+function constructorReturnType(
+  policy: CsharpPolicyContext,
+  declaration: Node,
+  sourceFile: SourceFile,
+): TargetTypeRef | undefined {
+  if (!policy.ast.is.IsConstructorDeclaration(declaration)) {
+    return undefined;
+  }
+  const parent = policy.ast.parent(declaration);
+  return parent === undefined
+    ? undefined
+    : policy.types.resolveType(policy.semantics(sourceFile).declarations.declaredType(parent), sourceFile);
+}
+
+function sourceCallableReceiverTypeOwner(
+  policy: CsharpPolicyContext,
+  declaration: Node,
+): Node | undefined {
+  if (policy.ast.hasModifierKind(declaration, "static")) return undefined;
+  const parent = policy.ast.parent(declaration);
+  return parent !== undefined &&
+      (
+        policy.ast.is.IsClassDeclaration(parent) ||
+        policy.ast.is.IsClassExpression(parent) ||
+        policy.ast.is.IsInterfaceDeclaration(parent)
+      )
+    ? parent
+    : undefined;
+}
+
+export function selectCsharpProjectConstructorAbi(
+  constructor: CsharpProjectForwardingConstructor,
+): CsharpSourceCallableContract | undefined {
+  const declaringType = constructor.targetMember.declaringType;
+  if (
+    declaringType === undefined ||
+    constructor.source.parameters.length !==
+      constructor.targetMember.parameters.length
+  ) {
+    return undefined;
+  }
+  const common = {
+    methodTypeParameterIdentities: Object.freeze([]),
+    methodAllowsRefLikeTypeArguments: Object.freeze([]),
+    receiverTypeOwner: constructor.definition.declaration,
+    nativeParameters: Object.freeze(constructor.source.parameters.map(
+      (parameter, index) => Object.freeze({
+        sourceParameter: parameter.parameterDeclaration,
+        targetParameter: constructor.targetMember.parameters[index]!,
+      }),
+    )),
+    returnType: declaringType,
+  };
+  return constructor.source.declaration === undefined
+    ? Object.freeze({ ...common, kind: "native" })
+    : Object.freeze({ ...common, kind: "source", sourceDeclaration: constructor.source.declaration,
+        parameters: Object.freeze(constructor.source.parameters.map(parameter => parameter.parameterDeclaration)) });
+}

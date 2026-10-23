@@ -1,4 +1,4 @@
-import type { CsharpSourceCallContract } from "../../../../target-model/records/source-callable-contract.js";
+import type { CsharpSourceCallableContract } from "../../../../target-model/records/source-callable-contract.js";
 import { resolveProjectConstructingReceiverTargetType } from "./expressions.js";
 import { csharpSourceCallArgumentParameter } from "../../../../policy/types/callables/source-callable-contract.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
@@ -29,7 +29,7 @@ export function resolveSourceCallInstantiation(
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
   expectedTypeParameterIdentities?: readonly string[],
-  callable?: CsharpSourceCallContract,
+  callable?: CsharpSourceCallableContract,
   excludedSourceArgumentIndexes?: ReadonlySet<number>,
 ):
   | {
@@ -244,7 +244,7 @@ export function resolveSourceCallSelectedType(
 export function resolveSourceCallableContractType(
   { host, resolveSourceCallInstantiation, resolveSourceCallReceiverTargetType }: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
-  callable: CsharpSourceCallContract,
+  callable: CsharpSourceCallableContract,
   type: TargetTypeRef,
   selectedSourceFile: SourceFile,
   state: CsharpTypeResolutionState,
@@ -293,7 +293,7 @@ export function resolveSourceCallableContractType(
 export function inferSourceCallTargetTypeArguments(
   scope: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
-  callable: CsharpSourceCallContract,
+  callable: CsharpSourceCallableContract,
   sourceFile: SourceFile,
   parameterIdentities: ReadonlySet<string>,
   state: CsharpTypeResolutionState,
@@ -442,7 +442,7 @@ export function resolveSourceCallReceiverTargetType(
 export function sourceCallableTypeParametersMatch(
   scope: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
-  callable: CsharpSourceCallContract,
+  callable: CsharpSourceCallableContract,
   kind: "declaration" | "value",
 ): boolean {
   if (kind === "declaration" && callable.methodTypeParameterIdentities.length === 0) {
@@ -462,7 +462,7 @@ export function sourceCallableTypeParametersMatch(
 function sourceCallTypeParameterIdentities(
   { host }: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
-  callable: CsharpSourceCallContract | undefined,
+  callable: CsharpSourceCallableContract | undefined,
   kind: "declaration" | "value",
 ): readonly string[] | undefined {
   const selected = source.sourceSelectedMethodTypeArguments ?? [];

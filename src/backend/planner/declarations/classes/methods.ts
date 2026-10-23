@@ -49,7 +49,7 @@ export function planMethodDeclaration(
   const dispatch = input.program.records.callableDispatch.get(node);
   if (dispatch?.kind !== "method") failCsharpPlannerInvariant("An admitted method lost its final native callable contract.", node);
   const callable = dispatch.implementation;
-  const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
+  const parameters = planParametersWithPrelude(callable.parameters, sourceFile, input, diagnostics, state);
   const declaredReturnType = csharpTypeFromTargetTypeRef(callable.returnType, input.scope.typeParameterNames);
   if (declaredReturnType === undefined) failCsharpPlannerInvariant("An admitted method lost its renderable native return type.", node);
   const modifiers = withCsharpSafetyModifiers(

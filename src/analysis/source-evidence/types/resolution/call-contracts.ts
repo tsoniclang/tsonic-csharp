@@ -1,5 +1,6 @@
 import type { SourceFile } from "@tsonic/tsts";
-import type { CsharpSourceCallContract, CsharpSourceCallParameterContract } from "../../../../target-model/records/source-callable-contract.js";
+import type { CsharpSourceCallableContract, CsharpSourceCallParameterContract, CsharpSourceCallableParameterContract } from "../../../../target-model/records/source-callable-contract.js";
+import { sourceCallableValueParameters } from "@tsonic/target-api/source";
 import { classifyCsharpSourceCallee } from "../../../callables/source-callees.js";
 import { csharpDelegateSignatureHasSupportedPassingModes, getCsharpCallableValueSignature } from "../../../../target-model/types/carriers/delegates.js";
 import { getCsharpMethodValue } from "../../../../target-model/types/method-values.js";
@@ -10,8 +11,8 @@ import type { ResolvedSourceCallInfo } from "../../../../target-model/records/so
 import { nextState } from "./state.js";
 
 export type CsharpSourceCallContractSelection =
-  | { readonly kind: "declaration"; readonly contract: CsharpSourceCallContract | undefined }
-  | { readonly kind: "value"; readonly contract: CsharpSourceCallContract }
+  | { readonly kind: "declaration"; readonly contract: CsharpSourceCallableContract | undefined }
+  | { readonly kind: "value"; readonly contract: CsharpSourceCallableContract }
   | { readonly kind: "rejected" };
 
 export function resolveSourceCallContract(
@@ -56,10 +57,23 @@ export function resolveSourceCallContract(
         paramsArray: signature.restParameterIndex === index }),
     }));
   }
-  const contract: CsharpSourceCallContract = Object.freeze({ ...(declaration === undefined ? {} : { sourceDeclaration: declaration }),
+  const common = {
     methodTypeParameterIdentities: getCsharpMethodValue(type)?.typeParameters ?? Object.freeze([]),
     methodAllowsRefLikeTypeArguments: getCsharpMethodValue(type)?.allowsRefLikeTypeArguments ?? Object.freeze([]),
-    parameters: Object.freeze(parameters), returnType: signature.returnType });
+    returnType: signature.returnType };
+  let contract: CsharpSourceCallableContract;
+  if (declaration !== undefined && host.navigation.isProjectDeclaration(declaration)) {
+    const sourceParameters = sourceCallableValueParameters(host.ast, declaration, queries);
+    if (sourceParameters === undefined) return reject();
+    const nativeParameters: CsharpSourceCallableParameterContract[] = [];
+    for (const parameter of parameters) {
+      if (parameter.sourceParameter === undefined) return reject();
+      nativeParameters.push(Object.freeze({ sourceParameter: parameter.sourceParameter, targetParameter: parameter.targetParameter }));
+    }
+    contract = Object.freeze({ ...common, kind: "source", sourceDeclaration: declaration,
+      parameters: sourceParameters, nativeParameters: Object.freeze(nativeParameters) });
+  } else contract = Object.freeze({ ...common, kind: "native", nativeParameters: Object.freeze(parameters),
+    ...(declaration === undefined ? {} : { sourceDeclaration: declaration }) });
   return sourceCallableTypeParametersMatch(source, contract, "value")
     ? Object.freeze({ kind: "value", contract }) : reject();
 }

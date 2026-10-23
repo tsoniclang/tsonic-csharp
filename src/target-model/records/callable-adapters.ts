@@ -1,11 +1,11 @@
 import type { CsharpConversionSelection } from "../conversions/selection.js";
 import type { TargetTypeRef } from "../types/model.js";
 import type { CsharpProjectTypeIssue } from "./project-types.js";
-import type { CsharpSourceCallableContract } from "./source-callable-contract.js";
+import type { CsharpSourceCallableSourceContract } from "./source-callable-contract.js";
 import type { Node } from "@tsonic/tsts";
 
 export interface CsharpProjectCallableAdapter {
-  readonly contract: CsharpSourceCallableContract;
+  readonly contract: CsharpSourceCallableSourceContract;
   readonly parameters: readonly CsharpCallableParameterAdapter[];
   readonly result: CsharpCallableValueAdapter;
 }
@@ -14,12 +14,13 @@ export interface CsharpProjectMethodDispatch {
   readonly kind: "method";
   readonly overridesBase: boolean;
   readonly hasDerivedOverride: boolean;
-  readonly implementation: CsharpSourceCallableContract;
+  readonly implementation: CsharpSourceCallableSourceContract;
   readonly adapters: readonly CsharpProjectCallableAdapter[];
 }
 
 export interface CsharpProjectPropertyDispatch {
   readonly kind: "property";
+  readonly parameters: readonly Node[];
   readonly overridesBase: boolean;
   readonly hasDerivedOverride: boolean;
 }

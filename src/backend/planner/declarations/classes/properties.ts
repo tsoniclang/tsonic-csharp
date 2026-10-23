@@ -218,13 +218,15 @@ function mergeSetterAccessor(
   diagnostics: TargetDiagnostic[],
 ): CsharpPropertyDeclaration {
   const declaration = AsSetAccessorDeclaration(input.program.source.ast, node)!;
-  const parameterNodes = declaration.Parameters?.Nodes ?? [];
+  const signature = input.program.records.callableDispatch.get(node);
+  if (signature?.kind !== "property") failCsharpPlannerInvariant("An admitted accessor requires its sealed source value vector.", node);
+  const parameterNodes = signature.parameters;
   const parameterNode = parameterNodes[0];
   const parameterDeclaration = parameterNode === undefined ? undefined : AsParameterDeclaration(input.program.source.ast, parameterNode)!;
   if (parameterDeclaration === undefined) {
     return failCsharpPlannerInvariant("A checked set accessor requires exactly one parameter.", node);
   }
-  if (parameterNodes.filter((parameterItem) => parameterItem !== undefined).length > 1) {
+  if (parameterNodes.length > 1) {
     return failCsharpPlannerInvariant("A checked set accessor cannot retain multiple parameters.", node);
   }
   const type = getCsharpTypeForNode(

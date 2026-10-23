@@ -5,6 +5,7 @@ import type { CsharpCallableDeclarationEmission } from "../../target-model/recor
 import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
 import type { CsharpGeneratorRecords } from "../../target-model/records/generators.js";
 import { createCsharpCallableDeclarationRecords } from "../program/records/callable-emission.js";
+import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
 
 export function analyzeCsharpCallableDeclarationEmission(input: {
   readonly ast: AstReader;
@@ -12,6 +13,7 @@ export function analyzeCsharpCallableDeclarationEmission(input: {
   readonly admitted: (node: Node) => boolean;
   readonly declarations: CsharpDeclarationClassifications;
   readonly generators: CsharpGeneratorRecords;
+  readonly callables: CsharpCallableContractIndex;
 }) {
   const values = new Map<Node, CsharpCallableDeclarationEmission>();
   const issues: TargetDiagnostic[] = [];
@@ -28,7 +30,10 @@ export function analyzeCsharpCallableDeclarationEmission(input: {
       continue;
     }
     const generator = input.generators.generator.get(node) !== undefined;
-    values.set(node, Object.freeze({ async: !generator && input.ast.hasModifierKind(node, "async"), returnCarrier: returned.type, generator }));
+    const contract = input.callables.get({ kind: "declaration", declaration: node });
+    if (contract === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted callable requires its sealed source value vector and native ABI.", node);
+    values.set(node, Object.freeze({ parameters: contract.parameters,
+      async: !generator && input.ast.hasModifierKind(node, "async"), returnCarrier: returned.type, generator }));
   }
   return Object.freeze({ records: createCsharpCallableDeclarationRecords(values), issues: Object.freeze(issues) });
 }

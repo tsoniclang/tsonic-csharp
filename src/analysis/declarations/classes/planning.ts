@@ -9,6 +9,7 @@ import { selectCsharpForwardingConstructor } from "../../../policy/types/project
 import type { CsharpNamePlan } from "../../../target-model/names/model.js";
 import { createCsharpClassEmissionRecords } from "../../program/records/class-emission.js";
 import { sourceObjectMemberDeclarations } from "@tsonic/target-api/source";
+import type { CsharpCallableContractIndex } from "../../../target-model/records/callable-values.js";
 
 export function analyzeCsharpClassEmission(input: {
   readonly ast: AstReader;
@@ -19,6 +20,7 @@ export function analyzeCsharpClassEmission(input: {
   readonly storage: CsharpStorageClassifications;
   readonly names: CsharpNamePlan;
   readonly admitted: (node: Node) => boolean;
+  readonly callables: CsharpCallableContractIndex;
 }) {
   const classes = new Map<Node, CsharpNativeClassEmission>();
   const captures = new Map<Node, readonly CsharpClassCaptureEmission[]>();
@@ -61,7 +63,11 @@ export function analyzeCsharpClassEmission(input: {
         message: "A local class factory requires one exact planned constructor and its environment parameter." });
       continue;
     }
-    classes.set(node, Object.freeze({ forwardingConstructors: Object.freeze(forwardingConstructors), name: selectedName.name, abstract: definition.abstract, staticCompanion: definition.staticCompanion,
+    const authored = authoredConstructor === undefined ? undefined : input.callables.get({ kind: "declaration", declaration: authoredConstructor });
+    if (authoredConstructor !== undefined && authored === undefined)
+      failTargetAnalysisInvariant("tsonic-csharp", "An authored native constructor requires its checked source value vector.", authoredConstructor);
+    classes.set(node, Object.freeze({ parameters: authored?.parameters ?? Object.freeze([]),
+      forwardingConstructors: Object.freeze(forwardingConstructors), name: selectedName.name, abstract: definition.abstract, staticCompanion: definition.staticCompanion,
       instanceMembers: Object.freeze(members), staticMembers: Object.freeze(staticMembers), authoredConstructor,
       factoryConstructor: authoredConstructor === undefined ? implicitCount === 0 ? "default" : "implicit" : "authored" }));
     if (factory === undefined) continue;

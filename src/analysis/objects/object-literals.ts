@@ -23,7 +23,7 @@ import type { CsharpSourceMemberKey } from "../../target-model/types/model.js";
 import { selectCsharpObjectLiteralCallable } from "../../policy/types/objects/object-literals.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
 import { analyzeCsharpObjectInitialization } from "./initialization.js";
-import type { CsharpCallableParameterRecords } from "../../target-model/records/parameter-emission.js";
+import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
 
 export function analyzeCsharpObjectLiterals(input: {
   readonly source: TargetSourceSyntaxProgram;
@@ -33,7 +33,7 @@ export function analyzeCsharpObjectLiterals(input: {
   readonly methods: CsharpObjectMethodRecords;
   readonly members: CsharpObjectMemberRecords;
   readonly storage: Pick<CsharpStorageClassifications, "requiredStorageType">;
-  readonly parameters: CsharpCallableParameterRecords;
+  readonly callables: CsharpCallableContractIndex;
 }) {
   const { ast } = input.source;
   const issues: TargetDiagnostic[] = [];
@@ -165,13 +165,9 @@ export function analyzeCsharpObjectLiterals(input: {
             : `Object-shape method '${member.sourceName}' must carry a finalized delegate target type with explicit return facts before C# emission.`);
           continue;
         }
-        const parameters: Node[] = [];
-        for (const parameter of declaration.Parameters?.Nodes ?? []) {
-          if (parameter === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted object method requires its dense checked parameter list.", property);
-          const selected = input.parameters.callableParameter.get(parameter);
-          if (selected === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted object method parameter requires its sealed value or receiver classification.", parameter);
-          if (selected.kind === "parameter") parameters.push(parameter);
-        }
+        const contract = input.callables.get({ kind: "declaration", declaration: property });
+        if (contract === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted object method requires its sealed source value vector.", property);
+        const parameters = contract.parameters;
         members.push(Object.freeze({ kind: "method", property, member, callable: Object.freeze({ body: declaration.Body,
           parameters: Object.freeze(parameters), carrier: member.type, storage, signature: selected.signature, receiver,
           async: HasSyntacticModifier(ast, property, ModifierFlagsAsync), storageName: objectShapeStorageMemberName(shape, member) }) }));
@@ -184,7 +180,9 @@ export function analyzeCsharpObjectLiterals(input: {
           reject(property, `Object-shape accessor '${member.sourceName}' has no renderable receiver carrier.`); continue;
         }
         const declaration = getter ? AsGetAccessorDeclaration(ast, property) : AsSetAccessorDeclaration(ast, property);
-        const parameters = (declaration?.Parameters?.Nodes ?? []).filter((parameter): parameter is Node => parameter !== undefined);
+        const contract = input.callables.get({ kind: "declaration", declaration: property });
+        if (contract === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted object accessor requires its sealed source value vector.", property);
+        const parameters = contract.parameters;
         if (declaration?.Body === undefined || !getter && (parameters.length !== 1 || AsParameterDeclaration(ast, parameters[0]!) === undefined)) {
           reject(property, getter ? "Object-literal getter requires one exact body and result-carrier contract."
             : "Object-literal setter requires one exact parameter and body."); continue;
