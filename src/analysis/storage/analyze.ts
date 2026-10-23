@@ -175,8 +175,7 @@ export function analyzeCsharpStorage(
     }
     const parameters = sourceCallableValueParameters(policy.ast, node, policy.semanticsFor(node));
     if (parameters === undefined) return;
-    const callableTarget = !contextual ? undefined : policy.ast.typeParameters(node).length > 0
-      ? evidence.nodeTargetType.get(node) : expectedTypes.callableTarget.get(node);
+    const callableTarget = contextual ? expectedTypes.callableTarget.get(node) : undefined;
     const selectedSignature = callableTarget === undefined
       ? undefined
       : getCsharpLambdaSignature(callableTarget);
@@ -234,7 +233,11 @@ export function analyzeCsharpStorage(
             continue;
           }
         }
-        requireTargetType(parameter, parameter, runtimeDefault?.valueType ?? effectiveAuthored ?? targetType);
+        const bodyType = runtimeDefault?.valueType ?? effectiveAuthored ?? targetType;
+        requireTargetType(parameter, parameter, bodyType);
+        if (runtimeDefault !== undefined && !targetTypeRefEquals(targetType, bodyType)) {
+          conversions.conversion.get(targetType, bodyType, "implicit");
+        }
         const contract = contracts.get(parameter);
         if (contract !== undefined) {
           requireCsharpRecord(requiredRecords, { family: "requiredStorageType", subject: parameter,

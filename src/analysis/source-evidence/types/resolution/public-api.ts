@@ -36,12 +36,15 @@ export function resolveType(
 }
 
 export function resolveStorage(
-  { catchVariableStorageCarrier, host, resolveNode, sourceValueDeclaration }: CsharpTypeResolutionScope,
+  { catchVariableStorageCarrier, host, resolveNode, resolveReadStorage, sourceValueDeclaration }: CsharpTypeResolutionScope,
   node: Node | undefined,
   sourceFile?: SourceFile,
 ): TargetTypeRef | undefined {
   if (node === undefined) {
     return undefined;
+  }
+  if (host.ast.is.IsParenthesizedExpression(node)) {
+    return resolveReadStorage(host.ast.as.AsParenthesizedExpression(node)?.Expression, sourceFile);
   }
   const reference = host.navigation.referenceFor(node);
   const declaration = sourceValueDeclaration(node, reference?.declaration);

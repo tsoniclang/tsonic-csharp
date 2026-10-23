@@ -221,7 +221,8 @@ export function selectDelegateConversion(
     ),
   );
   const returnConversion = isCsharpVoidTargetType(targetSignature.returnType) ||
-    csharpVoidReturnCompletion(sourceSignature.returnType, targetSignature.returnType) === "absence"
+    isCsharpVoidTargetType(sourceSignature.returnType) &&
+      csharpVoidReturnCompletion(sourceSignature.returnType, targetSignature.returnType) === "absence"
     ? { kind: "void-return" as const } : selectCsharpConversion(
     input,
     sourceSignature.returnType,
