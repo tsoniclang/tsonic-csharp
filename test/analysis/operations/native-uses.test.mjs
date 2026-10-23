@@ -9,6 +9,7 @@ import { admitCsharpExpectedNativeUses } from "../../../dist/analysis/expected-t
 import { analyzeCsharpExactLiteralSelections } from "../../../dist/analysis/conversions/literal-plans.js";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
+import { publishedGenericProjections } from "../../helpers/expected-native-uses.mjs";
 
 function owners(sourceText, surface = "native") {
   const compiled = compileCsharpSource({ sourceText, surface });
@@ -54,7 +55,8 @@ function owners(sourceText, surface = "native") {
     semantics: source.semantics.forFile, semanticsFor: source.semantics.forNode, typeDefinitions: program.typeDefinitions }, records, records, program.objectShapes,
     { declarationContracts: contracts, closedInputType: () => undefined, get: () => undefined },
     { get: node => { const read = records.valueRead.get(node); return read === undefined ? undefined
-      : { literalTarget: read.selectedOperation ?? read.source, operationValue: read.selectedOperation ?? read.source }; } }, records);
+      : { literalTarget: read.selectedOperation ?? read.source, operationValue: read.selectedOperation ?? read.source }; } }, records,
+    publishedGenericProjections(records, nodes));
   const exact = analyzeCsharpExactLiteralSelections(literalValues, [
     ...expected.constructions.propertyKeyRequests,
     ...expected.nativeUseSites.requests.flatMap(request =>

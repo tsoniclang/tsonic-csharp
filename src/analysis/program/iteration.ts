@@ -160,6 +160,7 @@ export function analyzeCsharpRepresentationIteration(
     callables,
     valueReadStages.valueReadStages,
     declarations,
+    typeProjections,
   );
   const conversionAnalysis = analyzeCsharpConversions(
     policy,

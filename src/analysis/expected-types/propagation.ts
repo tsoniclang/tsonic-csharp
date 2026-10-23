@@ -3,7 +3,7 @@ import type { TargetUseSiteRef } from "@tsonic/target-api/analysis";
 import { ObjectLiteralProperty_SourceName } from "@tsonic/target-api/source";
 import { selectCsharpArrayLiteralCarrier } from "../../policy/types/collections/literal-construction.js";
 import { getCsharpRuntimeUnionArms } from "../../target-model/types/carriers/runtime-carriers.js";
-import { getCsharpNullableElementTargetType, getCsharpArrayLiteralElementTargetType, isCsharpJsValueTargetType, isCsharpRecordDictionaryTargetType, csharpPropertySourceMemberKey, csharpWellKnownSymbolSourceMemberKey, resolveCsharpObjectShapeMemberBySourceKey, csharpObjectTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../policy/types/index.js";
+import { getCsharpNullableElementTargetType, csharpNullableTargetType, getCsharpArrayLiteralElementTargetType, isCsharpJsValueTargetType, isCsharpRecordDictionaryTargetType, csharpPropertySourceMemberKey, csharpWellKnownSymbolSourceMemberKey, resolveCsharpObjectShapeMemberBySourceKey, csharpObjectTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../policy/types/index.js";
 import type { selectCsharpBinaryOperation } from "../operations/operators.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpNativeUseSlot } from "../../target-model/records/native-demand.js";
@@ -257,9 +257,11 @@ export function createCsharpExpectedTypePropagation(
         record(policy.ast.name(property), selected.member.type, strength, member(property),
           selected.member.exactNumericStorage === true);
       } else if (policy.ast.is.IsMethodDeclaration(property) && selected.member.memberKind === "method") {
-        // An object-literal method initializes its member's delegate field, so that delegate is its callable target
-        // (parameters and defaults lower against it, as for an arrow property).
-        record(property, selected.member.type, strength);
+        const parameters = selected.member.typeParameters;
+        const element = getCsharpNullableElementTargetType(selected.member.type);
+        const callable = parameters === undefined || parameters.length === 0 ? selected.member.type
+          : policy.objectShapes.resolveCallableValue(element ?? selected.member.type, parameters);
+        record(property, callable === undefined ? undefined : element === undefined ? callable : csharpNullableTargetType(callable), strength);
       }
     }
   }

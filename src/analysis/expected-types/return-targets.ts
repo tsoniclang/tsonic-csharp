@@ -32,6 +32,7 @@ interface ReturnTarget {
 }
 
 export interface CsharpExpectedReturnTargets {
+  readonly recordTypeParameter: (node: Node) => void;
   readonly recordAccessorReturnContext: (node: Node) => void;
   readonly recordReturnExpression: (node: Node) => void;
   readonly recordExpressionBodyReturn: (node: Node) => void;
@@ -51,6 +52,13 @@ export function createCsharpExpectedReturnTargets(
   const returnContexts = new WeakMap<Node, CsharpReturnContext>();
   const callableTargets = new WeakMap<Node, TargetTypeRef>();
   const returnOwners = new Set<Node>();
+  type NativeQuantifier = Parameters<typeof rebindCsharpMethodValueTypeParameters>[1][number];
+  const quantifiers = new Map<string, NativeQuantifier>();
+  for (const entry of input.typeProjections.entries) {
+    for (const parameter of [...entry.parameters, ...entry.outerParameters]) quantifiers.set(parameter.identity,
+      Object.freeze({ ...parameter, csharpConstraints: Object.freeze({ kind: "resolved",
+        constraints: parameter.csharpProjectionConstraints }) }));
+  }
 
   for (const callable of callables.declarationContracts) {
     const context = selectCsharpCallableReturnContext(policy, evidence, callable);
@@ -60,6 +68,7 @@ export function createCsharpExpectedReturnTargets(
   }
 
   return Object.freeze({
+    recordTypeParameter,
     recordAccessorReturnContext,
     recordReturnExpression,
     recordExpressionBodyReturn,
@@ -70,6 +79,14 @@ export function createCsharpExpectedReturnTargets(
       callableTarget: (expression: Node) => callableTargets.get(expression),
     }),
   });
+
+  function recordTypeParameter(node: Node): void {
+    const parameter = csharpSourceTypeParameter(node, policy.ast);
+    if (parameter === undefined) return;
+    const constraints = evidence.typeParameterConstraints.get(node);
+    if (constraints?.kind === "resolved") quantifiers.set(parameter.identity,
+      Object.freeze({ ...parameter, csharpConstraints: constraints }));
+  }
 
   function refreshCallableTargets(): boolean {
     let changed = false;
@@ -131,11 +148,16 @@ export function createCsharpExpectedReturnTargets(
 
   function callableContextTarget(declaration: Node, target: TargetTypeRef): TargetTypeRef | undefined {
     const value = getCsharpNullableElementTargetType(target) ?? target;
-    if (getCsharpMethodValue(value) !== undefined) {
-      const parameters = policy.ast.typeParameters(declaration).map(parameter => parameter === undefined
-        ? undefined : csharpSourceTypeParameter(parameter, policy.ast));
-      return parameters.some(parameter => parameter === undefined) ? undefined
-        : rebindCsharpMethodValueTypeParameters(value, parameters as NonNullable<typeof parameters[number]>[]);
+    const method = getCsharpMethodValue(value);
+    if (method !== undefined) {
+      const callable = callables.get({ kind: "declaration", declaration });
+      if (callable === undefined || callable.nativeSignature.methodTypeParameterIdentities.length !==
+        callable.nativeSignature.methodAllowsRefLikeTypeArguments.length) return undefined;
+      const source = method.typeParameters.map(identity => quantifiers.get(identity));
+      const destination = callable.nativeSignature.methodTypeParameterIdentities.map(identity => quantifiers.get(identity));
+      if (source.some(parameter => parameter === undefined) || destination.some(parameter => parameter === undefined)) return undefined;
+      return rebindCsharpMethodValueTypeParameters(value, source as readonly NativeQuantifier[],
+        destination as readonly NativeQuantifier[]);
     }
     const signature = getCsharpLambdaSignature(value);
     if (signature !== undefined) {

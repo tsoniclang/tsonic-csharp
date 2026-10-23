@@ -1,7 +1,7 @@
 import { assertNoTargetDiagnostics } from "../../../../../tsonic/test/scripts/diagnostic-assertions.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { planCsharpDelegateAdapter } from "../../../../dist/backend/planner/expressions/callable-conversions.js";
+import { planCsharpDelegateAdapter, planCsharpDelegateAdaptationBody } from "../../../../dist/backend/planner/expressions/callable-conversions.js";
 import { applyCsharpConversionSelection } from "../../../../dist/backend/planner/expressions/conversions.js";
 import { admitCsharpConversionSelection } from "../../../../dist/analysis/conversions/validation.js";
 import { csharpAbsenceTargetType, csharpTsValueTargetType } from "../../../../dist/target-model/types/carriers/runtime-carriers.js";
@@ -9,6 +9,8 @@ import { csharpDelegateTargetType, isCsharpSourceDelegateTargetType } from "../.
 import { csharpNullableTargetType } from "../../../../dist/target-model/types/carriers/nullable.js";
 import { csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpDelegateContractRecord, csharpTypeEmissionRecord } from "../../../helpers/planning-records.mjs";
+import { csharpMethodValueType } from "../../../../dist/target-model/types/method-values.js";
+import { selectDelegateConversion } from "../../../../dist/policy/conversions/carriers.js";
 
 const number = csharpSourcePrimitiveTargetType("float64");
 const source = csharpDelegateTargetType("System.Action", []);
@@ -40,6 +42,58 @@ test("native adapters snapshot an effectful callable once outside its invocation
   assert.equal(adapter.body.statements[0].expression.callee.name, planned.arms[0].pattern.designation);
   assert.equal(JSON.stringify(planned).match(/"name":"make"/gu)?.length, 1);
   assert.equal(adapter.body.statements[1].expression.kind, "DefaultExpression");
+});
+
+test("monomorphic native method handles adapt their exact callable member without a delegate cast", () => {
+  const owner = { kind: "target-named", id: "tsonic.shape:adapter-owner", csharpAllowsRefLikeTypeArguments: [],
+    csharpRender: { kind: "named", name: "NativeOwner" } };
+  const handle = csharpMethodValueType(owner, "run", "actual-run-method", source, []);
+  assert.equal(handle !== undefined, true, "the existing native method owner produces the actual handle");
+  const selected = selectDelegateConversion({}, handle, target);
+  assert.equal(selected?.kind === "delegate-adapter" && selected.strategy === "adaptation", true,
+    "the existing conversion owner admits its actual monomorphic signature");
+  assert.equal(admitCsharpConversionSelection({}, handle, target, selected) === selected, true,
+    "independent admission validates the physical source and complete native adaptation");
+  const factory = { kind: "InvocationExpression", callee: { kind: "IdentifierName", name: "makeOwner" }, arguments: [] };
+  const diagnostics = [];
+  const input = context([[handle, target, selected], [handle, source,
+    { kind: "delegate-adapter", strategy: "native-binding", parameterConversions: [], returnConversion: { kind: "void-return" } }]]);
+  const planned = planCsharpDelegateAdapter({}, {}, input, diagnostics, handle, target, selected, factory, applyCsharpConversionSelection);
+  assert.equal(planned.kind, "SwitchExpression", "the effectful original owner is captured exactly once");
+  assert.equal(planned.expression.expression === factory, true, "the actual owner expression is not replaced");
+  assert.equal(planned.expression.type.name, "NativeOwner", "the snapshot is the native owner, never Action or Func");
+  const callee = planned.arms[0].expression.expression.body.statements[0].expression.callee;
+  assert.equal(callee.name, "run", "the exact sealed method name is consumed");
+  assert.equal(callee.receiver.name, planned.arms[0].pattern.designation, "the invocation uses the original snapshot");
+  assert.equal(JSON.stringify(planned).match(/"name":"makeOwner"/gu)?.length, 1, "receiver effects occur once");
+  const stable = { kind: "IdentifierName", name: "fixedOwner" };
+  const stablePlan = planCsharpDelegateAdapter({}, {}, input, diagnostics, handle, target, selected, stable,
+    applyCsharpConversionSelection, { kind: "stable-value" });
+  assert.equal(stablePlan.kind, "LambdaExpression", "a proved fixed native owner adds no second capture frame");
+  assert.equal(stablePlan.body.statements[0].expression.callee.receiver === stable, true, "the actual stable slot is retained");
+  const binding = selectDelegateConversion({}, handle, source);
+  assert.equal(binding?.kind === "delegate-adapter" && binding.strategy === "native-binding", true, "matching native signatures bind directly");
+  const native = planCsharpDelegateAdapter({}, {}, input, diagnostics, handle, source, binding, factory, applyCsharpConversionSelection);
+  assert.equal(native.kind, "ObjectCreationExpression", "only the requested native delegate is allocated");
+  assert.equal(native.arguments[0].expression.receiver === factory && native.arguments[0].expression.name === "run", true,
+    "native binding captures the exact method receiver once without a protocol-to-delegate cast");
+  const retained = planCsharpDelegateAdaptationBody({}, {}, input, diagnostics, handle, target, selected, stable,
+    applyCsharpConversionSelection);
+  assert.equal(retained.body.statements[0].expression.callee.name, "run", "retained adapter bodies use the same sealed method member");
+  assertNoTargetDiagnostics(diagnostics);
+});
+
+test("native method-to-delegate admission cannot erase an invocation quantifier", () => {
+  const owner = { kind: "target-named", id: "tsonic.shape:quantified-adapter-owner", csharpAllowsRefLikeTypeArguments: [],
+    csharpRender: { kind: "named", name: "QuantifiedOwner" } };
+  const parameter = { kind: "type-parameter", identity: "NativeValue", name: "NativeValue" };
+  const contract = csharpDelegateTargetType("System.Func", [parameter], parameter);
+  const handle = csharpMethodValueType(owner, "read", "quantified-read", contract, [parameter.identity]);
+  assert.equal(handle !== undefined, true, "the quantified native method remains a valid physical callable");
+  assert.equal(selectDelegateConversion({}, handle, source) === undefined, true, "ordinary delegates do not erase native quantifiers");
+  const admitted = admitCsharpConversionSelection({}, handle, source,
+    { kind: "delegate-adapter", strategy: "native-binding", parameterConversions: [], returnConversion: { kind: "void-return" } });
+  assert.equal(admitted.kind, "rejected", "forged admission cannot bypass the native quantifier boundary");
 });
 
 test("an adapted authored lambda invokes a native local function, never an inner source delegate", () => {

@@ -82,7 +82,8 @@ export function csharpNativeChildUses(owner: Node, expression: Node | undefined,
 export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, node: Node, access?: "location"): CsharpNativeOperandSelection {
   const { ast, operations, evidence } = input;
   const resultUse = sourceExpressionResultDisposition(ast, node).kind === "discarded" ? "discarded" : "consumed";
-  const carrier = input.valueReads.valueRead.get(node)?.value;
+  const read = input.valueReads.valueRead.get(node);
+  const carrier = access === "location" ? read?.flowReadStorage : read?.value;
   const use = (expression: Node | undefined, slot: CsharpNativeUseSlot, target?: TargetTypeRef, access?: "location") =>
     csharpNativeChildUses(node, expression, slot, target, access);
   const plan = (uses: readonly CsharpNativeChildUse[]): readonly CsharpNativeOperandStep[] => Object.freeze(uses.map(child =>

@@ -11,6 +11,7 @@ import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planCsharpVoidReturn } from "../statements/statement-output.js";
 import { planCsharpExpressionCompletion } from "./planned-value-composition.js";
+import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 
 interface RenderedDelegateContract extends CsharpDelegateContract {
   readonly sourceType: TargetTypeRef;
@@ -26,11 +27,12 @@ export function planCsharpDelegateAdapter(node: Node, sourceFile: SourceFile, in
   selection: DelegateSelection, expression: CsharpExpression, convert: typeof applyCsharpConversionSelection,
   operand?: CsharpPlannedCallable): CsharpExpression | undefined {
   const contract = requiredContract(node, input, sourceType, targetType);
+  const method = getCsharpMethodValue(contract.sourceType)?.method;
   if (selection.strategy === "native-binding") {
     if (operand?.kind === "lambda") return operand.expression;
     return { kind: "ObjectCreationExpression", type: contract.targetDelegateType, arguments: [{ kind: "Argument",
       expression: operand?.kind === "method" || operand?.kind === "captured-method" ? expression
-        : { kind: "SimpleMemberAccessExpression", receiver: expression, name: "Invoke" },
+        : { kind: "SimpleMemberAccessExpression", receiver: expression, name: method ?? "Invoke" },
     }] };
   }
   const identity = input.scope.delegateAdapters === undefined ? undefined : input.program.records.delegateAdapter.get(node, contract.sourceType, targetType!);
@@ -43,9 +45,11 @@ export function planCsharpDelegateAdapter(node: Node, sourceFile: SourceFile, in
   const name = input.names.temporaryName("__tsonic_callable");
   const direct = operand?.kind === "method" || operand?.kind === "stable-value" || operand?.kind === "lambda";
   const callee: CsharpExpression = operand?.kind === "lambda" ? { kind: "IdentifierName", name }
-    : operand?.kind === "method" || operand?.kind === "stable-value" ? expression
+    : operand?.kind === "method" ? expression
+    : operand?.kind === "stable-value" ? method === undefined ? expression : { kind: "SimpleMemberAccessExpression", receiver: expression, name: method }
     : operand?.kind === "captured-method" ? { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name }, name: operand.name }
-    : { kind: "IdentifierName", name };
+    : method === undefined ? { kind: "IdentifierName", name }
+    : { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name }, name: method };
   const adapter = buildAdaptation(node, sourceFile, input, diagnostics, selection, contract, callee, convert,
     operand?.kind === "lambda" ? { name, expression: operand.expression } : undefined);
   if (adapter === undefined || direct) return adapter;
@@ -58,7 +62,10 @@ export function planCsharpDelegateAdaptationBody(node: Node, sourceFile: SourceF
   diagnostics: TargetDiagnostic[], sourceType: TargetTypeRef, targetType: TargetTypeRef, selection: DelegateSelection,
   callee: CsharpExpression, convert: typeof applyCsharpConversionSelection): DelegateLambda | undefined {
   if (selection.strategy !== "adaptation") failCsharpPlannerInvariant("An admitted retained delegate method requires its selected adaptation strategy.", node);
-  return buildAdaptation(node, sourceFile, input, diagnostics, selection, requiredContract(node, input, sourceType, targetType), callee, convert);
+  const contract = requiredContract(node, input, sourceType, targetType);
+  const method = getCsharpMethodValue(contract.sourceType)?.method;
+  return buildAdaptation(node, sourceFile, input, diagnostics, selection, contract, method === undefined ? callee
+    : { kind: "SimpleMemberAccessExpression", receiver: callee, name: method }, convert);
 }
 
 function buildAdaptation(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],

@@ -21,6 +21,7 @@ import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js
 import { analyzeCsharpFlowReadProjections } from "../../../dist/analysis/conversions/flow-read-projections.js";
 import { isCsharpSourceCallableArtifactDeclaration } from "../../../dist/policy/types/callables/source-callable-contract.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
+import { publishedGenericProjections } from "../../helpers/expected-native-uses.mjs";
 
 test("canonical source callable admission recognizes TypeLiteral signatures without inventing executable bodies", () => {
   const declaration = {};
@@ -332,7 +333,8 @@ function owners(sourceText, surface) {
     semantics: source.semantics.forFile, semanticsFor: source.semantics.forNode, typeDefinitions: program.typeDefinitions }, records, records, program.objectShapes,
     { declarationContracts: contracts, closedInputType: () => undefined, get: () => undefined },
     { get: node => { const read = records.valueRead.get(node); return read === undefined ? undefined
-      : { literalTarget: read.selectedOperation ?? read.source, operationValue: read.selectedOperation ?? read.source }; } }, records);
+      : { literalTarget: read.selectedOperation ?? read.source, operationValue: read.selectedOperation ?? read.source }; } }, records,
+    publishedGenericProjections(records, nodes));
   const exact = analyzeCsharpExactLiteralSelections(literalValues, [
     ...expected.constructions.propertyKeyRequests,
     ...expected.nativeUseSites.requests.flatMap(request =>

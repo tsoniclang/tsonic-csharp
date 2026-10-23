@@ -13,6 +13,8 @@ import { csharpUnionLeaves } from "../../target-model/types/union-relations.js";
 import { csharpUnionProjectionPath, selectCsharpUnionArmMapping, selectCsharpUnionInjection } from "./union-relations.js";
 import type { CsharpConversionShapeQueries } from "./shape-queries.js";
 import { csharpNativeRepresentationMatches } from "./native-representation.js";
+import { getCsharpCallableValueSignature } from "../../target-model/types/carriers/delegates.js";
+import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 
 export function selectJsValueConversion(
   source: TargetTypeRef,
@@ -193,7 +195,9 @@ export function selectDelegateConversion(
   source: TargetTypeRef,
   target: TargetTypeRef,
 ): CsharpConversionSelection | undefined {
-  const sourceSignature = getCsharpDelegateSignature(source);
+  const sourceMethod = getCsharpMethodValue(source);
+  const sourceSignature = sourceMethod !== undefined && sourceMethod.typeParameters.length !== 0
+    ? undefined : getCsharpCallableValueSignature(source);
   const targetSignature = getCsharpDelegateSignature(target);
   if (sourceSignature === undefined || targetSignature === undefined) {
     return undefined;

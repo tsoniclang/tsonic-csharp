@@ -10,6 +10,7 @@ import type { CsharpSourceEvidenceIndex } from "../../target-model/records/sourc
 import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
+import type { CsharpGenericProjectionIndex } from "../../target-model/records/type-projections.js";
 import { createCsharpExpectedUseCollection } from "./collection.js";
 import { createCsharpExpectedReturnTargets } from "./return-targets.js";
 import { createCsharpExpectedConstructUses } from "./construct-uses.js";
@@ -25,8 +26,9 @@ export function analyzeCsharpExpectedTypes(
   callables: CsharpCallableContractIndex,
   valueReadStages: CsharpValueReadStageIndex,
   declarations: Pick<CsharpDeclarationClassifications, "returnContract" | "runtimeDefault">,
+  typeProjections: CsharpGenericProjectionIndex,
 ): CsharpExpectedTypeAnalysis {
-  const input: CsharpExpectedTypeAnalysisInput = { policy, evidence, operations, objectShapes, callables, valueReadStages, declarations };
+  const input: CsharpExpectedTypeAnalysisInput = { policy, evidence, operations, objectShapes, callables, valueReadStages, declarations, typeProjections };
   const collection = createCsharpExpectedUseCollection(policy);
   const returnTargets = createCsharpExpectedReturnTargets(input, collection);
   const constructUses = createCsharpExpectedConstructUses(input, collection);
@@ -66,6 +68,7 @@ export function analyzeCsharpExpectedTypes(
 
   function visit(node: Node, sourceFile: SourceFile): void {
     if (evidence.compileTimeMetadata.get(node) || operations.nativeUnreachable.get(node)) return;
+    returnTargets.recordTypeParameter(node);
     returnTargets.recordAccessorReturnContext(node);
     constructUses.recordInitializer(node);
     returnTargets.recordReturnExpression(node);

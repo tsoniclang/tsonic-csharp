@@ -1,7 +1,7 @@
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, Type } from "@tsonic/tsts";
-import { sourcePresentCallableType, type SourceFileSemantics } from "@tsonic/target-api/source";
+import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { csharpSourcePrimitiveTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
 
@@ -185,14 +185,7 @@ export function resolveMemberAccessTargetType(
   if (selection.kind === "project-indexer") return optionalAccessTargetType(
     mode === "selected" ? selection.selectedReadType ?? selection.valueType : selection.valueType, selection.source.optionalChain);
   if (selection.kind === "union-property") return selection.resultCarrier;
-  const presentCallable = selection.kind === "resolved" || selection.kind === "source-owned"
-    ? sourcePresentCallableType(selection.source.sourceReadType, queries) : undefined;
-  if ((selection.kind === "resolved" || selection.kind === "source-owned") && selection.source.accessMode === "read" &&
-    presentCallable !== undefined && (queries.types.relationship(presentCallable, selection.source.sourceReadType!) !== "identical" ||
-    queries.types.callSignatures(presentCallable).some(signature => {
-      const declaration = queries.declarations.signatureDeclaration(signature);
-      return declaration !== undefined && host.ast.typeParameters(declaration).length > 0;
-    }))) {
+  if ((selection.kind === "resolved" || selection.kind === "source-owned") && selection.source.accessMode === "read") {
     const receiverType = resolveSelectedReceiverTargetType(selection.source.receiver, queries, state);
     const methodValue = selectCsharpMethodValue(receiverType, queries.facts.selectedSubjects(
       selection.source.selectedSymbol, selection.source.selectedDeclaration), host, selection.source.callCallee);

@@ -145,7 +145,9 @@ export function createCsharpObjectShapePolicy(
     }
     const template = genericShapes.get(type.id);
     if (template !== undefined) {
-      const selected = instantiateCsharpObjectShape(template, type);
+      const owner = nativeProjectOwner(type);
+      if (owner === undefined) return undefined;
+      const selected = instantiateCsharpObjectShape(template, owner);
       if (selected !== undefined) return rememberTargetShape(selected);
     }
     const union = type as Partial<CsharpRuntimeUnionTargetTypeRef>;
@@ -421,7 +423,6 @@ export function createCsharpObjectShapePolicy(
       ) {
         return {
               ...declaredShape!,
-              targetType: contextualProjectType,
               sourceType: type,
               members,
             };
@@ -480,6 +481,18 @@ export function createCsharpObjectShapePolicy(
     return resolveProjectDeclarationShape(targetType, state);
   }
 
+  function nativeProjectOwner(type: CsharpTargetNamedTypeRef): CsharpTargetNamedTypeRef | undefined {
+    const definition = host.projectTypeCatalog.definitionForTarget(type);
+    if (definition?.kind !== "class" && definition?.kind !== "interface" || type.typeArguments === undefined) return type;
+    const arguments_ = type.typeArguments.map(argument => {
+      if (argument.kind !== "type-parameter") return argument;
+      const constraints = environment(argument);
+      return constraints.kind === "resolved" ? Object.freeze({ ...argument, csharpConstraints: constraints }) : undefined;
+    });
+    return arguments_.some(argument => argument === undefined) ? undefined
+      : { ...type, typeArguments: Object.freeze(arguments_ as readonly TargetTypeRef[]) };
+  }
+
   function resolveProjectDeclarationShape(
     targetType: CsharpTargetNamedTypeRef,
     state: CsharpTypeResolutionState,
@@ -493,6 +506,9 @@ export function createCsharpObjectShapePolicy(
       return undefined;
     }
     state = csharpSourceTemplateState([...definition.outerTypeParameters, ...definition.typeParameters], state);
+    const owner = nativeProjectOwner(targetType);
+    if (owner === undefined) return undefined;
+    targetType = owner;
     const declarationType = host.projectTypeCatalog.targetTypeForDeclaration(
       definition.declaration,
       definition.typeParameterBindings,
@@ -524,7 +540,7 @@ export function createCsharpObjectShapePolicy(
     const substitutions = new Map(
       definition.typeParameterBindings.map((parameter, index) => [
         parameter.identity,
-        typeArguments[index]!,
+        targetType.typeArguments![index]!,
       ]),
     );
     const implemented = definition.kind === "interface" ? host.projectTypes().directSupertypes(targetType) : [];
@@ -568,6 +584,7 @@ export function createCsharpObjectShapePolicy(
       }),
       ...(implemented.length === 0 ? {} : { implements: implemented }),
     };
+
   }
 
   function resolveTypeMember(

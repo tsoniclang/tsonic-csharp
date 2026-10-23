@@ -7,6 +7,7 @@ import { planFlowReadUseSiteProjection } from "../../../dist/backend/planner/exp
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { selectCsharpFlowReadCarrier } from "../../../dist/policy/conversions/flow-read.js";
+import { selectCsharpNativeOperandUses } from "../../../dist/analysis/operations/control-flow/native-operands.js";
 import { csharpRuntimeUnionTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../dist/target-model/types/index.js";
 import { arrayRecordRefinementSource } from "../../../../tsonic/test/fixtures/recursive-array-refinement.mjs";
 
@@ -57,6 +58,53 @@ test("actual array and record branches publish exact physical receiver projectio
     assert.equal(projection?.kind === "conversion" && projection.selection.kind === "runtime-union-projection", true,
       "both array and record branches consume a selected native payload instead of reading fields on the union struct");
   }
+});
+
+for (const surface of ["native", "js"]) test(`${surface} native write locations keep their storage after read narrowing`, () => {
+  const value = fixture(`
+    class Slot { value: string | number = "before"; }
+    export function local(value: string | number): string | number {
+      if (typeof value === "string") { value = 4; return value; }
+      return value;
+    }
+    export function member(slot: Slot): string | number {
+      if (typeof slot.value === "string") { (slot.value) = 5; return slot.value; }
+      return slot.value;
+    }
+    export function element(values: (string | number)[]): string | number {
+      if (typeof values[0] === "string") { values[0] = 6; return values[0]; }
+      return values[0];
+    }
+  `, surface);
+  const records = value.program.records;
+  const input = {
+    ast: value.ast, navigation: value.program.sourceNavigation,
+    evidence: records, operations: records, valueReads: records,
+    classFactories: { classFactory: records.classFactory, factories: value.program.classFactories },
+    bindingPatterns: records,
+    unusedDefault: { get: () => false },
+    callableCreation: { get: () => assert.fail("a write location does not create a callable") },
+  };
+  const writes = value.nodes.filter(node => value.ast.is.IsBinaryExpression(node) && value.ast.operatorKindName(node) === "KindEqualsToken");
+  assert.equal(writes.length, 3, "local, parenthesized member and element writes are all retained");
+  let narrowed = 0;
+  for (const write of writes) {
+    const location = value.ast.as.AsBinaryExpression(write).Left;
+    const read = records.valueRead.get(location);
+    const operation = records.binaryOperation.get(write)?.target;
+    const selected = selectCsharpNativeOperandUses(input, location, "location");
+    assert.equal(operation?.kind === "resolved", true, "the actual native assignment was selected");
+    assert.equal(read?.flowReadStorage !== undefined, true, "the exact writable storage carrier is sealed");
+    assert.equal(selected.refusal === undefined, true, "the native location form is admitted");
+    assert.equal(targetTypeRefEquals(selected.carrier, read.flowReadStorage), true, "locations consume storage, not the narrowed read");
+    assert.equal(targetTypeRefEquals(selected.carrier, operation.leftInputType), true, "the actual assignment ABI agrees independently");
+    if (!targetTypeRefEquals(read.value, read.flowReadStorage)) narrowed += 1;
+    const missingStorage = selectCsharpNativeOperandUses({ ...input, valueReads: {
+      valueRead: { get: node => node === location ? { ...read, flowReadStorage: undefined } : records.valueRead.get(node) },
+    } }, location, "location");
+    assert.equal(missingStorage.carrier === undefined, true, "missing physical storage cannot fall back to a read projection");
+  }
+  assert.equal(narrowed > 0, true, "the controls contain an actual read/storage distinction");
 });
 
 for (const surface of ["native", "js"]) {
