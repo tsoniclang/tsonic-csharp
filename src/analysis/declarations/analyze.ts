@@ -106,8 +106,12 @@ export function analyzeCsharpDeclarations(
             ?.parameters.find(parameter => parameter.declaration === node);
           if (slot === undefined) throw new Error("A native parameter default requires its exact checked declaration slot.");
           const native = selectCsharpDefaultValueContract(runtimeDefault.parameterType, runtimeDefault.valueType, false);
+          const absentInitializer = source !== undefined && queries.types.isNullish(source) &&
+            (policy.ast.kindName(parameter.Initializer) === "KindNullKeyword" ||
+              policy.ast.is.IsIdentifier(parameter.Initializer) && policy.navigation.sourceReferenceFor(parameter.Initializer) === undefined);
           declarations.runtimeDefault(node, Object.freeze({ ...runtimeDefault, acceptsOmission: slot.acceptsOmission, native,
-            passthrough: native.kind === "value" && !native.normalize && targetTypeRefEquals(native.source, native.target) }));
+            passthrough: (native.kind === "value" || absentInitializer) && !native.normalize &&
+              targetTypeRefEquals(native.source, native.target) }));
         }
       }
     }

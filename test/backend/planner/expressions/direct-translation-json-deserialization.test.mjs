@@ -217,7 +217,7 @@ test("JS structural views retain one closed value carrier through assertions, fl
         public static string update(string json)
         {
             Tsonic.CSharp.Runtime.TsValue obj = Tsonic.CSharp.Js.JSON.parse(json);
-            obj.WriteDynamicSlot("title", Tsonic.CSharp.Runtime.TsValue.from((double)1));
+            obj.WriteDynamicSlot("title", 1D);
             return Tsonic.CSharp.Runtime.TsValue.ApplyDynamicTypeof(obj.ReadDynamicSlot("title"));
         }
         public static bool identity(string json)
