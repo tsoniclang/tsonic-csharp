@@ -9,13 +9,13 @@ import { csharpTypeFromObjectShapeFact } from "../objects/planning.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { allocateExpressionTemp, getCsharpLocalBindingName } from "./binding-state.js";
 import { planCapturedReceiverOwnerValue } from "../expressions/expression-this.js";
-import type { CsharpPlannedCallableReference } from "../expressions/planned-values.js";
+import type { CsharpPlannedAddressOperand, CsharpPlannedCallableReference } from "../expressions/planned-values.js";
 
 export function planCsharpNamedSelfCaptureContext(
   self: CsharpNamedSelfBinding, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], state: DestructuringPlannerState,
 ): { readonly context: CsharpPlanningContext; readonly prelude: readonly CsharpStatement[] } | undefined {
   let captureFrames: Map<Node, CsharpExpression> | undefined;
-  let capturedBindings: Map<Node, CsharpExpression> | undefined;
+  let capturedBindings: Map<Node, CsharpPlannedAddressOperand> | undefined;
   const prelude: CsharpStatement[] = [];
   for (const declaration of self.captures) {
     const frame = input.program.records.capturedBinding.get(declaration)?.frame;
@@ -32,7 +32,8 @@ export function planCsharpNamedSelfCaptureContext(
     capturedBindings ??= new Map(input.scope.capturedBindings);
     captureFrames.set(frame.scope, retained);
     for (const binding of frame.bindings) capturedBindings.set(binding.declaration, {
-      kind: "SimpleMemberAccessExpression", receiver: retained, name: binding.fieldName,
+      expression: { kind: "SimpleMemberAccessExpression", receiver: retained, name: binding.fieldName },
+      address: { kind: "member", receiver: { expression: retained }, name: binding.fieldName, static: false },
     });
   }
   return { context: captureFrames === undefined ? input : {

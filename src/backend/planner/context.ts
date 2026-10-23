@@ -3,13 +3,14 @@ import type { TargetTypeRef } from "../../target-model/types/index.js";
 import type { CsharpTargetProgram } from "../../target-model/records/target-program.js";
 import type { CsharpExpression, CsharpMethodDeclaration } from "../target-ast/syntax/index.js";
 import type { CsharpDelegateAdapterIdentity } from "../../target-model/records/conversions.js";
+import type { CsharpPlannedAddressOperand } from "./expressions/planned-values.js";
 import { createCsharpSyntheticNames, type CsharpSyntheticNames } from "./names/synthetic.js";
 
 export interface CsharpPlanningScope {
   readonly delegateAdapters?: ReadonlyMap<CsharpDelegateAdapterIdentity, string>;
   readonly typeParameterNames?: ReadonlyMap<string, string>;
   readonly classValues?: ReadonlyMap<Node, CsharpExpression>;
-  readonly capturedBindings?: ReadonlyMap<Node, CsharpExpression>;
+  readonly capturedBindings?: ReadonlyMap<Node, CsharpPlannedAddressOperand>;
   readonly captureFrames?: ReadonlyMap<Node, CsharpExpression>;
   readonly capturedReceivers?: ReadonlyMap<Node, CsharpExpression>;
   readonly nativeCallableBody?: { readonly declaration: Node; readonly carrier: TargetTypeRef };

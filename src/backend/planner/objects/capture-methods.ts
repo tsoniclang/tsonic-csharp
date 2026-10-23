@@ -13,6 +13,7 @@ import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planSourceFunctionDeclaration } from "../declarations/callables/functions.js";
 import { withCsharpSafetyModifiers } from "../safety/explicit-safety.js";
 import { planCsharpArtifactMemberHiding } from "../declarations/modifiers.js";
+import type { CsharpPlannedAddressOperand } from "../expressions/planned-values.js";
 
 export function renderCsharpCaptureFrameMethods(
   shape: CsharpObjectShapeFact, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
@@ -20,12 +21,13 @@ export function renderCsharpCaptureFrameMethods(
   const frame = input.program.records.captureFrameShape.get(shape.targetType);
   if (frame === undefined) return [];
   const captureFrames = new Map<Node, CsharpExpression>();
-  const capturedBindings = new Map<Node, CsharpExpression>();
+  const capturedBindings = new Map<Node, CsharpPlannedAddressOperand>();
   const capturedReceivers = new Map<Node, CsharpExpression>();
   const retain = (selected: CsharpCaptureFrame, expression: CsharpExpression): void => {
     captureFrames.set(selected.scope, expression);
     for (const binding of selected.bindings) capturedBindings.set(binding.declaration, {
-      kind: "SimpleMemberAccessExpression", receiver: expression, name: binding.fieldName,
+      expression: { kind: "SimpleMemberAccessExpression", receiver: expression, name: binding.fieldName },
+      address: { kind: "member", receiver: { expression }, name: binding.fieldName, static: false },
     });
     for (const receiver of selected.receivers) for (const reference of receiver.references) capturedReceivers.set(reference, {
       kind: "SimpleMemberAccessExpression", receiver: expression, name: receiver.fieldName,

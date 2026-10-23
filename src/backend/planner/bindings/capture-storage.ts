@@ -22,7 +22,7 @@ export function csharpCapturedBindingExpression(
   declaration: Node, input: CsharpPlanningContext, state?: DestructuringPlannerState,
 ): CsharpExpression | undefined {
   const override = input.scope.capturedBindings?.get(declaration);
-  if (override !== undefined) return override;
+  if (override !== undefined) return override.expression;
   const selected = input.program.records.capturedBinding.get(declaration);
   const receiver = selected === undefined ? undefined : csharpCaptureFrameExpression(selected.frame.scope, input, state);
   return selected === undefined || receiver === undefined ? undefined : {

@@ -15,6 +15,7 @@ import { getCsharpLocalBindingName } from "../bindings/binding-state.js";
 import { csharpCapturedBindingExpression, csharpCaptureFrameExpression } from "../bindings/capture-storage.js";
 import { objectShapeArtifactKey } from "../../../target-model/records/object-shape-keys.js";
 import { planCsharpArtifactMemberHiding } from "../declarations/modifiers.js";
+import type { CsharpPlannedAddressOperand } from "../expressions/planned-values.js";
 
 export function csharpObjectCaptureFields(shape: CsharpObjectShapeFact, input: CsharpPlanningContext): readonly CsharpObjectCaptureField[] {
   const selected = input.program.records.objectCaptures.get(shape);
@@ -28,7 +29,7 @@ export function renderCsharpAuthoredObjectMethods(
   const implementation = shape.methodImplementation;
   if (implementation === undefined) return [];
   const members: CsharpTypeMember[] = [];
-  const capturedBindings = new Map<Node, CsharpExpression>();
+  const capturedBindings = new Map<Node, CsharpPlannedAddressOperand>();
   const captureFrames = new Map<Node, CsharpExpression>();
   for (const field of csharpObjectCaptureFields(shape, input)) {
     const type = csharpTypeFromTargetTypeRef(field.type, input.scope.typeParameterNames);
@@ -37,10 +38,15 @@ export function renderCsharpAuthoredObjectMethods(
     if (frame !== undefined && csharpTypeFromObjectShapeFact(input, frame.shape, diagnostics, implementation.declaration) === undefined) return undefined;
     members.push({ kind: "FieldDeclaration", name: field.name, type,
       modifiers: ["public", "required", ...planCsharpArtifactMemberHiding(input.program.records.nativeMemberHiding, shape, field.name)] });
-    const receiver: CsharpExpression = { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: "this" }, name: field.name };
+    const owner: CsharpExpression = { kind: "IdentifierName", name: "this" };
+    const receiver: CsharpExpression = { kind: "SimpleMemberAccessExpression", receiver: owner, name: field.name };
     if (field.frameScope !== undefined) captureFrames.set(field.frameScope, receiver);
-    for (const binding of field.declarations) capturedBindings.set(binding.declaration, binding.member === undefined ? receiver
-      : { kind: "SimpleMemberAccessExpression", receiver, name: binding.member });
+    for (const binding of field.declarations) capturedBindings.set(binding.declaration, binding.member === undefined ? {
+      expression: receiver, address: { kind: "member", receiver: { expression: owner }, name: field.name, static: false },
+    } : {
+      expression: { kind: "SimpleMemberAccessExpression", receiver, name: binding.member },
+      address: { kind: "member", receiver: { expression: receiver }, name: binding.member, static: false },
+    });
   }
   const context = createCsharpThisBindingPlanningContext({ ...input, scope: { ...input.scope, capturedBindings, captureFrames } }, "this", shape.targetType);
   const methods = input.program.records.objectMethods.get(shape);

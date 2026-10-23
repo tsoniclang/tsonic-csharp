@@ -101,10 +101,17 @@ test("native freeze aliases delegate exact selected operands to the one shared p
     "freeze retains the exact checked actual operand");
   assert.equal(frozen.effect.resultAllocation === undefined, true, "freeze does not allocate a replacement");
   assert.equal(observed?.effect?.resultAlias === undefined, true, "inspection does not claim result identity");
-  assert.equal(observed?.effect?.preservedInputs[0] === observed?.selected.sourceArguments[0].expression, true,
-    "inspection preserves its exact checked operand");
-  assert.equal(Object.isFrozen(frozen.effect.preservedInputs) && Object.isFrozen(observed.effect.preservedInputs), true,
-    "materialized operand rows remain immutable");
+  assert.equal(Object.hasOwn(frozen.effect, "preservedInputs"), false, "the removed preservation API cannot certify native writes");
+  assert.equal(observed.effect === undefined, true, "inspection publishes no unchecked preservation contract");
+  assert.equal(Object.isFrozen(frozen.effect), true, "materialized native alias evidence remains immutable");
+  const storage = createSourceStorageQuery(frozen.source, frozen.source.navigation.sourceFiles, undefined, frozen.effects);
+  const subject = storage.subjectFor(observed.selected.sourceArguments[0].expression);
+  assert.equal(subject.kind, "resolved", "inspection uses its exact checked operand");
+  const domain = storage.closedOriginsFor(subject.subject);
+  assert.equal(domain.kind, "open", "a native inspection signature alone cannot prove the input unmodified");
+  assert.equal(domain.boundaries.some(boundary => boundary.kind === "opaque-write"), true,
+    "the unproved native invocation retains its actual exposure witness");
+  assert.equal(storage.failureReason(), undefined, "the native alias query stays within its complete bounded graph");
 });
 
 test("native alias and preservation effects require actual owned operation identity", () => {

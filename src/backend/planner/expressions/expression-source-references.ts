@@ -42,7 +42,7 @@ export function planCsharpIdentifierValue(identifier: Node, sourceFile: SourceFi
       ?? failCsharpPlannerInvariant("An admitted captured address requires its lexical frame.", identifier);
     root = { expression: { kind: "SimpleMemberAccessExpression", receiver, name: captured.fieldName },
       address: { kind: "member", receiver: { expression: receiver }, name: captured.fieldName, static: false } };
-  } else root = { expression: overridden ?? { kind: "IdentifierName",
+  } else root = overridden ?? { expression: { kind: "IdentifierName",
     name: getCsharpLocalBindingName(identifier, input, state) ?? requireSealedSourceReferenceName(identifier, input) }, address: { kind: "root" } };
   return { ...planned, address: selected.backing ? { kind: "member", receiver: root, name: "Value", static: false } : root.address };
 }
