@@ -265,7 +265,7 @@ function defaultEvidenceFixture(kind) {
   let parameterReads = 0;
   const parameter = Object.freeze({});
   const policy = {
-    projectTypes: { catalog: { definitionForTarget: () => undefined } },
+    projectTypes: { directSupertypes: () => [], catalog: { definitionForTarget: () => undefined } },
     semanticsFor: () => ({ types: { expressionType: () => sourceType, structuralMembers: () => ({ kind: "available",
       destination: { calls: [], constructs: [], indexes: [] }, members: [{ kind: "present",
         source: { property: { symbol: sourceSymbol, rootSymbols: [] }, declarations: [declaration] },
@@ -326,7 +326,7 @@ test("structural destination retains a supplied outer argument absent from every
   const source = Object.freeze({ targetType: body(integer), members: template.members, declarationTemplate: template });
   const destination = Object.freeze({ targetType: view(integer), members: destinationTemplate.members, declarationTemplate: destinationTemplate });
   const selected = selectCsharpStructuralInterfaceImplementation({ projectTypes: { directSupertypes: () => undefined },
-    providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) } }, { sourceNode: {}, source, destination, members: [{ source: read, destination: openWrite,
+    providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) } }, { sourceNode: {}, source, destination, declaredSupertypes: [], members: [{ source: read, destination: openWrite,
     openSource: read, openDestination: openWrite, declaration: {} }] });
   assert.equal(selected !== undefined, true, "the selected closed destination supplies its actual otherwise-uninferable owner argument");
   assert.equal(selected.interfaceType.typeArguments[0] === integer, true, "no phantom argument is guessed from the nongeneric implementation");

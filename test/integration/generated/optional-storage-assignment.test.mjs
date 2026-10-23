@@ -29,7 +29,7 @@ test("an outer argument used only in native method constraints retains its sourc
       { sourceDeclarationKind: "class", allowsRefLikeTypeArguments: [], constraintRequiresReferenceType: true });
     const source = { targetType: target("BoundedBody", bound, "class"), members: [member(native, bound)], declarationTemplate: sourceTemplate };
     const destination = { targetType: target("BoundedView", bound, "interface"), members: [member(value, bound)], declarationTemplate: destinationTemplate };
-    const selected = selectCsharpStructuralInterfaceImplementation({}, { sourceNode: {}, source, destination,
+    const selected = selectCsharpStructuralInterfaceImplementation({}, { sourceNode: {}, source, destination, declaredSupertypes: [],
       members: [{ source: source.members[0], destination: destination.members[0], openSource, openDestination, declaration: {} }] });
     assert.equal(selected !== undefined, true, `${name}: the existing checked member correspondence is admitted`);
     assert.equal(targetTypeRefEquals(selected.interfaceType.typeArguments[0], sourceOuter), true,

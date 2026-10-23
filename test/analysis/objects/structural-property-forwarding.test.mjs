@@ -113,7 +113,7 @@ test("writable structural properties require exact storage while readonly reads 
     ["writable exact", member(integer, false), true],
     ["writable widening", member(number, false), false],
   ]) {
-    const selected = selectCsharpStructuralInterfaceImplementation(nativePolicy, { sourceNode,
+    const selected = selectCsharpStructuralInterfaceImplementation(nativePolicy, { sourceNode, declaredSupertypes: [],
       source: { targetType: targetType("Body", "class"), members: [read] },
       destination: { targetType: targetType("View", "interface"), members: [write] },
       members: [{ source: read, destination: write, openSource: read, openDestination: write }] });
@@ -135,7 +135,7 @@ test("a supplied readonly generic destination is authoritative rather than unifi
     { sourceDeclarationKind: "class", allowsRefLikeTypeArguments: [] }), members: [read] });
   const destination = Object.freeze({ targetType: target(number), members: [write],
     declarationTemplate: Object.freeze({ targetType: target(parameter), members: [open] }) });
-  const selected = selectCsharpStructuralInterfaceImplementation(nativePolicy, { sourceNode: {}, source, destination,
+  const selected = selectCsharpStructuralInterfaceImplementation(nativePolicy, { sourceNode: {}, source, destination, declaredSupertypes: [],
     members: [{ source: read, destination: write, openSource: read, openDestination: open }] });
   assert.equal(selected !== undefined, true, "readonly native widening is not an owner-argument equality constraint");
   assert.equal(selected.interfaceType.typeArguments[0] === number && selected.properties[0].member.type === number, true,
@@ -210,7 +210,7 @@ test("a native covariant readonly destination retains only its proved source-tem
   const source = { targetType: body(value.derived), members: [read],
     declarationTemplate: { targetType: body(parameter), members: [openRead] } };
   const destination = { targetType: value.target([value.base]), members: [write], declarationTemplate: value.template };
-  const evidence = { sourceNode: {}, source, destination,
+  const evidence = { sourceNode: {}, source, destination, declaredSupertypes: [],
     members: [{ source: read, destination: write, openSource: openRead, openDestination: value.template.members[0] }] };
   const selected = selectCsharpStructuralInterfaceImplementation(value.policy, evidence);
   assert.equal(selected.interfaceType.typeArguments[0] === parameter && selected.properties[0].member.type === parameter, true,

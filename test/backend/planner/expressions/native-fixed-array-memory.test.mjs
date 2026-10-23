@@ -112,8 +112,8 @@ export function expose(raw: RawPointer | undefined) {
 }
 ` });
   assertCsharpCheckingSucceeded(compiled);
-  assert.ok(compiled.result.diagnostics.some(item => item.message.includes("all-bit-pattern")),
-    JSON.stringify(compiled.result.diagnostics));
+  assert.equal(compiled.result.diagnostics.some(item => item.message.includes("all-bit-pattern")), true,
+    "reference-element layouts keep their exact all-bit-pattern refusal");
   assert.equal(compiled.artifacts.size, 0);
 });
 

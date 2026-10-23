@@ -21,7 +21,7 @@ const field = (symbol, type) => ({ sourceName: "value", targetName: "value", sou
 const destinationTemplate = { targetType: slot(element), sourceType: destinationType, members: [field(destinationSymbol, optional(element))] };
 const destination = { targetType: slot(integer), sourceType: destinationType, members: [field(destinationSymbol, optional(integer))],
   declarationTemplate: destinationTemplate };
-const policy = { projectTypes: { catalog: { definitionForTarget: () => undefined } },
+const policy = { projectTypes: { directSupertypes: () => [], catalog: { definitionForTarget: () => undefined } },
   semanticsFor: () => ({ types: { expressionType: () => sourceType, structuralMembers: () => ({
   kind: "available", destination: { calls: [], constructs: [], indexes: [] }, members: [{ kind: "present",
     source: { property: { symbol: sourceSymbol, rootSymbols: [] }, declarations: [] },
