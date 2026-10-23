@@ -1,6 +1,6 @@
 import type { CsharpTargetMember, TargetTypeRef } from "../../../types/index.js";
 import { csharpJsNumericArgument, csharpJsParsingParameters } from "./numeric-argument.js";
-import { csharpBigIntegerTargetType, csharpObjectTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, getCsharpRuntimeUnionArms, targetTypeRefEquals } from "../../../../target-model/types/index.js";
+import { csharpBigIntegerTargetType, csharpObjectTargetType, csharpNullableReferenceTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms, isCsharpNullableReferenceTargetType, targetTypeRefEquals } from "../../../../target-model/types/index.js";
 import type { CsharpSourceProfileCallPolicy, CsharpSourceProfilePropertyPolicy } from "../../../model/source-profiles.js";
 import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
 import { closedObjectParameter, jsCallIdentity, jsCallPolicy, jsConstructIdentity, jsMemberIdentity, jsPropertyPolicy, jsRuntimeTargetType, jsUnsupportedCallPolicy, receiverHelperMethod, staticMethod, targetParameter, targetProperty } from "./common.js";
@@ -126,11 +126,14 @@ export const csharpJsNumberCallPolicies:
       jsCallIdentity("NumberConstructor"),
       (context) => {
         const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
+        if (argument === undefined && context.source.sourceArguments.length !== 0) return undefined;
+        const present = getCsharpNullableElementTargetType(argument) ?? argument;
+        const numeric = present !== undefined && (present.kind === "source-primitive" &&
+          present.name !== "bool" && present.name !== "char" || targetTypeRefEquals(present, csharpBigIntegerTargetType()));
+        const typed = present !== undefined && !isCsharpNullableReferenceTargetType(argument) &&
+          (numeric || targetTypeRefEquals(present, boolType));
         const union = argument !== undefined && getCsharpRuntimeUnionArms(argument, context.host.typeDefinitions) !== undefined;
-        if (argument !== undefined && (
-          argument.kind === "source-primitive" && argument.name !== "bool" && argument.name !== "char" ||
-          targetTypeRefEquals(argument, csharpBigIntegerTargetType())
-        )) {
+        if (argument !== undefined && numeric && present === argument) {
           return staticMethod(
             "Tsonic.CSharp.Js.Globals.Number",
             "constructor",
@@ -147,9 +150,8 @@ export const csharpJsNumberCallPolicies:
           "Number",
           globalsType,
           [
-            targetParameter("value", union ? argument : csharpObjectTargetType(), {
-              optional: true,
-              ...(union ? {} : { csharpAcceptsClosedSourceArgument: true }),
+            targetParameter("value", union || typed ? argument! : csharpNullableReferenceTargetType(csharpObjectTargetType()), {
+              ...(union || typed ? {} : { optional: true, csharpAcceptsClosedSourceArgument: true }),
             }),
           ],
           numberType,

@@ -41,8 +41,9 @@ export function planCsharpDelegateAdapter(node: Node, sourceFile: SourceFile, in
       arguments: [{ kind: "Argument", expression: { kind: "IdentifierName", name } }] };
   }
   const name = input.names.temporaryName("__tsonic_callable");
-  const direct = operand?.kind === "method" || operand?.kind === "lambda";
-  const callee: CsharpExpression = operand?.kind === "lambda" ? { kind: "IdentifierName", name } : operand?.kind === "method" ? expression
+  const direct = operand?.kind === "method" || operand?.kind === "stable-value" || operand?.kind === "lambda";
+  const callee: CsharpExpression = operand?.kind === "lambda" ? { kind: "IdentifierName", name }
+    : operand?.kind === "method" || operand?.kind === "stable-value" ? expression
     : operand?.kind === "captured-method" ? { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name }, name: operand.name }
     : { kind: "IdentifierName", name };
   const adapter = buildAdaptation(node, sourceFile, input, diagnostics, selection, contract, callee, convert,

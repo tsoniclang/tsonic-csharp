@@ -65,9 +65,8 @@ test("an adapted fixed self value reuses the exact initialized native slot witho
   const input = context();
   input.program.records.namedSelf.get = declaration => declaration === node ? { values: [{}] } : undefined;
   const diagnostics = [];
-  // Lambda creation publishes a proven fixed self as a direct method callable (callable.ts); the adapter reuses it.
   const planned = planCsharpDelegateAdapter(node, {}, input, diagnostics, source, target, selection,
-    expression, applyCsharpConversionSelection, { kind: "method" });
+    expression, applyCsharpConversionSelection, { kind: "stable-value" });
   assertNoTargetDiagnostics(diagnostics);
   assert.equal(planned.kind, "LambdaExpression");
   assert.equal(planned.body.statements[0].expression.callee === expression, true, "reuse exact fixed local slot");
