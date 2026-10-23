@@ -1,10 +1,10 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { selectCsharpSourceCallableAbi, selectCsharpProjectConstructorAbi } from "./source-callable-abi.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import { getCsharpCallableValueSignature, isCsharpSourceCallableArtifactDeclaration, targetTypeRefEquals } from "../../policy/types/index.js";
+import { isCsharpSourceCallableArtifactDeclaration, targetTypeRefEquals } from "../../policy/types/index.js";
 import type { CsharpTargetParameter, TargetTypeRef } from "../../policy/types/index.js";
 
-import type { CsharpSourceCallableSourceContract, CsharpSourceCallableContract } from "../../target-model/records/source-callable-contract.js";
+import type { SourceCallableSourceContract, SourceCallableContract } from "../../target-model/records/source-callable-contract.js";
 import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
 import type { CsharpSourceNameResolver } from "../names/index.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
@@ -28,12 +28,12 @@ export function analyzeCsharpCallableContracts(
   operations: CsharpTargetOperationClassifications,
   conversions: CsharpCallableConversionPolicy,
 ): CsharpCallableContractIndex {
-  const byDeclaration = new Map<Node, CsharpSourceCallableSourceContract>();
+  const byDeclaration = new Map<Node, SourceCallableSourceContract>();
   const closedContexts = new WeakMap<Node, CsharpClosedCallableContext>();
   const closedAliases = new Map<Node, Node>();
-  const byProjectConstructor = new Map<string, CsharpSourceCallableContract>();
-  const contracts: CsharpSourceCallableContract[] = [];
-  const declarationContracts: CsharpSourceCallableSourceContract[] = [];
+  const byProjectConstructor = new Map<string, SourceCallableContract>();
+  const contracts: SourceCallableContract[] = [];
+  const declarationContracts: SourceCallableSourceContract[] = [];
   const checkedDeclarations: { readonly declaration: Node; readonly sourceFile: SourceFile }[] = [];
   for (const sourceFile of policy.sourceFiles) {
     visit(sourceFile, sourceFile);
@@ -145,22 +145,22 @@ export function csharpCallableContractIndexesEqual(
 }
 
 function callableContractEquals(
-  left: CsharpSourceCallableContract,
-  right: CsharpSourceCallableContract,
+  left: SourceCallableContract,
+  right: SourceCallableContract,
 ): boolean {
   return left.kind === right.kind && left.sourceDeclaration === right.sourceDeclaration &&
     (left.kind === "native" || right.kind === "source" && left.parameters.length === right.parameters.length &&
       left.parameters.every((parameter, index) => parameter === right.parameters[index])) &&
-    left.receiverTypeOwner === right.receiverTypeOwner &&
+    left.nativeSignature.receiverTypeOwner === right.nativeSignature.receiverTypeOwner &&
     stringArraysEqual(
-      left.methodTypeParameterIdentities,
-      right.methodTypeParameterIdentities,
+      left.nativeSignature.methodTypeParameterIdentities,
+      right.nativeSignature.methodTypeParameterIdentities,
     ) &&
-    left.methodAllowsRefLikeTypeArguments.length === right.methodAllowsRefLikeTypeArguments.length &&
-    left.methodAllowsRefLikeTypeArguments.every((allowed, index) => allowed === right.methodAllowsRefLikeTypeArguments[index]) &&
+    left.nativeSignature.methodAllowsRefLikeTypeArguments.length === right.nativeSignature.methodAllowsRefLikeTypeArguments.length &&
+    left.nativeSignature.methodAllowsRefLikeTypeArguments.every((allowed, index) => allowed === right.nativeSignature.methodAllowsRefLikeTypeArguments[index]) &&
     targetTypeRefEquals(left.returnType, right.returnType) &&
-    (left.sourceReturnType === undefined ? right.sourceReturnType === undefined
-      : right.sourceReturnType !== undefined && targetTypeRefEquals(left.sourceReturnType, right.sourceReturnType)) &&
+    (left.nativeSignature.sourceReturnType === undefined ? right.nativeSignature.sourceReturnType === undefined
+      : right.nativeSignature.sourceReturnType !== undefined && targetTypeRefEquals(left.nativeSignature.sourceReturnType, right.nativeSignature.sourceReturnType)) &&
     left.nativeParameters.length === right.nativeParameters.length &&
     left.nativeParameters.every((parameter, index) => {
       const other = right.nativeParameters[index];

@@ -128,7 +128,7 @@ for (const surface of ["native", "js"]) {
           targetParameter: Object.freeze({ type, passingMode: signature.parameterPassingModes[index] }) });
       }));
       return [declaration, Object.freeze({ kind: "source", sourceDeclaration: declaration,
-        methodTypeParameterIdentities: Object.freeze([]), methodAllowsRefLikeTypeArguments: Object.freeze([]),
+        nativeSignature: Object.freeze({ methodTypeParameterIdentities: Object.freeze([]), methodAllowsRefLikeTypeArguments: Object.freeze([]) }),
         parameters, nativeParameters, returnType: signature.returnType })];
     }));
     const callables = Object.freeze({ contracts: Object.freeze([...declarations.values()]),

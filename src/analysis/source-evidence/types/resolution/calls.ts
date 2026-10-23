@@ -1,4 +1,4 @@
-import type { CsharpSourceCallableContract } from "../../../../target-model/records/source-callable-contract.js";
+import type { SourceCallableContract } from "../../../../target-model/records/source-callable-contract.js";
 import { resolveProjectConstructingReceiverTargetType } from "./expressions.js";
 import { csharpSourceCallArgumentParameter } from "../../../../policy/types/callables/source-callable-contract.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
@@ -29,7 +29,7 @@ export function resolveSourceCallInstantiation(
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
   expectedTypeParameterIdentities?: readonly string[],
-  callable?: CsharpSourceCallableContract,
+  callable?: SourceCallableContract,
   excludedSourceArgumentIndexes?: ReadonlySet<number>,
 ):
   | {
@@ -244,7 +244,7 @@ export function resolveSourceCallSelectedType(
 export function resolveSourceCallableContractType(
   { host, resolveSourceCallInstantiation, resolveSourceCallReceiverTargetType }: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
-  callable: CsharpSourceCallableContract,
+  callable: SourceCallableContract,
   type: TargetTypeRef,
   selectedSourceFile: SourceFile,
   state: CsharpTypeResolutionState,
@@ -254,7 +254,7 @@ export function resolveSourceCallableContractType(
     source,
     selectedSourceFile,
     nextState(state),
-    callable.methodTypeParameterIdentities,
+    callable.nativeSignature.methodTypeParameterIdentities,
     callable,
     excludedSourceArgumentIndexes,
   );
@@ -270,10 +270,10 @@ export function resolveSourceCallableContractType(
     selectedSourceFile,
     state,
   );
-  const receiverInstantiation = callable.receiverTypeOwner === undefined
+  const receiverInstantiation = callable.nativeSignature.receiverTypeOwner === undefined
     ? { kind: "not-project-member" as const }
     : host.projectTypes().instantiateDeclarationType(
-        callable.receiverTypeOwner,
+        callable.nativeSignature.receiverTypeOwner,
         receiverType,
         substituted,
       );
@@ -293,7 +293,7 @@ export function resolveSourceCallableContractType(
 export function inferSourceCallTargetTypeArguments(
   scope: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
-  callable: CsharpSourceCallableContract,
+  callable: SourceCallableContract,
   sourceFile: SourceFile,
   parameterIdentities: ReadonlySet<string>,
   state: CsharpTypeResolutionState,
@@ -442,10 +442,10 @@ export function resolveSourceCallReceiverTargetType(
 export function sourceCallableTypeParametersMatch(
   scope: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
-  callable: CsharpSourceCallableContract,
+  callable: SourceCallableContract,
   kind: "declaration" | "value",
 ): boolean {
-  if (kind === "declaration" && callable.methodTypeParameterIdentities.length === 0) {
+  if (kind === "declaration" && callable.nativeSignature.methodTypeParameterIdentities.length === 0) {
     return true;
   }
   const selected = source.sourceSelectedMethodTypeArguments ?? [];
@@ -454,15 +454,15 @@ export function sourceCallableTypeParametersMatch(
   if (identities === undefined) return false;
   const projections = callable.sourceDeclaration === undefined ? []
     : host.representations.genericProjections(callable.sourceDeclaration);
-  return selected.length + projections.length === callable.methodTypeParameterIdentities.length &&
-    projections.every((projection, index) => projection.identity === callable.methodTypeParameterIdentities[selected.length + index]) &&
-    identities.every((identity, index) => identity === callable.methodTypeParameterIdentities[index]);
+  return selected.length + projections.length === callable.nativeSignature.methodTypeParameterIdentities.length &&
+    projections.every((projection, index) => projection.identity === callable.nativeSignature.methodTypeParameterIdentities[selected.length + index]) &&
+    identities.every((identity, index) => identity === callable.nativeSignature.methodTypeParameterIdentities[index]);
 }
 
 function sourceCallTypeParameterIdentities(
   { host }: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
-  callable: CsharpSourceCallableContract | undefined,
+  callable: SourceCallableContract | undefined,
   kind: "declaration" | "value",
 ): readonly string[] | undefined {
   const selected = source.sourceSelectedMethodTypeArguments ?? [];

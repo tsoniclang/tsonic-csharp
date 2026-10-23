@@ -1,8 +1,8 @@
-import type { CsharpSourceCallableContract, CsharpSourceCallParameterContract } from "../../../target-model/records/source-callable-contract.js";
+import type { SourceCallableContract, CsharpSourceCallParameterContract } from "../../../target-model/records/source-callable-contract.js";
 import type { AstReader, Node } from "@tsonic/tsts";
 
 export function csharpSourceCallArgumentParameter(
-  callable: CsharpSourceCallableContract,
+  callable: SourceCallableContract,
   effectiveArgumentIndex: number,
 ): CsharpSourceCallParameterContract | undefined {
   const restIndex = callable.nativeParameters.findIndex(parameter => parameter.targetParameter.paramsArray === true);

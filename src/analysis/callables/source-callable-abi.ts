@@ -5,7 +5,7 @@ import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { csharpNullableTargetType, getCsharpCallableValueSignature } from "../../policy/types/index.js";
 import type { CsharpTargetParameter, TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpProjectForwardingConstructor } from "../../target-model/records/project-types.js";
-import type { CsharpSourceCallableSourceContract, CsharpSourceCallableParameterContract, CsharpSourceCallableContract, CsharpSourceCallParameterContract } from "../../target-model/records/source-callable-contract.js";
+import type { SourceCallableSourceContract, CsharpSourceCallableParameterContract, SourceCallableContract, CsharpSourceCallParameterContract } from "../../target-model/records/source-callable-contract.js";
 import type { ResolvedSourceCallInfo } from "../../target-model/records/source-calls.js";
 import { csharpDelegateSignatureHasSupportedPassingModes } from "../../target-model/types/carriers/delegates.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
@@ -25,7 +25,7 @@ export function selectCsharpSourceCallableAbi(
   sourceFile: SourceFile,
   projections: CsharpGenericProjectionIndex,
   contextualInputs: readonly (TargetTypeRef | undefined)[] | undefined,
-): CsharpSourceCallableSourceContract | undefined {
+): SourceCallableSourceContract | undefined {
   const checked = policy.semantics(sourceFile).types.declarationSignatureInfo(declaration);
   const valueParameters = sourceCallableValueParameters(policy.ast, declaration, policy.semantics(sourceFile));
   if (checked === undefined || valueParameters === undefined) return undefined;
@@ -72,13 +72,13 @@ export function selectCsharpSourceCallableAbi(
   return Object.freeze({
     kind: "source",
     sourceDeclaration: declaration,
-    methodTypeParameterIdentities: Object.freeze(
+    nativeSignature: Object.freeze({ methodTypeParameterIdentities: Object.freeze(
       [...methodTypeParameterIdentities as string[], ...projections.genericProjection.get(declaration).map(parameter => parameter.identity)],
     ),
     methodAllowsRefLikeTypeArguments: Object.freeze([
       ...methodTypeParameterIdentities.map(() => false), ...projections.genericProjection.get(declaration).map(() => false),
     ]),
-    ...(owner === undefined ? {} : { receiverTypeOwner: owner }),
+    ...(owner === undefined ? {} : { receiverTypeOwner: owner }) }),
     parameters: valueParameters,
     nativeParameters: Object.freeze(nativeParameters),
     returnType,
@@ -170,7 +170,7 @@ function sourceCallableReceiverTypeOwner(
 
 export function selectCsharpProjectConstructorAbi(
   constructor: CsharpProjectForwardingConstructor,
-): CsharpSourceCallableContract | undefined {
+): SourceCallableContract | undefined {
   const declaringType = constructor.targetMember.declaringType;
   if (
     declaringType === undefined ||
@@ -180,9 +180,9 @@ export function selectCsharpProjectConstructorAbi(
     return undefined;
   }
   const common = {
-    methodTypeParameterIdentities: Object.freeze([]),
+    nativeSignature: Object.freeze({ methodTypeParameterIdentities: Object.freeze([]),
     methodAllowsRefLikeTypeArguments: Object.freeze([]),
-    receiverTypeOwner: constructor.definition.declaration,
+    receiverTypeOwner: constructor.definition.declaration }),
     nativeParameters: Object.freeze(constructor.source.parameters.map(
       (parameter, index) => Object.freeze({
         sourceParameter: parameter.parameterDeclaration,
@@ -203,7 +203,7 @@ export function selectCsharpSourceCallableValueAbi(input: {
   readonly semantics: SourceFileSemantics;
   readonly source: ResolvedSourceCallInfo;
   readonly carrier: TargetTypeRef;
-}): CsharpSourceCallableContract | undefined {
+}): SourceCallableContract | undefined {
   const { ast, navigation, semantics, source, carrier } = input;
   const signature = getCsharpCallableValueSignature(carrier);
   const declaration = semantics.declarations.signatureDeclaration(source.selectedSignature);
@@ -227,8 +227,8 @@ export function selectCsharpSourceCallableValueAbi(input: {
     }));
   }
   const common = {
-    methodTypeParameterIdentities: getCsharpMethodValue(carrier)?.typeParameters ?? Object.freeze([]),
-    methodAllowsRefLikeTypeArguments: getCsharpMethodValue(carrier)?.allowsRefLikeTypeArguments ?? Object.freeze([]),
+    nativeSignature: Object.freeze({ methodTypeParameterIdentities: getCsharpMethodValue(carrier)?.typeParameters ?? Object.freeze([]),
+      methodAllowsRefLikeTypeArguments: getCsharpMethodValue(carrier)?.allowsRefLikeTypeArguments ?? Object.freeze([]) }),
     returnType: signature.returnType,
   };
   if (declaration === undefined || !navigation.isProjectDeclaration(declaration)) {

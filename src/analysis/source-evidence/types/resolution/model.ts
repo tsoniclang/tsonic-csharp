@@ -6,7 +6,7 @@ import type { TsonicPointerReturnQueries, TsonicMemoryBindingIndex } from "@tson
 import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
 import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../../../target-model/records/project-types.js";
 import type { CsharpProviderRelationResolver } from "../../../../providers/model/relation-resolver.js";
-import type { CsharpSourceCallableContract } from "../../../../target-model/records/source-callable-contract.js";
+import type { SourceCallableContract } from "../../../../target-model/records/source-callable-contract.js";
 
 import type { TargetTypeRef, CsharpSourceTargetTypeBinding, CsharpObjectShapeFact } from "../../../../target-model/types/model.js";
 import type { CsharpObjectShapePolicy } from "../../../../target-model/records/object-shapes.js";
@@ -25,7 +25,7 @@ export interface CsharpPlanningRepresentationQueries {
     source: ResolvedSourceCallInfo,
     sourceFile: SourceFile,
     selection: "checked" | "implementation",
-  ): CsharpSourceCallableContract | undefined;
+  ): SourceCallableContract | undefined;
 }
 
 export interface CsharpTypePolicyBaseHost {

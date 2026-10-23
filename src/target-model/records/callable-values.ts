@@ -1,27 +1,27 @@
 import type { CsharpSourceCallableArtifactIdentity } from "./callable-identities.js";
-import type { CsharpSourceCallableSourceContract, CsharpSourceCallableContract } from "./source-callable-contract.js";
+import type { SourceCallableSourceContract, SourceCallableContract } from "./source-callable-contract.js";
 import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../types/model.js";
 import type { CsharpNativeCallableCreation } from "./native-demand.js";
 
 export interface CsharpCallableContractPublication {
-  readonly contracts: readonly CsharpSourceCallableContract[];
-  readonly declarationContracts: readonly CsharpSourceCallableSourceContract[];
-  readonly byDeclaration: ReadonlyMap<Node, CsharpSourceCallableSourceContract>;
-  readonly byProjectConstructor: ReadonlyMap<string, CsharpSourceCallableContract>;
+  readonly contracts: readonly SourceCallableContract[];
+  readonly declarationContracts: readonly SourceCallableSourceContract[];
+  readonly byDeclaration: ReadonlyMap<Node, SourceCallableSourceContract>;
+  readonly byProjectConstructor: ReadonlyMap<string, SourceCallableContract>;
   readonly closedInputs: ReadonlyMap<Node, TargetTypeRef>;
 }
 
 export interface CsharpCallableContractIndex {
-  readonly contracts: readonly CsharpSourceCallableContract[];
-  readonly declarationContracts: readonly CsharpSourceCallableSourceContract[];
+  readonly contracts: readonly SourceCallableContract[];
+  readonly declarationContracts: readonly SourceCallableSourceContract[];
   closedInputType(declaration: Node): TargetTypeRef | undefined;
   get(
     identity: Extract<CsharpSourceCallableArtifactIdentity, { readonly kind: "declaration" }>,
-  ): CsharpSourceCallableSourceContract | undefined;
+  ): SourceCallableSourceContract | undefined;
   get(
     identity: CsharpSourceCallableArtifactIdentity,
-  ): CsharpSourceCallableContract | undefined;
+  ): SourceCallableContract | undefined;
 }
 
 export interface CsharpCallableCreationIndex {

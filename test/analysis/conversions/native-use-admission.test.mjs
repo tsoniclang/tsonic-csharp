@@ -420,7 +420,7 @@ function nativeCreations(value, overrides = {}) {
       return type === undefined ? undefined : { sourceParameter: parameter, targetParameter: { type, passingMode: "by-value" } };
     });
     return nativeParameters.some(parameter => parameter === undefined) ? undefined : {
-      kind: "source", sourceDeclaration: declaration, methodTypeParameterIdentities: [], methodAllowsRefLikeTypeArguments: [],
+      kind: "source", sourceDeclaration: declaration, nativeSignature: Object.freeze({ methodTypeParameterIdentities: [], methodAllowsRefLikeTypeArguments: [] }),
       parameters, nativeParameters, returnType: result.type,
     };
   };

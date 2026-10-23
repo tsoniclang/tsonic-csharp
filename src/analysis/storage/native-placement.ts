@@ -199,10 +199,10 @@ export function analyzeCsharpRefLikePlacements(input: CsharpNativePlacementInput
         const callee = sourceCall?.sourceCall;
         if (callee !== undefined && callee.kind !== "rejected" && sourceCall?.sourceTypeArguments !== undefined) {
           const allowed = callee.kind === "function" || callee.kind === "method"
-            ? [input.callables.get({ kind: "declaration", declaration: callee.declaration })?.methodAllowsRefLikeTypeArguments]
+            ? [input.callables.get({ kind: "declaration", declaration: callee.declaration })?.nativeSignature.methodAllowsRefLikeTypeArguments]
             : callee.kind === "union-method" && sourceCall.unionCall?.kind === "resolved"
               ? sourceCall.unionCall.methods.map(method => input.callables.get({ kind: "declaration",
-                  declaration: method.declaration })?.methodAllowsRefLikeTypeArguments)
+                  declaration: method.declaration })?.nativeSignature.methodAllowsRefLikeTypeArguments)
               : [sourceCall.sourceMethodValue?.allowsRefLikeTypeArguments];
           for (const [index, argument] of sourceCall.sourceTypeArguments.entries()) {
             if (allowed.length === 0 || allowed.some(parameters => typeof parameters?.[index] !== "boolean")) reject(node, "CSHARP_REFLIKE_METADATA_NOT_PROVEN",

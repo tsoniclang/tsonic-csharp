@@ -5,7 +5,7 @@ import { selectCsharpConversion } from "../../policy/conversions/core.js";
 import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
 import type { CsharpTargetParameter, TargetTypeRef } from "../../target-model/types/model.js";
 import { selectCsharpFlowReadConversion } from "../../policy/conversions/expression.js";
-import type { CsharpSourceCallableSourceContract } from "../../target-model/records/source-callable-contract.js";
+import type { SourceCallableSourceContract } from "../../target-model/records/source-callable-contract.js";
 import { admitCsharpConversionSelection } from "../conversions/validation.js";
 import { csharpCallableParameterConversionRequests, selectCsharpCallableParameterAdapters } from "../../policy/conversions/callable-parameters.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
@@ -24,10 +24,10 @@ export function admitCsharpCallableValueAdapter(
 }
 
 export function admitCsharpCallableResultAdapter(
-  policy: CsharpCallableConversionPolicy, implementation: CsharpSourceCallableSourceContract, target: TargetTypeRef,
+  policy: CsharpCallableConversionPolicy, implementation: SourceCallableSourceContract, target: TargetTypeRef,
 ): CsharpCallableValueAdapter | undefined {
-  if (implementation.sourceReturnType === undefined) return admitCsharpCallableValueAdapter(policy, implementation.returnType, target);
-  const sourceContract = admitCsharpCallableValueAdapter(policy, implementation.sourceReturnType, target);
+  if (implementation.nativeSignature.sourceReturnType === undefined) return admitCsharpCallableValueAdapter(policy, implementation.returnType, target);
+  const sourceContract = admitCsharpCallableValueAdapter(policy, implementation.nativeSignature.sourceReturnType, target);
   if (sourceContract === undefined) return undefined;
   const conversion = admitCsharpConversionSelection(policy, implementation.returnType, target,
     selectCsharpFlowReadConversion(policy, implementation.returnType, target, isCsharpThrowableType(policy, target)));

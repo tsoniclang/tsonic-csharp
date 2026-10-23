@@ -1,5 +1,5 @@
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type { CsharpSourceCallableSourceContract } from "../../target-model/records/source-callable-contract.js";
+import type { SourceCallableSourceContract } from "../../target-model/records/source-callable-contract.js";
 import { substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
 import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
@@ -9,7 +9,7 @@ import { csharpTargetTypeComponents } from "../../target-model/types/components.
 import { createCsharpMetadataBudget } from "../../target-model/metadata/immutable.js";
 
 export function csharpCallableParametersEqual(
-  left: CsharpSourceCallableSourceContract, right: CsharpSourceCallableSourceContract,
+  left: SourceCallableSourceContract, right: SourceCallableSourceContract,
 ): boolean {
   return left.nativeParameters.length === right.nativeParameters.length && left.nativeParameters.every((parameter, index) =>
     parameter.targetParameter.passingMode === right.nativeParameters[index]!.targetParameter.passingMode &&
@@ -17,24 +17,24 @@ export function csharpCallableParametersEqual(
 }
 
 export function instantiateCsharpInheritedCallable(
-  policy: Pick<CsharpPolicyContext, "ast" | "projectTypes">, source: CsharpSourceCallableSourceContract, implementation: CsharpSourceCallableSourceContract,
+  policy: Pick<CsharpPolicyContext, "ast" | "projectTypes">, source: SourceCallableSourceContract, implementation: SourceCallableSourceContract,
   receiver: TargetTypeRef | undefined,
-): CsharpSourceCallableSourceContract | undefined {
-  if (source.methodTypeParameterIdentities.length !== implementation.methodTypeParameterIdentities.length) return undefined;
+): SourceCallableSourceContract | undefined {
+  if (source.nativeSignature.methodTypeParameterIdentities.length !== implementation.nativeSignature.methodTypeParameterIdentities.length) return undefined;
   const substitutions = new Map<string, TargetTypeRef>();
   if (source.sourceDeclaration === implementation.sourceDeclaration) {
-    if (source.methodTypeParameterIdentities.some((identity, index) => identity !== implementation.methodTypeParameterIdentities[index])) return undefined;
+    if (source.nativeSignature.methodTypeParameterIdentities.some((identity, index) => identity !== implementation.nativeSignature.methodTypeParameterIdentities[index])) return undefined;
   } else {
-    const authored = (contract: CsharpSourceCallableSourceContract) => policy.ast.typeParameters(contract.sourceDeclaration)
+    const authored = (contract: SourceCallableSourceContract) => policy.ast.typeParameters(contract.sourceDeclaration)
       .map(parameter => parameter === undefined ? undefined : csharpSourceTypeParameter(parameter, policy.ast));
     const sourceParameters = authored(source);
     const implementationParameters = authored(implementation);
     if (sourceParameters.length !== implementationParameters.length ||
-      sourceParameters.some((parameter, index) => parameter === undefined || parameter.identity !== source.methodTypeParameterIdentities[index]) ||
-      implementationParameters.some((parameter, index) => parameter === undefined || parameter.identity !== implementation.methodTypeParameterIdentities[index])) return undefined;
+      sourceParameters.some((parameter, index) => parameter === undefined || parameter.identity !== source.nativeSignature.methodTypeParameterIdentities[index]) ||
+      implementationParameters.some((parameter, index) => parameter === undefined || parameter.identity !== implementation.nativeSignature.methodTypeParameterIdentities[index])) return undefined;
     const selected = new Map<string, Extract<TargetTypeRef, { readonly kind: "type-parameter" }>>();
     const pending = [implementation.returnType, ...implementation.nativeParameters.map(parameter => parameter.targetParameter.type),
-      ...(implementation.sourceReturnType === undefined ? [] : [implementation.sourceReturnType])];
+      ...(implementation.nativeSignature.sourceReturnType === undefined ? [] : [implementation.nativeSignature.sourceReturnType])];
     const visited = new Set<TargetTypeRef>();
     const budget = createCsharpMetadataBudget();
     budget.reserve(pending.length);
@@ -58,17 +58,18 @@ export function instantiateCsharpInheritedCallable(
     return selected.kind === "resolved" ? substituteTargetTypeParameters(selected.type, substitutions) : undefined;
   };
   const result = instantiate(source.returnType);
-  const sourceReturnType = source.sourceReturnType === undefined ? undefined : instantiate(source.sourceReturnType);
-  const nativeParameters: CsharpSourceCallableSourceContract["nativeParameters"][number][] = [];
+  const sourceReturnType = source.nativeSignature.sourceReturnType === undefined ? undefined : instantiate(source.nativeSignature.sourceReturnType);
+  const nativeParameters: SourceCallableSourceContract["nativeParameters"][number][] = [];
   for (const parameter of source.nativeParameters) {
     const type = instantiate(parameter.targetParameter.type);
     if (type === undefined) return undefined;
     nativeParameters.push(Object.freeze({ ...parameter, targetParameter: Object.freeze({ ...parameter.targetParameter, type }) }));
   }
-  return result === undefined || source.sourceReturnType !== undefined && sourceReturnType === undefined ? undefined : Object.freeze({
-    ...source, methodTypeParameterIdentities: implementation.methodTypeParameterIdentities,
-    methodAllowsRefLikeTypeArguments: implementation.methodAllowsRefLikeTypeArguments, returnType: result,
-    ...(sourceReturnType === undefined ? {} : { sourceReturnType }),
+  return result === undefined || source.nativeSignature.sourceReturnType !== undefined && sourceReturnType === undefined ? undefined : Object.freeze({
+    ...source, nativeSignature: Object.freeze({ ...source.nativeSignature,
+      methodTypeParameterIdentities: implementation.nativeSignature.methodTypeParameterIdentities,
+      methodAllowsRefLikeTypeArguments: implementation.nativeSignature.methodAllowsRefLikeTypeArguments,
+      ...(sourceReturnType === undefined ? {} : { sourceReturnType }) }), returnType: result,
     nativeParameters: Object.freeze(nativeParameters),
   });
 }

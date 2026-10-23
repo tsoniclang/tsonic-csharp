@@ -39,7 +39,7 @@ test("an effective argument index selects its declared parameter; arguments past
 test("a non-generic source callable's value carrier is its exact native delegate, keeping optional and rest slots", () => {
   const callable = {
     kind: "native",
-    methodTypeParameterIdentities: [],
+    nativeSignature: Object.freeze({ methodTypeParameterIdentities: [], methodAllowsRefLikeTypeArguments: [] }),
     nativeParameters: [{ targetParameter: { type: int32 } }, { targetParameter: { type: string, optional: true } }],
     returnType: csharpVoidTargetType(),
   };
@@ -50,6 +50,6 @@ test("a non-generic source callable's value carrier is its exact native delegate
   const func = csharpCallableValueType({ ...callable, nativeParameters: [{ targetParameter: { type: ints, paramsArray: true } }], returnType: int32 });
   assert.equal(func.id, "System.Func`2");
   assert.equal(func.csharpDelegateSignature.restParameterIndex, 0);
-  assert.equal(csharpCallableValueType({ ...callable, methodTypeParameterIdentities: ["owner:f:T"] }), undefined,
+  assert.equal(csharpCallableValueType({ ...callable, nativeSignature: { ...callable.nativeSignature, methodTypeParameterIdentities: ["owner:f:T"] } }), undefined,
     "a generic method has no single closed delegate carrier");
 });

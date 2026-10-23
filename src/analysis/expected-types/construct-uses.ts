@@ -211,6 +211,6 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
     const declared = csharpSourceArgumentExpectedType(parameter, sourceForm);
     if (expression === undefined || parameter.csharpSourceArgumentAdapter === undefined || !isSourceCallableBodyBoundary(policy.ast, expression)) return declared;
     const callable = callables.get({ kind: "declaration", declaration: expression });
-    return callable === undefined || callable.methodTypeParameterIdentities.length > 0 ? declared : csharpCallableValueType(callable) ?? declared;
+    return callable === undefined || callable.nativeSignature.methodTypeParameterIdentities.length > 0 ? declared : csharpCallableValueType(callable) ?? declared;
   }
 }

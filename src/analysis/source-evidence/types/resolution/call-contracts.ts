@@ -1,5 +1,5 @@
 import type { SourceFile } from "@tsonic/tsts";
-import type { CsharpSourceCallableContract } from "../../../../target-model/records/source-callable-contract.js";
+import type { SourceCallableContract } from "../../../../target-model/records/source-callable-contract.js";
 import { classifyCsharpSourceCallee } from "../../../callables/source-callees.js";
 import { selectCsharpSourceCallableValueAbi } from "../../../callables/source-callable-abi.js";
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
@@ -9,8 +9,8 @@ import type { ResolvedSourceCallInfo } from "../../../../target-model/records/so
 import { nextState } from "./state.js";
 
 export type CsharpSourceCallContractSelection =
-  | { readonly kind: "declaration"; readonly contract: CsharpSourceCallableContract | undefined }
-  | { readonly kind: "value"; readonly contract: CsharpSourceCallableContract }
+  | { readonly kind: "declaration"; readonly contract: SourceCallableContract | undefined }
+  | { readonly kind: "value"; readonly contract: SourceCallableContract }
   | { readonly kind: "rejected" };
 
 export function resolveSourceCallContract(

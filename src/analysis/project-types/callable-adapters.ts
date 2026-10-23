@@ -8,7 +8,7 @@ import type { CsharpProjectCallableAdapter, CsharpProjectCallableAdapters, Cshar
 import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
 import type { CsharpFinalStructuralInterfaceImplementation, CsharpStructuralMethodForwarding } from "../../target-model/records/heritage.js";
 import type { CsharpProjectTypeIssue } from "../../target-model/records/project-types.js";
-import type { CsharpSourceCallableSourceContract } from "../../target-model/records/source-callable-contract.js";
+import type { SourceCallableSourceContract } from "../../target-model/records/source-callable-contract.js";
 import { csharpDelegateSignatureHasSupportedPassingModes, getCsharpDelegateSignature } from "../../target-model/types/carriers/delegates.js";
 import { scopedTargetTypeRefKey, targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 import type { CsharpStructuralInterfaceImplementation, CsharpTargetNamedTypeRef, CsharpTargetParameter, TargetTypeRef } from "../../target-model/types/model.js";
@@ -39,7 +39,7 @@ type NativeParameter = Extract<TargetTypeRef, { readonly kind: "type-parameter" 
 type MethodRequest = {
   readonly selected: CsharpStructuralInterfaceImplementation;
   readonly methods: Map<string, { readonly method: StructuralMethod; readonly contract: CsharpStructuralMethodForwarding["contract"];
-    readonly typeParameters: readonly NativeParameter[]; readonly nativeContract: CsharpSourceCallableSourceContract | undefined }>;
+    readonly typeParameters: readonly NativeParameter[]; readonly nativeContract: SourceCallableSourceContract | undefined }>;
   readonly rejected: Set<string>;
 };
 
@@ -235,10 +235,10 @@ export function analyzeCsharpProjectCallableAdapters(
           refuse(method.declaration);
           continue;
         }
-        const bodyShape = instantiated.methodTypeParameterIdentities.length === 0 ? undefined : shapes.resolveTarget(request.selected.sourceType);
+        const bodyShape = instantiated.nativeSignature.methodTypeParameterIdentities.length === 0 ? undefined : shapes.resolveTarget(request.selected.sourceType);
         const bodyMember = bodyShape === undefined ? undefined
           : resolveCsharpObjectShapeMemberBySelectedSubject(bodyShape, [method.declaration]);
-        const bodyParameters = instantiated.methodTypeParameterIdentities.length === 0
+        const bodyParameters = instantiated.nativeSignature.methodTypeParameterIdentities.length === 0
           ? nativeParameters(undefined, instantiated) : bodyMember?.kind === "resolved" ? nativeParameters(bodyMember.member, instantiated) : undefined;
         if (bodyParameters === undefined || bodyParameters.length > 0 && nativeContract === undefined) {
           reject(method.declaration, "An interface method has no exact native generic constraint or anti-constraint evidence.");
@@ -263,7 +263,7 @@ export function analyzeCsharpProjectCallableAdapters(
         });
         if (selectedArguments.some(argument => argument === undefined)) { refuse(method.declaration); continue; }
         const typeArguments = Object.freeze(selectedArguments as readonly NativeParameter[]);
-        const substitutions = new Map(instantiated.methodTypeParameterIdentities.map((identity, index) => [identity, typeArguments[index]!]));
+        const substitutions = new Map(instantiated.nativeSignature.methodTypeParameterIdentities.map((identity, index) => [identity, typeArguments[index]!]));
         const bounds = new Map(typeParameters.map(parameter => [parameter.identity, parameter.csharpConstraints.constraints]));
         let sameGenericSignature = bodyParameters.length === typeParameters.length;
         let nativeInvocation = true;
@@ -272,8 +272,8 @@ export function analyzeCsharpProjectCallableAdapters(
           const required = parameter.csharpConstraints.constraints.map(constraint => constraint.kind === "type"
             ? { ...constraint, type: substituteTargetTypeParameters(constraint.type, substitutions) } : constraint);
           const destinationIndex = typeParameters.findIndex(candidate => candidate.identity === argument.identity);
-          const acceptsRefLike = nativeContract!.methodAllowsRefLikeTypeArguments[destinationIndex]!;
-          const bodyAcceptsRefLike = instantiated.methodAllowsRefLikeTypeArguments[index]!;
+          const acceptsRefLike = nativeContract!.nativeSignature.methodAllowsRefLikeTypeArguments[destinationIndex]!;
+          const bodyAcceptsRefLike = instantiated.nativeSignature.methodAllowsRefLikeTypeArguments[index]!;
           nativeInvocation &&= (!acceptsRefLike || bodyAcceptsRefLike) &&
             csharpTypeParameterConstraintsImply(policy, argument.csharpConstraints.constraints, required, bounds);
           sameGenericSignature &&= destinationIndex === index && acceptsRefLike === bodyAcceptsRefLike &&
@@ -283,13 +283,14 @@ export function analyzeCsharpProjectCallableAdapters(
           reject(method.declaration, "An interface method's native type arguments do not satisfy its implementation's generic constraints.");
           continue;
         }
-        const implementation: CsharpSourceCallableSourceContract = substitutions.size === 0 ? instantiated : Object.freeze({ ...instantiated,
+        const implementation: SourceCallableSourceContract = substitutions.size === 0 ? instantiated : Object.freeze({ ...instantiated,
           nativeParameters: Object.freeze(instantiated.nativeParameters.map(parameter => Object.freeze({ ...parameter,
             targetParameter: Object.freeze({ ...parameter.targetParameter,
               type: substituteTargetTypeParameters(parameter.targetParameter.type, substitutions) }) }))),
           returnType: substituteTargetTypeParameters(instantiated.returnType, substitutions),
-          ...(instantiated.sourceReturnType === undefined ? {} : {
-            sourceReturnType: substituteTargetTypeParameters(instantiated.sourceReturnType, substitutions) }),
+          nativeSignature: Object.freeze({ ...instantiated.nativeSignature,
+            ...(instantiated.nativeSignature.sourceReturnType === undefined ? {} : {
+              sourceReturnType: substituteTargetTypeParameters(instantiated.nativeSignature.sourceReturnType, substitutions) }) }),
         });
         const incoming = contract.nativeParameters.map(parameter => parameter.targetParameter);
         const parameters = admitCsharpCallableParameterAdapters(policy, incoming,
@@ -405,7 +406,7 @@ export function analyzeCsharpProjectCallableAdapters(
     return completed;
   }
 
-  function overridesNativeMethod(declaration: Node, implementation: CsharpSourceCallableSourceContract, owner: Node | undefined): boolean {
+  function overridesNativeMethod(declaration: Node, implementation: SourceCallableSourceContract, owner: Node | undefined): boolean {
     const selectedName = native.names.resolve(policy.ast.name(declaration));
     if (selectedName.kind !== "resolved") return false;
     const name = selectedName.name.startsWith("@") ? selectedName.name.slice(1) : selectedName.name;
@@ -416,10 +417,10 @@ export function analyzeCsharpProjectCallableAdapters(
       if (member.kind !== "method") return false;
       if (member.static) continue;
       for (const slot of member.dispatchSlots) {
-        if (slot.kind !== "method" || slot.genericParameterIds.length !== implementation.methodTypeParameterIdentities.length ||
+        if (slot.kind !== "method" || slot.genericParameterIds.length !== implementation.nativeSignature.methodTypeParameterIdentities.length ||
           slot.parameters.length !== implementation.nativeParameters.length) continue;
         const substitutions = new Map<string, TargetTypeRef>(slot.genericParameterIds.map((identity, index) => [identity,
-          { kind: "type-parameter", identity: implementation.methodTypeParameterIdentities[index]!, name: "T" }]));
+          { kind: "type-parameter", identity: implementation.nativeSignature.methodTypeParameterIdentities[index]!, name: "T" }]));
         if (!slot.parameters.every((parameter, index) => parameter.passingMode === implementation.nativeParameters[index]!.targetParameter.passingMode &&
           csharpTargetStorageIdentityEquals(substituteTargetTypeParameters(parameter.type, substitutions),
             implementation.nativeParameters[index]!.targetParameter.type))) continue;
@@ -482,7 +483,7 @@ export function analyzeCsharpProjectCallableAdapters(
   function addMethod(request: MethodRequest, method: StructuralMethod): void {
     const destinationOwner = policy.projectTypes.catalog.definitionForTarget(request.selected.interfaceType);
     let contract: CsharpStructuralMethodForwarding["contract"];
-    let nativeContract: CsharpSourceCallableSourceContract | undefined;
+    let nativeContract: SourceCallableSourceContract | undefined;
     if (destinationOwner?.kind === "interface") {
       const destinationDeclarations = method.member.sourceDeclarations?.filter(declaration => policy.ast.parent(declaration) === destinationOwner.declaration) ?? [];
       const original = destinationDeclarations.length === 1 ? callables.get({ kind: "declaration", declaration: destinationDeclarations[0]! }) : undefined;
@@ -508,11 +509,11 @@ export function analyzeCsharpProjectCallableAdapters(
       contract = Object.freeze({ nativeParameters: Object.freeze(parameters.map(targetParameter => Object.freeze({ targetParameter }))),
         returnType: signature.returnType });
       const identities = method.member.typeParameters?.map(parameter => parameter.identity) ?? [];
-      const contracts = new Map<Node, CsharpSourceCallableSourceContract>();
+      const contracts = new Map<Node, SourceCallableSourceContract>();
       for (const declaration of new Set(method.member.sourceDeclarations ?? [])) {
         const selected = callables.get({ kind: "declaration", declaration });
-        if (selected !== undefined && selected.methodTypeParameterIdentities.length === identities.length &&
-          selected.methodTypeParameterIdentities.every((identity, index) => identity === identities[index])) {
+        if (selected !== undefined && selected.nativeSignature.methodTypeParameterIdentities.length === identities.length &&
+          selected.nativeSignature.methodTypeParameterIdentities.every((identity, index) => identity === identities[index])) {
           contracts.set(selected.sourceDeclaration, selected);
         }
       }
@@ -539,10 +540,10 @@ export function analyzeCsharpProjectCallableAdapters(
   }
 
   function nativeParameters(
-    member: StructuralMethod["member"] | undefined, contract: CsharpSourceCallableSourceContract,
+    member: StructuralMethod["member"] | undefined, contract: SourceCallableSourceContract,
   ): readonly NativeParameter[] | undefined {
-    const permissions = contract.methodAllowsRefLikeTypeArguments;
-    if (!Array.isArray(permissions) || permissions.length !== contract.methodTypeParameterIdentities.length ||
+    const permissions = contract.nativeSignature.methodAllowsRefLikeTypeArguments;
+    if (!Array.isArray(permissions) || permissions.length !== contract.nativeSignature.methodTypeParameterIdentities.length ||
       Object.keys(permissions).length !== permissions.length || permissions.some(allowed => typeof allowed !== "boolean")) return undefined;
     const projected = new Map(projections.get(contract.sourceDeclaration).map(parameter => [parameter.identity, parameter]));
     const selected: readonly NativeParameter[] = Object.freeze((member?.typeParameters ?? []).map(parameter => {
@@ -553,8 +554,8 @@ export function analyzeCsharpProjectCallableAdapters(
         csharpDeclaration: parameter.declaration, csharpConstraints: constraints,
       }) : Object.freeze({ ...projection, csharpProjectionConstraints: parameter.constraints, csharpConstraints: constraints });
     }));
-    return selected.length === contract.methodTypeParameterIdentities.length &&
-      selected.every((parameter, index) => parameter.identity === contract.methodTypeParameterIdentities[index]) ? selected : undefined;
+    return selected.length === contract.nativeSignature.methodTypeParameterIdentities.length &&
+      selected.every((parameter, index) => parameter.identity === contract.nativeSignature.methodTypeParameterIdentities[index]) ? selected : undefined;
   }
 
   function nativeBaseProvides(type: TargetTypeRef, destination: TargetTypeRef): boolean {

@@ -7,7 +7,6 @@ import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { withCsharpSafetyModifiers } from "../safety/explicit-safety.js";
 import type { CsharpLambdaCreation } from "../../../target-model/records/capture-storage.js";
-import { plannedCsharpValueParameterNodes } from "../bindings/index.js";
 
 export function planCsharpLocalLambdaCreation(
   node: Node, input: CsharpPlanningContext, _diagnostics: TargetDiagnostic[],
@@ -18,7 +17,9 @@ export function planCsharpLocalLambdaCreation(
   const returnType = target?.signature.returnTargetType === undefined ? undefined
     : csharpTypeFromTargetTypeRef(target.signature.returnTargetType, input.scope.typeParameterNames);
   const self = input.program.records.namedSelf.get(node);
-  const authoredParameterCount = plannedCsharpValueParameterNodes(input.program.source.ast.parameters(node), input).length;
+  const authored = input.program.records.callableDeclaration.get(node)
+    ?? failCsharpPlannerInvariant("An admitted native callable creation requires its sealed source value parameters.", node);
+  const authoredParameterCount = authored.parameters.length;
   const nativeParameters = parameters.map((parameter, index) => {
     const type = parameter.type ?? target?.signature.parameters[index];
     return type === undefined ? undefined : { name: parameter.name, type,

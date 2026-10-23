@@ -11,7 +11,7 @@ import type { CsharpDeclarationClassifications } from "../../target-model/record
 import type { CsharpNativeParticipationInput, CsharpNativeUseClassifications } from "../../target-model/records/native-demand.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpProjectTypeClassifications, CsharpProjectTypeDefinition } from "../../target-model/records/project-types.js";
-import type { CsharpSourceCallableSourceContract } from "../../target-model/records/source-callable-contract.js";
+import type { SourceCallableSourceContract } from "../../target-model/records/source-callable-contract.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpNativeInheritedMember, CsharpNativeTargetBindingFact } from "../../target-model/types/native-inheritance.js";
 import { csharpNativeInheritanceLookup } from "../../target-model/types/native-inheritance.js";
@@ -197,7 +197,7 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
       }
       const written = method && input.writes.get(member) !== undefined;
       const dispatch = method ? input.dispatch.get(member) : undefined;
-      const contract: CsharpSourceCallableSourceContract | undefined = dispatch?.kind === "method" ? dispatch.implementation : undefined;
+      const contract: SourceCallableSourceContract | undefined = dispatch?.kind === "method" ? dispatch.implementation : undefined;
       if (method && !written && contract === undefined) return [];
       const sourceDispatch = input.dispatch.get(member);
       const selectedStorage = method || accessor ? undefined : input.classPropertyStorage.get(member);
@@ -209,7 +209,7 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
         accessible: !input.ast.is.IsPrivateIdentifier(nameNode) && !input.ast.hasModifierKind(member, "private") ||
           input.helperAccess.get(member),
         overrides: !written && sourceDispatch?.overridesBase === true,
-        genericParameterIds: written ? Object.freeze([]) : contract?.methodTypeParameterIdentities ?? Object.freeze([]),
+        genericParameterIds: written ? Object.freeze([]) : contract?.nativeSignature.methodTypeParameterIdentities ?? Object.freeze([]),
         parameters: contract === undefined || written ? Object.freeze([])
           : Object.freeze(contract.nativeParameters.map(parameter => parameter.targetParameter)) });
       const write = input.writes.get(member);
@@ -217,7 +217,7 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
       return [primary, Object.freeze({ ...primary, name: nativeName(write.implementationName), emittedName: write.implementationName,
         subject: Object.freeze({ kind: "source" as const, declaration: member, role: "implementation" as const }),
         kind: "method" as const, accessible: false, overrides: false,
-        genericParameterIds: contract.methodTypeParameterIdentities, parameters: contract.nativeParameters.map(parameter => parameter.targetParameter) }),
+        genericParameterIds: contract.nativeSignature.methodTypeParameterIdentities, parameters: contract.nativeParameters.map(parameter => parameter.targetParameter) }),
       Object.freeze({ ...primary, name: nativeName(write.storageName), emittedName: write.storageName,
         subject: Object.freeze({ kind: "source" as const, declaration: member, role: "storage" as const }),
         kind: "field" as const, accessible: false, overrides: false, parameters: Object.freeze([]), genericParameterIds: Object.freeze([]) })];
@@ -282,7 +282,7 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
         if (contract === undefined || name.kind !== "resolved") continue;
         const ancestors = nativeMembers(undefined, "class", node);
         if (ancestors !== undefined) recordMember({ kind: "source", declaration: node, role: "member" }, {
-          name: nativeName(name.name), kind: "method", genericParameterIds: contract.methodTypeParameterIdentities,
+          name: nativeName(name.name), kind: "method", genericParameterIds: contract.nativeSignature.methodTypeParameterIdentities,
           parameters: contract.nativeParameters.map(parameter => parameter.targetParameter),
         }, ancestors);
       } else if (input.ast.is.IsExportAssignment(node) && !input.ast.as.AsExportAssignment(node)?.IsExportEquals) {
@@ -472,7 +472,7 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
           "An admitted capture method requires its final native callable signature before name sealing.", method.declaration);
         const contract = input.callables.get({ kind: "declaration", declaration: method.declaration });
         recordHeader(method.methodName, { name: nativeName(method.methodName), kind: "method",
-          genericParameterIds: contract?.methodTypeParameterIdentities ?? [],
+          genericParameterIds: contract?.nativeSignature.methodTypeParameterIdentities ?? [],
           parameters: getCsharpExpressionTreeDelegateType(method.type) === undefined
             ? signature.parameters.map((type, index) => ({ type, passingMode: signature.parameterPassingModes[index]! })) : [] });
       }

@@ -30,7 +30,7 @@ function fixture(carrier = csharpDelegateTargetType("System.Func", [integer], in
       selectedType: integer, acceptsOmission: false, rest: false }] };
   if (direct) source.sourceCallee.selectedDeclaration = declaration;
   const openContract = { kind: "source", sourceDeclaration: signatureDeclaration,
-    methodTypeParameterIdentities: [], methodAllowsRefLikeTypeArguments: [], parameters: [sourceParameter],
+    nativeSignature: Object.freeze({ methodTypeParameterIdentities: [], methodAllowsRefLikeTypeArguments: [] }), parameters: [sourceParameter],
     nativeParameters: [{ sourceParameter, targetParameter: { name: "value", type: outer, passingMode: "by-value" } }], returnType: outer };
   const scope = { host: {
     ast: { is: { IsNewExpression: () => false, IsFunctionDeclaration: node => node?.kind === "function",
@@ -88,7 +88,7 @@ test("stored quantified protocols retain closed outer bindings and exact invocat
     const { scope, source } = fixture(substituteTargetTypeParameters(value, new Map([[outer.identity, environment]])));
     const selected = scope.resolveSourceCallContract(source, {}, { depth: 0 }, "checked");
     assert.equal(selected.kind, "value");
-    assert.deepEqual(selected.contract.methodTypeParameterIdentities, [binder.identity]);
+    assert.deepEqual(selected.contract.nativeSignature.methodTypeParameterIdentities, [binder.identity]);
     assert.equal(targetTypeRefEquals(selected.contract.nativeParameters[0].targetParameter.type, binder), true);
     assert.equal(targetTypeRefEquals(selected.contract.returnType.elements[0], environment), true);
     assert.deepEqual([...csharpFreeTypeParameterIdentities([selected.contract.returnType])], [binder.identity]);
@@ -263,7 +263,8 @@ test("native overload binders remap only through exact checked implementation co
   const checked = current.signatureDeclaration;
   const implementation = { kind: "function" };
   current.openContract.sourceDeclaration = implementation;
-  current.openContract.methodTypeParameterIdentities = [binders[1].type.identity];
+  current.openContract.nativeSignature = Object.freeze({ ...current.openContract.nativeSignature,
+    methodTypeParameterIdentities: [binders[1].type.identity] });
   current.source.sourceSelectedMethodTypeArguments = [{ typeParameter: binders[0].declaration }];
   current.scope.host.ast.typeParameters = node => node === checked ? [binders[0].declaration] : [binders[1].declaration];
   current.scope.host.navigation.callableImplementation = () => ({ kind: "resolved", implementation: { declaration: implementation } });

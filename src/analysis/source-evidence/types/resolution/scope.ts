@@ -1,7 +1,7 @@
 import type { ExtensionFactSubject, Node, SourceFile, Symbol, Type } from "@tsonic/tsts";
 import type { SourceCallableTypeEvidence, SourceFileSemantics, SourceTypeComponentEvidence } from "@tsonic/target-api/source";
 
-import type { CsharpSourceCallableContract } from "../../../../target-model/records/source-callable-contract.js";
+import type { SourceCallableContract } from "../../../../target-model/records/source-callable-contract.js";
 
 import type { CsharpSourceCallContractSelection } from "./call-contracts.js";
 
@@ -260,7 +260,7 @@ export interface CsharpTypeResolutionScope {
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
   expectedTypeParameterNames?: readonly string[],
-  callable?: CsharpSourceCallableContract,
+  callable?: SourceCallableContract,
   excludedSourceArgumentIndexes?: ReadonlySet<number>,
 ):
   | {
@@ -279,7 +279,7 @@ export interface CsharpTypeResolutionScope {
 ): TargetTypeRef | undefined;
   resolveSourceCallableContractType(
   source: ResolvedSourceCallInfo,
-  callable: CsharpSourceCallableContract,
+  callable: SourceCallableContract,
   type: TargetTypeRef,
   selectedSourceFile: SourceFile,
   state: CsharpTypeResolutionState,
@@ -287,7 +287,7 @@ export interface CsharpTypeResolutionScope {
 ): TargetTypeRef | undefined;
   inferSourceCallTargetTypeArguments(
   source: ResolvedSourceCallInfo,
-  callable: CsharpSourceCallableContract,
+  callable: SourceCallableContract,
   sourceFile: SourceFile,
   parameterNames: ReadonlySet<string>,
   state: CsharpTypeResolutionState,
@@ -309,7 +309,7 @@ export interface CsharpTypeResolutionScope {
 ): CsharpSourceCallContractSelection;
   sourceCallableTypeParametersMatch(
   source: ResolvedSourceCallInfo,
-  callable: CsharpSourceCallableContract,
+  callable: SourceCallableContract,
   kind: "declaration" | "value",
 ): boolean;
   sourceValueDeclaration(

@@ -1,7 +1,7 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpCallableParameterAdapter, CsharpCallableValueAdapter } from "../../../../target-model/records/callable-adapters.js";
-import type { CsharpSourceCallableContract } from "../../../../target-model/records/source-callable-contract.js";
+import type { SourceCallableContract } from "../../../../target-model/records/source-callable-contract.js";
 import type { CsharpExpression, CsharpParameter, CsharpStatement } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import { applyCsharpConversionSelection } from "../../expressions/conversions.js";
@@ -10,7 +10,7 @@ import { qualifiedCsharpType } from "../../types/index.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 
 export function planCsharpCallableArguments(
-  declaration: Node, source: Pick<CsharpSourceCallableContract, "nativeParameters">, parameters: readonly CsharpParameter[],
+  declaration: Node, source: Pick<SourceCallableContract, "nativeParameters">, parameters: readonly CsharpParameter[],
   implementationParameters: readonly CsharpParameter[], adapters: readonly CsharpCallableParameterAdapter[],
   sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
 ): { readonly statements: readonly CsharpStatement[]; readonly arguments: readonly CsharpExpression[] } {
