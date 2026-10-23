@@ -390,7 +390,8 @@ test("array, tuple, default and rest renderers consume only their admitted immut
       message: "An admitted array default lost its native element rendering." },
     { label: "inconsistent optional payload guard", pattern: array, node: first,
       fact: { ...firstFact, defaultValue: { ...firstFact.defaultValue, kind: "guarded", optional: true, guardType: opaque } },
-      message: "An admitted native default lost its exact optional payload guard." },
+      corruptPayload: true,
+      message: "An admitted optional guard requires its native payload type." },
     { label: "missing tuple default", pattern: tuple, node: second,
       fact: { ...secondFact, defaultValue: undefined },
       message: "Tuple default requires its admitted native default contract." },
@@ -405,7 +406,14 @@ test("array, tuple, default and rest renderers consume only their admitted immut
       message: "An admitted tuple rest lost its native carrier rendering." },
   ];
   for (const control of controls) {
+    const typeEmission = control.corruptPayload ? { get: carrier => {
+      const selected = program.records.typeEmission.get(carrier);
+      if (targetTypeRefKey(carrier) !== targetTypeRefKey(firstFact.defaultValue.storage)) return selected;
+      assert.equal(selected?.optionalStorage.kind === "native", true, "the corrupted payload belongs to the actual sealed native storage");
+      return { ...selected, optionalStorage: { ...selected.optionalStorage, present: opaque } };
+    } } : program.records.typeEmission;
     const corrupted = { ...program, records: { ...program.records,
+      typeEmission,
       bindingPatternProjection: { get: node => node === control.node ? control.fact
         : program.records.bindingPatternProjection.get(node) } } };
     const diagnostics = [];
