@@ -8,14 +8,15 @@ for (const surface of ["native", "js"]) {
   test(`an effectful exact absence default retains native evaluation (${surface})`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
       let calls = 0;
+      function callCount(): number { return calls; }
       function next(): undefined { calls++; return undefined; }
       function named(value: string | null | undefined = next()): string | null | undefined { return value; }
       const deferred = (value: string | null | undefined = next()): string | null | undefined => value;
       export function run(): boolean {
-        if (named("first") !== "first" || deferred("second") !== "second" || calls !== 0) return false;
+        if (named("first") !== "first" || deferred("second") !== "second" || callCount() !== 0) return false;
         if (named() !== undefined || deferred() !== undefined) return false;
         if (named(null) !== undefined || deferred(undefined) !== undefined) return false;
-        return calls === 4;
+        return callCount() === 4;
       }
     ` });
     assertCsharpCompilationSucceeded(compiled);
