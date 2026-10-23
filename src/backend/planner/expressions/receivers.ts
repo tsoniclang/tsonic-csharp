@@ -25,7 +25,7 @@ export function translateCsharpSelectedReceiver(receiver: CsharpSelectedReceiver
   input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner,
   projection?: CsharpMemberReceiverProjection): CsharpPlannedValue | undefined {
   const projectType = csharpProjectTypeReceiver(receiver, input, diagnostics);
-  const carrier = projectType === undefined ? undefined : input.program.records.nodeTargetType.get(receiver.expression);
+  const carrier = projectType === undefined ? undefined : input.program.records.valueRead.get(receiver.expression)?.value;
   if (projectType !== undefined && carrier === undefined)
     failCsharpPlannerInvariant("An admitted project type receiver requires its exact native value contract.", receiver.expression);
   const expression = projectType === undefined ? planExpression(receiver.expression, sourceFile, input, diagnostics)

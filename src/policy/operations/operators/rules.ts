@@ -54,13 +54,18 @@ export function selectCsharpNativeBinaryOperation(
     kind: "resolved", sourceOperator, targetOperation: genericNumeric,
     left, right, leftType, rightType, leftInputType: leftType, rightInputType: rightType, resultType,
   };
-  if (sourceOperator === ",") return facts.resultUse === undefined
-    ? rejectCsharpOperator("A C# sequence operation requires the checked use of its right operand.") : {
-    kind: "resolved", sourceOperator, targetOperation: {
-      kind: "sequence", resultUse: facts.resultUse,
-    },
-    left, right, leftType, rightType, leftInputType: leftType, rightInputType: rightType, resultType,
-  };
+  if (sourceOperator === ",") {
+    if (facts.resultUse === undefined) return rejectCsharpOperator("A C# sequence operation requires the checked use of its right operand.");
+    const completion = selectCsharpExpressionConversion(input, right, rightType, resultType, "implicit");
+    if (!csharpConversionIsApplicable(completion, "implicit")) return rejectCsharpOperator(
+      "A C# sequence result requires an exact implicit native completion for its right operand.");
+    return {
+      kind: "resolved", sourceOperator, targetOperation: {
+        kind: "sequence", resultUse: facts.resultUse,
+      },
+      left, right, leftType, rightType, leftInputType: leftType, rightInputType: resultType, resultType,
+    };
+  }
   if (sourceOperator === "&&" || sourceOperator === "||") {
     const boolean = csharpSourcePrimitiveTargetType("bool");
     if (!targetTypeRefEquals(leftType, boolean)) return rejectCsharpOperator("C# conditional-value operators require an exact bool condition.");

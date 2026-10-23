@@ -53,6 +53,23 @@ test("default failure preserves exception identity and cannot invoke the native 
 });
 
 for (const surface of [undefined, "js"]) {
+  test(`nested comma completions select one native absence endpoint on ${surface ?? "native"}`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      import type { int32 } from "@tsonic/core/types.js";
+      let calls = 0 as int32;
+      function effect(): void { calls++; }
+      function optional(): int32 | undefined { return (effect(), (effect(), undefined)); }
+      function optionalEffect(): int32 | undefined { return (effect(), void effect()); }
+      function discarded(): void { return (effect(), void effect()); }
+      export function run(): boolean {
+        const first = optional(); const second = optionalEffect(); discarded();
+        return first === undefined && second === undefined && calls === 6;
+      }
+    ` });
+    assertCsharpCompilationSucceeded(compiled);
+    executeCsharpConstruction(compiled, `nested-comma-native-absence-${surface ?? "native"}`);
+  });
+
   test(`shared comma completion proof preserves native carriers and effects on ${surface ?? "native"}`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ sourceText: nativeExpressionSequencesSource, surface });
     assertCsharpCompilationSucceeded(compiled);

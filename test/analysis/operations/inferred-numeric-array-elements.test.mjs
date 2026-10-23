@@ -267,7 +267,7 @@ for (const surface of ["native", "js"]) {
     const program = accepted(compile(surface, `
       import type { decimal } from "@tsonic/core/types.js";
       export function exact(wide: int64): (string | int64)[] {
-        const values: (string | int64)[] = ["text", wide, 9007199254740993]; return values; }
+        const values: (string | int64)[] = ["text", wide, 9007199254740993n]; return values; }
       export function optional(): (number | undefined)[] {
         const optionalValues: (number | undefined)[] = [undefined, 9007199254740993]; return optionalValues; }
       export function decimalUnion(): (string | decimal)[] {
@@ -292,7 +292,9 @@ for (const surface of ["native", "js"]) {
       const huge = ["text", 1606938044258990275541962092341162602522202993782792835301376];
       const fraction = ["text", 0.1]; const signedZero = ["text", -0];
       const actualFloat = ["text", computed]; const absent = [undefined, 9007199254740994];
-      return exact.length + huge.length + fraction.length + signedZero.length + actualFloat.length + absent.length; }`));
+      return exact.${surface === "native" ? "Length" : "length"} + huge.${surface === "native" ? "Length" : "length"} +
+        fraction.${surface === "native" ? "Length" : "length"} + signedZero.${surface === "native" ? "Length" : "length"} +
+        actualFloat.${surface === "native" ? "Length" : "length"} + absent.${surface === "native" ? "Length" : "length"}; }`));
     const selected = constructedArrays(program);
     for (const name of ["exact", "huge", "fraction", "signedZero", "actualFloat"]) {
       const arms = getCsharpRuntimeUnionArms(selected.get(name), program.typeDefinitions);
