@@ -247,7 +247,8 @@ export function selectCsharpSourceCallableValueAbi(input: {
     return Object.freeze({ ...common, kind: "native", nativeParameters: Object.freeze(nativeParameters),
       ...(declaration === undefined ? {} : { sourceDeclaration: declaration }) });
   }
-  const parameters = sourceCallableValueParameters(ast, declaration, semantics);
+  const parameters = sourceCallableValueParameters(ast, declaration, semantics,
+    { kind: "selected-invocation", signature: source.selectedSignature });
   if (parameters === undefined) return undefined;
   const sourceNativeParameters: CsharpSourceCallableParameterContract[] = [];
   for (const parameter of nativeParameters) {
