@@ -22,7 +22,10 @@ export function executeCsharpConstruction(compiled, name, asynchronous = false, 
     writeFileSync(file, text);
   }
   if (!compiled.artifacts.has("generated/TsonicEntrypoint.cs")) {
-    writeFileSync(join(root, "Program.cs"), nativeProgram ?? `if (!(${asynchronous ? "await " : ""}Tsonic.Generated.Index.run())) throw new System.Exception("source construction contract");`);
+    const invocation = `if (!(${asynchronous ? "await " : ""}Tsonic.Generated.Index.run())) throw new System.Exception("source construction contract");`;
+    const entrypoint = asynchronous && compiled.target.surfaces?.includes("js")
+      ? `Tsonic.CSharp.Js.JsEventLoop.Run(async () => { ${invocation} });` : invocation;
+    writeFileSync(join(root, "Program.cs"), nativeProgram ?? entrypoint);
   }
   const references = [
     join(testRepositoryRoots.csharpRuntime, "src/Tsonic.CSharp.Runtime/Tsonic.CSharp.Runtime.csproj"),
