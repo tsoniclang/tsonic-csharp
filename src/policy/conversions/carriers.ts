@@ -9,7 +9,7 @@ import { targetBindingSubstitutions } from "./provider-operators.js";
 import type { CsharpTargetNamedTypeRef, TargetConstraint, TargetTypeParameter, TargetTypeRef } from "../types/index.js";
 import type { CsharpConversionMode, CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import type { CsharpPolicyContext } from "../model/context.js";
-import { csharpUnionLeaves } from "../../target-model/types/union-relations.js";
+import { collectCsharpUnionPaths, csharpUnionLeaves } from "../../target-model/types/union-relations.js";
 import { csharpUnionProjectionPath, selectCsharpUnionArmMapping } from "./union-relations.js";
 import type { CsharpConversionShapeQueries } from "./shape-queries.js";
 import { csharpNativeRepresentationMatches } from "./native-representation.js";
@@ -75,22 +75,22 @@ export function selectRuntimeUnionConversion(
   if (targetArms === undefined) {
     return undefined;
   }
-  const matchingArms = targetArms.flatMap((armType, armIndex) =>
-    targetTypeRefEquals(armType, source)
-      ? [{ armIndex, armType }]
-      : []
-  );
-  const candidates = matchingArms.length > 0 ? matchingArms : targetArms.flatMap((armType, armIndex) =>
-    source.kind === "target-named" && armType.kind === "target-named" &&
-    !isCsharpValueTypeTargetType(source) && !isCsharpValueTypeTargetType(armType) &&
-    namedTargetTypeImplicitlyAccepts(input, source, armType, new Set()) ? [{ armIndex, armType }] : []);
+  const matchingArms = collectCsharpUnionPaths(target, input.typeDefinitions, source);
+  const candidates = matchingArms === undefined ? [] : matchingArms.length > 0 ? matchingArms
+    : (csharpUnionLeaves(target, input.typeDefinitions) ?? []).filter(arm => source.kind === "target-named" && arm.carrier.kind === "target-named" &&
+      !isCsharpValueTypeTargetType(source) && !isCsharpValueTypeTargetType(arm.carrier) &&
+      namedTargetTypeImplicitlyAccepts(input, source, arm.carrier, new Set()));
   if (candidates.length === 1) {
-    return {
-      kind: "implicit",
-      proof: "runtime-union-arm",
-      ...candidates[0]!,
-      sourceToArm: matchingArms.length === 1 ? { kind: "identity" } : { kind: "implicit", proof: "reference" },
-    };
+    let conversion: CsharpConversionSelection = matchingArms?.length === 1
+      ? { kind: "identity" } : { kind: "implicit", proof: "reference" };
+    const path = candidates[0]!.path;
+    for (let index = path.length - 1; index >= 0; index -= 1) {
+      const step = path[index]!;
+      const armType = getCsharpRuntimeUnionArms(step.union, input.typeDefinitions)?.[step.index];
+      if (armType === undefined) return { kind: "rejected", reason: "A native union construction requires its exact complete arm path." };
+      conversion = { kind: "implicit", proof: "runtime-union-arm", armIndex: step.index, armType, sourceToArm: conversion };
+    }
+    return conversion;
   }
   return {
     kind: "rejected",
