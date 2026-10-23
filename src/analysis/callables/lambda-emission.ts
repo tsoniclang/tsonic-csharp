@@ -4,6 +4,7 @@ import { HasSyntacticModifier, ModifierFlagsAsync, forEachSourceImmediateEvaluat
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpLambdaBodyEmission } from "../../target-model/records/lambda-emission.js";
 import type { CsharpCallableDeclarationRecords } from "../../target-model/records/callable-emission.js";
+import type { CsharpCallableParameterRecords } from "../../target-model/records/parameter-emission.js";
 import type { CsharpCaptureStorage } from "../../target-model/records/capture-storage.js";
 import type { CsharpCallableCreationIndex } from "../../target-model/records/callable-values.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
@@ -19,6 +20,7 @@ import { createCsharpLambdaEmissionRecords } from "../program/records/lambda-emi
 
 export function analyzeCsharpLambdaEmission(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];
   readonly declarations: CsharpCallableDeclarationRecords;
+  readonly parameters: CsharpCallableParameterRecords;
   readonly captures: CsharpCaptureStorage; readonly creations: CsharpCallableCreationIndex; readonly storage: CsharpStorageClassifications;
   readonly expected: CsharpExpectedTypeClassifications; readonly values: CsharpValueReadClassifications; readonly types: CsharpTypeEmissionRecords;
   readonly arguments: CsharpTargetArgumentRecords; readonly constants: CsharpNativeConstantRecords; readonly demand: CsharpNativeDemandAnalysis;
@@ -35,20 +37,29 @@ export function analyzeCsharpLambdaEmission(input: { readonly source: TargetSour
     const signature = carrier === undefined ? undefined : input.types.typeEmission.get(carrier)?.lambda;
     if (signature === undefined) { refuse(node, "Lambda emission requires a contextual function/delegate type from TSTS or provider facts before C# emission."); continue; }
     const declaration = ast.as.AsArrowFunction(node) ?? ast.as.AsFunctionExpression(node);
-    const parameters = input.declarations.callableDeclaration.get(node)?.contract.parameters;
-    if (parameters === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted lambda requires its checked source value parameters.", node);
-    if (parameters.length > signature.parameters.length) {
-      refuse(parameters[signature.parameters.length] ?? node, "The source lambda declares more parameters than its exact selected C# delegate representation."); continue;
+    const contract = input.declarations.callableDeclaration.get(node)?.contract;
+    if (contract === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted lambda requires its checked source value parameters.", node);
+    const parameters = contract.parameters;
+    if (contract.nativeParameters.length > signature.parameters.length) {
+      refuse(contract.nativeParameters[signature.parameters.length]?.sourceParameter ?? node,
+        "The source lambda declares more parameters than its exact selected C# delegate representation."); continue;
     }
-    for (const [index, parameter] of parameters.entries()) {
+    let nativeIndex = 0;
+    for (const parameter of parameters) {
       if (parameter === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted lambda requires its complete checked parameter vector.", node);
-      if (ast.as.AsParameterDeclaration(parameter)?.DotDotDotToken !== undefined && signature.restParameterIndex !== index)
+      const entry = input.parameters.callableParameter.get(parameter);
+      if (entry === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted lambda requires its sealed native parameter layout.", parameter);
+      if (entry.incoming.kind === "single" && entry.incoming.rest && signature.restParameterIndex !== nativeIndex)
         refuse(parameter, "A lambda rest parameter requires exact selected delegate rest-parameter evidence before C# emission.");
       const name = ast.name(parameter);
       if (name === undefined || !ast.is.IsIdentifier(name) && !ast.is.IsObjectBindingPattern(name) && !ast.is.IsArrayBindingPattern(name))
         refuse(name ?? parameter, "Lambda parameter binding is outside the current C# planning surface.");
       const selected = input.storage.lambdaParameterType.get(parameter);
-      const expected = signature.parameters[index]!;
+      const width = entry.incoming.kind === "tuple" ? entry.incoming.parameters.length : 1;
+      const expected = entry.incoming.kind === "tuple"
+        ? { kind: "tuple" as const, elements: signature.parameters.slice(nativeIndex, nativeIndex + width) }
+        : signature.parameters[nativeIndex]!;
+      nativeIndex += width;
       if (selected === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted lambda parameter requires its exact sealed delegate representation.", parameter);
       if (!targetTypeRefEquals(selected, expected)) refuse(parameter,
         `The sealed lambda parameter representation '${targetTypeRefKey(selected)}' conflicts with its exact selected C# delegate parameter representation '${targetTypeRefKey(expected)}'.`);

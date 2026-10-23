@@ -19,7 +19,7 @@ export function planCsharpLocalLambdaCreation(
   const self = input.program.records.namedSelf.get(node);
   const authored = input.program.records.callableDeclaration.get(node)
     ?? failCsharpPlannerInvariant("An admitted native callable creation requires its sealed source value parameters.", node);
-  const authoredParameterCount = authored.contract.parameters.length;
+  const authoredParameterCount = authored.contract.nativeParameters.length;
   const nativeParameters = parameters.map((parameter, index) => {
     const type = parameter.type ?? target?.signature.parameters[index];
     return type === undefined ? undefined : { name: parameter.name, type,

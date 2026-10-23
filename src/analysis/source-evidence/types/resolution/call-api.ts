@@ -44,7 +44,7 @@ export function resolveSourceCallParameter(
 }
 
 function resolveSelectedSourceCallParameter(
-  { resolveSourceCallableContractType, resolveSourceCallSelectedType, sourceCallableTypeParametersMatch }: CsharpTypeResolutionScope,
+  { host, resolveSourceCallableContractType, resolveSourceCallSelectedType, sourceCallableTypeParametersMatch }: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   parameterIndex: number,
   sourceFile: SourceFile,
@@ -56,6 +56,18 @@ function resolveSelectedSourceCallParameter(
   }
   if (selected.kind === "rejected") return undefined;
   const callable = selected.contract;
+  if (callable?.kind === "source" && parameter.rest && host.semantics(sourceFile).types.isTuple(parameter.selectedType)) {
+    const declaration = parameter.parameterDeclaration;
+    if (declaration === undefined || !callable.parameters.includes(declaration) ||
+        !sourceCallableTypeParametersMatch(source, callable, selected.kind)) return undefined;
+    const elements: TargetTypeRef[] = [];
+    for (const parameter of callable.nativeParameters) if (parameter.sourceParameter === declaration) {
+      const selected = resolveSourceCallableContractType(source, callable, parameter.targetParameter.type, sourceFile, { depth: 0 });
+      if (selected === undefined) return undefined;
+      elements.push(selected);
+    }
+    return Object.freeze({ kind: "tuple", elements: Object.freeze(elements) });
+  }
   const contractedParameter = callable?.nativeParameters[parameterIndex];
   if (callable !== undefined && contractedParameter !== undefined) {
     if (

@@ -15,6 +15,7 @@ import { planCsharpParameterStorageDeclaration } from "../../bindings/typed-loca
 import type { CsharpEntryBinding } from "../../bindings/binding-patterns.js";
 import { planCsharpParameterCapture } from "../../bindings/capture-storage.js";
 import type { CsharpParameterDefaultEmission } from "../../../../target-model/records/parameter-emission.js";
+import { planCsharpTupleParameterEntry } from "../../bindings/tuple-parameter-entry.js";
 
 export interface PlannedParameterList {
   readonly parameters: readonly CsharpParameter[];
@@ -46,6 +47,20 @@ export function planParametersWithPrelude(parameterNodes: readonly Node[], sourc
     const type = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, emission.carrier, diagnostics, node);
     if (type === undefined) failCsharpPlannerInvariant("An admitted callable parameter requires its native storage type.", node);
     const runtime = input.program.records.runtimeDefault.get(node);
+    if (emission.incoming.kind === "tuple") {
+      const incoming = emission.incoming.parameters.map(parameter => {
+        const type = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, parameter.type, diagnostics, node);
+        if (type === undefined) failCsharpPlannerInvariant("An admitted tuple-rest slot requires its native parameter type.", node);
+        return { name: allocateSyntheticParameter(state), type,
+          attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
+          ...(parameter.optional === true ? { defaultValue: { kind: "DefaultExpression" as const, type, nullForgiving: true } } : {}) };
+      });
+      parameters.push(...incoming);
+      const entry = planCsharpTupleParameterEntry(node, emission, incoming, sourceFile, input, diagnostics, state);
+      prelude.push(...entry.prelude);
+      entryBindings.push(...entry.entryBindings);
+      continue;
+    }
     if (emission.binding === "identifier") {
       const sourceName = declareCsharpLocalBindingName(parameter.name, input, state);
       if (runtime !== undefined) {
@@ -61,7 +76,7 @@ export function planParametersWithPrelude(parameterNodes: readonly Node[], sourc
       }
       const defaultValue = planParameterDefaultValue(emission.default, type, sourceFile, input, diagnostics, state);
       parameters.push({ name: sourceName, type, attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
-        ...(emission.rest ? { isParams: true } : {}), ...(defaultValue === undefined ? {} : { defaultValue }) });
+        ...(emission.incoming.rest ? { isParams: true } : {}), ...(defaultValue === undefined ? {} : { defaultValue }) });
       completeIdentifierEntry(node, sourceName, type);
       continue;
     }
@@ -76,7 +91,7 @@ export function planParametersWithPrelude(parameterNodes: readonly Node[], sourc
       prelude.push(...planParameterBindingPrelude(parameter.name, selected.passthrough ? incomingName : valueName, sourceFile, input, diagnostics, state, retainBinding));
       continue;
     }
-    parameters.push({ name: incomingName, type, attributes: planAttributesForSubject(node, sourceFile, input, diagnostics), ...(emission.rest ? { isParams: true } : {}) });
+    parameters.push({ name: incomingName, type, attributes: planAttributesForSubject(node, sourceFile, input, diagnostics), ...(emission.incoming.rest ? { isParams: true } : {}) });
     prelude.push(...planParameterBindingPrelude(parameter.name, incomingName, sourceFile, input, diagnostics, state, retainBinding));
   }
   return { parameters, prelude, entryBindings };

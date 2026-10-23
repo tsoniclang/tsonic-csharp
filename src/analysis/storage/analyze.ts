@@ -186,21 +186,23 @@ export function analyzeCsharpStorage(
       ? nativeContract?.nativeParameters.map(parameter => parameter.targetParameter.type)
       : selectedSignature.parameters;
     if (parameterTypes !== undefined) {
-      if (parameters.length > parameterTypes.length) {
-        issues.push(issue(
-          parameters[parameterTypes.length]!,
-          "CSHARP_LAMBDA_PARAMETER_ARITY_CONFLICT",
-          "The source lambda declares more parameters than its exact selected C# delegate representation.",
-        ));
-        return;
-      }
+      let nativeIndex = 0;
       for (let index = 0; index < parameters.length; index += 1) {
         const parameter = parameters[index]!;
-        const targetType = parameterTypes[index]!;
         const declaration = policy.ast.as.AsParameterDeclaration(parameter);
         const authored = declaration?.Type === undefined
           ? undefined
           : evidence.nodeTargetType.get(declaration.Type);
+        const tupleRest = declaration?.DotDotDotToken !== undefined && authored?.kind === "tuple" ? authored : undefined;
+        const width = tupleRest === undefined ? 1 : tupleRest.elements.length;
+        if (nativeIndex + width > parameterTypes.length) {
+          issues.push(issue(parameter, "CSHARP_LAMBDA_PARAMETER_ARITY_CONFLICT",
+            "The source lambda declares more parameters than its exact selected C# delegate representation."));
+          return;
+        }
+        const targetType: TargetTypeRef = tupleRest === undefined ? parameterTypes[nativeIndex]!
+          : Object.freeze({ kind: "tuple", elements: Object.freeze(parameterTypes.slice(nativeIndex, nativeIndex + width)) });
+        nativeIndex += width;
         const types = policy.semanticsFor(parameter).types;
         const authoredType = declaration?.Type === undefined ? undefined : types.authoredType(declaration.Type);
         const broad = authoredType !== undefined && (types.isUnknown(authoredType) || types.isAny(authoredType));

@@ -404,22 +404,34 @@ export function planLambdaParameters(
   expectedContext: LambdaTargetContext,
 ): readonly CsharpLambdaParameter[] {
   const expectedParameterTypes = expectedContext.signature.parameters;
-  const sourceParameters = parameterNodes
-    .map((parameterNode, index): CsharpLambdaParameter => {
+  const sourceParameters: CsharpLambdaParameter[] = [];
+  let nativeIndex = 0;
+  for (const parameterNode of parameterNodes) {
       if (parameterNode === undefined) failCsharpPlannerInvariant("An admitted lambda requires its complete native parameter vector.");
       const parameter = AsParameterDeclaration(input.program.source.ast, parameterNode)!;
       const bindingPattern = HasSourceKind(input.program.source.ast, parameter.name, KindObjectBindingPattern) ||
         HasSourceKind(input.program.source.ast, parameter.name, KindArrayBindingPattern);
-      const expectedParameterType = expectedParameterTypes[index];
+      const emission = input.program.records.callableParameter.get(parameterNode);
+      if (emission === undefined) failCsharpPlannerInvariant("An admitted lambda requires its sealed native parameter layout.", parameterNode);
+      if (emission.incoming.kind === "tuple") {
+        if (!bindingPattern) declareCsharpLocalBindingName(parameter.name!, input, state);
+        for (let slotIndex = 0; slotIndex < emission.incoming.parameters.length; slotIndex += 1) {
+          const type = expectedParameterTypes[nativeIndex++];
+          if (type === undefined) failCsharpPlannerInvariant("An admitted tuple-rest lambda requires its complete native signature.", parameterNode);
+          sourceParameters.push({ kind: "Parameter", name: allocateSyntheticParameter(state), type });
+        }
+        continue;
+      }
+      const expectedParameterType = expectedParameterTypes[nativeIndex++];
       if (expectedParameterType === undefined) failCsharpPlannerInvariant("An admitted lambda parameter requires its exact native signature type.", parameterNode);
-      return {
+      sourceParameters.push({
         kind: "Parameter",
         name: bindingPattern
           ? allocateSyntheticParameter(state)
           : declareCsharpLocalBindingName(parameter.name!, input, state),
         type: expectedParameterType,
-      };
-    });
+      });
+  }
   const omittedTargetParameters = expectedParameterTypes
     .slice(sourceParameters.length)
     .map((type): CsharpLambdaParameter => ({

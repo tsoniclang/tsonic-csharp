@@ -76,6 +76,16 @@ export function analyzeCsharpCallableParameterEmission(input: {
         continue;
       }
       const rest = parameter.DotDotDotToken !== undefined;
+      const nativeParameters = contract.nativeParameters.filter(parameter => parameter.sourceParameter === node)
+        .map(parameter => parameter.targetParameter);
+      const incoming: CsharpCallableParameterEmission["incoming"] = rest && carrier.kind === "tuple"
+        ? Object.freeze({ kind: "tuple", parameters: Object.freeze(nativeParameters) })
+        : Object.freeze({ kind: "single", rest });
+      if (incoming.kind === "tuple" && (carrier.kind !== "tuple" || incoming.parameters.length !== carrier.elements.length ||
+          incoming.parameters.some(parameter => parameter.paramsArray === true))) {
+        refuse(node, "C# tuple-rest parameters require one finite native argument vector.");
+        continue;
+      }
       let defaultValue: CsharpParameterDefaultEmission = Object.freeze({ kind: "none" });
       if (runtime !== undefined) hasDefault ||= runtime.acceptsOmission;
       else {
@@ -93,7 +103,7 @@ export function analyzeCsharpCallableParameterEmission(input: {
           if (binding === "pattern") refuse(parameter.name, "Destructured parameter defaults require target object-shape lowering before C# emission.");
         } else if (hasDefault && !rest) refuse(node, "Required parameters cannot follow C# optional parameters.");
       }
-      values.set(node, Object.freeze({ kind: "parameter", carrier, binding, rest, default: defaultValue }));
+      values.set(node, Object.freeze({ kind: "parameter", carrier, binding, incoming, default: defaultValue }));
       requireCsharpRecord(input.required, { family: "callableParameter", subject: node, construct: "native callable parameter", producer: "analyzeCsharpCallableParameterEmission" });
     }
   }

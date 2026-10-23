@@ -57,14 +57,19 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
 
     function matches(candidate: TargetTypeRef): boolean {
       const signature = getCsharpLambdaSignature(candidate);
-      const parameters = contract?.parameters;
+      const parameters = contract?.nativeParameters;
+      const tupleIndexes = new Map<Node, number>();
       if (contract === undefined || parameters === undefined || signature === undefined || signature.parameterPassingModes.length !== signature.parameters.length ||
         parameters.length > signature.parameters.length ||
         signature.parameterPassingModes.slice(parameters.length).some(mode => mode !== "by-value") ||
         !parameters.every((parameter, index) => {
-          if (parameter === undefined) return false;
-          const native = contract.nativeParameters[index]?.targetParameter;
-          const nativeParameter = input.storage.lambdaParameterType.get(parameter);
+          const node = parameter.sourceParameter;
+          const native = parameter.targetParameter;
+          const incoming = input.storage.lambdaParameterType.get(node);
+          const tuple = input.ast.as.AsParameterDeclaration(node)?.DotDotDotToken !== undefined && incoming?.kind === "tuple";
+          const tupleIndex = tupleIndexes.get(node) ?? 0;
+          if (tuple) tupleIndexes.set(node, tupleIndex + 1);
+          const nativeParameter = tuple && incoming?.kind === "tuple" ? incoming.elements[tupleIndex] : incoming;
           return native !== undefined && nativeParameter !== undefined && targetTypeRefEquals(nativeParameter, signature.parameters[index]!) &&
             native.passingMode === signature.parameterPassingModes[index] &&
             (native.paramsArray === true) === (signature.restParameterIndex === index);

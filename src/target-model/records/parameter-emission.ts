@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../types/model.js";
+import type { CsharpTargetParameter, TargetTypeRef } from "../types/model.js";
 import type { CsharpConversionSelection } from "../conversions/selection.js";
 
 export type CsharpLambdaParameterEntry =
@@ -15,7 +15,9 @@ export interface CsharpCallableParameterEmission {
   readonly kind: "parameter";
   readonly carrier: TargetTypeRef;
   readonly binding: "identifier" | "pattern";
-  readonly rest: boolean;
+  readonly incoming:
+    | { readonly kind: "single"; readonly rest: boolean }
+    | { readonly kind: "tuple"; readonly parameters: readonly CsharpTargetParameter[] };
   readonly default: CsharpParameterDefaultEmission;
 }
 

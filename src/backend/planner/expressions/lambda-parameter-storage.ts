@@ -1,6 +1,6 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpLambdaParameter, CsharpStatement } from "../../target-ast/syntax/index.js";
+import type { CsharpLambdaParameter, CsharpStatement, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { allocateSyntheticParameter, planParameterBindingPrelude, type DestructuringPlannerState } from "../bindings/index.js";
 import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../types/target-type-object-shapes.js";
@@ -10,14 +10,31 @@ import { consumeCsharpPlannedValue } from "../statements/statement-output.js";
 import { planCsharpParameterStorageDeclaration } from "../bindings/typed-location-identities.js";
 import { planCsharpParameterCapture } from "../bindings/capture-storage.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
+import { planCsharpTupleParameterEntry } from "../bindings/tuple-parameter-entry.js";
 
 export function planLambdaParameterStorage(nodes: readonly (Node | undefined)[], parameters: readonly CsharpLambdaParameter[], sourceFile: SourceFile,
   input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], state: DestructuringPlannerState):
   { readonly parameters: readonly CsharpLambdaParameter[]; readonly prelude: readonly CsharpStatement[] } | undefined {
   const nativeParameters = [...parameters];
   const prelude: CsharpStatement[] = [];
-  for (const [index, node] of nodes.entries()) {
+  let nativeIndex = 0;
+  for (const node of nodes) {
     if (node === undefined) failCsharpPlannerInvariant("An admitted lambda requires its dense checked parameter list.");
+    const emission = input.program.records.callableParameter.get(node);
+    if (emission === undefined) failCsharpPlannerInvariant("An admitted lambda requires its native parameter layout.", node);
+    if (emission.incoming.kind === "tuple") {
+      const incoming = parameters.slice(nativeIndex, nativeIndex + emission.incoming.parameters.length);
+      nativeIndex += emission.incoming.parameters.length;
+      const typed: { readonly name: string; readonly type: CsharpTypeNode }[] = [];
+      for (const parameter of incoming) {
+        if (parameter.type === undefined) failCsharpPlannerInvariant("An admitted tuple-rest lambda requires each native slot type.", node);
+        typed.push({ name: parameter.name, type: parameter.type });
+      }
+      const entry = planCsharpTupleParameterEntry(node, emission, typed, sourceFile, input, diagnostics, state);
+      prelude.push(...entry.prelude);
+      continue;
+    }
+    const index = nativeIndex++;
     const parameter = parameters[index];
     const selected = input.program.records.lambdaParameterEntry.get(node);
     if (parameter === undefined || selected === undefined) failCsharpPlannerInvariant("An admitted lambda parameter requires its exact native entry plan.", node);

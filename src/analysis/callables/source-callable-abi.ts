@@ -42,7 +42,7 @@ export function selectCsharpSourceCallableAbi(
   }
   const nativeParameters: CsharpSourceCallableParameterContract[] = [];
   for (const [index, parameterNode] of valueParameters.entries()) {
-    const parameter = sourceParameterContract(
+    const parameters = sourceParameterContracts(
       policy,
       evidence,
       declarations,
@@ -52,10 +52,10 @@ export function selectCsharpSourceCallableAbi(
       contextualInputs?.[index],
       checked.parameters.find(parameter => parameter.declaration === parameterNode)?.acceptsOmission,
     );
-    if (parameter === undefined) {
+    if (parameters === undefined) {
       return undefined;
     }
-    nativeParameters.push(parameter);
+    nativeParameters.push(...parameters);
   }
   const methodTypeParameterIdentities = policy.ast.typeParameters(declaration).map(
     (parameter) => parameter === undefined ? undefined : csharpSourceTypeParameter(parameter, policy.ast)?.identity,
@@ -85,7 +85,7 @@ export function selectCsharpSourceCallableAbi(
   });
 }
 
-function sourceParameterContract(
+function sourceParameterContracts(
   policy: CsharpPolicyContext,
   evidence: CsharpSourceEvidenceIndex,
   declarations: CsharpDeclarationClassifications,
@@ -94,7 +94,7 @@ function sourceParameterContract(
   parameterIndex: number,
   contextualInput: TargetTypeRef | undefined,
   acceptsOmission: boolean | undefined,
-): CsharpSourceCallableParameterContract | undefined {
+): readonly CsharpSourceCallableParameterContract[] | undefined {
   if (parameterNode === undefined) {
     return undefined;
   }
@@ -124,6 +124,18 @@ function sourceParameterContract(
   const name = resolvedName?.kind === "resolved"
     ? resolvedName.name
     : `__tsonic_param${parameterIndex}`;
+  if (parameter.DotDotDotToken !== undefined && targetType.kind === "tuple") {
+    const types = policy.semanticsFor(parameterNode).types;
+    const sourceType = types.expressionType(parameterNode);
+    const elements = sourceType === undefined ? undefined : types.tupleElementInfos(sourceType);
+    if (elements === undefined || elements.length !== targetType.elements.length) return undefined;
+    return Object.freeze(targetType.elements.map((type, index) => Object.freeze({ sourceParameter: parameterNode,
+      targetParameter: Object.freeze({ name: `${name}${index}`, type, passingMode: "by-value" as const,
+        ...(elements[index]!.elementKind === "optional" ? { optional: true } : {}),
+        ...(elements[index]!.elementKind === "rest" || elements[index]!.elementKind === "variadic" ? { paramsArray: true } : {}),
+      }),
+    })));
+  }
   const targetParameter: CsharpTargetParameter = Object.freeze({
     name,
     type: targetType,
@@ -135,7 +147,7 @@ function sourceParameterContract(
       ? {}
       : { paramsArray: true }),
   });
-  return Object.freeze({ sourceParameter: parameterNode, targetParameter });
+  return Object.freeze([Object.freeze({ sourceParameter: parameterNode, targetParameter })]);
 }
 
 function constructorReturnType(
