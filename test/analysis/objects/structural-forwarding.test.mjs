@@ -146,6 +146,7 @@ test("every actual authored native method uses the same body and copy protocol",
     "a method signature alone never manufactures an authored native body");
   for (const [label, selection] of [
     ["complete readonly slot", { kind: "complete", writes: [] }],
+    ["open without an exposure proof", { kind: "open", writes: [], boundaries: [] }],
     ["actual replacement", { kind: "complete", writes: [{ kind: "mutation" }] }],
     ["same-value write", { kind: "open", writes: [{ kind: "mutation", value: subject }],
       boundaries: [{ kind: "external-write", subject, exposure: literal }] }],

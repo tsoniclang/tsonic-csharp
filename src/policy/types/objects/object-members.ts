@@ -9,7 +9,7 @@ import type { SourceStorageMemberWritesSelection } from "@tsonic/target-api/anal
 
 export function csharpObjectMethodHasFixedNativeExposure(writes: SourceStorageMemberWritesSelection | undefined): boolean {
   return writes !== undefined && writes.kind !== "unresolved" && writes.writes.length === 0 &&
-    (writes.kind === "complete" || writes.boundaries.every(boundary => boundary.kind === "external-write"));
+    (writes.kind === "complete" || writes.boundaries.length > 0 && writes.boundaries.every(boundary => boundary.kind === "external-write"));
 }
 
 export function selectCsharpObjectMemberEmission(input: CsharpObjectMemberPolicyInput):

@@ -25,7 +25,7 @@ export function csharpSourceUnionLayoutsMatch(source: TargetTypeRef, target: Tar
     const targets = results.get(source) ?? new Map<TargetTypeRef, boolean>();
     targets.set(target, false);
     results.set(source, targets);
-    const selected = (): boolean => {
+    const selected = (source: TargetTypeRef, target: TargetTypeRef): boolean => {
       const sourcePresent = getCsharpNullableElementTargetType(source);
       const targetPresent = getCsharpNullableElementTargetType(target);
       if (sourcePresent !== undefined || targetPresent !== undefined) return sourcePresent !== undefined &&
@@ -55,7 +55,7 @@ export function csharpSourceUnionLayoutsMatch(source: TargetTypeRef, target: Tar
       }
       return false;
     };
-    const result = selected();
+    const result = selected(source, target);
     targets.set(target, result);
     return result;
   };

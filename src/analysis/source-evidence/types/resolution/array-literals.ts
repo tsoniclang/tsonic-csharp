@@ -1,6 +1,7 @@
 import type { CsharpArrayLiteralSelection } from "../../../../target-model/records/array-literals.js";
-import type { Node } from "@tsonic/tsts";
-import { sourceEnclosingCallable, sourceExpressionCallArgument, type SourceClosedCallableArgument, type SourceFileSemantics } from "@tsonic/target-api/source";
+import type { Node, Type } from "@tsonic/tsts";
+import { sourceEnclosingCallable, sourceExpressionCallArgument, sourceSequenceInputChoice, sourceSequenceInputIsEmpty,
+  type SourceClosedCallableArgument, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
@@ -16,8 +17,10 @@ import { targetTypeRefEquals } from "../../../../target-model/types/equality.js"
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { csharpFreeTypeParameterIdentities } from "../../../../target-model/types/generic-references.js";
 import { csharpUnionLeaves } from "../../../../target-model/types/union-relations.js";
+import { getCsharpGenericOptionalParts } from "../../../../target-model/types/projections.js";
 
 const unavailable: CsharpArrayLiteralSelection = Object.freeze({ kind: "unavailable" });
+type ArrayContribution = Parameters<typeof selectCsharpInferredNumericArrayElement>[0][number] & { readonly source: Type };
 
 export function resolveCsharpArrayLiteralSelection(
   scope: CsharpTypeResolutionScope,
@@ -31,45 +34,67 @@ export function resolveCsharpArrayLiteralSelection(
   const sourceType = queries.types.expressionType(node);
   if (sourceType === undefined) return unavailable;
   const sourceElements = host.ast.elements(node);
-  const selected = sourceElements.map(element => {
-    if (element === undefined) return undefined;
-    if (!host.ast.is.IsSpreadElement(element)) return resolveNodeWithState(element, queries.sourceFile, nextState(state));
-    const operand = host.ast.as.AsSpreadElement(element)?.Expression;
-    return getCsharpCollectionElementTargetType(resolveNodeWithState(operand, queries.sourceFile, nextState(state)));
-  });
-  if (selected.some(element => element === undefined)) return unavailable;
-  const elements = selected.filter((element): element is TargetTypeRef => element !== undefined);
-  const resolved = (carrier: TargetTypeRef, elementCarriers = elements): CsharpArrayLiteralSelection =>
+  const resolved = (carrier: TargetTypeRef, elementCarriers: readonly TargetTypeRef[]): CsharpArrayLiteralSelection =>
     Object.freeze({ kind: "resolved", carrier, elementCarriers: Object.freeze([...elementCarriers]) });
   if (queries.types.isTuple(sourceType)) {
     if (sourceElements.some(element => element === undefined || host.ast.is.IsSpreadElement(element))) return unavailable;
+    const elements = sourceElements.map(element => resolveNodeWithState(element, queries.sourceFile, nextState(state)));
+    if (elements.some(element => element === undefined)) return unavailable;
     const tuple = resolveTypeWithState(sourceType, queries.sourceFile, nextState(state));
-    return tuple?.kind === "tuple" && tuple.elements.length === elements.length ? resolved({ ...tuple, elements }) : unavailable;
+    return tuple?.kind === "tuple" && tuple.elements.length === elements.length
+      ? resolved({ ...tuple, elements: elements as readonly TargetTypeRef[] }, elements as readonly TargetTypeRef[]) : unavailable;
   }
   const sourceCarrier = resolveTypeWithState(sourceType, queries.sourceFile, nextState(state));
   const sourceElement = getCsharpCollectionElementTargetType(sourceCarrier);
-  const destination = selectArrayElementDestination(scope, node, queries, state, elements.length === 0);
+  const contribution = (expression: Node, carrier: TargetTypeRef, type: Type, literal: boolean): ArrayContribution | undefined => {
+    const source = queries.types.literalBaseType(type);
+    return source === undefined ? undefined : { source, carrier,
+      literal: literal ? host.literalValues.literalValue.get(expression) : undefined,
+      literalDefault: resolveTypeWithState(source, queries.sourceFile, nextState(state)) };
+  };
+  const selected = sourceElements.map((entry): readonly ArrayContribution[] | undefined => {
+    if (entry === undefined) return undefined;
+    if (!host.ast.is.IsSpreadElement(entry)) {
+      const carrier = resolveNodeWithState(entry, queries.sourceFile, nextState(state));
+      const type = queries.types.expressionType(entry);
+      const member = carrier === undefined || type === undefined ? undefined : contribution(entry, carrier, type, true);
+      return member === undefined ? undefined : [member];
+    }
+    const operand = host.ast.as.AsSpreadElement(entry)?.Expression;
+    const choice = operand === undefined ? undefined : sourceSequenceInputChoice(host.ast, operand);
+    if (choice === undefined) return undefined;
+    const members: ArrayContribution[] = [];
+    for (const expression of choice.inputs) {
+      if (sourceSequenceInputIsEmpty(host.ast, expression)) continue;
+      const carrier = resolveNodeWithState(expression, queries.sourceFile, nextState(state));
+      const checked = queries.types.expressionType(expression);
+      if (carrier === undefined || checked === undefined) return undefined;
+      const present = getCsharpGenericOptionalParts(carrier)?.element ?? getCsharpNullableElementTargetType(carrier) ?? carrier;
+      const parts = queries.types.isUnion(checked) ? queries.types.unionOrIntersectionTypes(checked).filter(type => !queries.types.isNullish(type)) : [checked];
+      if (parts.length !== 1) return undefined;
+      const types = queries.types.isTuple(parts[0]!) ? queries.types.tupleElementTypes(parts[0]!) : queries.types.typeArguments(parts[0]!).slice(0, 1);
+      const element = getCsharpCollectionElementTargetType(present);
+      const carriers = present.kind === "tuple" ? present.elements : element === undefined ? [] : [element];
+      if (types.length === 0 || types.length !== carriers.length) return undefined;
+      for (const [index, carrier] of carriers.entries()) {
+        const member = contribution(expression, carrier, types[index]!, false);
+        if (member === undefined) return undefined;
+        members.push(member);
+      }
+    }
+    return members;
+  });
+  if (selected.some(group => group === undefined)) return unavailable;
+  const contributions = selected.flatMap(group => group ?? []);
+  const elements = contributions.map(member => member.carrier);
+  const destination = selectArrayElementDestination(scope, node, queries, state, contributions.length === 0);
   if (destination.kind === "rejected") return destination;
   if (elements.length === 0) {
     const carrier = destination.kind === "resolved" ? selectedCsharpSourceProfileOwner(host.target) === "js"
       ? csharpJsArrayTargetType(destination.carrier) : { kind: "array" as const, element: destination.carrier }
       : sourceCarrier;
-    return carrier === undefined ? unavailable : resolved(carrier);
+    return carrier === undefined ? unavailable : resolved(carrier, []);
   }
-  const members = sourceElements.map((entry, index) => {
-    if (entry === undefined) return undefined;
-    const spread = host.ast.is.IsSpreadElement(entry);
-    const operand = spread ? host.ast.as.AsSpreadElement(entry)?.Expression : entry;
-    const type = operand === undefined ? undefined : queries.types.expressionType(operand);
-    const selectedType = type === undefined ? undefined : spread ? queries.types.typeArguments(type)[0] : type;
-    const source = selectedType === undefined ? undefined : queries.types.literalBaseType(selectedType);
-    const carrier = elements[index];
-    return source === undefined || carrier === undefined ? undefined : { source, carrier,
-      literal: spread ? undefined : host.literalValues.literalValue.get(entry),
-      literalDefault: resolveTypeWithState(source, queries.sourceFile, nextState(state)) };
-  });
-  if (members.some(member => member === undefined)) return unavailable;
-  const contributions = members.filter(member => member !== undefined);
   const numeric = selectCsharpInferredNumericArrayElement(contributions, sourceElement,
     destination.kind === "resolved" ? destination.carrier : undefined);
   if (numeric.kind === "rejected") return numeric;
@@ -81,8 +106,14 @@ export function resolveCsharpArrayLiteralSelection(
   const retained = sourceUnions.retain(element, contributions.map((member, index) =>
     ({ source: member.source, carrier: contributionCarriers[index]! })), queries, state);
   if (retained === undefined) return unavailable;
+  let offset = 0;
+  const elementCarriers = selected.map(group => {
+    const physical = group?.length === 1 ? contributionCarriers[offset] : retained;
+    offset += group?.length ?? 0;
+    return physical ?? retained;
+  });
   return resolved(selectedCsharpSourceProfileOwner(host.target) === "js"
-    ? csharpJsArrayTargetType(retained) : { kind: "array", element: retained }, [...contributionCarriers]);
+    ? csharpJsArrayTargetType(retained) : { kind: "array", element: retained }, elementCarriers);
 }
 
 function selectArrayElementDestination(

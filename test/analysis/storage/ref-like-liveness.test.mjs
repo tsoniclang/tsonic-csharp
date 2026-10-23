@@ -29,7 +29,7 @@ test("missing owned binding evidence refuses instead of silently skipping livene
   assert.equal(issues[0].code, "CSHARP_REFLIKE_LIVENESS_NOT_PROVEN", "missing graph evidence never grants permission");
 });
 
-test("a bounded lexical-owner query cannot silently admit unproven ref-like lifetimes", () => {
+test("a deeply nested completed native lifetime is admitted before a later await", { timeout: 240_000 }, () => {
   const compiled = compileCsharpSource({ sourceText: `${header}
 export async function fail(values: int32[], pending: Promise<int32>): Promise<int32> {
   let size: int32 = 0;
@@ -37,9 +37,24 @@ export async function fail(values: int32[], pending: Promise<int32>): Promise<in
   return size + await pending;
 }` });
   assert.equal(compiled.sourceDiagnosticsText, "", "the deeply nested binding remains checked source");
-  assert.equal(compiled.result.diagnostics.some(issue => issue.code === "CSHARP_REFLIKE_LIVENESS_NOT_PROVEN"), true,
+  assert.equal(compiled.result.diagnostics.length, 0,
     JSON.stringify(compiled.result.diagnostics.map(({ code, message }) => ({ code, message }))));
-  assert.equal(compiled.result.program === undefined, true, "a missing bounded owner proof is never permission");
+  assert.equal(compiled.result.program !== undefined, true, "the completed flow graph, not an obsolete lexical-depth cap, proves the lifetime");
+  executeCsharpConstruction(compiled, "deep-native-ref-like-before-await", true, false, [],
+    "if (await Tsonic.Generated.Index.fail(new int[] { 7, 9 }, System.Threading.Tasks.Task.FromResult(3)) != 5) throw new System.Exception(\"deep completed native lifetime\");");
+});
+
+test("a deeply nested native value still cannot remain live across await", () => {
+  const compiled = compileCsharpSource({ sourceText: `${header}
+export async function fail(values: int32[], pending: Promise<int32>): Promise<int32> {
+  ${"{".repeat(130)} const view = new Span<int32>(values);
+  const extra = await pending; return view.Length + extra; ${"}".repeat(130)}
+}` });
+  assert.equal(compiled.sourceDiagnosticsText, "", "the deeply nested live value is checked source");
+  assert.equal(compiled.result.diagnostics.some(issue => issue.code === "CSHARP_REFLIKE_ACROSS_SUSPENSION"), true,
+    JSON.stringify(compiled.result.diagnostics.map(({ code, message }) => ({ code, message }))));
+  assert.equal(compiled.result.program === undefined, true, "actual native suspension safety remains mandatory at every depth");
+  assert.equal(compiled.result.artifacts.length, 0, "the unsafe native program is never emitted");
 });
 
 for (const [name, expression, local] of [
