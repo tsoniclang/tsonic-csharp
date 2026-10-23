@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { getCsharpMethodValue } from "../../../dist/target-model/types/method-values.js";
+import { getCsharpLambdaSignature } from "../../../dist/target-model/types/carriers/delegates.js";
+import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 
 const cases = [
   ["authored field signature", `
@@ -44,6 +47,14 @@ for (const surface of ["native", "js"]) {
         assert.equal(contract?.kind === "source", true, "the actual source generic declaration owns its contract");
         assert.equal(contract.nativeSignature.methodTypeParameterIdentities.length > 0, true,
           "the authored quantified native signature is not erased into its contextual alias");
+        const closure = program.records.captureClosure.get(node);
+        const physical = getCsharpMethodValue(closure?.method.type);
+        assert.equal(physical !== undefined, true, "the generic frame consumes the already-admitted body invocation protocol");
+        assert.equal(physical.typeParameters.length === contract.nativeSignature.methodTypeParameterIdentities.length &&
+          physical.typeParameters.every((identity, index) => identity === contract.nativeSignature.methodTypeParameterIdentities[index]), true,
+        "the frame retains the full authored and native-projection vector, not its contextual alias's quantifiers");
+        assert.equal(targetTypeRefEquals(getCsharpLambdaSignature(closure.method.type)?.returnType, contract.returnType), true,
+          "the frame and body declaration publish one actual native return ABI");
         for (const parameter of contract.nativeParameters) {
           if (parameter.targetParameter.type.kind !== "type-parameter") continue;
           assert.equal(contract.nativeSignature.methodTypeParameterIdentities.includes(parameter.targetParameter.type.identity), true,

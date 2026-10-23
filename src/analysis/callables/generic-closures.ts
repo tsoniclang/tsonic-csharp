@@ -8,6 +8,7 @@ import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import type { CsharpFrameClosure } from "../../target-model/records/capture-storage.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
+import type { CsharpExpectedTypeClassifications } from "../../target-model/records/expected-types.js";
 
 const maximumGenericClosureCaptures = 131_072;
 
@@ -17,6 +18,7 @@ export function selectCsharpGenericFrameClosures(
   physicalType: (declaration: Node, type: TargetTypeRef) => TargetTypeRef,
   issues: CsharpStorageIssue[],
   creationDemand: Pick<ReadonlyMap<Node, boolean>, "get">,
+  expectedTypes: Pick<CsharpExpectedTypeClassifications, "callableTarget">,
 ): readonly CsharpFrameClosure[] {
   const selected: CsharpFrameClosure[] = [];
   let capturesCount = 0;
@@ -30,9 +32,9 @@ export function selectCsharpGenericFrameClosures(
       if (discarded) return;
     }
     if ((source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) && source.ast.typeParameters(node).length > 0) {
-      const type = evidence.nodeTargetType.get(node);
+      const type = expectedTypes.callableTarget.get(node);
       const method = getCsharpMethodValue(type);
-      if (type === undefined || method === undefined || method.typeParameters.length !== source.ast.typeParameters(node).length) {
+      if (type === undefined || method === undefined || method.typeParameters.length === 0) {
         issues.push({ node, code: "CSHARP_GENERIC_CALLABLE_CONTRACT_NOT_CLOSED",
           message: "A generic callable value requires its exact quantified native invocation contract." });
       } else {

@@ -55,6 +55,7 @@ export function selectRuntimeUnionConversion(
     return selectCsharpRuntimeUnionProjection(input, source, target);
   }
   const sourceArms = getCsharpRuntimeUnionArms(source, input.typeDefinitions);
+  const targetArms = getCsharpRuntimeUnionArms(target, input.typeDefinitions);
   const completeInjection = selectCsharpUnionInjection(source, target, input.typeDefinitions, mode, () => undefined);
   if (completeInjection !== undefined) return completeInjection;
   const widening = selectCsharpUnionArmMapping(source, target, "source", input.typeDefinitions,
@@ -62,6 +63,9 @@ export function selectRuntimeUnionConversion(
   if (widening !== undefined) return { kind: "union-map", coverage: "source", arms: widening };
   const narrowing = mode === "explicit" ? selectCsharpUnionArmMapping(source, target, "target", input.typeDefinitions) : undefined;
   if (narrowing !== undefined) return { kind: "union-map", coverage: "target", arms: narrowing };
+  if (sourceArms !== undefined && targetArms !== undefined) return {
+    kind: "rejected", reason: "C# runtime-union conversion requires unambiguous exact or native-reference payload correspondence.",
+  };
   const referenceTarget = getCsharpNullableElementTargetType(target) ?? target;
   if (sourceArms !== undefined && referenceTarget.kind === "target-named" &&
     !isCsharpValueTypeTargetType(referenceTarget) && sourceArms.every(arm =>
@@ -75,7 +79,6 @@ export function selectRuntimeUnionConversion(
   if (sourceArms !== undefined && mode === "explicit") {
     return selectCsharpRuntimeUnionProjection(input, source, target);
   }
-  const targetArms = getCsharpRuntimeUnionArms(target, input.typeDefinitions);
   if (targetArms === undefined) {
     return undefined;
   }

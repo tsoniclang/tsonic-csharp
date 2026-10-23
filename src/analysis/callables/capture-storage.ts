@@ -107,7 +107,7 @@ export function analyzeCsharpCaptureStorage(
   };
   source.navigation.sourceFiles.forEach(collectCreationDemand);
   const creationDemand = Object.freeze({ get: (declaration: Node) => creationDemandValues.get(declaration) });
-  const genericClosures = selectCsharpGenericFrameClosures(source, evidence, groups, physicalType, issues, creationDemand);
+  const genericClosures = selectCsharpGenericFrameClosures(source, evidence, groups, physicalType, issues, creationDemand, expectedTypes);
   const genericDeclarations = new Set(genericClosures.map(closure => closure.declaration));
   const frameClosures = selectCsharpFrameClosures(source, evidence, groups, physicalType, issues, genericDeclarations,
     { declarations, storage, expectedTypes }, creationDemand);
