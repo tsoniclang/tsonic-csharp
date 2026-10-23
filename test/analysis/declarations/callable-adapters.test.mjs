@@ -140,14 +140,14 @@ function classForwarder(control) {
   for (const file of csharpProgramSourceFiles(program)) visit(file);
   const declaration = nodes.find(node => ast.is.IsMethodDeclaration(node));
   const original = program.records.callableDispatch.get(declaration)?.implementation;
-  assert.equal(original?.parameters.length, control.modes.length, `${control.name}: actual checked native method contract`);
+  assert.equal(original?.nativeParameters.length, control.modes.length, `${control.name}: actual checked native method contract`);
   const integer = csharpSourcePrimitiveTargetType("int32");
   const widened = csharpSourcePrimitiveTargetType("int64");
-  const implementation = Object.freeze({ ...original, parameters: Object.freeze(original.parameters.map((parameter, index) =>
+  const implementation = Object.freeze({ ...original, nativeParameters: Object.freeze(original.nativeParameters.map((parameter, index) =>
     Object.freeze({ ...parameter, targetParameter: Object.freeze({ ...parameter.targetParameter, passingMode: control.modes[index] }) }))) });
   const contract = Object.freeze({ ...implementation, returnType: widened });
-  const parameters = admitCsharpCallableParameterAdapters(host, contract.parameters.map(parameter => parameter.targetParameter),
-    implementation.parameters.map(parameter => parameter.targetParameter));
+  const parameters = admitCsharpCallableParameterAdapters(host, contract.nativeParameters.map(parameter => parameter.targetParameter),
+    implementation.nativeParameters.map(parameter => parameter.targetParameter));
   const result = admitCsharpCallableValueAdapter(host, integer, widened);
   assert.equal(parameters?.every(adapter => adapter.kind === "value" && adapter.adapter.conversion.kind === "identity"), true,
     `${control.name}: the canonical owner admits native locations without copies`);
@@ -160,9 +160,9 @@ function classForwarder(control) {
   const member = Object.freeze({ sourceName: "read", targetName: "read", memberKind: "method",
     type: Object.freeze({ ...signature, csharpDelegateSignature: Object.freeze({ ...signature.csharpDelegateSignature,
       parameterPassingModes: Object.freeze([...control.modes]) }) }) });
-  const forwarding = Object.freeze({ contract: Object.freeze({ parameters: contract.parameters, returnType: contract.returnType }),
+  const forwarding = Object.freeze({ contract: Object.freeze({ nativeParameters: contract.nativeParameters, returnType: contract.returnType }),
     implementation, typeArguments: Object.freeze([]), typeParameters: Object.freeze([]), parameters, result,
-    parameterDefaults: Object.freeze(implementation.parameters.map(() => undefined)) });
+    parameterDefaults: Object.freeze(implementation.nativeParameters.map(() => undefined)) });
   const interfaceImplementation = Object.freeze({ sourceNode: declaration, sourceType, interfaceType, properties: Object.freeze([]),
     methods: Object.freeze([Object.freeze({ sourceName: "read", declaration, member, forwarding, typeParameterNames: Object.freeze([]) })]) });
   // The planner reads structural forwarding from the sealed structuralInterface record.
@@ -394,9 +394,9 @@ test("method admission owns exact return, parameter, adapter and logical-return 
     { label: "physical return", dispatch: { ...dispatch, implementation: { ...dispatch.implementation, returnType: opaque } },
       node: method, code: "CSHARP_UNSUPPORTED_AST", message: "A method's sealed native return contract is not renderable." },
     { label: "physical parameter", dispatch: { ...dispatch, implementation: { ...dispatch.implementation,
-      parameters: [{ ...dispatch.implementation.parameters[0], targetParameter: {
-        ...dispatch.implementation.parameters[0].targetParameter, type: opaque } }] } },
-      node: dispatch.implementation.parameters[0].sourceParameter, code: "CSHARP_OPAQUE_TARGET_TYPE_UNSUPPORTED",
+      nativeParameters: [{ ...dispatch.implementation.nativeParameters[0], targetParameter: {
+        ...dispatch.implementation.nativeParameters[0].targetParameter, type: opaque } }] } },
+      node: dispatch.implementation.nativeParameters[0].sourceParameter, code: "CSHARP_OPAQUE_TARGET_TYPE_UNSUPPORTED",
       message: "Opaque target type 'missing' has no renderable C# source representation." },
     { label: "raw adapter", dispatch: { ...dispatch, adapters: [{ contract: { ...dispatch.implementation, returnType: opaque } }] },
       node: method, code: "CSHARP_UNSUPPORTED_AST", message: "A sealed callable adapter has an unrenderable native signature." },

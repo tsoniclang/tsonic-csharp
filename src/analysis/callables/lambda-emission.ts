@@ -1,8 +1,9 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import { HasSyntacticModifier, ModifierFlagsAsync, forEachSourceImmediateEvaluationChild, sourceCallableValueParameters } from "@tsonic/target-api/source";
+import { HasSyntacticModifier, ModifierFlagsAsync, forEachSourceImmediateEvaluationChild } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpLambdaBodyEmission } from "../../target-model/records/lambda-emission.js";
+import type { CsharpCallableDeclarationRecords } from "../../target-model/records/callable-emission.js";
 import type { CsharpCaptureStorage } from "../../target-model/records/capture-storage.js";
 import type { CsharpCallableCreationIndex } from "../../target-model/records/callable-values.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
@@ -17,6 +18,7 @@ import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/
 import { createCsharpLambdaEmissionRecords } from "../program/records/lambda-emission.js";
 
 export function analyzeCsharpLambdaEmission(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];
+  readonly declarations: CsharpCallableDeclarationRecords;
   readonly captures: CsharpCaptureStorage; readonly creations: CsharpCallableCreationIndex; readonly storage: CsharpStorageClassifications;
   readonly expected: CsharpExpectedTypeClassifications; readonly values: CsharpValueReadClassifications; readonly types: CsharpTypeEmissionRecords;
   readonly arguments: CsharpTargetArgumentRecords; readonly constants: CsharpNativeConstantRecords; readonly demand: CsharpNativeDemandAnalysis;
@@ -33,7 +35,7 @@ export function analyzeCsharpLambdaEmission(input: { readonly source: TargetSour
     const signature = carrier === undefined ? undefined : input.types.typeEmission.get(carrier)?.lambda;
     if (signature === undefined) { refuse(node, "Lambda emission requires a contextual function/delegate type from TSTS or provider facts before C# emission."); continue; }
     const declaration = ast.as.AsArrowFunction(node) ?? ast.as.AsFunctionExpression(node);
-    const parameters = sourceCallableValueParameters(ast, node, input.source.semantics.forNode(node));
+    const parameters = input.declarations.callableDeclaration.get(node)?.parameters;
     if (parameters === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted lambda requires its checked source value parameters.", node);
     if (parameters.length > signature.parameters.length) {
       refuse(parameters[signature.parameters.length] ?? node, "The source lambda declares more parameters than its exact selected C# delegate representation."); continue;

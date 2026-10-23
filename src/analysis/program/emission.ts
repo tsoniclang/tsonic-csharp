@@ -390,7 +390,7 @@ export function finalizeCsharpNativeEmission(
     elements: elementAdmission.records, admitted: admittedControlNode });
   if (argumentPassing.issues.length !== 0) return rejectedTargetStage(argumentPassing.issues);
   const lambdaEmission = analyzeCsharpLambdaEmission({ source, nodes: sourceStorage.nodes, captures: captureStorage,
-    creations: callableCreations, storage: analysis.storage, expected: analysis.expectedTypes, values: analysis.valueReads,
+    declarations: callableDeclarations.records, creations: callableCreations, storage: analysis.storage, expected: analysis.expectedTypes, values: analysis.valueReads,
     types: typeEmission.records, arguments: targetArguments.records, constants: nativeConstants, demand: nativeDemand, admitted: admittedControlNode });
   if (lambdaEmission.issues.length !== 0) return rejectedTargetStage(lambdaEmission.issues);
   const locationRetentionIssues = admitCsharpLocationRetention({ source, nodes: sourceStorage.nodes, operations: admittedOperations,

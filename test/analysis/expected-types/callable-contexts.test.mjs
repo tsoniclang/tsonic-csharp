@@ -155,7 +155,7 @@ test("existing broad-input closure is preserved independently of invocation-only
   assert.equal(selected.context?.inputTypes[0] === scalar, true, "exact existing inferred input");
   assert.equal(selected.context.invocationType === undefined, true, "no invented provider effect");
   assert.equal(selected.type?.csharpDelegateSignature.parameters.length, 1, "existing intrinsic closed ABI");
-  assert.equal(selected.contract.parameters[0].targetParameter.type === scalar, true);
+  assert.equal(selected.contract.nativeParameters[0].targetParameter.type === scalar, true);
   assert.equal(selected.aliasTypes.every(type => type === undefined), true, "old broad inference does not force alias storage");
 });
 
