@@ -118,17 +118,18 @@ for (const surface of ["native", "js"]) {
     const compiled = compileCsharpSource({ surface, sourceText: `
       import type { int32 } from "@tsonic/core/types.js";
       let calls = 0;
+      function callCount(): number { return calls; }
       function second(): int32[] | undefined { calls += 1; return [7, 9]; }
       function fallback(): int32[] { calls += 100; return [11]; }
       function snapshot(first: int32[] | undefined): int32[] { return [...(first ?? second() ?? fallback())]; }
       export function run(): boolean {
         const supplied: int32[] = [3];
         const present = snapshot(supplied);
-        if (calls !== 0 || present.${length} !== 1 || present[0] !== 3) return false;
+        if (callCount() !== 0 || present.${length} !== 1 || present[0] !== 3) return false;
         present[0] = 5;
         if (supplied[0] !== 3) return false;
         const missing = snapshot(undefined);
-        return calls === 1 && missing.${length} === 2 && missing[0] === 7 && missing[1] === 9;
+        return callCount() === 1 && missing.${length} === 2 && missing[0] === 7 && missing[1] === 9;
       }
     ` });
     assertCsharpCompilationSucceeded(compiled);

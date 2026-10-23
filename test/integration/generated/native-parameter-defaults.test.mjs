@@ -64,6 +64,7 @@ for (const surface of ["native", "js"]) {
     const compiled = compileCsharpSource({ surface, sourceText: `
       import type { int32 } from "@tsonic/core/types.js";
       let calls: int32 = 0;
+      function callCount(): int32 { return calls; }
       function next(): int32 { calls += 1; return 7; }
       function choose<Value>(fallback: Value, actual: Value = fallback): Value { return actual; }
       function deferred<Value>(fallback: () => Value, actual: Value = fallback()): Value { return actual; }
@@ -72,9 +73,9 @@ for (const surface of ["native", "js"]) {
         return choose<int32>(5) === 5 && choose<int32>(5, 9) === 9 &&
           choose<int32>(5, undefined) === 5 && choose<string>("first", undefined) === "first" &&
           choose<string>("first", "second") === "second" &&
-          deferred<int32>(next, 11) === 11 && calls === 0 &&
-          deferred<int32>(next) === 7 && calls === 1 &&
-          deferred<int32>(next, undefined) === 7 && calls === 2;
+          deferred<int32>(next, 11) === 11 && callCount() === 0 &&
+          deferred<int32>(next) === 7 && callCount() === 1 &&
+          deferred<int32>(next, undefined) === 7 && callCount() === 2;
       }
     ` });
     assertCsharpCompilationSucceeded(compiled);
