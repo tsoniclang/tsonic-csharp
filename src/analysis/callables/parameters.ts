@@ -1,5 +1,6 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { SourceLiteralIndex } from "@tsonic/target-api/source";
+import { sourceCallableValueParameters, type TargetSourceProgram } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
 import type { CsharpValueReadClassifications, CsharpConversionClassifications } from "../../target-model/records/conversions.js";
@@ -15,6 +16,7 @@ import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emi
 
 export function analyzeCsharpCallableParameterEmission(input: {
   readonly ast: AstReader;
+  readonly source: TargetSourceProgram;
   readonly nodes: readonly Node[];
   readonly declarations: CsharpDeclarationClassifications;
   readonly values: CsharpValueReadClassifications;
@@ -34,11 +36,17 @@ export function analyzeCsharpCallableParameterEmission(input: {
   };
   for (const owner of owners) {
     if (owner === undefined || !input.admitted(owner)) continue;
+    const parameters = sourceCallableValueParameters(input.ast, owner, input.source.semantics.forNode(owner));
+    if (parameters === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted callable requires its checked source value parameters.", owner);
     let hasDefault = false;
     for (const node of input.ast.parameters(owner)) {
       if (node === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted callable requires its dense checked parameter list.", owner);
       const parameter = input.ast.as.AsParameterDeclaration(node);
       if (parameter?.name === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted callable parameter requires its exact checked binding.", node);
+      if (!parameters.includes(node)) {
+        values.set(node, Object.freeze({ kind: "receiver" }));
+        continue;
+      }
       // Captured local functions are also planned as lambdas without a native incoming delegate parameter type, so they
       // select identity or default entries; arrow and function expressions and object-literal methods (against their
       // member delegate) carry one.
@@ -90,7 +98,7 @@ export function analyzeCsharpCallableParameterEmission(input: {
           if (binding === "pattern") refuse(parameter.name, "Destructured parameter defaults require target object-shape lowering before C# emission.");
         } else if (hasDefault && !rest) refuse(node, "Required parameters cannot follow C# optional parameters.");
       }
-      values.set(node, Object.freeze({ carrier, binding, rest, default: defaultValue }));
+      values.set(node, Object.freeze({ kind: "parameter", carrier, binding, rest, default: defaultValue }));
       requireCsharpRecord(input.required, { family: "callableParameter", subject: node, construct: "native callable parameter", producer: "analyzeCsharpCallableParameterEmission" });
     }
   }

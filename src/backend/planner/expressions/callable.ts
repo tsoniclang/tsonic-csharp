@@ -25,6 +25,7 @@ import {
   createNestedPlannerState,
   declareCsharpLocalBindingName,
   allocateSyntheticParameter,
+  plannedCsharpValueParameterNodes,
 } from "../bindings/index.js";
 import type {
   DestructuringPlannerState,
@@ -115,7 +116,7 @@ export function planCsharpArrowLambdaSyntax(
     return undefined;
   }
   const scopedInput = input;
-  const parameterNodes = expression.Parameters?.Nodes ?? [];
+  const parameterNodes = plannedCsharpValueParameterNodes(expression.Parameters?.Nodes ?? [], input);
   const plannerState = state === undefined
     ? createDestructuringPlannerState(node, input.program.source.ast)
     : createNestedPlannerState(state, node, input.program.source.ast);
@@ -219,7 +220,7 @@ export function planFunctionExpression(
   if (self !== undefined && captureContext === undefined) return undefined;
   const plannerState = state === undefined ? creationState : createNestedPlannerState(state, node, input.program.source.ast);
   const scopedInput = captureContext?.context ?? input;
-  const parameterNodes = expression.Parameters?.Nodes ?? [];
+  const parameterNodes = plannedCsharpValueParameterNodes(expression.Parameters?.Nodes ?? [], input);
   const methodName = self === undefined ? undefined : input.names.temporaryName(`__tsonic_self_${input.program.source.ast.pos(node)}`);
   const valueName = self === undefined || self.values.length === 0 ? undefined : input.names.temporaryName(`${methodName}Value`);
   if (self !== undefined) {
@@ -291,7 +292,7 @@ export function planCsharpCapturedFunctionLambdaSyntax(
   const generator = hasCsharpGeneratorPlan(node, input);
   const returnContext = generator ? undefined : getLambdaReturnContext(node, targetContext, input);
   if (!generator && isAsyncExpression(input.program.source.ast, node) && returnContext === undefined) return undefined;
-  const parameterNodes = expression.Parameters?.Nodes ?? [];
+  const parameterNodes = plannedCsharpValueParameterNodes(expression.Parameters?.Nodes ?? [], input);
   const scoped = input;
   const state = parentState ?? createDestructuringPlannerState(node, input.program.source.ast);
   const parameterPlan = planLambdaParameterStorage(parameterNodes,

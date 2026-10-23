@@ -267,7 +267,7 @@ export function finalizeCsharpNativeEmission(
   const lexicalValues = analyzeCsharpLexicalValues({ nodes: sourceStorage.nodes, navigation: source.navigation,
     captures: captureStorage, values: analysis.valueReads, metadata: analysis.sourceEvidence });
   if (lexicalValues.issues.length !== 0) return rejectedTargetStage(lexicalValues.issues);
-  const callableParameters = analyzeCsharpCallableParameterEmission({ ast: source.ast, nodes: sourceStorage.nodes,
+  const callableParameters = analyzeCsharpCallableParameterEmission({ ast: source.ast, source, nodes: sourceStorage.nodes,
     declarations: analysis.declarations, values: analysis.valueReads, storage: analysis.storage, conversions, literals: literalValues,
     exact: exactLiterals, admitted: admittedControlNode, required: analysis.requiredRecords });
   if (callableParameters.issues.length !== 0) return rejectedTargetStage(callableParameters.issues);

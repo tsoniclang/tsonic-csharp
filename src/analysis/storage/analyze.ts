@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import { IsTypeSyntaxNode } from "@tsonic/target-api/source";
+import { IsTypeSyntaxNode, sourceCallableValueParameters } from "@tsonic/target-api/source";
 
 import { conversionIsImplicitlyApplicable } from "../../policy/conversions/core.js";
 import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
@@ -173,9 +173,8 @@ export function analyzeCsharpStorage(
       !policy.ast.is.IsMethodDeclaration(node) && !policy.ast.is.IsConstructorDeclaration(node)) {
       return;
     }
-    const parameters = policy.ast.parameters(node).filter(
-      (parameter): parameter is Node => parameter !== undefined,
-    );
+    const parameters = sourceCallableValueParameters(policy.ast, node, policy.semanticsFor(node));
+    if (parameters === undefined) return;
     const callableTarget = contextual ? expectedTypes.callableTarget.get(node) : undefined;
     const selectedSignature = callableTarget === undefined
       ? undefined
@@ -251,9 +250,8 @@ export function analyzeCsharpStorage(
     if (owner === undefined || !policy.ast.is.IsObjectLiteralExpression(owner)) {
       return;
     }
-    const parameter = policy.ast.parameters(node).filter(
-      (candidate): candidate is Node => candidate !== undefined,
-    );
+    const parameter = sourceCallableValueParameters(policy.ast, node, policy.semanticsFor(node));
+    if (parameter === undefined) return;
     if (parameter.length !== 1) {
       return;
     }

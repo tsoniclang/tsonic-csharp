@@ -11,12 +11,13 @@ export type CsharpParameterDefaultEmission =
   | { readonly kind: "none" | "null" | "default" }
   | { readonly kind: "literal"; readonly expression: Node };
 
-export interface CsharpCallableParameterEmission {
+export type CsharpCallableParameterEmission = { readonly kind: "receiver" } | {
+  readonly kind: "parameter";
   readonly carrier: TargetTypeRef;
   readonly binding: "identifier" | "pattern";
   readonly rest: boolean;
   readonly default: CsharpParameterDefaultEmission;
-}
+};
 
 export interface CsharpCallableParameterRecords {
   readonly callableParameter: { readonly get: (subject: Node) => CsharpCallableParameterEmission | undefined };

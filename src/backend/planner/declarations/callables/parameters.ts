@@ -3,7 +3,7 @@ import { AsParameterDeclaration } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression, CsharpParameter, CsharpStatement, CsharpTypeNode } from "../../../target-ast/syntax/index.js";
-import { allocateSyntheticParameter, createDestructuringPlannerState, declareCsharpLocalBindingName, planParameterBindingPrelude } from "../../bindings/index.js";
+import { allocateSyntheticParameter, createDestructuringPlannerState, declareCsharpLocalBindingName, planParameterBindingPrelude, plannedCsharpValueParameterNodes } from "../../bindings/index.js";
 import { planAttributesForSubject } from "../attributes.js";
 import type { DestructuringPlannerState } from "../../bindings/index.js";
 import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../../types/target-type-object-shapes.js";
@@ -39,11 +39,10 @@ export function planParametersWithPrelude(parameterNodes: readonly (Node | undef
     if (capture !== undefined) prelude.push(capture);
     if (capture === undefined && input.program.records.nativeBacking.get(node) === undefined) retainBinding({ name, type });
   };
-  for (const node of parameterNodes) {
-    if (node === undefined) failCsharpPlannerInvariant("An admitted callable requires its dense checked parameter list.");
+  for (const node of plannedCsharpValueParameterNodes(parameterNodes, input)) {
     const parameter = AsParameterDeclaration(input.program.source.ast, node);
     const emission = input.program.records.callableParameter.get(node);
-    if (parameter?.name === undefined || emission === undefined) failCsharpPlannerInvariant("An admitted callable parameter requires its checked binding and sealed emission record.", node);
+    if (parameter?.name === undefined || emission?.kind !== "parameter") failCsharpPlannerInvariant("An admitted callable parameter requires its checked binding and sealed emission record.", node);
     const type = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, emission.carrier, diagnostics, node);
     if (type === undefined) failCsharpPlannerInvariant("An admitted callable parameter requires its native storage type.", node);
     const runtime = input.program.records.runtimeDefault.get(node);

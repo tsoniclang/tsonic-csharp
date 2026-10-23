@@ -1,4 +1,4 @@
-import { sourceClosedCallableArguments } from "@tsonic/target-api/source";
+import { sourceClosedCallableArguments, sourceCallableValueParameters } from "@tsonic/target-api/source";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
@@ -20,9 +20,9 @@ export function selectCsharpClosedCallableContext(
   operations: CsharpTargetOperationClassifications,
   expression: Node,
 ): CsharpClosedCallableContext | undefined {
-  const parameters = policy.ast.parameters(expression);
-  if (parameters.some(parameter => parameter === undefined)) return undefined;
-  const broad = (parameters as readonly Node[]).map(parameter => {
+  const parameters = sourceCallableValueParameters(policy.ast, expression, source.semantics.forNode(expression));
+  if (parameters === undefined) return undefined;
+  const broad = parameters.map(parameter => {
     const syntax = policy.ast.typeNode(parameter);
     const types = policy.semanticsFor(parameter).types;
     const type = syntax === undefined ? types.expressionType(parameter) : types.authoredType(syntax);

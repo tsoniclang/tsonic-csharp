@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import { HasSyntacticModifier, ModifierFlagsAsync, forEachSourceImmediateEvaluationChild } from "@tsonic/target-api/source";
+import { HasSyntacticModifier, ModifierFlagsAsync, forEachSourceImmediateEvaluationChild, sourceCallableValueParameters } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpLambdaBodyEmission } from "../../target-model/records/lambda-emission.js";
 import type { CsharpCaptureStorage } from "../../target-model/records/capture-storage.js";
@@ -33,7 +33,8 @@ export function analyzeCsharpLambdaEmission(input: { readonly source: TargetSour
     const signature = carrier === undefined ? undefined : input.types.typeEmission.get(carrier)?.lambda;
     if (signature === undefined) { refuse(node, "Lambda emission requires a contextual function/delegate type from TSTS or provider facts before C# emission."); continue; }
     const declaration = ast.as.AsArrowFunction(node) ?? ast.as.AsFunctionExpression(node);
-    const parameters = ast.parameters(node);
+    const parameters = sourceCallableValueParameters(ast, node, input.source.semantics.forNode(node));
+    if (parameters === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted lambda requires its checked source value parameters.", node);
     if (parameters.length > signature.parameters.length) {
       refuse(parameters[signature.parameters.length] ?? node, "The source lambda declares more parameters than its exact selected C# delegate representation."); continue;
     }

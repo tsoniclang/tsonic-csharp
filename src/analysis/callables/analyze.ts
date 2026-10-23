@@ -1,5 +1,5 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
-import { AsParameterDeclaration, HasSourceKind, KindIdentifier } from "@tsonic/target-api/source";
+import { AsParameterDeclaration, HasSourceKind, KindIdentifier, sourceCallableValueParameters } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { csharpNullableTargetType, getCsharpCallableValueSignature, isCsharpSourceCallableArtifactDeclaration, targetTypeRefEquals } from "../../policy/types/index.js";
 import type { CsharpProjectForwardingConstructor } from "../../target-model/records/project-types.js";
@@ -154,9 +154,9 @@ function sourceCallableContract(
   }
   const parameters: CsharpSourceCallableParameterContract[] = [];
   const checked = policy.semantics(sourceFile).types.declarationSignatureInfo(declaration);
-  if (checked === undefined) return undefined;
-  for (const [index, parameterNode] of
-    policy.ast.parameters(declaration).entries()) {
+  const valueParameters = sourceCallableValueParameters(policy.ast, declaration, policy.semantics(sourceFile));
+  if (checked === undefined || valueParameters === undefined) return undefined;
+  for (const [index, parameterNode] of valueParameters.entries()) {
     const parameter = sourceParameterContract(
       policy,
       evidence,

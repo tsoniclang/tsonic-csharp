@@ -57,8 +57,8 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
 
     function matches(candidate: TargetTypeRef): boolean {
       const signature = getCsharpLambdaSignature(candidate);
-      const parameters = input.ast.parameters(node);
-      if (contract === undefined || signature === undefined || signature.parameterPassingModes.length !== signature.parameters.length ||
+      const parameters = contract?.parameters.map(parameter => parameter.sourceParameter);
+      if (contract === undefined || parameters === undefined || signature === undefined || signature.parameterPassingModes.length !== signature.parameters.length ||
         parameters.length > signature.parameters.length ||
         signature.parameterPassingModes.slice(parameters.length).some(mode => mode !== "by-value") ||
         !parameters.every((parameter, index) => {
