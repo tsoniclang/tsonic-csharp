@@ -86,8 +86,10 @@ test("known absence requires both a closed missing member and checked optional p
   const ambiguous = selectCsharpBindingPatternProjection({ ...request, shape: shape([present, present]) });
   assert.equal(ambiguous.kind, "unresolved", "ambiguous physical members are never treated as absent");
   const { permitsAbsence, ...retired } = request;
-  assert.throws(() => selectCsharpBindingPatternProjection(retired), /requires its checked absence permission/u,
-    "the retired object-member request without a checked permission has no fallback form");
+  const rejected = selectCsharpBindingPatternProjection(retired);
+  assert.equal(rejected.kind, "unresolved", "the retired object-member request without a checked permission has no fallback form");
+  assert.equal(rejected.reasons.length, 1, "the missing checked permission has one precise refusal");
+  assert.equal(rejected.reasons[0], "An object binding requires its checked absence permission.");
 });
 
 test("the target policy owns missing source-owned rest and default correspondence without inventing a carrier", () => {

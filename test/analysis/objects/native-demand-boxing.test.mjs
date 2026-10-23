@@ -188,6 +188,40 @@ const originalPrograms = [
   ["same-role-uses", "export function pair(left: int32, right: int32) { const first = { left }; const second = { right }; return { first, second }; }"],
 ];
 
+for (const surface of ["native", "js"]) test(`${surface}: present native lambda inputs adapt without evaluating an absent-only default`, () => {
+  const compiled = compileCsharpSource({ surface, sourceText: header + `
+    let defaults: int32 = 0;
+    function fallback(): unknown { defaults += 1; return { count: 11 as int32 }; }
+    function invoke(callback: (value: { count: int32 }) => boolean): boolean {
+      return callback({ count: 7 as int32 });
+    }
+    function optional(value: unknown = fallback()): boolean { return typeof value === "object"; }
+    export function run(): boolean {
+      defaults = 0;
+      const selected = invoke((value: unknown = fallback()): boolean => typeof value === "object");
+      if (!selected || defaults !== 0) return false;
+      if (!optional() || defaults !== 1) return false;
+      return true;
+    }
+  ` });
+  assertCsharpCompilationSucceeded(compiled);
+  const program = compiled.result.program;
+  let entries = 0;
+  const visit = node => {
+    if (program.source.ast.is.IsArrowFunction(node)) {
+      const parameter = program.records.callableDeclaration.get(node).contract.parameters[0];
+      const entry = program.records.lambdaParameterEntry.get(parameter);
+      assert.equal(entry.kind, "conversion", "the admitted present native input retains its actual boxing adaptation");
+      assert.equal(entry.conversion.kind, "js-value-box", "the native parameter does not masquerade as body storage");
+      entries += 1;
+    }
+    program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  program.source.navigation.sourceFiles.forEach(visit);
+  assert.equal(entries, 1, "the witness observes the actual defaulted native lambda");
+  executeCsharpConstruction(compiled, `present-native-lambda-default-${surface}`);
+});
+
 function originalNativeProgram(name, selected) {
   if (name === "module-spread") return nativeCostProgram("return Index.copy().count;", "return new NativeCopy { count = 7 }.count;",
     "sealed class NativeCopy { public int count; }", "Index.__tsonic_module_init();");
