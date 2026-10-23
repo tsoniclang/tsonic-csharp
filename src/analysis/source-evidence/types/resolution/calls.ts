@@ -13,7 +13,7 @@ import { nextState } from "./state.js";
 
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 
-import { Node_Expression, Node_Type, ObjectLiteralProperty_Value } from "@tsonic/target-api/source";
+import { Node_Expression, Node_Type, ObjectLiteralProperty_Value, sourceCallableValueParameters } from "@tsonic/target-api/source";
 import { getCsharpCallableValueSignature } from "../../../../target-model/types/carriers/delegates.js";
 import { selectCsharpObjectLiteralUnionCarrier, csharpObjectLiteralDestinationDeclarations } from "../../../objects/shapes/union-construction.js";
 import { getCsharpArrayLiteralElementTargetType } from "../../../../target-model/types/carriers/collections.js";
@@ -351,9 +351,9 @@ function sourceArgumentInferencePairs(
     const actual = type === undefined ? undefined : resolveSelectedValueWithState(literal, type, sourceFile, nextState(state));
     const expected = getCsharpCallableValueSignature(pattern);
     const selected = getCsharpCallableValueSignature(actual);
-    const parameters = host.ast.parameters(literal);
+    const parameters = sourceCallableValueParameters(host.ast, literal, host.semantics(sourceFile));
     if (expected === undefined || selected === undefined || expected.parameters.length !== selected.parameters.length ||
-      parameters.some(parameter => parameter === undefined)) return undefined;
+      parameters === undefined || parameters.some(parameter => parameter === undefined)) return undefined;
     return [{ pattern: expected.returnType, actual: selected.returnType }, ...parameters.flatMap((parameter, index) =>
       Node_Type(host.ast, parameter) === undefined || expected.parameters[index] === undefined ? []
         : [{ pattern: expected.parameters[index]!, actual: selected.parameters[index]! }])];

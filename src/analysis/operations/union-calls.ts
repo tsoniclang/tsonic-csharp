@@ -1,7 +1,7 @@
 import type { CsharpUnionCallClassification } from "../../target-model/records/union-calls.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { ResolvedSourceCallInfo } from "../../target-model/records/source-calls.js";
-import { asSourceNode } from "@tsonic/target-api/source";
+import { asSourceNode, sourceCallableValueParameters } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { getCsharpRuntimeUnionArms } from "../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
@@ -63,11 +63,11 @@ export function classifyCsharpUnionCall(
     const declaration = candidates[0]!;
     const name = policy.ast.name(declaration);
     const selectedName = name === undefined ? undefined : policy.semanticsFor(name).propertyNames.get(name);
-    const parameters = policy.ast.parameters(declaration);
+    const parameters = sourceCallableValueParameters(policy.ast, declaration, policy.semanticsFor(declaration));
     const file = policy.ast.getSourceFile(declaration);
     const signature = file === undefined ? undefined
       : getCsharpCallableValueSignature(policy.types.resolveNode(declaration, file));
-    if (selectedName?.kind !== "resolved" || parameters.length !== parameterTypes.length ||
+    if (selectedName?.kind !== "resolved" || parameters === undefined || parameters.length !== parameterTypes.length ||
       signature === undefined || !csharpDelegateSignatureHasSupportedPassingModes(signature) ||
       signature.parameters.length !== parameters.length || signature.returnPassing !== undefined ||
       signature.parameterPassingModes.some(mode => mode !== "by-value")) return undefined;

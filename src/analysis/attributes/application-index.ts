@@ -1,5 +1,5 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
-import { isAstNode, type TargetSourceProgram } from "@tsonic/target-api/source";
+import { isAstNode, sourceCallableValueParameters, type TargetSourceProgram } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { createTsonicAttributeApplicationFactIndex, type TsonicAttributeApplicationFactIndex } from "@tsonic/source-core/facts";
 import { admitCsharpAttributeArguments, diagnoseCsharpAttributeTypeValues, type CsharpAttributeArgumentEvidence } from "./type-validation.js";
@@ -51,7 +51,7 @@ export function analyzeCsharpAttributeApplications(
       continue;
     }
     const subject = application.applicationParameterName === undefined ? declaration
-      : source.ast.parameters(declaration).find(parameter => parameter !== undefined &&
+      : sourceCallableValueParameters(source.ast, declaration, source.semantics.forNode(declaration))?.find(parameter =>
         source.ast.text(source.ast.name(parameter)) === application.applicationParameterName);
     if (subject === undefined) {
       reject(`could not find parameter '${application.applicationParameterName}' on the finalized source declaration target.`, invocation);

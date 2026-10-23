@@ -23,6 +23,7 @@ import type { CsharpSourceMemberKey } from "../../target-model/types/model.js";
 import { selectCsharpObjectLiteralCallable } from "../../policy/types/objects/object-literals.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
 import { analyzeCsharpObjectInitialization } from "./initialization.js";
+import type { CsharpCallableParameterRecords } from "../../target-model/records/parameter-emission.js";
 
 export function analyzeCsharpObjectLiterals(input: {
   readonly source: TargetSourceSyntaxProgram;
@@ -32,6 +33,7 @@ export function analyzeCsharpObjectLiterals(input: {
   readonly methods: CsharpObjectMethodRecords;
   readonly members: CsharpObjectMemberRecords;
   readonly storage: Pick<CsharpStorageClassifications, "requiredStorageType">;
+  readonly parameters: CsharpCallableParameterRecords;
 }) {
   const { ast } = input.source;
   const issues: TargetDiagnostic[] = [];
@@ -163,7 +165,13 @@ export function analyzeCsharpObjectLiterals(input: {
             : `Object-shape method '${member.sourceName}' must carry a finalized delegate target type with explicit return facts before C# emission.`);
           continue;
         }
-        const parameters = (declaration.Parameters?.Nodes ?? []).filter((parameter): parameter is Node => parameter !== undefined);
+        const parameters: Node[] = [];
+        for (const parameter of declaration.Parameters?.Nodes ?? []) {
+          if (parameter === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted object method requires its dense checked parameter list.", property);
+          const selected = input.parameters.callableParameter.get(parameter);
+          if (selected === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted object method parameter requires its sealed value or receiver classification.", parameter);
+          if (selected.kind === "parameter") parameters.push(parameter);
+        }
         members.push(Object.freeze({ kind: "method", property, member, callable: Object.freeze({ body: declaration.Body,
           parameters: Object.freeze(parameters), carrier: member.type, storage, signature: selected.signature, receiver,
           async: HasSyntacticModifier(ast, property, ModifierFlagsAsync), storageName: objectShapeStorageMemberName(shape, member) }) }));

@@ -293,7 +293,8 @@ export function finalizeCsharpNativeEmission(
     demand: objectShapeDemand, storage: analysis.storage, captures: captureStorage });
   if (objectMembers.issues.length !== 0) return rejectedTargetStage(objectMembers.issues);
   const objectLiterals = analyzeCsharpObjectLiterals({ source: sourceSyntax, demand: nativeDemand, shapes: callableAdapters.objectShapes,
-    operations: admittedOperations, methods: objectMethods.records, members: objectMembers.records, storage: analysis.storage });
+    operations: admittedOperations, methods: objectMethods.records, members: objectMembers.records, storage: analysis.storage,
+    parameters: callableParameters.records });
   if (objectLiterals.issues.length !== 0) return rejectedTargetStage(objectLiterals.issues);
   const thisEmission = analyzeCsharpThisEmission({ ast: source.ast, nodes: sourceStorage.nodes, admitted: admittedControlNode,
     captures: captureStorage, initialization: classInitialization, factories: classFactories, values: analysis.valueReads,
