@@ -1,8 +1,8 @@
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
-import { csharpTsValueTargetType, isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
+import { isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target-model/types/object-shape-members.js";
 
-import { isCsharpJsValueObjectShapeTargetType, type CsharpJsValueObjectShapeMemberResolution, type CsharpJsValueObjectLiteralShapeProjection } from "../../../target-model/types/js-value-object-shapes.js";
+import { isCsharpJsValueObjectShapeTargetType, type CsharpJsValueObjectShapeMemberResolution } from "../../../target-model/types/js-value-object-shapes.js";
 export function canUseCsharpJsValueObjectShapeCarrier(
   members: readonly CsharpObjectShapeMemberFact[],
   implemented: readonly TargetTypeRef[] | undefined,
@@ -14,36 +14,6 @@ export function canUseCsharpJsValueObjectShapeCarrier(
       member.accessor === undefined &&
       isCsharpJsValueTargetType(member.type)
     );
-}
-
-export function projectCsharpJsValueObjectLiteralShape(
-  sourceShape: CsharpObjectShapeFact,
-): CsharpJsValueObjectLiteralShapeProjection {
-  const unsupportedMember = sourceShape.members.find((member) =>
-    member.memberKind !== "property" || member.accessor !== undefined
-  );
-  if (unsupportedMember !== undefined) {
-    return {
-      kind: "rejected",
-      reason:
-        `JS-value object literal member '${unsupportedMember.sourceName}' requires an explicit data-property contract. Methods and accessors cannot be reinterpreted as stored values.`,
-    };
-  }
-  const targetType = {
-    ...csharpTsValueTargetType(),
-    csharpJsObjectShape: true as const,
-  } satisfies CsharpTargetNamedTypeRef;
-  const memberType = csharpTsValueTargetType();
-  return {
-    kind: "resolved",
-    shape: {
-      targetType,
-      members: sourceShape.members.map((member) => ({
-        ...member,
-        type: memberType,
-      })),
-    },
-  };
 }
 
 export function validateCsharpJsValueObjectShapeCarrier(

@@ -1,4 +1,4 @@
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "./model.js";
+import type { CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "./model.js";
 import { isCsharpJsValueTargetType } from "./carriers/runtime-carriers.js";
 
 export type CsharpJsValueObjectShapeMemberResolution =
@@ -6,13 +6,6 @@ export type CsharpJsValueObjectShapeMemberResolution =
   | {
       readonly kind: "resolved";
       readonly member: CsharpObjectShapeMemberFact;
-    }
-  | { readonly kind: "rejected"; readonly reason: string };
-
-export type CsharpJsValueObjectLiteralShapeProjection =
-  | {
-      readonly kind: "resolved";
-      readonly shape: CsharpObjectShapeFact;
     }
   | { readonly kind: "rejected"; readonly reason: string };
 
