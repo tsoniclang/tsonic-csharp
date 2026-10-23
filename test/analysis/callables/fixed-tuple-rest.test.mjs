@@ -69,3 +69,18 @@ test("the checked source arity refuses a missing fixed tuple-rest argument befor
   assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
     "the target does not manufacture an omitted native argument");
 });
+
+test("required expanded tuple-rest slots cannot follow an emitted native optional parameter", () => {
+  const compiled = compileCsharpSource({ sourceText: `
+    function sum(first?: number, ...items: [number, number]): number {
+      return (first ?? 0) + items[0] + items[1];
+    }
+    export function run(): number { return sum(undefined, 3, 4); }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText, "", "the source argument order is checked before native ABI admission");
+  assert.equal(compiled.result.diagnostics.some(issue => issue.code === "CSHARP_UNSUPPORTED_AST" &&
+    issue.message === "Required parameters cannot follow C# optional parameters."), true,
+    "the existing parameter owner checks required native slots rather than the source rest marker");
+  assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+    "an unsupported native optional-parameter ordering is refused before publication");
+});
