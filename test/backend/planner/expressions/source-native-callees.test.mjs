@@ -128,6 +128,7 @@ test("generic class static callees remain exact namespace syntax, never runtime 
           sourceMemberName: { get: node => node === expression ? { read: "identity", method: undefined } : undefined },
           projectSourceReference: projects.projectSourceReference, projectSourceType: projects.projectSourceType,
           classFactory: { get: () => undefined },
+          valueRead: { get: () => assert.fail("static native callees do not acquire runtime receiver carriers") },
           sourceName: { get: node => node === className ? { kind: "resolved", name: "Entry" } : undefined } } },
     };
     return { issues: analysis.issues, input };

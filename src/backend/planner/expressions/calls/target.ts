@@ -25,8 +25,8 @@ export function translateSelectedTargetCall(node: Node, sourceFile: SourceFile, 
   if (arguments_ === undefined) return undefined;
   const receiver = !selected.instance || selected.source.sourceReceiver === undefined ? undefined :
     translateCsharpSelectedReceiver(selected.source.sourceReceiver, sourceFile, input, diagnostics, planExpression);
-  if (selected.instance && receiver === undefined) failCsharpPlannerInvariant("An admitted instance call requires its exact native receiver acquisition.", node);
-  return composeCsharpPlannedCall(node, sourceFile, input, diagnostics, receiver, arguments_, (value, args) =>
+  if (selected.instance && receiver?.kind !== "value") failCsharpPlannerInvariant("An admitted instance call requires its exact native receiver acquisition.", node);
+  return composeCsharpPlannedCall(node, sourceFile, input, diagnostics, receiver?.kind === "value" ? receiver.value : undefined, arguments_, (value, args) =>
     planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, buildSelectedTargetCall(node, selected, args, sourceFile, input, diagnostics, value), selected.result));
 }
 

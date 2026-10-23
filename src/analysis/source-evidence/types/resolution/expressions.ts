@@ -21,6 +21,7 @@ import { resolveCsharpStaticMemberReceiver } from "../../../../policy/types/proj
 import { combineCsharpTargetUnionMembers } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { resolveCsharpContextualLiteralCarrier } from "./contextual-literals.js";
+import { resolveCsharpSourceLiteralTargetType } from "../../../../policy/conversions/source-literals.js";
 
 export function resolveSelectedExpressionType(
   { host, optionalAccessTargetType, policy, resolveNodeWithState, resolveReadStorage, resolveNonNullExpressionType, resolveMemberAccessTargetType, resolveSourceOwnedCallResult, resolveSourceOwnedConstructionResult, resolveSourceCallResultWithState, sourceUnions }: CsharpTypeResolutionScope,
@@ -109,6 +110,10 @@ export function resolveSelectedExpressionType(
     host.ast.is.IsPrefixUnaryExpression(node) ||
     host.ast.is.IsPostfixUnaryExpression(node)
   ) {
+    const literal = host.literalValues.literalValue.get(node);
+    const literalType = literal?.numeric?.kind === "authored"
+      ? resolveCsharpSourceLiteralTargetType(host, literal) : undefined;
+    if (literalType !== undefined) return literalType;
     const operand = host.ast.is.IsPrefixUnaryExpression(node)
       ? host.ast.as.AsPrefixUnaryExpression(node)?.Operand
       : host.ast.as.AsPostfixUnaryExpression(node)?.Operand;

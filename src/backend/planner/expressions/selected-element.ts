@@ -33,24 +33,29 @@ export function translateCsharpElementAccess(node: Node, sourceFile: SourceFile,
   }
   const optional = selected.optional && input.scope.presentOptionalValues?.has(selected.receiver.expression) !== true;
   const receiver = translateCsharpSelectedReceiver(selected.receiver, sourceFile, input, diagnostics, planExpression, selected.projection);
-  if (selected.kind === "tuple") return receiver === undefined ? undefined : projectCsharpPlannedMember(node, sourceFile, input, diagnostics, receiver,
-    selected.member, optional);
+  if (receiver === undefined) return undefined;
+  if (selected.kind === "tuple") {
+    if (receiver.kind !== "value") failCsharpPlannerInvariant("An admitted tuple element requires a native receiver value.", node);
+    return projectCsharpPlannedMember(node, sourceFile, input, diagnostics, receiver.value, selected.member, optional);
+  }
   const argument = selected.kind !== "access" || selected.indexType === undefined
     ? planExpression(selected.key, sourceFile, input, diagnostics)
     : planCallArgument(selected.key, sourceFile, input, diagnostics, selected.indexType, "by-value");
   if (selected.kind === "source-member") {
-    if (selected.static) return receiver === undefined ? undefined : composeCsharpPlannedValues(node, sourceFile, input, diagnostics,
+    if (selected.static) return composeCsharpPlannedValues(node, sourceFile, input, diagnostics,
       [planCsharpDiscardedOperand(argument)], () => translateCsharpSourceOwnedMember(node, sourceFile, input, diagnostics, receiver, false));
+    if (receiver.kind !== "value") failCsharpPlannerInvariant("An admitted instance element requires a native receiver value.", node);
     const access = (target: CsharpPlannedValue): CsharpPlannedValue | undefined => composeCsharpPlannedValues(node, sourceFile, input, diagnostics,
       [target, planCsharpDiscardedOperand(argument)], values => translateCsharpSourceOwnedMember(node, sourceFile, input, diagnostics,
-        { ...csharpPlannedValue(target.completion.carrier, values[0]!), address:
-          values[0] === (target.completion.kind === "value" ? target.completion.expression : undefined) ? target.address : { kind: "root" } }, false),
+        { kind: "value", value: { ...csharpPlannedValue(target.completion.carrier, values[0]!), address:
+          values[0] === (target.completion.kind === "value" ? target.completion.expression : undefined) ? target.address : { kind: "root" } } }, false),
       (carrier, operand) => captureCsharpPlannedMemberReceiver(node, sourceFile, input, diagnostics, selected.receiver.expression,
         carrier, operand, selected.suspends, selected.writable));
-    return optional ? planCsharpOptionalReceiverValue(node, sourceFile, input, diagnostics, receiver,
-      present => access(csharpPlannedValue(selected.present, present))) : receiver === undefined ? undefined : access(receiver);
+    return optional ? planCsharpOptionalReceiverValue(node, sourceFile, input, diagnostics, receiver.value,
+      present => access(csharpPlannedValue(selected.present, present))) : access(receiver.value);
   }
-  return planElementOperands(node, sourceFile, input, diagnostics, receiver, argument, optional, (target, key) => {
+  if (receiver.kind !== "value") failCsharpPlannerInvariant("An admitted native indexer requires a native receiver value.", node);
+  return planElementOperands(node, sourceFile, input, diagnostics, receiver.value, argument, optional, (target, key) => {
     const value = planElementRead(node, selected.read, target, key, sourceFile, input, diagnostics);
     const conversion = selected.conversion;
     return value === undefined || conversion === undefined ? value : applyCsharpConversionSelection(node, sourceFile, input, diagnostics,

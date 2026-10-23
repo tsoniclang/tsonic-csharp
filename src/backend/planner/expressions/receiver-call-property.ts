@@ -27,13 +27,15 @@ export function planCsharpReceiverCallProperty(
   if (type === undefined) failCsharpPlannerInvariant("An admitted computed property requires its renderable native declaring type.", node);
   const receiver = translateCsharpSelectedReceiver(selection.source.receiver, sourceFile, input, diagnostics,
     planExpression, input.program.records.selectedProperty.get(node)?.receiverProjection);
+  if (receiver === undefined) return undefined;
+  if (receiver.kind !== "value") failCsharpPlannerInvariant("An admitted receiver-call property requires a native receiver value.", node);
   const invoke = (value: CsharpExpression): CsharpExpression => ({
     kind: "InvocationExpression",
     callee: { kind: "SimpleMemberAccessExpression", receiver: type, name: member.targetName },
     arguments: [{ kind: "Argument", expression: value }],
   });
   return selection.source.optionalChain
-    ? planCsharpOptionalReceiverValue(node, sourceFile, input, diagnostics, receiver,
+    ? planCsharpOptionalReceiverValue(node, sourceFile, input, diagnostics, receiver.value,
         value => planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, invoke(value), readCsharpNativeExpressionCarrier(input, node)))
-    : projectCsharpPlannedValue(node, sourceFile, input, diagnostics, receiver, invoke);
+    : projectCsharpPlannedValue(node, sourceFile, input, diagnostics, receiver.value, invoke);
 }

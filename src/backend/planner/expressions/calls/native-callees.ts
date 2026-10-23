@@ -7,7 +7,7 @@ import type { ExpressionPlanner } from "../expression-planner-types.js";
 import { csharpPlannedValue, type CsharpPlannedValue, type CsharpPlannedEffectOperand } from "../planned-values.js";
 import { planIdentifierExpression, tryPlanProjectSourceModuleStaticMemberReference } from "../expression-source-references.js";
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
-import { csharpProjectTypeReceiver, translateCsharpSelectedReceiver } from "../receivers.js";
+import { translateCsharpSelectedReceiver } from "../receivers.js";
 import { planCsharpSourceMemberName } from "../source-member-names.js";
 import { planCsharpDiscardedOperand } from "../../statements/statement-output.js";
 import { composeCsharpPlannedValues } from "../planned-value-composition.js";
@@ -31,14 +31,14 @@ export function planCsharpNativeMethodCallee(selected: Extract<CsharpSourceCalle
   const member = input.program.records.nativeMethodCallee.get(selected.expression);
   if (member === undefined) failCsharpPlannerInvariant("An admitted native method requires its exact sealed member acquisition plan.", selected.expression);
   const name = planCsharpSourceMemberName(selected.expression, false, input);
-  const projectType = csharpProjectTypeReceiver(member.receiver, input, diagnostics);
   const effect = member.key === undefined ? undefined : planCsharpDiscardedOperand(planExpression(member.key, sourceFile, input, diagnostics));
   if (member.key !== undefined && effect === undefined) return undefined;
-  if (projectType !== undefined) return { kind: "type", receiver: projectType, name, ...(effect === undefined ? {} : { effect }) };
   const receiver = translateCsharpSelectedReceiver(member.receiver, sourceFile, input, diagnostics, planExpression, member.projection);
-  if (receiver === undefined || effect === undefined) return receiver === undefined ? undefined : { kind: "value", receiver, name };
-  const sequenced = composeCsharpPlannedValues(selected.expression, sourceFile, input, diagnostics, [receiver, effect],
-    values => csharpPlannedValue(receiver.completion.carrier, values[0]!), (carrier, operand) =>
+  if (receiver === undefined) return undefined;
+  if (receiver.kind === "type") return { kind: "type", receiver: receiver.expression, name, ...(effect === undefined ? {} : { effect }) };
+  if (effect === undefined) return { kind: "value", receiver: receiver.value, name };
+  const sequenced = composeCsharpPlannedValues(selected.expression, sourceFile, input, diagnostics, [receiver.value, effect],
+    values => csharpPlannedValue(receiver.value.completion.carrier, values[0]!), (carrier, operand) =>
       captureCsharpPlannedMemberReceiver(selected.expression, sourceFile, input, diagnostics, member.receiver.expression, carrier, operand, member.suspends, false));
   return sequenced === undefined ? undefined : { kind: "value", receiver: sequenced, name };
 }
