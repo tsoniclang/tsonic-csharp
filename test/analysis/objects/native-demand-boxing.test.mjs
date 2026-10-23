@@ -8,6 +8,8 @@ import { csharpStructuralObjectShapeIdentity } from "../../../dist/target-model/
 import { printCsharpType } from "../../../dist/print/source/printer.js";
 import { createCsharpObjectShapeValueStorage } from "../../../dist/policy/types/objects/shape-carriers.js";
 import { applyCsharpObjectShapeDisplayNames } from "../../../dist/backend/target-ast/normalization/object-shape-names.js";
+import { selectCsharpObjectShapeDisplayNames } from "../../../dist/analysis/names/object-shapes.js";
+import { createStructuralObjectShapeTarget } from "../../../dist/analysis/objects/shapes/construction.js";
 
 const header = 'import type { int32 } from "@tsonic/core/types.js";';
 const payload = "sealed class NativePayload : ITsClosedValueCarrier { public int count = 7; }";
@@ -284,12 +286,11 @@ test("native value storage preserves the selected generic vector and its declara
   const parameter = Object.freeze({ kind: "type-parameter", identity: "native.storage.item", name: "Item",
     csharpConstraints: Object.freeze({ kind: "resolved", constraints: Object.freeze([]) }) });
   const selected = Object.freeze({ kind: "source-primitive", name: "int32" });
-  const permissions = Object.freeze([false]);
-  const open = Object.freeze({ kind: "target-named", id: "tsonic.shape:storage-template",
-    typeArguments: Object.freeze([parameter]), csharpAllowsRefLikeTypeArguments: permissions,
-    csharpRender: Object.freeze({ kind: "named", name: "NativeStorage" }), csharpTypeofRuntimeKind: "object" });
   const member = Object.freeze({ sourceKey: Object.freeze({ kind: "property", name: "item" }), sourceName: "item",
     targetName: "item", memberKind: "property", type: parameter });
+  const open = Object.freeze(createStructuralObjectShapeTarget(Object.freeze([member]), undefined,
+    () => Object.freeze({ kind: "resolved", constraints: Object.freeze([]) })));
+  const permissions = open.csharpAllowsRefLikeTypeArguments;
   const template = Object.freeze({ targetType: open, members: Object.freeze([member]) });
   const vector = Object.freeze([selected]);
   const closed = Object.freeze({ targetType: Object.freeze({ ...open, typeArguments: vector }),
@@ -304,6 +305,7 @@ test("native value storage preserves the selected generic vector and its declara
   assert.equal(physical.targetType.id !== open.id && open.csharpValueType === undefined, true, "per-use physical storage cannot mutate the source-wide reference layout");
   assert.equal(Object.isFrozen(physical) && Object.isFrozen(physical.targetType), true, "the physical selection is immutable");
   for (const [name, shape] of [
+    ["unproved generated storage", { ...closed, targetType: { ...closed.targetType, csharpGeneratedStructuralStorage: undefined } }],
     ["nominal", { ...closed, targetType: { ...closed.targetType, csharpSourceDeclarationKind: "class" } }],
     ["reference guarantee", { ...closed, targetType: { ...closed.targetType, csharpConstraintRequiresReferenceType: true } }],
     ["interface", { ...closed, targetType: { ...closed.targetType, csharpStructuralContract: true } }],
@@ -318,6 +320,7 @@ test("native value storage preserves the selected generic vector and its declara
 test("a selected native value layout uses the same declared identity and reference display name", () => {
   const identity = "aaaaaaaaaaaa1111111111111111111111111111111111111111111111111111";
   const canonicalName = `__TsonicShape_${identity}`;
+  const displayName = selectCsharpObjectShapeDisplayNames([{ identity, canonicalName, preferredStem: "Value" }]).get(canonicalName);
   const [unit] = applyCsharpObjectShapeDisplayNames([{
     kind: "CompilationUnit", usings: [], members: [{ kind: "NamespaceDeclaration", name: "Generated", members: [{
       kind: "StructDeclaration", name: canonicalName, objectShapeIdentity: identity, modifiers: ["public"],
@@ -327,7 +330,7 @@ test("a selected native value layout uses the same declared identity and referen
       members: [{ kind: "FieldDeclaration", name: "next", modifiers: ["public"],
         type: { kind: "IdentifierName", name: canonicalName, objectShapeIdentity: identity } }],
     }] }],
-  }], [{ identity, canonicalName, preferredStem: "Value" }]);
+  }], [{ identity, canonicalName, displayName }]);
   const declaration = unit.members[0].members[0];
   assert.equal(declaration.kind, "StructDeclaration", "display naming never changes the analysis-selected native kind");
   assert.equal(declaration.name, "ValueShape_aaaaaaaaaaaa", "the selected declaration is renamed at the existing canonical owner");

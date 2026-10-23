@@ -83,7 +83,11 @@ if (Tsonic.Generated.Index.run() != 7) throw new System.Exception("native class 
     assert.equal(issues[0].sourceNode === factory.captures[0].declaration, true,
       "the exact captured declaration remains the diagnostic subject");
     const diagnostics = [];
-    const input = createCsharpPlanningContext({ ...program, records });
+    const captures = original.classCaptures.get(factory.declaration);
+    assert.equal(captures.length > 0, true, "the renderer consumes the completed physical capture slots");
+    const corrupted = { ...records, classCaptures: { get: node => node === factory.declaration
+      ? captures.map(slot => ({ ...slot, carrier: { kind: "opaque", id: "missing" } })) : original.classCaptures.get(node) } };
+    const input = createCsharpPlanningContext({ ...program, records: corrupted });
     assert.throws(() => planClassFactoryExpression(factory, factory.sourceFile, input, diagnostics),
       error => error.message.includes("renderable physical storage"), "a separate corrupted-admission witness pins the renderer");
     assert.equal(diagnostics.length, 0, "the capture renderer cannot re-issue the source refusal");

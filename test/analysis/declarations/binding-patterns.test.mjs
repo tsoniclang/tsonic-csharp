@@ -345,7 +345,7 @@ test("array, tuple, default and rest renderers consume only their admitted immut
       fact: { ...firstFact, defaultValue: { ...firstFact.defaultValue, target: opaque } },
       message: "An admitted array default lost its native element rendering." },
     { label: "inconsistent optional payload guard", pattern: array, node: first,
-      fact: { ...firstFact, defaultValue: { ...firstFact.defaultValue, optional: true, guardType: opaque } },
+      fact: { ...firstFact, defaultValue: { ...firstFact.defaultValue, kind: "guarded", optional: true, guardType: opaque } },
       message: "An admitted native default lost its exact optional payload guard." },
     { label: "missing tuple default", pattern: tuple, node: second,
       fact: { ...secondFact, defaultValue: undefined },

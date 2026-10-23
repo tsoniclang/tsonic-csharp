@@ -1,4 +1,5 @@
 import type { AstReader, Node } from "@tsonic/tsts";
+import type { SourceStorageQueries } from "@tsonic/target-api/analysis";
 import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef } from "../../../target-model/types/model.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
 import { createStructuralObjectShapeTarget } from "./construction.js";
@@ -14,12 +15,13 @@ export function resolveCsharpCopiedObjectShape(
   environment: CsharpTypeParameterConstraintResolver,
   resolveNode: (node: Node) => CsharpObjectShapeFact | undefined,
   rememberTargetShape: (shape: CsharpObjectShapeFact) => CsharpObjectShapeFact,
+  sourceStorage: SourceStorageQueries,
 ): CsharpObjectShapeFact | undefined {
   const contract = shape.targetType.kind === "target-named" &&
     ((shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true ||
       (shape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "interface");
   if (!contract && shape.methodImplementation === undefined) return shape;
-  shape = retainCsharpMethodValueContracts(shape, rememberTargetShape, environment);
+  shape = retainCsharpMethodValueContracts(shape, rememberTargetShape, environment, sourceStorage);
   const original = shape.methodImplementation === undefined ? undefined : resolveNode(shape.methodImplementation.declaration);
   const receiver = selectCsharpCopiedMethodReceiver(shape.members, original === undefined ? [shape] : [original], ast);
   if (receiver.kind === "rejected") return undefined;
@@ -36,6 +38,7 @@ export function resolveCsharpCopiedObjectShape(
 export function retainCsharpMethodValueContracts(
   shape: CsharpObjectShapeFact, remember: (shape: CsharpObjectShapeFact) => CsharpObjectShapeFact,
   environment: CsharpTypeParameterConstraintResolver,
+  sourceStorage: SourceStorageQueries,
 ): CsharpObjectShapeFact {
   if (csharpStructuralObjectShapeIdentity(shape.targetType) === undefined &&
     (shape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind !== "interface") return shape;
@@ -45,12 +48,18 @@ export function retainCsharpMethodValueContracts(
     if (contract === undefined) {
       const signature = csharpPresentObjectShapeMethod(member);
       if (signature === undefined) return member;
-      // A method value is stored as its delegate (an object-literal method initializes a delegate field), so every
-      // shape that holds or copies it agrees on one storage type. Only a value no delegate can carry (a generic or
-      // optional method) is stored under its single-method protocol.
-      if (!csharpObjectShapeMethodRequiresProtocol(member)) return member;
+      const required = csharpObjectShapeMethodRequiresProtocol(member);
+      const declaration = required ? undefined : csharpObjectShapeMethodDeclaration(shape, member);
+      const subject = declaration === undefined ? undefined : sourceStorage.memberSubjectFor(declaration);
+      const writes = subject?.kind === "resolved" ? sourceStorage.memberWritesFor(subject.subject) : undefined;
+      const nativeMethod = writes !== undefined && writes.kind !== "unresolved" && writes.writes.length === 0 &&
+        (writes.kind === "complete" || writes.boundaries.every(boundary => boundary.kind === "external-write"));
+      const selfContract = shape.members.length === 1 && shape.targetType.kind === "target-named" &&
+        (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true;
+      if (!required && !nativeMethod && !selfContract) return member;
       const protocol = createStructuralObjectShapeTarget([signature], undefined, environment, true);
       const ownProtocol = targetTypeRefEquals(shape.targetType, protocol);
+      if (!required && !nativeMethod && !ownProtocol) return member;
       contract = protocol;
       if (!ownProtocol) remember({ targetType: contract, members: [{ ...signature, methodValueContract: contract }] });
     }

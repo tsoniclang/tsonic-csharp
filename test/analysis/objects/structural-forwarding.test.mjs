@@ -38,6 +38,10 @@ import { csharpCopiedObjectShapeMembers } from "../../../dist/policy/types/objec
 import { selectCsharpObjectMethodImplementation } from "../../../dist/analysis/objects/shapes/method-implementations.js";
 
 const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
+const noAuthoredNativeMethod = Object.freeze({
+  memberSubjectFor: () => assert.fail("an abstract protocol has no authored native slot"),
+  memberWritesFor: () => assert.fail("an abstract protocol has no authored native writes"),
+});
 
 test("a single native method contract and its extracted protocol publish the same canonical shape", () => {
   const member = Object.freeze({ sourceKey: { kind: "property", name: "run" }, sourceName: "run",
@@ -45,9 +49,10 @@ test("a single native method contract and its extracted protocol publish the sam
   const environment = () => assert.fail("a monomorphic protocol has no native constraint query");
   const targetType = createStructuralObjectShapeTarget([member], undefined, environment, true);
   const remember = () => assert.fail("an existing method contract cannot allocate or register a second self protocol");
-  const logical = retainCsharpMethodValueContracts({ targetType, members: Object.freeze([member]) }, remember, environment);
+  const logical = retainCsharpMethodValueContracts({ targetType, members: Object.freeze([member]) }, remember, environment,
+    noAuthoredNativeMethod);
   const physical = retainCsharpMethodValueContracts({ targetType,
-    members: Object.freeze([{ ...member, methodValueContract: targetType }]) }, remember, environment);
+    members: Object.freeze([{ ...member, methodValueContract: targetType }]) }, remember, environment, noAuthoredNativeMethod);
   assert.equal(targetTypeRefKey(logical.members[0].methodValueContract), targetTypeRefKey(targetType),
     "the logical contract already owns its actual self protocol");
   assert.equal(targetTypeRefKey(physical.members[0].methodValueContract), targetTypeRefKey(targetType),
@@ -116,17 +121,94 @@ test("every actual authored native method uses the same body and copy protocol",
   const implementation = Object.freeze({ declaration: literal, identity: "authored-body", methods: Object.freeze([declaration]),
     captures: Object.freeze([]) });
   const environment = () => assert.fail("a monomorphic native method has no free generic constraint to resolve");
+  const subject = Object.freeze({ node: declaration });
+  const sourceStorage = Object.freeze({
+    memberSubjectFor: node => {
+      assert.equal(node === declaration, true, "the native owner queries the exact authored method slot");
+      return Object.freeze({ kind: "resolved", subject });
+    },
+    memberWritesFor: selected => {
+      assert.equal(selected === subject, true, "the proof covers the canonical physical slot, not a spelling");
+      return Object.freeze({ kind: "open", writes: Object.freeze([]),
+        boundaries: Object.freeze([{ kind: "external-write", subject, exposure: literal }]) });
+    },
+  });
   const admitted = retainCsharpMethodValueContracts({ targetType, members: Object.freeze([member]),
-    methodImplementation: implementation }, shape => shape, environment);
+    methodImplementation: implementation }, shape => shape, environment, sourceStorage);
   assert.equal(admitted.methodImplementation === implementation, true, "native body and checked capture identity are retained");
   assert.equal(admitted.members[0].methodValueContract !== undefined, true, "an ordinary native body gets the existing method protocol");
   assert.equal(admitted.members[0].methodStorageType === undefined, true, "the native body does not introduce a delegate storage field");
   assert.equal(csharpCopiedObjectShapeMembers(admitted)[0].methodStorageType === targetType, true,
     "a copy retains the actual original native environment");
-  const unimplemented = retainCsharpMethodValueContracts({ targetType, members: Object.freeze([member]) }, shape => shape, environment);
+  const unimplemented = retainCsharpMethodValueContracts({ targetType, members: Object.freeze([member]) }, shape => shape, environment,
+    noAuthoredNativeMethod);
   assert.equal(unimplemented.members[0].methodValueContract === undefined, true,
     "a method signature alone never manufactures an authored native body");
+  for (const [label, selection] of [
+    ["complete readonly slot", { kind: "complete", writes: [] }],
+    ["actual replacement", { kind: "complete", writes: [{ kind: "mutation" }] }],
+    ["same-value write", { kind: "open", writes: [{ kind: "mutation", value: subject }],
+      boundaries: [{ kind: "external-write", subject, exposure: literal }] }],
+    ["opaque native effect", { kind: "open", writes: [],
+      boundaries: [{ kind: "opaque-write", subject, exposure: literal }] }],
+    ["external input", { kind: "open", writes: [],
+      boundaries: [{ kind: "external-input", subject, exposure: literal }] }],
+    ["unclassified exposure", { kind: "open", writes: [],
+      boundaries: [{ kind: "unclassified-exposure", subject, exposure: literal }] }],
+    ["missing write proof", { kind: "unresolved", reason: "exact writes unavailable" }],
+  ]) {
+    const selected = retainCsharpMethodValueContracts({ targetType, members: Object.freeze([member]),
+      methodImplementation: implementation }, shape => shape, environment, {
+        ...sourceStorage, memberWritesFor: () => selection,
+      });
+    assert.equal(selected.members[0].methodValueContract !== undefined, label === "complete readonly slot",
+      `${label}: only the actual immutable native method contract removes delegate storage`);
+    assert.equal(selected.methodImplementation === implementation, true, `${label}: source body and capture identity remain`);
+  }
 });
+
+for (const surface of ["native", "js"]) {
+  for (const [name, action, fixed] of [
+    ["exported readonly method", "return value;", true],
+    ["source alias replacement", "const alias = value; alias.read = () => 11; return value;", false],
+    ["same-value alias write", "const alias = value; alias.read = value.read; return value;", false],
+  ]) test(`${surface}: ${name} retains its actual native exposure and checked writes`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+import type { int32 } from "@tsonic/core/types.js";
+export function make(seed: int32) {
+  const value = { count: seed, read(): int32 { return this.count; } };
+  ${action}
+}
+export function run(): boolean { return make(7).read() === ${name === "source alias replacement" ? 11 : 7}; }
+` });
+    assertCsharpCompilationSucceeded(compiled);
+    const program = compiled.result.program;
+    const shapes = program.objectShapes.knownShapes().filter(shape => shape.methodImplementation !== undefined);
+    assert.equal(shapes.length > 0, true, `${name}: the actual native object implementation is published`);
+    const members = shapes.flatMap(shape => shape.members.filter(member => member.sourceName === "read"));
+    assert.equal(members.length > 0 && members.every(member => (member.methodValueContract !== undefined) === fixed), true,
+      `${name}: native method selection follows the original physical slot writes, not source syntax alone`);
+    executeCsharpConstruction(compiled, `native-method-exposure-${surface}-${name.replaceAll(" ", "-")}`);
+  });
+  test(`${surface}: a fixed native method retains extraction, receiver alias and capture identity`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+import type { int32 } from "@tsonic/core/types.js";
+function make(seed: int32) {
+  return { count: seed, read(): int32 { return this.count; } };
+}
+export function run(): boolean {
+  const value = make(7);
+  const alias = value;
+  const first = value.read;
+  const second = alias.read;
+  alias.count = 11;
+  return first === second && first() === 11 && value.read() === 11;
+}
+` });
+    assertCsharpCompilationSucceeded(compiled);
+    executeCsharpConstruction(compiled, `native-method-extraction-${surface}`);
+  });
+}
 
 test("a raw interface copy admits its method protocol before selecting native storage", () => {
   const declaration = Object.freeze({});

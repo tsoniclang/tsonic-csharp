@@ -13,4 +13,29 @@ for (const surface of [undefined, "js"]) {
     assert.doesNotMatch(emitted, /InvokeDynamic|ReadDynamicSlot|Unsafe\.|dynamic\b|GetType\(|Activator\./u);
     executeCsharpConstruction(compiled, `optional-project-carriers-${lane}`);
   });
+  test(`project declaration templates retain their own binders across optional aliases in ${lane}`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+class Base<Value> {
+  value: Value;
+  constructor(value: Value) { this.value = value; }
+  read(): Value { return this.value; }
+}
+class Child extends Base<number> { extra(): number { return this.value + 1; } }
+type Maybe<Value> = Base<Value> | undefined;
+function retain<Value>(value: Maybe<Value>): Maybe<Value> { return value; }
+export function run(): boolean {
+  const numeric = new Child(7);
+  const textual = new Base<string>("kept");
+  const first: Maybe<number> = retain<number>(numeric);
+  const second: Maybe<string> = retain<string>(textual);
+  if (first === undefined || second === undefined) return false;
+  numeric.value = 9;
+  textual.value = "changed";
+  return first === numeric && second === textual && first.read() === 9 && second.read() === "changed" &&
+    numeric.extra() === 10 && retain<number>(undefined) === undefined;
+}
+` });
+    assertCsharpCompilationSucceeded(compiled);
+    executeCsharpConstruction(compiled, `optional-project-template-binders-${lane}`);
+  });
 }

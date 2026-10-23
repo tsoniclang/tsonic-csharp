@@ -206,7 +206,7 @@ export function planThrowStatement(
     return [{ kind: "ThrowStatement" }];
   }
   const thrown = input.program.records.throwValue.get(node);
-  if (thrown === undefined || thrown.targetCarrier === undefined) {
+  if (thrown === undefined || thrown.expression !== statement.Expression || thrown.targetCarrier === undefined) {
     return failCsharpPlannerInvariant("An admitted throw lost its selected native error carrier.", statement.Expression);
   }
   const type = csharpTypeFromTargetTypeRef(thrown.targetCarrier, input.scope.typeParameterNames);

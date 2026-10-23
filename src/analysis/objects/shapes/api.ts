@@ -12,6 +12,7 @@ import type { Node, ExtensionFactSubject, SourceFile, Type } from "@tsonic/tsts"
 import type { CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { nextState } from "../../source-evidence/types/resolution/state.js";
+import { csharpSourceTemplateState } from "../../source-evidence/types/resolution/type-bindings.js";
 import { substituteObjectShapeMemberTargetTypeParameters } from "../../../policy/types/resolution/substitution.js";
 import { isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpPropertySourceMemberKey, csharpSourceMemberKeysEqual } from "../../../target-model/types/source-member-keys.js";
@@ -222,7 +223,7 @@ export function createCsharpObjectShapePolicy(
     if (shape.declarationTemplate !== undefined) {
       shape = { ...shape, declarationTemplate: rememberTargetShape(shape.declarationTemplate) };
     }
-    shape = retainCsharpMethodValueContracts(shape, rememberTargetShape, environment);
+    shape = retainCsharpMethodValueContracts(shape, rememberTargetShape, environment, host.sourceStorage);
     const key = targetTypeRefKey(shape.targetType);
     const existing = targetShapes.get(key);
     if (existing !== undefined && !csharpObjectShapesEqual(existing, shape)) {
@@ -477,6 +478,7 @@ export function createCsharpObjectShapePolicy(
     ) {
       return undefined;
     }
+    state = csharpSourceTemplateState([...definition.outerTypeParameters, ...definition.typeParameters], state);
     const declarationType = host.projectTypeCatalog.targetTypeForDeclaration(
       definition.declaration,
       definition.typeParameterBindings,
@@ -584,7 +586,7 @@ export function createCsharpObjectShapePolicy(
     resolveCallableValue: (signature: TargetTypeRef, typeParameters: NonNullable<CsharpObjectShapeMemberFact["typeParameters"]>) =>
       retainCsharpGenericCallableValue(signature, typeParameters, rememberTargetShape, environment),
     resolveCopyShape(shape: CsharpObjectShapeFact): CsharpObjectShapeFact | undefined {
-      return resolveCsharpCopiedObjectShape(shape, host.ast, environment, resolveNode, rememberTargetShape);
+      return resolveCsharpCopiedObjectShape(shape, host.ast, environment, resolveNode, rememberTargetShape, host.sourceStorage);
     },
     resolveReference: unionDefinitions.reference,
     resolveUnion: unionDefinitions.resolve,
