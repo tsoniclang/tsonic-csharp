@@ -77,7 +77,8 @@ export function resolveAuthoredAndSelectedSourceType(
       node === authoredTypeNode
         ? onlyAddedAbsence ? authored : reconcileCsharpSelectedTargetType(authored,
             resolveTypeWithState(selectedType, selectedSourceFile, nextState(state)),
-            selectedQueries.types.relationship(authoredSemanticType, selectedType))
+            selectedQueries.types.relationship(authoredSemanticType, selectedType),
+            selectedQueries.types.isNonPrimitive(selectedType))
         : resolveNodeWithState(
             node,
             authoredSourceFile,
@@ -113,5 +114,6 @@ export function resolveAuthoredAndSelectedSourceType(
       nextState(state),
     ),
     selectedQueries.types.relationship(authoredSemanticType, selectedType),
+    selectedQueries.types.isNonPrimitive(selectedType),
   );
 }

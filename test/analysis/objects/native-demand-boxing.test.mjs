@@ -15,6 +15,21 @@ import { createStructuralObjectShapeTarget } from "../../../dist/analysis/object
 const header = 'import type { int32 } from "@tsonic/core/types.js";';
 const payload = "sealed class NativePayload : ITsClosedValueCarrier { public int count = 7; }";
 
+for (const surface of ["native", "js"]) test(`${surface}: checked source object narrowing retains closed broad storage and native identity`, { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface, sourceText: header + `
+    function objectKind(value: unknown): boolean {
+      const original = value;
+      if (value === null || typeof value !== "object") return false;
+      return typeof value === "object" && value === original;
+    }
+    export function run(): boolean {
+      const value = { count: 7 as int32 };
+      return objectKind(value) && !objectKind(7) && !objectKind("text") && !objectKind(undefined);
+    }
+  ` });
+  executeCsharpConstruction(compiled, `artifact-box-source-object-${surface}`);
+});
+
 for (const surface of ["native", "js"]) test(`${surface}: broad literal destinations retain native payload fields before boxing`, () => {
   const { program, nodes, source } = compileCsharpRequiredRecordSource(header + `
     const root: unknown = { count: 1 as int32 };

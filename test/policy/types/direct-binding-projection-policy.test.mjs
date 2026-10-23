@@ -154,43 +154,43 @@ test("native construction proof does not inherit source payload extraction throu
 test("flow-unreachable reads retain their declared carrier without changing genuine never expressions", () => {
   const never = { kind: "opaque", id: "never" };
   for (const stored of [int32, string, csharpTsValueTargetType()]) {
-    assert.equal(reconcileCsharpSelectedTargetType(stored, never, "unrelated"), stored);
+    assert.equal(reconcileCsharpSelectedTargetType(stored, never, "unrelated", false), stored);
   }
-  assert.equal(reconcileCsharpSelectedTargetType(undefined, never, "unrelated"), never);
-  assert.equal(reconcileCsharpSelectedTargetType(never, never, "identical"), never);
+  assert.equal(reconcileCsharpSelectedTargetType(undefined, never, "unrelated", false), never);
+  assert.equal(reconcileCsharpSelectedTargetType(never, never, "identical", false), never);
 });
 
 test("non-nullish broad values do not become empty object identities", () => {
   const broad = csharpTsValueTargetType();
   const empty = csharpEmptyObjectTargetType();
-  assert.equal(retainCsharpBroadValueCarrier(broad, empty), broad);
-  assert.equal(reconcileCsharpSelectedTargetType(broad, empty, "unrelated"), broad);
+  assert.equal(retainCsharpBroadValueCarrier(broad, empty, false), broad);
+  assert.equal(reconcileCsharpSelectedTargetType(broad, empty, "unrelated", false), broad);
   const optionalEmpty = csharpNullableReferenceTargetType(empty);
-  assert.equal(retainCsharpBroadValueCarrier(broad, optionalEmpty), broad);
-  assert.equal(reconcileCsharpSelectedTargetType(broad, optionalEmpty, "unrelated"), broad);
+  assert.equal(retainCsharpBroadValueCarrier(broad, optionalEmpty, false), broad);
+  assert.equal(reconcileCsharpSelectedTargetType(broad, optionalEmpty, "unrelated", false), broad);
   for (const selected of [int32, string, { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "source.Record", csharpSourceDeclarationKind: "class" }]) {
-    assert.equal(retainCsharpBroadValueCarrier(broad, selected), undefined);
-    assert.equal(reconcileCsharpSelectedTargetType(broad, selected, "unrelated"), selected);
+    assert.equal(retainCsharpBroadValueCarrier(broad, selected, false), undefined);
+    assert.equal(reconcileCsharpSelectedTargetType(broad, selected, "unrelated", false), selected);
   }
-  assert.equal(retainCsharpBroadValueCarrier(empty, broad), undefined);
-  assert.equal(retainCsharpBroadValueCarrier(empty, empty), undefined);
-  assert.equal(retainCsharpBroadValueCarrier(undefined, empty), undefined);
-  assert.equal(retainCsharpBroadValueCarrier(broad, undefined), undefined);
+  assert.equal(retainCsharpBroadValueCarrier(empty, broad, false), undefined);
+  assert.equal(retainCsharpBroadValueCarrier(empty, empty, false), undefined);
+  assert.equal(retainCsharpBroadValueCarrier(undefined, empty, false), undefined);
+  assert.equal(retainCsharpBroadValueCarrier(broad, undefined, false), undefined);
 });
 
 test("array category narrowing does not invent the erased backing's native element layout", () => {
   const broad = csharpTsValueTargetType();
   for (const selected of [{ kind: "array", element: broad }, { kind: "array", element: string },
     { kind: "tuple", elements: [string, int32] }, csharpJsArrayTargetType(broad), csharpJsArrayTargetType(string)]) {
-    assert.equal(retainCsharpBroadValueCarrier(broad, selected), broad);
-    assert.equal(reconcileCsharpSelectedTargetType(broad, selected, "unrelated"), broad);
+    assert.equal(retainCsharpBroadValueCarrier(broad, selected, false), broad);
+    assert.equal(reconcileCsharpSelectedTargetType(broad, selected, "unrelated", false), broad);
     const optional = csharpNullableReferenceTargetType(selected);
-    assert.equal(retainCsharpBroadValueCarrier(broad, optional), broad);
-    assert.equal(retainCsharpBroadValueCarrier(string, selected), undefined);
+    assert.equal(retainCsharpBroadValueCarrier(broad, optional, false), broad);
+    assert.equal(retainCsharpBroadValueCarrier(string, selected, false), undefined);
   }
   const typed = csharpJsArrayTargetType(string);
-  assert.equal(retainCsharpBroadValueCarrier(typed, csharpJsArrayTargetType(broad)), undefined);
-  assert.equal(retainCsharpBroadValueCarrier(broad, csharpReadOnlyListTargetType(string)), undefined);
+  assert.equal(retainCsharpBroadValueCarrier(typed, csharpJsArrayTargetType(broad), false), undefined);
+  assert.equal(retainCsharpBroadValueCarrier(broad, csharpReadOnlyListTargetType(string), false), undefined);
 });
 
 test("array binding policy preserves raw and JS array rest carriers", () => {
@@ -310,15 +310,15 @@ test("selected type reconciliation preserves closed authored aliases only for th
   };
 
   assert.strictEqual(
-    reconcileCsharpSelectedTargetType(authored, erased, "same-declaration"),
+    reconcileCsharpSelectedTargetType(authored, erased, "same-declaration", false),
     authored,
   );
   assert.strictEqual(
-    reconcileCsharpSelectedTargetType(open, erased, "same-declaration"),
+    reconcileCsharpSelectedTargetType(open, erased, "same-declaration", false),
     erased,
   );
   assert.strictEqual(
-    reconcileCsharpSelectedTargetType(authored, erased, "unrelated"),
+    reconcileCsharpSelectedTargetType(authored, erased, "unrelated", false),
     erased,
   );
 });

@@ -9,11 +9,13 @@ import { csharpBigIntegerTargetType, csharpObjectTargetType, isCsharpIntegralTar
 export function retainCsharpBroadValueCarrier(
   authored: TargetTypeRef | undefined,
   selected: TargetTypeRef | undefined,
+  selectedSourceIsBroadObject: boolean,
 ): TargetTypeRef | undefined {
   if (authored === undefined || selected === undefined ||
     (!isCsharpJsValueTargetType(authored) && !targetTypeRefEquals(authored, csharpObjectTargetType()))) return undefined;
   const payload = getCsharpNullableElementTargetType(selected) ?? selected;
-  return isCsharpEmptyObjectTargetType(payload) || payload.kind === "array" ||
+  return selectedSourceIsBroadObject && targetTypeRefEquals(payload, csharpObjectTargetType()) ||
+    isCsharpEmptyObjectTargetType(payload) || payload.kind === "array" ||
     payload.kind === "tuple" || getCsharpJsArrayElementTargetType(payload) !== undefined
     ? authored : undefined;
 }
@@ -22,13 +24,14 @@ export function reconcileCsharpSelectedTargetType(
   authored: TargetTypeRef | undefined,
   selected: TargetTypeRef | undefined,
   sourceRelationship: SourceTypeRelationship,
+  selectedSourceIsBroadObject: boolean,
 ): TargetTypeRef | undefined {
   if (authored === undefined || selected === undefined) {
     return authored ?? selected;
   }
   if (selected.kind === "opaque" && selected.id === "never") return authored;
   if (isCsharpIntegralTargetType(authored) && targetTypeRefEquals(selected, csharpBigIntegerTargetType())) return authored;
-  const retained = retainCsharpBroadValueCarrier(authored, selected);
+  const retained = retainCsharpBroadValueCarrier(authored, selected, selectedSourceIsBroadObject);
   if (retained !== undefined) return retained;
   if (
     targetTypeRefEquals(authored, selected) ||

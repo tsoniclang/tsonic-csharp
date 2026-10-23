@@ -221,6 +221,7 @@ export function resolveSelectedValueWithState(
         scopedTarget,
         resolveTypeWithState(selectedType, sourceFile, nextState(state)),
         queries.types.relationship(declaredType, selectedType),
+        queries.types.isNonPrimitive(selectedType),
       );
     }
     return scopedTarget;

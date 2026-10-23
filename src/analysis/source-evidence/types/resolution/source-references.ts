@@ -539,10 +539,12 @@ export function resolveSourceValueDeclaration(
           type => resolveCsharpUnionMemberCarrier(scope, native, type, queries, state),
           host.structuralTypes.resolveTarget, host.typeDefinitions);
         if (refinement.kind !== "not-applicable") return refinement.kind === "resolved" ? refinement.type : undefined;
-        return reconcileCsharpSelectedTargetType(native, selected, queries.types.relationship(declaredSource, selectedSource));
+        return reconcileCsharpSelectedTargetType(native, selected, queries.types.relationship(declaredSource, selectedSource),
+          queries.types.isNonPrimitive(selectedSource));
       }
     }
-    return retainCsharpBroadValueCarrier(declaredTarget, selected) ?? selected ?? declaredTarget;
+    return retainCsharpBroadValueCarrier(declaredTarget, selected,
+      selectedSource !== undefined && queries.types.isNonPrimitive(selectedSource)) ?? selected ?? declaredTarget;
   }
   const selectedInitializerTarget = resolveDirectSourceFacts(
     [syntax.initializer],
@@ -584,6 +586,7 @@ export function resolveSourceValueDeclaration(
       initializerTarget,
       resolveTypeWithState(selectedValueType, queries.sourceFile, nextState(state)),
       queries.types.relationship(declaredType, selectedValueType),
+      queries.types.isNonPrimitive(selectedValueType),
     );
   }
   if (
