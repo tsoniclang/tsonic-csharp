@@ -6,6 +6,13 @@ import type { CsharpConversionMode, CsharpConversionSelection } from "../../targ
 import { csharpConversionIsApplicable } from "./applicability.js";
 import { isCsharpRuntimeUnionTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
+import type { AstReader, Type } from "@tsonic/tsts";
+import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import { classifyCsharpSourceProfileType } from "../identities/source-types.js";
+import { getCsharpRuntimeUnionArms } from "../../target-model/types/carriers/runtime-carriers.js";
+import { getCsharpArrayLiteralElementTargetType } from "../../target-model/types/carriers/collections.js";
+import { getCsharpTaskResultTargetType } from "../../target-model/types/carriers/delegates.js";
+import { targetTypeRefKey } from "../../target-model/types/equality.js";
 
 import { collectCsharpUnionPaths, csharpUnionLeaves, csharpUnionArmMappingsEqual, type CsharpUnionPathStep, type CsharpUnionArmMapping } from "../../target-model/types/union-relations.js";
 
@@ -60,6 +67,79 @@ export function csharpSourceUnionLayoutsMatch(source: TargetTypeRef, target: Tar
     return result;
   };
   return matches(source, target);
+}
+
+export function csharpSourceUnionReturnLayout(input: {
+  readonly source: TargetTypeRef; readonly target: TargetTypeRef; readonly sourceType: Type;
+  readonly queries: SourceFileSemantics; readonly ast: AstReader; readonly definitions?: CsharpTypeDefinitions;
+  readonly resolveType: (type: Type) => TargetTypeRef | undefined;
+}): boolean {
+  if (!csharpSourceUnionLayoutsMatch(input.source, input.target)) return false;
+  const results = new Map<Type, Map<string, boolean>>();
+  const visit = (source: TargetTypeRef, target: TargetTypeRef, sourceType: Type): boolean => {
+    if (targetTypeRefEquals(source, target)) return true;
+    const key = `${targetTypeRefKey(source)}=>${targetTypeRefKey(target)}`;
+    const known = results.get(sourceType)?.get(key);
+    if (known !== undefined) return known;
+    const entries = results.get(sourceType) ?? new Map<string, boolean>();
+    entries.set(key, false);
+    results.set(sourceType, entries);
+    const result = select(source, target, sourceType);
+    entries.set(key, result);
+    return result;
+  };
+  const select = (source: TargetTypeRef, target: TargetTypeRef, sourceType: Type): boolean => {
+    const sourcePresent = getCsharpNullableElementTargetType(source);
+    const targetPresent = getCsharpNullableElementTargetType(target);
+    if (sourcePresent !== undefined || targetPresent !== undefined) {
+      if (sourcePresent === undefined || targetPresent === undefined) return false;
+      const members = input.queries.types.isUnion(sourceType)
+        ? input.queries.types.unionOrIntersectionTypes(sourceType).filter(member => !input.queries.types.isNullish(member)) : [sourceType];
+      return members.length > 0 && visit(sourcePresent, targetPresent, members.length === 1 ? members[0]! : sourceType);
+    }
+    if (getCsharpRuntimeUnionArms(source, input.definitions) !== undefined &&
+      getCsharpRuntimeUnionArms(target, input.definitions) !== undefined) {
+      if (!input.queries.types.isUnion(sourceType)) return false;
+      const sources = csharpUnionLeaves(source, input.definitions);
+      const targets = csharpUnionLeaves(target, input.definitions);
+      if (sources === undefined || targets === undefined) return false;
+      const members = new Map<string, { readonly type: Type; readonly carrier: TargetTypeRef }>();
+      for (const type of input.queries.types.unionOrIntersectionTypes(sourceType)) {
+        if (input.queries.types.isNullish(type)) continue;
+        const carrier = input.resolveType(type);
+        if (carrier === undefined) return false;
+        members.set(targetTypeRefKey(carrier), { type, carrier });
+      }
+      if (members.size !== sources.length || members.size !== targets.length) return false;
+      const usedSources = new Set<TargetTypeRef>();
+      const usedTargets = new Set<TargetTypeRef>();
+      for (const { type, carrier } of members.values()) {
+        const sourceMembers = sources.filter(member => csharpSourceUnionLayoutsMatch(member.carrier, carrier));
+        const targetMembers = targets.filter(member => csharpSourceUnionLayoutsMatch(member.carrier, carrier));
+        if (sourceMembers.length !== 1 || targetMembers.length !== 1) return false;
+        const sourceMember = sourceMembers[0]!.carrier;
+        const targetMember = targetMembers[0]!.carrier;
+        if (usedSources.has(sourceMember) || usedTargets.has(targetMember) || !visit(sourceMember, targetMember, type)) return false;
+        usedSources.add(sourceMember);
+        usedTargets.add(targetMember);
+      }
+      return true;
+    }
+    if (input.queries.types.isTuple(sourceType)) {
+      const elements = input.queries.types.tupleElementTypes(sourceType);
+      return source.kind === "tuple" && target.kind === "tuple" && elements.length === source.elements.length &&
+        elements.length === target.elements.length && elements.every((element, index) => visit(source.elements[index]!, target.elements[index]!, element));
+    }
+    const identity = classifyCsharpSourceProfileType(sourceType, input.queries, input.ast);
+    const arguments_ = input.queries.types.effectiveTypeArguments(sourceType);
+    if (arguments_?.length !== 1) return false;
+    const sourceElement = identity?.kind === "array" || identity?.kind === "readonly-array"
+      ? getCsharpArrayLiteralElementTargetType(source) : identity?.kind === "promise" ? getCsharpTaskResultTargetType(source) : undefined;
+    const targetElement = identity?.kind === "array" || identity?.kind === "readonly-array"
+      ? getCsharpArrayLiteralElementTargetType(target) : identity?.kind === "promise" ? getCsharpTaskResultTargetType(target) : undefined;
+    return sourceElement !== undefined && targetElement !== undefined && visit(sourceElement, targetElement, arguments_[0]!);
+  };
+  return visit(input.source, input.target, input.sourceType);
 }
 
 function selectCsharpUnionCandidates(
