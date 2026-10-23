@@ -66,7 +66,7 @@ export function analyzeCsharpClassEmission(input: {
     const authored = authoredConstructor === undefined ? undefined : input.callables.get({ kind: "declaration", declaration: authoredConstructor });
     if (authoredConstructor !== undefined && authored === undefined)
       failTargetAnalysisInvariant("tsonic-csharp", "An authored native constructor requires its checked source value vector.", authoredConstructor);
-    classes.set(node, Object.freeze({ parameters: authored?.parameters ?? Object.freeze([]),
+    classes.set(node, Object.freeze({ parameters: authored === undefined ? Object.freeze([]) : authored.parameters,
       forwardingConstructors: Object.freeze(forwardingConstructors), name: selectedName.name, abstract: definition.abstract, staticCompanion: definition.staticCompanion,
       instanceMembers: Object.freeze(members), staticMembers: Object.freeze(staticMembers), authoredConstructor,
       factoryConstructor: authoredConstructor === undefined ? implicitCount === 0 ? "default" : "implicit" : "authored" }));

@@ -1,9 +1,7 @@
 import type { SourceFile } from "@tsonic/tsts";
-import type { CsharpSourceCallableContract, CsharpSourceCallParameterContract, CsharpSourceCallableParameterContract } from "../../../../target-model/records/source-callable-contract.js";
-import { sourceCallableValueParameters } from "@tsonic/target-api/source";
+import type { CsharpSourceCallableContract } from "../../../../target-model/records/source-callable-contract.js";
 import { classifyCsharpSourceCallee } from "../../../callables/source-callees.js";
-import { csharpDelegateSignatureHasSupportedPassingModes, getCsharpCallableValueSignature } from "../../../../target-model/types/carriers/delegates.js";
-import { getCsharpMethodValue } from "../../../../target-model/types/method-values.js";
+import { selectCsharpSourceCallableValueAbi } from "../../../callables/source-callable-abi.js";
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
@@ -35,45 +33,9 @@ export function resolveSourceCallContract(
   const reject = (): CsharpSourceCallContractSelection => Object.freeze({ kind: "rejected" });
   if (callee.kind === "rejected") return reject();
   const type = getCsharpNullableElementTargetType(callee.type) ?? callee.type;
-  const signature = getCsharpCallableValueSignature(type);
-  const queries = host.semantics(sourceFile);
-  const declaration = queries.declarations.signatureDeclaration(source.selectedSignature);
-  const slots = queries.operations.callParameterSlots(source);
-  if (signature === undefined || slots === undefined ||
-      !csharpDelegateSignatureHasSupportedPassingModes(signature) ||
-      signature.parameters.length !== slots.length) return reject();
-  const parameters: CsharpSourceCallParameterContract[] = [];
-  const optionalParameters = new Set(signature.optionalParameterIndexes ?? []);
-  for (const [index, type] of signature.parameters.entries()) {
-    const slot = slots[index];
-    const parameter = slot === undefined ? undefined : source.sourceSelectedSignatureParameters.find(parameter =>
-      parameter.parameterIndex === slot.sourceParameterIndex);
-    if (parameter === undefined || slot === undefined ||
-      optionalParameters.has(index) !== (slot.form === "optional") ||
-      (signature.restParameterIndex === index) !== (slot.form === "rest")) return reject();
-    parameters.push(Object.freeze({ ...(parameter.parameterDeclaration === undefined ? {} : { sourceParameter: parameter.parameterDeclaration }),
-      targetParameter: Object.freeze({ name: slot.sourceParameterName, type, passingMode: signature.parameterPassingModes[index]!,
-        optional: optionalParameters.has(index),
-        paramsArray: signature.restParameterIndex === index }),
-    }));
-  }
-  const common = {
-    methodTypeParameterIdentities: getCsharpMethodValue(type)?.typeParameters ?? Object.freeze([]),
-    methodAllowsRefLikeTypeArguments: getCsharpMethodValue(type)?.allowsRefLikeTypeArguments ?? Object.freeze([]),
-    returnType: signature.returnType };
-  let contract: CsharpSourceCallableContract;
-  if (declaration !== undefined && host.navigation.isProjectDeclaration(declaration)) {
-    const sourceParameters = sourceCallableValueParameters(host.ast, declaration, queries);
-    if (sourceParameters === undefined) return reject();
-    const nativeParameters: CsharpSourceCallableParameterContract[] = [];
-    for (const parameter of parameters) {
-      if (parameter.sourceParameter === undefined) return reject();
-      nativeParameters.push(Object.freeze({ sourceParameter: parameter.sourceParameter, targetParameter: parameter.targetParameter }));
-    }
-    contract = Object.freeze({ ...common, kind: "source", sourceDeclaration: declaration,
-      parameters: sourceParameters, nativeParameters: Object.freeze(nativeParameters) });
-  } else contract = Object.freeze({ ...common, kind: "native", nativeParameters: Object.freeze(parameters),
-    ...(declaration === undefined ? {} : { sourceDeclaration: declaration }) });
+  const contract = selectCsharpSourceCallableValueAbi({ ast: host.ast, navigation: host.navigation,
+    semantics: host.semantics(sourceFile), source, carrier: type });
+  if (contract === undefined) return reject();
   return sourceCallableTypeParametersMatch(source, contract, "value")
     ? Object.freeze({ kind: "value", contract }) : reject();
 }

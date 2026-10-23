@@ -38,7 +38,7 @@ export function analyzeCsharpStructuralInterfaceEmission(input: {
         const bareName = (name: string): string => name.startsWith("@") ? name.slice(1) : name;
         const selected = generatedTypeParameterNames(binders.map(parameter => ({ identity: parameter.identity,
           name: names.get(parameter.identity) ?? parameter.name })), [
-          ...method.forwarding.contract.parameters.map(parameter => bareName(parameter.targetParameter.name)),
+          ...method.forwarding.contract.nativeParameters.map(parameter => bareName(parameter.targetParameter.name)),
           ...(shape.targetType.kind === "target-named" ? shape.targetType.typeArguments ?? [] : [])
             .flatMap(type => type.kind === "type-parameter" ? [bareName(names.get(type.identity) ?? type.name)] : []),
           ...[...names].filter(([identity]) => !binderIds.has(identity)).map(([, name]) => bareName(name)),

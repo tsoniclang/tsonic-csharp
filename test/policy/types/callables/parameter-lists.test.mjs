@@ -28,25 +28,26 @@ test("a rest parameter list becomes one native array only when every element has
 
 test("an effective argument index selects its declared parameter; arguments past a params array select that array", () => {
   const parameter = (name, targetParameter) => ({ name, targetParameter });
-  const fixed = { parameters: [parameter("first", { type: int32 }), parameter("second", { type: string })] };
+  const fixed = { kind: "native", nativeParameters: [parameter("first", { type: int32 }), parameter("second", { type: string })] };
   assert.equal(csharpSourceCallArgumentParameter(fixed, 1).name, "second");
   assert.equal(csharpSourceCallArgumentParameter(fixed, 2), undefined, "an argument past a fixed list has no parameter");
-  const variadic = { parameters: [parameter("format", { type: string }), parameter("values", { type: ints, paramsArray: true })] };
+  const variadic = { kind: "native", nativeParameters: [parameter("format", { type: string }), parameter("values", { type: ints, paramsArray: true })] };
   assert.equal(csharpSourceCallArgumentParameter(variadic, 0).name, "format");
   for (const index of [1, 2, 7]) assert.equal(csharpSourceCallArgumentParameter(variadic, index).name, "values", String(index));
 });
 
 test("a non-generic source callable's value carrier is its exact native delegate, keeping optional and rest slots", () => {
   const callable = {
+    kind: "native",
     methodTypeParameterIdentities: [],
-    parameters: [{ targetParameter: { type: int32 } }, { targetParameter: { type: string, optional: true } }],
+    nativeParameters: [{ targetParameter: { type: int32 } }, { targetParameter: { type: string, optional: true } }],
     returnType: csharpVoidTargetType(),
   };
   const action = csharpCallableValueType(callable);
   assert.equal(action.id, "System.Action`2");
   assert.deepEqual(action.csharpDelegateSignature.parameters, [int32, string]);
   assert.deepEqual(action.csharpDelegateSignature.optionalParameterIndexes, [1]);
-  const func = csharpCallableValueType({ ...callable, parameters: [{ targetParameter: { type: ints, paramsArray: true } }], returnType: int32 });
+  const func = csharpCallableValueType({ ...callable, nativeParameters: [{ targetParameter: { type: ints, paramsArray: true } }], returnType: int32 });
   assert.equal(func.id, "System.Func`2");
   assert.equal(func.csharpDelegateSignature.restParameterIndex, 0);
   assert.equal(csharpCallableValueType({ ...callable, methodTypeParameterIdentities: ["owner:f:T"] }), undefined,

@@ -65,7 +65,7 @@ export function admitCsharpNativeDeclarations(
         if (csharpTargetTypeRenderingRejection(dispatch.implementation.returnType) !== undefined) {
           refuse(node, "A method's sealed native return contract is not renderable.");
         }
-        for (const parameter of dispatch.implementation.parameters) {
+        for (const parameter of dispatch.implementation.nativeParameters) {
           const type = parameter.targetParameter.type;
           if (csharpTargetTypeRenderingRejection(type) === undefined) continue;
           issues.push(Object.freeze({ category: "error", source: "tsonic-csharp", sourceNode: parameter.sourceParameter,
@@ -75,7 +75,7 @@ export function admitCsharpNativeDeclarations(
         }
         for (const adapter of dispatch.adapters) {
           if (csharpTargetTypeRenderingRejection(adapter.contract.returnType) !== undefined ||
-            adapter.contract.parameters.some(parameter => csharpTargetTypeRenderingRejection(parameter.targetParameter.type) !== undefined)) {
+            adapter.contract.nativeParameters.some(parameter => csharpTargetTypeRenderingRejection(parameter.targetParameter.type) !== undefined)) {
             refuse(node, "A sealed callable adapter has an unrenderable native signature.");
           }
         }

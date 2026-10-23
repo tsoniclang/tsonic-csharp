@@ -29,8 +29,9 @@ function fixture(carrier = csharpDelegateTargetType("System.Func", [integer], in
     sourceSelectedSignatureParameters: [{ parameterDeclaration: sourceParameter, parameterName: "value", parameterIndex: 0,
       selectedType: integer, acceptsOmission: false, rest: false }] };
   if (direct) source.sourceCallee.selectedDeclaration = declaration;
-  const openContract = { sourceDeclaration: signatureDeclaration, methodTypeParameterIdentities: [], methodAllowsRefLikeTypeArguments: [],
-    parameters: [{ sourceParameter, targetParameter: { name: "value", type: outer, passingMode: "by-value" } }], returnType: outer };
+  const openContract = { kind: "source", sourceDeclaration: signatureDeclaration,
+    methodTypeParameterIdentities: [], methodAllowsRefLikeTypeArguments: [], parameters: [sourceParameter],
+    nativeParameters: [{ sourceParameter, targetParameter: { name: "value", type: outer, passingMode: "by-value" } }], returnType: outer };
   const scope = { host: {
     ast: { is: { IsNewExpression: () => false, IsFunctionDeclaration: node => node?.kind === "function",
       IsMethodDeclaration: () => false, IsClassDeclaration: () => false }, parent: () => undefined, kindName: node => node?.kind },
@@ -62,10 +63,10 @@ test("stored aliases use their selected closed input and result, not creation te
         const selected = scope.resolveSourceCallContract(source, {}, { depth: 0 }, selection);
         assert.equal(selected.kind, "value");
         assert.equal(selected.contract.sourceDeclaration === signatureDeclaration, true, "exact signature provenance");
-        assert.equal(selected.contract.parameters[0].sourceParameter === sourceParameter, true, "exact argument correspondence");
+        assert.equal(selected.contract.nativeParameters[0].sourceParameter === sourceParameter, true, "exact argument correspondence");
         assert.equal(targetTypeRefEquals(selected.contract.returnType, type), true, "closed result");
         assert.equal(csharpFreeTypeParameterIdentities([selected.contract.returnType]).size, 0, "no free creation binder");
-        assert.equal(Object.isFrozen(selected.contract.parameters[0].targetParameter), true);
+        assert.equal(Object.isFrozen(selected.contract.nativeParameters[0].targetParameter), true);
       }
       assert.equal(targetTypeRefEquals(resolveSourceCallParameter(scope, source, 0, {}), type), true);
       assert.equal(targetTypeRefEquals(resolveSourceCallParameters(scope, source, {})[0].type, type), true);
@@ -88,12 +89,12 @@ test("stored quantified protocols retain closed outer bindings and exact invocat
     const selected = scope.resolveSourceCallContract(source, {}, { depth: 0 }, "checked");
     assert.equal(selected.kind, "value");
     assert.deepEqual(selected.contract.methodTypeParameterIdentities, [binder.identity]);
-    assert.equal(targetTypeRefEquals(selected.contract.parameters[0].targetParameter.type, binder), true);
+    assert.equal(targetTypeRefEquals(selected.contract.nativeParameters[0].targetParameter.type, binder), true);
     assert.equal(targetTypeRefEquals(selected.contract.returnType.elements[0], environment), true);
     assert.deepEqual([...csharpFreeTypeParameterIdentities([selected.contract.returnType])], [binder.identity]);
     scope.resolveSourceCallInstantiation = (_source, _file, _state, identities, contract) => {
       assert.deepEqual(identities, [binder.identity]);
-      assert.equal(targetTypeRefEquals(contract.parameters[0].targetParameter.type, binder), true, "native inference pattern");
+      assert.equal(targetTypeRefEquals(contract.nativeParameters[0].targetParameter.type, binder), true, "native inference pattern");
       assert.equal(targetTypeRefEquals(contract.returnType.elements[0], environment), true, "closed environment at inference");
       return { arguments: [integer], substitutions: new Map([[binder.identity, integer]]) };
     };
@@ -241,14 +242,14 @@ test("selected stored contracts do not require invented signature or parameter s
   const selected = scope.resolveSourceCallContract(source, {}, { depth: 0 }, "checked");
   assert.equal(selected.kind, "value", "exact native and selected semantic parameter correspondence");
   assert.equal(selected.contract.sourceDeclaration === undefined, true);
-  assert.equal(selected.contract.parameters[0].sourceParameter === undefined, true);
+  assert.equal(selected.contract.nativeParameters[0].sourceParameter === undefined, true);
   assert.equal(targetTypeRefEquals(resolveSourceCallParameter(scope, source, 0, {}), integer), true);
 });
 
 test("checked narrow overload arguments use the selected native implementation carrier", () => {
   const current = fixture(undefined, true);
   const native = { kind: "tuple", elements: [integer, string] };
-  current.openContract.parameters[0].targetParameter.type = native;
+  current.openContract.nativeParameters[0].targetParameter.type = native;
   const argument = { sourceParameterIndex: 0, effectiveArgumentIndex: 0, sourceForm: "value" };
   assert.equal(targetTypeRefEquals(resolveSourceCallArgumentParameter(current.scope, current.source, argument, {}), native), true,
     "the selected implementation owns physical argument storage");

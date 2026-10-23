@@ -119,15 +119,17 @@ for (const surface of ["native", "js"]) {
     const declarations = new Map(nodes.filter(node => ast.is.IsArrowFunction(node)).map(declaration => {
       const signature = getCsharpLambdaSignature(records.callableTarget.get(declaration));
       assert.equal(signature !== undefined, true, "each adapted lambda has its exact published signature");
-      const parameters = Object.freeze(ast.parameters(declaration).map((parameter, index) => {
+      const parameters = records.callableDeclaration.get(declaration).parameters;
+      const nativeParameters = Object.freeze(parameters.map((parameter, index) => {
         const type = records.lambdaParameterType.get(parameter);
         assert.equal(type !== undefined && targetTypeRefEquals(type, signature.parameters[index]), true,
           "the callable contract carries the published parameter correspondence");
         return Object.freeze({ sourceParameter: parameter,
           targetParameter: Object.freeze({ type, passingMode: signature.parameterPassingModes[index] }) });
       }));
-      return [declaration, Object.freeze({ sourceDeclaration: declaration,
-        methodTypeParameterIdentities: Object.freeze([]), methodAllowsRefLikeTypeArguments: Object.freeze([]), parameters, returnType: signature.returnType })];
+      return [declaration, Object.freeze({ kind: "source", sourceDeclaration: declaration,
+        methodTypeParameterIdentities: Object.freeze([]), methodAllowsRefLikeTypeArguments: Object.freeze([]),
+        parameters, nativeParameters, returnType: signature.returnType })];
     }));
     const callables = Object.freeze({ contracts: Object.freeze([...declarations.values()]),
       declarationContracts: Object.freeze([...declarations.values()]), closedInputType: () => undefined,

@@ -1,8 +1,8 @@
 import { csharpDelegateTargetType, isCsharpVoidTargetType, type TargetTypeRef, getCsharpDelegateSignature, isCsharpSourceDelegateTargetType, targetTypeRefEquals } from "../index.js";
-import { type CsharpSourceCallableSourceContract } from "../../../target-model/records/source-callable-contract.js";
+import { type CsharpSourceCallableContract } from "../../../target-model/records/source-callable-contract.js";
 
 export function csharpCallableValueType(
-  callable: CsharpSourceCallableSourceContract,
+  callable: CsharpSourceCallableContract,
 ): TargetTypeRef | undefined {
   if (callable.methodTypeParameterIdentities.length !== 0) return undefined;
   const parameters = callable.nativeParameters.map(parameter => parameter.targetParameter.type);

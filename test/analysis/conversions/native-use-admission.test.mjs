@@ -414,12 +414,14 @@ function nativeCreations(value, overrides = {}) {
   const contract = declaration => {
     const result = records.returnContract.get(declaration);
     if (result?.kind !== "resolved") return undefined;
-    const parameters = value.ast.parameters(declaration).map(parameter => {
+    const parameters = records.callableDeclaration.get(declaration).parameters;
+    const nativeParameters = parameters.map(parameter => {
       const type = records.lambdaParameterType.get(parameter);
       return type === undefined ? undefined : { sourceParameter: parameter, targetParameter: { type, passingMode: "by-value" } };
     });
-    return parameters.some(parameter => parameter === undefined) ? undefined : {
-      sourceDeclaration: declaration, methodTypeParameterIdentities: [], methodAllowsRefLikeTypeArguments: [], parameters, returnType: result.type,
+    return nativeParameters.some(parameter => parameter === undefined) ? undefined : {
+      kind: "source", sourceDeclaration: declaration, methodTypeParameterIdentities: [], methodAllowsRefLikeTypeArguments: [],
+      parameters, nativeParameters, returnType: result.type,
     };
   };
   return analyzeCsharpCallableCreations({ ast: value.ast, nodes: value.nodes,

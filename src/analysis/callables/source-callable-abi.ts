@@ -1,10 +1,14 @@
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
 import { AsParameterDeclaration, HasSourceKind, KindIdentifier, sourceCallableValueParameters } from "@tsonic/target-api/source";
+import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { csharpNullableTargetType, getCsharpCallableValueSignature } from "../../policy/types/index.js";
 import type { CsharpTargetParameter, TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpProjectForwardingConstructor } from "../../target-model/records/project-types.js";
-import type { CsharpSourceCallableSourceContract, CsharpSourceCallableParameterContract, CsharpSourceCallableContract } from "../../target-model/records/source-callable-contract.js";
+import type { CsharpSourceCallableSourceContract, CsharpSourceCallableParameterContract, CsharpSourceCallableContract, CsharpSourceCallParameterContract } from "../../target-model/records/source-callable-contract.js";
+import type { ResolvedSourceCallInfo } from "../../target-model/records/source-calls.js";
+import { csharpDelegateSignatureHasSupportedPassingModes } from "../../target-model/types/carriers/delegates.js";
+import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import type { CsharpGenericProjectionIndex } from "../../target-model/records/type-projections.js";
@@ -32,7 +36,7 @@ export function selectCsharpSourceCallableAbi(
     getCsharpCallableValueSignature(evidence.contextualTargetType.get(declaration))
       ?.returnType ??
     constructorReturnType(policy, declaration, sourceFile) ??
-    (accessor ? policy.types.resolveType(checked.returnType, sourceFile) : undefined);
+    (accessor || policy.ast.body(declaration) === undefined ? policy.types.resolveType(checked.returnType, sourceFile) : undefined);
   if (returnType === undefined) {
     return undefined;
   }
@@ -191,4 +195,53 @@ export function selectCsharpProjectConstructorAbi(
     ? Object.freeze({ ...common, kind: "native" })
     : Object.freeze({ ...common, kind: "source", sourceDeclaration: constructor.source.declaration,
         parameters: Object.freeze(constructor.source.parameters.map(parameter => parameter.parameterDeclaration)) });
+}
+
+export function selectCsharpSourceCallableValueAbi(input: {
+  readonly ast: AstReader;
+  readonly navigation: Pick<SourceProgramNavigation, "isProjectDeclaration">;
+  readonly semantics: SourceFileSemantics;
+  readonly source: ResolvedSourceCallInfo;
+  readonly carrier: TargetTypeRef;
+}): CsharpSourceCallableContract | undefined {
+  const { ast, navigation, semantics, source, carrier } = input;
+  const signature = getCsharpCallableValueSignature(carrier);
+  const declaration = semantics.declarations.signatureDeclaration(source.selectedSignature);
+  const slots = semantics.operations.callParameterSlots(source);
+  if (signature === undefined || slots === undefined ||
+      !csharpDelegateSignatureHasSupportedPassingModes(signature) ||
+      signature.parameters.length !== slots.length) return undefined;
+  const nativeParameters: CsharpSourceCallParameterContract[] = [];
+  const optionalParameters = new Set(signature.optionalParameterIndexes ?? []);
+  for (const [index, type] of signature.parameters.entries()) {
+    const slot = slots[index];
+    const parameter = slot === undefined ? undefined : source.sourceSelectedSignatureParameters.find(parameter =>
+      parameter.parameterIndex === slot.sourceParameterIndex);
+    if (parameter === undefined || slot === undefined ||
+        optionalParameters.has(index) !== (slot.form === "optional") ||
+        (signature.restParameterIndex === index) !== (slot.form === "rest")) return undefined;
+    nativeParameters.push(Object.freeze({
+      ...(parameter.parameterDeclaration === undefined ? {} : { sourceParameter: parameter.parameterDeclaration }),
+      targetParameter: Object.freeze({ name: slot.sourceParameterName, type, passingMode: signature.parameterPassingModes[index]!,
+        optional: optionalParameters.has(index), paramsArray: signature.restParameterIndex === index }),
+    }));
+  }
+  const common = {
+    methodTypeParameterIdentities: getCsharpMethodValue(carrier)?.typeParameters ?? Object.freeze([]),
+    methodAllowsRefLikeTypeArguments: getCsharpMethodValue(carrier)?.allowsRefLikeTypeArguments ?? Object.freeze([]),
+    returnType: signature.returnType,
+  };
+  if (declaration === undefined || !navigation.isProjectDeclaration(declaration)) {
+    return Object.freeze({ ...common, kind: "native", nativeParameters: Object.freeze(nativeParameters),
+      ...(declaration === undefined ? {} : { sourceDeclaration: declaration }) });
+  }
+  const parameters = sourceCallableValueParameters(ast, declaration, semantics);
+  if (parameters === undefined) return undefined;
+  const sourceNativeParameters: CsharpSourceCallableParameterContract[] = [];
+  for (const parameter of nativeParameters) {
+    if (parameter.sourceParameter === undefined) return undefined;
+    sourceNativeParameters.push(Object.freeze({ sourceParameter: parameter.sourceParameter, targetParameter: parameter.targetParameter }));
+  }
+  return Object.freeze({ ...common, kind: "source", sourceDeclaration: declaration,
+    parameters, nativeParameters: Object.freeze(sourceNativeParameters) });
 }

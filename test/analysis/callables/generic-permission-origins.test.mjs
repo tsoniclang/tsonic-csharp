@@ -71,9 +71,9 @@ for (const surface of ["native", "js"]) {
 
 test("callable contract equality includes every required generic permission without changing source binder identity", () => {
   const declaration = Object.freeze({});
-  const contract = Object.freeze({ sourceDeclaration: declaration,
+  const contract = Object.freeze({ kind: "source", sourceDeclaration: declaration,
     methodTypeParameterIdentities: Object.freeze(["source:identity:0"]),
-    methodAllowsRefLikeTypeArguments: Object.freeze([false]), parameters: Object.freeze([]),
+    methodAllowsRefLikeTypeArguments: Object.freeze([false]), parameters: Object.freeze([]), nativeParameters: Object.freeze([]),
     returnType: Object.freeze({ kind: "source-primitive", name: "int32" }) });
   const index = selected => Object.freeze({ contracts: Object.freeze([selected]), declarationContracts: Object.freeze([selected]),
     closedInputType: () => undefined, get: identity => identity.declaration === declaration ? selected : undefined });

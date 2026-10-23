@@ -17,7 +17,7 @@ function fixture(modes, slots) {
   const scope = { host: {
     ast: { is: { IsNewExpression: () => false, IsFunctionDeclaration: () => false, IsMethodDeclaration: () => false,
       IsClassDeclaration: () => false }, parent: () => undefined, kindName: () => "KindVariableDeclaration" },
-    navigation: { sourceReferenceFor: () => ({ declaration }) }, projectTypes: () => ({ catalog: {} }),
+    navigation: { sourceReferenceFor: () => ({ declaration }), isProjectDeclaration: () => false }, projectTypes: () => ({ catalog: {} }),
     semantics: () => ({ declarations: { signatureDeclaration: () => selectedDeclaration },
       operations: { callParameterSlots: () => slots } }),
   }, resolveSelectedValueWithState: () => carrier, sourceCallableTypeParametersMatch: () => true };
@@ -30,9 +30,9 @@ test("stored native callable contracts retain exact passing and checked slot cor
       [{ sourceParameterIndex: 7, sourceParameterName: "authored", form: "required" }]);
     const selected = resolveSourceCallContract(scope, source, {}, { depth: 0 }, "checked");
     assert.equal(selected.kind, "value");
-    assert.equal(selected.contract.parameters[0].targetParameter.passingMode, mode);
-    assert.equal(selected.contract.parameters[0].sourceParameter === sourceParameter, true);
-    assert.equal(selected.contract.parameters[0].targetParameter.name, "authored");
+    assert.equal(selected.contract.nativeParameters[0].targetParameter.passingMode, mode);
+    assert.equal(selected.contract.nativeParameters[0].sourceParameter === sourceParameter, true);
+    assert.equal(selected.contract.nativeParameters[0].targetParameter.name, "authored");
     assert.equal(selected.contract.sourceDeclaration === selectedDeclaration, true);
   }
 });

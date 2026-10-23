@@ -35,8 +35,8 @@ export function finalizeCsharpStructuralInterfaceForwarding(
     const forwarding = method.forwarding;
     const types = [selected.interfaceType, forwarding.contract.returnType, forwarding.implementation.returnType,
       forwarding.result.source, forwarding.result.target,
-      ...forwarding.contract.parameters.map(parameter => parameter.targetParameter.type),
-      ...forwarding.implementation.parameters.map(parameter => parameter.targetParameter.type),
+      ...forwarding.contract.nativeParameters.map(parameter => parameter.targetParameter.type),
+      ...forwarding.implementation.nativeParameters.map(parameter => parameter.targetParameter.type),
       ...forwarding.typeArguments, ...forwarding.typeParameters,
       ...forwarding.parameters.flatMap(adapter => adapter.kind === "omitted" ? []
         : adapter.kind === "rest" ? [adapter.target, ...adapter.segments.flatMap(segment =>

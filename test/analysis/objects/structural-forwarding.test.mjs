@@ -165,8 +165,8 @@ test("a genuine native callable self-instantiation retains its complete projecte
   const permissions = Object.freeze([false, false, false]);
   const incoming = Object.freeze({ sourceParameter: Object.freeze({}),
     targetParameter: Object.freeze({ name: "value", type: storage, passingMode: "by-value" }) });
-  const contract = Object.freeze({ sourceDeclaration: declaration, methodTypeParameterIdentities: identities,
-    methodAllowsRefLikeTypeArguments: permissions, parameters: Object.freeze([incoming]), returnType: integer });
+  const contract = sourceContract({ sourceDeclaration: declaration, methodTypeParameterIdentities: identities,
+    methodAllowsRefLikeTypeArguments: permissions, nativeParameters: Object.freeze([incoming]), returnType: integer });
   const policy = { ast: { typeParameters: () => assert.fail("self-instantiation cannot confuse authored slots with its native projection vector") },
     projectTypes: { instantiateMemberType(selected, _receiver, type) {
       assert.equal(selected === declaration, true, "the actual declaration is the native instantiation owner");
@@ -176,7 +176,7 @@ test("a genuine native callable self-instantiation retains its complete projecte
   assert.equal(selected !== undefined, true, "one authored binder plus two real projections is a valid self-instantiation");
   assert.equal(selected.methodTypeParameterIdentities === identities && selected.methodAllowsRefLikeTypeArguments === permissions, true,
     "the exact canonical native binder and permission vectors are retained, never reconstructed or defaulted");
-  assert.equal(selected.parameters[0].targetParameter.type === storage, true, "the real optional storage identity is retained");
+  assert.equal(selected.nativeParameters[0].targetParameter.type === storage, true, "the real optional storage identity is retained");
 });
 
 test("native callable alpha substitution preserves selected bounded parameter metadata", () => {
@@ -194,19 +194,19 @@ test("native callable alpha substitution preserves selected bounded parameter me
   const constraint = Object.freeze({ kind: "resolved", constraints: Object.freeze([{ kind: "keyword", keyword: "class" }]) });
   const sourceType = Object.freeze({ ...csharpSourceTypeParameter(sourceParameter, ast), csharpConstraints: constraint });
   const implementationType = Object.freeze({ ...csharpSourceTypeParameter(implementationParameter, ast), csharpConstraints: constraint });
-  const contract = (declaration, parameter) => Object.freeze({ sourceDeclaration: declaration,
+  const contract = (declaration, parameter) => sourceContract({ sourceDeclaration: declaration,
     methodTypeParameterIdentities: Object.freeze([parameter.identity]), methodAllowsRefLikeTypeArguments: Object.freeze([false]),
-    parameters: Object.freeze([{ sourceParameter: Object.freeze({}), targetParameter: Object.freeze({ name: "value",
+    nativeParameters: Object.freeze([{ sourceParameter: Object.freeze({}), targetParameter: Object.freeze({ name: "value",
       type: csharpNullableTargetType(parameter), passingMode: "by-value" }) }]), returnType: parameter });
   const implementation = contract(implementationDeclaration, implementationType);
   const selected = instantiateCsharpInheritedCallable({ ast, projectTypes: {
     instantiateMemberType: (_declaration, _receiver, type) => ({ kind: "resolved", type }),
   } }, contract(sourceDeclaration, sourceType), implementation, undefined);
   assert.equal(selected !== undefined, true, "the actual bounded generic callable can be alpha-instantiated");
-  assert.equal(selected.parameters[0].targetParameter.type.csharpNullableReference === true &&
-    selected.parameters[0].targetParameter.type.csharpProjection === undefined, true,
+  assert.equal(selected.nativeParameters[0].targetParameter.type.csharpNullableReference === true &&
+    selected.nativeParameters[0].targetParameter.type.csharpProjection === undefined, true,
   "substituting an actual class-bound binder never creates an unknown optional witness");
-  assert.equal(selected.parameters[0].targetParameter.type.csharpConstraints === constraint &&
+  assert.equal(selected.nativeParameters[0].targetParameter.type.csharpConstraints === constraint &&
     selected.returnType.identity === implementationType.identity, true, "native identity and selected constraints remain authoritative");
 });
 
@@ -225,10 +225,10 @@ test("distinct authored callable binders preserve a matching complete native pro
   const contract = (declaration, parameter) => {
     const operations = csharpProjectedType({ kind: "optional", part: "operations", arguments: [parameter] });
     const storage = csharpNullableTargetType(parameter);
-    return Object.freeze({ sourceDeclaration: declaration,
+    return sourceContract({ sourceDeclaration: declaration,
       methodTypeParameterIdentities: Object.freeze([parameter.identity, operations.identity, storage.identity]),
       methodAllowsRefLikeTypeArguments: Object.freeze([false, false, false]),
-      parameters: Object.freeze([{ sourceParameter: Object.freeze({}), targetParameter: Object.freeze({
+      nativeParameters: Object.freeze([{ sourceParameter: Object.freeze({}), targetParameter: Object.freeze({
         name: "value", type: storage, passingMode: "by-value", optional: true }) }]), returnType: integer });
   };
   const source = contract(sourceDeclaration, csharpSourceTypeParameter(sourceParameter, ast));
@@ -240,11 +240,11 @@ test("distinct authored callable binders preserve a matching complete native pro
   assert.equal(selected.methodTypeParameterIdentities === implementation.methodTypeParameterIdentities &&
     selected.methodAllowsRefLikeTypeArguments === implementation.methodAllowsRefLikeTypeArguments, true,
   "the actual complete native binder and permission vectors remain authoritative");
-  assert.equal(targetTypeRefKey(selected.parameters[0].targetParameter.type) ===
-    targetTypeRefKey(implementation.parameters[0].targetParameter.type), true,
+  assert.equal(targetTypeRefKey(selected.nativeParameters[0].targetParameter.type) ===
+    targetTypeRefKey(implementation.nativeParameters[0].targetParameter.type), true,
   "the real projected storage is substituted through its checked authored payload");
-  assert.equal(selected.parameters[0].sourceParameter === source.parameters[0].sourceParameter &&
-    selected.parameters[0].targetParameter.optional === true && selected.parameters[0].targetParameter.passingMode === "by-value", true,
+  assert.equal(selected.nativeParameters[0].sourceParameter === source.nativeParameters[0].sourceParameter &&
+    selected.nativeParameters[0].targetParameter.optional === true && selected.nativeParameters[0].targetParameter.passingMode === "by-value", true,
   "parameter identity, omission and native passing are unchanged");
 });
 
@@ -404,6 +404,11 @@ function structuralInterfaceRecords(objectShapes, sourceType) {
     projections: { genericProjection: { get: () => [] } } });
 }
 
+function sourceContract(input) {
+  return Object.freeze({ ...input, kind: "source",
+    parameters: Object.freeze(input.nativeParameters.map(parameter => parameter.sourceParameter)) });
+}
+
 function fixture(passingMode = "by-value") {
   const sourceType = Object.freeze({ kind: "target-named", id: "test.Source", csharpAllowsRefLikeTypeArguments: Object.freeze([]) });
   const interfaceType = Object.freeze({ kind: "target-named", id: "test.View", csharpRender: { kind: "named", name: "View" }, csharpAllowsRefLikeTypeArguments: Object.freeze([]) });
@@ -411,9 +416,9 @@ function fixture(passingMode = "by-value") {
   const sourceParameter = Object.freeze({});
   const incoming = Object.freeze({ name: "value", type: passingMode === "by-value" ? csharpNullableTargetType(integer) : integer,
     passingMode, ...(passingMode === "by-value" ? { optional: true } : {}) });
-  const implementation = Object.freeze({ sourceDeclaration: declaration, methodTypeParameterIdentities: Object.freeze([]),
+  const implementation = sourceContract({ sourceDeclaration: declaration, methodTypeParameterIdentities: Object.freeze([]),
     methodAllowsRefLikeTypeArguments: Object.freeze([]),
-    parameters: Object.freeze([Object.freeze({ sourceParameter, targetParameter: incoming })]), returnType: integer });
+    nativeParameters: Object.freeze([Object.freeze({ sourceParameter, targetParameter: incoming })]), returnType: integer });
   const signature = csharpDelegateTargetType("System.Func", [incoming.type], integer,
     passingMode === "by-value" ? { optionalParameterIndexes: [0] } : {});
   const member = Object.freeze({ sourceName: "read", targetName: "read", memberKind: "method", type: {
@@ -449,10 +454,10 @@ test("structural method admission rejects every unrenderable selected native sig
   const opaque = Object.freeze({ kind: "opaque", id: "unrenderable-selected-native-slot" });
   for (const slot of ["interface", "return", "parameter", "incoming", "type argument"]) {
     const contract = slot === "return" ? { ...original.forwarding.contract, returnType: opaque }
-      : slot === "parameter" ? { ...original.forwarding.contract, parameters: original.forwarding.contract.parameters.map(parameter =>
+      : slot === "parameter" ? { ...original.forwarding.contract, nativeParameters: original.forwarding.contract.nativeParameters.map(parameter =>
         ({ ...parameter, targetParameter: { ...parameter.targetParameter, type: opaque } })) } : original.forwarding.contract;
     const implementation = slot === "incoming" ? { ...original.forwarding.implementation,
-      parameters: original.forwarding.implementation.parameters.map(parameter =>
+      nativeParameters: original.forwarding.implementation.nativeParameters.map(parameter =>
         ({ ...parameter, targetParameter: { ...parameter.targetParameter, type: opaque } })) } : original.forwarding.implementation;
     const method = { ...original, forwarding: { ...original.forwarding, contract, implementation,
       ...(slot === "type argument" ? { typeArguments: Object.freeze([opaque]) } : {}) } };
@@ -555,7 +560,7 @@ test("native implicit methods need no bridge while phantom destination binders s
       const method = selected.methods[0];
       const canonicalGet = value.callables.get;
       value.callables.get = identity => identity.declaration === destinationDeclaration ? {
-        sourceDeclaration: destinationDeclaration, parameters: value.implementation.parameters, returnType: integer,
+        kind: "source", sourceDeclaration: destinationDeclaration, parameters: value.implementation.parameters, nativeParameters: value.implementation.nativeParameters, returnType: integer,
         methodTypeParameterIdentities: ["destination:T"], methodAllowsRefLikeTypeArguments: [false],
       } : canonicalGet(identity);
       value.policy.ast.parent = node => node === value.declaration ? owner : node === destinationBinder ? destinationDeclaration : undefined;
@@ -578,16 +583,16 @@ test("canonical generic admission alpha-aligns real body parameters and retains 
   const value = fixture();
   const source = Object.freeze({ kind: "type-parameter", identity: "body:U", name: "U" });
   const destination = Object.freeze({ kind: "type-parameter", identity: "view:T", name: "T" });
-  const implementation = Object.freeze({ ...value.implementation, methodTypeParameterIdentities: Object.freeze([source.identity]),
+  const implementation = sourceContract({ ...value.implementation, methodTypeParameterIdentities: Object.freeze([source.identity]),
     methodAllowsRefLikeTypeArguments: Object.freeze([false]), returnType: source,
-    parameters: Object.freeze([Object.freeze({ sourceParameter: value.sourceParameter,
+    nativeParameters: Object.freeze([Object.freeze({ sourceParameter: value.sourceParameter,
       targetParameter: Object.freeze({ name: "value", type: source, passingMode: "by-value" }) })]) });
   const destinationDeclaration = Object.freeze({});
   const destinationBinder = Object.freeze({});
   const bodyBinder = Object.freeze({});
-  const destinationContract = Object.freeze({ sourceDeclaration: destinationDeclaration, methodTypeParameterIdentities: [destination.identity],
+  const destinationContract = sourceContract({ sourceDeclaration: destinationDeclaration, methodTypeParameterIdentities: [destination.identity],
     methodAllowsRefLikeTypeArguments: [false], returnType: destination,
-    parameters: [{ sourceParameter: Object.freeze({}), targetParameter: { name: "value", type: destination, passingMode: "by-value" } }] });
+    nativeParameters: [{ sourceParameter: Object.freeze({}), targetParameter: { name: "value", type: destination, passingMode: "by-value" } }] });
   value.callables.get = identity => identity.declaration === value.declaration ? implementation
     : identity.declaration === destinationDeclaration ? destinationContract : undefined;
   value.policy.ast.parent = node => node === destinationBinder ? destinationDeclaration : undefined;
@@ -624,9 +629,9 @@ function genericBoundFixture(bodyConstraints, destinationConstraints, bodyPermis
   const bodyBinder = Object.freeze({});
   const destinationBinder = Object.freeze({});
   const destinationDeclaration = Object.freeze({});
-  const body = Object.freeze({ ...value.implementation, parameters: Object.freeze([]),
+  const body = sourceContract({ ...value.implementation, nativeParameters: Object.freeze([]),
     methodTypeParameterIdentities: Object.freeze(["body:U"]), methodAllowsRefLikeTypeArguments: Object.freeze(bodyPermissions) });
-  const destination = Object.freeze({ sourceDeclaration: destinationDeclaration, parameters: Object.freeze([]), returnType: integer,
+  const destination = sourceContract({ sourceDeclaration: destinationDeclaration, nativeParameters: Object.freeze([]), returnType: integer,
     methodTypeParameterIdentities: Object.freeze(["view:T"]), methodAllowsRefLikeTypeArguments: Object.freeze(destinationPermissions) });
   const selected = value.shapes.structuralImplementations(value.sourceType)[0];
   const original = selected.methods[0];
@@ -721,10 +726,10 @@ test("matching native projection layouts retain all actual binder, permission an
     name: "value", type: bodyStorage, passingMode: "by-value" } }];
   const destinationParameters = [{ sourceParameter: Object.freeze({}), targetParameter: {
     name: "value", type: destinationStorage, passingMode: "by-value" } }];
-  const bodyContract = Object.freeze({ ...body, parameters: bodyParameters,
+  const bodyContract = sourceContract({ ...body, nativeParameters: bodyParameters,
     methodTypeParameterIdentities: [bodyParameter.identity, ...bodyProjections.map(parameter => parameter.identity)],
     methodAllowsRefLikeTypeArguments: [false, false, false] });
-  const destinationContract = Object.freeze({ ...destination, parameters: destinationParameters, returnType: widened,
+  const destinationContract = sourceContract({ ...destination, nativeParameters: destinationParameters, returnType: widened,
     methodTypeParameterIdentities: [destinationParameter.identity, ...destinationProjections.map(parameter => parameter.identity)],
     methodAllowsRefLikeTypeArguments: [false, false, false] });
   value.callables.get = identity => identity.declaration === value.declaration ? bodyContract
@@ -848,8 +853,8 @@ for (const surface of ["native", "js"]) {
         csharpProgramSourceFiles(program).forEach(visit);
         assert.equal(declaration !== undefined, true, "the exact authored method remains in the sealed source domain");
         const method = program.records.callableDispatch.get(declaration)?.implementation;
-        assert.equal(method?.parameters.length, 2, "unused and omittable native parameters are not dropped");
-        assert.equal(method?.parameters.every(parameter => parameter.targetParameter.optional === true), true,
+        assert.equal(method?.nativeParameters.length, 2, "unused and omittable native parameters are not dropped");
+        assert.equal(method?.nativeParameters.every(parameter => parameter.targetParameter.optional === true), true,
           "both native omission contracts are retained");
         assert.equal(/public int read\(int\? [^,\n]+, int\? /u.test(generated), true,
           "the actual native method, whether directly satisfying the interface or forwarded, retains both incoming slots");
@@ -881,11 +886,11 @@ function adaptedNativeForwarder(control, destinationNames = []) {
   const widened = Object.freeze({ kind: "source-primitive", name: "int64" });
   const signature = csharpTargetNamedType(`Proof.${control.name}Signature`, undefined,
     { kind: "named", namespace: ["Proof"], name: `${control.name}Signature` },
-    { allowsRefLikeTypeArguments: [], delegateSignature: { parameters: Object.freeze(control.modes.map(() => integer)),
+    { allowsRefLikeTypeArguments: [], delegateSignature: { nativeParameters: Object.freeze(control.modes.map(() => integer)),
       parameterPassingModes: Object.freeze([...control.modes]), returnType: widened } });
-  const implementation = Object.freeze({ sourceDeclaration: declaration, methodTypeParameterIdentities: Object.freeze([]),
+  const implementation = sourceContract({ sourceDeclaration: declaration, methodTypeParameterIdentities: Object.freeze([]),
     methodAllowsRefLikeTypeArguments: Object.freeze([]),
-    parameters: Object.freeze(control.modes.map((passingMode, index) => Object.freeze({ sourceParameter: Object.freeze({}),
+    nativeParameters: Object.freeze(control.modes.map((passingMode, index) => Object.freeze({ sourceParameter: Object.freeze({}),
       targetParameter: Object.freeze({ name: `value${index}`, type: integer, passingMode }) }))), returnType: integer });
   const member = Object.freeze({ sourceName: "read", targetName: "read", memberKind: "method", type: signature,
     sourceDeclarations: Object.freeze([destinationDeclaration]),
@@ -897,10 +902,10 @@ function adaptedNativeForwarder(control, destinationNames = []) {
     Object.freeze({ sourceName: "read", declaration, member }),
   ]) });
   const destinationBinders = new Set(member.typeParameters?.map(parameter => parameter.declaration) ?? []);
-  const destinationContract = Object.freeze({ sourceDeclaration: destinationDeclaration,
+  const destinationContract = sourceContract({ sourceDeclaration: destinationDeclaration,
     methodTypeParameterIdentities: Object.freeze(member.typeParameters?.map(parameter => parameter.identity) ?? []),
     methodAllowsRefLikeTypeArguments: Object.freeze(destinationNames.map(() => false)),
-    parameters: implementation.parameters, returnType: widened });
+    nativeParameters: implementation.nativeParameters, returnType: widened });
   const policy = { ast: { parent: node => destinationBinders.has(node) ? destinationDeclaration : undefined,
     parameters: () => assert.fail("native forwarding cannot re-plan source parameters") },
     projectTypes: { catalog: { definitions: Object.freeze([]), definitionForDeclaration: () => undefined, definitionForTarget: () => undefined }, directSupertypes: () => [] },
