@@ -5,7 +5,7 @@ import { csharpProviderBindingFromResolution } from "../../providers/model/relat
 import type { CsharpProjectTypeDefinition, CsharpProjectTypeHeritage, CsharpProjectTypeIssue } from "../../target-model/records/project-types.js";
 import type { AstReader, Node, ReadonlySourceFactResolver } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import { sourceNodeIdentity, sourceCallableInterface } from "@tsonic/target-api/source";
+import { sourceNodeIdentity, sourceCallableInterface, sourceInterfaceRepresentationBase } from "@tsonic/target-api/source";
 import { csharpFreeTypeParameterIdentities, visitCsharpTargetTypeParameters } from "../../target-model/types/generic-references.js";
 import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
 import type { SourceEnumConstantIndex, SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
@@ -246,7 +246,11 @@ export function projectTypeDefinition(
   if (enumWidth?.kind === "rejected") return { kind: "rejected", selection: enumWidth };
   const local = kind === "class" && !host.ast.is.IsSourceFile(host.ast.parent(declaration)!);
   const semantics = host.semanticsFor(declaration);
-  if (kind === "interface" && sourceCallableInterface(semantics.declarations.declaredType(declaration), semantics, host.ast) !== undefined) return { kind: "not-project-type" };
+  if (kind === "interface") {
+    if (sourceCallableInterface(semantics.declarations.declaredType(declaration), semantics, host.ast) !== undefined) return { kind: "not-project-type" };
+    const representation = sourceInterfaceRepresentationBase(declaration, host.ast, host.navigation, semantics);
+    if (representation !== undefined && semantics.types.isArrayLike(representation.selectedType)) return { kind: "not-project-type" };
+  }
   const declaredType = local ? semantics.declarations.declaredType(declaration) : undefined;
   if (local && declaredType === undefined) return { kind: "not-project-type" };
   const bindings = declaredType === undefined ? undefined : semantics.types.typeArgumentBindings(declaredType);

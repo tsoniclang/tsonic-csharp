@@ -44,6 +44,17 @@ for (const surface of ["native", "js"]) {
     const visit = node => {
       const fact = program.records.bindingPatternProjection.get(node);
       if (fact?.element?.kind === "object-shape-absence") absent.push({ node, fact });
+      if (ast.is.IsVariableDeclaration(node)) {
+        const declaration = ast.as.AsVariableDeclaration(node);
+        if (declaration?.name !== undefined && ast.is.IsObjectBindingPattern(declaration.name) &&
+          declaration.Initializer !== undefined && ast.is.IsObjectLiteralExpression(declaration.Initializer)) {
+          const source = program.records.bindingPatternProjection.get(declaration.name)?.source;
+          const physical = program.records.nativeExpression.get(declaration.Initializer)?.physical;
+          assert.equal(source?.kind === "object-shape-source" && physical !== undefined && physical.kind !== "erased" &&
+            targetTypeRefKey(source.shape.targetType) === targetTypeRefKey(physical.carrier), true,
+          "destructuring reads its actual produced object carrier, not the annotation's distinct layout");
+        }
+      }
       ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
     };
     csharpProgramSourceFiles(program).forEach(visit);
