@@ -142,6 +142,27 @@ test("contextual callback returns convert broad values without erasing native in
   assert.doesNotMatch(generated, /Convert\.ToDouble|\(double\)wide/u);
 });
 
+test("contextual rest formals supply scalar named inputs without changing actual rest bindings", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+    import type { int32, int64 } from "@tsonic/core/types.js";
+    export function run(): boolean {
+      const named: (prefix: string, ...values: int64[]) => int64 = (prefix, first, second) =>
+        prefix === "wide" ? first + second : 0n;
+      const rest: (prefix: string, ...values: int64[]) => int64 = (prefix, ...values) =>
+        prefix === "wide" ? values[0] + values[1] : 0n;
+      const tuple: (...values: [int32, string]) => string = (count, label) => count + label;
+      const tupleRest: (...values: [int32, string]) => string = (...values) => values[0] + values[1];
+      const wide: int64 = 9007199254740993n;
+      return named("wide", wide, 2n) === wide + 2n && rest("wide", wide, 2n) === wide + 2n &&
+        tuple(7, "x") === "7x" && tupleRest(7, "x") === "7x";
+    }
+  ` });
+  executeCsharpConstruction(compiled, "contextual-rest-native-inputs");
+  const generated = [...compiled.artifacts.values()].join("\n");
+  assert.match(generated, /JSArray<long>/u);
+  assert.doesNotMatch(generated, /Convert\.ToDouble|\(double\)wide/u);
+});
+
 test("String search preserves the native integer result and custom returns", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: `
     import { jsstr } from "@tsonic/js/lang.js";

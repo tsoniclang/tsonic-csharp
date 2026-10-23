@@ -23,6 +23,7 @@ import { csharpBoundSourceType, csharpSourceBindings, csharpSourceTemplateState 
 import { csharpConditionalDeclaration, resolveCsharpConditionalApplication } from "./conditional-types.js";
 import { csharpSourceStorageContext, csharpSourceStorageComponentContext } from "./source-storage-projection.js";
 import { bindCsharpSourceTypeArguments } from "./generic-arguments.js";
+import { csharpTargetParameterValueType } from "../../../../target-model/types/member-facts.js";
 
 export function resolveTypeReferenceNode(
   { host, resolveCheckerTransformedSourceType, resolveCompositionalSourceTypeAlias, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceType, resolveProviderType, resolveSourceProfileType, resolveStandardSourceTypeTransformation, resolveTypeWithState, targetPreservesAuthoredSourcePrimitiveFacts }: CsharpTypeResolutionScope,
@@ -513,8 +514,10 @@ export function resolveSourceValueDeclaration(
       const index = parameters?.indexOf(declaration) ?? -1;
       const contextual = declarationQueries.types.contextualValueSelection(owner);
       const callable = contextual.kind === "selected" ? declarationQueries.types.callable(contextual.type) : undefined;
-      const parameter = index < 0 ? undefined : callable?.parameters[index];
-      if (parameter !== undefined && contextual.kind === "selected") {
+      const restIndex = callable?.parameters.findIndex(parameter => parameter.parameterKind === "rest") ?? -1;
+      const parameter = index < 0 ? undefined : callable?.parameters[restIndex >= 0 && index >= restIndex ? restIndex : index];
+      const restBinding = host.ast.as.AsParameterDeclaration(declaration)?.DotDotDotToken !== undefined;
+      if (parameter !== undefined && (!restBinding || parameter.parameterKind === "rest") && contextual.kind === "selected") {
         let parameterState = bindCsharpSourceTypeArguments(scope, contextual.type, declarationQueries, nextState(state));
         const ownParameters = host.ast.typeParameters(owner);
         if (ownParameters.length !== 0) {
@@ -530,8 +533,11 @@ export function resolveSourceValueDeclaration(
           parameterState = csharpSourceBindings(contextualParameters as readonly Node[], ownSources as readonly Type[],
             ownTargets as readonly TargetTypeRef[], parameterState);
         }
-        const native = parameterState === undefined ? undefined
+        const nativeParameter = parameterState === undefined ? undefined
           : scope.resolveSignatureParameterEvidence(parameter, declarationQueries, parameterState, "callable");
+        const native = nativeParameter === undefined ? undefined : parameter.parameterKind === "rest" && !restBinding
+          ? csharpTargetParameterValueType({ name: "", type: nativeParameter, passingMode: "by-value", paramsArray: true }, "value")
+          : nativeParameter;
         if (native === undefined) return undefined;
         const declaredSource = declarationQueries.declarations.declaredValueType(declaration);
         if (declaredSource === undefined || selectedSource === undefined) return native;
