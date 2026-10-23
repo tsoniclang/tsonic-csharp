@@ -105,6 +105,10 @@ function factsInput(program, source, target) {
     evidence: program.records,
     operations: program.records,
     valueReads: program.records,
+    initializerUses: { get: declaration => {
+      const expression = program.source.ast.as.AsVariableDeclaration(declaration)?.Initializer;
+      return expression === undefined ? undefined : program.records.nativeExpression.get(expression)?.physical;
+    } },
     objectShapes: program.objectShapes,
     storage: program.records,
     typePolicy: { resolveType: () => assert.fail("These array and object-shape fixtures require no source-owned member resolution.") },
@@ -144,6 +148,34 @@ function findNode(program, kindName, text) {
 }
 
 const float64Key = targetTypeRefKey(csharpSourcePrimitiveTargetType("float64"));
+
+test("binding initializers require one exact admitted physical expression without a logical-read fallback", () => {
+  const { program, source, target } = publishedProgram(`
+    export function run(): number {
+      const { value }: { value?: number } = { value: 4 };
+      return value ?? 0;
+    }
+  `, "native");
+  const declaration = findNode(program, "KindVariableDeclaration", "{ value }: { value?: number } = { value: 4 }");
+  const pattern = source.ast.as.AsVariableDeclaration(declaration).name;
+  const input = factsInput(program, source, target);
+  const selected = input.initializerUses.get(declaration);
+  assert.equal(selected !== undefined, true, "the original real initializer has its exact published physical use");
+  assert.equal(analyzeCsharpBindingPatterns(input).candidates.length, 0, "the actual admitted initializer remains supported");
+  for (const [label, actual] of [
+    ["missing physical admission", undefined],
+    ["ambiguous physical admission", null],
+    ["another physical expression", { ...selected, expression: declaration }],
+  ]) {
+    const analysis = analyzeCsharpBindingPatterns({ ...input, initializerUses: { get: () => actual } });
+    assert.equal(analysis.candidates.length, 1, `${label}: one precise private refusal`);
+    assert.equal(analysis.candidates[0].root === declaration && analysis.candidates[0].node === pattern &&
+      analysis.candidates[0].message === "Destructuring source requires its exact admitted physical initializer expression and carrier.", true,
+    `${label}: the exact initializer boundary owns the refusal`);
+    assert.equal(analysis.bindingPatternProjection.get(pattern) === undefined, true,
+      `${label}: neither a raw read nor an annotation fabricates a published physical layout`);
+  }
+});
 
 test("binding facts and tuple defaults are computed once for declaration, parameter, assignment and for-of patterns", () => {
   const { program, source, target } = publishedProgram(`
@@ -216,6 +248,7 @@ test("an unsupported pattern stays a candidate issue with its pattern root and n
     evidence: { compileTimeMetadata: { get: () => false } },
     operations: { nativeUnreachable: { get: () => false } },
     valueReads: { valueRead: { get: node => node === initializer ? { value: carrier } : undefined } },
+    initializerUses: new Map([[declaration, { expression: initializer, carrier }]]),
     objectShapes: { resolveNode: () => undefined },
     storage: { storageType: { get: () => assert.fail("The unsupported source is refused before destination storage is queried.") } },
     typePolicy: { resolveType: () => assert.fail("The unsupported array source has no source-owned member resolution.") },

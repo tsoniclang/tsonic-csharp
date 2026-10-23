@@ -213,11 +213,6 @@ export function analyzeCsharpRepresentationIteration(
     ...expectedTypes.nativeUseSites.requests.flatMap(request => request.kind === "requested"
       ? [{ expression: request.expression, target: request.targetType }] : []),
   ], sourceStorage.nodes);
-  const bindingCandidates = analyzeCsharpBindingPatterns({
-    ast: source.ast, semanticsFor: source.semantics.forNode, sourceFiles, participation: nativeParticipation.participation,
-    evidence: sourceEvidence, operations, valueReads, objectShapes,
-    typePolicy: policy.types, conversionPolicy: Object.freeze({ ...policy, objectShapes }), storage: storageRepresentations,
-  });
   const expectedUse = admitCsharpExpectedNativeUses(expectedTypes, {
     ast: source.ast, exactLiteral: exactLiterals.exactLiteral, callableCreation: callableCreations.callableCreation,
     valueRead: valueReads.valueRead, operations,
@@ -225,6 +220,11 @@ export function analyzeCsharpRepresentationIteration(
   const initializerUses = new Map<object, CsharpExpectedNativeUse | null>();
   for (const entry of expectedUse.entries) if (entry.site.role === "initializer")
     initializerUses.set(entry.site.subject, initializerUses.has(entry.site.subject) ? null : entry.use);
+  const bindingCandidates = analyzeCsharpBindingPatterns({
+    ast: source.ast, semanticsFor: source.semantics.forNode, sourceFiles, participation: nativeParticipation.participation,
+    evidence: sourceEvidence, operations, valueReads, objectShapes, initializerUses,
+    typePolicy: policy.types, conversionPolicy: Object.freeze({ ...policy, objectShapes }), storage: storageRepresentations,
+  });
   const pendingInitializers = new Set(expectedUse.pending.filter(entry => entry.site.role === "initializer")
     .map(entry => entry.site.subject));
   for (const declaration of sourceStorage.nodes) {

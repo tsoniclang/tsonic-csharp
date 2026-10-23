@@ -25,6 +25,10 @@ function owners(sourceText, surface = "native") {
   const participation = records.nativeParticipation;
   const bindingPatterns = analyzeCsharpBindingPatterns({ ast, semanticsFor: source.semantics.forNode, sourceFiles: csharpProgramSourceFiles(program), participation, evidence: records,
     operations: records, valueReads: records, objectShapes: program.objectShapes, storage: records,
+    initializerUses: { get: declaration => {
+      const expression = ast.as.AsVariableDeclaration(declaration)?.Initializer;
+      return expression === undefined ? undefined : records.nativeExpression.get(expression)?.physical;
+    } },
     typePolicy: { resolveType: () => assert.fail("These native-use fixtures require no source-owned member resolution.") },
     conversionPolicy: { target: compiled.target, typeDefinitions: program.typeDefinitions, objectShapes: program.objectShapes,
       providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
