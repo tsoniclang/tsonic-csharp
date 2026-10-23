@@ -198,6 +198,8 @@ export function analyzeCsharpRefLikePlacements(input: CsharpNativePlacementInput
         const sourceCall = input.operations.selectedCall.get(node);
         const callee = sourceCall?.sourceCall;
         if (callee !== undefined && callee.kind !== "rejected" && sourceCall?.sourceTypeArguments !== undefined) {
+          if ((callee.kind === "function" || callee.kind === "method") &&
+            !input.source.navigation.isProjectDeclaration(callee.declaration)) continue;
           const allowed = callee.kind === "function" || callee.kind === "method"
             ? [input.callables.get({ kind: "declaration", declaration: callee.declaration })?.nativeSignature.methodAllowsRefLikeTypeArguments]
             : callee.kind === "union-method" && sourceCall.unionCall?.kind === "resolved"

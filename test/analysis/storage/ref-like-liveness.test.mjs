@@ -9,6 +9,21 @@ const header = `import type { int32 } from "@tsonic/core/types.js";
 import { Span } from "@tsonic/dotnet/System.js";
 function consume(view: Span<int32>, extra: int32): int32 { return view.Length + extra; }`;
 
+test("an external source generic call is refused by its callee owner, not invented native metadata", () => {
+  const compiled = compileCsharpSource({
+    sourceText: `import { foreign } from "./foreign.js";
+export function read(): number { return foreign<number>(1); }`,
+    files: { "/project/foreign.d.ts": "export declare function foreign<Value>(value: Value): Value;" },
+  });
+  assert.equal(compiled.sourceDiagnosticsText, "", "the external generic signature is actual checked source");
+  assert.equal(compiled.result.diagnostics.some(issue => issue.message.includes("external to the project")), true,
+    "a declaration-only callee needs its actual native target relation");
+  assert.equal(compiled.result.diagnostics.some(issue => issue.code === "CSHARP_REFLIKE_METADATA_NOT_PROVEN"), false,
+    "a non-native source artifact has no fabricated anti-constraint contract");
+  assert.equal(compiled.result.program === undefined, true, "external source calls are never admitted as native methods");
+  assert.equal(compiled.result.artifacts.length, 0, "the unsupported source call emits no artifacts");
+});
+
 test("missing owned binding evidence refuses instead of silently skipping liveness", async () => {
   const { analyzeCsharpRefLikeLiveness } = await import("../../../dist/analysis/storage/ref-like-liveness.js");
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: {

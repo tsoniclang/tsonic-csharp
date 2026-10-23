@@ -6,6 +6,7 @@ import { analyzeCsharpConstructorArguments } from "../declarations/classes/const
 
 import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { CsharpResolvedBinaryOperation } from "../../target-model/records/operator-selection.js";
 
 import { analyzeCsharpNativeConstants } from "../operations/native-constants.js";
 import { analyzeCsharpBinaryEmission } from "../operations/binary-emission.js";
@@ -271,9 +272,6 @@ export function finalizeCsharpNativeEmission(
     declarations: analysis.declarations, values: analysis.valueReads, storage: analysis.storage, conversions, literals: literalValues,
     exact: exactLiterals, admitted: admittedControlNode, required: analysis.requiredRecords });
   if (callableParameters.issues.length !== 0) return rejectedTargetStage(callableParameters.issues);
-  const classEmission = analyzeCsharpClassEmission({ ast: source.ast, nodes: sourceStorage.nodes, projectTypes, factories: classFactories,
-    captures: captureStorage, storage: analysis.storage, names, admitted: admittedControlNode, callables: analysis.callables });
-  if (classEmission.issues.length !== 0) return rejectedTargetStage(classEmission.issues);
   const sourceOutputIdentities = analyzeCsharpSourceOutputIdentities({ ast: source.ast, sourceFiles, paths: input.paths,
     namespace: request.project.namespace, sourceFacts: source.sourceFacts,
     generatedTypeNames: [...projectTypes.declarationScopeNames, ...classFactories.factories.flatMap(factory => [
@@ -338,15 +336,38 @@ export function finalizeCsharpNativeEmission(
     factories: classFactories, projects: projectEmission.records, parameters: typeParameterEmission.records,
     operations: admittedOperations, admitted: admittedControlNode });
   if (identifierIssues.length !== 0) return rejectedTargetStage(identifierIssues);
+  const classEmission = analyzeCsharpClassEmission({ ast: source.ast, nodes: sourceStorage.nodes, projectTypes, factories: classFactories,
+    captures: captureStorage, storage: analysis.storage, names, admitted: admittedControlNode, callables: analysis.callables });
+  if (classEmission.issues.length !== 0) return rejectedTargetStage(classEmission.issues);
   const sourceUnions = analyzeCsharpSourceUnionEmission(typeDefinitions);
   const nativeLayouts = analyzeCsharpNativeMemoryEmission({ nodes: sourceStorage.nodes, storage: analysis.storage, operations: admittedOperations });
   const typedLocationEmission = analyzeCsharpTypedLocationEmission({ source, nodes: sourceStorage.nodes,
     storage: analysis.storage, operations: admittedOperations, members: objectMembers.records, admitted: admittedControlNode });
   if (typedLocationEmission.issues.length !== 0) return rejectedTargetStage(typedLocationEmission.issues);
+  const binaryCarriers = (selection: CsharpResolvedBinaryOperation): readonly TargetTypeRef[] => [
+    selection.leftType, selection.rightType, selection.leftInputType, selection.rightInputType, selection.resultType,
+  ];
+  const operationCarriers = sourceStorage.nodes.flatMap(node => {
+    if (!admittedControlNode(node)) return [];
+    const binary = admittedOperations.binaryOperation.get(node);
+    const unary = admittedOperations.unaryOperation.get(node)?.target;
+    const mutation = admittedOperations.jsArrayMutation.get(node);
+    const selectedSwitch = admittedOperations.switchStatement.get(node);
+    return [
+      ...binary?.target.kind === "resolved" ? binaryCarriers(binary.target) : [],
+      ...binary?.destructuring.kind === "resolved" ? [binary.destructuring.sourceType, binary.destructuring.resultType] : [],
+      ...unary?.kind === "resolved" ? [unary.operandType, unary.resultType] : [],
+      ...mutation?.kind === "set-typed-element" && mutation.calculation !== undefined ? binaryCarriers(mutation.calculation) : [],
+      ...selectedSwitch === undefined || selectedSwitch.kind === "rejected" ? [] : [selectedSwitch.type],
+      ...selectedSwitch?.kind === "ordered" ? selectedSwitch.clauses.flatMap(clause =>
+        clause.comparison === undefined ? [] : binaryCarriers(clause.comparison)) : [],
+    ];
+  });
   const typeEmission = analyzeCsharpTypeEmission({ ast: source.ast, nodes: sourceStorage.nodes, evidence: analysis.sourceEvidence,
     languageDialect: configuration.languageDialect,
-    extraTypes: [...typedLocationEmission.carriers, ...nativeLayouts.carriers, ...restSequences.carriers, ...nativeDemand.entries.flatMap(({ use }) => use.kind === "erased" ? []
-      : use.kind === "converted" ? [use.carrier, use.target] : [use.carrier]),
+    extraTypes: [...typedLocationEmission.carriers, ...nativeLayouts.carriers, ...restSequences.carriers, ...operationCarriers,
+      ...nativeDemand.entries.flatMap(({ use }) => use.kind === "erased" ? []
+      : [use.carrier, ...use.kind === "converted" ? [use.target] : [], ...use.binary === undefined ? [] : binaryCarriers(use.binary)]),
       ...sourceUnions.sourceUnions.get().flatMap(union => [union.carrier, union.storage, ...union.arms])],
     values: analysis.valueReads, storage: analysis.storage, shapes: objectShapeDemand, admitted: admittedControlNode });
   if (typeEmission.issues.length !== 0) return rejectedTargetStage(typeEmission.issues);

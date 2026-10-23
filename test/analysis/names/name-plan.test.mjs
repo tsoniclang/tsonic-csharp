@@ -22,6 +22,21 @@ const analyzeCompletedCsharpProgram = request => analyzeCsharpAnalysisProgram(co
 
 const nativeMemberNames = Object.freeze({ issues: Object.freeze([]), memberHiding: Object.freeze([]) });
 
+for (const surface of ["native", "js"]) for (const [description, sourceText] of [
+  ["Function name", "export default function (): number { return 1; }"],
+  ["Class name", "export default class { value: number = 1; }"],
+]) {
+  test(`${surface}: an emitted anonymous declaration is refused by source-name admission: ${description}`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText });
+    assert.equal(compiled.sourceDiagnosticsText, "", "the declaration name is a target-owned source rule");
+    assert.equal(compiled.result.diagnostics.some(issue => issue.code === "CSHARP_UNSUPPORTED_NAME" &&
+      issue.message.startsWith(`${description} must be present`)), true,
+    "the actual emitted declaration has a precise pre-seal name refusal");
+    assert.equal(compiled.result.program === undefined, true, "no anonymous native declaration is published");
+    assert.equal(compiled.result.artifacts.length, 0, "no synthesized declaration or partial artifact is emitted");
+  });
+}
+
 test("native dispatch requires its completed narrow inputs instead of the retired five-argument API", () => {
   assert.throws(() => analyzeCsharpProjectCallableAdapters({}, {}, {}, {}, {}), error => error instanceof Error &&
     error.message.includes("Native callable dispatch requires the open authored-name lookup and completed storage and participation inputs."),
