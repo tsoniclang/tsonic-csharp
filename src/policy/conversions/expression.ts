@@ -8,7 +8,7 @@ import type { CsharpProviderArgumentAdapter } from "../../target-model/conversio
 import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../types/index.js";
 import type { CsharpConversionShapeQueries } from "./shape-queries.js";
-import { selectCsharpUnionArmMapping } from "./union-relations.js";
+import { selectCsharpUnionArmMapping, selectCsharpUnionInjection } from "./union-relations.js";
 import { selectCsharpRuntimeUnionProjection, selectDelegateConversion } from "./carriers.js";
 import { selectCsharpGuardedIntegerConversion } from "./integer-refinement.js";
 import { isCsharpRefLikeTargetType } from "../../target-model/types/ref-like.js";
@@ -42,34 +42,9 @@ export function selectCsharpExpressionConversion(
   if (refined !== undefined) return refined;
   const runtimeUnionArms = getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(target) ?? target, input.typeDefinitions);
   if (runtimeUnionArms !== undefined) {
-    const candidates = runtimeUnionArms.flatMap((armType, armIndex) => {
-      const sourceToArm = selectCsharpExpressionConversion(
-        input,
-        expression,
-        source,
-        armType,
-        mode,
-      );
-      return csharpConversionIsApplicable(sourceToArm, mode)
-        ? [{ armIndex, armType, sourceToArm }]
-        : [];
-    });
-    if (candidates.length === 1) {
-      return {
-        kind: "implicit",
-        proof: "runtime-union-arm",
-        ...candidates[0]!,
-      };
-    }
-    if (candidates.length > 1) {
-      return {
-        kind: "ambiguous",
-        reason:
-          "C# runtime-union expression conversion matches more than one exact arm.",
-        candidateIds: candidates.map((candidate) =>
-          `${candidate.armIndex}:${targetTypeRefKey(candidate.armType)}`),
-      };
-    }
+    const injection = selectCsharpUnionInjection(source, getCsharpNullableElementTargetType(target) ?? target,
+      input.typeDefinitions, mode, arm => selectCsharpExpressionConversion(input, expression, source, arm, mode));
+    if (injection !== undefined) return injection;
   }
   const literal = input.literalValues.literalValue.get(expression);
   const targetPrimitive = getCsharpNullableElementTargetType(target) ?? target;
