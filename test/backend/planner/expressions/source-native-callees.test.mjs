@@ -5,7 +5,8 @@ import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../../
 import { planCsharpNativeFunctionCallee, planCsharpNativeMethodCallee } from "../../../../dist/backend/planner/expressions/calls/native-callees.js";
 import { createDestructuringPlannerState } from "../../../../dist/backend/planner/bindings/binding-state.js";
 import { csharpPlannedValue } from "../../../../dist/backend/planner/expressions/planned-values.js";
-import { csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/index.js";
+import { csharpSourcePrimitiveTargetType, csharpVoidTargetType, getCsharpNullableElementTargetType, targetTypeRefEquals } from "../../../../dist/target-model/types/index.js";
+import { optionalAccessTargetType } from "../../../../dist/policy/types/storage/optional-access.js";
 import { analyzeCsharpMemberReceivers } from "../../../../dist/analysis/objects/member-receivers.js";
 import { analyzeCsharpSourceMemberNames } from "../../../../dist/analysis/objects/source-member-names.js";
 
@@ -152,11 +153,40 @@ test("generic class static callees remain exact namespace syntax, never runtime 
   plannerInvariant("An admitted native method requires its exact sealed member acquisition plan."));
 });
 
+test("optional native void calls preserve their exact completion without changing lifted values", () => {
+  const effect = csharpVoidTargetType();
+  const integer = csharpSourcePrimitiveTargetType("int32");
+  assert.equal(optionalAccessTargetType(effect, true) === effect, true, "native void remains an effect, not a nullable value");
+  assert.equal(optionalAccessTargetType(integer, false) === integer, true, "a direct native value retains its carrier");
+  assert.equal(targetTypeRefEquals(getCsharpNullableElementTargetType(optionalAccessTargetType(integer, true)), integer), true,
+    "an optional native value retains its existing nullable payload");
+  assert.equal(optionalAccessTargetType(undefined, true) === undefined, true, "missing native evidence remains missing");
+});
+
 for (const surface of ["native", "js"]) {
   test(`direct native callees are syntax rather than acquired delegates in ${surface}`, () => {
     const compiled = compileCsharpSource({ surface, sourceText: sourceNativeCalleeFiles["index.ts"],
       files: { "helper.ts": sourceNativeCalleeFiles["helper.ts"] } });
     assertCsharpCompilationSucceeded(compiled);
+    const program = compiled.result.program;
+    let guarded = 0;
+    const visit = node => {
+      const chain = program.records.optionalCallChain.get(node);
+      if (chain?.kind === "guarded") {
+        const invocation = program.records.sourceCallEmission.get(node);
+        assert.equal(invocation?.kind === "source", true, "the actual guarded call has a sealed native invocation");
+        assert.equal(targetTypeRefEquals(chain.result, invocation.result.nativeType), true,
+          "the actual guarded method retains its exact native void result");
+        assert.equal(program.records.typeEmission.get(chain.result)?.completion, "void",
+          "both the present and absent branch complete as effects");
+        assert.equal(getCsharpNullableElementTargetType(chain.result) === undefined, true,
+          "an optional void call does not manufacture a nullable value");
+        guarded += 1;
+      }
+      program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    };
+    for (const file of program.sourceFiles) visit(file);
+    assert.equal(guarded, 3, "lazy argument, returned void and throwing argument controls all retain their guards");
     const generated = [...compiled.artifacts.values()].join("\n");
     assert.equal(/\.read\(\)/u.test(generated), true);
     assert.equal(/\.identity<int>\(/u.test(generated), true);
