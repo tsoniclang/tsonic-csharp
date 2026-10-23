@@ -36,7 +36,7 @@ test("two independently invalid source files report both diagnostics in one buil
     `expected one diagnostic per invalid file, got: ${compiled.result.diagnostics.map((diagnostic) => diagnostic.message).join("\n")}`,
   );
   for (const diagnostic of compiled.result.diagnostics) {
-    assert.equal(diagnostic.code, "TS9101002");
+    assert.equal(diagnostic.code, "CSHARP_JS_SOURCE_PROFILE_OPERATION_UNSUPPORTED");
     assert.match(
       diagnostic.message,
       /eval requires runtime source evaluation with lexical-scope access/u,

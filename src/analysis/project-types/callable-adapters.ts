@@ -22,7 +22,7 @@ import { finalizeCsharpStructuralInterfaceForwarding } from "../objects/structur
 import { csharpTypeParameterConstraintsEqual, csharpTypeParameterConstraintsImply } from "../../policy/constraints/type-parameter-constraints.js";
 import type { CsharpTypeParameterConstraint } from "../../target-model/types/generic-constraints.js";
 import type { CsharpGenericProjectionIndex } from "../../target-model/records/type-projections.js";
-import { csharpProjectedType, csharpTypeProjection } from "../../target-model/types/projections.js";
+import { selectCsharpNativeQuantifierArguments } from "../../policy/types/callables/method-values.js";
 import type { CsharpSourceNameResolver } from "../names/plan.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
 import type { CsharpNativeUseClassifications } from "../../target-model/records/native-demand.js";
@@ -244,25 +244,9 @@ export function analyzeCsharpProjectCallableAdapters(
           reject(method.declaration, "An interface method has no exact native generic constraint or anti-constraint evidence.");
           continue;
         }
-        const bodyAuthored = bodyParameters.filter(parameter => csharpTypeProjection(parameter) === undefined);
-        const authored = typeParameters.filter(parameter => csharpTypeProjection(parameter) === undefined);
-        if (bodyParameters.length !== 0 && (bodyAuthored.length !== authored.length || bodyParameters.length !== typeParameters.length)) {
-          refuse(method.declaration);
-          continue;
-        }
-        const authoredSubstitutions = new Map(bodyAuthored.map((parameter, index) => [parameter.identity, authored[index]!]));
-        const selectedArguments = bodyParameters.map(parameter => {
-          const projection = csharpTypeProjection(parameter)?.csharpProjection;
-          if (projection === undefined) return authoredSubstitutions.get(parameter.identity);
-          const normalized = projection.kind === "optional" ? csharpProjectedType({ ...projection,
-            arguments: [substituteTargetTypeParameters(projection.arguments[0], authoredSubstitutions)] })
-            : csharpProjectedType({ ...projection,
-              arguments: projection.arguments.map(argument => substituteTargetTypeParameters(argument, authoredSubstitutions)) });
-          const candidates = typeParameters.filter(candidate => csharpTypeProjection(candidate) !== undefined && targetTypeRefEquals(normalized, candidate));
-          return candidates.length === 1 ? candidates[0] : undefined;
-        });
-        if (selectedArguments.some(argument => argument === undefined)) { refuse(method.declaration); continue; }
-        const typeArguments = Object.freeze(selectedArguments as readonly NativeParameter[]);
+        const typeArguments = bodyParameters.length === 0 ? Object.freeze([])
+          : selectCsharpNativeQuantifierArguments(bodyParameters, typeParameters);
+        if (typeArguments === undefined) { refuse(method.declaration); continue; }
         const substitutions = new Map(instantiated.nativeSignature.methodTypeParameterIdentities.map((identity, index) => [identity, typeArguments[index]!]));
         const bounds = new Map(typeParameters.map(parameter => [parameter.identity, parameter.csharpConstraints.constraints]));
         let sameGenericSignature = bodyParameters.length === typeParameters.length;

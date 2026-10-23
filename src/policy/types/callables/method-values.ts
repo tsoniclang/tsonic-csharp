@@ -12,21 +12,15 @@ type NativeQuantifier = Extract<TargetTypeRef, { readonly kind: "type-parameter"
   readonly csharpConstraints: Extract<CsharpTypeParameterConstraintResolution, { readonly kind: "resolved" }>;
 };
 
-export function rebindCsharpMethodValueTypeParameters(
-  type: TargetTypeRef,
+export function selectCsharpNativeQuantifierArguments(
   sourceParameters: readonly NativeQuantifier[],
   targetParameters: readonly NativeQuantifier[],
-): TargetTypeRef | undefined {
-  const value = getCsharpMethodValue(type);
-  const signature = value?.contract ?? type;
-  if (getCsharpDelegateSignature(signature) === undefined || sourceParameters.length !== targetParameters.length ||
+): readonly NativeQuantifier[] | undefined {
+  if (sourceParameters.length !== targetParameters.length ||
     sourceParameters.some(parameter => parameter.identity.length === 0 || parameter.csharpConstraints.kind !== "resolved") ||
     targetParameters.some(parameter => parameter.identity.length === 0 || parameter.csharpConstraints.kind !== "resolved") ||
     new Set(sourceParameters.map(parameter => parameter.identity)).size !== sourceParameters.length ||
-    new Set(targetParameters.map(parameter => parameter.identity)).size !== targetParameters.length ||
-    value !== undefined && (value.typeParameters.length !== sourceParameters.length ||
-      value.typeParameters.some((identity, index) => identity !== sourceParameters[index]!.identity) ||
-      value.allowsRefLikeTypeArguments.length !== sourceParameters.length)) return undefined;
+    new Set(targetParameters.map(parameter => parameter.identity)).size !== targetParameters.length) return undefined;
   const authoredSource = sourceParameters.filter(parameter => csharpTypeProjection(parameter) === undefined);
   const authoredTarget = targetParameters.filter(parameter => csharpTypeProjection(parameter) === undefined);
   if (authoredSource.length !== authoredTarget.length) return undefined;
@@ -37,21 +31,7 @@ export function rebindCsharpMethodValueTypeParameters(
   const resolving = new Set<string>();
   for (const parameter of sourceParameters) if (selectParameter(parameter) === undefined) return undefined;
   if (selectedTargets.size !== targetParameters.length) return undefined;
-  for (const parameter of sourceParameters) {
-    const target = substitutions.get(parameter.identity)!;
-    const constraints = parameter.csharpConstraints.constraints.map(constraint => constraint.kind === "type"
-      ? { ...constraint, type: substituteTargetTypeParameters(constraint.type, substitutions) } : constraint);
-    if (!csharpTypeParameterConstraintsEqual(constraints, target.csharpConstraints.constraints)) return undefined;
-  }
-  const rebound = substituteTargetTypeParameters(signature, substitutions);
-  if (value === undefined) return rebound;
-  const selected = csharpMethodValueType(value.owner, value.method, value.identity, rebound,
-    targetParameters.map(parameter => parameter.identity));
-  if (selected?.csharpMethodValue === undefined) return undefined;
-  const permissions = new Map(sourceParameters.map((parameter, index) =>
-    [substitutions.get(parameter.identity)!.identity, value.allowsRefLikeTypeArguments[index]!]));
-  return Object.freeze({ ...selected, csharpMethodValue: Object.freeze({ ...selected.csharpMethodValue,
-    allowsRefLikeTypeArguments: Object.freeze(targetParameters.map(parameter => permissions.get(parameter.identity)!)) }) });
+  return Object.freeze(sourceParameters.map(parameter => substitutions.get(parameter.identity)!));
 
   function selectParameter(parameter: NativeQuantifier): NativeQuantifier | undefined {
     const existing = substitutions.get(parameter.identity);
@@ -78,4 +58,35 @@ export function rebindCsharpMethodValueTypeParameters(
     selectedTargets.add(candidates[0]!.identity);
     return candidates[0];
   }
+}
+
+export function rebindCsharpMethodValueTypeParameters(
+  type: TargetTypeRef,
+  sourceParameters: readonly NativeQuantifier[],
+  targetParameters: readonly NativeQuantifier[],
+): TargetTypeRef | undefined {
+  const value = getCsharpMethodValue(type);
+  const signature = value?.contract ?? type;
+  if (getCsharpDelegateSignature(signature) === undefined || value !== undefined &&
+    (value.typeParameters.length !== sourceParameters.length ||
+      value.typeParameters.some((identity, index) => identity !== sourceParameters[index]!.identity) ||
+      value.allowsRefLikeTypeArguments.length !== sourceParameters.length)) return undefined;
+  const arguments_ = selectCsharpNativeQuantifierArguments(sourceParameters, targetParameters);
+  if (arguments_ === undefined) return undefined;
+  const substitutions = new Map(sourceParameters.map((parameter, index) => [parameter.identity, arguments_[index]!]));
+  for (const parameter of sourceParameters) {
+    const target = substitutions.get(parameter.identity)!;
+    const constraints = parameter.csharpConstraints.constraints.map(constraint => constraint.kind === "type"
+      ? { ...constraint, type: substituteTargetTypeParameters(constraint.type, substitutions) } : constraint);
+    if (!csharpTypeParameterConstraintsEqual(constraints, target.csharpConstraints.constraints)) return undefined;
+  }
+  const rebound = substituteTargetTypeParameters(signature, substitutions);
+  if (value === undefined) return rebound;
+  const selected = csharpMethodValueType(value.owner, value.method, value.identity, rebound,
+    targetParameters.map(parameter => parameter.identity));
+  if (selected?.csharpMethodValue === undefined) return undefined;
+  const permissions = new Map(sourceParameters.map((parameter, index) =>
+    [substitutions.get(parameter.identity)!.identity, value.allowsRefLikeTypeArguments[index]!]));
+  return Object.freeze({ ...selected, csharpMethodValue: Object.freeze({ ...selected.csharpMethodValue,
+    allowsRefLikeTypeArguments: Object.freeze(targetParameters.map(parameter => permissions.get(parameter.identity)!)) }) });
 }

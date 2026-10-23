@@ -236,7 +236,7 @@ for (const [name, sourceText] of [
   assert.equal(compiled.sourceDiagnosticsText, "", "the checked constructor reaches the actual native refusal owner");
   assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
     "an actual unsupported construction is refused before publication and never emulated");
-  assert.equal(compiled.result.diagnostics.some(diagnostic => diagnostic.code === "TS9101002" &&
+  assert.equal(compiled.result.diagnostics.some(diagnostic => diagnostic.code === "CSHARP_JS_SOURCE_PROFILE_OPERATION_UNSUPPORTED" &&
     diagnostic.message === "Proxy traps redefine object operations dynamically and have no closed C# source-to-source representation."), true,
     "the exact supported diagnostic is retained, not an internal failure");
   assert.equal(compiled.result.diagnostics.length, 1, "the exact participating constructor has one owning refusal");
@@ -260,7 +260,7 @@ test("constructor refusals and other participating native refusals share one com
     "neither known source refusal becomes published or planned");
   const diagnostics = compiled.result.diagnostics;
   assert.equal(diagnostics.length, 2, "the constructor cannot hide a different pending source refusal");
-  assert.equal(diagnostics.some(diagnostic => diagnostic.code === "TS9101002" &&
+  assert.equal(diagnostics.some(diagnostic => diagnostic.code === "CSHARP_JS_SOURCE_PROFILE_OPERATION_UNSUPPORTED" &&
     diagnostic.message === "Proxy traps redefine object operations dynamically and have no closed C# source-to-source representation."), true,
   "exact constructor diagnostic transport");
   assert.equal(diagnostics.some(diagnostic => diagnostic.code === "CSHARP_UNSUPPORTED_AST" &&

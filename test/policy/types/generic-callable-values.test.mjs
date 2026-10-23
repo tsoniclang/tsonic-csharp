@@ -3,7 +3,7 @@ import test from "node:test";
 import { retainCsharpGenericCallableValue } from "../../../dist/analysis/callables/generic-values.js";
 import { csharpDelegateTargetType, getCsharpCallableValueSignature, getCsharpDelegateSignature } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpMethodValueType, getCsharpMethodValue } from "../../../dist/target-model/types/method-values.js";
-import { rebindCsharpMethodValueTypeParameters } from "../../../dist/policy/types/callables/method-values.js";
+import { rebindCsharpMethodValueTypeParameters, selectCsharpNativeQuantifierArguments } from "../../../dist/policy/types/callables/method-values.js";
 import { targetTypeRefEquals, targetTypeRefIsClosed } from "../../../dist/target-model/types/equality.js";
 import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types/render.js";
 import { substituteTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
@@ -127,6 +127,12 @@ test("full native projection vectors rebind independent of order and keep unused
   const permissions = [false, true, false, true, false];
   const source = Object.freeze({ ...value, csharpMethodValue: Object.freeze({ ...getCsharpMethodValue(value),
     allowsRefLikeTypeArguments: Object.freeze(permissions) }) });
+  const arguments_ = selectCsharpNativeQuantifierArguments(sourceParameters, targetParameters);
+  assert.equal(arguments_ !== undefined && arguments_.length === sourceParameters.length && Object.isFrozen(arguments_), true,
+    "the same complete native geometry supplies immutable adapter invocation arguments");
+  const expectedArguments = [right.parameter, right.outer, right.operations, right.inner, right.storage];
+  assert.equal(arguments_.every((argument, index) => argument === expectedArguments[index]), true,
+    "every source binder maps once, including nested, reordered and unused native projections");
   const rebound = rebindCsharpMethodValueTypeParameters(source, sourceParameters, targetParameters);
   const selected = getCsharpMethodValue(rebound);
   assert.equal(selected !== undefined, true, "nested native projections have one alpha correspondence");
@@ -146,6 +152,22 @@ test("full native projection vectors rebind independent of order and keep unused
     [{ ...right.parameter, identity: "Foreign" }, right.storage, right.inner, right.outer, right.operations]) === undefined,
     true, "projection identity is proven from actual bound arguments, not vector position");
   assert.equal(shapes.length, 1, "one retained protocol owner");
+});
+
+test("native quantifier geometry leaves constraint equality and invocation implication to their actual owners", () => {
+  const source = quantifiedChoice("Source").parameter;
+  const destination = quantifiedChoice("Destination", [{ kind: "keyword", keyword: "struct" }]).parameter;
+  const arguments_ = selectCsharpNativeQuantifierArguments([source], [destination]);
+  assert.equal(arguments_?.length === 1 && arguments_[0] === destination, true,
+    "an exact argument correspondence does not decide whether native constraints imply another contract");
+  const signature = csharpDelegateTargetType("System.Func", [source], source);
+  assert.equal(rebindCsharpMethodValueTypeParameters(signature, [source], [destination]) === undefined, true,
+    "alpha rebinding still refuses a stronger native constraint rather than using the invocation question");
+  assert.equal(selectCsharpNativeQuantifierArguments([source], []) === undefined, true, "missing native arguments are rejected");
+  assert.equal(selectCsharpNativeQuantifierArguments([source, source], [destination, destination]) === undefined, true,
+    "duplicate native identities cannot form a bijection");
+  assert.equal(selectCsharpNativeQuantifierArguments([source], [{ ...destination, identity: "" }]) === undefined, true,
+    "empty foreign native identities cannot be invented");
 });
 
 test("nested callable invocation binders are not free captured owner parameters", () => {

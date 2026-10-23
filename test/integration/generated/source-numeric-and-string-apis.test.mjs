@@ -24,7 +24,7 @@ if (System.GC.GetAllocatedBytesForCurrentThread() != before) throw new System.Ex
 test("unconstrained Number predicate inputs cannot acquire an invented numeric constraint", () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText:
     "export function integer<Value>(value: Value): boolean { return Number.isInteger(value); }" });
-  assert.equal(compiled.result.diagnostics.some(diagnostic => diagnostic.code === "TS9101001"), true);
+  assert.equal(compiled.result.diagnostics.some(diagnostic => diagnostic.code === "CSHARP_JS_SOURCE_PROFILE_CALL_NOT_CLOSED"), true);
   assert.equal(compiled.result.artifacts.length, 0);
 });
 
