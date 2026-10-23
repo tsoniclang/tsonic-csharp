@@ -8,6 +8,8 @@ function fixture(acceptsOmission, foreign = false) {
   const owner = {};
   const initializer = {};
   const name = {};
+  const signature = {};
+  const parameterSymbol = {};
   const valueType = { kind: "source-primitive", name: "int32" };
   const syntax = { Initializer: initializer, name };
   const predicateNames = ["FunctionDeclaration", "FunctionExpression", "ArrowFunction", "MethodDeclaration",
@@ -17,10 +19,13 @@ function fixture(acceptsOmission, foreign = false) {
       ...Object.fromEntries(predicateNames.map(predicate => [`Is${predicate}`, () => false])) },
     as: { AsParameterDeclaration: node => node === parameter ? syntax : undefined },
     parent: node => node === parameter ? owner : undefined,
-    parameters: node => node === owner ? [parameter] : [],
     forEachChild: () => {},
   };
-  const queries = { types: {
+  const queries = { declarations: {
+    declarationSignature: declaration => declaration === owner ? signature : undefined,
+    signatureParameters: selected => selected === signature ? [parameterSymbol] : [],
+    primarySymbolDeclaration: symbol => symbol === parameterSymbol ? parameter : undefined,
+  }, types: {
     isUnion: () => false, isNullish: () => false, isAny: () => false, isUnknown: () => false,
     declarationSignatureInfo: declaration => {
       assert.equal(declaration === owner, true, "the actual callable owns omission evidence");
