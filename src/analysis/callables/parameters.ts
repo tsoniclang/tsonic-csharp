@@ -59,7 +59,9 @@ export function analyzeCsharpCallableParameterEmission(input: {
         : input.conversions.conversion.get(native, target, "implicit");
       const presentOnly = runtime !== undefined && native !== undefined && !targetTypeRefEquals(native, runtime.native.source) &&
         !csharpCarrierAdmitsSourceAbsence(native) && conversion !== undefined && csharpConversionIsApplicable(conversion, "implicit");
-      if (runtime !== undefined && !presentOnly && !runtime.passthrough) {
+      const passthrough = runtime?.passthrough === true &&
+        (native === undefined || targetTypeRefEquals(native, runtime.native.source));
+      if (runtime !== undefined && !presentOnly && !passthrough) {
         if (native !== undefined && !targetTypeRefEquals(native, runtime.native.source))
           failTargetAnalysisInvariant("tsonic-csharp", "A lambda default requires its exact native incoming parameter contract.", node);
         lambdaEntries.set(node, Object.freeze({ kind: "default", declareIncoming: native === undefined }));
