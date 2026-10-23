@@ -12,6 +12,7 @@ import {
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { selectCsharpConversion } from "../../policy/conversions/index.js";
 import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
+import { csharpSourceUnionLayoutsMatch } from "../../policy/conversions/union-relations.js";
 import { csharpLiteralReturnsFit, forEachCsharpDirectReturnExpression } from "../callables/return-expressions.js";
 import { selectCsharpCommonImplicitTarget } from "../conversions/common-target.js";
 import {
@@ -153,22 +154,15 @@ function classifyReturnContract(
   valueReadStages: CsharpValueReadStageIndex,
   declaration: Node,
 ): CsharpReturnTargetContract {
-  const baseline = evidence.inferredCallableReturnType.get(declaration);
   const authoredReturnNode = Node_Type(policy.ast, declaration);
   const authoredReturnType = authoredReturnNode === undefined
     ? undefined
     : evidence.nodeTargetType.get(authoredReturnNode);
   const pointer = evidence.pointerReturn.get(declaration);
-  if (authoredReturnNode !== undefined) {
-    return authoredReturnType === undefined
-      ? {
-          kind: "rejected",
-          reason:
-            "The authored source callable return type has no closed C# representation.",
-        }
-      : { kind: "resolved", type: authoredReturnType,
-          ...(pointer === undefined ? {} : { undefinedReturn: pointer.undefinedReturn, fallthroughUndefined: pointer.fallthroughUndefined }) };
-  }
+  if (authoredReturnNode !== undefined && authoredReturnType === undefined) return {
+    kind: "rejected", reason: "The authored source callable return type has no closed C# representation.",
+  };
+  const baseline = authoredReturnType ?? evidence.inferredCallableReturnType.get(declaration);
   if (baseline === undefined) {
     return {
       kind: "rejected",
@@ -178,9 +172,10 @@ function classifyReturnContract(
   }
   const asynchronous = HasSyntacticModifier(policy.ast, declaration, ModifierFlagsAsync);
   const observedBaseline = asynchronous ? getCsharpTaskResultTargetType(baseline) : baseline;
-  if (observedBaseline === undefined) return {
-    kind: "rejected", reason: "The checked source callable has no single closed C# return representation.",
-  };
+  if (observedBaseline === undefined) return authoredReturnType === undefined
+    ? { kind: "rejected", reason: "The checked source callable has no single closed C# return representation." }
+    : { kind: "resolved", type: authoredReturnType,
+        ...(pointer === undefined ? {} : { undefinedReturn: pointer.undefinedReturn, fallthroughUndefined: pointer.fallthroughUndefined }) };
   const observed: TargetTypeRef[] = [];
   let incomplete = false;
   forEachCsharpDirectReturnExpression(policy.ast, declaration, (expression) => {
@@ -196,6 +191,13 @@ function classifyReturnContract(
       } else observed.push(type);
     }
   });
+  if (authoredReturnType !== undefined) {
+    const actual = !incomplete && observed.length > 0 && observed.every(type => targetTypeRefEquals(type, observed[0]!))
+      && csharpSourceUnionLayoutsMatch(observed[0]!, observedBaseline) ? observed[0] : undefined;
+    const type = actual === undefined ? authoredReturnType : asynchronous ? csharpTaskTargetType(actual) : actual;
+    return { kind: "resolved", type,
+      ...(pointer === undefined ? {} : { undefinedReturn: pointer.undefinedReturn, fallthroughUndefined: pointer.fallthroughUndefined }) };
+  }
   const observedContract = reconcileInferredReturnTargetContract(
     policy,
     observedBaseline,
@@ -278,6 +280,7 @@ function uncoveredBaselineReturnAlternatives(
   return [...alternatives.values()].filter((alternative) =>
     !observedSources.some((source) =>
       observedNumericCarrierCoversBaseline(policy, source, alternative) ||
+      csharpSourceUnionLayoutsMatch(source, alternative) ||
       csharpMethodValueCoversContract(source, alternative) || csharpConversionIsApplicable(
         selectCsharpConversion(policy, source, alternative, "implicit"),
         "implicit",

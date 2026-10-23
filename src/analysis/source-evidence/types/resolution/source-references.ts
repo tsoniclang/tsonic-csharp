@@ -14,7 +14,7 @@ import { csharpNeverTargetType } from "../../../../target-model/types/carriers/s
 import { nextState } from "./state.js";
 import { sourceFactSubjectsForNode, definedValues, resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
 import { sourcePrimitiveFactKey } from "@tsonic/tsts";
-import { sourceTransformedTypeFactEvidenceNodes, sourceTupleElementTypeEvidenceNodes, sourceTypeSyntaxIsCompositional, sourceTypeSyntaxRoot, sourceIntegerInduction } from "@tsonic/target-api/source";
+import { sourceTransformedTypeFactEvidenceNodes, sourceTupleElementTypeEvidenceNodes, sourceTypeSyntaxIsCompositional, sourceTypeSyntaxRoot, sourceIntegerInduction, sourceCallableValueParameters } from "@tsonic/target-api/source";
 import { substituteTargetTypeParameters } from "../../../../policy/types/resolution/substitution.js";
 import { targetTypeRefKey, targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import { reconcileCsharpSelectedTargetType, retainCsharpBroadValueCarrier } from "../../../../policy/types/resolution/selected-type-evidence.js";
@@ -22,6 +22,7 @@ import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.j
 import { csharpBoundSourceType, csharpSourceBindings, csharpSourceTemplateState } from "./type-bindings.js";
 import { csharpConditionalDeclaration, resolveCsharpConditionalApplication } from "./conditional-types.js";
 import { csharpSourceStorageContext, csharpSourceStorageComponentContext } from "./source-storage-projection.js";
+import { bindCsharpSourceTypeArguments } from "./generic-arguments.js";
 
 export function resolveTypeReferenceNode(
   { host, resolveCheckerTransformedSourceType, resolveCompositionalSourceTypeAlias, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceType, resolveProviderType, resolveSourceProfileType, resolveStandardSourceTypeTransformation, resolveTypeWithState, targetPreservesAuthoredSourcePrimitiveFacts }: CsharpTypeResolutionScope,
@@ -499,11 +500,48 @@ export function resolveSourceValueDeclaration(
     nextState(state),
   );
   if (syntax.initializer === undefined) {
+    const selectedSource = selectedType ?? queries.types.expressionType(node);
     const selected = resolveTypeWithState(
-      selectedType ?? queries.types.expressionType(node),
+      selectedSource,
       queries.sourceFile,
       nextState(state),
     );
+    const owner = host.ast.is.IsParameterDeclaration(declaration) ? host.ast.parent(declaration) : undefined;
+    if (syntax.type === undefined && owner !== undefined &&
+      (host.ast.is.IsArrowFunction(owner) || host.ast.is.IsFunctionExpression(owner))) {
+      const parameters = sourceCallableValueParameters(host.ast, owner, declarationQueries);
+      const index = parameters?.indexOf(declaration) ?? -1;
+      const contextual = declarationQueries.types.contextualValueSelection(owner);
+      const callable = contextual.kind === "selected" ? declarationQueries.types.callable(contextual.type) : undefined;
+      const parameter = index < 0 ? undefined : callable?.parameters[index];
+      if (parameter !== undefined && contextual.kind === "selected") {
+        let parameterState = bindCsharpSourceTypeArguments(scope, contextual.type, declarationQueries, nextState(state));
+        const ownParameters = host.ast.typeParameters(owner);
+        if (ownParameters.length !== 0) {
+          const contextualParameters = callable?.result.declaration === undefined ? []
+            : host.ast.typeParameters(callable.result.declaration);
+          const ownSources = ownParameters.map(parameter => parameter === undefined ? undefined
+            : declarationQueries.declarations.declaredType(parameter));
+          const ownTargets = ownParameters.map(parameter => parameter === undefined ? undefined
+            : csharpSourceTypeParameter(parameter, host.ast));
+          if (parameterState === undefined || contextualParameters.length !== ownParameters.length ||
+            contextualParameters.some(parameter => parameter === undefined) ||
+            ownSources.some(type => type === undefined) || ownTargets.some(type => type === undefined)) return undefined;
+          parameterState = csharpSourceBindings(contextualParameters as readonly Node[], ownSources as readonly Type[],
+            ownTargets as readonly TargetTypeRef[], parameterState);
+        }
+        const native = parameterState === undefined ? undefined
+          : scope.resolveSignatureParameterEvidence(parameter, declarationQueries, parameterState, "callable");
+        if (native === undefined) return undefined;
+        const declaredSource = declarationQueries.declarations.declaredValueType(declaration);
+        if (declaredSource === undefined || selectedSource === undefined) return native;
+        const refinement = selectCsharpAuthoredUnionRefinement(native, declaredSource, selectedSource, queries,
+          type => resolveCsharpUnionMemberCarrier(scope, native, type, queries, state),
+          host.structuralTypes.resolveTarget, host.typeDefinitions);
+        if (refinement.kind !== "not-applicable") return refinement.kind === "resolved" ? refinement.type : undefined;
+        return reconcileCsharpSelectedTargetType(native, selected, queries.types.relationship(declaredSource, selectedSource));
+      }
+    }
     return retainCsharpBroadValueCarrier(declaredTarget, selected) ?? selected ?? declaredTarget;
   }
   const selectedInitializerTarget = resolveDirectSourceFacts(

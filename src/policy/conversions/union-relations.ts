@@ -4,6 +4,8 @@ import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import type { CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
 import type { CsharpConversionMode, CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import { csharpConversionIsApplicable } from "./applicability.js";
+import { isCsharpRuntimeUnionTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
+import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 
 import { collectCsharpUnionPaths, csharpUnionLeaves, csharpUnionArmMappingsEqual, type CsharpUnionPathStep, type CsharpUnionArmMapping } from "../../target-model/types/union-relations.js";
 
@@ -12,6 +14,52 @@ type CsharpUnionLeaf = NonNullable<ReturnType<typeof csharpUnionLeaves>>[number]
 interface CsharpUnionCandidate {
   readonly arm: CsharpUnionLeaf;
   readonly conversion: CsharpConversionSelection;
+}
+
+export function csharpSourceUnionLayoutsMatch(source: TargetTypeRef, target: TargetTypeRef): boolean {
+  const results = new Map<TargetTypeRef, Map<TargetTypeRef, boolean>>();
+  const matches = (source: TargetTypeRef, target: TargetTypeRef): boolean => {
+    if (targetTypeRefEquals(source, target)) return true;
+    const known = results.get(source)?.get(target);
+    if (known !== undefined) return known;
+    const targets = results.get(source) ?? new Map<TargetTypeRef, boolean>();
+    targets.set(target, false);
+    results.set(source, targets);
+    const selected = (): boolean => {
+      const sourcePresent = getCsharpNullableElementTargetType(source);
+      const targetPresent = getCsharpNullableElementTargetType(target);
+      if (sourcePresent !== undefined || targetPresent !== undefined) return sourcePresent !== undefined &&
+        targetPresent !== undefined && matches(sourcePresent, targetPresent);
+      if (isCsharpRuntimeUnionTargetType(source) && isCsharpRuntimeUnionTargetType(target)) {
+        const sources = csharpUnionLeaves(source);
+        const alternatives = csharpUnionLeaves(target);
+        if (sources === undefined || alternatives === undefined || sources.length !== alternatives.length) return false;
+        const used = new Set<number>();
+        for (const source of sources) {
+          const candidates = alternatives.flatMap((target, index) => matches(source.carrier, target.carrier) ? [index] : []);
+          if (candidates.length !== 1 || used.has(candidates[0]!)) return false;
+          used.add(candidates[0]!);
+        }
+        return used.size === alternatives.length;
+      }
+      if (source.kind === "array" && target.kind === "array") return (source.rank ?? 1) === (target.rank ?? 1) &&
+        matches(source.element, target.element);
+      if (source.kind === "tuple" && target.kind === "tuple") return source.elements.length === target.elements.length &&
+        source.elements.every((element, index) => matches(element, target.elements[index]!));
+      if (source.kind === "target-named" && target.kind === "target-named") {
+        const sources = source.typeArguments ?? [];
+        const alternatives = target.typeArguments ?? [];
+        return sources.length > 0 && sources.length === alternatives.length &&
+          targetTypeRefEquals({ ...source, typeArguments: target.typeArguments }, target) &&
+          sources.every((argument, index) => matches(argument, alternatives[index]!));
+      }
+      return false;
+    };
+    const result = selected();
+    targets.set(target, result);
+    return result;
+  };
+  return matches(source, target);
 }
 
 function selectCsharpUnionCandidates(

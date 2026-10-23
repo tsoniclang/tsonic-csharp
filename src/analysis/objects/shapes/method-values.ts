@@ -9,6 +9,7 @@ import type { CsharpTypeParameterConstraintResolver } from "../../../target-mode
 import { selectCsharpCopiedMethodReceiver } from "../copied-methods.js";
 
 import { csharpCopiedObjectShapeMembers } from "../../../policy/types/objects/method-environments.js";
+import { csharpObjectMethodHasFixedNativeExposure } from "../../../policy/types/objects/object-members.js";
 export function resolveCsharpCopiedObjectShape(
   shape: CsharpObjectShapeFact,
   ast: AstReader,
@@ -52,8 +53,7 @@ export function retainCsharpMethodValueContracts(
       const declaration = required ? undefined : csharpObjectShapeMethodDeclaration(shape, member);
       const subject = declaration === undefined ? undefined : sourceStorage.memberSubjectFor(declaration);
       const writes = subject?.kind === "resolved" ? sourceStorage.memberWritesFor(subject.subject) : undefined;
-      const nativeMethod = writes !== undefined && writes.kind !== "unresolved" && writes.writes.length === 0 &&
-        (writes.kind === "complete" || writes.boundaries.every(boundary => boundary.kind === "external-write"));
+      const nativeMethod = csharpObjectMethodHasFixedNativeExposure(writes);
       const selfContract = shape.members.length === 1 && shape.targetType.kind === "target-named" &&
         (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true;
       if (!required && !nativeMethod && !selfContract) return member;

@@ -87,7 +87,7 @@ export function analyzeCsharpPromiseResults(input: {
       };
       inspect(selected.sourceResultType);
       return incomplete !== undefined ? unresolved(node, incomplete) : !native && !js ? { kind: "not-async" }
-        : { kind: "async", resultPolicy: js && !native ? "observe-rejection" : "must-observe",
+        : { kind: "async", resultPolicy: js ? native ? "must-observe" : "observe-rejection" : "native-discard",
           contractDeclaration: declaration, checkedType: selected.sourceResultType };
     },
     retentionFor(value) {
@@ -132,6 +132,7 @@ export function analyzeCsharpPromiseResults(input: {
     const selection = carrier === undefined ? undefined : select(carrier, node);
     if (selection === undefined) continue;
     const disposition = sourceExpressionResultDisposition(ast, node);
+    let observeDiscard = false;
     if (ast.is.IsCallExpression(node)) {
       const selected = ownership.forCall(node);
       if (selected.kind === "unresolved" || selected.kind === "resolved" && selected.decision === "rejected") {
@@ -141,8 +142,14 @@ export function analyzeCsharpPromiseResults(input: {
           evidence: ["target.capability=csharp.async.native-result-use"] }));
         continue;
       }
+      observeDiscard = selected.kind === "resolved" && selected.decision === "observe-discarded-rejection";
+    } else {
+      const semantics = input.source.semantics.forNode(node);
+      const checked = semantics.types.expressionType(node);
+      const profile = checked === undefined ? undefined : classifyCsharpSourceProfileType(checked, semantics, ast);
+      observeDiscard = profile?.kind === "promise" && profile.ownerId === "js";
     }
-    results.set(node, Object.freeze({ disposition, ...(disposition.kind === "discarded" ? { discard: selection } : {}) }));
+    results.set(node, Object.freeze({ disposition, ...(disposition.kind === "discarded" && observeDiscard ? { discard: selection } : {}) }));
   }
   return Object.freeze({ results, diagnostics: Object.freeze(diagnostics) });
 }

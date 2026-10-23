@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
+import { csharpSourceUnionLayoutsMatch } from "../../../dist/policy/conversions/union-relations.js";
 import { admitCsharpConversionSelection } from "../../../dist/analysis/conversions/validation.js";
 import { csharpAbsenceTargetType, csharpDelegateTargetType, csharpNullableTargetType,
   csharpRuntimeUnionTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType,
@@ -20,6 +21,30 @@ const policy = { projectTypes: { directSupertypes: carrier =>
   targetTypeRefEquals(carrier, derived) ? [base, otherBase] : [] },
 providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) }, target: {} };
 const parameter = Object.freeze({ kind: "type-parameter", identity: "union.fixture:Value", name: "Value" });
+
+test("logical source union correspondence selects a physical producer layout, never an array conversion", () => {
+  const first = csharpRuntimeUnionTargetType([text, floating]);
+  const second = csharpRuntimeUnionTargetType([floating, text]);
+  const source = { kind: "array", element: first };
+  const target = { kind: "array", element: second };
+  assert.equal(csharpSourceUnionLayoutsMatch(source, target), true,
+    "the producer may publish its actual unique union layout for the same logical source array");
+  assert.equal(targetTypeRefEquals(source, target), false, "the native generic instantiations remain physically distinct");
+  assert.equal(selectCsharpConversion(policy, source, target, "implicit")?.kind, "rejected",
+    "layout correspondence never invents an array reinterpretation, copy or boxed conversion");
+  assert.equal(csharpSourceUnionLayoutsMatch({ kind: "array", element: csharpRuntimeUnionTargetType([text, integer]) }, target), false,
+    "different numeric native carriers are not a source-layout permutation");
+  assert.equal(csharpSourceUnionLayoutsMatch({ kind: "array", element: first, rank: 2 }, target), false,
+    "native array rank remains exact");
+  assert.equal(csharpSourceUnionLayoutsMatch(csharpNullableTargetType(source), target), false,
+    "logical layout cannot remove an actual native absence state");
+  assert.equal(csharpSourceUnionLayoutsMatch(csharpRuntimeUnionTargetType([integer, integer]),
+    csharpRuntimeUnionTargetType([integer, text])), false, "ambiguous physical arm occurrences are not normalized away");
+  const nested = csharpRuntimeUnionTargetType([boolean, first]);
+  const flat = csharpRuntimeUnionTargetType([floating, boolean, text]);
+  assert.equal(csharpSourceUnionLayoutsMatch(nested, flat), true,
+    "nested and flattened logical alternatives retain a unique complete native-leaf correspondence");
+});
 const forms = [
   ["scalar", integer],
   ["class", derived],

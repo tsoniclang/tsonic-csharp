@@ -21,6 +21,10 @@ function contract(name) {
 }
 const methodValue = (name, method = "identity") => csharpMethodValueType(owner, method, method, contract(name), [name]);
 const unconstrained = () => ({ kind: "resolved", constraints: [] });
+const abstractMethodStorage = Object.freeze({
+  memberSubjectFor: () => assert.fail("a quantified abstract contract has no ordinary authored method slot"),
+  memberWritesFor: () => assert.fail("a quantified abstract contract needs no ordinary-method exposure proof"),
+});
 
 test("a quantified method reference renders only its existing native environment", () => {
   const value = methodValue("Item");
@@ -75,7 +79,7 @@ test("optional native method storage retains a required present protocol without
     typeParameters: [{ csharpAllowsRefLike: false, identity: "Item", name: "Item", declaration: {}, constraints: [] }] };
   const recorded = [];
   const shape = retainCsharpMethodValueContracts({ targetType: { ...owner, csharpStructuralContract: true }, members: [member] },
-    fact => { recorded.push(fact); return fact; }, unconstrained);
+    fact => { recorded.push(fact); return fact; }, unconstrained, abstractMethodStorage);
   assert.equal(shape.members[0].optional, true);
   assert.equal(recorded[0].members[0].optional, undefined);
   assert.equal(getCsharpNullableElementTargetType(recorded[0].members[0].type), undefined);
@@ -96,14 +100,15 @@ test("copied generic methods retain only the exact original environment and mini
     memberKind: "method", type: contract("Item"), typeParameters: [{ csharpAllowsRefLike: false, identity: "Item", name: "Item", declaration: {}, constraints: [] }] };
   const recorded = [];
   const shape = retainCsharpMethodValueContracts({ targetType: owner, members: [member],
-    methodImplementation: { declaration: {}, identity: "body", methods: [], captures: [] } }, fact => { recorded.push(fact); return fact; }, unconstrained);
+    methodImplementation: { declaration: {}, identity: "body", methods: [], captures: [] } }, fact => { recorded.push(fact); return fact; },
+  unconstrained, abstractMethodStorage);
   assert.equal(recorded.length, 1);
   assert.equal(recorded[0].members.length, 1);
   assert.equal(targetTypeRefEquals(recorded[0].targetType, shape.members[0].methodValueContract), true);
   assert.equal(targetTypeRefEquals(csharpCopiedObjectShapeMembers(shape)[0].methodStorageType, owner), true);
   const abstract = retainCsharpMethodValueContracts({ targetType: { ...owner, id: "tsonic.shape:interface", csharpStructuralContract: true },
     members: [member, { sourceKey: { kind: "property", name: "extra" }, sourceName: "extra", targetName: "extra",
-      memberKind: "property", type: { kind: "source-primitive", name: "float64" } }] }, fact => fact, unconstrained);
+      memberKind: "property", type: { kind: "source-primitive", name: "float64" } }] }, fact => fact, unconstrained, abstractMethodStorage);
   const copied = csharpCopiedObjectShapeMembers(abstract);
   assert.equal(targetTypeRefEquals(copied[0].methodStorageType, shape.members[0].methodValueContract), true);
   assert.equal(copied[1].methodStorageType, undefined);

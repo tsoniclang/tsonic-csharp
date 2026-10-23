@@ -5,6 +5,12 @@ import { csharpNullableTargetType } from "../../../target-model/types/carriers/n
 import { csharpRuntimeLocationTargetType, csharpRuntimeRecordFieldTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpTargetTypeRenderingRejection } from "../model/renderability.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { SourceStorageMemberWritesSelection } from "@tsonic/target-api/analysis";
+
+export function csharpObjectMethodHasFixedNativeExposure(writes: SourceStorageMemberWritesSelection | undefined): boolean {
+  return writes !== undefined && writes.kind !== "unresolved" && writes.writes.length === 0 &&
+    (writes.kind === "complete" || writes.boundaries.every(boundary => boundary.kind === "external-write"));
+}
 
 export function selectCsharpObjectMemberEmission(input: CsharpObjectMemberPolicyInput):
   | { readonly kind: "selected"; readonly value: CsharpObjectMemberEmission }
