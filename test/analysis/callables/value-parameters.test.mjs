@@ -56,7 +56,7 @@ for (const annotation of ["", ": number"]) {
   test(`contextual defaults keep their value-only position after a receiver annotation (${annotation || "inferred"})`, () => {
     const compiled = compileCsharpSource({ sourceText: `
       const callback: (value?: number, label?: string) => number = function(this: void, value${annotation} = 1, label = "x") {
-        return value + label.length;
+        return value + label.Length;
       };
       export function run(): number { return callback(); }
     ` });
