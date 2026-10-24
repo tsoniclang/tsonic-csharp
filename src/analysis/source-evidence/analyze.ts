@@ -275,6 +275,19 @@ export function analyzeCsharpSourceEvidence(
     nodeTargetTypes.set(node, recordTargetType(array === undefined ? types.resolveNode(node, sourceFile)
       : array.kind === "resolved" ? array.carrier : undefined) ?? missing);
     const nodeTargetType = cachedValue(nodeTargetTypes.get(node));
+    if (!typeOnly && nodeTargetType === undefined && source.ast.is.IsParameterDeclaration(node)) {
+      const declaration = source.ast.parent(node);
+      const authored = source.ast.typeNode(node);
+      const declared = semantics.declarations.declaredValueType(node);
+      const carrier = authored === undefined ? declared === undefined ? undefined : types.resolveType(declared, sourceFile)
+        : types.resolveNode(authored, sourceFile);
+      const native = declaration === undefined || carrier === undefined ? undefined
+        : policy.objectShapes.resolveNativeParameter(declaration, node, carrier);
+      if (native?.kind === "rejected") nativeExpressionIssues.set(node, {
+        diagnostic: Object.freeze({ code: "CSHARP_SOURCE_STORAGE_NOT_PROVEN", category: "error", source: "tsonic-csharp",
+          sourceNode: node, message: native.reason }), requiredBy: new Set([node, declaration!]),
+      });
+    }
     sourceOwnedProjectShapes.set(
       node,
       !isCsharpJsValueTargetType(nodeTargetType) &&

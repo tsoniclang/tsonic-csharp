@@ -18,6 +18,9 @@ import { createStructuralObjectShapeTarget } from "../../../dist/analysis/object
 import { analyzeCsharpStructuralObjectEmission } from "../../../dist/analysis/objects/structural-emission.js";
 import { renderObjectShapeMembers } from "../../../dist/backend/planner/objects/members.js";
 import { renderCsharpStructuralInterfaceMembers } from "../../../dist/backend/planner/objects/structural-interfaces.js";
+import { renderCsharpMethodValueContracts } from "../../../dist/backend/planner/objects/method-values.js";
+import { objectShapeArtifactKey } from "../../../dist/target-model/records/object-shape-keys.js";
+import { analyzeCsharpCaptureMethods } from "../../../dist/analysis/objects/capture-methods.js";
 import { printCsharpCompilationUnit, printCsharpStatement } from "../../../dist/print/source/printer.js";
 import { objectShapeMethodInvocationName } from "../../../dist/target-model/names/object-members.js";
 
@@ -59,6 +62,85 @@ test("native writable method contracts derive from the unchanged read-only ident
     assert.equal(selectCsharpWritableMethodContract({ ...base, members: [readonly] }, [readonly], unconstrained), undefined,
       "the derived native facet cannot override a real readonly source contract");
   }
+});
+
+test("native write-consuming interfaces require real producer slots and emit real setter forwarding", () => {
+  const scalar = { kind: "source-primitive", name: "int32" };
+  const member = { sourceKey: { kind: "property", name: "read" }, sourceName: "read", targetName: "read",
+    memberKind: "method", type: csharpDelegateTargetType("System.Func", [], scalar) };
+  const base = { targetType: createStructuralObjectShapeTarget([member], undefined, unconstrained, true), members: [member] };
+  const writable = selectCsharpWritableMethodContract(base, [member], unconstrained);
+  const stored = { ...member, methodValueStorage: { kind: "delegate", type: member.type } };
+  const makeProducer = current => ({ targetType: createStructuralObjectShapeTarget([current], [writable.targetType], unconstrained),
+    members: [current], implements: [writable.targetType] });
+  for (const current of [member, stored]) {
+    const producer = makeProducer(current);
+    const shapes = [base, writable, producer];
+    const selected = analyzeCsharpStructuralObjectEmission({
+      shapes: { knownShapes: () => shapes, resolveTarget: type => shapes.find(shape => targetTypeRefEquals(shape.targetType, type)) },
+      demand: { artifacts: [], get: key => ({ capabilities: ["method-values"], receiverBoundMethodKeys: [],
+        materialization: key === objectShapeArtifactKey(producer) ? "synthetic" : "declared" }) },
+      storage: { nativeField: { get: () => undefined } },
+    });
+    const valid = current === stored;
+    assert.equal(selected.issues.length, valid ? 0 : 1,
+      "a getter-only fixed body is not silently made to implement a writable native contract");
+    const baseMember = selected.records.structuralObject.get(base).members.find(value => value.kind === "property");
+    const writableMember = selected.records.structuralObject.get(writable).members.find(value => value.kind === "property");
+    assert.equal(baseMember.property.writable, false, "the unchanged base never acquires a global setter");
+    assert.equal(writableMember.property.writable, true, "the derived interface explicitly declares a native writable handle");
+    if (!valid) {
+      assert.equal(selected.issues[0].message.includes("actual writable callable slot"), true,
+        "the producer-contract mismatch is refused before sealing");
+      continue;
+    }
+    const records = { ...selected.records };
+    const native = renderCsharpMethodValueContracts(producer, { program: { records }, scope: {} });
+    const setter = native.find(property => property.setter !== undefined);
+    assert.equal(setter !== undefined, true, "a writable native implementation has an actual setter");
+    assert.equal(setter.setter.statements.length, 1, "forwarding performs one existing slot assignment");
+    const assignment = setter.setter.statements[0].expression;
+    assert.equal(assignment.kind === "AssignmentExpression" && assignment.right.name === "value", true,
+      "the written callable is neither discarded nor replaced by an unrelated body");
+    assert.equal(assignment.left.name, setter.getter.statements[0].expression.name,
+      "reads and writes forward to the identical existing current slot");
+  }
+});
+
+test("a captured source body cannot acquire reference-return or parameter semantics from a contextual protocol", () => {
+  const scalar = { kind: "source-primitive", name: "int32" };
+  const declaration = {};
+  const file = {};
+  const shape = { targetType: owner, members: [] };
+  const ast = { getSourceFile: () => file, is: { IsFunctionDeclaration: () => false, IsArrowFunction: () => true } };
+  const ordinary = csharpDelegateTargetType("System.Func", [scalar], scalar);
+  const input = { sourceParameter: {}, targetParameter: { name: "value", type: scalar, passingMode: "by-value" } };
+  const body = { kind: "source", sourceDeclaration: declaration, nativeParameters: [input], returnType: scalar };
+  const observe = (signature, admittedBody = body) => {
+    const type = { ...ordinary, id: "native:CapturedCallback", csharpRender: { kind: "named", name: "CapturedCallback" },
+      csharpDelegateSignature: signature };
+    const method = { declaration, methodName: "invoke", type, captures: [], receivers: [] };
+    return analyzeCsharpCaptureMethods(ast, { frames: [{ shape, methods: [method] }] },
+      { resolveTarget: () => undefined }, { get: () => admittedBody });
+  };
+  const ordinaryResult = observe(ordinary.csharpDelegateSignature);
+  assert.equal(ordinaryResult.issues.length, 0, "the actual ordinary value body remains admitted");
+  assert.equal(ordinaryResult.records.captureMethods.get(shape)[0].signature.returnPassing, undefined,
+    "the sealed source body has an explicitly proved value return, not an erased native alias");
+  for (const returnPassing of ["byref-readwrite", "byref-readonly"]) {
+    const result = observe({ ...ordinary.csharpDelegateSignature, returnPassing });
+    assert.equal(result.issues.length, 1, "a value body cannot acquire an unproved native reference return");
+    assert.equal(result.records.captureMethods.get(shape).length, 0, "no mismatching native capture body is published");
+    assert.equal(result.issues[0].sourceNode === declaration && result.issues[0].message.includes("source body"), true,
+      "a precise original-body admission rejection occurs before the renderer");
+  }
+  const referenceInput = { ...ordinary.csharpDelegateSignature, parameterPassingModes: ["byref-readwrite"] };
+  assert.equal(observe(referenceInput).issues.length, 1, "a contextual reference parameter cannot replace the original value ABI");
+  const matchingBody = { ...body, nativeParameters: [{ ...input, targetParameter: { ...input.targetParameter, passingMode: "byref-readwrite" } }] };
+  assert.equal(observe(referenceInput, matchingBody).issues.length, 0,
+    "an independently admitted matching native parameter contract is retained, not blanket-prohibited");
+  assert.equal(observe(ordinary.csharpDelegateSignature, { ...body, sourceDeclaration: {} }).issues.length, 1,
+    "a same-shaped foreign body is not substituted for the actual checked declaration");
 });
 
 test("a quantified method reference renders only its existing native environment", () => {

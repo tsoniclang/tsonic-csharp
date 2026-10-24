@@ -9,8 +9,10 @@ import { createCsharpCaptureMethodRecords } from "../program/records/capture-met
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 import { csharpMethodValueContractsEqual, csharpMethodValueType, getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import { objectShapeMethodInvocationName } from "../../target-model/names/object-members.js";
+import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
 
-export function analyzeCsharpCaptureMethods(ast: AstReader, captures: CsharpCaptureStorage, shapes: CsharpObjectShapeClassifications) {
+export function analyzeCsharpCaptureMethods(ast: AstReader, captures: CsharpCaptureStorage, shapes: CsharpObjectShapeClassifications,
+  callables: Pick<CsharpCallableContractIndex, "get">) {
   const values = new Map<string, readonly CsharpCaptureMethodEmission[]>();
   const issues: TargetDiagnostic[] = [];
   for (const frame of captures.frames) {
@@ -20,6 +22,19 @@ export function analyzeCsharpCaptureMethods(ast: AstReader, captures: CsharpCapt
       if (selected.kind === "rejected" || ast.getSourceFile(method.declaration) === undefined) {
         issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: method.declaration,
           message: "A native captured method requires its sealed callable signature." }); continue;
+      }
+      const body = callables.get({ kind: "declaration", declaration: method.declaration });
+      if (body === undefined || body.kind !== "source" || body.sourceDeclaration !== method.declaration) {
+        issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: method.declaration,
+          message: "A native captured method requires its actual admitted source body contract." }); continue;
+      }
+      if (selected.signature.returnPassing !== undefined ||
+        selected.signature.parameterPassingModes.some(mode => mode !== "by-value") &&
+          (selected.signature.parameterPassingModes.length !== body.nativeParameters.length ||
+            selected.signature.parameterPassingModes.some((mode, index) => mode !== body.nativeParameters[index]!.targetParameter.passingMode))) {
+        issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: method.declaration,
+          message: "A by-reference native delegate binding requires an exact native method group or delegate value; the source body has a different native passing contract." });
+        continue;
       }
       const quotation = getCsharpExpressionTreeDelegateType(method.type) !== undefined;
       const value = getCsharpMethodValue(method.type);
@@ -41,7 +56,8 @@ export function analyzeCsharpCaptureMethods(ast: AstReader, captures: CsharpCapt
       methods.push(Object.freeze({ method, form: ast.is.IsFunctionDeclaration(method.declaration) ? "declaration"
         : ast.is.IsArrowFunction(method.declaration) ? "arrow" : "function", quotation,
         protocolMethods: Object.freeze(protocolMethods), returnsVoid: isCsharpVoidTargetType(selected.signature.returnType),
-        returnType: quotation ? method.type : selected.signature.returnType, signature: selected.signature }));
+        returnType: quotation ? method.type : selected.signature.returnType,
+        signature: Object.freeze({ ...selected.signature, returnPassing: undefined }) }));
     }
     values.set(objectShapeArtifactKey(frame.shape), Object.freeze(methods));
   }

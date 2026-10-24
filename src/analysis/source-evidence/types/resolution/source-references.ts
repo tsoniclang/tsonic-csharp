@@ -454,6 +454,18 @@ export function collectTargetSourcePrimitiveNames(
   }
 }
 
+export function resolveCsharpNativeParameterCarrier(
+  scope: CsharpTypeResolutionScope,
+  parameter: Node,
+  type: TargetTypeRef | undefined,
+): TargetTypeRef | undefined {
+  if (type === undefined || !scope.host.ast.is.IsParameterDeclaration(parameter)) return type;
+  const declaration = scope.host.ast.parent(parameter);
+  if (declaration === undefined) return undefined;
+  const selected = scope.host.objectShapes.resolveNativeParameter(declaration, parameter, type);
+  return selected.kind === "resolved" ? selected.type : undefined;
+}
+
 export function selectCsharpContextualParameterCarrier(
   scope: CsharpTypeResolutionScope,
   declaration: Node,
@@ -526,7 +538,7 @@ export function resolveSourceValueDeclaration(
       state,
     );
     if (resolved !== undefined) {
-      return resolved;
+      return resolveCsharpNativeParameterCarrier(scope, declaration, resolved);
     }
   }
   if (host.ast.is.IsBindingElement(declaration)) {
@@ -558,7 +570,8 @@ export function resolveSourceValueDeclaration(
     const contextual = selectCsharpContextualParameterCarrier(scope, declaration, declarationQueries, state);
     if (contextual.kind === "unresolved") return undefined;
     if (contextual.kind === "resolved") {
-      const native = contextual.type;
+      const native = resolveCsharpNativeParameterCarrier(scope, declaration, contextual.type);
+      if (native === undefined) return undefined;
       const declaredSource = declarationQueries.declarations.declaredValueType(declaration);
       if (declaredSource === undefined || selectedSource === undefined) return native;
       const refinement = selectCsharpAuthoredUnionRefinement(native, declaredSource, selectedSource, queries,
@@ -568,8 +581,8 @@ export function resolveSourceValueDeclaration(
       return reconcileCsharpSelectedTargetType(native, selected, queries.types.relationship(declaredSource, selectedSource),
         queries.types.isNonPrimitive(selectedSource));
     }
-    return retainCsharpBroadValueCarrier(declaredTarget, selected,
-      selectedSource !== undefined && queries.types.isNonPrimitive(selectedSource)) ?? selected ?? declaredTarget;
+    return resolveCsharpNativeParameterCarrier(scope, declaration, retainCsharpBroadValueCarrier(declaredTarget, selected,
+      selectedSource !== undefined && queries.types.isNonPrimitive(selectedSource)) ?? selected ?? declaredTarget);
   }
   const arrayInitializer = host.ast.is.IsArrayLiteralExpression(syntax.initializer);
   const initializerTarget = arrayInitializer

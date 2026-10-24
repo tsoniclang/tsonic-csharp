@@ -13,6 +13,18 @@ for (const surface of [undefined, "js"]) {
 }
 
 const mutableMethodSources = [
+  ["concrete literal receiver fields", `
+import type { int32 } from "@tsonic/core/types.js";
+export function run(): boolean {
+  const owner = { read(): int32 { return 1; } };
+  const container = { owner };
+  const original = owner.read;
+  container.owner.read = (): int32 => 3;
+  const saved = container.owner.read;
+  container.owner.read = (): int32 => 4;
+  return original() === 1 && saved() === 3 && owner.read() === 4;
+}
+`],
   ["closed body snapshots", `
 import type { int32 } from "@tsonic/core/types.js";
 let captured: int32 = 1;
@@ -183,5 +195,31 @@ for (const surface of ["native", "js"]) for (const [name, sourceText] of mutable
     assert.equal(/dynamic|\.GetType\(/u.test(source), false,
       "the exact stored delegate or protocol never needs dynamic invocation");
     executeCsharpConstruction(compiled, `mutable-authored-${name.replaceAll(" ", "-")}-${surface}`);
+  });
+}
+
+for (const surface of ["native", "js"]) for (const [name, receiver] of [
+  ["interface array element", "values[0]!"],
+  ["interface property", "container.owner"],
+  ["interface call result", "choose()"],
+]) {
+  test(`native method writes refuse unresolved ${name} demand (${surface})`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+import type { int32 } from "@tsonic/core/types.js";
+interface Reader { read(): int32; }
+const owner: Reader = { read(): int32 { return 1; } };
+const values: Reader[] = [owner];
+const container: { owner: Reader } = { owner };
+function choose(): Reader { return owner; }
+export function run(): int32 { ${receiver}.read = (): int32 => 3; return owner.read(); }
+` });
+    assert.equal(compiled.sourceDiagnosticsText, "", "the retained program is source-valid before native admission");
+    assert.equal(compiled.result.program === undefined, true, "an unresolved source write cannot seal a native contract");
+    assert.equal(compiled.targetDiagnostics.length, 1, "one original source-write reason owns the refusal");
+    assert.equal(compiled.targetDiagnostics[0].code, "CSHARP_SOURCE_STORAGE_NOT_PROVEN", "the source-storage boundary owns the diagnostic");
+    assert.equal(compiled.targetDiagnostics[0].message,
+      "Member-write demand requires a parameter binding or a qualified local alias, not an element, property or call result.",
+      "the real v1 boundary is stated precisely, not disguised as native impossibility");
+    assert.equal(compiled.artifacts.size, 0, "unproved native writes emit no output");
   });
 }

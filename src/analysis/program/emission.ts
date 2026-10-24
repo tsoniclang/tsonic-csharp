@@ -304,7 +304,7 @@ export function finalizeCsharpNativeEmission(
   const frozenDataProperties = analyzeCsharpFrozenDataProperties({ ast: source.ast, demand: objectShapeDemand, members: objectMembers.records,
     storage: analysis.storage, operations: admittedOperations, attributes: attributeApplications, methodWrites: analysis.declarations.methodWrite });
   if (frozenDataProperties.issues.length !== 0) return rejectedTargetStage(frozenDataProperties.issues);
-  const captureMethods = analyzeCsharpCaptureMethods(source.ast, captureStorage, callableAdapters.objectShapes);
+  const captureMethods = analyzeCsharpCaptureMethods(source.ast, captureStorage, callableAdapters.objectShapes, analysis.callables);
   if (captureMethods.issues.length !== 0) return rejectedTargetStage(captureMethods.issues);
   const projectEmission = analyzeCsharpProjectEmission({ source, nodes: sourceStorage.nodes, projectTypes,
     factories: classFactories, evidence: analysis.sourceEvidence, names, projections: analysis.typeProjections });

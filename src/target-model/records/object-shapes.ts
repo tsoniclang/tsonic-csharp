@@ -59,6 +59,9 @@ export interface CsharpObjectShapePropertyOrders {
 }
 
 export interface CsharpObjectShapePolicy {
+  resolveNativeParameter(declaration: Node, parameter: Node, type: TargetTypeRef):
+    | { readonly kind: "resolved"; readonly type: TargetTypeRef }
+    | { readonly kind: "rejected"; readonly reason: string };
   resolveCallableValue(signature: TargetTypeRef,
     typeParameters: NonNullable<CsharpObjectShapeMemberFact["typeParameters"]>): TargetTypeRef | undefined;
   resolveCopyShape(shape: CsharpObjectShapeFact): CsharpObjectShapeFact | undefined;

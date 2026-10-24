@@ -56,6 +56,8 @@ export function createCsharpObjectShapePolicy(
     const element = getCsharpNullableElementTargetType(type);
     const present = element ?? type;
     const target = present.kind === "target-named" ? present as CsharpTargetNamedTypeRef : undefined;
+    if (target === undefined || target.csharpStructuralContract !== true && target.csharpSourceDeclarationKind !== "interface")
+      return { kind: "resolved", type };
     const shape = resolveTarget(present) ?? (target?.csharpSourceDeclarationKind === "interface"
       ? resolveProjectInterfaceShape(target, { depth: 0 }) : undefined);
     if (shape === undefined || !shape.members.some(member => member.memberKind === "method") ||
