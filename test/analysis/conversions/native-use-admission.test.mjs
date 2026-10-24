@@ -22,6 +22,36 @@ import { analyzeCsharpFlowReadProjections } from "../../../dist/analysis/convers
 import { isCsharpSourceCallableArtifactDeclaration } from "../../../dist/policy/types/callables/source-callable-contract.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 import { publishedGenericProjections } from "../../helpers/expected-native-uses.mjs";
+import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+
+for (const role of ["write-target", "update-target"]) test(`${role} admission consumes exact native storage, never its narrowed value`, () => {
+  const owner = Object.freeze({});
+  const expression = Object.freeze({});
+  const integer = csharpSourcePrimitiveTargetType("int32");
+  const floating = csharpSourcePrimitiveTargetType("float64");
+  const storage = csharpRuntimeUnionTargetType([integer, floating]);
+  const site = csharpNativeUseSite(owner, { kind: role }, { target: storage });
+  const request = Object.freeze({ kind: "requested", site, expression, targetType: storage,
+    strength: "required", exactInteger: false, mode: "implicit" });
+  const valueQuery = () => assert.fail("physical place admission must not ask a value constructor, literal, callable or operation to repair its storage");
+  const expected = { nativeUseSites: { requests: Object.freeze([request]) },
+    constructions: { constructionCarrier: valueQuery, constructionRejection: valueQuery, objectShape: valueQuery } };
+  for (const [label, physical, admitted] of [["exact storage", storage, true],
+    ["missing storage", undefined, false], ["different storage", integer, false]]) {
+    const result = admitCsharpExpectedNativeUses(expected, {
+      ast: {}, valueRead: { get: node => node === expression ? { value: floating, flowReadStorage: physical } : undefined },
+      exactLiteral: { get: valueQuery }, callableCreation: { get: valueQuery },
+      operations: { operatorForm: { get: valueQuery }, binaryOperation: { get: valueQuery } },
+    });
+    assert.equal(result.entries.length === (admitted ? 1 : 0) && result.pending.length === (admitted ? 0 : 1), true,
+      `${role}/${label}: storage is admitted exactly once or withheld without a read-value fallback`);
+    const selected = result.expectedUse.get(site);
+    assert.equal(admitted ? selected?.representation === "forward" && selected.expression === expression &&
+      targetTypeRefEquals(selected.carrier, storage) && targetTypeRefEquals(selected.target, storage) &&
+      selected.children.length === 0 && selected.construction === undefined && selected.literal === undefined
+      : selected === undefined, true, `${role}/${label}: a native place is not a converted or constructed narrowed read`);
+  }
+});
 
 test("canonical source callable admission recognizes TypeLiteral signatures without inventing executable bodies", () => {
   const declaration = {};
