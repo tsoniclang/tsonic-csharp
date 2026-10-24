@@ -10,6 +10,7 @@ import type { CsharpExactLiteralSelectionIndex, CsharpNativePropertyKeyBinding }
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 
 import type { CsharpSourceEvidenceResult } from "../source-evidence/model.js";
+import type { SourceStorageQueries } from "@tsonic/target-api/analysis";
 
 export interface CsharpNativeDemandAnalysisInput extends Omit<CsharpNativeConstructInput, "baseCalls" | "unusedDefault">,
   Omit<CsharpNativeOperandInput, "unusedDefault"> {
@@ -19,4 +20,5 @@ export interface CsharpNativeDemandAnalysisInput extends Omit<CsharpNativeConstr
   readonly propertyKeyBindings: (expression: Node, carrier: TargetTypeRef) => readonly CsharpNativePropertyKeyBinding[] | undefined;
   readonly exactLiteral: CsharpExactLiteralSelectionIndex["exactLiteral"];
   readonly nativeExpressionIssues: CsharpSourceEvidenceResult["nativeExpressionIssues"];
+  readonly sourceStorage: Pick<SourceStorageQueries, "writeAt" | "emptyBindings">;
 }

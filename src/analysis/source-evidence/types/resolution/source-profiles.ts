@@ -155,7 +155,10 @@ export function resolveCallableEvidence(
         delegateOptions,
       );
   const typeParameters = resolveCsharpCallableTypeParameters(callable.result.declaration, queries.sourceFile, {
-    ast: host.ast, types: { resolveNode: (node, file) => resolveNodeWithState(node, file, nextState(state)) },
+    ast: host.ast, types: { resolveNode: (node, file) => {
+      const type = resolveNodeWithState(node, file, nextState(state));
+      return type === undefined ? undefined : Object.freeze({ kind: "resolved" as const, type });
+    } },
     genericProjections: host.representations.genericProjections,
   });
   return typeParameters === undefined ? undefined : typeParameters.length === 0 ? signature
@@ -204,7 +207,7 @@ export function resolveSignatureParameterEvidence(
   if (use !== "callable" || declaration === undefined) return carrier;
   const owner = host.ast.parent(declaration);
   return owner !== undefined && host.ast.body(owner) !== undefined
-    ? resolveCsharpNativeParameterCarrier(scope, declaration, carrier) : carrier;
+    ? resolveCsharpNativeParameterCarrier(scope, declaration, carrier, state) : carrier;
 }
 
 export function resolveSourceTypeComponentEvidence(

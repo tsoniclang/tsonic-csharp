@@ -41,7 +41,7 @@ export function classifyCsharpNativeLocation(
       (policy.ast.is.IsIdentifier(expression) && storage?.declaration !== undefined
         ? physical.storageType.get(storage.declaration) : undefined) ?? readStorage(expression);
     if (storage === undefined || storageType === undefined) return rejected("The expression has no exact native storage and carrier evidence.");
-    const assignment = selectCsharpAssignmentLocation(policy, expression, node => policy.types.resolveNode(node, sourceFile));
+    const assignment = selectCsharpAssignmentLocation(policy, expression, node => policy.types.resolveNode(node, sourceFile)?.type);
     const localBacking = storage.declaration === undefined ? undefined : physical.nativeBacking.get(storage.declaration);
     if (localBacking !== undefined) return targetTypeRefEquals(localBacking.pointeeType, storageType)
       ? resolved(expression, storageType, assignment, storage.writable, undefined, undefined,

@@ -262,7 +262,7 @@ test("array queries never publish an in-progress nested result", () => {
   cache.resolveNode({}, file, () => {
     const selection = cache.resolveArrayLiteral(expression, file, true, () => nested);
     assert.equal(selection === nested, true, "the nested invocation sees its own result without publishing it");
-    return primitive("int32");
+    return { kind: "resolved", type: primitive("int32") };
   });
   assert.equal(cache.resolveArrayLiteral(expression, file, true, () => final) === final, true,
     "a completed outer query recomputes the final selection instead of retaining a nested partial result");

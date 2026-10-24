@@ -22,20 +22,20 @@ export function selectCsharpTypedArrayMutation(input: CsharpPolicyContext, node:
   const source = input.semantics(sourceFile).operations.elementAccess(left);
   const identity = csharpSourceProfileDeclarationIdentity(input.ast, input.semantics(sourceFile), input.sourceFacts, source?.selectedDeclaration);
   if (source === undefined || identity?.owner !== "js" || identity.kind !== "indexer" || identity.declaringName !== "TypedArray") return undefined;
-  const element = csharpJsTypedArrayElementTargetType(input.types.resolveNode(source.receiver.expression, sourceFile));
+  const element = csharpJsTypedArrayElementTargetType(input.types.resolveNode(source.receiver.expression, sourceFile)?.type);
   if (update && element !== undefined) {
-    const indexType = input.types.resolveNode(source.argument.expression, sourceFile);
+    const indexType = input.types.resolveNode(source.argument.expression, sourceFile)?.type;
     return selectCsharpNativeTypedArrayUpdate(element, indexType, source.receiver.expression,
       source.argument.expression, operator === "++", input.ast.is.IsPrefixUnaryExpression(node));
   }
   if (value === undefined) return undefined;
-  const valueType = input.types.resolveNode(value, sourceFile);
+  const valueType = input.types.resolveNode(value, sourceFile)?.type;
   if (!csharpTypedArrayWriteHasNativeCarriers(element, valueType)) {
     return { kind: "rejected", reason: "Typed array writes require exact native numeric storage and value carriers." };
   }
   const calculation = operator === "=" ? undefined : selectCsharpBinaryOperands(input, left, value,
     operator.slice(0, -1) as CsharpSourceOperator, element,
-    operand => operand === left ? element : input.types.resolveNode(operand, sourceFile));
+    operand => operand === left ? element : input.types.resolveNode(operand, sourceFile)?.type);
   if (calculation?.kind === "rejected") return calculation;
   return { kind: "set-typed-element", receiver: source.receiver.expression, index: source.argument.expression,
     value, resultType: calculation?.resultType ?? valueType!, ...(calculation === undefined ? {} : { calculation }) };

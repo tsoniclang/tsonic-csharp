@@ -237,3 +237,24 @@ export function run(): int32 { ${receiver}.read = (): int32 => 3; return owner.r
     assert.equal(compiled.artifacts.size, 0, "unproved native writes emit no output");
   });
 }
+
+for (const surface of ["native", "js"]) for (const typeOnly of [false, true]) {
+  test(`unemitted native method writes do not reject live code (${surface}, type-only=${typeOnly})`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+import type { int32 } from "@tsonic/core/types.js";
+interface Reader { read(): int32; }
+export function run(): int32 {
+  function hidden(values: Reader[]): void { values[0]!.read = (): int32 => 3; }
+  ${typeOnly ? "type HiddenParameters = Parameters<typeof hidden>;" : ""}
+  return 7;
+}
+` });
+    assertCsharpCompilationSucceeded(compiled);
+    assert.equal(compiled.sourceDiagnosticsText, "", "the original dormant source and type-only use remain source-valid");
+    assert.equal(compiled.targetDiagnostics.length, 0, "only an actually selected native write consumes its shared refusal");
+    assert.equal([...compiled.artifacts.values()].some(source => source.includes("hidden")), false,
+      "the unsupported dormant body is erased rather than emitted without its required proof");
+    executeCsharpConstruction(compiled, `unemitted-authored-method-${surface}-${typeOnly}`, false, false, [],
+      'if (Tsonic.Generated.Index.run() != 7) throw new System.Exception("dormant native write");');
+  });
+}

@@ -17,5 +17,5 @@ export function selectCsharpRegularExpressionLiteral(
   node: Node,
   sourceFile: SourceFile,
 ): CsharpRegularExpressionLiteralSelection {
-  return selectCsharpNativeRegularExpressionLiteral(host.ast.regularExpressionLiteral(node), host.types.resolveNode(node, sourceFile));
+  return selectCsharpNativeRegularExpressionLiteral(host.ast.regularExpressionLiteral(node), host.types.resolveNode(node, sourceFile)?.type);
 }

@@ -1,4 +1,4 @@
-import type { CsharpTypeQueries } from "../../../../policy/model/type-resolution.js";
+import type { CsharpNodeTypeResolution, CsharpTypeQueries } from "../../../../policy/model/type-resolution.js";
 import type { AstReader, ExtensionFactSubject, Node, ReadonlySourceFactResolver, SourceFile, Type } from "@tsonic/tsts";
 import type { TargetSelection } from "@tsonic/target-api";
 import type { TsonicPointerReturnQueries, TsonicMemoryBindingIndex } from "@tsonic/source-core/facts";
@@ -101,6 +101,7 @@ export interface CsharpTypePolicy extends CsharpTypeQueries {
 
 export interface CsharpTypeResolutionState {
   readonly depth: number;
+  readonly rejectNativeParameter?: (rejection: Extract<CsharpNodeTypeResolution, { readonly kind: "rejected" }>) => void;
   readonly sourceStorageSubject?: import("@tsonic/target-api/analysis").SourceStorageSubject;
   readonly sourceBindings?: ReadonlyMap<Node, {
     readonly sourceType: Type;

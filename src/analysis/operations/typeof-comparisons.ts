@@ -22,7 +22,7 @@ export function classifyTypeofComparison(
     operand: guard.sourceOperand,
     runtimeKind,
     selection: selectCsharpTypeofComparison(
-      policy.types.resolveNode(guard.sourceOperand, sourceFile),
+      policy.types.resolveNode(guard.sourceOperand, sourceFile)?.type,
       runtimeKind,
       guard.negated,
       policy.typeDefinitions,

@@ -1,10 +1,11 @@
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { CsharpArrayLiteralSelection } from "../../../../target-model/records/array-literals.js";
+import type { CsharpNodeTypeResolution } from "../../../../policy/model/type-resolution.js";
 
-type NodeTargetCache = WeakMap<
+type NodeTargetCache<Value> = WeakMap<
   Node,
-  Map<SourceFile | undefined, TargetTypeRef | null>
+  Map<SourceFile | undefined, Value | null>
 >;
 
 export interface CsharpTypeResolutionQueryCache {
@@ -13,8 +14,8 @@ export interface CsharpTypeResolutionQueryCache {
   resolveNode(
     node: Node | undefined,
     sourceFile: SourceFile | undefined,
-    compute: () => TargetTypeRef | undefined,
-  ): TargetTypeRef | undefined;
+    compute: () => CsharpNodeTypeResolution | undefined,
+  ): CsharpNodeTypeResolution | undefined;
   resolveStorage(
     node: Node | undefined,
     sourceFile: SourceFile | undefined,
@@ -35,21 +36,21 @@ export interface CsharpTypeResolutionQueryCache {
 export function createCsharpTypeResolutionQueryCache():
   CsharpTypeResolutionQueryCache {
   let activeQueryDepth = 0;
-  const nodeTypes: NodeTargetCache = new WeakMap();
-  const storageTypes: NodeTargetCache = new WeakMap();
-  const readStorageTypes: NodeTargetCache = new WeakMap();
+  const nodeTypes: NodeTargetCache<CsharpNodeTypeResolution> = new WeakMap();
+  const storageTypes: NodeTargetCache<TargetTypeRef> = new WeakMap();
+  const readStorageTypes: NodeTargetCache<TargetTypeRef> = new WeakMap();
   const semanticTypes = new WeakMap<
     Type,
     WeakMap<SourceFile, TargetTypeRef | null>
   >();
   const arrays = new WeakMap<Node, WeakMap<SourceFile, CsharpArrayLiteralSelection>>();
 
-  const resolveNodeQuery = (
-    cache: NodeTargetCache,
+  const resolveNodeQuery = <Value>(
+    cache: NodeTargetCache<Value>,
     node: Node | undefined,
     sourceFile: SourceFile | undefined,
-    compute: () => TargetTypeRef | undefined,
-  ): TargetTypeRef | undefined => {
+    compute: () => Value | undefined,
+  ): Value | undefined => {
     if (node === undefined) {
       return compute();
     }
@@ -130,7 +131,7 @@ export function createCsharpTypeResolutionQueryCache():
     resolveNode(
       node: Node | undefined,
       sourceFile: SourceFile | undefined,
-      compute: () => TargetTypeRef | undefined,
+      compute: () => CsharpNodeTypeResolution | undefined,
     ) {
       return resolveNodeQuery(nodeTypes, node, sourceFile, compute);
     },

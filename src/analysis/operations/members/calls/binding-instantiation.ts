@@ -20,10 +20,10 @@ export function resolveCsharpTargetBindingArguments(
   if (targetArity === 0) {
     return [];
   }
+  const selections = sourceEvidence.map(evidence => types.resolveNode(evidence.node, sourceFile));
+  if (selections.some(selected => selected?.kind === "rejected")) return undefined;
   const candidates = sourceEvidence
-    .map((evidence) =>
-      types.resolveNode(evidence.node, sourceFile) ??
-      types.resolveType(evidence.type, sourceFile))
+    .map((evidence, index) => selections[index]?.type ?? types.resolveType(evidence.type, sourceFile))
     .filter((type): type is TargetTypeRef => type !== undefined)
     .map((type) => resolveCsharpTargetTypePatternArguments(
       csharpTargetTypePatternFromBinding(binding),

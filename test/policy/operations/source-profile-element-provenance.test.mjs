@@ -54,7 +54,7 @@ function fixture(options = {}) {
       } : undefined },
     types: { nativeFlowTypes: () => options.emptyFlow ? [] : undefined,
       resolveType: type => type === sourceType ? csharpJsArrayTargetType(csharpStringTargetType()) : undefined,
-      resolveNode: node => node === receiver ? csharpJsArrayTargetType(csharpStringTargetType()) : undefined,
+      resolveNode: node => node === receiver ? { kind: "resolved", type: csharpJsArrayTargetType(csharpStringTargetType()) } : undefined,
       resolveSelectedValue: node => node === receiver ? csharpJsArrayTargetType(csharpStringTargetType()) : undefined },
   };
   return { host, source, sourceFile };

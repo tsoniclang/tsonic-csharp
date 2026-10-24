@@ -268,7 +268,7 @@ export function analyzeCsharpRepresentationIteration(
     bindingPatterns: bindingCandidates, callableCreation: callableCreations.callableCreation, attributeApplications: attributes.index,
     propertyKeyBindings: expectedTypes.constructions.propertyKeys, exactLiteral: exactLiterals.exactLiteral,
     classInitialization, projectTypes: typeSystem.projectTypes.catalog, classFactories, expected: expectedUse,
-    nativeExpressionIssues: evidence.nativeExpressionIssues,
+    nativeExpressionIssues: evidence.nativeExpressionIssues, sourceStorage,
   }, requiredRecords);
   const bindingPatterns = admitCsharpBindingPatterns(bindingCandidates, nativeDemand.requiredBindingRoots, requiredRecords);
   conversionAnalysis.close(nativeDemand, requiredRecords, captureStorage);

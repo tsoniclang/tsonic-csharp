@@ -35,6 +35,7 @@ import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { createCsharpLiteralShapeResolver } from "./literal-construction.js";
 import { createCsharpProjectShapeProjection } from "./project-construction.js";
+import type { CsharpNativeParameterSelection } from "../../../target-model/records/object-shapes.js";
 export function createCsharpObjectShapePolicy(
   host: CsharpObjectShapePolicyHost,
 ): CsharpRecursiveObjectShapePolicy {
@@ -52,31 +53,30 @@ export function createCsharpObjectShapePolicy(
     declaration: Node,
     parameter: Node,
     type: TargetTypeRef,
-  ): { readonly kind: "resolved"; readonly type: TargetTypeRef } | { readonly kind: "rejected"; readonly reason: string } {
+  ): CsharpNativeParameterSelection {
+    const rejected = (reason: string): CsharpNativeParameterSelection => Object.freeze({ kind: "rejected", subject: parameter, reason });
     const element = getCsharpNullableElementTargetType(type);
     const present = element ?? type;
     const target = present.kind === "target-named" ? present as CsharpTargetNamedTypeRef : undefined;
     if (target === undefined || target.csharpStructuralContract !== true && target.csharpSourceDeclarationKind !== "interface")
-      return { kind: "resolved", type };
+      return Object.freeze({ kind: "resolved", type });
     const shape = resolveTarget(present) ?? (target?.csharpSourceDeclarationKind === "interface"
       ? resolveProjectInterfaceShape(target, { depth: 0 }) : undefined);
     if (shape === undefined || !shape.members.some(member => member.memberKind === "method") ||
-      host.ast.body(declaration) === undefined) return { kind: "resolved", type };
+      host.ast.body(declaration) === undefined) return Object.freeze({ kind: "resolved", type });
     const demand = host.sourceStorage.formalMemberWriteDemand(declaration, parameter);
-    if (demand.kind !== "complete") return { kind: "rejected", reason: demand.reason };
+    if (demand.kind !== "complete") return rejected(demand.reason);
     const written: CsharpObjectShapeMemberFact[] = [];
     for (const declaration of demand.members) {
       const selected = resolveCsharpObjectShapeMemberBySelectedSubject(shape, [declaration]);
-      if (selected.kind !== "resolved") return { kind: "rejected",
-        reason: "A native method-write destination requires exact checked formal/member correspondence." };
+      if (selected.kind !== "resolved") return rejected("A native method-write destination requires exact checked formal/member correspondence.");
       if (selected.member.memberKind === "method" && !written.includes(selected.member)) written.push(selected.member);
     }
     const selected = selectCsharpWritableMethodContract(shape, written, environment);
-    if (selected === undefined) return { kind: "rejected",
-      reason: "A native method-write destination requires an exact writable source method contract." };
-    if (selected === shape) return { kind: "resolved", type };
+    if (selected === undefined) return rejected("A native method-write destination requires an exact writable source method contract.");
+    if (selected === shape) return Object.freeze({ kind: "resolved", type });
     const resolved = rememberTargetShape(selected).targetType;
-    return { kind: "resolved", type: element === undefined ? resolved : csharpNullableTargetType(resolved) };
+    return Object.freeze({ kind: "resolved", type: element === undefined ? resolved : csharpNullableTargetType(resolved) });
   }
 
   function resolveNode(

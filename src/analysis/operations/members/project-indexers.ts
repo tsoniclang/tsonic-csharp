@@ -63,11 +63,11 @@ export function selectCsharpProjectElement(
   const declaredKeyType = host.types.resolveNode(
     keyTypeNode,
     declarationSourceFile,
-  );
+  )?.type;
   const declaredValueType = host.types.resolveNode(
     valueTypeNode,
     declarationSourceFile,
-  );
+  )?.type;
   if (
     receiverType === undefined ||
     declaredKeyType === undefined ||

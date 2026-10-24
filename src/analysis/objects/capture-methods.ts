@@ -29,9 +29,10 @@ export function analyzeCsharpCaptureMethods(ast: AstReader, captures: CsharpCapt
           message: "A native captured method requires its actual admitted source body contract." }); continue;
       }
       if (selected.signature.returnPassing !== undefined ||
-        selected.signature.parameterPassingModes.some(mode => mode !== "by-value") &&
-          (selected.signature.parameterPassingModes.length !== body.nativeParameters.length ||
-            selected.signature.parameterPassingModes.some((mode, index) => mode !== body.nativeParameters[index]!.targetParameter.passingMode))) {
+        selected.signature.parameterPassingModes.some((mode, index) =>
+          mode !== (body.nativeParameters[index]?.targetParameter.passingMode ?? "by-value")) ||
+        body.nativeParameters.some((parameter, index) =>
+          parameter.targetParameter.passingMode !== (selected.signature.parameterPassingModes[index] ?? "by-value"))) {
         issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: method.declaration,
           message: "A by-reference native delegate binding requires an exact native method group or delegate value; the source body has a different native passing contract." });
         continue;

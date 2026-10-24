@@ -458,12 +458,15 @@ export function resolveCsharpNativeParameterCarrier(
   scope: CsharpTypeResolutionScope,
   parameter: Node,
   type: TargetTypeRef | undefined,
+  state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
   if (type === undefined || !scope.host.ast.is.IsParameterDeclaration(parameter)) return type;
   const declaration = scope.host.ast.parent(parameter);
   if (declaration === undefined) return undefined;
   const selected = scope.host.objectShapes.resolveNativeParameter(declaration, parameter, type);
-  return selected.kind === "resolved" ? selected.type : undefined;
+  if (selected.kind === "resolved") return selected.type;
+  state.rejectNativeParameter?.(selected);
+  return undefined;
 }
 
 export function selectCsharpContextualParameterCarrier(
@@ -538,7 +541,7 @@ export function resolveSourceValueDeclaration(
       state,
     );
     if (resolved !== undefined) {
-      return resolveCsharpNativeParameterCarrier(scope, declaration, resolved);
+      return resolveCsharpNativeParameterCarrier(scope, declaration, resolved, state);
     }
   }
   if (host.ast.is.IsBindingElement(declaration)) {
@@ -570,7 +573,7 @@ export function resolveSourceValueDeclaration(
     const contextual = selectCsharpContextualParameterCarrier(scope, declaration, declarationQueries, state);
     if (contextual.kind === "unresolved") return undefined;
     if (contextual.kind === "resolved") {
-      const native = resolveCsharpNativeParameterCarrier(scope, declaration, contextual.type);
+      const native = resolveCsharpNativeParameterCarrier(scope, declaration, contextual.type, state);
       if (native === undefined) return undefined;
       const declaredSource = declarationQueries.declarations.declaredValueType(declaration);
       if (declaredSource === undefined || selectedSource === undefined) return native;
@@ -582,7 +585,7 @@ export function resolveSourceValueDeclaration(
         queries.types.isNonPrimitive(selectedSource));
     }
     return resolveCsharpNativeParameterCarrier(scope, declaration, retainCsharpBroadValueCarrier(declaredTarget, selected,
-      selectedSource !== undefined && queries.types.isNonPrimitive(selectedSource)) ?? selected ?? declaredTarget);
+      selectedSource !== undefined && queries.types.isNonPrimitive(selectedSource)) ?? selected ?? declaredTarget, state);
   }
   const arrayInitializer = host.ast.is.IsArrayLiteralExpression(syntax.initializer);
   const initializerTarget = arrayInitializer

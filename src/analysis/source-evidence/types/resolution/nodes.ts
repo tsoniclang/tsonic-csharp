@@ -28,7 +28,7 @@ export function resolveNodeWithState(
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
   const selected = resolveNodeCarrierWithState(scope, node, sourceFile, state);
-  return node === undefined ? selected : resolveCsharpNativeParameterCarrier(scope, node, selected);
+  return node === undefined ? selected : resolveCsharpNativeParameterCarrier(scope, node, selected, state);
 }
 
 function resolveNodeCarrierWithState(

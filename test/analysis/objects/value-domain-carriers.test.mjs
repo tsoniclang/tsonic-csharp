@@ -96,7 +96,7 @@ function domain(input, carrier, projection, root = "first", selected = "selected
     semantics: file => input.source.semantics.forFile(file),
     types: { resolveNode(selectedNode, file) {
       assert.equal(selectedNode === node && file === input.file, true, "retain original physical owner, never resolve field source type");
-      return carrier;
+      return { kind: "resolved", type: carrier };
     } },
   };
   return { host, expression, origin: origin.subject };

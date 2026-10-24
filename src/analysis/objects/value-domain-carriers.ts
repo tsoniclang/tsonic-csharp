@@ -73,7 +73,7 @@ export function analyzeCsharpValueDomainCarriers(
       if (origin.subject.kind !== "value") return undefined;
       let selectedCarrier = originCarriers.get(origin.subject);
       if (!originCarriers.has(origin.subject)) {
-        selectedCarrier = projectCsharpNativeSourceStorageCarrier(host.types.resolveNode(origin.subject.node, origin.sourceFile),
+        selectedCarrier = projectCsharpNativeSourceStorageCarrier(host.types.resolveNode(origin.subject.node, origin.sourceFile)?.type,
           origin.subject, host.objectShapes, amount => budget.reserve(amount));
         originCarriers.set(origin.subject, selectedCarrier);
       }

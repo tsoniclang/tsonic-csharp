@@ -12,7 +12,7 @@ export function selectCsharpSwitch(input: CsharpPolicyContext, node: Node, sourc
   const block = statement?.CaseBlock === undefined ? undefined : input.ast.as.AsCaseBlock(statement.CaseBlock);
   const clauses = block?.Clauses?.Nodes.filter((clause): clause is Node => clause !== undefined);
   if (expression === undefined || clauses === undefined) return { kind: "rejected", reason: "Switch requires its exact governing expression and clauses." };
-  const type = input.types.resolveNode(expression, sourceFile);
+  const type = input.types.resolveNode(expression, sourceFile)?.type;
   if (type === undefined) return { kind: "rejected", reason: "Switch governing expression has no closed native carrier." };
   const defaults = clauses.filter(clause => input.ast.is.IsDefaultClause(clause));
   if (defaults.length > 1) return { kind: "rejected", reason: "Switch cannot contain multiple default clauses." };
@@ -32,7 +32,7 @@ export function selectCsharpSwitch(input: CsharpPolicyContext, node: Node, sourc
     const candidate = input.ast.as.AsCaseOrDefaultClause(clause)?.Expression;
     if (candidate === undefined) return { kind: "rejected", reason: "Switch case has no checked expression." };
     const comparison = selectCsharpBinaryOperands(input, expression, candidate, "===",
-      csharpSourcePrimitiveTargetType("bool"), operand => input.types.resolveNode(operand, sourceFile));
+      csharpSourcePrimitiveTargetType("bool"), operand => input.types.resolveNode(operand, sourceFile)?.type);
     if (comparison.kind === "rejected") return comparison;
     selected.push({ node: clause, comparison });
   }

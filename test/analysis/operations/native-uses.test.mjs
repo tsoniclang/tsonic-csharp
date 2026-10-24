@@ -10,6 +10,7 @@ import { analyzeCsharpExactLiteralSelections } from "../../../dist/analysis/conv
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 import { publishedGenericProjections } from "../../helpers/expected-native-uses.mjs";
+import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 
 function owners(sourceText, surface = "native") {
   const compiled = compileCsharpSource({ sourceText, surface });
@@ -38,7 +39,7 @@ function owners(sourceText, surface = "native") {
           ? heritage.interfaces : [heritage.baseType, ...heritage.interfaces];
       } } } });
   const input = { ast, sourceFiles: csharpProgramSourceFiles(program), navigation: program.sourceNavigation, evidence: records, operations: records,
-    nativeExpressionIssues: [],
+    nativeExpressionIssues: [], sourceStorage: createSourceStorageQuery(source, csharpProgramSourceFiles(program)),
     declarations: records, objectShapes: program.objectShapes,
     exactLiteral: records.exactLiteral, propertyKeyBindings: expression => {
       const use = records.nativeExpression.get(expression)?.use;

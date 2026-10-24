@@ -181,10 +181,12 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       genericProjections: host.representations.genericProjections,
       types: { resolveNode: (node, sourceFile) => {
         const declared = host.typeResolver.resolveNode(node, sourceFile, nextState(state));
-        if (declared === undefined || receiver === undefined) return declared;
+        if (declared === undefined) return undefined;
+        if (receiver === undefined) return Object.freeze({ kind: "resolved" as const, type: declared });
         const selected = host.projectTypes().instantiateMemberType(methodDeclaration, receiver, declared);
-        return selected.kind === "resolved" ? selected.type
+        const type = selected.kind === "resolved" ? selected.type
           : selected.kind === "not-project-member" ? declared : undefined;
+        return type === undefined ? undefined : Object.freeze({ kind: "resolved" as const, type });
       } },
     });
     if (typeParameters === undefined) return undefined;

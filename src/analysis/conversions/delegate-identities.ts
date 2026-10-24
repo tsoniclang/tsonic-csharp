@@ -66,7 +66,7 @@ function stableSourceBinding(expression: Node, policy: CsharpPolicyContext,
     const initializer = policy.ast.is.IsVariableDeclaration(declaration)
       ? policy.ast.as.AsVariableDeclaration(declaration)?.Initializer : undefined;
     if (initializer === undefined || !policy.ast.is.IsIdentifier(initializer)) return declaration;
-    const type = policy.types.resolveNode(initializer, reference.sourceFile);
+    const type = policy.types.resolveNode(initializer, reference.sourceFile)?.type;
     if (type === undefined || !targetTypeRefEquals(getCsharpNullableElementTargetType(type) ?? type, source)) return declaration;
     const origin = policy.navigation.referenceFor(initializer);
     if (origin === undefined || !isSourceOwnedProjectReference(origin, policy)) return declaration;

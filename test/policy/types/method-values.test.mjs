@@ -139,6 +139,20 @@ test("a captured source body cannot acquire reference-return or parameter semant
   const matchingBody = { ...body, nativeParameters: [{ ...input, targetParameter: { ...input.targetParameter, passingMode: "byref-readwrite" } }] };
   assert.equal(observe(referenceInput, matchingBody).issues.length, 0,
     "an independently admitted matching native parameter contract is retained, not blanket-prohibited");
+  assert.equal(observe(ordinary.csharpDelegateSignature, matchingBody).issues.length, 1,
+    "a native reference body cannot acquire contextual by-value parameter semantics");
+  const extraDefault = { ...input, targetParameter: { ...input.targetParameter, name: "defaulted", optional: true } };
+  assert.equal(observe(ordinary.csharpDelegateSignature, { ...body, nativeParameters: [input, extraDefault] }).issues.length, 0,
+    "a by-value default correspondence is not rejected by native-vector length alone");
+  assert.equal(observe({ ...ordinary.csharpDelegateSignature, parameters: [scalar, scalar],
+    parameterPassingModes: ["by-value", "by-value"] }).issues.length, 0,
+  "a by-value contextual vector is not rejected by native-vector length alone");
+  assert.equal(observe({ ...ordinary.csharpDelegateSignature, parameters: [scalar, scalar],
+    parameterPassingModes: ["by-value", "byref-readwrite"] }).issues.length, 1,
+  "a new contextual reference slot requires a corresponding actual native body binding");
+  assert.equal(observe(ordinary.csharpDelegateSignature, { ...body, nativeParameters: [input,
+    { ...extraDefault, targetParameter: { ...extraDefault.targetParameter, passingMode: "byref-readwrite" } }] }).issues.length, 1,
+  "a native reference slot cannot disappear behind a shorter contextual by-value vector");
   assert.equal(observe(ordinary.csharpDelegateSignature, { ...body, sourceDeclaration: {} }).issues.length, 1,
     "a same-shaped foreign body is not substituted for the actual checked declaration");
 });

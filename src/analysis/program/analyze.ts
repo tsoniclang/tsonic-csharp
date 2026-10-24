@@ -13,7 +13,6 @@ import { createTsonicPointerReturnQueries, createTsonicMemoryBindingIndex } from
 import { rejectedTargetStage, resolvedTargetStage, failTargetAnalysisInvariant, targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
 import { resolveTargetContractFixedPoint } from "@tsonic/target-api/analysis";
 import type { TargetStageResult, TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { Node } from "@tsonic/tsts";
 
 import { createCsharpSourceAttributeApplicationIndex } from "../attributes/application-index.js";
 import { createCsharpSafetyApplicationFactIndex } from "../safety/application-index.js";
@@ -90,14 +89,6 @@ function analyzeCsharpTargetProgramBeforeSeal(
   if (sourceStorageFailure !== undefined) return rejectedTargetStage([{
     code: "CSHARP_SOURCE_STORAGE_NOT_PROVEN", category: "error", source: "tsonic-csharp", message: sourceStorageFailure,
   }]);
-  const rejectedMemberWrites = new Map<Node, TargetDiagnostic>();
-  for (const node of sourceStorage.nodes) {
-    const selected = sourceStorage.writeAt(node, sourceStorage.emptyBindings);
-    if (selected.kind !== "resolved" || selected.write.reason === undefined) continue;
-    rejectedMemberWrites.set(selected.write.reference, { code: "CSHARP_SOURCE_STORAGE_NOT_PROVEN", category: "error",
-      source: "tsonic-csharp", sourceNode: selected.write.reference, message: selected.write.reason });
-  }
-  if (rejectedMemberWrites.size !== 0) return rejectedTargetStage([...rejectedMemberWrites.values()]);
   const genericAdoption = analyzeCsharpGenericAdoption({ source, projectRoot: input.paths.projectRoot, storage: sourceStorage });
   if (genericAdoption.length !== 0) return rejectedTargetStage(genericAdoption);
   const sourceIdentities = createCsharpSourceIdentityPolicy(

@@ -27,7 +27,7 @@ for (const kind of ["class", "interface"]) {
           operations: { propertyAccess: () => undefined },
         }),
         types: {
-          resolveNode: node => node === receiver ? carrier : integer,
+          resolveNode: node => ({ kind: "resolved", type: node === receiver ? carrier : integer }),
           resolveSelectedValue: node => node === receiver ? carrier : integer,
           resolveReadStorage: () => integer,
         },

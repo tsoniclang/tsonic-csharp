@@ -35,7 +35,7 @@ function numericConstraint(constraint: Node, sourceFile: SourceFile, host: Cshar
     return members !== undefined && members.length > 0 &&
       members.every(member => member !== undefined && numericConstraint(member, sourceFile, host));
   }
-  const selected = host.types.resolveNode(constraint, sourceFile);
+  const selected = host.types.resolveNode(constraint, sourceFile)?.type;
   return selected?.kind === "source-primitive" && numericSourcePrimitives.has(selected.name) ||
     selected?.kind === "target-named" && selected.id === "System.Numerics.BigInteger";
 }
@@ -116,7 +116,7 @@ function resolveConstraint(
   }
   const objectKeyword = host.ast.kindName(constraint) === "KindObjectKeyword";
   const numeric = !objectKeyword && numericConstraint(constraint, sourceFile, host);
-  const target = objectKeyword || numeric ? undefined : host.types.resolveNode(constraint, sourceFile);
+  const target = objectKeyword || numeric ? undefined : host.types.resolveNode(constraint, sourceFile)?.type;
   return selectCsharpNativeTypeParameterConstraint(target, parameter, objectKeyword, numeric);
 
 }

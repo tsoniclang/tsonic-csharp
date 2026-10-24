@@ -272,20 +272,17 @@ export function analyzeCsharpSourceEvidence(
       diagnostic: Object.freeze({ code: "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH", category: "error", source: "tsonic-csharp",
         sourceNode: node, message: array.reason }), requiredBy: new Set([node]),
     });
-    nodeTargetTypes.set(node, recordTargetType(array === undefined ? types.resolveNode(node, sourceFile)
+    const nodeSelection = array === undefined ? types.resolveNode(node, sourceFile) : undefined;
+    nodeTargetTypes.set(node, recordTargetType(array === undefined
+      ? nodeSelection?.kind === "resolved" ? nodeSelection.type : undefined
       : array.kind === "resolved" ? array.carrier : undefined) ?? missing);
     const nodeTargetType = cachedValue(nodeTargetTypes.get(node));
-    if (!typeOnly && nodeTargetType === undefined && source.ast.is.IsParameterDeclaration(node)) {
-      const declaration = source.ast.parent(node);
-      const authored = source.ast.typeNode(node);
-      const declared = semantics.declarations.declaredValueType(node);
-      const carrier = authored === undefined ? declared === undefined ? undefined : types.resolveType(declared, sourceFile)
-        : types.resolveNode(authored, sourceFile);
-      const native = declaration === undefined || carrier === undefined ? undefined
-        : policy.objectShapes.resolveNativeParameter(declaration, node, carrier);
-      if (native?.kind === "rejected") nativeExpressionIssues.set(node, {
+    if (!typeOnly && nodeSelection?.kind === "rejected") {
+      const previous = nativeExpressionIssues.get(nodeSelection.subject);
+      if (previous !== undefined) previous.requiredBy.add(node);
+      else nativeExpressionIssues.set(nodeSelection.subject, {
         diagnostic: Object.freeze({ code: "CSHARP_SOURCE_STORAGE_NOT_PROVEN", category: "error", source: "tsonic-csharp",
-          sourceNode: node, message: native.reason }), requiredBy: new Set([node, declaration!]),
+          sourceNode: nodeSelection.subject, message: nodeSelection.reason }), requiredBy: new Set([node]),
       });
     }
     sourceOwnedProjectShapes.set(

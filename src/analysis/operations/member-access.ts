@@ -24,7 +24,7 @@ export function classifyCsharpMemberReceiver(
   source: Pick<ResolvedSourceElementAccessInfo, "receiver" | "optionalChain">,
   sourceFile: SourceFile,
 ): CsharpMemberReceiverProjection | undefined {
-  const raw = policy.types.resolveNode(source.receiver.expression, sourceFile);
+  const raw = policy.types.resolveNode(source.receiver.expression, sourceFile)?.type;
   const selected = policy.types.resolveSelectedValue(source.receiver.expression, source.receiver.type, sourceFile);
   const target = optionalResultType(selected, source.optionalChain);
   if (raw === undefined || target === undefined || targetTypeRefEquals(raw, target)) return undefined;
@@ -144,7 +144,7 @@ export function classifySourceOwnedMember(
     selection.source.optionalChain,
   );
   const selectedSourceReadType = selection.source.sourceReadType === undefined
-    ? policy.types.resolveNode(selection.source.expression, sourceFile)
+    ? policy.types.resolveNode(selection.source.expression, sourceFile)?.type
     : policy.types.resolveSelectedValue(
       selection.source.expression,
       selection.source.sourceReadType,
