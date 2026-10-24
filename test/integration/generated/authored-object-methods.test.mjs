@@ -12,6 +12,33 @@ for (const surface of [undefined, "js"]) {
   });
 }
 
+const factorySharedChooserSource = `
+import type { int32 } from "@tsonic/core/types.js";
+type Chooser = { choose<Value>(value: Value): Value };
+let firstCalls: int32 = 0;
+let secondCalls: int32 = 0;
+function makeFirst(): Chooser {
+  return { choose<Value>(value: Value): Value { firstCalls += 1; return value; } };
+}
+function makeSecond(): Chooser {
+  return { choose<Value>(value: Value): Value { secondCalls += 1; return value; } };
+}
+function invoke(owner: Chooser): int32 { return owner.choose<int32>(4); }
+export function run(): boolean {
+  const owner = makeFirst();
+  const other = makeSecond();
+  const original = owner.choose;
+  const repeated = owner.choose;
+  owner.choose = other.choose;
+  const current = invoke(owner);
+  const retained = original<string>("kept");
+  owner.choose = original;
+  const restored = invoke(owner);
+  return original === repeated && current === 4 && retained === "kept" && restored === 4 &&
+    firstCalls === 2 && secondCalls === 1;
+}
+`;
+
 const mutableMethodSources = [
   ["first-class write-consuming native formals", `
 import type { int32 } from "@tsonic/core/types.js";
@@ -103,21 +130,15 @@ export function run(): boolean {
     retained === 11 && restored === 13;
 }
 `],
-  ["whole interface dispatch and immutable body values", `
+  ["whole interface dispatch and immutable body values on concrete local literals", `
 import type { int32 } from "@tsonic/core/types.js";
 type Chooser = { choose<Value>(value: Value): Value };
 let firstCalls: int32 = 0;
 let secondCalls: int32 = 0;
-function makeFirst(): Chooser {
-  return { choose<Value>(value: Value): Value { firstCalls += 1; return value; } };
-}
-function makeSecond(): Chooser {
-  return { choose<Value>(value: Value): Value { secondCalls += 1; return value; } };
-}
 function invoke(owner: Chooser): int32 { return owner.choose<int32>(4); }
 export function run(): boolean {
-  const owner = makeFirst();
-  const other = makeSecond();
+  const owner = { choose<Value>(value: Value): Value { firstCalls += 1; return value; } };
+  const other = { choose<Value>(value: Value): Value { secondCalls += 1; return value; } };
   const original = owner.choose;
   const repeated = owner.choose;
   owner.choose = other.choose;
@@ -209,6 +230,41 @@ for (const surface of ["native", "js"]) for (const [name, sourceText] of mutable
     assert.equal(/dynamic|\.GetType\(/u.test(source), false,
       "the exact stored delegate or protocol never needs dynamic invocation");
     executeCsharpConstruction(compiled, `mutable-authored-${name.replaceAll(" ", "-")}-${surface}`);
+  });
+}
+
+for (const surface of ["native", "js"]) {
+  test(`shared factory method receiver keeps the original whole interface scenario as a precise v1 refusal (${surface})`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: factorySharedChooserSource });
+    assert.equal(compiled.sourceDiagnosticsText, "", "the complete original factory program stays source-valid");
+    assert.equal(compiled.result.program === undefined, true, "a factory-call receiver has no v1 native write admission");
+    assert.equal(compiled.targetDiagnostics.length, 1, "the one actual receiver failure owns both writes, not unrelated failures");
+    assert.equal(compiled.targetDiagnostics[0].code, "CSHARP_SOURCE_STORAGE_NOT_PROVEN", "the original source-storage owner refuses");
+    assert.equal(compiled.targetDiagnostics[0].message,
+      "Member-write demand requires a parameter binding or a qualified local alias, not an element, property or call result.",
+      "the precise shared v1 receiver scope is not a native impossibility");
+    assert.equal(compiled.artifacts.size, 0, "the complete refused program produces no artifacts");
+  });
+  test(`distinct unresolved factory method receivers retain their independent refusals (${surface})`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+import type { int32 } from "@tsonic/core/types.js";
+interface Reader { read(): int32; }
+function make(): Reader { return { read(): int32 { return 1; } }; }
+export function run(): int32 {
+  const first = make();
+  const second = make();
+  first.read = (): int32 => 3;
+  first.read = (): int32 => 4;
+  second.read = (): int32 => 5;
+  return 7;
+}
+` });
+    assert.equal(compiled.sourceDiagnosticsText, "", "both distinct receivers and all three writes remain source-valid");
+    assert.equal(compiled.targetDiagnostics.length, 2, "repeating one receiver refusal never hides the other receiver failure");
+    assert.equal(compiled.targetDiagnostics.every(issue => issue.code === "CSHARP_SOURCE_STORAGE_NOT_PROVEN" &&
+      issue.message === "Member-write demand requires a parameter binding or a qualified local alias, not an element, property or call result."),
+    true, "each independent receiver retains the original precise source owner reason");
+    assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true, "neither refused receiver produces a sealed program or artifacts");
   });
 }
 

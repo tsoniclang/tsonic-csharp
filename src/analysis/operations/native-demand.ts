@@ -1,7 +1,7 @@
 import { sealCsharpNativeUseClassifications } from "../program/records/native-uses.js";
 import type { Node } from "@tsonic/tsts";
 import type { CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
-import { targetUseSiteIdentity, type TargetUseSiteRef } from "@tsonic/target-api/analysis";
+import { targetUseSiteIdentity, type SourceStorageSubject, type TargetUseSiteRef } from "@tsonic/target-api/analysis";
 import { failTargetAnalysisInvariant, targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
 import { sourceExpressionResultDisposition, sourceExpressionValueInputs, sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
 import { selectCsharpNativeConstructSteps } from "./control-flow/native-constructs.js";
@@ -74,6 +74,7 @@ export function analyzeCsharpNativeDemand(
   const unadmitted: CsharpNativeUnadmitted[] = [];
   const sourceRequirements = new Map<Node, CsharpNativeDemandAnalysisInput["nativeExpressionIssues"][number][]>();
   const refusedSourceExpressions = new Set<Node>();
+  const refusedSourceWriteReasons = new Map<SourceStorageSubject, Set<string>>();
   for (const issue of input.nativeExpressionIssues) for (const requiredBy of issue.requiredBy) {
     const issues = sourceRequirements.get(requiredBy) ?? [];
     issues.push(issue);
@@ -228,6 +229,12 @@ export function analyzeCsharpNativeDemand(
       if (selected.kind !== "resolved" || selected.write.reason === undefined ||
         selected.write.operation !== child.expression && child.access !== "location") continue;
       refused = true;
+      if (selected.write.receiver !== undefined) {
+        const reasons = refusedSourceWriteReasons.get(selected.write.receiver) ?? new Set<string>();
+        if (reasons.has(selected.write.reason)) continue;
+        reasons.add(selected.write.reason);
+        refusedSourceWriteReasons.set(selected.write.receiver, reasons);
+      }
       if (refusedSourceExpressions.has(selected.write.reference)) continue;
       refusedSourceExpressions.add(selected.write.reference);
       unadmitted.push(Object.freeze({ kind: "source-refusal", requiredBy: child.expression, diagnostic: Object.freeze({

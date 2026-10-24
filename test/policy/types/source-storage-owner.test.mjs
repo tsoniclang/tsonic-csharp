@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { sourceValueDeclaration } from "../../../dist/analysis/source-evidence/types/resolution/calls.js";
-import { resolveSelectedValueWithState, resolveStorage } from "../../../dist/analysis/source-evidence/types/resolution/public-api.js";
+import { resolveNode, resolveSelectedValueWithState, resolveStorage } from "../../../dist/analysis/source-evidence/types/resolution/public-api.js";
 
 function fixture(kind, project) {
   const expression = { kind };
@@ -36,6 +36,24 @@ function fixture(kind, project) {
   scope.sourceValueDeclaration = (node, reference) => sourceValueDeclaration(scope, node, reference);
   return { scope, expression, declaration, declarationFile };
 }
+
+test("a dependent native node retains the original selected rejection without a carrier fallback", () => {
+  const expression = {};
+  const array = {};
+  const file = {};
+  const selected = Object.freeze({ kind: "rejected", subject: array, code: "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH",
+    reason: "The original native element destination is inconsistent." });
+  const carrier = { kind: "source-primitive", name: "int32" };
+  const result = resolveNode({ resolveNodeWithState(node, sourceFile, state) {
+    assert.equal(node === expression && sourceFile === file, true, "the actual dependent use retains its source context");
+    assert.equal("rejectNativeParameter" in state, false, "the superseded parameter-only callback is not another API");
+    state.rejectNativeResolution(selected);
+    return carrier;
+  } }, expression, file);
+  assert.equal(result === selected && Object.isFrozen(result), true, "the actual immutable owner result is transported unchanged");
+  assert.equal(result.subject === array && result.code === selected.code && result.reason === selected.reason, true,
+    "the original array subject, precise public code and reason survive its dependent use");
+});
 
 test("project storage selection excludes checked external and virtual provider members", () => {
   for (const kind of ["property", "element"]) {

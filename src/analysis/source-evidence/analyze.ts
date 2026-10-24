@@ -267,21 +267,14 @@ export function analyzeCsharpSourceEvidence(
     ) {
       providerVirtualDeclarations.add(node);
     }
-    const array = source.ast.is.IsArrayLiteralExpression(node) ? types.resolveArrayLiteral(node, sourceFile) : undefined;
-    if (!typeOnly && array?.kind === "rejected") nativeExpressionIssues.set(node, {
-      diagnostic: Object.freeze({ code: "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH", category: "error", source: "tsonic-csharp",
-        sourceNode: node, message: array.reason }), requiredBy: new Set([node]),
-    });
-    const nodeSelection = array === undefined ? types.resolveNode(node, sourceFile) : undefined;
-    nodeTargetTypes.set(node, recordTargetType(array === undefined
-      ? nodeSelection?.kind === "resolved" ? nodeSelection.type : undefined
-      : array.kind === "resolved" ? array.carrier : undefined) ?? missing);
+    const nodeSelection = types.resolveNode(node, sourceFile);
+    nodeTargetTypes.set(node, recordTargetType(nodeSelection?.kind === "resolved" ? nodeSelection.type : undefined) ?? missing);
     const nodeTargetType = cachedValue(nodeTargetTypes.get(node));
     if (!typeOnly && nodeSelection?.kind === "rejected") {
       const previous = nativeExpressionIssues.get(nodeSelection.subject);
       if (previous !== undefined) previous.requiredBy.add(node);
       else nativeExpressionIssues.set(nodeSelection.subject, {
-        diagnostic: Object.freeze({ code: "CSHARP_SOURCE_STORAGE_NOT_PROVEN", category: "error", source: "tsonic-csharp",
+        diagnostic: Object.freeze({ code: nodeSelection.code, category: "error", source: "tsonic-csharp",
           sourceNode: nodeSelection.subject, message: nodeSelection.reason }), requiredBy: new Set([node]),
       });
     }

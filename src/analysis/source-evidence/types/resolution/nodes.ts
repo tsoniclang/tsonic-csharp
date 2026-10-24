@@ -71,6 +71,8 @@ function resolveNodeCarrierWithState(
   }
   if (host.ast.is.IsArrayLiteralExpression(node)) {
     const selection = scope.resolveArrayLiteralWithState(node, queries, state);
+    if (selection.kind === "rejected") state.rejectNativeResolution?.(Object.freeze({ kind: "rejected", subject: node,
+      code: "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH", reason: selection.reason }));
     return selection.kind === "resolved" ? selection.carrier : undefined;
   }
   if (host.ast.is.IsPropertyDeclaration(node) || host.ast.is.IsPropertySignatureDeclaration(node) ||

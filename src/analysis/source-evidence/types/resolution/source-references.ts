@@ -465,7 +465,7 @@ export function resolveCsharpNativeParameterCarrier(
   if (declaration === undefined) return undefined;
   const selected = scope.host.objectShapes.resolveNativeParameter(declaration, parameter, type);
   if (selected.kind === "resolved") return selected.type;
-  state.rejectNativeParameter?.(selected);
+  state.rejectNativeResolution?.(selected);
   return undefined;
 }
 

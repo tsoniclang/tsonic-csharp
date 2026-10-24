@@ -26,7 +26,7 @@ export function resolveNode(
   sourceFile?: SourceFile,
 ): CsharpNodeTypeResolution | undefined {
   let rejected: Extract<CsharpNodeTypeResolution, { readonly kind: "rejected" }> | undefined;
-  const type = resolveNodeWithState(node, sourceFile, { depth: 0, rejectNativeParameter: rejection => {
+  const type = resolveNodeWithState(node, sourceFile, { depth: 0, rejectNativeResolution: rejection => {
     rejected ??= rejection;
   } });
   return rejected ?? (type === undefined ? undefined : Object.freeze({ kind: "resolved", type }));

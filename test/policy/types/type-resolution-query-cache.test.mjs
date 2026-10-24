@@ -88,13 +88,14 @@ test("the existing node cache preserves the actual immutable rejection and origi
   const parameter = {};
   const sourceFile = {};
   const otherSourceFile = {};
-  const rejected = Object.freeze({ kind: "rejected", subject: parameter, reason: "Actual native formal demand is unresolved." });
+  const rejected = Object.freeze({ kind: "rejected", subject: parameter, code: "CSHARP_SOURCE_STORAGE_NOT_PROVEN",
+    reason: "Actual native formal demand is unresolved." });
   let selections = 0;
   const first = cache.resolveNode(parameter, sourceFile, () => { selections += 1; return rejected; });
   const second = cache.resolveNode(parameter, sourceFile, () => { selections += 1; return int32Node; });
   assert.equal(first === rejected && second === rejected && Object.isFrozen(second), true,
     "the precise first owner result is retained, not recreated from another/default-free carrier");
-  assert.equal(second.kind === "rejected" && second.subject === parameter && second.reason === rejected.reason, true,
+  assert.equal(second.kind === "rejected" && second.subject === parameter && second.code === rejected.code && second.reason === rejected.reason, true,
     "actual source identity and complete rejection reason travel together through the canonical cache");
   assert.equal(selections, 1, "a completed rejected selection is computed once just like a resolved selection");
   assert.equal(cache.resolveNode(parameter, otherSourceFile, () => int32Node) === int32Node, true,

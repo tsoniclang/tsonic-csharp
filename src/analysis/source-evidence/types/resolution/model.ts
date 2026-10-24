@@ -101,7 +101,7 @@ export interface CsharpTypePolicy extends CsharpTypeQueries {
 
 export interface CsharpTypeResolutionState {
   readonly depth: number;
-  readonly rejectNativeParameter?: (rejection: Extract<CsharpNodeTypeResolution, { readonly kind: "rejected" }>) => void;
+  readonly rejectNativeResolution?: (rejection: Extract<CsharpNodeTypeResolution, { readonly kind: "rejected" }>) => void;
   readonly sourceStorageSubject?: import("@tsonic/target-api/analysis").SourceStorageSubject;
   readonly sourceBindings?: ReadonlyMap<Node, {
     readonly sourceType: Type;

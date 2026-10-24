@@ -60,7 +60,7 @@ export interface CsharpObjectShapePropertyOrders {
 
 export type CsharpNativeParameterSelection =
   | { readonly kind: "resolved"; readonly type: TargetTypeRef }
-  | { readonly kind: "rejected"; readonly subject: Node; readonly reason: string; readonly type?: never };
+  | { readonly kind: "rejected"; readonly subject: Node; readonly code: string; readonly reason: string; readonly type?: never };
 
 export interface CsharpObjectShapePolicy {
   resolveNativeParameter(declaration: Node, parameter: Node, type: TargetTypeRef): CsharpNativeParameterSelection;

@@ -66,7 +66,7 @@ function createCsharpTypeSystem(
         let rejected: Extract<import("../../policy/model/type-resolution.js").CsharpNodeTypeResolution, { readonly kind: "rejected" }> | undefined;
         const type = typeResolution.recursive.resolveNode(node, file, {
           depth: 0, sourceBindings: new Map([[declaration, { sourceType, targetType: parameter }]]),
-          rejectNativeParameter: rejection => { rejected ??= rejection; },
+          rejectNativeResolution: rejection => { rejected ??= rejection; },
         });
         return rejected ?? (type === undefined ? undefined : Object.freeze({ kind: "resolved" as const, type }));
       } },

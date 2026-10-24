@@ -54,7 +54,8 @@ export function createCsharpObjectShapePolicy(
     parameter: Node,
     type: TargetTypeRef,
   ): CsharpNativeParameterSelection {
-    const rejected = (reason: string): CsharpNativeParameterSelection => Object.freeze({ kind: "rejected", subject: parameter, reason });
+    const rejected = (reason: string): CsharpNativeParameterSelection => Object.freeze({ kind: "rejected", subject: parameter,
+      code: "CSHARP_SOURCE_STORAGE_NOT_PROVEN", reason });
     const element = getCsharpNullableElementTargetType(type);
     const present = element ?? type;
     const target = present.kind === "target-named" ? present as CsharpTargetNamedTypeRef : undefined;
