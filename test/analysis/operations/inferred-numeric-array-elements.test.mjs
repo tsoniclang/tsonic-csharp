@@ -18,6 +18,8 @@ import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js
 
 const header = 'import type { float32, float64, int16, uint16, int32, uint32, int64 } from "@tsonic/core/types.js";';
 const compile = (surface, body) => compileCsharpNativeUseSource({ surface, sourceText: `${header}\n${body}` });
+const diagnosticLabel = compiled => `count=${compiled.targetDiagnostics.length}; ${compiled.targetDiagnostics.slice(0, 4)
+  .map(issue => `${issue.code}: ${issue.message.slice(0, 512)}`).join(" | ")}`;
 const accepted = compiled => {
   assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
   assert.equal(compiled.result.program !== undefined && compiled.targetDiagnostics.length === 0, true,
@@ -339,7 +341,7 @@ for (const surface of ["native", "js"]) {
       assert.equal(compiled.targetDiagnostics.length === 1 &&
         compiled.targetDiagnostics[0].code === "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH" &&
         compiled.targetDiagnostics[0].message === "Inferred array elements require an exact common native numeric carrier; an explicit native array destination is required for a rounding conversion.",
-      true, "one exact source diagnostic, never an internal missing fact or artificial f64 rescue");
+      true, `one exact source diagnostic, never an internal missing fact or artificial f64 rescue; ${diagnosticLabel(compiled)}`);
       assert.equal(compiled.artifacts.size, 0, "a precision refusal publishes no generated artifact");
     });
   }
@@ -514,7 +516,7 @@ for (const surface of ["native", "js"]) {
     const text = range?.kind !== "authored" ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end);
     assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH" &&
       issue.message === "Inferred array elements require an exact common native numeric carrier; an explicit native array destination is required for a rounding conversion." &&
-      text === "[narrow, signed]", true, "checked generic inference cannot round an actual i32 through a manufactured f64 destination");
+      text === "[narrow, signed]", true, `checked generic inference cannot round an actual i32 through a manufactured f64 destination; ${diagnosticLabel(compiled)}`);
     assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
       "the actual inferred construction is refused before sealing and emission");
   });
@@ -535,7 +537,7 @@ for (const surface of ["native", "js"]) {
     assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH" &&
       issue.message === "An inferred numeric union requires an exact canonical carrier for every authored integer literal." &&
       text === '["text", 9007199254740993]', true,
-    "the same inference cannot certify itself as a native rounding demand through a generic union or callback");
+    `the same inference cannot certify itself as a native rounding demand through a generic union or callback; ${diagnosticLabel(compiled)}`);
     assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
       "a failed inferred construction is rejected before any sealed or emitted program");
   });
@@ -566,7 +568,7 @@ for (const surface of ["native", "js"]) {
     const text = range?.kind !== "authored" ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end);
     assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH" &&
       issue.message === "An inferred numeric union requires an exact canonical carrier for every authored integer literal." &&
-      text === '["text", 9007199254740993]', true, "checked aliases of the same native construction supply no independent rounding authority");
+      text === '["text", 9007199254740993]', true, `checked aliases of the same native construction supply no independent rounding authority; ${diagnosticLabel(compiled)}`);
     assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
       "the original precise rejection occurs before sealing, without an alias-induced floating conversion");
   });
@@ -582,7 +584,7 @@ for (const surface of ["native", "js"]) {
     const text = range?.kind !== "authored" ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end);
     assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH" &&
       issue.message === "Array construction requires one consistent actual native element destination across its storage and uses." &&
-      text === "[narrow, signed]", true, "no use-order winner, array copy or consumer-side storage repair hides conflicting native destinations");
+      text === "[narrow, signed]", true, `no use-order winner, array copy or consumer-side storage repair hides conflicting native destinations; ${diagnosticLabel(compiled)}`);
     assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
       "one physical construction is either closed or precisely refused before publication");
   });
@@ -597,7 +599,7 @@ for (const surface of ["native", "js"]) {
     assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0 && compiled.targetDiagnostics.length === 1 &&
       compiled.targetDiagnostics[0].code === "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH" &&
       compiled.targetDiagnostics[0].message === "An inferred numeric union requires an exact canonical carrier for every authored integer literal.", true,
-    "the actual f64 union arm cannot round the authored integer; exact native int64 values remain separately admitted");
+    `the actual f64 union arm cannot round the authored integer; exact native int64 values remain separately admitted; ${diagnosticLabel(compiled)}`);
     const program = accepted(compile(surface, `export function run(signed: int32, unsigned: uint32) {
       const values = [signed, unsigned, 9007199254740992]; return values; }`));
     const arms = getCsharpRuntimeUnionArms(arrays(program).get("values"), program.typeDefinitions);

@@ -137,10 +137,15 @@ export function analyzeCsharpStructuralObjectEmission(input: {
           const valueType = required.methodValueContract ?? selected.type;
           const carrier = required.optional === true ? csharpNullableTargetType(valueType) : valueType;
           if (!admit(carrier, required)) continue;
+          const body = csharpObjectShapeMethodDeclaration(shape, selected);
+          const presentBody = selected.optional === true && required.optional !== true &&
+            selected.methodValueContract !== undefined && required.methodValueContract !== undefined &&
+            targetTypeRefEquals(type, selected.methodValueContract) &&
+            targetTypeRefEquals(type, required.methodValueContract);
           contracts.push(Object.freeze({ name: objectShapeStorageMemberName(contract, required), interface: type, type: carrier,
             writable: required.methodValueStorage !== undefined,
-            source: required.methodValueContract !== undefined && selected.methodValueStorage === undefined &&
-              csharpObjectShapeMethodDeclaration(shape, selected) !== undefined ? "this" : objectShapeStorageMemberName(shape, selected) }));
+            source: required.methodValueContract !== undefined && body !== undefined &&
+              (selected.methodValueStorage === undefined || presentBody) ? "this" : objectShapeStorageMemberName(shape, selected) }));
         }
       }
     }

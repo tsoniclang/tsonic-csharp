@@ -252,7 +252,9 @@ for (const surface of ["native", "js"]) {
     const compiled = compileCsharpSource({ surface, sourceText: factorySharedChooserSource });
     assert.equal(compiled.sourceDiagnosticsText, "", "the complete original factory program stays source-valid");
     assert.equal(compiled.result.program === undefined, true, "a factory-call receiver has no v1 native write admission");
-    assert.equal(compiled.targetDiagnostics.length, 1, "the one actual receiver failure owns both writes, not unrelated failures");
+    assert.equal(compiled.targetDiagnostics.length, 1,
+      `the one actual receiver failure owns both writes, not unrelated failures; ${compiled.targetDiagnostics.slice(0, 4)
+        .map(issue => `${issue.code}: ${issue.message.slice(0, 512)}`).join(" | ")}`);
     assert.equal(compiled.targetDiagnostics[0].code, "CSHARP_SOURCE_STORAGE_NOT_PROVEN", "the original source-storage owner refuses");
     assert.equal(compiled.targetDiagnostics[0].message,
       "Member-write demand requires a parameter binding or a qualified local alias, not an element, property or call result.",
@@ -274,7 +276,9 @@ export function run(): int32 {
 }
 ` });
     assert.equal(compiled.sourceDiagnosticsText, "", "both distinct receivers and all three writes remain source-valid");
-    assert.equal(compiled.targetDiagnostics.length, 2, "repeating one receiver refusal never hides the other receiver failure");
+    assert.equal(compiled.targetDiagnostics.length, 2,
+      `repeating one receiver refusal never hides the other receiver failure; ${compiled.targetDiagnostics.slice(0, 4)
+        .map(issue => `${issue.code}: ${issue.message.slice(0, 512)}`).join(" | ")}`);
     assert.equal(compiled.targetDiagnostics.every(issue => issue.code === "CSHARP_SOURCE_STORAGE_NOT_PROVEN" &&
       issue.message === "Member-write demand requires a parameter binding or a qualified local alias, not an element, property or call result."),
     true, "each independent receiver retains the original precise source owner reason");

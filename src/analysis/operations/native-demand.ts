@@ -74,7 +74,7 @@ export function analyzeCsharpNativeDemand(
   const unadmitted: CsharpNativeUnadmitted[] = [];
   const sourceRequirements = new Map<Node, CsharpNativeDemandAnalysisInput["nativeExpressionIssues"][number][]>();
   const refusedSourceExpressions = new Set<Node>();
-  const refusedSourceWriteReasons = new Map<SourceStorageSubject, Set<string>>();
+  const refusedSourceWriteReasons = new Map<Node | SourceStorageSubject, Set<string>>();
   for (const issue of input.nativeExpressionIssues) for (const requiredBy of issue.requiredBy) {
     const issues = sourceRequirements.get(requiredBy) ?? [];
     issues.push(issue);
@@ -230,10 +230,14 @@ export function analyzeCsharpNativeDemand(
         selected.write.operation !== child.expression && child.access !== "location") continue;
       refused = true;
       if (selected.write.receiver !== undefined) {
-        const reasons = refusedSourceWriteReasons.get(selected.write.receiver) ?? new Set<string>();
+        const subject = selected.write.receiver;
+        const declaration = subject.projection.length === 0 && ast.is.IsIdentifier(subject.node)
+          ? input.navigation.sourceReferenceFor(subject.node)?.declaration : undefined;
+        const receiver = declaration ?? subject;
+        const reasons = refusedSourceWriteReasons.get(receiver) ?? new Set<string>();
         if (reasons.has(selected.write.reason)) continue;
         reasons.add(selected.write.reason);
-        refusedSourceWriteReasons.set(selected.write.receiver, reasons);
+        refusedSourceWriteReasons.set(receiver, reasons);
       }
       if (refusedSourceExpressions.has(selected.write.reference)) continue;
       refusedSourceExpressions.add(selected.write.reference);

@@ -107,6 +107,41 @@ test("native write-consuming interfaces require real producer slots and emit rea
   }
 });
 
+test("an optional native method keeps its immutable present body distinct from its nullable current slot", () => {
+  const scalar = { kind: "source-primitive", name: "int32" };
+  const declaration = {};
+  const method = { sourceKey: { kind: "property", name: "read" }, sourceName: "read", targetName: "read",
+    memberKind: "method", type: csharpDelegateTargetType("System.Func", [], scalar), sourceDeclarations: [declaration] };
+  const protocol = createStructuralObjectShapeTarget([method], undefined, unconstrained, true);
+  const present = { ...method, methodValueContract: protocol };
+  const protocolShape = { targetType: protocol, members: [present] };
+  const optional = { ...present, optional: true };
+  const base = { targetType: createStructuralObjectShapeTarget([optional], undefined, unconstrained, true), members: [optional] };
+  const writable = selectCsharpWritableMethodContract(base, [optional], unconstrained);
+  const stored = { ...optional, methodValueStorage: { kind: "protocol", type: csharpNullableTargetType(protocol),
+    invocationName: objectShapeMethodInvocationName(optional) } };
+  const producer = { targetType: createStructuralObjectShapeTarget([stored], [writable.targetType, protocol], unconstrained),
+    members: [stored], implements: [writable.targetType, protocol],
+    methodImplementation: { declaration: {}, methods: [declaration], captures: [] } };
+  const shapes = [protocolShape, base, writable, producer];
+  const selected = analyzeCsharpStructuralObjectEmission({
+    shapes: { knownShapes: () => shapes, resolveTarget: type => shapes.find(shape => targetTypeRefEquals(shape.targetType, type)) },
+    demand: { artifacts: [], get: key => ({ capabilities: ["method-values"], receiverBoundMethodKeys: [],
+      materialization: key === objectShapeArtifactKey(producer) ? "synthetic" : "declared" }) },
+    storage: { nativeField: { get: () => undefined } },
+  });
+  assert.equal(selected.issues.length, 0, "both exact native roles have a complete existing implementation");
+  const contracts = selected.records.structuralObject.get(producer).contracts;
+  const body = contracts.find(value => targetTypeRefEquals(value.interface, protocol));
+  const current = contracts.find(value => targetTypeRefEquals(value.interface, writable.targetType));
+  assert.equal(body?.source, "this", "the original present callable cannot become absent after the current slot is cleared");
+  assert.equal(targetTypeRefEquals(body.type, protocol), true, "the immutable present body retains its nonnullable protocol");
+  assert.equal(current?.writable, true, "the separate existing native writer facet retains its actual setter");
+  assert.equal(current?.source !== "this", true, "current extraction never turns a writable whole object into its original body");
+  assert.equal(targetTypeRefEquals(current.type, csharpNullableTargetType(protocol)), true,
+    "current slot keeps the one native absence, not a nonnullable original-body promise");
+});
+
 test("a captured source body cannot acquire reference-return or parameter semantics from a contextual protocol", () => {
   const scalar = { kind: "source-primitive", name: "int32" };
   const declaration = {};
