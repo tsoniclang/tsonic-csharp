@@ -89,7 +89,7 @@ for (const surface of ["native", "js"]) test(`${surface}: authored native method
   assert.equal(implementations.length > 0, true, "the actual optional method body has admitted native implementation evidence");
   let nativeMethods = 0;
   for (const artifact of implementations) for (const member of artifact.fact.members) {
-    if (member.memberKind !== "method" || member.methodValueContract === undefined || member.methodStorageType !== undefined) continue;
+    if (member.memberKind !== "method" || member.methodValueContract === undefined || member.methodValueStorage !== undefined) continue;
     nativeMethods += 1;
     assert.equal(artifact.receiverBoundMethodKeys.includes(csharpObjectShapeMemberContractKey(member)), false,
       "an authored native method uses this directly, never a synthetic receiver-delegate ABI");

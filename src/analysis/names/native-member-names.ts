@@ -446,7 +446,7 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
         const storageName = objectShapeStorageMemberName(shape, member);
         if (storageName !== member.targetName) field(storageName,
           method !== undefined || structural ? "property" : "field");
-        if (method !== undefined && member.methodStorageType !== undefined) {
+        if (method !== undefined && member.methodValueStorage !== undefined) {
           recordHeader(objectShapeMethodBodyName(shape, member), shapeSignature(member, objectShapeMethodBodyName(shape, member), "method"));
           const names = objectShapeMethodValueStorageNames(shape, member);
           field(names.valueName);

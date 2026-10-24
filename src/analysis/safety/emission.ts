@@ -146,7 +146,7 @@ export function analyzeCsharpSafetyEmission(input: {
   };
   for (const file of input.source.sourceFiles) compilations.set(file, visit(file).permission);
   for (const artifact of input.shapes.artifacts) shapes.set(artifact.fact, !preview && (
-    artifact.fact.members.some(member => selectCsharpTypeUnsafeContext(member.methodStorageType ?? member.type)) ||
+    artifact.fact.members.some(member => selectCsharpTypeUnsafeContext(member.methodValueStorage?.type ?? member.type)) ||
     (artifact.fact.implements ?? []).some(selectCsharpTypeUnsafeContext)));
   compilations.set("object-shapes", [...shapes.values()].some(required => required));
   compilations.set("source-unions", !preview && input.unions.sourceUnions.get().some(union => selectCsharpTypeUnsafeContext(union.storage)));

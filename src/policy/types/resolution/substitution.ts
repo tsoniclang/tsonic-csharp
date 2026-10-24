@@ -301,8 +301,9 @@ export function substituteObjectShapeMemberTargetTypeParameters(
     : new Map([...substitutions].filter(([identity]) => !boundParameters.has(identity)));
   return Object.freeze({ ...member,
     type: substituteTargetTypeParameters(member.type, freeSubstitutions),
-    ...(member.methodStorageType === undefined ? {} : {
-      methodStorageType: substituteTargetTypeParameters(member.methodStorageType, substitutions),
+    ...(member.methodValueStorage === undefined ? {} : {
+      methodValueStorage: Object.freeze({ ...member.methodValueStorage,
+        type: substituteTargetTypeParameters(member.methodValueStorage.type, substitutions) }),
     }),
     ...(member.methodValueContract === undefined ? {} : {
       methodValueContract: substituteTargetTypeParameters(member.methodValueContract, substitutions),

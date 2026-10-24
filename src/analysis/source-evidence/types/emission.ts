@@ -60,7 +60,7 @@ export function analyzeCsharpTypeEmission(input: { readonly ast: AstReader; read
     }
   };
   for (const fact of Object.values(input.shapes.targetShapes)) pending.push(fact.targetType,
-    ...fact.members.map(member => member.methodStorageType ?? member.type), ...fact.implements ?? []);
+    ...fact.members.map(member => member.methodValueStorage?.type ?? member.type), ...fact.implements ?? []);
   const seen = new Set<string>();
   for (let index = 0; index < pending.length; index++) {
     const root = pending[index]!;
@@ -75,7 +75,7 @@ export function analyzeCsharpTypeEmission(input: { readonly ast: AstReader; read
       shapes.add(fact);
       if (!payload || payloads.has(fact)) return;
       payloads.add(fact);
-      for (const member of fact.members) visit(member.methodStorageType ?? member.type);
+      for (const member of fact.members) visit(member.methodValueStorage?.type ?? member.type);
       for (const inherited of fact.implements ?? []) visit(inherited);
     };
     const visit = (carrier: TargetTypeRef): void => {

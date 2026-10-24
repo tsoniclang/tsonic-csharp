@@ -1,4 +1,4 @@
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "./model.js";
+import type { CsharpObjectMethodValueStorage, CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "./model.js";
 
 export const csharpStructuralObjectShapeIdPrefix = "tsonic.shape:";
 
@@ -50,6 +50,11 @@ export function csharpObjectShapeMemberContractKey(
   return JSON.stringify(csharpObjectShapeMemberContractParts(member));
 }
 
+export function csharpObjectMethodValueStorageKey(storage: CsharpObjectMethodValueStorage | undefined): string | undefined {
+  return storage === undefined ? undefined : JSON.stringify([storage.kind, targetTypeRefKey(storage.type),
+    ...(storage.kind === "protocol" ? [storage.invocationName] : [])]);
+}
+
 export function csharpObjectShapeContractKey(
   shape: CsharpObjectShapeFact,
 ): string {
@@ -62,8 +67,8 @@ export function csharpObjectShapeContractKey(
       .map(targetTypeRefKey),
     canonicalCsharpObjectShapeMembers(shape.members)
       .map(csharpObjectShapeMemberContractParts),
-    ...(shape.members.some(member => member.methodStorageType !== undefined) ? [canonicalCsharpObjectShapeMembers(shape.members).map(member =>
-      member.methodStorageType === undefined ? null : targetTypeRefKey(member.methodStorageType))] : []),
+    ...(shape.members.some(member => member.methodValueStorage !== undefined) ? [canonicalCsharpObjectShapeMembers(shape.members).map(member =>
+      csharpObjectMethodValueStorageKey(member.methodValueStorage))] : []),
     ...(shape.methodImplementation === undefined ? [] : [shape.methodImplementation.identity,
       shape.methodImplementation.captures.map(capture => [capture.fieldName, targetTypeRefKey(capture.type), capture.mutable]),
     ]),

@@ -92,7 +92,7 @@ export function csharpTargetTypeComponents(
     budget.reserve(shape.members.length);
     for (const member of shape.members) {
       add(member.type);
-      add(member.methodStorageType);
+      add(member.methodValueStorage?.type);
       add(member.methodValueContract);
       budget.reserve(member.typeParameters?.length ?? 0);
       for (const parameter of member.typeParameters ?? []) {

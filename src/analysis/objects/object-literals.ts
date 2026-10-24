@@ -99,7 +99,7 @@ export function analyzeCsharpObjectLiterals(input: {
             continue;
           }
           const target = selected.member;
-          if (shared && target.methodValueContract !== undefined && target.methodStorageType === undefined &&
+          if (shared && target.methodValueContract !== undefined && target.methodValueStorage === undefined &&
             csharpObjectShapeMethodDeclaration(shape, target) === csharpObjectShapeMethodDeclaration(sourceShape, sourceMember)) continue;
           if (!targetTypeRefEquals(sourceMember.type, target.type)) { reject(property, `Object literal spread member '${sourceMember.sourceName}' requires matching finalized source and target member carriers.`); continue; }
           const carrier = target.memberKind === "method" ? input.members.objectMember.get(shape, target)?.methodStorage : target.type;

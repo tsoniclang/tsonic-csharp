@@ -11,6 +11,7 @@ import { selectCsharpCopiedMethodReceiver } from "../copied-methods.js";
 import { csharpCopiedObjectShapeMembers } from "../../../policy/types/objects/method-environments.js";
 import { csharpObjectMethodHasFixedNativeExposure } from "../../../policy/types/objects/object-members.js";
 import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { objectShapeMethodInvocationName } from "../../../target-model/names/object-members.js";
 export function resolveCsharpCopiedObjectShape(
   shape: CsharpObjectShapeFact,
   ast: AstReader,
@@ -58,11 +59,11 @@ export function retainCsharpMethodValueContracts(
       const selfContract = shape.members.length === 1 && shape.targetType.kind === "target-named" &&
         (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true;
       if (!required && !nativeMethod && !selfContract) return declaration === undefined ? member
-        : { ...member, methodStorageType: member.type };
+        : { ...member, methodValueStorage: Object.freeze({ kind: "delegate", type: member.type }) };
       const protocol = createStructuralObjectShapeTarget([signature], undefined, environment, true);
       const ownProtocol = targetTypeRefEquals(shape.targetType, protocol);
       if (!required && !nativeMethod && !ownProtocol) return declaration === undefined ? member
-        : { ...member, methodStorageType: member.type };
+        : { ...member, methodValueStorage: Object.freeze({ kind: "delegate", type: member.type }) };
       contract = protocol;
       if (!ownProtocol) remember({ targetType: contract, members: [{ ...signature, methodValueContract: contract }] });
     }
@@ -70,9 +71,10 @@ export function retainCsharpMethodValueContracts(
       (member.optional !== true || csharpObjectShapeMethodDeclaration(shape, member) !== undefined)) {
       implemented.set(targetTypeRefKey(contract), contract);
     }
-    const storage = declaration === undefined || nativeMethod ? member.methodStorageType
-      : member.optional === true ? csharpNullableTargetType(contract) : contract;
-    return { ...member, methodValueContract: contract, ...(storage === undefined ? {} : { methodStorageType: storage }) };
+    const storage = declaration === undefined || nativeMethod ? member.methodValueStorage
+      : Object.freeze({ kind: "protocol" as const, type: member.optional === true ? csharpNullableTargetType(contract) : contract,
+        invocationName: objectShapeMethodInvocationName(member) });
+    return { ...member, methodValueContract: contract, ...(storage === undefined ? {} : { methodValueStorage: storage }) };
   });
   return { ...shape, members, ...(implemented.size === 0 ? {} : { implements: [...implemented.values()] }) };
 }

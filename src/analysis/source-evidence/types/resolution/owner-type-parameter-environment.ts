@@ -75,7 +75,7 @@ export function csharpObjectShapeTypeParameters(
     budget.reserve(member.typeParameters?.length ?? 0);
     const bound = new Set(member.typeParameters?.map(parameter => parameter.identity));
     collect(member.type, bound);
-    if (member.methodStorageType !== undefined) collect(member.methodStorageType);
+    if (member.methodValueStorage !== undefined) collect(member.methodValueStorage.type);
     for (const parameter of member.typeParameters ?? []) {
       budget.reserve(parameter.constraints.length);
       for (const constraint of parameter.constraints) if (constraint.kind === "type") collect(constraint.type, bound);

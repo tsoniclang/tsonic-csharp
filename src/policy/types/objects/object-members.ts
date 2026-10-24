@@ -21,8 +21,8 @@ export function selectCsharpObjectMemberEmission(input: CsharpObjectMemberPolicy
   const { shape, member, receiverBound } = input;
   const metadata = getCsharpDelegateSignature(getCsharpNullableElementTargetType(member.type) ?? member.type);
   const returnsVoid = metadata !== undefined && isCsharpVoidTargetType(metadata.returnType);
-  const methodStorage = member.memberKind !== "method" ? undefined : member.methodStorageType !== undefined
-    ? receiverBound ? undefined : member.methodStorageType : metadata === undefined || receiverBound ? undefined : member.type;
+  const methodStorage = member.memberKind !== "method" ? undefined : member.methodValueStorage !== undefined
+    ? receiverBound ? undefined : member.methodValueStorage.type : metadata === undefined || receiverBound ? undefined : member.type;
   const boundStorage = member.bound === true ? csharpRuntimeRecordFieldTargetType(member.type) : undefined;
   const reject = (reason: string) => ({ kind: "rejected" as const, reason });
   const emit = (declaration: CsharpObjectMemberDeclaration) => ({ kind: "selected" as const,
@@ -42,37 +42,43 @@ export function selectCsharpObjectMemberEmission(input: CsharpObjectMemberPolicy
   if (member.memberKind === "method" && input.authored) {
     const selected = signature();
     if (receiverBound || selected === undefined) return reject("An authored native method requires its exact closed receiver and callable signature.");
-    if (member.methodStorageType === undefined) return emit({ kind: "authored", bodyName: member.targetName, signature: selected,
+    if (member.methodValueStorage === undefined) return emit({ kind: "authored", bodyName: member.targetName, signature: selected,
       value: Object.freeze({ kind: "fixed" }) });
+    const storage = member.methodValueStorage;
     const expected = member.methodValueContract ?? member.type;
-    const stored = getCsharpNullableElementTargetType(member.methodStorageType) ?? member.methodStorageType;
+    const stored = getCsharpNullableElementTargetType(storage.type) ?? storage.type;
     if (!targetTypeRefEquals(stored, getCsharpNullableElementTargetType(expected) ?? expected) ||
-      (getCsharpNullableElementTargetType(member.methodStorageType) !== undefined) !== (member.optional === true) ||
-      !renderable([member.methodStorageType, selected.returnType, ...selected.parameters.map(parameter => parameter.type)]))
+      (getCsharpNullableElementTargetType(storage.type) !== undefined) !== (member.optional === true) ||
+      (storage.kind === "delegate") !== (member.methodValueContract === undefined) ||
+      storage.kind === "protocol" && storage.invocationName !== objectShapeMethodInvocationName(member) ||
+      !renderable([storage.type, selected.returnType, ...selected.parameters.map(parameter => parameter.type)]))
       return reject("An authored native method requires its complete closed callable storage.");
     const names = objectShapeMethodValueStorageNames(shape, member);
     const environment = selectCsharpMethodValueEnvironment(shape, member);
-    if (environment === undefined || !targetTypeRefEquals(environment.storage, member.methodStorageType))
+    if (environment === undefined || environment.storage !== storage)
       return reject("An authored native method requires its exact body invocation and current-value storage contract.");
     return emit({ kind: "authored", bodyName: objectShapeMethodBodyName(shape, member), signature: selected,
       value: environment.kind === "delegate"
-        ? Object.freeze({ kind: "delegate", type: member.methodStorageType, name: names.name, valueName: names.valueName })
-        : Object.freeze({ kind: "protocol", type: member.methodStorageType, interface: environment.type,
+        ? Object.freeze({ kind: "delegate", type: storage.type, name: names.name, valueName: names.valueName })
+        : Object.freeze({ kind: "protocol", type: storage.type, interface: environment.type,
           name: environment.currentSlotName, valueName: names.valueName, invocationName: environment.invocationName,
           initializedName: member.optional === true ? names.initializedName : undefined }) });
   }
   if ((member.typeParameters?.length ?? 0) > 0 || member.methodValueContract !== undefined) {
-    if (member.methodStorageType !== undefined) {
+    if (member.methodValueStorage !== undefined) {
+      const storage = member.methodValueStorage;
+      if (storage.kind !== "protocol" || storage.invocationName.length === 0 || member.methodValueContract === undefined)
+        return reject("An admitted object method requires its exact immutable native invocation contract.");
       if (member.optional === true && member.methodValueContract !== undefined) {
-        const type = csharpNullableTargetType(member.methodStorageType);
+        const type = csharpNullableTargetType(storage.type);
         return renderable([type]) ? emit({ kind: "optional-method", type })
           : reject("An admitted object declaration requires its complete native member rendering.");
       }
       const selected = signature();
-      if (selected === undefined || !renderable([member.methodStorageType, selected.returnType, ...selected.parameters.map(parameter => parameter.type)]))
+      if (selected === undefined || !renderable([storage.type, selected.returnType, ...selected.parameters.map(parameter => parameter.type)]))
         return reject("An admitted object declaration requires its complete native member rendering.");
-      return emit({ kind: "copied", storage: member.methodStorageType, signature: selected,
-        invocationName: objectShapeMethodInvocationName(member) });
+      return emit({ kind: "copied", storage: storage.type, signature: selected, invocationName: storage.invocationName,
+        interface: member.methodValueContract, bodyInvocationName: objectShapeMethodInvocationName(member) });
     }
     if (member.optional === true && member.methodValueContract !== undefined) {
       const type = csharpNullableTargetType(member.methodValueContract);

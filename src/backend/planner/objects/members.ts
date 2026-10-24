@@ -99,7 +99,7 @@ function renderMember(
       return [{ kind: "FieldDeclaration", name, type: render(selected.storage), modifiers: publicModifiers(name, true) },
         { ...method, modifiers: publicModifiers(member.targetName), body: { kind: "Block", statements: [
           selected.signature.returnsVoid ? { kind: "ExpressionStatement", expression: call } : { kind: "ReturnStatement", expression: call },
-        ] } }, { ...method, name: selected.invocationName, explicitInterface: render(selected.storage), modifiers: [],
+        ] } }, { ...method, name: selected.bodyInvocationName, explicitInterface: render(selected.interface), modifiers: [],
           typeParameters: method.typeParameters?.map(parameter => ({ name: parameter.name })),
           parameters: method.parameters.map(({ defaultValue: _default, ...parameter }) => parameter),
           body: { kind: "Block", statements: [selected.signature.returnsVoid

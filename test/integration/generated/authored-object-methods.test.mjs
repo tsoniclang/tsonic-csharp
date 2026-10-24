@@ -119,6 +119,28 @@ export function run(): boolean {
   return beforeFixed === 1 && beforeChanged === 2 && read(fixed) === 1 && read(changed) === 3;
 }
 `],
+  ["generic extraction snapshots the current replacement", `
+import type { int32 } from "@tsonic/core/types.js";
+function make(step: int32) {
+  return { calls: 0 as int32, choose<Value>(value: Value): Value { this.calls += step; return value; } };
+}
+export function run(): boolean {
+  const first = make(1);
+  const second = make(3);
+  const third = make(4);
+  const original = first.choose;
+  first.choose = second.choose;
+  const saved = first.choose;
+  const repeated = first.choose;
+  first.choose = third.choose;
+  const oldResult = saved<int32>(3);
+  const currentResult = first.choose<int32>(4);
+  const originalResult = original<int32>(1);
+  return saved === repeated && saved === second.choose && saved !== first.choose &&
+    oldResult === 3 && currentResult === 4 && originalResult === 1 &&
+    first.calls === 1 && second.calls === 3 && third.calls === 4;
+}
+`],
 ];
 
 for (const surface of ["native", "js"]) for (const [name, sourceText] of mutableMethodSources) {

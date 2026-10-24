@@ -24,7 +24,7 @@ export function csharpPresentObjectShapeMethod(member: CsharpObjectShapeMemberFa
   if (member.memberKind !== "method") return undefined;
   const type = getCsharpNullableElementTargetType(member.type) ?? member.type;
   if (getCsharpDelegateSignature(type) === undefined) return undefined;
-  const { optional: _optional, methodStorageType: _storage, ...signature } = member;
+  const { optional: _optional, methodValueStorage: _storage, ...signature } = member;
   return { ...signature, type };
 }
 

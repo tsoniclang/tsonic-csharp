@@ -16,7 +16,8 @@ export type CsharpAuthoredObjectMethodValue =
 export type CsharpObjectMemberDeclaration =
   | { readonly kind: "authored"; readonly bodyName: string; readonly signature: CsharpObjectMethodSignature;
       readonly value: CsharpAuthoredObjectMethodValue }
-  | { readonly kind: "copied"; readonly signature: CsharpObjectMethodSignature; readonly storage: TargetTypeRef; readonly invocationName: string }
+  | { readonly kind: "copied"; readonly signature: CsharpObjectMethodSignature; readonly storage: TargetTypeRef;
+      readonly invocationName: string; readonly interface: TargetTypeRef; readonly bodyInvocationName: string }
   | { readonly kind: "optional-method"; readonly type: TargetTypeRef }
   | { readonly kind: "deferred"; readonly type: TargetTypeRef }
   | { readonly kind: "method"; readonly signature: CsharpObjectMethodSignature; readonly storage: TargetTypeRef }

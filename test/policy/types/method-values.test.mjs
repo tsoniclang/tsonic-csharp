@@ -5,13 +5,16 @@ import {
   csharpPresentObjectShapeMethod,
 } from "../../../dist/target-model/types/method-values.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
-import { csharpObjectShapeMemberContractKey } from "../../../dist/target-model/types/object-shape-identity.js";
+import { csharpObjectShapeContractKey, csharpObjectShapeMemberContractKey } from "../../../dist/target-model/types/object-shape-identity.js";
+import { csharpObjectShapesEqual } from "../../../dist/target-model/types/object-shape-equality.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { substituteTargetTypeParameters, substituteObjectShapeFactTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types/render.js";
 import { retainCsharpMethodValueContracts } from "../../../dist/analysis/objects/shapes/method-values.js";
 import { csharpCopiedObjectShapeMembers } from "../../../dist/policy/types/objects/method-environments.js";
+import { selectCsharpObjectMemberEmission } from "../../../dist/policy/types/objects/object-members.js";
+import { createStructuralObjectShapeTarget } from "../../../dist/analysis/objects/shapes/construction.js";
 
 const owner = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "tsonic.shape:owner", typeArguments: [{ kind: "type-parameter", identity: "Outer", name: "Outer" }],
   csharpRender: { kind: "named", name: "Owner" } };
@@ -105,15 +108,53 @@ test("copied generic methods retain only the exact original environment and mini
   assert.equal(recorded.length, 1);
   assert.equal(recorded[0].members.length, 1);
   assert.equal(targetTypeRefEquals(recorded[0].targetType, shape.members[0].methodValueContract), true);
-  assert.equal(targetTypeRefEquals(csharpCopiedObjectShapeMembers(shape)[0].methodStorageType, owner), true);
+  const copiedBody = csharpCopiedObjectShapeMembers(shape)[0].methodValueStorage;
+  assert.equal(copiedBody.kind, "protocol", "a copied native body has an exact invocation descriptor");
+  assert.equal(targetTypeRefEquals(copiedBody.type, owner), true);
+  assert.equal(copiedBody.invocationName, "identity", "the concrete native body keeps its real direct method entry");
+  const copiedMember = csharpCopiedObjectShapeMembers(shape)[0];
+  const copiedSelection = selectCsharpObjectMemberEmission({ shape: { targetType: owner, members: [copiedMember] }, member: copiedMember,
+    receiverBound: false, authored: false, deferred: false, implementsInterface: true, nativeField: undefined });
+  assert.equal(copiedSelection.kind === "selected" && copiedSelection.value.declaration.kind === "copied", true,
+    "a concrete native environment retains its canonical copied-method declaration");
+  assert.equal(copiedSelection.value.declaration.invocationName, "identity", "the field invokes its actual concrete native method");
+  assert.equal(copiedSelection.value.declaration.bodyInvocationName, "__tsonic_invoke_body_identity",
+    "the implemented protocol has a separately selected immutable entry");
+  assert.equal(targetTypeRefEquals(copiedSelection.value.declaration.interface, shape.members[0].methodValueContract), true,
+    "an explicit protocol implementation never mistakes the concrete native environment for an interface");
   const abstract = retainCsharpMethodValueContracts({ targetType: { ...owner, id: "tsonic.shape:interface", csharpStructuralContract: true },
     members: [member, { sourceKey: { kind: "property", name: "extra" }, sourceName: "extra", targetName: "extra",
       memberKind: "property", type: { kind: "source-primitive", name: "float64" } }] }, fact => fact, unconstrained, abstractMethodStorage);
   const copied = csharpCopiedObjectShapeMembers(abstract);
-  assert.equal(targetTypeRefEquals(copied[0].methodStorageType, shape.members[0].methodValueContract), true);
-  assert.equal(copied[1].methodStorageType, undefined);
+  assert.equal(targetTypeRefEquals(copied[0].methodValueStorage.type, shape.members[0].methodValueContract), true);
+  assert.equal(copied[0].methodValueStorage.invocationName, "__tsonic_invoke_body_identity", "a protocol copy retains its immutable entry");
+  assert.equal(copied[1].methodValueStorage, undefined);
   const instantiated = substituteObjectShapeFactTargetTypeParameters({ ...shape, members: csharpCopiedObjectShapeMembers(shape) },
     new Map([["Outer", { kind: "source-primitive", name: "string" }]]));
-  assert.equal(instantiated.members[0].methodStorageType.typeArguments[0].name, "string");
+  assert.equal(instantiated.members[0].methodValueStorage.type.typeArguments[0].name, "string");
+  assert.equal(instantiated.members[0].methodValueStorage.invocationName, "identity", "substitution preserves the selected native entry");
   assert.equal(instantiated.members[0].typeParameters[0].name, "Item");
+});
+
+test("native method-value storage identity includes the exact immutable invocation entry", () => {
+  const member = { sourceKey: { kind: "property", name: "identity" }, sourceName: "identity", targetName: "identity",
+    memberKind: "method", type: contract("Item"), methodValueStorage: { kind: "protocol", type: owner, invocationName: "identity" } };
+  const shape = { targetType: owner, members: [member] };
+  const same = { ...shape, members: [{ ...member, methodValueStorage: { ...member.methodValueStorage } }] };
+  const other = { ...shape, members: [{ ...member, methodValueStorage: { ...member.methodValueStorage, invocationName: "other" } }] };
+  assert.equal(csharpObjectShapesEqual(shape, same), true, "equal native receiver and entry have one physical storage contract");
+  assert.equal(csharpObjectShapeContractKey(shape), csharpObjectShapeContractKey(same), "equal storage has one canonical shape key");
+  assert.equal(csharpObjectShapesEqual(shape, other), false, "a different method on the same native receiver is not the same callable");
+  assert.notEqual(csharpObjectShapeContractKey(shape), csharpObjectShapeContractKey(other), "physical shape keys cannot erase invocation identity");
+  assert.equal(targetTypeRefEquals(createStructuralObjectShapeTarget(shape.members, undefined, unconstrained),
+    createStructuralObjectShapeTarget(same.members, undefined, unconstrained)), true,
+  "one physical receiver and immutable entry produce one native object declaration");
+  assert.equal(targetTypeRefEquals(createStructuralObjectShapeTarget(shape.members, undefined, unconstrained),
+    createStructuralObjectShapeTarget(other.members, undefined, unconstrained)), false,
+  "native object declaration identity includes its required invocation selection");
+  const copied = csharpCopiedObjectShapeMembers({ ...shape, members: [{ ...member, optional: true,
+    methodValueStorage: { ...member.methodValueStorage, type: csharpNullableTargetType(owner) } }] });
+  assert.equal(copied[0].methodValueStorage.invocationName, "identity", "a copied optional value retains its original native entry");
+  assert.equal(getCsharpNullableElementTargetType(copied[0].methodValueStorage.type) === owner, true,
+    "optional native method storage retains exactly its one physical absence state");
 });

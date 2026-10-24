@@ -1,4 +1,4 @@
-import { csharpObjectShapeMemberContractParts, csharpStructuralObjectShapeIdPrefix } from "../../../target-model/types/object-shape-identity.js";
+import { csharpObjectMethodValueStorageKey, csharpObjectShapeMemberContractParts, csharpStructuralObjectShapeIdPrefix } from "../../../target-model/types/object-shape-identity.js";
 import { createHash } from "node:crypto";
 import { csharpTargetNamedType } from "../../../target-model/types/factories.js";
 
@@ -22,8 +22,8 @@ export function selectCsharpStructuralObjectCarrier(
     implements: canonicalImplemented.map(targetTypeRefKey),
     ...(typeParameters.length === 0 ? {} : { parameters: typeParameters.map(parameter => [parameter.identity,
       csharpTypeParameterConstraintResolutionKey(parameter.csharpConstraints)]) }),
-    ...(!contract && canonicalMembers.some(member => member.methodStorageType !== undefined) ? {
-      methodStorage: canonicalMembers.map(member => member.methodStorageType === undefined ? null : targetTypeRefKey(member.methodStorageType)),
+    ...(!contract && canonicalMembers.some(member => member.methodValueStorage !== undefined) ? {
+      methodStorage: canonicalMembers.map(member => csharpObjectMethodValueStorageKey(member.methodValueStorage)),
     } : {}),
     ...(contract ? { contract: true } : {}),
     ...(implementation === undefined ? {} : { implementation: implementation.identity,
@@ -45,7 +45,7 @@ export function createCsharpObjectShapeValueStorage(
     shape.members.length === 0 || (shape.implements?.length ?? 0) !== 0 ||
     shape.methodImplementation !== undefined || shape.members.some(member =>
       member.memberKind !== "property" || member.optional === true || member.accessor !== undefined ||
-      member.bound === true || member.methodValueContract !== undefined || member.methodStorageType !== undefined)) return undefined;
+      member.bound === true || member.methodValueContract !== undefined || member.methodValueStorage !== undefined)) return undefined;
   const target = shape.targetType as CsharpTargetNamedTypeRef;
   if (target.csharpRender?.kind !== "named" || target.csharpStructuralContract === true ||
     target.csharpSourceDeclarationKind !== undefined || target.csharpJsValueCarrier === true ||

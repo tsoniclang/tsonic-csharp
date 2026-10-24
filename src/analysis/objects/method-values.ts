@@ -16,9 +16,9 @@ export function selectCsharpMethodValue(
   const member = resolveCsharpObjectShapeMemberBySelectedSubject(shape, subjects);
   if (member.kind !== "resolved" || member.member.memberKind !== "method" || member.member.methodValueContract === undefined) return undefined;
   if (directCall && member.member.optional !== true) return undefined;
-  if (member.member.methodStorageType === undefined && shape.methodImplementation !== undefined) {
+  if (member.member.methodValueStorage === undefined && shape.methodImplementation !== undefined) {
     if (csharpObjectShapeMethodDeclaration(shape, member.member) === undefined) return undefined;
-  } else if (member.member.methodStorageType === undefined && (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract !== true &&
+  } else if (member.member.methodValueStorage === undefined && (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract !== true &&
     (shape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind !== "interface") return undefined;
   const environment = selectCsharpMethodValueEnvironment(shape, member.member);
   if (environment?.kind !== "protocol") return undefined;

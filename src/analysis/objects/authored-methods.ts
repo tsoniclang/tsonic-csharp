@@ -51,7 +51,7 @@ export function analyzeCsharpAuthoredObjectMethods(input: {
         if (member.memberKind !== "method") continue;
         const declaration = csharpObjectShapeMethodDeclaration(shape, member);
         if (declaration === undefined) {
-          if (member.optional !== true && member.methodStorageType === undefined) issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp",
+          if (member.optional !== true && member.methodValueStorage === undefined) issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp",
             sourceNode: shape.methodImplementation.declaration, message: "A native object method requires its exact authored implementation." });
           continue;
         }

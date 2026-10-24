@@ -78,7 +78,7 @@ export function analyzeCsharpStructuralObjectEmission(input: {
       }
       if (structural && (hasMethodValues(shape) || member.optional === true) && handle !== undefined)
         interfaceMembers.push(Object.freeze({ kind: "property", property: handle }));
-      const copied = member.methodStorageType !== undefined;
+      const copied = member.methodValueStorage !== undefined;
       if (!(structural && member.optional !== true) && !copied) continue;
       const signature = getCsharpDelegateSignature(csharpPresentObjectShapeMethod(member)?.type);
       if (signature === undefined) { refuse("A structural reference contract requires exact renderable member signatures.", member); continue; }
@@ -132,7 +132,7 @@ export function analyzeCsharpStructuralObjectEmission(input: {
           const carrier = required.optional === true ? csharpNullableTargetType(valueType) : valueType;
           if (!admit(carrier, required)) continue;
           contracts.push(Object.freeze({ name: objectShapeStorageMemberName(contract, required), interface: type, type: carrier,
-            source: required.methodValueContract !== undefined && selected.methodStorageType === undefined &&
+            source: required.methodValueContract !== undefined && selected.methodValueStorage === undefined &&
               csharpObjectShapeMethodDeclaration(shape, selected) !== undefined ? "this" : objectShapeStorageMemberName(shape, selected) }));
         }
       }

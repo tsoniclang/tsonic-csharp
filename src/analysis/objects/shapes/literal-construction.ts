@@ -105,7 +105,7 @@ export function createCsharpLiteralShapeResolver(
           if (index < 0) continue;
           const member = members[index]!;
           if (member.sourceDeclarations?.some(declaration => host.ast.parent(declaration) === objectLiteral)) continue;
-          members[index] = { ...member, methodValueContract: sourceMember.methodValueContract, methodStorageType: environment.storage };
+          members[index] = { ...member, methodValueContract: sourceMember.methodValueContract, methodValueStorage: environment.storage };
         }
       }
     }
