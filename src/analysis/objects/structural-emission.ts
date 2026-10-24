@@ -9,7 +9,7 @@ import { csharpObjectShapeMemberContractKey, getCsharpDelegateSignature, targetT
 import { csharpNullableTargetType } from "../../target-model/types/carriers/nullable.js";
 import { csharpRuntimeLocationTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import { csharpObjectShapeMethodDeclaration, csharpPresentObjectShapeMethod } from "../../target-model/types/method-values.js";
-import { objectShapeStorageMemberName } from "../../target-model/names/object-members.js";
+import { objectShapeMethodInvocationName, objectShapeStorageMemberName } from "../../target-model/names/object-members.js";
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 import { createCsharpStructuralObjectEmissionRecords } from "../program/records/structural-object-emission.js";
 
@@ -97,6 +97,10 @@ export function analyzeCsharpStructuralObjectEmission(input: {
           rest: signature.restParameterIndex === index, optional: signature.optionalParameterIndexes?.includes(index) === true }))) });
       methods.set(member, method);
       if (structural && member.optional !== true) interfaceMembers.push(Object.freeze({ kind: "method", method }));
+      if (structural && member.methodValueContract !== undefined && targetTypeRefEquals(member.methodValueContract, shape.targetType)) {
+        if (shape.members.length !== 1) { refuse("An immutable method-body protocol requires its single exact invocation contract.", member); continue; }
+        interfaceMembers.push(Object.freeze({ kind: "method", method: Object.freeze({ ...method, name: objectShapeMethodInvocationName(member) }) }));
+      }
     }
     if (artifact?.materialization === "synthetic" && !structural) {
       const pending = [...shape.implements ?? []];

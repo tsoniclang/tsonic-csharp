@@ -63,15 +63,15 @@ export function renderCsharpAuthoredObjectMethods(
       ...(value.kind === "fixed" ? {} : { modifiers: ["private", ...method.modifiers.filter(modifier =>
         modifier !== "public" && modifier !== "protected" && modifier !== "internal" && modifier !== "private")] }) });
     members.push(...methodContext.scope.generatedMethods?.values() ?? []);
-    if (value.kind === "protocol") {
-      const explicitInterface = csharpTypeFromTargetTypeRef(value.interface, input.scope.typeParameterNames);
+    if (member.bodyInvocation !== undefined) {
+      const explicitInterface = csharpTypeFromTargetTypeRef(member.bodyInvocation.interface, input.scope.typeParameterNames);
       if (explicitInterface === undefined) failCsharpPlannerInvariant("An admitted original method body requires its native protocol.", declaration);
       const call: CsharpExpression = { kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression",
         receiver: { kind: "IdentifierName", name: "this" }, name: member.emission.bodyName,
         typeArguments: (method.typeParameters ?? []).map(parameter => ({ kind: "IdentifierName", name: parameter.name })) },
         arguments: method.parameters.map(parameter => ({ kind: "Argument", expression: { kind: "IdentifierName", name: parameter.name },
           ...(parameter.passing === undefined ? {} : { passing: parameter.passing }) })) };
-      members.push({ kind: "MethodDeclaration", name: member.name, explicitInterface, modifiers: [], returnType: method.returnType,
+      members.push({ kind: "MethodDeclaration", name: member.bodyInvocation.name, explicitInterface, modifiers: [], returnType: method.returnType,
         typeParameters: method.typeParameters?.map(parameter => ({ name: parameter.name })),
         parameters: method.parameters.map(({ defaultValue: _default, ...parameter }) => parameter),
         body: { kind: "Block", statements: [member.emission.signature.returnsVoid

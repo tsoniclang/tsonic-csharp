@@ -77,6 +77,48 @@ export function run(): boolean {
     retained === 11 && restored === 13;
 }
 `],
+  ["whole interface dispatch and immutable body values", `
+import type { int32 } from "@tsonic/core/types.js";
+type Chooser = { choose<Value>(value: Value): Value };
+let firstCalls: int32 = 0;
+let secondCalls: int32 = 0;
+function makeFirst(): Chooser {
+  return { choose<Value>(value: Value): Value { firstCalls += 1; return value; } };
+}
+function makeSecond(): Chooser {
+  return { choose<Value>(value: Value): Value { secondCalls += 1; return value; } };
+}
+function invoke(owner: Chooser): int32 { return owner.choose<int32>(4); }
+export function run(): boolean {
+  const owner = makeFirst();
+  const other = makeSecond();
+  const original = owner.choose;
+  const repeated = owner.choose;
+  owner.choose = other.choose;
+  const current = invoke(owner);
+  const retained = original<string>("kept");
+  owner.choose = original;
+  const restored = invoke(owner);
+  return original === repeated && current === 4 && retained === "kept" && restored === 4 &&
+    firstCalls === 2 && secondCalls === 1;
+}
+`],
+  ["fixed bodies share reads without acquiring peer mutation storage", `
+import type { int32 } from "@tsonic/core/types.js";
+interface Reader { read(): int32; }
+function makeFixed() { return { read(): int32 { return 1; } }; }
+function makeChanged() { return { read(): int32 { return 2; } }; }
+function read(owner: Reader): int32 { return owner.read(); }
+function replace(owner: Reader): void { owner.read = (): int32 => 3; }
+export function run(): boolean {
+  const fixed = makeFixed();
+  const changed = makeChanged();
+  const beforeFixed = read(fixed);
+  const beforeChanged = read(changed);
+  replace(changed);
+  return beforeFixed === 1 && beforeChanged === 2 && read(fixed) === 1 && read(changed) === 3;
+}
+`],
 ];
 
 for (const surface of ["native", "js"]) for (const [name, sourceText] of mutableMethodSources) {

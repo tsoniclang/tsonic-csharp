@@ -2,7 +2,7 @@ import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpCaptureFrame } from "../../../target-model/records/capture-storage.js";
 import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
-import type { CsharpExpression, CsharpTypeMember } from "../../target-ast/syntax/index.js";
+import type { CsharpExpression, CsharpMethodDeclaration, CsharpTypeMember } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { createCsharpMemberPlanningContext } from "../context.js";
 import { planCsharpArrowLambdaSyntax, planCsharpCapturedFunctionLambdaSyntax } from "../expressions/callable.js";
@@ -14,6 +14,7 @@ import { planSourceFunctionDeclaration } from "../declarations/callables/functio
 import { withCsharpSafetyModifiers } from "../safety/explicit-safety.js";
 import { planCsharpArtifactMemberHiding } from "../declarations/modifiers.js";
 import type { CsharpPlannedAddressOperand } from "../expressions/planned-values.js";
+import type { CsharpCaptureMethodEmission } from "../../../target-model/records/capture-methods.js";
 
 export function renderCsharpCaptureFrameMethods(
   shape: CsharpObjectShapeFact, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
@@ -40,6 +41,23 @@ export function renderCsharpCaptureFrameMethods(
   const members: CsharpTypeMember[] = [];
   const methods = input.program.records.captureMethods.get(shape);
   if (methods === undefined) failCsharpPlannerInvariant("An admitted capture frame requires its sealed native method inventory.", frame.scope);
+  const publish = (method: CsharpMethodDeclaration, selected: CsharpCaptureMethodEmission): void => {
+    members.push(method);
+    for (const contract of selected.protocolMethods) {
+      const explicitInterface = csharpTypeFromTargetTypeRef(contract.interface, input.scope.typeParameterNames);
+      if (explicitInterface === undefined) failCsharpPlannerInvariant("An admitted captured body requires its renderable native invocation protocol.", selected.method.declaration);
+      const call: CsharpExpression = { kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression",
+        receiver: { kind: "IdentifierName", name: "this" }, name: method.name,
+        typeArguments: method.typeParameters?.map(parameter => ({ kind: "IdentifierName", name: parameter.name })) },
+        arguments: method.parameters.map(parameter => ({ kind: "Argument", expression: { kind: "IdentifierName", name: parameter.name },
+          ...(parameter.passing === undefined ? {} : { passing: parameter.passing }) })) };
+      members.push({ kind: "MethodDeclaration", name: contract.name, explicitInterface, modifiers: [], returnType: method.returnType,
+        typeParameters: method.typeParameters?.map(parameter => ({ name: parameter.name })),
+        parameters: method.parameters.map(({ defaultValue: _default, ...parameter }) => parameter),
+        body: { kind: "Block", statements: [selected.returnsVoid
+          ? { kind: "ExpressionStatement", expression: call } : { kind: "ReturnStatement", expression: call }] } });
+    }
+  };
   for (const selected of methods) {
     const { method, quotation, signature } = selected;
     const returnType = csharpTypeFromTargetTypeRef(selected.returnType, input.scope.typeParameterNames);
@@ -51,11 +69,11 @@ export function renderCsharpCaptureFrameMethods(
     } });
     if (selected.form === "declaration") {
       const planned = planSourceFunctionDeclaration(method.declaration, file, context, diagnostics);
-      members.push({ ...planned.declaration, kind: "MethodDeclaration", name: method.methodName,
+      publish({ ...planned.declaration, kind: "MethodDeclaration", name: method.methodName,
         modifiers: withCsharpSafetyModifiers(planned.async
           ? ["public", "async", ...planCsharpArtifactMemberHiding(input.program.records.nativeMemberHiding, shape, method.methodName)]
           : ["public", ...planCsharpArtifactMemberHiding(input.program.records.nativeMemberHiding, shape, method.methodName)],
-          method.declaration, "declaration", context) });
+          method.declaration, "declaration", context) }, selected);
       continue;
     }
     const lambda = selected.form === "arrow"
@@ -63,10 +81,11 @@ export function renderCsharpCaptureFrameMethods(
       : planCsharpCapturedFunctionLambdaSyntax(method.declaration, file, context, diagnostics);
     if (lambda === undefined) failCsharpPlannerInvariant("An admitted captured callable requires its native body fragments.", method.declaration);
     if (quotation) {
-      members.push({ kind: "MethodDeclaration", name: method.methodName,
+      publish({ kind: "MethodDeclaration", name: method.methodName,
         modifiers: ["public", ...planCsharpArtifactMemberHiding(input.program.records.nativeMemberHiding, shape, method.methodName)], returnType,
         parameters: [], body: { kind: "Block", statements: [{ kind: "ReturnStatement", expression: lambda }] },
-      }, ...context.scope.generatedMethods?.values() ?? []);
+      }, selected);
+      members.push(...context.scope.generatedMethods?.values() ?? []);
       continue;
     }
     const parameters = lambda.parameters.map((parameter, index) => {
@@ -78,7 +97,7 @@ export function renderCsharpCaptureFrameMethods(
           ? { defaultValue: { kind: "DefaultExpression" as const, type } } : {}),
       };
     });
-    members.push({ kind: "MethodDeclaration", name: method.methodName,
+    publish({ kind: "MethodDeclaration", name: method.methodName,
       modifiers: ["public", ...(lambda.async ? ["async" as const] : []),
         ...planCsharpArtifactMemberHiding(input.program.records.nativeMemberHiding, shape, method.methodName)], returnType,
       typeParameters: planTypeParameters(input.program.source.ast.typeParameters(method.declaration), context, diagnostics),
@@ -87,7 +106,8 @@ export function renderCsharpCaptureFrameMethods(
         selected.returnsVoid ? { kind: "ExpressionStatement", expression: lambda.body }
           : { kind: "ReturnStatement", expression: lambda.body },
       ] },
-    }, ...context.scope.generatedMethods?.values() ?? []);
+    }, selected);
+    members.push(...context.scope.generatedMethods?.values() ?? []);
   }
   return members;
 }

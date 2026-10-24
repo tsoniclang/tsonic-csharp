@@ -6,7 +6,7 @@ import type { CsharpTargetPropertySelection, CsharpTargetElementSelection } from
 import type { CsharpAdmittedPropertyClassification, CsharpSourceMemberEmission, CsharpUnionPropertyProjection } from "../../target-model/records/property-admission.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
-import { csharpMethodEnvironment } from "../../policy/types/objects/method-environments.js";
+import { selectCsharpMethodValueEnvironment } from "../../policy/types/objects/method-environments.js";
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 import { createCsharpPropertyAdmissionRecords } from "../program/records/property-admission.js";
 import { selectCsharpEmittedExpressions } from "../operations/emitted-expressions.js";
@@ -72,9 +72,9 @@ export function analyzeCsharpPropertyAdmission(input: { readonly ast: AstReader;
       }
     } else if (generic !== undefined) {
       const environment = objectShape === undefined || shapeMember?.kind !== "resolved" ? undefined
-        : csharpMethodEnvironment(objectShape, shapeMember.member);
-      if (objectShape === undefined || shapeMember?.kind !== "resolved" || generic.method !== shapeMember.member.targetName ||
-        environment === undefined || !targetTypeRefEquals(generic.owner, environment)) {
+        : selectCsharpMethodValueEnvironment(objectShape, shapeMember.member);
+      if (objectShape === undefined || shapeMember?.kind !== "resolved" || environment?.kind !== "protocol" ||
+        generic.method !== environment.invocationName || !targetTypeRefEquals(generic.owner, environment.type)) {
         refuse(node, "A generic method value lost its exact selected native owner."); return;
       }
     }

@@ -4,7 +4,7 @@ import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/object-shape-members.js";
 import { csharpMethodValueType, csharpObjectShapeMethodDeclaration, csharpPresentObjectShapeMethod } from "../../target-model/types/method-values.js";
 import { csharpSourceMemberKeyParts } from "../../target-model/types/source-member-keys.js";
-import { csharpMethodEnvironment } from "../../policy/types/objects/method-environments.js";
+import { selectCsharpMethodValueEnvironment } from "../../policy/types/objects/method-environments.js";
 import { csharpNullableTargetType } from "../../target-model/types/carriers/nullable.js";
 
 export function selectCsharpMethodValue(
@@ -20,11 +20,11 @@ export function selectCsharpMethodValue(
     if (csharpObjectShapeMethodDeclaration(shape, member.member) === undefined) return undefined;
   } else if (member.member.methodStorageType === undefined && (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract !== true &&
     (shape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind !== "interface") return undefined;
-  const environment = csharpMethodEnvironment(shape, member.member);
-  if (environment === undefined) return undefined;
+  const environment = selectCsharpMethodValueEnvironment(shape, member.member);
+  if (environment?.kind !== "protocol") return undefined;
   const identity = JSON.stringify(csharpSourceMemberKeyParts(member.member.sourceKey));
   const signature = csharpPresentObjectShapeMethod(member.member);
-  const value = signature === undefined ? undefined : csharpMethodValueType(environment, member.member.targetName, identity,
+  const value = signature === undefined ? undefined : csharpMethodValueType(environment.type, environment.invocationName, identity,
     signature.type, (member.member.typeParameters ?? []).map(parameter => parameter.identity));
   return value === undefined || member.member.optional !== true ? value : csharpNullableTargetType(value);
 }

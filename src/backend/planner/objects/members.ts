@@ -64,7 +64,7 @@ function renderMember(
         receiver: { kind: "IdentifierName", name: "this" }, name: selected.bodyName, typeArguments }, arguments: arguments_ };
       const present: CsharpExpression = { kind: "PostfixUnaryExpression", operand: stored, operatorToken: { kind: "ExclamationToken" } };
       const indirect: CsharpExpression = { kind: "InvocationExpression", callee: value.kind === "delegate" ? present
-        : { kind: "SimpleMemberAccessExpression", receiver: present, name: member.targetName, typeArguments }, arguments: arguments_ };
+        : { kind: "SimpleMemberAccessExpression", receiver: present, name: value.invocationName, typeArguments }, arguments: arguments_ };
       const complete = (expression: CsharpExpression): readonly CsharpStatement[] => selected.signature.returnsVoid
         ? [{ kind: "ExpressionStatement", expression }, { kind: "ReturnStatement" }]
         : [{ kind: "ReturnStatement", expression }];
@@ -93,13 +93,17 @@ function renderMember(
       const method = renderCsharpStructuralMethod(typeParameterNames, shape, member, records);
       const name = objectShapeStorageMemberName(shape, member);
       const call: CsharpExpression = { kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression",
-        receiver: { kind: "IdentifierName", name }, name: member.targetName,
+        receiver: { kind: "IdentifierName", name }, name: selected.invocationName,
         typeArguments: (member.typeParameters ?? []).map(parameter => render({ kind: "type-parameter", identity: parameter.identity, name: parameter.name })) },
         arguments: method.parameters.map(parameter => ({ kind: "Argument", expression: { kind: "IdentifierName", name: parameter.name } })) };
       return [{ kind: "FieldDeclaration", name, type: render(selected.storage), modifiers: publicModifiers(name, true) },
         { ...method, modifiers: publicModifiers(member.targetName), body: { kind: "Block", statements: [
           selected.signature.returnsVoid ? { kind: "ExpressionStatement", expression: call } : { kind: "ReturnStatement", expression: call },
-        ] } }];
+        ] } }, { ...method, name: selected.invocationName, explicitInterface: render(selected.storage), modifiers: [],
+          typeParameters: method.typeParameters?.map(parameter => ({ name: parameter.name })),
+          parameters: method.parameters.map(({ defaultValue: _default, ...parameter }) => parameter),
+          body: { kind: "Block", statements: [selected.signature.returnsVoid
+            ? { kind: "ExpressionStatement", expression: call } : { kind: "ReturnStatement", expression: call }] } }];
     }
     case "optional-method": {
       const name = objectShapeStorageMemberName(shape, member);

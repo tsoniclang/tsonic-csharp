@@ -7,7 +7,7 @@ import type { CsharpObjectCaptureField, CsharpAuthoredObjectMethod } from "../..
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 import type { CsharpObjectMemberRecords } from "../../target-model/records/object-members.js";
 import { csharpObjectShapeMethodDeclaration } from "../../target-model/types/method-values.js";
-import { objectShapeStorageMemberName } from "../../target-model/names/object-members.js";
+import { objectShapeMethodInvocationName, objectShapeStorageMemberName } from "../../target-model/names/object-members.js";
 import { createCsharpObjectMethodRecords } from "../program/records/object-methods.js";
 
 export function analyzeCsharpAuthoredObjectMethods(input: {
@@ -59,6 +59,8 @@ export function analyzeCsharpAuthoredObjectMethods(input: {
         const emission = input.members.objectMember.get(shape, member)?.declaration;
         if (emission?.kind !== "authored") failTargetAnalysisInvariant("tsonic-csharp", "A native object method requires its single admitted body and callable-value layout.", declaration);
         declarations.push(Object.freeze({ declaration, name: member.targetName,
+          bodyInvocation: member.methodValueContract === undefined ? undefined
+            : Object.freeze({ interface: member.methodValueContract, name: objectShapeMethodInvocationName(member) }),
           emission, handleName: emission.value.kind === "fixed" && artifact.capabilities.includes("method-values")
             ? objectShapeStorageMemberName(shape, member) : undefined }));
       }

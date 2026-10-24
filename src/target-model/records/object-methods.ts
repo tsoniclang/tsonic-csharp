@@ -13,6 +13,7 @@ export interface CsharpAuthoredObjectMethod {
   readonly declaration: Node;
   readonly name: string;
   readonly handleName: string | undefined;
+  readonly bodyInvocation: { readonly interface: TargetTypeRef; readonly name: string } | undefined;
   readonly emission: Extract<CsharpObjectMemberDeclaration, { readonly kind: "authored" }>;
 }
 

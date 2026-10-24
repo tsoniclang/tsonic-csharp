@@ -10,7 +10,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import { csharpSourceMemberKeysEqual } from "../../../target-model/types/source-member-keys.js";
 
 import { selectCsharpObjectMethodImplementation } from "./method-implementations.js";
-import { csharpMethodEnvironment } from "../../../policy/types/objects/method-environments.js";
+import { selectCsharpMethodValueEnvironment } from "../../../policy/types/objects/method-environments.js";
 
 import { csharpObjectShapeMethodRequiresProtocol } from "../../../target-model/types/method-values.js";
 
@@ -80,12 +80,8 @@ export function createCsharpLiteralShapeResolver(
     const copiedMethods = host.ast.properties(objectLiteral).some(property => property !== undefined &&
       host.ast.is.IsSpreadAssignment(property)) && expectedShape.members.some(csharpObjectShapeMethodRequiresProtocol);
     const ownsImplementation = expectedShape.methodImplementation?.declaration === objectLiteral;
-    // A concrete generated shape (an interface intersection, no contract to implement) is constructed directly: its
-    // methods are delegate fields that the literal's methods initialize, so method bodies need no own implementation.
-    const concreteTarget = implemented === undefined &&
-      (expectedShape.targetType as CsharpTargetNamedTypeRef).csharpGeneratedStructuralStorage === true;
     if (accessors.kind === "none" && implemented === expectedShape.implements &&
-      (!nativeMethodLiteral || ownsImplementation || concreteTarget) && !copiedMethods) {
+      (!nativeMethodLiteral || ownsImplementation) && !copiedMethods) {
       return { kind: "resolved", shape: expectedShape };
     }
     if (copiedMethods) {
@@ -103,13 +99,13 @@ export function createCsharpLiteralShapeResolver(
       if (receiver.kind === "selected") return { kind: "resolved", shape: receiver.shape };
       for (const { shape: source } of sources) {
         for (const sourceMember of source.members) {
-          const environment = csharpMethodEnvironment(source, sourceMember);
+          const environment = selectCsharpMethodValueEnvironment(source, sourceMember);
           if (environment === undefined) continue;
           const index = members.findIndex(member => csharpSourceMemberKeysEqual(member.sourceKey, sourceMember.sourceKey));
           if (index < 0) continue;
           const member = members[index]!;
           if (member.sourceDeclarations?.some(declaration => host.ast.parent(declaration) === objectLiteral)) continue;
-          members[index] = { ...member, methodValueContract: sourceMember.methodValueContract, methodStorageType: environment };
+          members[index] = { ...member, methodValueContract: sourceMember.methodValueContract, methodStorageType: environment.storage };
         }
       }
     }

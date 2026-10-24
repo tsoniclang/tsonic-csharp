@@ -33,13 +33,14 @@ test("generic callable storage is a closed native protocol, not a delegate with 
   assert.equal(getCsharpDelegateSignature(selected.value) === undefined, true, "not physical delegate storage");
   assert.equal(getCsharpCallableValueSignature(selected.value).parameters.length, 2);
   assert.equal(targetTypeRefEquals(getCsharpCallableValueSignature(selected.value).returnType, selected.parameter), true);
-  assert.equal(method.method, "Invoke");
+  assert.equal(method.method, "__tsonic_invoke_body_Invoke", "a callable invokes its immutable native body entry");
   assert.equal(selected.value.csharpTypeofRuntimeKind, "function");
   assert.equal(Object.isFrozen(selected.value), true);
   assert.equal(Object.isFrozen(method.typeParameters), true);
   assert.equal(selected.shapes.length, 1);
   assert.equal(selected.shapes[0].members.length, 1);
   assert.equal(selected.shapes[0].members[0].memberKind, "method");
+  assert.equal(selected.shapes[0].members[0].targetName, "Invoke", "the source/current invocation has its own native entry");
   assert.equal(selected.shapes[0].members[0].typeParameters[0].identity, "Item");
   assert.equal(targetTypeRefEquals(selected.shapes[0].members[0].methodValueContract, method.owner), true);
   assert.equal(csharpTypeFromTargetTypeRef(selected.value).name, csharpTypeFromTargetTypeRef(method.owner).name);
