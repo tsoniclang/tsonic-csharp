@@ -40,7 +40,10 @@ function fixture() {
       const sourceFile = source.ast.getSourceFile(declaration);
       return sourceFile === undefined ? undefined : resolveCsharpTypeParameterConstraints(declaration, parameter, sourceFile, {
         ast: source.ast,
-        types: { resolveNode: (node, file) => host.typeResolver.resolveNode(node, file, { depth: 0 }) },
+        types: { resolveNode: (node, file) => {
+          const type = host.typeResolver.resolveNode(node, file, { depth: 0 });
+          return type === undefined ? undefined : { kind: "resolved", type };
+        } },
       });
     }),
     projectTypeCatalog: catalog,

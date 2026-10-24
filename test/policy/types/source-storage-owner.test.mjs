@@ -55,7 +55,7 @@ test("project storage queries use the selected declaration's file, not another r
     scope.resolveNode = (selected, file) => {
       assert.equal(selected === declaration, true, `${kind}: exact storage declaration`);
       assert.equal(file === declarationFile, true, `${kind}: exact checked declaration file`);
-      return carrier;
+      return { kind: "resolved", type: carrier };
     };
     assert.equal(resolveStorage(scope, expression, {}) === carrier, true, `${kind}: native carrier`);
   }

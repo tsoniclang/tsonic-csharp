@@ -33,7 +33,7 @@ function setup(optionalReceiver = false, optionalCall = false, element = false) 
     },
   };
   const selected = validateCsharpJsValueOperationSelection(selectCsharpJsValueCallOperation(
-    { types: { resolveNode: () => carrier } }, {}, {}, {}, element ? "element" : "property", optionalCall));
+    { types: { resolveNode: () => ({ kind: "resolved", type: carrier }) } }, {}, {}, {}, element ? "element" : "property", optionalCall));
   const source = { sourceCallee: { expression: member }, sourceCalleeAccess: {
     kind: element ? "element" : "property", expression: member, receiver: { expression: receiver }, argument: { expression: key },
   } };

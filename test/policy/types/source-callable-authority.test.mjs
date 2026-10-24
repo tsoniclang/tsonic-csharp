@@ -16,7 +16,7 @@ function fixture() {
   const signatures = [signature];
   const input = {
     sourceFiles: [file],
-    types: { resolveNode: () => callable },
+    types: { resolveNode: () => ({ kind: "resolved", type: callable }) },
     navigation: {
       referenceFor: () => ({ declaration, sourceFile: file }),
       isProjectDeclaration: selected => selected.project === true,
@@ -66,7 +66,7 @@ test("foreign, unresolved, mixed and declaration-only signatures do not manufact
     selected => { selected.implementation.file = { declarationFile: true }; selected.input.sourceFiles.push(selected.implementation.file); },
     selected => { selected.implementation.kind = "noncallable"; },
     selected => { selected.signatures.push({ declaration: { kind: "function", file: {}, project: false } }); },
-    selected => { selected.input.types.resolveNode = () => integer; },
+    selected => { selected.input.types.resolveNode = () => ({ kind: "resolved", type: integer }); },
   ]) {
     const selected = fixture();
     mutate(selected);

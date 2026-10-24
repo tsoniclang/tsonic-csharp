@@ -5,7 +5,7 @@ import { validateCsharpJsValueOperationSelection } from "../../../../dist/policy
 import { csharpTsValueTargetType } from "../../../../dist/policy/types/index.js";
 
 const carrier = csharpTsValueTargetType();
-const policy = { types: { resolveNode: () => carrier, resolveReadStorage: () => undefined } };
+const policy = { types: { resolveNode: () => ({ kind: "resolved", type: carrier }), resolveReadStorage: () => undefined } };
 
 test("checked binary operator facts select one typed entry, not runtime string dispatch", () => {
   for (const [operator, member, result] of [

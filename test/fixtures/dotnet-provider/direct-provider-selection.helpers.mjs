@@ -532,7 +532,8 @@ export function directProviderHost(options = {}) {
       target: options.target ?? { id: "csharp" },
       types: Object.freeze({
         resolveNode(node) {
-          return nodeTypes.get(node);
+          const type = nodeTypes.get(node);
+          return type === undefined ? undefined : { kind: "resolved", type };
         },
         resolveType(type) {
           return semanticTypes.get(type);
