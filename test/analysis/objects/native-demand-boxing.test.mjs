@@ -15,6 +15,42 @@ import { createStructuralObjectShapeTarget } from "../../../dist/analysis/object
 const header = 'import type { int32 } from "@tsonic/core/types.js";';
 const payload = "sealed class NativePayload : ITsClosedValueCarrier { public int count = 7; }";
 
+test("explicit JSON demand follows native boxed payload origins without changing unrelated broad storage", () => {
+  const { program, nodes, source } = compileCsharpRequiredRecordSource(`
+    import type { int64 } from "@tsonic/core/types.js";
+    function stringify(value: unknown): string { return JSON.stringify(value) ?? "null"; }
+    const unrelated: unknown = { unrelated: 9n as int64 };
+    export function run(): string {
+      const child: unknown = { childValue: 9007199254740993n as int64 };
+      const selected: unknown = { selected: true, child };
+      const alias = selected;
+      const values: unknown = [alias];
+      void unrelated;
+      return stringify(values);
+    }
+  `, "js");
+  let demanded = 0;
+  let untouched = 0;
+  for (const node of nodes.filter(node => source.ast.is.IsObjectLiteralExpression(node))) {
+    const use = program.records.nativeExpression.get(node)?.physical;
+    assert.equal(use?.objectShape !== undefined, true, "every authored literal retains its actual native shape before boxing");
+    const shape = use.objectShape;
+    const artifact = program.records.objectShapeArtifact.get(objectShapeArtifactKey(shape));
+    assert.equal(artifact !== undefined, true, "every boxed native shape has its artifact");
+    if (shape.members.some(member => member.sourceName === "unrelated")) {
+      assert.equal(artifact.capabilities.includes("json-serialization"), false, "an unrelated box does not acquire a JSON protocol");
+      assert.equal(artifact.capabilities.includes("reference-identity"), true, "unrelated native identity remains intact");
+      untouched++;
+    } else {
+      assert.equal(artifact.capabilities.includes("json-serialization"), true, "known aliases, array elements and broad fields retain their actual native JSON payloads");
+      assert.equal(artifact.capabilities.includes("reference-identity"), true, "serialization demand does not replace the native identity carrier");
+      demanded++;
+    }
+  }
+  assert.equal(demanded, 2, "both actual JSON-reachable native shapes receive the existing protocol");
+  assert.equal(untouched, 1, "only the actual selected JSON roots drive the demand");
+});
+
 for (const surface of ["native", "js"]) test(`${surface}: checked source object narrowing retains closed broad storage and native identity`, { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface, sourceText: header + `
     function objectKind(value: unknown): boolean {

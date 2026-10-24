@@ -206,6 +206,7 @@ export function finalizeCsharpNativeEmission(
   const objectShapeClosure = analyzeCsharpNativeArtifactDemand({
     ast: source.ast, sourceFiles, propertyNames: sourceSyntax.propertyNames,
     nativeDemand, participation: nativeParticipation.participation,
+    sourceStorage,
     objectShapes: callableAdapters.objectShapes, projectTypes, typeDefinitions,
     valueReads: analysis.valueReads, operations: admittedOperations, storage: analysis.storage,
     callables: analysis.callables, captureStorage, callableAdapters, flowReads, declarations: analysis.declarations,

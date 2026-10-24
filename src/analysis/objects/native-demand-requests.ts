@@ -6,6 +6,7 @@ import type {
   TargetTypeRef,
 } from "../../target-model/types/index.js";
 import type { CsharpObjectShapeDemandScope } from "./native-demand-batches.js";
+import type { CsharpJsonObjectShapeContractResult } from "../../target-model/records/json-object-shapes.js";
 import { selectCsharpJsonObjectShapeContract } from "../../policy/types/objects/json-object-shapes.js";
 import type { CsharpArtifactRequestResult, CsharpObjectShapeProjectionRequestResult } from "./native-demand-batches.js";
 import type { CsharpObjectShapeArtifactClosure, CsharpObjectShapeDeclarationNaming, CsharpObjectShapeDemandClosure, CsharpPreparedObjectShapeProjection } from "../../target-model/records/object-shape-demand.js";
@@ -519,6 +520,7 @@ export function connect(
 export function createCsharpObjectShapeDemandEngine(host: CsharpObjectShapeDemandHost):
   Pick<CsharpObjectShapeDemandScope, "registerObjectShape" | "requireObjectShapeCapability" |
     "requireObjectShapeProjection" | "requireObjectShapeMethodReceiver"> & {
+      readonly jsonContract: (fact: CsharpObjectShapeFact) => CsharpJsonObjectShapeContractResult | undefined;
       readonly close: () => CsharpObjectShapeDemandClosure;
     } {
   let scope: CsharpObjectShapeDemandScope;
@@ -568,6 +570,7 @@ export function createCsharpObjectShapeDemandEngine(host: CsharpObjectShapeDeman
     requireObjectShapeCapability: operations.requireObjectShapeCapability,
     requireObjectShapeProjection: operations.requireObjectShapeProjection,
     requireObjectShapeMethodReceiver: operations.requireObjectShapeMethodReceiver,
+    jsonContract: (fact: CsharpObjectShapeFact) => scope.jsonContracts.get(fact),
     close(): CsharpObjectShapeDemandClosure {
       requireOpen();
       const targetShapes = host.objectShapes.targetShapes;
