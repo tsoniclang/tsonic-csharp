@@ -65,6 +65,9 @@ export function rebindCsharpMethodValueTypeParameters(
   sourceParameters: readonly NativeQuantifier[],
   targetParameters: readonly NativeQuantifier[],
 ): TargetTypeRef | undefined {
+  if (sourceParameters === undefined || targetParameters === undefined) {
+    throw new TypeError("Native callable rebinding requires both complete source and target quantifier vectors.");
+  }
   const value = getCsharpMethodValue(type);
   const signature = value?.contract ?? type;
   if (getCsharpDelegateSignature(signature) === undefined || value !== undefined &&

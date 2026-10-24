@@ -79,6 +79,33 @@ test("numeric return coverage refuses missing arms, unrelated carriers and contr
   `${label}: a complete independent baseline proof is still required`);
 });
 
+test("numeric baseline identity cannot hide contradictory native collection slots at any nesting", () => {
+  const integer = csharpSourcePrimitiveTargetType("int32");
+  const text = csharpStringTargetType();
+  const actual = csharpJsArrayTargetType(integer);
+  const wrappers = [
+    ["direct", value => value],
+    ["native array", value => ({ kind: "array", element: value })],
+    ["tuple", value => ({ kind: "tuple", elements: [value] })],
+    ["optional", value => csharpNullableTargetType(value)],
+    ["native generic", value => csharpTargetNamedType("fixture.Box`1", [value],
+      { kind: "named", name: "Box", genericArity: 1 }, { allowsRefLikeTypeArguments: [false] })],
+  ];
+  for (const field of ["csharpArrayLiteralElementType", "csharpEnumerableElementType", "csharpArrayLikeElementType",
+    "csharpReadOnlyIndexableElementType", "csharpDenseMutableElementType"]) {
+    const contradictory = { ...actual, [field]: text };
+    for (const [label, wrap] of wrappers) {
+      const source = wrap(actual);
+      const target = wrap(contradictory);
+      assert.equal(targetTypeRefKey(source) === targetTypeRefKey(target), true,
+        `${field}/${label}: the physical native carrier identity is intentionally unchanged`);
+      for (const [observed, baseline] of [[source, target], [target, source]]) assert.equal(csharpNumericReturnBaselineCovered({
+        source: observed, baseline, definitions: undefined, convert: () => assert.fail("contradictory metadata is not a conversion"),
+      }), false, `${field}/${label}: neither baseline direction accepts contradictory slot metadata`);
+    }
+  }
+});
+
 test("authored native generic return ABIs are not rewritten by a nested logical union permutation", () => {
   const checked = checkCsharpSource({ sourceText: `
     interface NativeBox<Value> { value: Value; }

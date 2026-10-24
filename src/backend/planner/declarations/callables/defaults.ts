@@ -65,7 +65,7 @@ function planRuntimeParameterDefault(
     passthrough: contract.passthrough,
     ...(contract.acceptsOmission ? {
       defaultValue: contract.kind === "nullable" ? { kind: "LiteralExpression", value: null } as const
-        : { kind: "DefaultExpression", type: parameterType } as const,
+        : { kind: "DefaultExpression", type: parameterType, nullForgiving: true } as const,
     } : {}),
     value,
   };

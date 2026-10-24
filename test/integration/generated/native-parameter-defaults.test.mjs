@@ -82,6 +82,8 @@ for (const surface of ["native", "js"]) {
     const source = [...compiled.artifacts.values()].join("\n");
     assert.match(source, /\bOptionalStorage_\w+\s+\w+\s*=\s*default\(OptionalStorage_\w+\)/u,
       "the actual generic storage parameter uses a legal native default");
+    assert.match(source, /\bOptionalStorage_\w+\s+\w+\s*=\s*default\(OptionalStorage_\w+\)!/u,
+      "the proved omission default explicitly admits absence for either reference or value native generic storage");
     assert.doesNotMatch(source, /\bOptionalStorage_\w+\s+\w+\s*=\s*null\b/u,
       "the open native generic carrier is never incorrectly declared nullable");
     executeCsharpConstruction(compiled, `generic-native-parameter-defaults-${surface}`);

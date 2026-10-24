@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 
 import type { CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
@@ -39,7 +39,6 @@ export function csharpNumericReturnBaselineCovered(input: {
 }): boolean {
   const results = new Map<TargetTypeRef, Map<TargetTypeRef, boolean>>();
   const covered = (source: TargetTypeRef, baseline: TargetTypeRef): boolean => {
-    if (targetTypeRefEquals(source, baseline)) return true;
     const known = results.get(source)?.get(baseline);
     if (known !== undefined) return known;
     const targets = results.get(source) ?? new Map<TargetTypeRef, boolean>();
@@ -64,6 +63,7 @@ export function csharpNumericReturnBaselineCovered(input: {
     if (sourcePresent !== undefined || baselinePresent !== undefined) return sourcePresent !== undefined &&
       baselinePresent !== undefined && covered(sourcePresent, baselinePresent);
     if (source.kind === "source-primitive") {
+      if (targetTypeRefEquals(source, baseline)) return true;
       if (nativeIntegralKinds.has(source.name) && targetTypeRefEquals(baseline, csharpBigIntegerTargetType())) return true;
       return baseline.kind === "source-primitive" && baseline.name === "float64" &&
         (nativeIntegralKinds.has(source.name) || source.name === "float32") && csharpConversionIsApplicable(input.convert(source, baseline), "implicit");
@@ -74,18 +74,26 @@ export function csharpNumericReturnBaselineCovered(input: {
     const sourceElement = getCsharpJsArrayElementTargetType(source);
     const baselineElement = getCsharpJsArrayElementTargetType(baseline);
     if (sourceElement !== undefined || baselineElement !== undefined) return sourceElement !== undefined && baselineElement !== undefined &&
-      targetTypeRefEquals(source, csharpJsArrayTargetType(sourceElement)) && targetTypeRefEquals(baseline, csharpJsArrayTargetType(baselineElement)) &&
+      canonicalCollection(source, sourceElement) && canonicalCollection(baseline, baselineElement) &&
       covered(sourceElement, baselineElement);
     if (source.kind === "target-named" && baseline.kind === "target-named") {
       const sources = source.typeArguments ?? [];
       const alternatives = baseline.typeArguments ?? [];
-      return sources.length > 0 && sources.length === alternatives.length &&
+      return sources.length === alternatives.length &&
         targetTypeRefEquals({ ...source, typeArguments: baseline.typeArguments }, baseline) &&
         sources.every((argument, index) => covered(argument, alternatives[index]!));
     }
-    return false;
+    return targetTypeRefEquals(source, baseline);
   };
   return covered(input.source, input.baseline);
+
+  function canonicalCollection(carrier: TargetTypeRef, element: TargetTypeRef): boolean {
+    if (carrier.kind !== "target-named" || !targetTypeRefEquals(carrier, csharpJsArrayTargetType(element))) return false;
+    const selected = carrier as CsharpTargetNamedTypeRef;
+    return [selected.csharpArrayLiteralElementType, selected.csharpEnumerableElementType, selected.csharpArrayLikeElementType,
+      selected.csharpReadOnlyIndexableElementType, selected.csharpDenseMutableElementType]
+      .every(type => type !== undefined && targetTypeRefEquals(type, element));
+  }
 }
 
 export function csharpSourceUnionLayoutsMatch(source: TargetTypeRef, target: TargetTypeRef): boolean {

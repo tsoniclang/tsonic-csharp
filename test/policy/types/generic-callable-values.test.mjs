@@ -98,6 +98,8 @@ test("raw callable contexts rebind actual quantifiers without capturing outer pa
   assert.equal(rebound.returnType === right.parameter, true, "return context uses the same actual destination binder");
   assert.throws(() => rebindCsharpMethodValueTypeParameters(left.value, [right.parameter]), TypeError,
     "the removed two-argument API is not an alternative binding path");
+  assert.throws(() => rebindCsharpMethodValueTypeParameters(left.value, undefined, [right.parameter]), TypeError,
+    "an absent source quantifier vector cannot select a second rebinding path");
 });
 
 test("full native projection vectors rebind independent of order and keep unused native parameters", () => {
