@@ -31,7 +31,7 @@ test("optional Number inputs retain the actual nullable native overload contract
       const expression = program.source.ast.as.AsReturnStatement(returned)?.Expression;
       const selected = expression === undefined ? undefined : program.records.selectedCall.get(expression)?.target;
       assert.equal(selected?.kind, "resolved", `${name}: the actual runtime call is selected`);
-      const native = getCsharpNullableElementTargetType(selected.targetMember.parameters[0]?.type);
+      const native = getCsharpNullableElementTargetType(selected.call.targetMember.parameters[0]?.type);
       found.set(name, native);
     }
     program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
