@@ -209,6 +209,42 @@ function actualUnionDestinationEvidence(program, label) {
 }
 
 for (const surface of ["native", "js"]) {
+  test(`${surface} inferred array binding and field storage retain their actual construction carrier`, () => {
+    const program = accepted(compile(surface, `
+      function select(values: number[]): number[] { return values; }
+      export function local() { let localValues = [1, 2]; localValues[0] = 3; return localValues[0]; }
+      export function authored() { let authoredValues: number[] = [1, 2]; authoredValues[0] = 1.5; return authoredValues; }
+      export function destination() { let demandedValues = [1, 2]; return select(demandedValues); }
+      export class Counter { values = [1, 2]; current() { return this.values[0]; } }
+    `));
+    const ast = program.source.ast;
+    const found = new Set();
+    const visit = node => {
+      if (ast.is.IsVariableDeclaration(node) || ast.is.IsPropertyDeclaration(node)) {
+        const declaration = ast.is.IsVariableDeclaration(node)
+          ? ast.as.AsVariableDeclaration(node) : ast.as.AsPropertyDeclaration(node);
+        const initializer = declaration?.Initializer;
+        if (initializer !== undefined && ast.is.IsArrayLiteralExpression(initializer)) {
+          const name = ast.text(ast.name(node));
+          const expected = name === "localValues" || name === "values"
+            ? surface === "native" ? "int32" : "float64" : "float64";
+          const construction = program.records.nativeExpression.get(initializer)?.use;
+          const stored = program.records.storageType.get(node);
+          const read = program.records.valueRead.get(initializer)?.value;
+          assert.equal(construction?.kind === "constructed" &&
+            getCsharpArrayLiteralElementTargetType(construction.carrier)?.name === expected &&
+            getCsharpArrayLiteralElementTargetType(stored)?.name === expected &&
+            getCsharpArrayLiteralElementTargetType(read)?.name === expected, true,
+          `${name}: inferred mutable storage and fields consume the original native construction without a copy or a checker-number substitution`);
+          found.add(name);
+        }
+      }
+      ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    };
+    for (const file of csharpProgramSourceFiles(program)) visit(file);
+    assert.equal(found.size === 4 && ["localValues", "authoredValues", "demandedValues", "values"]
+      .every(name => found.has(name)), true, "inferred, authored, independently demanded and field constructions are all retained");
+  });
   for (const type of ["int32", "uint32"]) for (const order of ["narrow, value", "value, narrow"]) {
     test(`${surface} inferred float32/${type} refuses precision loss (${order})`, () => {
       const compiled = compile(surface, `export function run(narrow: float32, value: ${type}): number {

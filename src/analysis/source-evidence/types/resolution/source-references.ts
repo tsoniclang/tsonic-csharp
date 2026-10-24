@@ -552,21 +552,16 @@ export function resolveSourceValueDeclaration(
     return retainCsharpBroadValueCarrier(declaredTarget, selected,
       selectedSource !== undefined && queries.types.isNonPrimitive(selectedSource)) ?? selected ?? declaredTarget;
   }
-  const selectedInitializerTarget = resolveDirectSourceFacts(
-    [syntax.initializer],
-    sourceFile,
-    nextState(state),
-  ) ?? resolveSelectedExpressionType(
-    syntax.initializer,
-    declarationQueries,
-    nextState(state),
-  );
-  const initializerTarget = selectedInitializerTarget ??
-    (host.ast.variableDeclarationKind(declaration) !== "const" && declaredTarget !== undefined
-      ? declaredTarget
-      : resolveNodeWithState(syntax.initializer, sourceFile, nextState(state)));
+  const arrayInitializer = host.ast.is.IsArrayLiteralExpression(syntax.initializer);
+  const initializerTarget = arrayInitializer
+    ? resolveNodeWithState(syntax.initializer, sourceFile, nextState(state))
+    : resolveDirectSourceFacts([syntax.initializer], sourceFile, nextState(state)) ??
+      resolveSelectedExpressionType(syntax.initializer, declarationQueries, nextState(state)) ??
+      (host.ast.variableDeclarationKind(declaration) !== "const" && declaredTarget !== undefined
+        ? declaredTarget
+        : resolveNodeWithState(syntax.initializer, sourceFile, nextState(state)));
   if (initializerTarget === undefined) {
-    return declaredTarget;
+    return arrayInitializer ? undefined : declaredTarget;
   }
   if (node === declaration) {
     return initializerTarget;
