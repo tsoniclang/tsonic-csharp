@@ -40,6 +40,20 @@ export function run(): boolean {
 `;
 
 const mutableMethodSources = [
+  ["annotated native write facets preserve concrete aliases", `
+import type { int32 } from "@tsonic/core/types.js";
+interface Reader { read(): int32; }
+function read(owner: Reader): int32 { return owner.read(); }
+function replace(owner: Reader): void { owner.read = (): int32 => 3; }
+export function run(): boolean {
+  const fixed: Reader = { read(): int32 { return 1; } };
+  const changed: Reader = { read(): int32 { return 2; } };
+  const alias = changed;
+  const before = changed.read;
+  replace(alias);
+  return read(fixed) === 1 && read(changed) === 3 && alias === changed && before() === 2;
+}
+`],
   ["first-class write-consuming native formals", `
 import type { int32 } from "@tsonic/core/types.js";
 interface Reader { read(): int32; }
