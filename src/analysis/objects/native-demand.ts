@@ -13,6 +13,7 @@ import type { CsharpDeclarationClassifications } from "../../target-model/record
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpAdmittedIteration } from "../../target-model/records/selection.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
+import type { CsharpCallableParameterRecords } from "../../target-model/records/parameter-emission.js";
 import type { CsharpBindingPatternClassifications } from "../../target-model/records/value-projections.js";
 import type { CsharpNativeValueCarriers } from "../../target-model/records/native-value-carriers.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
@@ -58,6 +59,7 @@ export interface CsharpNativeArtifactDemandInput extends CsharpObjectShapeDemand
   readonly valueReads: CsharpValueReadClassifications;
   readonly operations: CsharpTargetOperationClassifications<CsharpAdmittedIteration>;
   readonly storage: CsharpStorageClassifications;
+  readonly parameterEntries: CsharpCallableParameterRecords["lambdaParameterEntry"];
   readonly callables: CsharpCallableContractIndex;
   readonly captureStorage: CsharpCaptureStorage;
   readonly callableAdapters: CsharpProjectCallableAdapters;
@@ -338,10 +340,10 @@ export function analyzeCsharpNativeArtifactDemand(
       demandType(defaulted.native.source, node); demandType(defaulted.native.target, node);
       demandDefault(node, defaulted.native);
     }
-    const nativeParameter = input.storage.lambdaParameterType.get(node);
     const storedParameter = input.storage.requiredStorageType.get(node);
     demandType(storedParameter, node);
-    if (nativeParameter !== undefined && storedParameter !== undefined && defaulted === undefined) demandPair(node, nativeParameter, storedParameter);
+    const parameterEntry = input.parameterEntries.get(node);
+    if (parameterEntry?.kind === "conversion") demandConversion(node, parameterEntry.source, parameterEntry.target, parameterEntry.conversion);
     const dispatch = input.callableAdapters.callableDispatch.get(node);
     for (const adapter of dispatch?.kind === "method" ? dispatch.adapters : []) {
       demandParameters(node, adapter.parameters);

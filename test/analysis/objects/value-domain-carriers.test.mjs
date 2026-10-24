@@ -21,7 +21,7 @@ test("native source-storage projections preserve exact field, element and tuple 
   const integer = csharpSourcePrimitiveTargetType("int64");
   const owner = { kind: "target-named", id: "projection-owner", csharpAllowsRefLikeTypeArguments: [] };
   const member = { sourceKey: { kind: "property", name: "payload" }, sourceName: "payload", targetName: "storedPayload",
-    memberKind: "property", type: { kind: "tuple", elements: [integer] }, sourceDeclarations: [declaration] };
+    memberKind: "property", type: { kind: "tuple", elements: [integer] }, sourceSubjects: [declaration], sourceDeclarations: [declaration] };
   const shape = { targetType: owner, members: [member] };
   const shapes = { resolveTarget: carrier => carrier === owner ? shape : undefined };
   let work = 0;
@@ -275,11 +275,12 @@ test("value-domain budget exhaustion rejects program publication instead of emit
   const program = `
     import assert from "node:assert/strict";
     import { mock } from "node:test";
-    const { analyzeCsharpValueDomainCarriers } = await import(${JSON.stringify(analyzer)});
+    const { analyzeCsharpValueDomainCarriers, projectCsharpNativeSourceStorageCarrier } = await import(${JSON.stringify(analyzer)});
     const { createCsharpMetadataBudget } = await import(${JSON.stringify(metadata)});
     let failures = 0;
     let failureNode;
     mock.module(${JSON.stringify(analyzer)}, { namedExports: {
+      projectCsharpNativeSourceStorageCarrier,
       analyzeCsharpValueDomainCarriers(host, expressions) {
         const budget = createCsharpMetadataBudget();
         budget.reserve(budget.remaining() - 1);

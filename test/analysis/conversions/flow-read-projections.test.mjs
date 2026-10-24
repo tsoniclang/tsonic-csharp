@@ -50,7 +50,7 @@ test("a proved native flow selection survives unchanged logical source types wit
 test("actual array and record branches publish exact physical receiver projections before sealing", () => {
   const value = fixture(arrayRecordRefinementSource, "js");
   const receivers = value.nodes.filter(node => value.ast.is.IsPropertyAccessExpression(node) &&
-    value.ast.text(value.ast.as.AsPropertyAccessExpression(node).Name) === "length")
+    value.ast.text(value.ast.as.AsPropertyAccessExpression(node).name) === "length")
     .map(node => value.ast.as.AsPropertyAccessExpression(node).Expression);
   assert.equal(receivers.length > 0, true, "the actual checked source contains the native member reads");
   for (const receiver of receivers) {

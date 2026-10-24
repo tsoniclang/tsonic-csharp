@@ -25,16 +25,17 @@ export function selectCsharpGenericFrameClosures(
   let exhausted = false;
   const visit = (node: Node): void => {
     if (exhausted || evidence.compileTimeMetadata.get(node)) return;
-    if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) {
+    const callable = source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node);
+    if (callable) {
       const discarded = creationDemand.get(node);
       if (discarded === undefined) failTargetAnalysisInvariant("tsonic-csharp",
         "Generic closure selection requires its original checked creation demand.", node);
       if (discarded) return;
     }
-    if ((source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) && source.ast.typeParameters(node).length > 0) {
-      const type = expectedTypes.callableTarget.get(node);
-      const method = getCsharpMethodValue(type);
-      if (type === undefined || method === undefined || method.typeParameters.length === 0) {
+    const type = callable ? expectedTypes.callableTarget.get(node) : undefined;
+    const method = getCsharpMethodValue(type);
+    if (callable && (source.ast.typeParameters(node).length > 0 || method !== undefined)) {
+      if (type === undefined || method === undefined) {
         issues.push({ node, code: "CSHARP_GENERIC_CALLABLE_CONTRACT_NOT_CLOSED",
           message: "A generic callable value requires its exact quantified native invocation contract." });
       } else {

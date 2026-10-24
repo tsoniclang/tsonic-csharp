@@ -56,6 +56,11 @@ for (const surface of ["native", "js"]) {
         "the frame retains the full authored and native-projection vector, not its contextual alias's quantifiers");
         assert.equal(targetTypeRefEquals(getCsharpLambdaSignature(closure.method.type)?.returnType, contract.returnType), true,
           "the frame and body declaration publish one actual native return ABI");
+        const native = program.records.typeEmission.get(closure.method.type)?.lambda;
+        assert.equal(native !== undefined && targetTypeRefEquals(native.returnType, contract.returnType) &&
+          native.parameters.length === contract.nativeParameters.length && native.parameters.every((type, index) =>
+            targetTypeRefEquals(type, contract.nativeParameters[index].targetParameter.type)), true,
+        "a physically shared protocol retains this body's exact native invocation binders in sealed type emission");
         for (const parameter of contract.nativeParameters) {
           if (parameter.targetParameter.type.kind !== "type-parameter") continue;
           assert.equal(contract.nativeSignature.methodTypeParameterIdentities.includes(parameter.targetParameter.type.identity), true,

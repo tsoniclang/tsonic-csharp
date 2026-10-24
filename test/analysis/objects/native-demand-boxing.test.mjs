@@ -318,6 +318,8 @@ for (const surface of ["native", "js"]) test(`${surface}: present native lambda 
       const entry = program.records.lambdaParameterEntry.get(parameter);
       assert.equal(entry.kind, "conversion", "the admitted present native input retains its actual boxing adaptation");
       assert.equal(entry.conversion.kind, "js-value-box", "the native parameter does not masquerade as body storage");
+      assert.equal(program.records.jsValueBoxing.get(parameter, entry.source)?.kind, "wrap",
+        "the same selected parameter conversion owns its complete native boxing demand before artifact sealing");
       entries += 1;
     }
     program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });

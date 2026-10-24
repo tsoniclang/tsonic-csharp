@@ -202,13 +202,17 @@ export function finalizeCsharpNativeEmission(
     return failTargetAnalysisInvariant("tsonic-csharp",
       `Native consumption '${incomplete.site.role}' requires completed '${incomplete.reason}' evidence before publication.`, incomplete.expression);
   }
+  const callableParameters = analyzeCsharpCallableParameterEmission({ ast: source.ast, callables: analysis.callables, nodes: sourceStorage.nodes,
+    declarations: analysis.declarations, values: analysis.valueReads, storage: analysis.storage, conversions, literals: literalValues,
+    exact: exactLiterals, admitted: admittedControlNode, required: analysis.requiredRecords });
+  if (callableParameters.issues.length !== 0) return rejectedTargetStage(callableParameters.issues);
   const boxSites: { readonly node: Node; readonly carrier: TargetTypeRef }[] = [];
   const objectShapeClosure = analyzeCsharpNativeArtifactDemand({
     ast: source.ast, sourceFiles, propertyNames: sourceSyntax.propertyNames,
     nativeDemand, participation: nativeParticipation.participation,
     sourceStorage,
     objectShapes: callableAdapters.objectShapes, projectTypes, typeDefinitions,
-    valueReads: analysis.valueReads, operations: admittedOperations, storage: analysis.storage,
+    valueReads: analysis.valueReads, operations: admittedOperations, storage: analysis.storage, parameterEntries: callableParameters.records.lambdaParameterEntry,
     callables: analysis.callables, captureStorage, callableAdapters, flowReads, declarations: analysis.declarations,
     bindingPatterns, conversions, nativeValueCarriers, sourceEvidence: analysis.sourceEvidence,
     boxSites: { add: (node, carrier) => { boxSites.push({ node, carrier }); } },
@@ -269,10 +273,6 @@ export function finalizeCsharpNativeEmission(
   const lexicalValues = analyzeCsharpLexicalValues({ nodes: sourceStorage.nodes, navigation: source.navigation,
     captures: captureStorage, values: analysis.valueReads, metadata: analysis.sourceEvidence });
   if (lexicalValues.issues.length !== 0) return rejectedTargetStage(lexicalValues.issues);
-  const callableParameters = analyzeCsharpCallableParameterEmission({ ast: source.ast, callables: analysis.callables, nodes: sourceStorage.nodes,
-    declarations: analysis.declarations, values: analysis.valueReads, storage: analysis.storage, conversions, literals: literalValues,
-    exact: exactLiterals, admitted: admittedControlNode, required: analysis.requiredRecords });
-  if (callableParameters.issues.length !== 0) return rejectedTargetStage(callableParameters.issues);
   const sourceOutputIdentities = analyzeCsharpSourceOutputIdentities({ ast: source.ast, sourceFiles, paths: input.paths,
     namespace: request.project.namespace, sourceFacts: source.sourceFacts,
     generatedTypeNames: [...projectTypes.declarationScopeNames, ...classFactories.factories.flatMap(factory => [

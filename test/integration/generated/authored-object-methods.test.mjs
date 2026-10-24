@@ -141,6 +141,31 @@ export function run(): boolean {
     first.calls === 1 && second.calls === 3 && third.calls === 4;
 }
 `],
+  ["monomorphic optional protocols retain replacement and named self", `
+import type { int32 } from "@tsonic/core/types.js";
+interface Reader { read?(value: int32): int32; }
+function make(): Reader { return { read(value: int32): int32 { return value; } }; }
+function replace(owner: Reader, step: int32): void {
+  owner.read = function current(value: int32): int32 {
+    if (value < 0) return current(value + 1);
+    return value + step;
+  };
+}
+function clear(owner: Reader): void { owner.read = undefined; }
+export function run(): boolean {
+  const owner = make();
+  replace(owner, 3);
+  const saved = owner.read;
+  const repeated = owner.read;
+  if (saved === undefined || repeated === undefined) return false;
+  replace(owner, 4);
+  const current = owner.read;
+  if (current === undefined) return false;
+  clear(owner);
+  return saved === repeated && saved !== current && saved(-1) === 3 && saved(2) === 5 &&
+    current(2) === 6 && owner.read === undefined;
+}
+`],
 ];
 
 for (const surface of ["native", "js"]) for (const [name, sourceText] of mutableMethodSources) {

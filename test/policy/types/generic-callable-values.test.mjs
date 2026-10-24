@@ -9,6 +9,7 @@ import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types
 import { substituteTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
 import { csharpFreeTypeParameterIdentities } from "../../../dist/target-model/types/generic-references.js";
 import { csharpProjectedType } from "../../../dist/target-model/types/projections.js";
+import { csharpTypeEmissionKey } from "../../../dist/target-model/records/type-emission.js";
 
 const unconstrainedEnvironment = () => ({ kind: "resolved", constraints: [] });
 
@@ -59,6 +60,44 @@ test("alpha-equivalent generic callable signatures share the exact native protoc
   const substituted = substituteTargetTypeParameters(selected, new Map([["Right", scalar]]));
   assert.equal(targetTypeRefEquals(getCsharpCallableValueSignature(substituted).returnType, right.parameter), true,
     "external substitution cannot capture an invocation quantifier");
+});
+
+test("native type emission keeps each invocation binding without splitting its physical protocol", () => {
+  const left = quantifiedChoice("Left");
+  const right = quantifiedChoice("Right");
+  const rebound = rebindCsharpMethodValueTypeParameters(left.value, [left.parameter], [right.parameter]);
+  const wrappers = [
+    ["direct", value => value],
+    ["array", value => ({ kind: "array", element: value })],
+    ["tuple", value => ({ kind: "tuple", elements: [value] })],
+    ["delegate", value => csharpDelegateTargetType("System.Func", [value], value)],
+  ];
+  for (const [label, wrap] of wrappers) {
+    const original = wrap(left.value);
+    const selected = wrap(rebound);
+    assert.equal(targetTypeRefEquals(original, selected), true, `${label}: physical protocol identity stays canonical`);
+    assert.equal(csharpTypeEmissionKey(original) === csharpTypeEmissionKey(selected), false,
+      `${label}: actual invocation parameter and return binders cannot be replaced by the first alpha-equivalent publication`);
+    assert.equal(csharpTypeEmissionKey(selected), csharpTypeEmissionKey(wrap(
+      rebindCsharpMethodValueTypeParameters(left.value, [left.parameter], [right.parameter]))),
+    `${label}: equal bindings have stable keys independent of object sharing`);
+  }
+  const signature = getCsharpDelegateSignature(left.signature);
+  for (const [label, change] of [
+    ["optional", { optionalParameterIndexes: [1] }],
+    ["rest", { restParameterIndex: 1 }],
+    ["parameter mode", { parameterPassingModes: ["byref-readonly", "by-value"] }],
+    ["return mode", { returnPassing: "byref-readonly" }],
+  ]) {
+    const selected = { ...left.signature, csharpDelegateSignature: { ...signature, ...change } };
+    assert.equal(targetTypeRefEquals(selected, left.signature), true, `${label}: native physical delegate remains the same`);
+    assert.equal(csharpTypeEmissionKey(selected) === csharpTypeEmissionKey(left.signature), false,
+      `${label}: the actual complete invocation signature remains independently keyed`);
+  }
+  const value = getCsharpMethodValue(left.value);
+  const permitted = { ...left.value, csharpMethodValue: { ...value, allowsRefLikeTypeArguments: [true] } };
+  assert.equal(csharpTypeEmissionKey(permitted) === csharpTypeEmissionKey(left.value), false,
+    "actual invocation anti-constraints remain part of native emission identity");
 });
 
 test("generic callable protocols retain constraints and reject malformed quantifiers", () => {
@@ -142,6 +181,8 @@ test("full native projection vectors rebind independent of order and keep unused
   assert.equal(selected.typeParameters.length, 5, "unused projection-only native parameters are not dropped");
   assert.equal(selected.typeParameters.every((identity, index) => identity === targetParameters[index].identity), true,
     "the actual native destination order is retained");
+  assert.equal(csharpTypeEmissionKey(source) === csharpTypeEmissionKey(rebound), false,
+    "native emission retains every nested and unused projection binder instead of the physically shared protocol key");
   assert.equal(targetTypeRefEquals(getCsharpDelegateSignature(selected.contract).returnType, right.outer), true,
     "nested projection return metadata uses the destination native binder");
   assert.equal(selected.allowsRefLikeTypeArguments.every((allowed, index) =>

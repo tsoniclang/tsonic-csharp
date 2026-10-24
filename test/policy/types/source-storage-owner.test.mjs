@@ -18,6 +18,7 @@ function fixture(kind, project) {
           IsPropertyDeclaration: () => false,
           IsPropertyAccessExpression: node => node?.kind === "property",
           IsElementAccessExpression: node => node?.kind === "element",
+          IsParenthesizedExpression: () => false,
         },
         getSourceFile: node => node === declaration ? declarationFile : undefined,
       },
