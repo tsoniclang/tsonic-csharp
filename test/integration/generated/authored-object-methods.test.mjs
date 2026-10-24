@@ -13,6 +13,20 @@ for (const surface of [undefined, "js"]) {
 }
 
 const mutableMethodSources = [
+  ["first-class write-consuming native formals", `
+import type { int32 } from "@tsonic/core/types.js";
+interface Reader { read(): int32; }
+function read(owner: Reader): int32 { return owner.read(); }
+function replace(owner: Reader): void { owner.read = (): int32 => 3; }
+export function run(): boolean {
+  const fixed = { read(): int32 { return 1; } };
+  const changed = { read(): int32 { return 2; } };
+  const change = replace;
+  const before = changed.read;
+  change(changed);
+  return read(fixed) === 1 && read(changed) === 3 && before() === 2;
+}
+`],
   ["concrete literal receiver fields", `
 import type { int32 } from "@tsonic/core/types.js";
 export function run(): boolean {

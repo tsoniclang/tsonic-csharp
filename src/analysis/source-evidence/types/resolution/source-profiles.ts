@@ -19,6 +19,7 @@ import { csharpRuntimeParameterDefault } from "../../../../policy/types/storage/
 import { resolveCsharpCallableTypeParameters } from "./callable-type-parameters.js";
 import type { SourceStorageSubject } from "@tsonic/target-api/analysis";
 import { csharpSourceStorageContext } from "./source-storage-projection.js";
+import { resolveCsharpNativeParameterCarrier } from "./source-references.js";
 
 import { selectCsharpSourceProfileCarrier } from "../../../../policy/operations/source-profiles/type-carriers.js";
 export function resolveCsharpSourceProfileBaseType(
@@ -162,12 +163,13 @@ export function resolveCallableEvidence(
 }
 
 export function resolveSignatureParameterEvidence(
-  { host, resolveSourceTypeComponentEvidence }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   parameter: SourceCallableTypeEvidence["parameters"][number],
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
   use: "callable" | "parameter-list",
 ): TargetTypeRef | undefined {
+  const { host, resolveSourceTypeComponentEvidence } = scope;
   const entry = parameter.declaration === undefined ? undefined : host.sourceStorage.subject(parameter.declaration, "input");
   const resolved = resolveSourceTypeComponentEvidence(
     {
@@ -192,13 +194,17 @@ export function resolveSignatureParameterEvidence(
   );
   const runtimeDefault = parameter.omissionKind === "initializer" && resolved !== undefined
     ? csharpRuntimeParameterDefault(resolved) : undefined;
-  if (runtimeDefault !== undefined) return runtimeDefault.parameterType;
   const nullable = use === "parameter-list"
     ? parameter.parameterKind === "optional"
     : parameter.omissionKind === "undefined";
-  return resolved === undefined || !nullable
+  const carrier = runtimeDefault?.parameterType ?? (resolved === undefined || !nullable
     ? resolved
-    : csharpNullableTargetType(resolved);
+    : csharpNullableTargetType(resolved));
+  const declaration = parameter.declaration;
+  if (use !== "callable" || declaration === undefined) return carrier;
+  const owner = host.ast.parent(declaration);
+  return owner !== undefined && host.ast.body(owner) !== undefined
+    ? resolveCsharpNativeParameterCarrier(scope, declaration, carrier) : carrier;
 }
 
 export function resolveSourceTypeComponentEvidence(
