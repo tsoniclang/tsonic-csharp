@@ -5,6 +5,7 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 import { getCsharpMethodValue } from "../../../dist/target-model/types/method-values.js";
 import { getCsharpLambdaSignature } from "../../../dist/target-model/types/carriers/delegates.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
+import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 
 const cases = [
   ["authored field signature", `
@@ -91,7 +92,9 @@ const contextualInputs = [
     export const checked: Callback = value => value === undefined ? 3 : value;
     export function run(): boolean { return checked(undefined) === 3 && checked(7) === 7; }
   `],
-  ["own quantifier and exact contextual integer", `
+];
+
+const invalidOwnQuantifierSource = `
     import type { int32 } from "@tsonic/core/types.js";
     type Callback = <Context>(value: Context, count: int32) => Context;
     export const checked: Callback = <Authored>(value, count) => {
@@ -99,8 +102,17 @@ const contextualInputs = [
       return value;
     };
     export function run(): boolean { return checked("kept", 7) === "kept"; }
-  `],
-];
+  `;
+
+const authoredOwnQuantifierSource = `
+    import type { int32 } from "@tsonic/core/types.js";
+    type Callback = <Context>(value: Context, count: int32) => Context;
+    export const checked: Callback = <Authored>(value: Authored, count: int32): Authored => {
+      const native: int32 = count;
+      return value;
+    };
+    export function run(): boolean { return checked("kept", 7) === "kept"; }
+  `;
 
 for (const surface of ["native", "js"]) for (const [name, sourceText] of contextualInputs) {
   test(`unannotated parameter keeps its contextual native input on ${surface}: ${name}`, { timeout: 240_000 }, () => {
@@ -110,5 +122,44 @@ for (const surface of ["native", "js"]) for (const [name, sourceText] of context
       false, [], name === "async alias input"
         ? "if (!await Tsonic.Generated.Index.run()) throw new System.Exception(\"native contextual input\");"
         : "if (!Tsonic.Generated.Index.run()) throw new System.Exception(\"native contextual input\");");
+  });
+}
+
+for (const surface of ["native", "js"]) {
+  test(`an explicit generic arrow with unannotated inputs is rejected before ${surface} target admission`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: invalidOwnQuantifierSource });
+    assert.equal(compiled.source.diagnostics.length === 2 && compiled.source.diagnostics.every(issue => issue?.code === 7006), true,
+      "the unchanged invalid source has exactly its two strict-source TS7006 errors");
+    assert.equal(compiled.targetDiagnostics.length === 2 && compiled.targetDiagnostics.every(issue =>
+      issue.code === "TSTS_DIAGNOSTIC" && issue.evidence?.includes("tsts.code=TS7006")), true,
+    "both source errors survive the actual checkSource boundary without a target replacement");
+    for (const parameter of ["value", "count"]) assert.equal(compiled.targetDiagnostics.filter(issue =>
+      issue.message.includes(`Parameter '${parameter}' implicitly has an 'any' type.`)).length, 1,
+    `${parameter}: the original unannotated input is rejected exactly once`);
+    assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+      "invalid strict source publishes no C# program, plan or artifacts");
+  });
+
+  test(`authored generic inputs retain their own binder and exact native integer on ${surface}`, { timeout: 240_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: authoredOwnQuantifierSource });
+    assertCsharpCompilationSucceeded(compiled);
+    const program = compiled.result.program;
+    const declarations = [];
+    const visit = node => {
+      if (program.source.ast.is.IsArrowFunction(node) && program.source.ast.typeParameters(node).length > 0) declarations.push(node);
+      program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    };
+    program.source.navigation.sourceFiles.forEach(visit);
+    assert.equal(declarations.length, 1, "the valid source has one actual authored generic body");
+    const contract = program.records.callableDeclaration.get(declarations[0])?.contract;
+    assert.equal(contract?.kind === "source" && contract.nativeParameters.length === 2, true,
+      "the authored body publishes its complete native input vector");
+    const authored = contract.nativeParameters[0].targetParameter.type;
+    assert.equal(authored.kind === "type-parameter" && contract.nativeSignature.methodTypeParameterIdentities.includes(authored.identity) &&
+      targetTypeRefEquals(contract.returnType, authored), true, "the value and return use the body's own native invocation binder");
+    assert.equal(targetTypeRefEquals(contract.nativeParameters[1].targetParameter.type, csharpSourcePrimitiveTargetType("int32")), true,
+      "the independent count input retains exact native int32 rather than a source number carrier");
+    executeCsharpConstruction(compiled, `authored-quantifier-native-input-${surface}`, true, false, [],
+      "if (!Tsonic.Generated.Index.run()) throw new System.Exception(\"native authored generic input\");");
   });
 }
