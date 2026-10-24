@@ -9,8 +9,12 @@ import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { analyzeCsharpDeclarations } from "../../../dist/analysis/declarations/analyze.js";
+import { analyzeCsharpDeclarations, reconcileInferredReturnTargetContract } from "../../../dist/analysis/declarations/analyze.js";
 import { csharpRuntimeUnionTargetType, csharpTargetNamedType, csharpStringTargetType } from "../../../dist/target-model/types/index.js";
+import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
+import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
+import { csharpNumericReturnBaselineCovered } from "../../../dist/policy/conversions/union-relations.js";
+import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
 
 const header = 'import type { float32, float64, int16, uint16, int32, uint32, int64 } from "@tsonic/core/types.js";';
 const compile = (surface, body) => compileCsharpNativeUseSource({ surface, sourceText: `${header}\n${body}` });
@@ -20,6 +24,60 @@ const accepted = compiled => {
     compiled.targetDiagnostics.map(issue => `${issue.code}: ${issue.message}`).join(" | "));
   return compiled.result.program;
 };
+
+test("inferred numeric return coverage preserves complete native union layouts without converting their arrays", () => {
+  const integer = csharpSourcePrimitiveTargetType("int32");
+  const unsigned = csharpSourcePrimitiveTargetType("uint32");
+  const floating = csharpSourcePrimitiveTargetType("float64");
+  const union = csharpRuntimeUnionTargetType([integer, unsigned, floating]);
+  const duplicate = csharpRuntimeUnionTargetType([floating, floating]);
+  const native = element => Object.freeze({ kind: "array", element });
+  const tuple = elements => Object.freeze({ kind: "tuple", elements: Object.freeze(elements) });
+  const policy = { projectTypes: { directSupertypes: () => [] },
+    providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) }, target: {} };
+  const controls = [
+    ["native array", native(union), native(floating)],
+    ["JS array", csharpJsArrayTargetType(union), csharpJsArrayTargetType(floating)],
+    ["nested arrays", native(csharpJsArrayTargetType(union)), native(csharpJsArrayTargetType(floating))],
+    ["tuple positions", tuple([native(union), csharpJsArrayTargetType(union)]), tuple([native(floating), csharpJsArrayTargetType(floating)])],
+    ["optional array", csharpNullableTargetType(native(union)), csharpNullableTargetType(native(floating))],
+    ["duplicate native ABI slots", native(duplicate), native(floating)],
+  ];
+  for (const [label, observed, baseline] of controls) {
+    assert.equal(csharpNumericReturnBaselineCovered({ source: observed, baseline, definitions: undefined,
+      convert: (source, target) => selectCsharpConversion(policy, source, target, "implicit") }), true,
+    `${label}: every actual native arm and checked coarse alternative corresponds`);
+    const selected = reconcileInferredReturnTargetContract(policy, baseline, [observed], false);
+    assert.equal(selected.kind === "resolved" && selected.type === observed, true,
+      `${label}: inferred return publication retains the one actual native ABI by identity`);
+  }
+  for (const [label, observed, baseline] of controls.slice(0, 2)) for (const mode of ["implicit", "explicit"]) {
+    assert.equal(selectCsharpConversion(policy, observed, baseline, mode).kind, "rejected",
+      `${label}/${mode}: coarse source coverage never authorizes a different physical array conversion`);
+    assert.equal(selectCsharpConversion(policy, baseline, observed, mode).kind, "rejected",
+      `${label}/${mode}: a physical array cannot acquire a union layout through reversed coverage`);
+  }
+});
+
+test("numeric return coverage refuses missing arms, unrelated carriers and contradictory native collection metadata", () => {
+  const integer = csharpSourcePrimitiveTargetType("int32");
+  const floating = csharpSourcePrimitiveTargetType("float64");
+  const text = csharpStringTargetType();
+  const native = element => Object.freeze({ kind: "array", element });
+  const policy = { projectTypes: { directSupertypes: () => [] },
+    providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) }, target: {} };
+  const controls = [
+    ["unrelated actual arm", native(csharpRuntimeUnionTargetType([integer, text])), native(floating)],
+    ["missing checked alternative", native(integer), native(csharpRuntimeUnionTargetType([floating, text]))],
+    ["native array rank", { ...native(integer), rank: 2 }, native(floating)],
+    ["tuple arity", { kind: "tuple", elements: [integer] }, { kind: "tuple", elements: [floating, floating] }],
+    ["missing native absence", native(integer), native(csharpNullableTargetType(floating))],
+    ["contradictory collection payload", { ...csharpJsArrayTargetType(integer), csharpReadOnlyIndexableElementType: text }, csharpJsArrayTargetType(floating)],
+  ];
+  for (const [label, observed, baseline] of controls) assert.equal(csharpNumericReturnBaselineCovered({ source: observed,
+    baseline, definitions: undefined, convert: (source, target) => selectCsharpConversion(policy, source, target, "implicit") }), false,
+  `${label}: a complete independent baseline proof is still required`);
+});
 
 test("authored native generic return ABIs are not rewritten by a nested logical union permutation", () => {
   const checked = checkCsharpSource({ sourceText: `

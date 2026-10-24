@@ -13,6 +13,9 @@ import { getCsharpRuntimeUnionArms } from "../../target-model/types/carriers/run
 import { getCsharpArrayLiteralElementTargetType } from "../../target-model/types/carriers/collections.js";
 import { getCsharpTaskResultTargetType } from "../../target-model/types/carriers/delegates.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
+import { csharpBigIntegerTargetType } from "../../target-model/types/carriers/scalar-types.js";
+import { getCsharpJsArrayElementTargetType } from "../../target-model/types/carriers/collections.js";
+import { csharpJsArrayTargetType } from "../../target-model/types/carriers/js.js";
 
 import { collectCsharpUnionPaths, csharpUnionLeaves, csharpUnionArmMappingsEqual, type CsharpUnionPathStep, type CsharpUnionArmMapping } from "../../target-model/types/union-relations.js";
 
@@ -21,6 +24,68 @@ type CsharpUnionLeaf = NonNullable<ReturnType<typeof csharpUnionLeaves>>[number]
 interface CsharpUnionCandidate {
   readonly arm: CsharpUnionLeaf;
   readonly conversion: CsharpConversionSelection;
+}
+
+const nativeIntegralKinds = new Set([
+  "int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64",
+  "int128", "uint128", "native-int", "native-uint",
+]);
+
+export function csharpNumericReturnBaselineCovered(input: {
+  readonly source: TargetTypeRef;
+  readonly baseline: TargetTypeRef;
+  readonly definitions: CsharpTypeDefinitions | undefined;
+  readonly convert: (source: TargetTypeRef, target: TargetTypeRef) => CsharpConversionSelection;
+}): boolean {
+  const results = new Map<TargetTypeRef, Map<TargetTypeRef, boolean>>();
+  const covered = (source: TargetTypeRef, baseline: TargetTypeRef): boolean => {
+    if (targetTypeRefEquals(source, baseline)) return true;
+    const known = results.get(source)?.get(baseline);
+    if (known !== undefined) return known;
+    const targets = results.get(source) ?? new Map<TargetTypeRef, boolean>();
+    targets.set(baseline, false);
+    results.set(source, targets);
+    const result = select(source, baseline);
+    targets.set(baseline, result);
+    return result;
+  };
+  const select = (source: TargetTypeRef, baseline: TargetTypeRef): boolean => {
+    const sourceUnion = getCsharpRuntimeUnionArms(source, input.definitions);
+    const baselineUnion = getCsharpRuntimeUnionArms(baseline, input.definitions);
+    if (sourceUnion !== undefined || baselineUnion !== undefined) {
+      const sources = sourceUnion === undefined ? [source] : csharpUnionLeaves(source, input.definitions)?.map(leaf => leaf.carrier);
+      const alternatives = baselineUnion === undefined ? [baseline] : csharpUnionLeaves(baseline, input.definitions)?.map(leaf => leaf.carrier);
+      return sources !== undefined && alternatives !== undefined && sources.length > 0 && alternatives.length > 0 &&
+        sources.every(source => alternatives.some(target => covered(source, target))) &&
+        alternatives.every(target => sources.some(source => covered(source, target)));
+    }
+    const sourcePresent = getCsharpNullableElementTargetType(source);
+    const baselinePresent = getCsharpNullableElementTargetType(baseline);
+    if (sourcePresent !== undefined || baselinePresent !== undefined) return sourcePresent !== undefined &&
+      baselinePresent !== undefined && covered(sourcePresent, baselinePresent);
+    if (source.kind === "source-primitive") {
+      if (nativeIntegralKinds.has(source.name) && targetTypeRefEquals(baseline, csharpBigIntegerTargetType())) return true;
+      return baseline.kind === "source-primitive" && baseline.name === "float64" &&
+        (nativeIntegralKinds.has(source.name) || source.name === "float32") && csharpConversionIsApplicable(input.convert(source, baseline), "implicit");
+    }
+    if (source.kind === "array" && baseline.kind === "array") return (source.rank ?? 1) === (baseline.rank ?? 1) && covered(source.element, baseline.element);
+    if (source.kind === "tuple" && baseline.kind === "tuple") return source.elements.length === baseline.elements.length &&
+      source.elements.every((element, index) => covered(element, baseline.elements[index]!));
+    const sourceElement = getCsharpJsArrayElementTargetType(source);
+    const baselineElement = getCsharpJsArrayElementTargetType(baseline);
+    if (sourceElement !== undefined || baselineElement !== undefined) return sourceElement !== undefined && baselineElement !== undefined &&
+      targetTypeRefEquals(source, csharpJsArrayTargetType(sourceElement)) && targetTypeRefEquals(baseline, csharpJsArrayTargetType(baselineElement)) &&
+      covered(sourceElement, baselineElement);
+    if (source.kind === "target-named" && baseline.kind === "target-named") {
+      const sources = source.typeArguments ?? [];
+      const alternatives = baseline.typeArguments ?? [];
+      return sources.length > 0 && sources.length === alternatives.length &&
+        targetTypeRefEquals({ ...source, typeArguments: baseline.typeArguments }, baseline) &&
+        sources.every((argument, index) => covered(argument, alternatives[index]!));
+    }
+    return false;
+  };
+  return covered(input.source, input.baseline);
 }
 
 export function csharpSourceUnionLayoutsMatch(source: TargetTypeRef, target: TargetTypeRef): boolean {

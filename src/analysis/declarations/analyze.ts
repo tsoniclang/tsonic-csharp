@@ -12,7 +12,7 @@ import {
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { selectCsharpConversion } from "../../policy/conversions/index.js";
 import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
-import { csharpSourceUnionLayoutsMatch, csharpSourceUnionReturnLayout } from "../../policy/conversions/union-relations.js";
+import { csharpNumericReturnBaselineCovered, csharpSourceUnionLayoutsMatch, csharpSourceUnionReturnLayout } from "../../policy/conversions/union-relations.js";
 import { classifyCsharpSourceProfileType } from "../../policy/identities/source-types.js";
 import { csharpLiteralReturnsFit, forEachCsharpDirectReturnExpression } from "../callables/return-expressions.js";
 import { selectCsharpCommonImplicitTarget } from "../conversions/common-target.js";
@@ -27,7 +27,6 @@ import {
   isCsharpJsValueTargetType,
   targetTypeRefKey,
   targetTypeRefEquals,
-  csharpBigIntegerTargetType,
   isCsharpVoidTargetType,
   getCsharpTaskResultTargetType,
 } from "../../policy/types/index.js";
@@ -290,7 +289,8 @@ function uncoveredBaselineReturnAlternatives(
   const observedSources = [...observedAlternatives.values()];
   return [...alternatives.values()].filter((alternative) =>
     !observedSources.some((source) =>
-      observedNumericCarrierCoversBaseline(policy, source, alternative) ||
+      csharpNumericReturnBaselineCovered({ source, baseline: alternative, definitions: policy.typeDefinitions,
+        convert: (source, target) => selectCsharpConversion(policy, source, target, "implicit") }) ||
       csharpSourceUnionLayoutsMatch(source, alternative) ||
       csharpMethodValueCoversContract(source, alternative) || csharpConversionIsApplicable(
         selectCsharpConversion(policy, source, alternative, "implicit"),
@@ -298,41 +298,6 @@ function uncoveredBaselineReturnAlternatives(
       )
     )
   );
-}
-
-const nativeIntegralKinds = new Set([
-  "int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64",
-  "int128", "uint128", "native-int", "native-uint",
-]);
-
-function observedNumericCarrierCoversBaseline(
-  policy: CsharpPolicyContext,
-  source: TargetTypeRef,
-  baseline: TargetTypeRef,
-): boolean {
-  if (targetTypeRefEquals(source, baseline)) return true;
-  if (source.kind === "source-primitive") {
-    if (nativeIntegralKinds.has(source.name) && targetTypeRefEquals(baseline, csharpBigIntegerTargetType())) return true;
-    return baseline.kind === "source-primitive" && baseline.name === "float64" &&
-      (nativeIntegralKinds.has(source.name) || source.name === "float32") &&
-      csharpConversionIsApplicable(selectCsharpConversion(policy, source, baseline, "implicit"), "implicit");
-  }
-  if (source.kind === "array" && baseline.kind === "array") {
-    return (source.rank ?? 1) === (baseline.rank ?? 1) &&
-      observedNumericCarrierCoversBaseline(policy, source.element, baseline.element);
-  }
-  if (source.kind === "tuple" && baseline.kind === "tuple") {
-    return source.elements.length === baseline.elements.length && source.elements.every((element, index) =>
-      observedNumericCarrierCoversBaseline(policy, element, baseline.elements[index]!));
-  }
-  if (source.kind === "target-named" && baseline.kind === "target-named" && source.id === baseline.id) {
-    const actual = source.typeArguments ?? [];
-    const erased = baseline.typeArguments ?? [];
-    return actual.length > 0 && actual.length === erased.length &&
-      targetTypeRefEquals({ ...source, typeArguments: baseline.typeArguments }, baseline) && actual.every((argument, index) =>
-      observedNumericCarrierCoversBaseline(policy, argument, erased[index]!));
-  }
-  return false;
 }
 
 function collectTargetContractAlternatives(
