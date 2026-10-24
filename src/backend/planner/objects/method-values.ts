@@ -16,6 +16,10 @@ export function renderCsharpMethodValueContracts(
     if (explicitInterface === undefined || type === undefined) failCsharpPlannerInvariant(
       "An admitted method-value contract requires its renderable interface and value carriers.", shape.methodImplementation?.declaration);
     return { kind: "PropertyDeclaration", name: contract.name, explicitInterface, modifiers: [], type,
-      getter: { kind: "Block", statements: [{ kind: "ReturnStatement", expression: { kind: "IdentifierName", name: contract.source } }] } };
+      getter: { kind: "Block", statements: [{ kind: "ReturnStatement", expression: { kind: "IdentifierName", name: contract.source } }] },
+      ...(contract.writable ? { setter: { kind: "Block" as const, statements: [{ kind: "ExpressionStatement" as const,
+        expression: { kind: "AssignmentExpression" as const, operatorToken: { kind: "EqualsToken" as const },
+          left: { kind: "IdentifierName" as const, name: contract.source },
+          right: { kind: "IdentifierName" as const, name: "value" } } }] } } : {}) };
   });
 }

@@ -22,7 +22,7 @@ export function selectCsharpStructuralObjectCarrier(
     implements: canonicalImplemented.map(targetTypeRefKey),
     ...(typeParameters.length === 0 ? {} : { parameters: typeParameters.map(parameter => [parameter.identity,
       csharpTypeParameterConstraintResolutionKey(parameter.csharpConstraints)]) }),
-    ...(!contract && canonicalMembers.some(member => member.methodValueStorage !== undefined) ? {
+    ...(canonicalMembers.some(member => member.methodValueStorage !== undefined) ? {
       methodStorage: canonicalMembers.map(member => csharpObjectMethodValueStorageKey(member.methodValueStorage)),
     } : {}),
     ...(contract ? { contract: true } : {}),

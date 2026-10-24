@@ -28,6 +28,7 @@ export interface CsharpMethodValueContractEmission {
   readonly interface: TargetTypeRef;
   readonly type: TargetTypeRef;
   readonly source: string;
+  readonly writable: boolean;
 }
 
 export interface CsharpStructuralObjectEmission {

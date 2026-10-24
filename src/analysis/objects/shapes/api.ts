@@ -1,7 +1,7 @@
 import { createCsharpObjectShapeMemberResolver } from "./member-evidence.js";
 import { objectShapeMemberTargetName } from "../../../policy/identities/source-member-names.js";
 import { createStructuralObjectShapeTarget, mergeCsharpObjectShapeSubjects } from "./construction.js";
-import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { csharpObjectShapesEqual } from "../../../target-model/types/object-shape-equality.js";
 import { csharpObjectShapeContractKey } from "../../../target-model/types/object-shape-identity.js";
 import { isProjectSourceTargetType, projectClassIsObjectInitializable, requiresUnresolvedStructuralProjection, selectedObjectShapeSource, sourceSubjects, typeHasProjectOwnedShapeDeclaration, typeIsExcludedFromObjectShape } from "./source-evidence.js";
@@ -21,7 +21,7 @@ import { resolveProviderObjectLiteralShape } from "./provider-construction.js";
 import { createCsharpStructuralUnionDefinitions } from "./union-definitions.js";
 import { selectCsharpObjectMethodImplementation } from "./method-implementations.js";
 
-import { resolveCsharpCopiedObjectShape, retainCsharpMethodValueContracts } from "./method-values.js";
+import { resolveCsharpCopiedObjectShape, retainCsharpMethodValueContracts, selectCsharpWritableMethodContract } from "./method-values.js";
 
 import { parameterizeCsharpStructuralContract } from "./structural-contracts.js";
 
@@ -47,6 +47,35 @@ export function createCsharpObjectShapePolicy(
   const genericShapes = new Map<string, CsharpObjectShapeFact>();
   const unionDefinitions = createCsharpStructuralUnionDefinitions(host, (type, file, state) =>
     resolveTypeWithState(type, file, undefined, state), environment);
+
+  function resolveNativeParameter(
+    declaration: Node,
+    parameter: Node,
+    type: TargetTypeRef,
+  ): { readonly kind: "resolved"; readonly type: TargetTypeRef } | { readonly kind: "rejected"; readonly reason: string } {
+    const element = getCsharpNullableElementTargetType(type);
+    const present = element ?? type;
+    const target = present.kind === "target-named" ? present as CsharpTargetNamedTypeRef : undefined;
+    const shape = resolveTarget(present) ?? (target?.csharpSourceDeclarationKind === "interface"
+      ? resolveProjectInterfaceShape(target, { depth: 0 }) : undefined);
+    if (shape === undefined || !shape.members.some(member => member.memberKind === "method") ||
+      host.ast.body(declaration) === undefined) return { kind: "resolved", type };
+    const demand = host.sourceStorage.formalMemberWriteDemand(declaration, parameter);
+    if (demand.kind !== "complete") return { kind: "rejected", reason: demand.reason };
+    const written: CsharpObjectShapeMemberFact[] = [];
+    for (const declaration of demand.members) {
+      const selected = resolveCsharpObjectShapeMemberBySelectedSubject(shape, [declaration]);
+      if (selected.kind !== "resolved") return { kind: "rejected",
+        reason: "A native method-write destination requires exact checked formal/member correspondence." };
+      if (selected.member.memberKind === "method" && !written.includes(selected.member)) written.push(selected.member);
+    }
+    const selected = selectCsharpWritableMethodContract(shape, written, environment);
+    if (selected === undefined) return { kind: "rejected",
+      reason: "A native method-write destination requires an exact writable source method contract." };
+    if (selected === shape) return { kind: "resolved", type };
+    const resolved = rememberTargetShape(selected).targetType;
+    return { kind: "resolved", type: element === undefined ? resolved : csharpNullableTargetType(resolved) };
+  }
 
   function resolveNode(
     node: Node | undefined,
@@ -609,6 +638,7 @@ export function createCsharpObjectShapePolicy(
   }
 
   return Object.freeze({
+    resolveNativeParameter,
     retainConstructionSource(node: Node, type: Type, shape: CsharpObjectShapeFact, sourceFile: SourceFile): CsharpObjectShapeFact | undefined {
       const queries = host.semantics(sourceFile);
       const members = instantiateMemberEvidence(shape.members, type, queries, shape.sourceType);

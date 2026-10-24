@@ -4,7 +4,7 @@ import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpStructur
 import type { CsharpStructuralInterfaceMemberEvidence } from "../../target-model/records/heritage.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/object-shape-members.js";
 import { selectCsharpStructuralInterfaceImplementation } from "../../policy/types/objects/structural-implementation.js";
-import { targetTypeRefKey } from "../../target-model/types/equality.js";
+import { targetTypeRefKey, targetTypeRefEquals } from "../../target-model/types/equality.js";
 
 export function collectCsharpInheritedInterfaces(
   policy: Pick<CsharpPolicyContext, "projectTypes">,
@@ -56,6 +56,9 @@ export function selectCsharpStructuralInterface(
       : resolveCsharpObjectShapeMemberBySelectedSubject(destinationTemplate, destinationSubjects);
     if (read.kind !== "resolved" || write.kind !== "resolved" || open.kind !== "resolved" ||
       destinationMember.kind !== "resolved") return undefined;
+    if (write.member.methodValueStorage !== undefined && (read.member.methodValueStorage === undefined ||
+      read.member.methodValueStorage.kind !== write.member.methodValueStorage.kind ||
+      !targetTypeRefEquals(read.member.methodValueStorage.type, write.member.methodValueStorage.type))) return undefined;
     const declaration = pair.source.declarations.length === 1 ? pair.source.declarations[0] : undefined;
     if (read.member.memberKind === "method" && declaration !== undefined &&
       !policy.ast.is.IsMethodDeclaration(declaration) && !policy.ast.is.IsMethodSignatureDeclaration(declaration)) return undefined;

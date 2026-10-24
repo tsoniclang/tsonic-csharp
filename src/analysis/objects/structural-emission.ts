@@ -30,7 +30,8 @@ export function analyzeCsharpStructuralObjectEmission(input: {
     const name = objectShapeStorageMemberName(shape, member);
     const valueType = member.methodValueContract ?? member.type;
     return inherited(shape).some(parent => parent.members.some(candidate => {
-      if (candidate.memberKind !== "method" || !hasMethodValues(parent) && candidate.optional !== true ||
+      if (candidate.memberKind !== "method" || !hasMethodValues(parent) && candidate.optional !== true && candidate.methodValueStorage === undefined ||
+        member.methodValueStorage !== undefined && candidate.methodValueStorage === undefined ||
         objectShapeStorageMemberName(parent, candidate) !== name) return false;
       const inheritedType = candidate.methodValueContract ?? candidate.type;
       return targetTypeRefEquals(member.optional === true ? csharpNullableTargetType(valueType) : valueType,
@@ -72,12 +73,13 @@ export function analyzeCsharpStructuralObjectEmission(input: {
       if (!handleIsInherited(shape, member)) {
         const valueType = member.methodValueContract ?? member.type;
         const type = member.optional === true ? csharpNullableTargetType(valueType) : valueType;
-        if ((hasMethodValues(shape) || member.optional === true) && admit(type, member)) {
-          handle = Object.freeze({ name: objectShapeStorageMemberName(shape, member), type, writable: false });
+        if ((hasMethodValues(shape) || member.optional === true || structural && member.methodValueStorage !== undefined) && admit(type, member)) {
+          handle = Object.freeze({ name: objectShapeStorageMemberName(shape, member), type,
+            writable: structural && member.methodValueStorage !== undefined });
           methodValues.push(handle);
         }
       }
-      if (structural && (hasMethodValues(shape) || member.optional === true) && handle !== undefined)
+      if (structural && handle !== undefined)
         interfaceMembers.push(Object.freeze({ kind: "property", property: handle }));
       const copied = member.methodValueStorage !== undefined;
       if (!(structural && member.optional !== true) && !copied) continue;
@@ -113,7 +115,7 @@ export function analyzeCsharpStructuralObjectEmission(input: {
         const contract = input.shapes.resolveTarget(type);
         if (contract === undefined) { refuse("An admitted object declaration requires its complete native member rendering."); continue; }
         pending.push(...contract.implements ?? []);
-        if (!hasMethodValues(contract)) continue;
+        if (!hasMethodValues(contract) && !contract.members.some(member => member.methodValueStorage !== undefined)) continue;
         if (!admit(type)) continue;
         for (const required of contract.members) {
           if (required.memberKind !== "method" || handleIsInherited(contract, required)) continue;
@@ -128,10 +130,15 @@ export function analyzeCsharpStructuralObjectEmission(input: {
             refuse("An admitted object declaration requires its complete native member rendering.", required);
             continue;
           }
+          if (required.methodValueStorage !== undefined && selected.methodValueStorage === undefined) {
+            refuse("A native writable method contract requires an actual writable callable slot on every reaching producer.", required);
+            continue;
+          }
           const valueType = required.methodValueContract ?? selected.type;
           const carrier = required.optional === true ? csharpNullableTargetType(valueType) : valueType;
           if (!admit(carrier, required)) continue;
           contracts.push(Object.freeze({ name: objectShapeStorageMemberName(contract, required), interface: type, type: carrier,
+            writable: required.methodValueStorage !== undefined,
             source: required.methodValueContract !== undefined && selected.methodValueStorage === undefined &&
               csharpObjectShapeMethodDeclaration(shape, selected) !== undefined ? "this" : objectShapeStorageMemberName(shape, selected) }));
         }

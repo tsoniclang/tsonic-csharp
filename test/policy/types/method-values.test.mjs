@@ -11,7 +11,7 @@ import { csharpDelegateTargetType } from "../../../dist/target-model/types/carri
 import { substituteTargetTypeParameters, substituteObjectShapeFactTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types/render.js";
-import { retainCsharpMethodValueContracts } from "../../../dist/analysis/objects/shapes/method-values.js";
+import { retainCsharpMethodValueContracts, selectCsharpWritableMethodContract } from "../../../dist/analysis/objects/shapes/method-values.js";
 import { csharpCopiedObjectShapeMembers } from "../../../dist/policy/types/objects/method-environments.js";
 import { selectCsharpObjectMemberEmission, selectCsharpObjectMethodSignature } from "../../../dist/policy/types/objects/object-members.js";
 import { createStructuralObjectShapeTarget } from "../../../dist/analysis/objects/shapes/construction.js";
@@ -32,6 +32,33 @@ const unconstrained = () => ({ kind: "resolved", constraints: [] });
 const abstractMethodStorage = Object.freeze({
   memberSubjectFor: () => assert.fail("a quantified abstract contract has no ordinary authored method slot"),
   memberWritesFor: () => assert.fail("a quantified abstract contract needs no ordinary-method exposure proof"),
+});
+
+test("native writable method contracts derive from the unchanged read-only identity", () => {
+  const scalar = { kind: "source-primitive", name: "int32" };
+  for (const optional of [false, true]) {
+    const signature = csharpDelegateTargetType("System.Func", [], scalar);
+    const member = { sourceKey: { kind: "property", name: "read" }, sourceName: "read", targetName: "read",
+      memberKind: "method", type: optional ? csharpNullableTargetType(signature) : signature,
+      ...(optional ? { optional: true } : {}) };
+    const base = { targetType: createStructuralObjectShapeTarget([member], undefined, unconstrained, true), members: [member] };
+    const selected = selectCsharpWritableMethodContract(base, [member], unconstrained);
+    assert.equal(selected !== undefined, true, "an exact writable destination has a native derived contract");
+    assert.equal(targetTypeRefEquals(selected.targetType, base.targetType), false, "write capability has distinct physical native identity");
+    assert.equal(targetTypeRefEquals(selected.implements[0], base.targetType), true, "the writable native contract inherits the same base");
+    assert.equal(base.members[0].methodValueStorage, undefined, "read-only peers retain direct method bodies and no slot");
+    assert.equal(selected.members[0].methodValueStorage.kind, "delegate", "a native monomorphic slot retains its exact delegate");
+    assert.equal(targetTypeRefEquals(selected.members[0].methodValueStorage.type, member.type), true,
+      "optional method storage has exactly the original single absence");
+    assert.equal(selectCsharpWritableMethodContract(selected, [selected.members[0]], unconstrained), selected,
+      "selecting an already writable destination is idempotent");
+    assert.equal(selectCsharpWritableMethodContract(base, [], unconstrained), base, "call-only destination remains the exact base");
+    assert.equal(selectCsharpWritableMethodContract(base, [{ ...member }], unconstrained), undefined,
+      "foreign member identity is rejected rather than matched by spelling");
+    const readonly = { ...member, readonly: true };
+    assert.equal(selectCsharpWritableMethodContract({ ...base, members: [readonly] }, [readonly], unconstrained), undefined,
+      "the derived native facet cannot override a real readonly source contract");
+  }
 });
 
 test("a quantified method reference renders only its existing native environment", () => {
