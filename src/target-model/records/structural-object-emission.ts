@@ -1,11 +1,10 @@
 import type { Node } from "@tsonic/tsts";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../types/model.js";
 import type { CsharpTypeParameterConstraint } from "../types/generic-constraints.js";
+import type { CsharpObjectMethodSignature } from "./object-members.js";
 
-export interface CsharpStructuralMethodEmission {
+export interface CsharpStructuralMethodEmission extends Omit<CsharpObjectMethodSignature, "returnsVoid"> {
   readonly name: string;
-  readonly returnType: TargetTypeRef;
-  readonly parameters: readonly { readonly type: TargetTypeRef; readonly rest: boolean; readonly optional: boolean }[];
   readonly typeParameters: readonly {
     readonly declaration: Node;
     readonly identity: string;

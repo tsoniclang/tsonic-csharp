@@ -5,7 +5,7 @@ import {
   csharpPresentObjectShapeMethod,
 } from "../../../dist/target-model/types/method-values.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
-import { csharpObjectShapeContractKey, csharpObjectShapeMemberContractKey } from "../../../dist/target-model/types/object-shape-identity.js";
+import { csharpObjectShapeContractKey, csharpObjectShapeMemberContractKey, csharpObjectShapeMemberTypeKey } from "../../../dist/target-model/types/object-shape-identity.js";
 import { csharpObjectShapesEqual } from "../../../dist/target-model/types/object-shape-equality.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { substituteTargetTypeParameters, substituteObjectShapeFactTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
@@ -13,8 +13,13 @@ import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.j
 import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types/render.js";
 import { retainCsharpMethodValueContracts } from "../../../dist/analysis/objects/shapes/method-values.js";
 import { csharpCopiedObjectShapeMembers } from "../../../dist/policy/types/objects/method-environments.js";
-import { selectCsharpObjectMemberEmission } from "../../../dist/policy/types/objects/object-members.js";
+import { selectCsharpObjectMemberEmission, selectCsharpObjectMethodSignature } from "../../../dist/policy/types/objects/object-members.js";
 import { createStructuralObjectShapeTarget } from "../../../dist/analysis/objects/shapes/construction.js";
+import { analyzeCsharpStructuralObjectEmission } from "../../../dist/analysis/objects/structural-emission.js";
+import { renderObjectShapeMembers } from "../../../dist/backend/planner/objects/members.js";
+import { renderCsharpStructuralInterfaceMembers } from "../../../dist/backend/planner/objects/structural-interfaces.js";
+import { printCsharpCompilationUnit, printCsharpStatement } from "../../../dist/print/source/printer.js";
+import { objectShapeMethodInvocationName } from "../../../dist/target-model/names/object-members.js";
 
 const owner = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [false], id: "tsonic.shape:owner", typeArguments: [{ kind: "type-parameter", identity: "Outer", name: "Outer" }],
   csharpRender: { kind: "named", name: "Owner" } };
@@ -157,4 +162,115 @@ test("native method-value storage identity includes the exact immutable invocati
   assert.equal(copied[0].methodValueStorage.invocationName, "identity", "a copied optional value retains its original native entry");
   assert.equal(getCsharpNullableElementTargetType(copied[0].methodValueStorage.type) === owner, true,
     "optional native method storage retains exactly its one physical absence state");
+});
+
+function nativeModeMember(identity, modes, returnPassing) {
+  const parameter = { kind: "type-parameter", identity, name: identity };
+  const type = { kind: "target-named", id: "NativeContract`1", typeArguments: [parameter], csharpAllowsRefLikeTypeArguments: [false],
+    csharpRender: { kind: "named", name: "NativeContract", genericArity: 1 }, csharpDelegateSignature: {
+      parameters: modes.map(() => parameter), parameterPassingModes: modes, returnType: parameter, returnPassing,
+    } };
+  return { sourceKey: { kind: "property", name: "identity" }, sourceName: "identity", targetName: "identity",
+    memberKind: "method", type, typeParameters: [{ csharpAllowsRefLike: false, identity, name: identity, declaration: {}, constraints: [] }] };
+}
+
+test("one generated native protocol identity includes its complete invocation modes with alpha correspondence", () => {
+  const plain = nativeModeMember("Item", ["by-value"], undefined);
+  const plainAlpha = nativeModeMember("Other", ["by-value"], undefined);
+  assert.equal(csharpObjectShapeMemberTypeKey(plain), JSON.stringify(["target:NativeContract`1<bound-type-parameter:0>", [[]]]),
+    "ordinary by-value native protocol keys stay byte-identical to their previous physical-key and constraint encoding");
+  assert.equal(csharpObjectShapeMemberTypeKey(plain), csharpObjectShapeMemberTypeKey(plainAlpha),
+    "ordinary by-value protocols retain their existing alpha-equivalent identity");
+  const seen = new Set([csharpObjectShapeMemberTypeKey(plain)]);
+  const identities = new Set([createStructuralObjectShapeTarget([plain], undefined, unconstrained, true).id]);
+  for (const [mode, result] of [["byref-readonly", undefined], ["byref-readwrite", undefined],
+    ["byref-writeonly-must-init", undefined], ["by-value", "byref-readwrite"], ["by-value", "byref-readonly"]]) {
+    const member = nativeModeMember("Item", [mode], result);
+    const alpha = nativeModeMember("Other", [mode], result);
+    assert.equal(targetTypeRefEquals(member.type, plain.type), true, "physical native delegate equality is deliberately unchanged");
+    const key = csharpObjectShapeMemberTypeKey(member);
+    assert.equal(key === csharpObjectShapeMemberTypeKey(alpha), true, "the exact invocation ABI alpha-rebinds its own input and return together");
+    assert.equal(seen.has(key), false, `${mode}/${result ?? "value"}: a distinct native mode cannot share a generated protocol contract`);
+    seen.add(key);
+    const generated = createStructuralObjectShapeTarget([member], undefined, unconstrained, true);
+    assert.equal(identities.has(generated.id), false, "the actual generated native interface identity also distinguishes the mode");
+    identities.add(generated.id);
+    assert.equal(csharpObjectShapeContractKey({ targetType: owner, members: [member] }) ===
+      csharpObjectShapeContractKey({ targetType: owner, members: [alpha] }), true, "shape correspondence uses the same alpha-aware owner key");
+    assert.equal(csharpObjectShapesEqual({ targetType: owner, members: [plain] }, { targetType: owner, members: [member] }), false,
+      "canonical shape equality never erases a different admitted invocation mode");
+    const value = csharpMethodValueType(owner, "identity", "identity", member.type, ["Item"]);
+    const ordinary = csharpMethodValueType(owner, "identity", "identity", plain.type, ["Item"]);
+    const alphaValue = csharpMethodValueType(owner, "identity", "identity", alpha.type, ["Other"]);
+    assert.equal(csharpMethodValueCoversContract(value, plain.type), false,
+      "native protocol coverage independently rejects a mode mismatch despite physical delegate identity");
+    assert.equal(csharpMethodValueContractsEqual(value, ordinary), false,
+      "capture/body protocol correspondence never accepts a different native invocation mode");
+    assert.equal(csharpMethodValueContractsEqual(value, alphaValue), true,
+      "exact native protocol correspondence still alpha-rebinds the complete signature");
+  }
+  assert.equal(selectCsharpObjectMethodSignature({ ...plain.type,
+    csharpDelegateSignature: { ...plain.type.csharpDelegateSignature, parameterPassingModes: [] } }) === undefined, true,
+  "missing native passing evidence is rejected instead of becoming a value argument");
+});
+
+for (const returnPassing of [undefined, "byref-readwrite", "byref-readonly"]) {
+  test(`copied and current native protocol forwarding retain all input modes and ${returnPassing ?? "value"} return`, () => {
+    const modes = ["by-value", "byref-readonly", "byref-readwrite", "byref-writeonly-must-init"];
+    const member = nativeModeMember("Item", modes, returnPassing);
+    const protocol = createStructuralObjectShapeTarget([member], undefined, unconstrained, true);
+    const protocolShape = { targetType: protocol, members: [{ ...member, methodValueContract: protocol }] };
+    for (const authored of [false, true]) {
+      const declaration = {};
+      const selectedMember = { ...member, sourceDeclarations: [declaration], methodValueContract: protocol,
+        methodValueStorage: { kind: "protocol", type: authored ? protocol : owner,
+          invocationName: authored ? objectShapeMethodInvocationName(member) : "identity" } };
+      const shape = { targetType: owner, members: [selectedMember],
+        methodImplementation: { declaration: {}, identity: "actual-native-body", methods: [declaration], captures: [] } };
+      const selection = selectCsharpObjectMemberEmission({ shape, member: selectedMember, receiverBound: false, authored,
+        deferred: false, implementsInterface: false, nativeField: undefined });
+      assert.equal(selection.kind === "selected" && selection.value.declaration.kind === (authored ? "authored" : "copied"), true,
+        "the existing owner admits the native forwarding contract without a by-value-only restriction");
+      const signature = selection.value.declaration.signature;
+      assert.equal(signature.parameters.every((parameter, index) => parameter.passingMode === modes[index]) &&
+        signature.returnPassing === returnPassing, true, "object member publication retains every exact native passing mode");
+      const shapes = [shape, protocolShape];
+      const structural = analyzeCsharpStructuralObjectEmission({ shapes: { knownShapes: () => shapes,
+        resolveTarget: type => shapes.find(candidate => targetTypeRefEquals(candidate.targetType, type)) },
+      demand: { artifacts: [], get: () => undefined }, storage: { nativeField: { get: () => undefined } } });
+      assert.equal(structural.issues.length, 0, "complete native signature evidence is admitted before syntax rendering");
+      const records = { ...structural.records, nativeMemberHiding: { get: () => false },
+        objectMemberDeclarations: { get: () => [selection.value] } };
+      const interfaceMembers = renderCsharpStructuralInterfaceMembers(undefined, protocolShape, records);
+      const members = renderObjectShapeMembers(undefined, shape, records);
+      const expected = [undefined, "in", "ref", "out"];
+      const returning = returnPassing === undefined ? undefined : returnPassing === "byref-readonly" ? "ref-readonly" : "ref";
+      for (const method of [...interfaceMembers, ...members.filter(candidate => candidate.kind === "MethodDeclaration")]) {
+        assert.equal(method.returnPassing === returning && method.parameters.every((parameter, index) => parameter.passing === expected[index]),
+          true, "native interface, current dispatch and copied immutable entry retain the same declaration modes");
+        const visit = statement => {
+          if (statement.kind === "IfStatement") statement.thenBody.statements.forEach(visit);
+          if (statement.kind !== "ReturnStatement") return;
+          assert.equal(statement.ref === true, returnPassing !== undefined, "the forwarding return retains an actual native alias, not a value copy");
+          assert.equal(statement.expression.arguments.every((argument, index) => argument.passing === expected[index]), true,
+            "every original/current/copied native call passes in/ref/out exactly as sealed");
+        };
+        method.body?.statements.forEach(visit);
+      }
+      const output = printCsharpCompilationUnit({ kind: "CompilationUnit", usings: [], members: [
+        { kind: "InterfaceDeclaration", name: "NativeProtocol", modifiers: ["public"], members: interfaceMembers },
+        { kind: "ClassDeclaration", name: "NativeImplementation", modifiers: ["public"], members },
+      ] });
+      const prefix = returning === undefined ? "" : returning === "ref-readonly" ? "ref readonly " : "ref ";
+      assert.equal(output.includes(`${prefix}Item identity<Item>(Item arg0, in Item arg1, ref Item arg2, out Item arg3)`), true,
+        "the native printer renders the complete signature rather than inferring or erasing modes");
+      assert.equal(output.includes("arg0, in arg1, ref arg2, out arg3)"), true, "native forwarding argument spelling is exact");
+      assert.equal(output.includes("return ref "), returnPassing !== undefined, "only admitted reference returns print return ref");
+    }
+  });
+}
+
+test("native reference-return syntax cannot silently degrade to a bare return", () => {
+  assert.throws(() => printCsharpStatement({ kind: "ReturnStatement", ref: true }),
+    error => error.message.includes("native reference return operand"), "a missing alias operand remains an internal syntax failure");
 });

@@ -5,13 +5,14 @@ import type { CsharpObjectShapeDemand } from "../../target-model/records/object-
 import { objectShapeArtifactKey } from "../../target-model/records/object-shape-keys.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
 import type { CsharpMethodValueContractEmission, CsharpStructuralInterfaceMemberEmission, CsharpStructuralMethodEmission, CsharpStructuralObjectEmission, CsharpStructuralPropertyEmission } from "../../target-model/records/structural-object-emission.js";
-import { csharpObjectShapeMemberContractKey, getCsharpDelegateSignature, targetTypeRefKey, targetTypeRefEquals } from "../../target-model/types/index.js";
+import { csharpObjectShapeMemberContractKey, targetTypeRefKey, targetTypeRefEquals } from "../../target-model/types/index.js";
 import { csharpNullableTargetType } from "../../target-model/types/carriers/nullable.js";
 import { csharpRuntimeLocationTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import { csharpObjectShapeMethodDeclaration, csharpPresentObjectShapeMethod } from "../../target-model/types/method-values.js";
 import { objectShapeMethodInvocationName, objectShapeStorageMemberName } from "../../target-model/names/object-members.js";
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 import { createCsharpStructuralObjectEmissionRecords } from "../program/records/structural-object-emission.js";
+import { selectCsharpObjectMethodSignature } from "../../policy/types/objects/object-members.js";
 
 export function analyzeCsharpStructuralObjectEmission(input: {
   readonly shapes: CsharpObjectShapeClassifications;
@@ -80,9 +81,9 @@ export function analyzeCsharpStructuralObjectEmission(input: {
         interfaceMembers.push(Object.freeze({ kind: "property", property: handle }));
       const copied = member.methodValueStorage !== undefined;
       if (!(structural && member.optional !== true) && !copied) continue;
-      const signature = getCsharpDelegateSignature(csharpPresentObjectShapeMethod(member)?.type);
+      const signature = selectCsharpObjectMethodSignature(member.type);
       if (signature === undefined) { refuse("A structural reference contract requires exact renderable member signatures.", member); continue; }
-      const types = [signature.returnType, ...signature.parameters];
+      const types = [signature.returnType, ...signature.parameters.map(parameter => parameter.type)];
       const typeParameters = member.typeParameters ?? [];
       for (const parameter of typeParameters) {
         for (const constraint of parameter.constraints) {
@@ -92,9 +93,8 @@ export function analyzeCsharpStructuralObjectEmission(input: {
       }
       if (!types.every(type => admit(type, member))) continue;
       const method: CsharpStructuralMethodEmission = Object.freeze({ name: member.targetName,
-        returnType: signature.returnType, typeParameters,
-        parameters: Object.freeze(signature.parameters.map((type, index) => Object.freeze({ type,
-          rest: signature.restParameterIndex === index, optional: signature.optionalParameterIndexes?.includes(index) === true }))) });
+        returnType: signature.returnType, returnPassing: signature.returnPassing, typeParameters,
+        parameters: signature.parameters });
       methods.set(member, method);
       if (structural && member.optional !== true) interfaceMembers.push(Object.freeze({ kind: "method", method }));
       if (structural && member.methodValueContract !== undefined && targetTypeRefEquals(member.methodValueContract, shape.targetType)) {

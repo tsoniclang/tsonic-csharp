@@ -72,10 +72,12 @@ export function renderCsharpAuthoredObjectMethods(
         arguments: method.parameters.map(parameter => ({ kind: "Argument", expression: { kind: "IdentifierName", name: parameter.name },
           ...(parameter.passing === undefined ? {} : { passing: parameter.passing }) })) };
       members.push({ kind: "MethodDeclaration", name: member.bodyInvocation.name, explicitInterface, modifiers: [], returnType: method.returnType,
+        ...(method.returnPassing === undefined ? {} : { returnPassing: method.returnPassing }),
         typeParameters: method.typeParameters?.map(parameter => ({ name: parameter.name })),
         parameters: method.parameters.map(({ defaultValue: _default, ...parameter }) => parameter),
         body: { kind: "Block", statements: [member.emission.signature.returnsVoid
-          ? { kind: "ExpressionStatement", expression: call } : { kind: "ReturnStatement", expression: call }] } });
+          ? { kind: "ExpressionStatement", expression: call }
+          : { kind: "ReturnStatement", expression: call, ...(method.returnPassing === undefined ? {} : { ref: true as const }) }] } });
     }
     if (member.handleName !== undefined) {
       const type = csharpTypeFromTargetTypeRef(shape.targetType, input.scope.typeParameterNames);

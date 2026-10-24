@@ -124,7 +124,7 @@ function printInterfaceMemberLines(
       return [
         ...context.printAttributes(member.attributes),
         ...csharpTypeParameterShadowingPragma(member, "disable"),
-        `${modifiers}${context.printType(member.returnType)} ${member.name}${typeParameters}(${parameters})${constraints};`,
+        `${modifiers}${printMethodReturnType(member, context)} ${member.name}${typeParameters}(${parameters})${constraints};`,
         ...csharpTypeParameterShadowingPragma(member, "restore"),
       ];
     }
@@ -201,7 +201,7 @@ function printMethodLines(method: CsharpMethodDeclaration, context: CsharpPrintC
   const constraintLines = context.printTypeParameterConstraintLines(method.typeParameters);
   const parameters = method.parameters.map(context.printParameter).join(", ");
   if (method.body === undefined) {
-    const header = `${modifiers}${context.printType(method.returnType)} ${qualifier}${method.name}${typeParameters}(${parameters})`;
+    const header = `${modifiers}${printMethodReturnType(method, context)} ${qualifier}${method.name}${typeParameters}(${parameters})`;
     const signature = [header, ...constraintLines];
     return [...context.printAttributes(method.attributes), ...csharpTypeParameterShadowingPragma(method, "disable"),
       ...signature.slice(0, -1), `${signature[signature.length - 1]};`, ...csharpTypeParameterShadowingPragma(method, "restore")];
@@ -209,13 +209,18 @@ function printMethodLines(method: CsharpMethodDeclaration, context: CsharpPrintC
   return [
     ...context.printAttributes(method.attributes),
     ...csharpTypeParameterShadowingPragma(method, "disable"),
-    `${modifiers}${context.printType(method.returnType)} ${qualifier}${method.name}${typeParameters}(${parameters})`,
+    `${modifiers}${printMethodReturnType(method, context)} ${qualifier}${method.name}${typeParameters}(${parameters})`,
     ...constraintLines,
     ...csharpTypeParameterShadowingPragma(method, "restore"),
     "{",
     ...indentLines(context.printStatements(method.body.statements)),
     "}",
   ];
+}
+
+function printMethodReturnType(method: Pick<CsharpMethodDeclaration, "returnType" | "returnPassing">, context: CsharpPrintContext): string {
+  const passing = method.returnPassing === "ref-readonly" ? "ref readonly " : method.returnPassing === "ref" ? "ref " : "";
+  return `${passing}${context.printType(method.returnType)}`;
 }
 
 function printPropertyLines(property: CsharpPropertyDeclaration, context: CsharpPrintContext): string[] {

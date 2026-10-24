@@ -13,6 +13,8 @@ export function csharpStructuralObjectShapeIdentity(
 import { targetTypeRefKey, scopedTargetTypeRefKey } from "./equality.js";
 import { csharpSourceMemberKeyParts } from "./source-member-keys.js";
 import { csharpOwnerTypeParameterConstraintKey } from "./generic-constraints.js";
+import { getCsharpDelegateSignature } from "./carriers/delegates.js";
+import { getCsharpNullableElementTargetType } from "./carriers/nullable.js";
 
 export function csharpObjectShapeMemberContractParts(
   member: CsharpObjectShapeMemberFact,
@@ -35,9 +37,19 @@ export function csharpObjectShapeMemberContractParts(
 
 export function csharpObjectShapeMemberTypeKey(member: CsharpObjectShapeMemberFact): string {
   const parameters = member.typeParameters ?? [];
-  if (parameters.length === 0) return targetTypeRefKey(member.type);
   const boundParameters = new Map(parameters.map((parameter, index) => [parameter.identity, index]));
-  return JSON.stringify([scopedTargetTypeRefKey(member.type, boundParameters),
+  const physical = scopedTargetTypeRefKey(member.type, boundParameters);
+  const signature = member.memberKind === "method"
+    ? getCsharpDelegateSignature(getCsharpNullableElementTargetType(member.type) ?? member.type) : undefined;
+  const type = signature !== undefined && (signature.returnPassing !== undefined ||
+      signature.parameterPassingModes.some(mode => mode !== "by-value") ||
+      (signature.optionalParameterIndexes?.length ?? 0) !== 0 || signature.restParameterIndex !== undefined)
+    ? JSON.stringify([physical, signature.parameters.map(parameter => scopedTargetTypeRefKey(parameter, boundParameters)),
+      signature.parameterPassingModes, scopedTargetTypeRefKey(signature.returnType, boundParameters), signature.returnPassing ?? null,
+      signature.optionalParameterIndexes ?? [], signature.restParameterIndex ?? null])
+    : physical;
+  if (parameters.length === 0) return type;
+  return JSON.stringify([type,
     parameters.map(parameter => parameter.constraints.map(constraint =>
       constraint.kind === "type" ? [constraint.kind, scopedTargetTypeRefKey(constraint.type, boundParameters)]
         : constraint.kind === "keyword" ? [constraint.kind, constraint.keyword] : [constraint.kind])),

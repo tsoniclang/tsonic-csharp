@@ -1,10 +1,12 @@
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../types/model.js";
+import type { CsharpDelegateSignatureShape, CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../types/model.js";
 import type { CsharpNativeMemoryLayout } from "../operations/native-memory.js";
 
 export interface CsharpObjectMethodSignature {
   readonly returnType: TargetTypeRef;
+  readonly returnPassing: CsharpDelegateSignatureShape["returnPassing"];
   readonly returnsVoid: boolean;
-  readonly parameters: readonly { readonly type: TargetTypeRef; readonly rest: boolean; readonly optional: boolean }[];
+  readonly parameters: readonly { readonly type: TargetTypeRef; readonly passingMode: CsharpDelegateSignatureShape["parameterPassingModes"][number];
+    readonly rest: boolean; readonly optional: boolean }[];
 }
 
 export type CsharpAuthoredObjectMethodValue =

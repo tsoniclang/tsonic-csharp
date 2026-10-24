@@ -9,6 +9,21 @@ import type { SourceStorageMemberWritesSelection } from "@tsonic/target-api/anal
 import { objectShapeMethodBodyName, objectShapeMethodInvocationName, objectShapeMethodValueStorageNames } from "../../../target-model/names/object-members.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { selectCsharpMethodValueEnvironment } from "./method-environments.js";
+import { csharpDelegateSignatureHasSupportedPassingModes } from "../../../target-model/types/carriers/delegates.js";
+
+export function selectCsharpObjectMethodSignature(type: TargetTypeRef): CsharpObjectMethodSignature | undefined {
+  const metadata = getCsharpDelegateSignature(getCsharpNullableElementTargetType(type) ?? type);
+  if (metadata === undefined || metadata.returnType === undefined || !csharpDelegateSignatureHasSupportedPassingModes(metadata)) return undefined;
+  const optional = new Set(metadata.optionalParameterIndexes ?? []);
+  const rest = metadata.restParameterIndex;
+  if (optional.size !== (metadata.optionalParameterIndexes?.length ?? 0) ||
+    [...optional].some(index => index < 0 || index >= metadata.parameters.length || index === rest || getCsharpNullableElementTargetType(metadata.parameters[index]) === undefined) ||
+    rest !== undefined && (rest !== metadata.parameters.length - 1 || rest < 0)) return undefined;
+  return Object.freeze({ returnType: metadata.returnType, returnPassing: metadata.returnPassing,
+    returnsVoid: isCsharpVoidTargetType(metadata.returnType),
+    parameters: Object.freeze(metadata.parameters.map((type, index) => Object.freeze({ type,
+      passingMode: metadata.parameterPassingModes[index]!, rest: rest === index, optional: optional.has(index) }))) });
+}
 
 export function csharpObjectMethodHasFixedNativeExposure(writes: SourceStorageMemberWritesSelection | undefined): boolean {
   return writes !== undefined && writes.kind !== "unresolved" && writes.writes.length === 0 &&
@@ -20,27 +35,15 @@ export function selectCsharpObjectMemberEmission(input: CsharpObjectMemberPolicy
   | { readonly kind: "rejected"; readonly reason: string } {
   const { shape, member, receiverBound } = input;
   const metadata = getCsharpDelegateSignature(getCsharpNullableElementTargetType(member.type) ?? member.type);
-  const returnsVoid = metadata !== undefined && isCsharpVoidTargetType(metadata.returnType);
   const methodStorage = member.memberKind !== "method" ? undefined : member.methodValueStorage !== undefined
     ? receiverBound ? undefined : member.methodValueStorage.type : metadata === undefined || receiverBound ? undefined : member.type;
   const boundStorage = member.bound === true ? csharpRuntimeRecordFieldTargetType(member.type) : undefined;
   const reject = (reason: string) => ({ kind: "rejected" as const, reason });
   const emit = (declaration: CsharpObjectMemberDeclaration) => ({ kind: "selected" as const,
     value: Object.freeze({ member, receiverBound, methodStorage, boundStorage, declaration: Object.freeze(declaration) }) });
-  const signature = (): CsharpObjectMethodSignature | undefined => {
-    // Delegate metadata without its return fact has no complete method signature.
-    if (metadata === undefined || metadata.returnType === undefined) return undefined;
-    const optional = new Set(metadata.optionalParameterIndexes ?? []);
-    const rest = metadata.restParameterIndex;
-    if (optional.size !== (metadata.optionalParameterIndexes?.length ?? 0) ||
-      [...optional].some(index => index < 0 || index >= metadata.parameters.length || index === rest || getCsharpNullableElementTargetType(metadata.parameters[index]) === undefined) ||
-      rest !== undefined && (rest !== metadata.parameters.length - 1 || rest < 0)) return undefined;
-    return Object.freeze({ returnType: metadata.returnType, returnsVoid,
-      parameters: Object.freeze(metadata.parameters.map((type, index) => Object.freeze({ type, rest: rest === index, optional: optional.has(index) }))) });
-  };
   const renderable = (types: readonly TargetTypeRef[]) => types.every(type => csharpTargetTypeRenderingRejection(type) === undefined);
   if (member.memberKind === "method" && input.authored) {
-    const selected = signature();
+    const selected = selectCsharpObjectMethodSignature(member.type);
     if (receiverBound || selected === undefined) return reject("An authored native method requires its exact closed receiver and callable signature.");
     if (member.methodValueStorage === undefined) return emit({ kind: "authored", bodyName: member.targetName, signature: selected,
       value: Object.freeze({ kind: "fixed" }) });
@@ -74,7 +77,7 @@ export function selectCsharpObjectMemberEmission(input: CsharpObjectMemberPolicy
         return renderable([type]) ? emit({ kind: "optional-method", type })
           : reject("An admitted object declaration requires its complete native member rendering.");
       }
-      const selected = signature();
+      const selected = selectCsharpObjectMethodSignature(member.type);
       if (selected === undefined || !renderable([storage.type, selected.returnType, ...selected.parameters.map(parameter => parameter.type)]))
         return reject("An admitted object declaration requires its complete native member rendering.");
       return emit({ kind: "copied", storage: storage.type, signature: selected, invocationName: storage.invocationName,
@@ -89,7 +92,7 @@ export function selectCsharpObjectMemberEmission(input: CsharpObjectMemberPolicy
   if (!renderable([member.type])) return reject(`Object-shape member '${member.sourceName}' must carry a renderable target carrier type before C# emission.`);
   if (input.deferred) return emit({ kind: "deferred", type: member.type });
   if (member.memberKind === "method") {
-    const selected = signature();
+    const selected = selectCsharpObjectMethodSignature(member.type);
     if (selected === undefined || methodStorage === undefined || !renderable([methodStorage, selected.returnType, ...selected.parameters.map(parameter => parameter.type)]))
       return reject(`Object-shape method '${member.sourceName}' must carry a Func/Action delegate target type with explicit return facts before C# emission.`);
     return emit({ kind: "method", signature: selected, storage: methodStorage });

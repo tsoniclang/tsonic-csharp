@@ -52,10 +52,12 @@ export function renderCsharpCaptureFrameMethods(
         arguments: method.parameters.map(parameter => ({ kind: "Argument", expression: { kind: "IdentifierName", name: parameter.name },
           ...(parameter.passing === undefined ? {} : { passing: parameter.passing }) })) };
       members.push({ kind: "MethodDeclaration", name: contract.name, explicitInterface, modifiers: [], returnType: method.returnType,
+        ...(method.returnPassing === undefined ? {} : { returnPassing: method.returnPassing }),
         typeParameters: method.typeParameters?.map(parameter => ({ name: parameter.name })),
         parameters: method.parameters.map(({ defaultValue: _default, ...parameter }) => parameter),
         body: { kind: "Block", statements: [selected.returnsVoid
-          ? { kind: "ExpressionStatement", expression: call } : { kind: "ReturnStatement", expression: call }] } });
+          ? { kind: "ExpressionStatement", expression: call }
+          : { kind: "ReturnStatement", expression: call, ...(method.returnPassing === undefined ? {} : { ref: true as const }) }] } });
     }
   };
   for (const selected of methods) {
@@ -92,6 +94,10 @@ export function renderCsharpCaptureFrameMethods(
       const type = parameter.type ?? (signature.parameters[index] === undefined ? undefined : csharpTypeFromTargetTypeRef(signature.parameters[index]!, input.scope.typeParameterNames));
       if (type === undefined) failCsharpPlannerInvariant("An admitted captured parameter requires its native carrier syntax.", method.declaration);
       return { name: parameter.name, type,
+        ...(signature.parameterPassingModes[index] === "by-value" ? {} : {
+          passing: signature.parameterPassingModes[index] === "byref-readonly" ? "in" as const
+            : signature.parameterPassingModes[index] === "byref-readwrite" ? "ref" as const : "out" as const,
+        }),
         ...(signature.restParameterIndex === index ? { isParams: true } : {}),
         ...(signature.optionalParameterIndexes?.includes(index)
           ? { defaultValue: { kind: "DefaultExpression" as const, type } } : {}),

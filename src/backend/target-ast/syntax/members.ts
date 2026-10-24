@@ -22,6 +22,7 @@ export interface CsharpInterfaceMethodDeclaration {
   readonly modifiers?: readonly CsharpModifier[];
   readonly typeParameters?: readonly CsharpTypeParameter[];
   readonly returnType: CsharpTypeNode;
+  readonly returnPassing?: "ref" | "ref-readonly";
   readonly parameters: readonly CsharpParameter[];
   readonly body?: CsharpBlock;
 }
@@ -77,6 +78,7 @@ export interface CsharpMethodDeclaration {
   readonly attributes?: readonly CsharpAttribute[];
   readonly typeParameters?: readonly CsharpTypeParameter[];
   readonly returnType: CsharpTypeNode;
+  readonly returnPassing?: "ref" | "ref-readonly";
   readonly parameters: readonly CsharpParameter[];
   readonly body?: CsharpBlock;
 }
