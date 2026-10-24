@@ -30,7 +30,7 @@ import {
   isCsharpVoidTargetType,
   getCsharpTaskResultTargetType,
 } from "../../policy/types/index.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpRuntimeParameterDefault } from "../../policy/types/storage/parameter-defaults.js";
 import { selectCsharpDefaultValueContract } from "../../policy/types/objects/binding-projection.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
@@ -204,7 +204,13 @@ function classifyReturnContract(
       && sourceResult !== undefined && csharpSourceUnionReturnLayout({ source: observed[0]!, target: observedBaseline,
         sourceType: sourceResult, queries, ast: policy.ast, definitions: policy.typeDefinitions,
         resolveType: type => policy.types.resolveType(type, queries.sourceFile) }) ? observed[0] : undefined;
-    const type = actual === undefined ? authoredReturnType : asynchronous ? csharpTaskTargetType(actual) : actual;
+    const nativeTarget = authoredReturnType.kind === "target-named" ? authoredReturnType as CsharpTargetNamedTypeRef : undefined;
+    const native = !asynchronous && !incomplete && nativeTarget !== undefined &&
+      (nativeTarget.csharpStructuralContract === true || nativeTarget.csharpSourceDeclarationKind === "interface")
+      ? policy.objectShapes.resolveNativeReturn(declaration, authoredReturnType, observed) : undefined;
+    if (native?.kind === "rejected") return { kind: "rejected", reason: native.reason };
+    const type = actual !== undefined ? asynchronous ? csharpTaskTargetType(actual) : actual
+      : native?.type ?? authoredReturnType;
     return { kind: "resolved", type,
       ...(pointer === undefined ? {} : { undefinedReturn: pointer.undefinedReturn, fallthroughUndefined: pointer.fallthroughUndefined }) };
   }

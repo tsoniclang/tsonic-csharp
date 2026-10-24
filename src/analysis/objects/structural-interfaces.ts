@@ -39,7 +39,7 @@ export function selectCsharpStructuralInterface(
   const semantics = policy.semanticsFor(expression);
   const sourceType = selectedSourceType ?? semantics.types.expressionType(expression);
   if (sourceType === undefined) return undefined;
-  const selected = semantics.types.structuralMembers(sourceType, destination.sourceType);
+  const selected = semantics.types.structuralMembers(sourceType, destination.sourceType, "read");
   if (selected.kind !== "available" || selected.destination.calls.length > 0 || selected.destination.constructs.length > 0 ||
     selected.destination.indexes.length > 0 || selected.members.length !== destination.members.length) return undefined;
   const template = source.declarationTemplate ?? source;

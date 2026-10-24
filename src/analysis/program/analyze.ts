@@ -143,6 +143,12 @@ function analyzeCsharpTargetProgramBeforeSeal(
         return { kind: "rejected", reason: evaluated.diagnostics[0]!.message, cause: evaluated };
       }
       const iteration = evaluated.value;
+      const sourceRefusals = iteration.nativeDemand.unadmitted.flatMap<TargetDiagnostic>(use =>
+        use.kind === "source-refusal" ? [use.diagnostic] : []);
+      if (sourceRefusals.length !== 0) {
+        const cause: CsharpAnalysisRejection = Object.freeze({ kind: "rejected", diagnostics: Object.freeze(sourceRefusals) });
+        return { kind: "rejected", reason: sourceRefusals[0]!.message, cause };
+      }
       return {
         kind: "resolved",
         revision: {

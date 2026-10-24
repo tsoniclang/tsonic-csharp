@@ -581,6 +581,7 @@ export function resolveSourceValueDeclaration(
         type => resolveCsharpUnionMemberCarrier(scope, native, type, queries, state),
         host.structuralTypes.resolveTarget, host.typeDefinitions);
       if (refinement.kind !== "not-applicable") return refinement.kind === "resolved" ? refinement.type : undefined;
+      if (native.kind === "source-primitive") return native;
       return reconcileCsharpSelectedTargetType(native, selected, queries.types.relationship(declaredSource, selectedSource),
         queries.types.isNonPrimitive(selectedSource));
     }

@@ -397,12 +397,15 @@ function defaultEvidenceFixture(kind) {
   const parameter = Object.freeze({});
   const policy = {
     projectTypes: { directSupertypes: () => [], catalog: { definitionForTarget: () => undefined } },
-    semanticsFor: () => ({ types: { expressionType: () => sourceType, structuralMembers: () => ({ kind: "available",
+    semanticsFor: () => ({ types: { expressionType: () => sourceType, structuralMembers(_source, _destination, purpose) {
+      assert.equal(purpose, "read", "native method forwarding requires readable source members");
+      return { kind: "available",
       destination: { calls: [], constructs: [], indexes: [] }, members: [{ kind: "present",
         source: { property: { symbol: sourceSymbol, rootSymbols: [] }, declarations: [declaration] },
         destination: { property: { symbol: destinationSymbol, rootSymbols: [] }, declarations: [] },
       }],
-    }) } }),
+      };
+    } } }),
     ast: {
       is: { IsMethodDeclaration: node => node.kind === "method-declaration",
         IsMethodSignatureDeclaration: node => node.kind === "method-signature" },
@@ -503,7 +506,8 @@ test("structural publication closes late inherited obligations through its singl
       resolveTarget: type => shapes.find(shape => targetTypeRefKey(shape.targetType) === targetTypeRefKey(type)),
       resolveCopyShape: shape => shape,
     }, projectTypes: { directSupertypes: () => [], catalog: { definitionForTarget: () => undefined } },
-    semanticsFor: () => ({ types: { structuralMembers(source, destination) {
+    semanticsFor: () => ({ types: { structuralMembers(source, destination, purpose) {
+      assert.equal(purpose, "read", "inherited native implementations require readable source members");
       correspondenceReads += 1;
       const sourceShape = shapes.find(shape => shape.sourceType === source);
       const destinationShape = shapes.find(shape => shape.sourceType === destination);

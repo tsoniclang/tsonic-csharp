@@ -22,12 +22,15 @@ const destinationTemplate = { targetType: slot(element), sourceType: destination
 const destination = { targetType: slot(integer), sourceType: destinationType, members: [field(destinationSymbol, optional(integer))],
   declarationTemplate: destinationTemplate };
 const policy = { projectTypes: { directSupertypes: () => [], catalog: { definitionForTarget: () => undefined } },
-  semanticsFor: () => ({ types: { expressionType: () => sourceType, structuralMembers: () => ({
+  semanticsFor: () => ({ types: { expressionType: () => sourceType, structuralMembers(_source, _destination, purpose) {
+  assert.equal(purpose, "read", "native forwarding requires readable source members");
+  return {
   kind: "available", destination: { calls: [], constructs: [], indexes: [] }, members: [{ kind: "present",
     source: { property: { symbol: sourceSymbol, rootSymbols: [] }, declarations: [] },
     destination: { property: { symbol: destinationSymbol, rootSymbols: [] }, declarations: [] },
   }],
-}) } }) };
+  };
+} } }) };
 
 test("structural optional interfaces bind their payload and every dependent native argument", () => {
   for (const generic of [false, true]) {

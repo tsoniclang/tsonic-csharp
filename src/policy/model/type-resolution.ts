@@ -10,9 +10,9 @@ import type { CsharpArrayLiteralSelection } from "../../target-model/records/arr
 
 import type { ResolvedSourceCallInfo } from "../../target-model/records/source-calls.js";
 import type { CsharpSourceCallResult } from "../../target-model/operations/source-call-results.js";
-import type { CsharpNativeParameterSelection } from "../../target-model/records/object-shapes.js";
+import type { CsharpNativeSourceCarrierSelection } from "../../target-model/records/object-shapes.js";
 
-export type CsharpNodeTypeResolution = CsharpNativeParameterSelection;
+export type CsharpNodeTypeResolution = CsharpNativeSourceCarrierSelection;
 
 export interface CsharpTypeQueries {
   resolveArrayLiteral(node: Node, sourceFile: SourceFile): CsharpArrayLiteralSelection;

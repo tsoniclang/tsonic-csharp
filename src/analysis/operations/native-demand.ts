@@ -108,6 +108,9 @@ export function analyzeCsharpNativeDemand(
     owner.set(targetUseSiteIdentity(entry.site), entry); exactPending.set(entry.site.subject, owner);
   }
   for (const file of input.sourceFiles) visitConstruct(file);
+  for (const declaration of requiredBindingRoots) {
+    if (ast.is.IsVariableDeclaration(declaration)) refuseSourceExpression(declaration);
+  }
   return sealCsharpNativeUseClassifications({ entries, unadmitted, requiredBindingRoots: [...requiredBindingRoots],
     requiredNativeValueDeclarations: [...requiredNativeValueDeclarations], published, orders, emissions });
 
@@ -146,7 +149,7 @@ export function analyzeCsharpNativeDemand(
     if (constructs.has(node)) return;
     constructs.add(node);
     const selected = selectCsharpNativeConstructSteps(policyInput, node);
-    if (selected.kind === "erased" || refuseSourceExpression(node)) {
+    if (selected.kind === "erased" || !ast.is.IsVariableDeclaration(node) && refuseSourceExpression(node)) {
       orders.set(node, Object.freeze([]));
       return;
     }

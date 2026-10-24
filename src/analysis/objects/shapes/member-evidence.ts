@@ -73,7 +73,7 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     destinationType: Type | undefined,
   ): readonly CsharpObjectShapeMemberFact[] | undefined {
     if (destinationType === undefined) return undefined;
-    const correspondence = queries.types.structuralMembers(type, destinationType);
+    const correspondence = queries.types.structuralMembers(type, destinationType, "correspondence");
     if (correspondence.kind !== "available") return undefined;
     const instantiated = members.map(member => {
       const matching = correspondence.members.filter(pair => {

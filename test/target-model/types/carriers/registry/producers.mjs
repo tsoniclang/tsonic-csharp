@@ -120,13 +120,6 @@ export const producersCarrierRegistry = Object.freeze([
     frozen: false,
   },
   {
-    id: "src/analysis/source-evidence/types/resolution/public-api.ts#resolveNode",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/source-evidence/types/resolution/public-api.ts", symbol: "resolveNode" },
-    responsibility: "producers/resolve-node",
-    frozen: false,
-  },
-  {
     id: "src/analysis/source-evidence/types/resolution/public-api.ts#resolveType",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/analysis/source-evidence/types/resolution/public-api.ts", symbol: "resolveType" },

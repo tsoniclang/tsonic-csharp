@@ -19,12 +19,15 @@ function classifications(source, destination) {
   const policy = {
     sourceFiles: [], objectShapes: { resolveTarget: type => shapes.get(targetTypeRefKey(type)) },
     projectTypes: { directSupertypes: () => [] },
-    semanticsFor: () => ({ types: { expressionType: () => sourceType, structuralMembers: () => ({
+    semanticsFor: () => ({ types: { expressionType: () => sourceType, structuralMembers(_source, _destination, purpose) {
+      assert.equal(purpose, "read", "structural implementations require readable native members");
+      return {
       kind: "available", destination: { calls: [], constructs: [], indexes: [] }, members: [{ kind: "present",
         source: { property: { symbol, rootSymbols: [] }, declarations: [] },
         destination: { property: { symbol, rootSymbols: [] }, declarations: [] },
       }],
-    }) } }),
+      };
+    } } }),
   };
   return analyzeCsharpObjectShapes(policy, { targetTypes: [] }, {  });
 }

@@ -202,6 +202,31 @@ export function run(): boolean {
     first.calls === 1 && second.calls === 3 && third.calls === 4;
 }
 `],
+  ["all reaching factory producers retain the same required writable return facet", `
+import type { int32 } from "@tsonic/core/types.js";
+interface Reader { read?(value: int32): int32; }
+function make(first: boolean, step: int32): Reader {
+  if (first) return { read(value: int32): int32 { return value + step; } };
+  return { read(value: int32): int32 { return value - step; } };
+}
+function replace(owner: Reader, step: int32): void {
+  owner.read = (value: int32): int32 => value + step;
+}
+export function run(): boolean {
+  const first = make(true, 1);
+  const second = make(false, 2);
+  const firstSaved = first.read;
+  const secondSaved = second.read;
+  if (firstSaved === undefined || secondSaved === undefined) return false;
+  replace(first, 10);
+  replace(second, 20);
+  const firstCurrent = first.read;
+  const secondCurrent = second.read;
+  if (firstCurrent === undefined || secondCurrent === undefined) return false;
+  return firstSaved(3) === 4 && secondSaved(3) === 1 && firstCurrent(3) === 13 &&
+    secondCurrent(3) === 23 && firstSaved !== firstCurrent && secondSaved !== secondCurrent;
+}
+`],
   ["monomorphic optional protocols retain replacement and named self", `
 import type { int32 } from "@tsonic/core/types.js";
 interface Reader { read?(value: int32): int32; }
