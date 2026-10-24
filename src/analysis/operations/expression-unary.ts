@@ -16,7 +16,6 @@ export function analyzeCsharpUnaryEmission(input: { readonly ast: AstReader; rea
     const classification = input.operations.unaryOperation.get(node);
     if (classification === undefined) { refuse(node, "C# planning received a unary expression without a sealed target classification."); continue; }
     const form = input.operations.operatorForm.get(node);
-    if (form === "js-value-object-shape-update") continue;
     if (form === "js-value-operation") {
       const selected = classification.jsValue;
       if (selected.kind === "rejected") { refuse(node, selected.reason); continue; }

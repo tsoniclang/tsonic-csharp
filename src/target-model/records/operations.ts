@@ -8,7 +8,6 @@ import type { CsharpBorrowedSequenceInput } from "./borrowed-sequences.js";
 import type { CsharpElementDeletionSelection } from "./element-deletion.js";
 import type { CsharpNativeHandler } from "./native-handlers.js";
 import type { CsharpJsArrayMutationSelection } from "./js-array-mutations.js";
-import type { CsharpJsValueObjectShapePropertyResolution } from "./js-value-object-shape-property.js";
 import type { CsharpResolvedResourceManagement } from "./management.js";
 import type { CsharpTargetCallSelection, CsharpTargetElementSelection, CsharpTargetPropertySelection } from "./member-selections.js";
 import type { ResolvedSourceCallInfo } from "./source-calls.js";
@@ -123,11 +122,9 @@ export interface CsharpSourceOwnedMemberClassification {
   readonly selectedSubjects: readonly ExtensionFactSubject[];
   readonly selectedReceiverType?: TargetTypeRef;
   readonly runtimeUnionProperty: CsharpRuntimeUnionObjectShapePropertyResolution;
-  readonly jsValueProperty: CsharpJsValueObjectShapePropertyResolution;
   readonly shapeMember?: CsharpObjectShapeMemberLookupResult;
   readonly rawReadType?: TargetTypeRef;
   readonly selectedReadType?: TargetTypeRef;
-  readonly jsValuePropertyWrite: CsharpJsValueOperationSelection;
 }
 
 export interface CsharpPropertyClassification {
@@ -177,7 +174,6 @@ export type CsharpOperatorForm =
   | "js-value-operation"
   | "typeof-comparison"
   | "js-value-write"
-  | "js-value-object-shape-update"
   | "selected";
 
 export interface CsharpOperatorFormClassification {
@@ -219,7 +215,6 @@ export interface CsharpTargetOperationClassifications<
   readonly jsTypeof: { readonly get: (node: Node) => CsharpJsValueOperationSelection | undefined };
   readonly typeofRuntimeKind: { readonly get: (node: Node) => CsharpTypeofResult | undefined };
   readonly jsVoid: { readonly get: (node: Node) => CsharpJsValueOperationSelection | undefined };
-  readonly jsObjectLiteral: { readonly get: (node: Node) => CsharpJsValueOperationSelection | undefined };
   readonly jsArrayMutation: { readonly get: (node: Node) => CsharpJsArrayMutationSelection | undefined };
   readonly elementDeletion: { readonly get: (node: Node) => CsharpElementDeletionSelection | undefined };
   readonly providerValue: { readonly get: (node: Node) => CsharpProviderValueSelection | undefined };

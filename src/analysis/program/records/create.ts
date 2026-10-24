@@ -300,7 +300,6 @@ export function createCsharpProgramRecords(
     jsTypeof: input.operations.jsTypeof,
     typeofRuntimeKind: input.operations.typeofRuntimeKind,
     jsVoid: input.operations.jsVoid,
-    jsObjectLiteral: input.operations.jsObjectLiteral,
     jsArrayMutation: input.operations.jsArrayMutation,
     elementDeletion: input.operations.elementDeletion,
     providerValue: input.operations.providerValue,

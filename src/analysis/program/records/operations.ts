@@ -38,7 +38,6 @@ export function createCsharpOperationProducer() {
   const jsTypeof = family<NonNullable<ReturnType<CsharpTargetOperationClassifications["jsTypeof"]["get"]>>>("jsTypeof");
   const typeofRuntimeKind = family<NonNullable<ReturnType<CsharpTargetOperationClassifications["typeofRuntimeKind"]["get"]>>>("typeofRuntimeKind");
   const jsVoid = family<NonNullable<ReturnType<CsharpTargetOperationClassifications["jsVoid"]["get"]>>>("jsVoid");
-  const jsObjectLiteral = family<NonNullable<ReturnType<CsharpTargetOperationClassifications["jsObjectLiteral"]["get"]>>>("jsObjectLiteral");
   const jsArrayMutation = family<NonNullable<ReturnType<CsharpTargetOperationClassifications["jsArrayMutation"]["get"]>>>("jsArrayMutation", true);
   const switchStatement = family<NonNullable<ReturnType<CsharpTargetOperationClassifications["switchStatement"]["get"]>>>("switch");
   const providerValue = family<NonNullable<ReturnType<CsharpTargetOperationClassifications["providerValue"]["get"]>>>("providerValue");
@@ -73,7 +72,6 @@ export function createCsharpOperationProducer() {
     jsTypeof: jsTypeof,
     typeofRuntimeKind: typeofRuntimeKind,
     jsVoid: jsVoid,
-    jsObjectLiteral: jsObjectLiteral,
     jsArrayMutation: jsArrayMutation,
     switch: switchStatement,
     providerValue: providerValue,
@@ -121,7 +119,6 @@ export function createCsharpOperationProducer() {
         jsTypeof: Object.freeze({ get: jsTypeof.get }),
         typeofRuntimeKind: Object.freeze({ get: typeofRuntimeKind.get }),
         jsVoid: Object.freeze({ get: jsVoid.get }),
-        jsObjectLiteral: Object.freeze({ get: jsObjectLiteral.get }),
         jsArrayMutation: Object.freeze({ get: jsArrayMutation.get }),
         switchStatement: Object.freeze({ get: switchStatement.get }),
         providerValue: Object.freeze({ get: providerValue.get }),

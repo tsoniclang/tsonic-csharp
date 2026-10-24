@@ -291,7 +291,7 @@ export function finalizeCsharpNativeEmission(
     demand: objectShapeDemand, storage: analysis.storage, captures: captureStorage });
   if (objectMembers.issues.length !== 0) return rejectedTargetStage(objectMembers.issues);
   const objectLiterals = analyzeCsharpObjectLiterals({ source: sourceSyntax, demand: nativeDemand, shapes: callableAdapters.objectShapes,
-    operations: admittedOperations, methods: objectMethods.records, members: objectMembers.records, storage: analysis.storage,
+    methods: objectMethods.records, members: objectMembers.records, storage: analysis.storage,
     callables: analysis.callables });
   if (objectLiterals.issues.length !== 0) return rejectedTargetStage(objectLiterals.issues);
   const thisEmission = analyzeCsharpThisEmission({ ast: source.ast, nodes: sourceStorage.nodes, admitted: admittedControlNode,
@@ -398,7 +398,8 @@ export function finalizeCsharpNativeEmission(
   const arrayLiterals = analyzeCsharpArrayLiterals({ source, demand: nativeDemand, conversions,
     values: analysis.valueReads, expected: analysis.expectedTypes, evidence: analysis.sourceEvidence, operations: admittedOperations });
   if (arrayLiterals.issues.length !== 0) return rejectedTargetStage(arrayLiterals.issues);
-  const propertyValueProjection = analyzeCsharpPropertyValueProjection(conversions, callableAdapters.objectShapes, typeDefinitions);
+  const propertyValueProjection = analyzeCsharpPropertyValueProjection(conversions, callableAdapters.objectShapes, typeDefinitions,
+    objectLiterals.records, source);
   if (propertyValueProjection.issues.length !== 0) return rejectedTargetStage(propertyValueProjection.issues);
   const sourceCallEmission = analyzeCsharpSourceCallEmission({ source, nodes: sourceStorage.nodes, operations: admittedOperations,
     evidence: analysis.sourceEvidence, declarations: analysis.declarations, conversions, admitted: admittedControlNode });

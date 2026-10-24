@@ -75,6 +75,15 @@ test("native generic omission defaults use the actual closed projection rather t
   const optional = csharpRuntimeParameterDefault(incoming);
   assert.equal(optional?.kind, "closed-value", "an already optional generic projection is not lifted again");
   assert.equal(optional.valueType === incoming && optional.parameterType === incoming, true, "native optional storage identity remains exact");
+  const contextualOptional = csharpRuntimeParameterDefault(incoming, incoming);
+  assert.equal(contextualOptional?.kind, "closed-value", "an already optional contextual generic input still requires its native value default");
+  assert.equal(contextualOptional.valueType === incoming && contextualOptional.parameterType === incoming, true,
+    "contextual omission never replaces the optional-storage struct with a null literal");
+  const boxed = csharpTsValueTargetType();
+  const boxedDefault = csharpRuntimeParameterDefault(boxed, boxed);
+  assert.equal(boxedDefault?.kind, "closed-value", "the real closed scalar uses its native value default at a contextual boundary too");
+  assert.equal(boxedDefault.valueType === boxed && boxedDefault.parameterType === boxed, true, "closed scalar ABI identity is unchanged");
+  assert.equal(csharpRuntimeParameterDefault(boxed, incoming) === undefined, true, "unrelated omission representations stay rejected");
   assert.equal(csharpRuntimeParameterDefault(value, value) === undefined, true, "a plain generic value is not a missing-value representation");
   const other = { ...value, identity: "other-default-value" };
   assert.equal(csharpRuntimeParameterDefault(value, csharpNullableTargetType(other)) === undefined, true,

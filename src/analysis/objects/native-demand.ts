@@ -34,7 +34,7 @@ import {
   csharpObjectShapeAssignmentMembers, csharpObjectShapeProjectionMembers, csharpTsValueTargetType,
   getCsharpArrayLiteralElementTargetType, getCsharpCollectionElementTargetType, getCsharpGeneratorProtocol,
   getCsharpJsArrayElementTargetType, getCsharpNullableElementTargetType,
-  isCsharpEmptyObjectTargetType, isCsharpJsValueObjectShapeTargetType, isCsharpJsValueTargetType, isCsharpValueTypeTargetType,
+  isCsharpEmptyObjectTargetType, isCsharpJsValueTargetType, isCsharpValueTypeTargetType,
 } from "../../target-model/types/index.js";
 import { csharpUnionLeaves } from "../../target-model/types/union-relations.js";
 import { objectShapeArtifactKey } from "../../target-model/records/object-shape-keys.js";
@@ -104,7 +104,6 @@ export function analyzeCsharpNativeArtifactDemand(
   }
 
   function demandShape(shape: CsharpObjectShapeFact, subject: Node): void {
-    if (isCsharpJsValueObjectShapeTargetType(shape.targetType)) return;
     if (csharpTargetTypeRenderingRejection(shape.targetType) !== undefined) {
       refuse(subject, "Object-shape fact must carry a renderable named target carrier type before C# emission.");
       return;
@@ -197,7 +196,7 @@ export function analyzeCsharpNativeArtifactDemand(
     if (isCsharpJsValueTargetType(source)) return;
     const shape = input.objectShapes.resolveTarget(source);
     if (shape !== undefined && !isCsharpValueTypeTargetType(shape.targetType) &&
-      !isCsharpEmptyObjectTargetType(shape.targetType) && !isCsharpJsValueObjectShapeTargetType(shape.targetType)) {
+      !isCsharpEmptyObjectTargetType(shape.targetType)) {
       demandShape(shape, node);
       capability(node, shape.targetType, "reference-identity");
     }

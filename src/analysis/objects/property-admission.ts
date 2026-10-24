@@ -31,7 +31,7 @@ export function analyzeCsharpPropertyAdmission(input: { readonly ast: AstReader;
   const admitMember = (node: Node, selection: Extract<CsharpTargetPropertySelection | CsharpTargetElementSelection, { readonly kind: "source-owned" }>,
     classification: CsharpSourceOwnedMemberClassification | undefined): void => {
     if (classification === undefined) { refuse(node, "A source-owned property has no sealed C# source-property classification.", "CSHARP_SOURCE_PROPERTY_CLASSIFICATION_MISSING"); return; }
-    const { jsValueOperation, objectShape, runtimeUnionProperty, jsValueProperty, shapeMember, rawReadType, selectedReadType } = classification;
+    const { jsValueOperation, objectShape, runtimeUnionProperty, shapeMember, rawReadType, selectedReadType } = classification;
     if (jsValueOperation.kind === "rejected") { refuse(node, jsValueOperation.reason); return; }
     if (runtimeUnionProperty.kind === "rejected") { refuse(node, runtimeUnionProperty.reason); return; }
     if (runtimeUnionProperty.kind === "resolved") {
@@ -46,7 +46,6 @@ export function analyzeCsharpPropertyAdmission(input: { readonly ast: AstReader;
       members.set(node, { kind: "union", flow: true });
       return;
     }
-    if (jsValueProperty.kind === "rejected") { refuse(node, jsValueProperty.reason); return; }
     if (objectShape !== undefined && shapeMember?.kind !== "resolved") {
       refuse(node, "The exact selected source property is absent from its finalized object-shape contract."); return;
     }
@@ -86,7 +85,7 @@ export function analyzeCsharpPropertyAdmission(input: { readonly ast: AstReader;
     }
     if (jsValueOperation.kind === "resolved") {
       const syntax = ast.as.AsPropertyAccessExpression(node)?.name;
-      const name = jsValueProperty.kind === "resolved" ? jsValueProperty.member.sourceName : syntax === undefined ? undefined : ast.text(syntax);
+      const name = syntax === undefined ? undefined : ast.text(syntax);
       if (name === undefined) { refuse(node, "A JS-value property read requires an exact authored property name."); return; }
       members.set(node, { kind: "js-value", name, operation: jsValueOperation, flow });
     } else members.set(node, { kind: "member", methodValue, flow,

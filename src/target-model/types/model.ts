@@ -201,7 +201,6 @@ export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "
   readonly csharpAbsorbsNullish?: true;
   readonly csharpJsValueCarrier?: true;
   readonly csharpJsStringCarrier?: true;
-  readonly csharpJsObjectShape?: true;
   readonly csharpStructuralContract?: true;
   readonly csharpGeneratedStructuralStorage?: true;
   readonly csharpArrayLiteralElementType?: TargetTypeRef;

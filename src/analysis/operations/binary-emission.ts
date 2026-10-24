@@ -96,13 +96,9 @@ export function analyzeCsharpBinaryEmission(input: { readonly source: TargetSour
       // The AST reader's views do not check the node kind, so the property branch is selected by kind.
       const property = ast.is.IsPropertyAccessExpression(left) ? ast.as.AsPropertyAccessExpression(left) : undefined;
       if (property?.Expression !== undefined) {
-        const classification = input.operations.selectedProperty.get(left);
-        const shape = classification?.selection.kind === "source-owned" ? classification.sourceOwned?.jsValueProperty : undefined;
-        if (shape?.kind === "rejected") { refuse(left, shape.reason); continue; }
-        const write = shape?.kind === "resolved" ? classification?.sourceOwned?.jsValuePropertyWrite : selected.propertyWrite;
-        if (shape?.kind === "resolved" && operator !== "=") { refuse(node, `Closed JS-value object-shape assignment '${operator}' requires an exact read-modify-write runtime operation.`); continue; }
+        const write = selected.propertyWrite;
         if (write?.kind !== "resolved") { refuse(left, write?.kind === "rejected" ? write.reason : "The exact JS-value object-shape property has no closed write operation."); continue; }
-        const name = shape?.kind === "resolved" ? shape.member.sourceName : property.name === undefined ? undefined : ast.text(property.name);
+        const name = property.name === undefined ? undefined : ast.text(property.name);
         if (name === undefined) { refuse(node, "A JS-value property write requires an exact receiver, property name, and value."); continue; }
         forms.set(node, { kind: "property-write", receiver: property.Expression, name, value: right, invocation: write }); continue;
       }

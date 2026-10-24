@@ -82,8 +82,8 @@ test("identity admission requires the same complete carrier and exact generic bi
 
 test("closed JsValue facets preserve their logical identities under an explicit native representation proof", () => {
   const native = csharpTsValueTargetType();
-  const left = Object.freeze({ ...native, id: "logical:left", csharpJsObjectShape: true });
-  const right = Object.freeze({ ...native, id: "logical:right", csharpJsObjectShape: true });
+  const left = Object.freeze({ ...native, id: "logical:left" });
+  const right = Object.freeze({ ...native, id: "logical:right" });
   for (const [source, target] of [[native, left], [left, native], [left, right]]) {
     const selected = selectCsharpConversion(policy, source, target, "implicit");
     assert.equal(selected.kind, "implicit", "a different complete logical pair is not identity");

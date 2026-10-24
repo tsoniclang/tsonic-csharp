@@ -6,7 +6,7 @@ import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/so
 import type { CsharpValueReadClassifications } from "../../../target-model/records/conversions.js";
 import type { CsharpStorageClassifications } from "../../../target-model/records/storage.js";
 import { targetTypeRefKey } from "../../../target-model/types/equality.js";
-import { getCsharpNullableElementTargetType, isCsharpRuntimeUnionTargetType, isCsharpEmptyObjectTargetType, isCsharpJsValueObjectShapeTargetType } from "../../../target-model/types/index.js";
+import { getCsharpNullableElementTargetType, isCsharpRuntimeUnionTargetType, isCsharpEmptyObjectTargetType } from "../../../target-model/types/index.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import { createCsharpTypeEmissionProducer } from "../../program/records/type-emission.js";
 import { selectCsharpTypeEmission } from "../../../policy/types/resolution/type-emission.js";
@@ -71,7 +71,7 @@ export function analyzeCsharpTypeEmission(input: { readonly ast: AstReader; read
     const payloads = new Set<CsharpObjectShapeFact>();
     const visited = new Set<TargetTypeRef>();
     const shape = (fact: CsharpObjectShapeFact, payload: boolean): void => {
-      if (isCsharpJsValueObjectShapeTargetType(fact.targetType) || isCsharpEmptyObjectTargetType(fact.targetType)) return;
+      if (isCsharpEmptyObjectTargetType(fact.targetType)) return;
       shapes.add(fact);
       if (!payload || payloads.has(fact)) return;
       payloads.add(fact);

@@ -10,15 +10,16 @@ export function csharpRuntimeParameterDefault(type: TargetTypeRef, incomingType?
   if (type.kind === "type-parameter" && csharpTypeProjection(type) === undefined && type.csharpConstraints?.kind !== "resolved") return undefined;
   if (getCsharpNullableElementTargetType(type) !== undefined) {
     return incomingType === undefined || targetTypeRefEquals(type, incomingType)
-      ? Object.freeze({ kind: "nullable", valueType: type, parameterType: type }) : undefined;
+      ? nativeDefault(type, type) : undefined;
+  }
+  if (isCsharpJsValueTargetType(type) && type.kind === "target-named" &&
+    (type as CsharpTargetNamedTypeRef).csharpAbsorbsNullish === true) {
+    return incomingType === undefined || targetTypeRefEquals(type, incomingType)
+      ? Object.freeze({ kind: "closed-value", valueType: type, parameterType: type }) : undefined;
   }
   if (incomingType !== undefined) {
     return targetTypeRefEquals(csharpNullableTargetType(type), incomingType)
       ? nativeDefault(type, incomingType) : undefined;
-  }
-  if (isCsharpJsValueTargetType(type) && type.kind === "target-named" &&
-    (type as CsharpTargetNamedTypeRef).csharpAbsorbsNullish === true) {
-    return Object.freeze({ kind: "closed-value", valueType: type, parameterType: type });
   }
   if ((type.kind === "array" || type.kind === "tuple" || type.kind === "target-named" || type.kind === "source-primitive" || type.kind === "type-parameter") &&
     !isCsharpVoidTargetType(type) &&

@@ -36,7 +36,6 @@ export function csharpTargetNamedType(
     readonly absorbsNullish?: true;
     readonly jsValueCarrier?: true;
     readonly jsStringCarrier?: true;
-    readonly jsObjectShape?: true;
   },
 ): CsharpTargetNamedTypeRef {
   if (typeof metadata === "object" && metadata !== null && metadata.constraintRequiresReferenceType !== undefined &&
@@ -96,9 +95,6 @@ export function csharpTargetNamedType(
       : {}),
     ...(metadata.jsStringCarrier === true
       ? { csharpJsStringCarrier: true }
-      : {}),
-    ...(metadata.jsObjectShape === true
-      ? { csharpJsObjectShape: true }
       : {}),
   } satisfies CsharpTargetNamedTypeRef;
 }

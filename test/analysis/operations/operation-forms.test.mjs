@@ -77,7 +77,7 @@ test("binary and unary forms are recorded once in the planner's order", () => {
   assert.deepEqual(recordedForms(compiled), [
     "operator [first] = a => destructuring-assignment",
     "operator a.length = 0 => js-array-mutation",
-    "operator x.a = 1 => js-value-write",
+    "operator x.a = 1 => selected",
     "operator o.p = 1 => js-value-write",
     "operator typeof v === \"string\" => typeof-comparison",
     "operator v instanceof A => type-test",
@@ -119,7 +119,7 @@ test("operator form readers are frozen, repeatable and absent for foreign and no
     "a foreign subject has no operator form");
 });
 
-test("an assignment without a direct C# operator is a selected form even on a JS-value object-shape member", () => {
+test("an assignment without a direct C# operator is a selected form on a native object with unknown-valued fields", () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: `
     type T = { a: unknown };
     export function f(x: T): void { x.toString ||= () => "y"; }
@@ -133,7 +133,7 @@ test("an assignment without a direct C# operator is a selected form even on a JS
   assert.equal(compiled.source.ast.kindName(compiled.result.diagnostics[0].sourceNode), "KindBinaryExpression");
 });
 
-test("an update of a JS-value object-shape member keeps its writable-location refusal", () => {
+test("an update of a native unknown-valued field keeps its scalar runtime-operation refusal", () => {
   for (const [operation, kind] of [["x.a++", "KindPostfixUnaryExpression"], ["++x.a", "KindPrefixUnaryExpression"]]) {
     const compiled = compileCsharpSource({ surface: "js", sourceText: `
       type T = { a: any };
@@ -143,7 +143,7 @@ test("an update of a JS-value object-shape member keeps its writable-location re
     assert.deepEqual(
       compiled.result.diagnostics.map(({ code, message }) => ({ code, message })),
       [{ code: "CSHARP_UNSUPPORTED_AST",
-        message: "Closed JS-value object-shape update '++' requires an exact writable-location translation; emitting a read expression as a C# location is forbidden." }],
+        message: "The closed C# JS-value runtime has no operation for unary operator '++'." }],
     );
     assert.equal(compiled.source.ast.kindName(compiled.result.diagnostics[0].sourceNode), kind, `${operation}: the exact source update is rejected`);
     assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,

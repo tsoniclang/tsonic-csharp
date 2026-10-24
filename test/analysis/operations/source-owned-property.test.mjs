@@ -51,7 +51,8 @@ for (const kind of ["class", "interface"]) {
       assert.equal(derivations, kind === "class" ? 0 : 1);
       assert.strictEqual(result.selectedReceiverType, carrier);
       assert.deepEqual(result.selectedSubjects, [declaration]);
-      assert.equal(result.jsValueProperty.kind, "not-js-value-object-shape");
+      assert.equal(Object.hasOwn(result, "jsValueProperty") || Object.hasOwn(result, "jsValuePropertyWrite"), false,
+        "native source members publish no retired pseudo-object classification");
       assert.equal(result.runtimeUnionProperty.kind, "not-runtime-union");
       if (kind === "class") assert.equal(result.objectShape, undefined);
       else {

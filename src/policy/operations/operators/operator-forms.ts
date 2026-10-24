@@ -34,15 +34,6 @@ function selectOperatorForm(
 ): CsharpOperatorForm {
   if (!ast.is.IsBinaryExpression(node)) {
     if (mutation === undefined || mutation.kind !== "not-js-array-mutation") return "js-array-mutation";
-    const operand = ast.is.IsPrefixUnaryExpression(node)
-      ? ast.as.AsPrefixUnaryExpression(node)?.Operand
-      : ast.as.AsPostfixUnaryExpression(node)?.Operand;
-    if ((operator === "++" || operator === "--") && operand !== undefined && ast.is.IsPropertyAccessExpression(operand)) {
-      const operandProperty = property(operand);
-      const shapeProperty = operandProperty?.sourceOwned?.jsValueProperty;
-      if (operandProperty?.selection.kind === "source-owned" &&
-        (shapeProperty === undefined || shapeProperty.kind !== "not-js-value-object-shape")) return "js-value-object-shape-update";
-    }
     return operator !== undefined && (unary === undefined || unary.jsValue.kind !== "not-js-value")
       ? "js-value-operation" : "selected";
   }
@@ -62,9 +53,6 @@ function selectOperatorForm(
   if (ast.is.IsPropertyAccessExpression(left)) {
     const leftProperty = property(left);
     if (leftProperty === undefined) return "selected";
-    const shapeProperty = leftProperty.sourceOwned?.jsValueProperty;
-    if (leftProperty.selection.kind === "source-owned" && ast.as.AsPropertyAccessExpression(left)?.Expression !== undefined &&
-      (shapeProperty === undefined || shapeProperty.kind !== "not-js-value-object-shape")) return "js-value-write";
     if (operator !== "=") return "selected";
     return binary?.propertyWrite === undefined || binary.propertyWrite.kind !== "not-js-value" ? "js-value-write" : "selected";
   }

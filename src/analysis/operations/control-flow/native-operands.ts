@@ -319,12 +319,6 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
       return selected?.kind !== "resolved" ? refused("operation-unresolved", selected?.kind === "rejected" ? selected.reason : undefined)
         : chosen(use(operand, { kind: "operand", position: "only" }), "sequence", undefined, selected.resultType);
     }
-    if (form === "js-value-object-shape-update") {
-      const selected = operand === undefined ? undefined : operations.selectedProperty.get(operand)?.sourceOwned?.jsValueProperty;
-      const operator = sourceOperatorFromKindName(ast.operatorKindName(node));
-      return refused("operation-unresolved", selected === undefined ? undefined : selected.kind === "rejected" ? selected.reason
-        : `Closed JS-value object-shape update '${operator}' requires an exact writable-location translation; emitting a read expression as a C# location is forbidden.`);
-    }
     const selected = operations.unaryOperation.get(node)?.target;
     if (selected?.kind !== "resolved") return refused("operation-unresolved", selected?.kind === "rejected" ? selected.reason : undefined);
     return chosen(use(selected.operand, selected.sourceOperator === "++" || selected.sourceOperator === "--"

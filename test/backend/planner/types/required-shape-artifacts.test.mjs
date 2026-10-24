@@ -151,11 +151,12 @@ test("only rendered containers, real union payloads and physical method owners a
   for (const carrier of [integer, csharpTsValueTargetType(), csharpEmptyObjectTargetType()]) {
     assert.equal(emissionFor(targetShapes, carrier).objectShapes.length, 0, "ordinary native, JsValue and EmptyObject have no synthetic artifact dependency");
   }
-  const jsShape = { targetType: { ...csharpTsValueTargetType(), csharpJsObjectShape: true }, members: [] };
   const emptyShape = { targetType: csharpEmptyObjectTargetType(), members: [] };
-  const exclusions = Object.freeze({ ...targetShapes, [targetTypeRefKey(jsShape.targetType)]: jsShape, [targetTypeRefKey(emptyShape.targetType)]: emptyShape });
-  for (const fact of [jsShape, emptyShape]) assert.equal(emissionFor(exclusions, fact.targetType).objectShapes.length, 0,
-    "a genuinely resolved JsValue/EmptyObject fact is still excluded from synthetic artifact dependencies");
+  const exclusions = Object.freeze({ ...targetShapes, [targetTypeRefKey(emptyShape.targetType)]: emptyShape });
+  assert.equal(emissionFor(exclusions, emptyShape.targetType).objectShapes.length, 0,
+    "a genuinely resolved EmptyObject fact is still excluded from synthetic artifact dependencies");
+  assert.equal(emissionFor(exclusions, csharpTsValueTargetType()).objectShapes.length, 0,
+    "the actual runtime JsValue remains a native scalar, not a fabricated source object shape");
 });
 
 test("rendered type guards read only the sealed type-emission record", () => {

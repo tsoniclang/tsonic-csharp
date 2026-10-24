@@ -1,6 +1,5 @@
 import type { Node } from "@tsonic/tsts";
 import type { CsharpDelegateSignatureShape, CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../types/model.js";
-import type { CsharpJsValueOperationSelection } from "../operations/js-values.js";
 
 export type CsharpObjectLiteralMemberEmission =
   | { readonly kind: "value"; readonly property: Node; readonly member: CsharpObjectShapeMemberFact; readonly initializer: Node }
@@ -11,11 +10,10 @@ export type CsharpObjectLiteralMemberEmission =
       readonly fields: readonly { readonly source: string; readonly target: string; readonly carrier: TargetTypeRef }[] };
 
 export type CsharpObjectLiteralEmission = {
+  readonly kind: "native";
   readonly members: readonly CsharpObjectLiteralMemberEmission[];
-} & (
-  | { readonly kind: "native"; readonly initialization: CsharpObjectInitialization }
-  | { readonly kind: "js"; readonly keyCarrier: TargetTypeRef; readonly operation: Extract<CsharpJsValueOperationSelection, { readonly kind: "resolved" }> }
-);
+  readonly initialization: CsharpObjectInitialization;
+};
 
 export interface CsharpObjectInitialization {
   readonly inlineUnique: boolean;

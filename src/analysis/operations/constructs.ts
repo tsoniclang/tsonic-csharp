@@ -27,7 +27,6 @@ import { selectCsharpElementDeletion } from "./collections/element-deletion.js";
 import { selectCsharpSwitch } from "./control-flow/switch.js";
 import { AsForInOrOfStatement, sourceClassFieldIsTypeOnly } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import { selectCsharpJsObjectLiteralOperation } from "../../policy/operations/js-values/selection.js";
 import { selectCsharpJsValueCallOperation, selectCsharpJsValueBinaryOperation, selectCsharpJsValueReceiverExpressionOperation, selectCsharpJsValueUnaryOperation, selectCsharpJsTypeofOperation, selectCsharpJsValueCondition, selectCsharpJsValueVoidOperation } from "./js-values.js";
 import { selectCsharpProviderValue } from "./members/values.js";
 import { selectCsharpTargetProperty } from "./members/selected-members.js";
@@ -150,10 +149,6 @@ export function analyzeCsharpOperationConstruct(
   if (ast.is.IsVoidExpression(node)) {
     const operand = ast.as.AsVoidExpression(node)?.Expression;
     producer.jsVoid.selected(node, selectCsharpJsValueVoidOperation(policy, operand, sourceFile),
-    );
-  }
-  if (ast.is.IsObjectLiteralExpression(node)) {
-    producer.jsObjectLiteral.selected(node, selectCsharpJsObjectLiteralOperation(),
     );
   }
   const operationNode =

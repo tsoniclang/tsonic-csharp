@@ -7,4 +7,3 @@ export * from "./native-use-arguments.js";
 export * from "./call-forms.js";
 export * from "./property-selection.js";
 export * from "./element-selection.js";
-export * from "./js-value-object-shape-property.js";
