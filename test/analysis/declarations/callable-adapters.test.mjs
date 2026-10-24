@@ -164,7 +164,8 @@ function classForwarder(control) {
     implementation, typeArguments: Object.freeze([]), typeParameters: Object.freeze([]), parameters, result,
     parameterDefaults: Object.freeze(implementation.nativeParameters.map(() => undefined)) });
   const interfaceImplementation = Object.freeze({ sourceNode: declaration, sourceType, interfaceType, properties: Object.freeze([]),
-    methods: Object.freeze([Object.freeze({ sourceName: "read", declaration, member, forwarding, typeParameterNames: Object.freeze([]) })]) });
+    methods: Object.freeze([Object.freeze({ sourceName: "read", declaration, member, forwarding, typeParameterNames: Object.freeze([]),
+      invocations: Object.freeze([Object.freeze({ name: "read", sourceName: "read" })]) })]) });
   // The planner reads structural forwarding from the sealed structuralInterface record.
   const selected = Object.freeze({ ...program, records: Object.freeze({ ...program.records,
     structuralInterface: Object.freeze({ get: type => type === sourceType ? Object.freeze([interfaceImplementation]) :

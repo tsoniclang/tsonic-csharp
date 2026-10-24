@@ -4,7 +4,7 @@ import {
   csharpMethodValueType, csharpMethodValueCoversContract, csharpMethodValueContractsEqual,
   csharpPresentObjectShapeMethod,
 } from "../../../dist/target-model/types/method-values.js";
-import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType, isCsharpNullableReferenceTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { csharpObjectShapeContractKey, csharpObjectShapeMemberContractKey, csharpObjectShapeMemberTypeKey } from "../../../dist/target-model/types/object-shape-identity.js";
 import { csharpObjectShapesEqual } from "../../../dist/target-model/types/object-shape-equality.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
@@ -287,8 +287,12 @@ test("native method-value storage identity includes the exact immutable invocati
   const copied = csharpCopiedObjectShapeMembers({ ...shape, members: [{ ...member, optional: true,
     methodValueStorage: { ...member.methodValueStorage, type: csharpNullableTargetType(owner) } }] });
   assert.equal(copied[0].methodValueStorage.invocationName, "identity", "a copied optional value retains its original native entry");
-  assert.equal(getCsharpNullableElementTargetType(copied[0].methodValueStorage.type) === owner, true,
+  const optionalStorage = copied[0].methodValueStorage.type;
+  const presentStorage = getCsharpNullableElementTargetType(optionalStorage);
+  assert.equal(isCsharpNullableReferenceTargetType(optionalStorage), true, "optional storage has its actual nullable reference annotation");
+  assert.equal(presentStorage !== undefined && targetTypeRefEquals(presentStorage, owner), true,
     "optional native method storage retains exactly its one physical absence state");
+  assert.equal(getCsharpNullableElementTargetType(presentStorage) === undefined, true, "unwrapping removes the single native absence");
 });
 
 function nativeModeMember(identity, modes, returnPassing) {

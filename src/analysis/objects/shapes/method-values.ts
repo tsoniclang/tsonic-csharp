@@ -110,5 +110,6 @@ export function retainCsharpMethodValueContracts(
         invocationName: objectShapeMethodInvocationName(member) });
     return { ...member, methodValueContract: contract, ...(storage === undefined ? {} : { methodValueStorage: storage }) };
   });
-  return { ...shape, members, ...(implemented.size === 0 ? {} : { implements: [...implemented.values()] }) };
+  const { implements: _implemented, ...retained } = shape;
+  return { ...retained, members, ...(implemented.size === 0 ? {} : { implements: [...implemented.values()] }) };
 }

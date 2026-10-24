@@ -57,7 +57,7 @@ test("callable parameters establish their exact entry input while tuple transfor
   const state = { depth: 2, sourceStorageSubject: imported };
   for (const use of ["callable", "parameter-list"]) {
     const resolved = resolveSignatureParameterEvidence({
-      host: { ast: { typeNode: () => syntax }, sourceStorage: { subject(node, kind) {
+      host: { ast: { typeNode: () => syntax, parent: () => undefined }, sourceStorage: { subject(node, kind) {
         assert.equal(node === owner && kind === "input", true, "signature entry is not a mutable binding or physical member");
         return { kind: "resolved", subject: input };
       } } },
