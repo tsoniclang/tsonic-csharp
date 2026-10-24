@@ -8,7 +8,8 @@ import { retainCsharpGenericCallableValue } from "../../../dist/analysis/callabl
 import { substituteTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
 import { csharpFreeTypeParameterIdentities } from "../../../dist/target-model/types/generic-references.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
-import { sourceCallableTypeParametersMatch, resolveSourceCallReceiverTargetType } from "../../../dist/analysis/source-evidence/types/resolution/calls.js";
+import { sourceCallableTypeParametersMatch, resolveSourceCallReceiverTargetType, resolveSourceCallInstantiation } from "../../../dist/analysis/source-evidence/types/resolution/calls.js";
+import { csharpProjectedType } from "../../../dist/target-model/types/projections.js";
 import { csharpSourceTypeParameter } from "../../../dist/source/extension/type-parameters.js";
 import { selectSourceCallParameterSlots } from "../../../../tsonic/packages/target-api/dist/source-semantics/call-parameter-slots.js";
 import { resolveCallableEvidence } from "../../../dist/analysis/source-evidence/types/resolution/source-profiles.js";
@@ -244,6 +245,38 @@ test("selected stored contracts do not require invented signature or parameter s
   assert.equal(selected.contract.sourceDeclaration === undefined, true);
   assert.equal(selected.contract.nativeParameters[0].sourceParameter === undefined, true);
   assert.equal(targetTypeRefEquals(resolveSourceCallParameter(scope, source, 0, {}), integer), true);
+});
+
+test("native invocation arguments retain their complete projected order independently of checked inventory order", () => {
+  const current = fixture(undefined, true);
+  const [parameter] = checkedBinders(current);
+  const storage = csharpProjectedType({ kind: "optional", part: "storage", arguments: [parameter.type] });
+  const operations = csharpProjectedType({ kind: "optional", part: "operations", arguments: [parameter.type] });
+  current.scope.host.ast.typeParameters = () => [parameter.declaration];
+  current.scope.host.semanticsFor = () => current.scope.host.semantics();
+  current.scope.host.representations.genericProjections = () => [storage, operations];
+  current.scope.resolveAuthoredAndSelectedSourceType = () => integer;
+  current.source.sourceSelectedMethodTypeArguments = [{ typeParameter: parameter.declaration, typeParameterName: "Item",
+    selectedType: {}, explicitTypeNode: {} }];
+  current.openContract.nativeSignature = Object.freeze({ methodTypeParameterIdentities: [
+    parameter.type.identity, operations.identity, storage.identity], methodAllowsRefLikeTypeArguments: [false, false, false] });
+  assert.equal(sourceCallableTypeParametersMatch(current.scope, current.source, current.openContract, "declaration"), true,
+    "the complete exact projection family is independent of discovery order");
+  const selected = resolveSourceCallInstantiation(current.scope, current.source, {}, { depth: 0 },
+    current.openContract.nativeSignature.methodTypeParameterIdentities, current.openContract);
+  assert.equal(selected !== undefined, true, "the complete native invocation is admitted");
+  assert.equal(selected.arguments.length, 3, "neither native projection is dropped");
+  assert.equal(selected.arguments[0] === integer, true, "the original authored invocation retains its argument identity");
+  assert.equal(selected.arguments[1] === selected.substitutions.get(operations.identity), true,
+    "the actual native operations slot precedes storage in this invocation");
+  assert.equal(selected.arguments[2] === selected.substitutions.get(storage.identity), true,
+    "the actual native storage slot is not replaced by discovery order");
+  current.scope.host.representations.genericProjections = () => [storage, storage];
+  assert.equal(sourceCallableTypeParametersMatch(current.scope, current.source, current.openContract, "declaration"), false,
+    "a duplicate cannot stand in for a missing native projection");
+  assert.equal(resolveSourceCallInstantiation(current.scope, current.source, {}, { depth: 0 },
+    current.openContract.nativeSignature.methodTypeParameterIdentities, current.openContract) === undefined, true,
+  "instantiation independently rejects the incomplete projection family");
 });
 
 test("checked narrow overload arguments use the selected native implementation carrier", () => {
