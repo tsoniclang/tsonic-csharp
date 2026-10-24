@@ -325,8 +325,7 @@ function hasOnlyInvocationArguments(
 function hasSingleCaptureOwner(source: TargetSourceProgram, declaration: Node, shape: CsharpObjectShapeFact): boolean {
   const implementation = shape.methodImplementation;
   if (implementation === undefined) return false;
-  const methods = shape.members.flatMap(member => member.memberKind !== "method" ||
-    member.methodValueContract === undefined || member.methodStorageType !== undefined ? [] :
+  const methods = shape.members.flatMap(member => member.memberKind !== "method" ? [] :
     csharpObjectShapeMethodDeclaration(shape, member) ?? []);
   return sourceBindingHasSingleCaptureOwner(declaration, implementation.declaration,
     methods, source.ast, source.navigation, use => use.role !== "value");

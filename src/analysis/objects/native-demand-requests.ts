@@ -392,8 +392,7 @@ export function requireObjectShapeMethodReceiver(
     return prepared;
   }
   const receiverBoundMethodsByShape = new Map<string, Set<string>>();
-  const nativeReceiver = exactMember.methodValueContract !== undefined && exactMember.methodStorageType === undefined &&
-    csharpObjectShapeMethodDeclaration(fact, exactMember) !== undefined;
+  const nativeReceiver = csharpObjectShapeMethodDeclaration(fact, exactMember) !== undefined;
   if (!nativeReceiver) {
     receiverBoundMethodsByShape.set(objectShapeArtifactKey(fact), new Set([memberKey]));
     if (fact.declarationTemplate !== undefined) {

@@ -6,6 +6,8 @@ import { csharpRuntimeLocationTargetType, csharpRuntimeRecordFieldTargetType } f
 import { csharpTargetTypeRenderingRejection } from "../model/renderability.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { SourceStorageMemberWritesSelection } from "@tsonic/target-api/analysis";
+import { objectShapeMethodBodyName, objectShapeMethodValueStorageNames } from "../../../target-model/names/object-members.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 
 export function csharpObjectMethodHasFixedNativeExposure(writes: SourceStorageMemberWritesSelection | undefined): boolean {
   return writes !== undefined && writes.kind !== "unresolved" && writes.writes.length === 0 &&
@@ -16,12 +18,10 @@ export function selectCsharpObjectMemberEmission(input: CsharpObjectMemberPolicy
   | { readonly kind: "selected"; readonly value: CsharpObjectMemberEmission }
   | { readonly kind: "rejected"; readonly reason: string } {
   const { shape, member, receiverBound } = input;
-  const metadata = getCsharpDelegateSignature(member.type);
+  const metadata = getCsharpDelegateSignature(getCsharpNullableElementTargetType(member.type) ?? member.type);
   const returnsVoid = metadata !== undefined && isCsharpVoidTargetType(metadata.returnType);
   const methodStorage = member.memberKind !== "method" ? undefined : member.methodStorageType !== undefined
-    ? receiverBound ? undefined : member.methodStorageType : metadata === undefined ? undefined
-      : receiverBound ? csharpDelegateTargetType(returnsVoid ? "System.Action" : "System.Func", [shape.targetType, ...metadata.parameters],
-        returnsVoid ? undefined : metadata.returnType) : member.type;
+    ? receiverBound ? undefined : member.methodStorageType : metadata === undefined || receiverBound ? undefined : member.type;
   const boundStorage = member.bound === true ? csharpRuntimeRecordFieldTargetType(member.type) : undefined;
   const reject = (reason: string) => ({ kind: "rejected" as const, reason });
   const emit = (declaration: CsharpObjectMemberDeclaration) => ({ kind: "selected" as const,
@@ -38,14 +38,36 @@ export function selectCsharpObjectMemberEmission(input: CsharpObjectMemberPolicy
       parameters: Object.freeze(metadata.parameters.map((type, index) => Object.freeze({ type, rest: rest === index, optional: optional.has(index) }))) });
   };
   const renderable = (types: readonly TargetTypeRef[]) => types.every(type => csharpTargetTypeRenderingRejection(type) === undefined);
+  if (member.memberKind === "method" && input.authored) {
+    const selected = signature();
+    if (receiverBound || selected === undefined) return reject("An authored native method requires its exact closed receiver and callable signature.");
+    if (member.methodStorageType === undefined) return emit({ kind: "authored", bodyName: member.targetName, signature: selected,
+      value: Object.freeze({ kind: "fixed" }) });
+    const expected = member.methodValueContract ?? member.type;
+    const stored = getCsharpNullableElementTargetType(member.methodStorageType) ?? member.methodStorageType;
+    if (!targetTypeRefEquals(stored, getCsharpNullableElementTargetType(expected) ?? expected) ||
+      (getCsharpNullableElementTargetType(member.methodStorageType) !== undefined) !== (member.optional === true) ||
+      !renderable([member.methodStorageType, selected.returnType, ...selected.parameters.map(parameter => parameter.type)]))
+      return reject("An authored native method requires its complete closed callable storage.");
+    const names = objectShapeMethodValueStorageNames(shape, member);
+    return emit({ kind: "authored", bodyName: objectShapeMethodBodyName(shape, member), signature: selected,
+      value: member.methodValueContract === undefined
+        ? Object.freeze({ kind: "delegate", type: member.methodStorageType, name: names.name, valueName: names.valueName })
+        : Object.freeze({ kind: "protocol", type: member.methodStorageType, interface: member.methodValueContract,
+          name: names.name, valueName: names.valueName, initializedName: member.optional === true ? names.initializedName : undefined }) });
+  }
   if ((member.typeParameters?.length ?? 0) > 0 || member.methodValueContract !== undefined) {
     if (member.methodStorageType !== undefined) {
+      if (member.optional === true && member.methodValueContract !== undefined) {
+        const type = csharpNullableTargetType(member.methodStorageType);
+        return renderable([type]) ? emit({ kind: "optional-method", type })
+          : reject("An admitted object declaration requires its complete native member rendering.");
+      }
       const selected = signature();
       if (selected === undefined || !renderable([member.methodStorageType, selected.returnType, ...selected.parameters.map(parameter => parameter.type)]))
         return reject("An admitted object declaration requires its complete native member rendering.");
       return emit({ kind: "copied", storage: member.methodStorageType, signature: selected });
     }
-    if (input.authored) return emit({ kind: "authored" });
     if (member.optional === true && member.methodValueContract !== undefined) {
       const type = csharpNullableTargetType(member.methodValueContract);
       return renderable([type]) ? emit({ kind: "optional-method", type }) : reject("An admitted object declaration requires its complete native member rendering.");

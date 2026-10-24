@@ -10,6 +10,7 @@ import { selectCsharpCopiedMethodReceiver } from "../copied-methods.js";
 
 import { csharpCopiedObjectShapeMembers } from "../../../policy/types/objects/method-environments.js";
 import { csharpObjectMethodHasFixedNativeExposure } from "../../../policy/types/objects/object-members.js";
+import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
 export function resolveCsharpCopiedObjectShape(
   shape: CsharpObjectShapeFact,
   ast: AstReader,
@@ -45,21 +46,23 @@ export function retainCsharpMethodValueContracts(
     (shape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind !== "interface") return shape;
   const implemented = new Map((shape.implements ?? []).map(type => [targetTypeRefKey(type), type]));
   const members = shape.members.map(member => {
+    const signature = csharpPresentObjectShapeMethod(member);
+    if (signature === undefined) return member;
+    const declaration = csharpObjectShapeMethodDeclaration(shape, member);
+    const subject = declaration === undefined ? undefined : sourceStorage.memberSubjectFor(declaration);
+    const writes = subject?.kind === "resolved" ? sourceStorage.memberWritesFor(subject.subject) : undefined;
+    const nativeMethod = csharpObjectMethodHasFixedNativeExposure(writes);
     let contract = member.methodValueContract;
     if (contract === undefined) {
-      const signature = csharpPresentObjectShapeMethod(member);
-      if (signature === undefined) return member;
       const required = csharpObjectShapeMethodRequiresProtocol(member);
-      const declaration = required ? undefined : csharpObjectShapeMethodDeclaration(shape, member);
-      const subject = declaration === undefined ? undefined : sourceStorage.memberSubjectFor(declaration);
-      const writes = subject?.kind === "resolved" ? sourceStorage.memberWritesFor(subject.subject) : undefined;
-      const nativeMethod = csharpObjectMethodHasFixedNativeExposure(writes);
       const selfContract = shape.members.length === 1 && shape.targetType.kind === "target-named" &&
         (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true;
-      if (!required && !nativeMethod && !selfContract) return member;
+      if (!required && !nativeMethod && !selfContract) return declaration === undefined ? member
+        : { ...member, methodStorageType: member.type };
       const protocol = createStructuralObjectShapeTarget([signature], undefined, environment, true);
       const ownProtocol = targetTypeRefEquals(shape.targetType, protocol);
-      if (!required && !nativeMethod && !ownProtocol) return member;
+      if (!required && !nativeMethod && !ownProtocol) return declaration === undefined ? member
+        : { ...member, methodStorageType: member.type };
       contract = protocol;
       if (!ownProtocol) remember({ targetType: contract, members: [{ ...signature, methodValueContract: contract }] });
     }
@@ -67,7 +70,9 @@ export function retainCsharpMethodValueContracts(
       (member.optional !== true || csharpObjectShapeMethodDeclaration(shape, member) !== undefined)) {
       implemented.set(targetTypeRefKey(contract), contract);
     }
-    return { ...member, methodValueContract: contract };
+    const storage = declaration === undefined || nativeMethod ? member.methodStorageType
+      : member.optional === true ? csharpNullableTargetType(contract) : contract;
+    return { ...member, methodValueContract: contract, ...(storage === undefined ? {} : { methodStorageType: storage }) };
   });
   return { ...shape, members, ...(implemented.size === 0 ? {} : { implements: [...implemented.values()] }) };
 }

@@ -285,12 +285,12 @@ export function finalizeCsharpNativeEmission(
   const structuralObjectEmission = analyzeCsharpStructuralObjectEmission({ shapes: callableAdapters.objectShapes,
     demand: objectShapeDemand, storage: analysis.storage });
   if (structuralObjectEmission.issues.length !== 0) return rejectedTargetStage(structuralObjectEmission.issues);
-  const objectMethods = analyzeCsharpAuthoredObjectMethods({ ast: source.ast, shapes: callableAdapters.objectShapes,
-    demand: objectShapeDemand, captures: captureStorage });
-  if (objectMethods.issues.length !== 0) return rejectedTargetStage(objectMethods.issues);
   const objectMembers = analyzeCsharpObjectMemberEmission({ shapes: callableAdapters.objectShapes,
     demand: objectShapeDemand, storage: analysis.storage, captures: captureStorage });
   if (objectMembers.issues.length !== 0) return rejectedTargetStage(objectMembers.issues);
+  const objectMethods = analyzeCsharpAuthoredObjectMethods({ ast: source.ast, shapes: callableAdapters.objectShapes,
+    demand: objectShapeDemand, captures: captureStorage, members: objectMembers.records });
+  if (objectMethods.issues.length !== 0) return rejectedTargetStage(objectMethods.issues);
   const objectLiterals = analyzeCsharpObjectLiterals({ source: sourceSyntax, demand: nativeDemand, shapes: callableAdapters.objectShapes,
     methods: objectMethods.records, members: objectMembers.records, storage: analysis.storage,
     callables: analysis.callables });

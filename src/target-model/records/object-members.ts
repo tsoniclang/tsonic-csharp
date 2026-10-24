@@ -7,8 +7,15 @@ export interface CsharpObjectMethodSignature {
   readonly parameters: readonly { readonly type: TargetTypeRef; readonly rest: boolean; readonly optional: boolean }[];
 }
 
+export type CsharpAuthoredObjectMethodValue =
+  | { readonly kind: "fixed" }
+  | { readonly kind: "delegate"; readonly type: TargetTypeRef; readonly name: string; readonly valueName: string }
+  | { readonly kind: "protocol"; readonly type: TargetTypeRef; readonly interface: TargetTypeRef;
+      readonly name: string; readonly valueName: string; readonly initializedName: string | undefined };
+
 export type CsharpObjectMemberDeclaration =
-  | { readonly kind: "authored" }
+  | { readonly kind: "authored"; readonly bodyName: string; readonly signature: CsharpObjectMethodSignature;
+      readonly value: CsharpAuthoredObjectMethodValue }
   | { readonly kind: "copied"; readonly signature: CsharpObjectMethodSignature; readonly storage: TargetTypeRef }
   | { readonly kind: "optional-method"; readonly type: TargetTypeRef }
   | { readonly kind: "deferred"; readonly type: TargetTypeRef }

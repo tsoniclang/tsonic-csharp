@@ -18,7 +18,8 @@ export function planObjectShapeMethodMemberAssignment(
   input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
 ): CsharpPlannedObjectInitializer {
   const selected = input.program.records.objectLiteralMember.get(objectShape, methodNode);
-  if (selected?.kind !== "method") failCsharpPlannerInvariant("An admitted object method requires its sealed callable initialization.", methodNode);
+  if (selected?.kind !== "method" || selected.member.memberKind !== "property" || selected.callable.receiver !== undefined)
+    failCsharpPlannerInvariant("An admitted native delegate-field initializer requires its exact closed callable contract.", methodNode);
   const expression = renderCsharpObjectLiteralCallable(methodNode, selected.callable, sourceFile, input, diagnostics);
   return {
     value: csharpPlannedValue(selected.callable.storage, expression), presence: { kind: "required" },

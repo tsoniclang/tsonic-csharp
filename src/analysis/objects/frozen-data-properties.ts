@@ -36,7 +36,8 @@ export function analyzeCsharpFrozenDataProperties(input: {
         if (selected === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted frozen object requires its native member storage selection.", member.sourceDeclarations?.[0]);
         const name = objectShapeStorageMemberName(shape, member);
         switch (selected.declaration.kind) {
-          case "authored": case "accessor": break;
+          case "authored": if (selected.declaration.value.kind !== "fixed") fields.set(name, Object.freeze({ kind: "setter" })); break;
+          case "accessor": break;
           case "native-backing": invalid = member.sourceDeclarations?.[0] ?? true; break;
           case "bound": if (!member.readonly) fields.set(member.targetName, Object.freeze({ kind: "setter" })); break;
           case "deferred": fields.set(member.targetName, Object.freeze({ kind: "setter" })); break;

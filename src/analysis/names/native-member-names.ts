@@ -34,6 +34,7 @@ import type { CsharpProviderRelationResolver } from "../../providers/model/relat
 import { objectShapeArtifactKey } from "../../target-model/records/object-shape-keys.js";
 import { objectShapeStorageMemberName, objectShapeBoundStorageMemberName,
   objectShapeAccessorGetterStorageMemberName, objectShapeAccessorSetterStorageMemberName,
+  objectShapeMethodBodyName, objectShapeMethodValueStorageNames,
   csharpDeferredCaptureStorageNames, csharpFrozenStorageName, csharpJsonValueProjectionMethodName,
   csharpJsonValueWriterMethodName, csharpEnumerableKeysMethodName, csharpEnumerableKeysStorageName } from "../../target-model/names/object-members.js";
 
@@ -442,7 +443,13 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
         }
         const storageName = objectShapeStorageMemberName(shape, member);
         if (storageName !== member.targetName) field(storageName,
-          member.methodStorageType === undefined && method !== undefined || structural ? "property" : "field");
+          method !== undefined || structural ? "property" : "field");
+        if (method !== undefined && member.methodStorageType !== undefined) {
+          recordHeader(objectShapeMethodBodyName(shape, member), shapeSignature(member, objectShapeMethodBodyName(shape, member), "method"));
+          const names = objectShapeMethodValueStorageNames(shape, member);
+          field(names.valueName);
+          if (member.optional === true && member.methodValueContract !== undefined) field(names.initializedName);
+        }
         if (member.accessor !== undefined && !structural) {
           field(objectShapeAccessorGetterStorageMemberName(shape, member));
           if (member.accessor.setter) field(objectShapeAccessorSetterStorageMemberName(shape, member));

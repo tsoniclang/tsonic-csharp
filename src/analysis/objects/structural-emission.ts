@@ -78,9 +78,9 @@ export function analyzeCsharpStructuralObjectEmission(input: {
       }
       if (structural && (hasMethodValues(shape) || member.optional === true) && handle !== undefined)
         interfaceMembers.push(Object.freeze({ kind: "property", property: handle }));
-      const copied = member.methodStorageType !== undefined && ((member.typeParameters?.length ?? 0) > 0 || member.methodValueContract !== undefined);
+      const copied = member.methodStorageType !== undefined;
       if (!(structural && member.optional !== true) && !copied) continue;
-      const signature = getCsharpDelegateSignature(member.type);
+      const signature = getCsharpDelegateSignature(csharpPresentObjectShapeMethod(member)?.type);
       if (signature === undefined) { refuse("A structural reference contract requires exact renderable member signatures.", member); continue; }
       const types = [signature.returnType, ...signature.parameters];
       const typeParameters = member.typeParameters ?? [];

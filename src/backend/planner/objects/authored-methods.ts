@@ -57,9 +57,26 @@ export function renderCsharpAuthoredObjectMethods(
     if (sourceFile === undefined) failCsharpPlannerInvariant("An admitted native object method requires its checked source file.", declaration);
     const methodContext = createCsharpMemberPlanningContext(context);
     const method = planMethodDeclaration(declaration, sourceFile, methodContext, diagnostics,
-      { kind: "artifact", container: objectShapeArtifactKey(shape), member: member.name, role: "member" });
-    members.push({ ...method, name: member.name });
+      { kind: "artifact", container: objectShapeArtifactKey(shape), member: member.emission.bodyName, role: "member" });
+    const value = member.emission.value;
+    members.push({ ...method, name: member.emission.bodyName,
+      ...(value.kind === "fixed" ? {} : { modifiers: ["private", ...method.modifiers.filter(modifier =>
+        modifier !== "public" && modifier !== "protected" && modifier !== "internal" && modifier !== "private")] }) });
     members.push(...methodContext.scope.generatedMethods?.values() ?? []);
+    if (value.kind === "protocol") {
+      const explicitInterface = csharpTypeFromTargetTypeRef(value.interface, input.scope.typeParameterNames);
+      if (explicitInterface === undefined) failCsharpPlannerInvariant("An admitted original method body requires its native protocol.", declaration);
+      const call: CsharpExpression = { kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression",
+        receiver: { kind: "IdentifierName", name: "this" }, name: member.emission.bodyName,
+        typeArguments: (method.typeParameters ?? []).map(parameter => ({ kind: "IdentifierName", name: parameter.name })) },
+        arguments: method.parameters.map(parameter => ({ kind: "Argument", expression: { kind: "IdentifierName", name: parameter.name },
+          ...(parameter.passing === undefined ? {} : { passing: parameter.passing }) })) };
+      members.push({ kind: "MethodDeclaration", name: member.name, explicitInterface, modifiers: [], returnType: method.returnType,
+        typeParameters: method.typeParameters?.map(parameter => ({ name: parameter.name })),
+        parameters: method.parameters.map(({ defaultValue: _default, ...parameter }) => parameter),
+        body: { kind: "Block", statements: [member.emission.signature.returnsVoid
+          ? { kind: "ExpressionStatement", expression: call } : { kind: "ReturnStatement", expression: call }] } });
+    }
     if (member.handleName !== undefined) {
       const type = csharpTypeFromTargetTypeRef(shape.targetType, input.scope.typeParameterNames);
       if (type === undefined) failCsharpPlannerInvariant("An admitted method handle requires its renderable native carrier.", declaration);

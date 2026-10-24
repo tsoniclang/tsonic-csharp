@@ -51,6 +51,22 @@ export function objectShapeBoundStorageMemberName(
   return objectShapeSyntheticStorageMemberName(objectShape, member, "bound_field");
 }
 
+export function objectShapeMethodBodyName(objectShape: CsharpObjectShapeFact, member: CsharpObjectShapeFact["members"][number]): string {
+  return objectShapeSyntheticStorageMemberName(objectShape, member, "method_body");
+}
+
+export function objectShapeMethodValueStorageNames(objectShape: CsharpObjectShapeFact, member: CsharpObjectShapeFact["members"][number]): {
+  readonly name: string;
+  readonly valueName: string;
+  readonly initializedName: string;
+} {
+  return {
+    name: objectShapeStorageMemberName(objectShape, member),
+    valueName: objectShapeSyntheticStorageMemberName(objectShape, member, "method_value"),
+    initializedName: objectShapeSyntheticStorageMemberName(objectShape, member, "method_initialized"),
+  };
+}
+
 export function objectShapeAccessorSetterStorageMemberName(
   objectShape: CsharpObjectShapeFact,
   member: CsharpObjectShapeFact["members"][number],

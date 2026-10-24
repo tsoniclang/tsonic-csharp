@@ -99,7 +99,8 @@ export function analyzeCsharpObjectLiterals(input: {
             continue;
           }
           const target = selected.member;
-          if (shared && target.methodValueContract !== undefined && csharpObjectShapeMethodDeclaration(shape, target) === csharpObjectShapeMethodDeclaration(sourceShape, sourceMember)) continue;
+          if (shared && target.methodValueContract !== undefined && target.methodStorageType === undefined &&
+            csharpObjectShapeMethodDeclaration(shape, target) === csharpObjectShapeMethodDeclaration(sourceShape, sourceMember)) continue;
           if (!targetTypeRefEquals(sourceMember.type, target.type)) { reject(property, `Object literal spread member '${sourceMember.sourceName}' requires matching finalized source and target member carriers.`); continue; }
           const carrier = target.memberKind === "method" ? input.members.objectMember.get(shape, target)?.methodStorage : target.type;
           if (carrier === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted spread method requires its selected native callable storage.", property);
@@ -136,7 +137,7 @@ export function analyzeCsharpObjectLiterals(input: {
         members.push(Object.freeze({ kind: "value", property, member, initializer }));
       } else if (kind === KindMethodDeclaration) {
         const authored = shape.methodImplementation?.declaration === ast.parent(property) &&
-          shape.members.some(candidate => candidate.methodValueContract !== undefined && candidate.sourceDeclarations?.includes(property));
+          input.members.objectMember.get(shape, member)?.declaration.kind === "authored";
         if (authored) { members.push(Object.freeze({ kind: "authored", property, member })); continue; }
         const declaration = AsMethodDeclaration(ast, property);
         if (declaration === undefined) { reject(property, "Object literal method emission requires a method-declaration AST node."); continue; }
@@ -148,7 +149,9 @@ export function analyzeCsharpObjectLiterals(input: {
         if (layout === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted object method requires its selected native member layout.", property);
         const storage = member.memberKind === "method" ? layout.methodStorage : member.type;
         if (storage === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted object method requires its native callable storage.", property);
-        const receiver = layout.receiverBound ? shape.targetType : undefined;
+        if (member.memberKind !== "property" || layout.receiverBound) failTargetAnalysisInvariant("tsonic-csharp",
+          "An admitted non-authored method initializer requires its actual closed native delegate field.", property);
+        const receiver = undefined;
         const selected = selectCsharpObjectLiteralCallable({ carrier: member.type, storage, receiver });
         if (selected.kind === "rejected") {
           reject(property, selected.reason === "carrier"

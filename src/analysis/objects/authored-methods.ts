@@ -5,6 +5,7 @@ import type { CsharpObjectShapeDemand } from "../../target-model/records/object-
 import { objectShapeArtifactKey } from "../../target-model/records/object-shape-keys.js";
 import type { CsharpObjectCaptureField, CsharpAuthoredObjectMethod } from "../../target-model/records/object-methods.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
+import type { CsharpObjectMemberRecords } from "../../target-model/records/object-members.js";
 import { csharpObjectShapeMethodDeclaration } from "../../target-model/types/method-values.js";
 import { objectShapeStorageMemberName } from "../../target-model/names/object-members.js";
 import { createCsharpObjectMethodRecords } from "../program/records/object-methods.js";
@@ -14,6 +15,7 @@ export function analyzeCsharpAuthoredObjectMethods(input: {
   readonly demand: CsharpObjectShapeDemand;
   readonly shapes: CsharpObjectShapeClassifications;
   readonly captures: CsharpCaptureStorage;
+  readonly members: CsharpObjectMemberRecords;
 }) {
   const captures = new Map<string, readonly CsharpObjectCaptureField[]>();
   const methods = new Map<string, readonly CsharpAuthoredObjectMethod[]>();
@@ -46,16 +48,19 @@ export function analyzeCsharpAuthoredObjectMethods(input: {
     const artifact = input.demand.get(key);
     if (shape.methodImplementation !== undefined && artifact?.materialization === "synthetic") {
       for (const member of shape.members) {
-        if (member.memberKind !== "method" || member.methodValueContract === undefined || member.methodStorageType !== undefined) continue;
+        if (member.memberKind !== "method") continue;
         const declaration = csharpObjectShapeMethodDeclaration(shape, member);
         if (declaration === undefined) {
-          if (member.optional !== true) issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp",
+          if (member.optional !== true && member.methodStorageType === undefined) issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp",
             sourceNode: shape.methodImplementation.declaration, message: "A native object method requires its exact authored implementation." });
           continue;
         }
         if (input.ast.getSourceFile(declaration) === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A native object method requires its exact checked source file.", declaration);
+        const emission = input.members.objectMember.get(shape, member)?.declaration;
+        if (emission?.kind !== "authored") failTargetAnalysisInvariant("tsonic-csharp", "A native object method requires its single admitted body and callable-value layout.", declaration);
         declarations.push(Object.freeze({ declaration, name: member.targetName,
-          handleName: artifact.capabilities.includes("method-values") ? objectShapeStorageMemberName(shape, member) : undefined }));
+          emission, handleName: emission.value.kind === "fixed" && artifact.capabilities.includes("method-values")
+            ? objectShapeStorageMemberName(shape, member) : undefined }));
       }
     }
     methods.set(key, Object.freeze(declarations));
