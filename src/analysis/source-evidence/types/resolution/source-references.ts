@@ -454,6 +454,54 @@ export function collectTargetSourcePrimitiveNames(
   }
 }
 
+export function selectCsharpContextualParameterCarrier(
+  scope: CsharpTypeResolutionScope,
+  declaration: Node,
+  queries: SourceFileSemantics,
+  state: CsharpTypeResolutionState,
+): { readonly kind: "not-applicable" } | { readonly kind: "unresolved" } |
+  { readonly kind: "resolved"; readonly type: TargetTypeRef } {
+  const { host } = scope;
+  if (!host.ast.is.IsParameterDeclaration(declaration)) return { kind: "not-applicable" };
+  const syntax = scope.sourceValueDeclarationSyntax(declaration);
+  if (syntax.type !== undefined || syntax.initializer !== undefined) return { kind: "not-applicable" };
+  const owner = host.ast.parent(declaration);
+  if (owner === undefined || !host.ast.is.IsArrowFunction(owner) && !host.ast.is.IsFunctionExpression(owner)) {
+    return { kind: "not-applicable" };
+  }
+  const parameters = sourceCallableValueParameters(host.ast, owner, queries);
+  const index = parameters?.indexOf(declaration) ?? -1;
+  const contextual = queries.types.contextualValueSelection(owner);
+  if (contextual.kind === "ambiguous") return { kind: "unresolved" };
+  if (contextual.kind !== "selected") return { kind: "not-applicable" };
+  const callable = queries.types.callable(contextual.type);
+  const restIndex = callable?.parameters.findIndex(parameter => parameter.parameterKind === "rest") ?? -1;
+  const parameter = index < 0 ? undefined : callable?.parameters[restIndex >= 0 && index >= restIndex ? restIndex : index];
+  const restBinding = host.ast.as.AsParameterDeclaration(declaration)?.DotDotDotToken !== undefined;
+  if (parameter === undefined || restBinding && parameter.parameterKind !== "rest") return { kind: "not-applicable" };
+  let parameterState = bindCsharpSourceTypeArguments(scope, contextual.type, queries, nextState(state));
+  const ownParameters = host.ast.typeParameters(owner);
+  if (ownParameters.length !== 0) {
+    const contextualParameters = callable?.result.declaration === undefined ? []
+      : host.ast.typeParameters(callable.result.declaration);
+    const ownSources = ownParameters.map(parameter => parameter === undefined ? undefined
+      : queries.declarations.declaredType(parameter));
+    const ownTargets = ownParameters.map(parameter => parameter === undefined ? undefined
+      : csharpSourceTypeParameter(parameter, host.ast));
+    if (parameterState === undefined || contextualParameters.length !== ownParameters.length ||
+      contextualParameters.some(parameter => parameter === undefined) ||
+      ownSources.some(type => type === undefined) || ownTargets.some(type => type === undefined)) return { kind: "unresolved" };
+    parameterState = csharpSourceBindings(contextualParameters as readonly Node[], ownSources as readonly Type[],
+      ownTargets as readonly TargetTypeRef[], parameterState);
+  }
+  const nativeParameter = parameterState === undefined ? undefined
+    : scope.resolveSignatureParameterEvidence(parameter, queries, parameterState, "callable");
+  const native = nativeParameter === undefined ? undefined : parameter.parameterKind === "rest" && !restBinding
+    ? csharpTargetParameterValueType({ name: "", type: nativeParameter, passingMode: "by-value", paramsArray: true }, "value")
+    : nativeParameter;
+  return native === undefined ? { kind: "unresolved" } : { kind: "resolved", type: native };
+}
+
 export function resolveSourceValueDeclaration(
   scope: CsharpTypeResolutionScope,
   node: Node,
@@ -507,47 +555,18 @@ export function resolveSourceValueDeclaration(
       queries.sourceFile,
       nextState(state),
     );
-    const owner = host.ast.is.IsParameterDeclaration(declaration) ? host.ast.parent(declaration) : undefined;
-    if (syntax.type === undefined && owner !== undefined &&
-      (host.ast.is.IsArrowFunction(owner) || host.ast.is.IsFunctionExpression(owner))) {
-      const parameters = sourceCallableValueParameters(host.ast, owner, declarationQueries);
-      const index = parameters?.indexOf(declaration) ?? -1;
-      const contextual = declarationQueries.types.contextualValueSelection(owner);
-      const callable = contextual.kind === "selected" ? declarationQueries.types.callable(contextual.type) : undefined;
-      const restIndex = callable?.parameters.findIndex(parameter => parameter.parameterKind === "rest") ?? -1;
-      const parameter = index < 0 ? undefined : callable?.parameters[restIndex >= 0 && index >= restIndex ? restIndex : index];
-      const restBinding = host.ast.as.AsParameterDeclaration(declaration)?.DotDotDotToken !== undefined;
-      if (parameter !== undefined && (!restBinding || parameter.parameterKind === "rest") && contextual.kind === "selected") {
-        let parameterState = bindCsharpSourceTypeArguments(scope, contextual.type, declarationQueries, nextState(state));
-        const ownParameters = host.ast.typeParameters(owner);
-        if (ownParameters.length !== 0) {
-          const contextualParameters = callable?.result.declaration === undefined ? []
-            : host.ast.typeParameters(callable.result.declaration);
-          const ownSources = ownParameters.map(parameter => parameter === undefined ? undefined
-            : declarationQueries.declarations.declaredType(parameter));
-          const ownTargets = ownParameters.map(parameter => parameter === undefined ? undefined
-            : csharpSourceTypeParameter(parameter, host.ast));
-          if (parameterState === undefined || contextualParameters.length !== ownParameters.length ||
-            contextualParameters.some(parameter => parameter === undefined) ||
-            ownSources.some(type => type === undefined) || ownTargets.some(type => type === undefined)) return undefined;
-          parameterState = csharpSourceBindings(contextualParameters as readonly Node[], ownSources as readonly Type[],
-            ownTargets as readonly TargetTypeRef[], parameterState);
-        }
-        const nativeParameter = parameterState === undefined ? undefined
-          : scope.resolveSignatureParameterEvidence(parameter, declarationQueries, parameterState, "callable");
-        const native = nativeParameter === undefined ? undefined : parameter.parameterKind === "rest" && !restBinding
-          ? csharpTargetParameterValueType({ name: "", type: nativeParameter, passingMode: "by-value", paramsArray: true }, "value")
-          : nativeParameter;
-        if (native === undefined) return undefined;
-        const declaredSource = declarationQueries.declarations.declaredValueType(declaration);
-        if (declaredSource === undefined || selectedSource === undefined) return native;
-        const refinement = selectCsharpAuthoredUnionRefinement(native, declaredSource, selectedSource, queries,
-          type => resolveCsharpUnionMemberCarrier(scope, native, type, queries, state),
-          host.structuralTypes.resolveTarget, host.typeDefinitions);
-        if (refinement.kind !== "not-applicable") return refinement.kind === "resolved" ? refinement.type : undefined;
-        return reconcileCsharpSelectedTargetType(native, selected, queries.types.relationship(declaredSource, selectedSource),
-          queries.types.isNonPrimitive(selectedSource));
-      }
+    const contextual = selectCsharpContextualParameterCarrier(scope, declaration, declarationQueries, state);
+    if (contextual.kind === "unresolved") return undefined;
+    if (contextual.kind === "resolved") {
+      const native = contextual.type;
+      const declaredSource = declarationQueries.declarations.declaredValueType(declaration);
+      if (declaredSource === undefined || selectedSource === undefined) return native;
+      const refinement = selectCsharpAuthoredUnionRefinement(native, declaredSource, selectedSource, queries,
+        type => resolveCsharpUnionMemberCarrier(scope, native, type, queries, state),
+        host.structuralTypes.resolveTarget, host.typeDefinitions);
+      if (refinement.kind !== "not-applicable") return refinement.kind === "resolved" ? refinement.type : undefined;
+      return reconcileCsharpSelectedTargetType(native, selected, queries.types.relationship(declaredSource, selectedSource),
+        queries.types.isNonPrimitive(selectedSource));
     }
     return retainCsharpBroadValueCarrier(declaredTarget, selected,
       selectedSource !== undefined && queries.types.isNonPrimitive(selectedSource)) ?? selected ?? declaredTarget;

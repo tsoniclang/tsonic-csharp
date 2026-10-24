@@ -20,6 +20,7 @@ import { resolveCsharpProviderIndexedAccess } from "./indexed-access.js";
 import { csharpSourceStorageContext, csharpSourceStorageComponentContext } from "./source-storage-projection.js";
 
 import { selectCsharpParameterListCarrier } from "../../../../policy/types/callables/parameter-list.js";
+import { selectCsharpContextualParameterCarrier } from "./source-references.js";
 export function resolveNodeWithState(
   scope: CsharpTypeResolutionScope,
   node: Node | undefined,
@@ -71,6 +72,9 @@ export function resolveNodeWithState(
         ? declared : csharpNullableTargetType(declared);
     }
   }
+  const contextualParameter = selectCsharpContextualParameterCarrier(scope, node, queries, state);
+  if (contextualParameter.kind !== "not-applicable") return contextualParameter.kind === "resolved"
+    ? contextualParameter.type : undefined;
   const selectedExpression = resolveSelectedExpressionType(
     node,
     queries,

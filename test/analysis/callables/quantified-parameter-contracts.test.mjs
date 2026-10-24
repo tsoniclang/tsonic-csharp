@@ -97,6 +97,12 @@ const contextualInputs = [
     export const checked: Callback = value => value === undefined ? 3 : value;
     export function run(): boolean { return checked(undefined) === 3 && checked(7) === 7; }
   `],
+  ["rest native input", `
+    import type { int32 } from "@tsonic/core/types.js";
+    type Callback = (...values: int32[]) => int32;
+    export const checked: Callback = (...values) => values[0];
+    export function run(): boolean { return checked(7, 8) === 7; }
+  `],
 ];
 
 const invalidOwnQuantifierSource = `
@@ -123,6 +129,39 @@ for (const surface of ["native", "js"]) for (const [name, sourceText] of context
   test(`unannotated parameter keeps its contextual native input on ${surface}: ${name}`, { timeout: 240_000 }, () => {
     const compiled = compileCsharpSource({ surface, sourceText });
     assertCsharpCompilationSucceeded(compiled);
+    const program = compiled.result.program;
+    const { ast } = program.source;
+    const parameters = new Set();
+    const references = [];
+    const visit = node => {
+      if (ast.is.IsArrowFunction(node) || ast.is.IsFunctionExpression(node)) {
+        const contract = program.records.callableDeclaration.get(node)?.contract;
+        assert.equal(contract?.kind === "source", true, "the checked body owns its native input vector");
+        for (const parameter of contract.parameters) {
+          if (ast.typeNode(parameter) !== undefined || ast.as.AsParameterDeclaration(parameter)?.Initializer !== undefined) continue;
+          parameters.add(parameter);
+          const incoming = program.records.lambdaParameterType.get(parameter);
+          const storage = program.records.requiredStorageType.get(parameter);
+          assert.equal(incoming !== undefined && storage !== undefined && targetTypeRefEquals(incoming, storage), true,
+            "unannotated declaration storage retains the contextual native input, including absence and rest");
+        }
+      }
+      if (ast.is.IsIdentifier(node)) references.push(node);
+      ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    };
+    program.source.navigation.sourceFiles.forEach(visit);
+    assert.equal(parameters.size > 0, true, "the witness observes an actual unannotated native parameter declaration");
+    let reads = 0;
+    for (const reference of references) {
+      const declaration = program.source.navigation.referenceFor(reference)?.declaration;
+      if (!parameters.has(declaration)) continue;
+      const storage = program.records.valueRead.get(reference)?.storage;
+      if (storage === undefined) continue;
+      assert.equal(targetTypeRefEquals(storage, program.records.requiredStorageType.get(declaration)), true,
+        "reference storage and declaration storage share one contextual native selection before flow narrowing");
+      reads += 1;
+    }
+    assert.equal(reads > 0, true, "the witness retains actual value reads of those native parameters");
     executeCsharpConstruction(compiled, `contextual-native-input-${name.replaceAll(" ", "-")}-${surface}`, true,
       false, [], name === "async alias input"
         ? "if (!await Tsonic.Generated.Index.run()) throw new System.Exception(\"native contextual input\");"
