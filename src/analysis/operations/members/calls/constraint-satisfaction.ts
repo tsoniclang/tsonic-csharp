@@ -10,7 +10,7 @@ import type { CsharpTypeParameterConstraint } from "../../../../target-model/typ
 import { csharpTypeParameterConstraintsImply } from "../../../../policy/constraints/type-parameter-constraints.js";
 import { resolveCsharpTypeParameterConstraints } from "../../../source-evidence/types/resolution/type-parameter-constraints.js";
 import type { CsharpSelectedTargetMethodTypeArgument } from "../../../../target-model/records/members.js";
-import { implementedConstraintType, namedTargetTypeImplicitlyAccepts } from "../../../../policy/conversions/carriers.js";
+import { csharpTargetTypeSatisfiesNativeConstraint, implementedConstraintType } from "../../../../policy/conversions/carriers.js";
 import type { CsharpTypeQueries } from "../../../../policy/model/type-resolution.js";
 import type { CsharpProjectTypePolicy } from "../../../../target-model/records/project-types.js";
 import { substituteTargetConstraint } from "../../../../policy/types/index.js";
@@ -172,11 +172,10 @@ function targetTypeFailsConstraint(
     case "implements": {
       const contract = implementedConstraintType(host, constraint, new Map());
       if (contract === undefined) return "The required native contract has no exact registered target carrier metadata.";
-      return namedTargetTypeImplicitlyAccepts(
+      return csharpTargetTypeSatisfiesNativeConstraint(
           host,
           target,
           contract,
-          new Set(),
         )
         ? undefined
         : "The exact target heritage graph does not contain the required contract.";

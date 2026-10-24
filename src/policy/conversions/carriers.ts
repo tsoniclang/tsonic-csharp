@@ -6,7 +6,7 @@ import { substituteTargetTypeParameters } from "../types/resolution/substitution
 import { conversionIsImplicitlyApplicable, selectCsharpConversion } from "./core.js";
 import { csharpConversionIsApplicable } from "./applicability.js";
 import { targetBindingSubstitutions } from "./provider-operators.js";
-import type { CsharpTargetNamedTypeRef, TargetConstraint, TargetTypeParameter, TargetTypeRef } from "../types/index.js";
+import type { CsharpTargetBindingFact, CsharpTargetNamedTypeRef, TargetConstraint, TargetTypeParameter, TargetTypeRef } from "../types/index.js";
 import type { CsharpConversionMode, CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import type { CsharpPolicyContext } from "../model/context.js";
 import { csharpUnionLeaves } from "../../target-model/types/union-relations.js";
@@ -15,6 +15,7 @@ import type { CsharpConversionShapeQueries } from "./shape-queries.js";
 import { csharpNativeRepresentationMatches } from "./native-representation.js";
 import { getCsharpCallableValueSignature } from "../../target-model/types/carriers/delegates.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
+import { csharpSourcePrimitiveDotnetMetadataName } from "../../target-model/types/carriers/scalar-types.js";
 
 export function selectJsValueConversion(
   source: TargetTypeRef,
@@ -288,6 +289,17 @@ export function namedTargetTypesAreRelated(
     namedTargetTypeImplicitlyAccepts(input, target, source, new Set());
 }
 
+export function csharpTargetTypeSatisfiesNativeConstraint(
+  input: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers"> & CsharpConversionShapeQueries,
+  source: TargetTypeRef,
+  target: TargetTypeRef,
+): boolean {
+  if (source.kind !== "source-primitive") return namedTargetTypeImplicitlyAccepts(input, source, target, new Set());
+  const binding = csharpTargetBindingFact(csharpProviderBindingFromResolution(
+    input.providers.findTargetBindingByMetadataName(csharpSourcePrimitiveDotnetMetadataName(source.name), "inheritance")));
+  return binding !== undefined && targetBindingImplementsContract(input, binding, [], target, new Set());
+}
+
 export function namedTargetTypeImplicitlyAccepts(
   input: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers"> & CsharpConversionShapeQueries,
   source: TargetTypeRef,
@@ -355,29 +367,27 @@ export function namedTargetTypeImplicitlyAccepts(
     if (sourceBinding === undefined) {
       return false;
     }
-    const substitutions = targetBindingSubstitutions(
-      sourceBinding,
-      source.typeArguments ?? [],
-    );
-    const baseType = csharpBaseTargetTypeFromBinding(
-      sourceBinding,
-      source.typeArguments ?? [],
-    );
-    if (
-      baseType !== undefined &&
-      namedTargetTypeImplicitlyAccepts(input, baseType, target, visited)
-    ) {
-      return true;
-    }
-    return (sourceBinding.implementedContracts ?? []).some((constraint) => {
-      if (constraint.kind !== "implements") return false;
-      const implemented = implementedConstraintType(input, constraint, substitutions);
-      return implemented !== undefined &&
-        namedTargetTypeImplicitlyAccepts(input, implemented, target, visited);
-    });
+    return targetBindingImplementsContract(input, sourceBinding, source.typeArguments ?? [], target, visited);
   } finally {
     visited.delete(key);
   }
+}
+
+function targetBindingImplementsContract(
+  input: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers"> & CsharpConversionShapeQueries,
+  binding: CsharpTargetBindingFact,
+  arguments_: readonly TargetTypeRef[],
+  target: TargetTypeRef,
+  visited: Set<string>,
+): boolean {
+  const substitutions = targetBindingSubstitutions(binding, arguments_);
+  const baseType = csharpBaseTargetTypeFromBinding(binding, arguments_);
+  if (baseType !== undefined && namedTargetTypeImplicitlyAccepts(input, baseType, target, visited)) return true;
+  return (binding.implementedContracts ?? []).some(constraint => {
+    if (constraint.kind !== "implements") return false;
+    const implemented = implementedConstraintType(input, constraint, substitutions);
+    return implemented !== undefined && namedTargetTypeImplicitlyAccepts(input, implemented, target, visited);
+  });
 }
 
 function targetTypeImplicitlyConvertsToObject(source: TargetTypeRef): boolean {
