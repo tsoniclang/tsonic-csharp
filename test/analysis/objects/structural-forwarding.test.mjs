@@ -532,7 +532,7 @@ function structuralInterfaceRecords(objectShapes, sourceType) {
   return analyzeCsharpStructuralInterfaceEmission({ ast: {},
     shapes: { knownShapes: () => [{ targetType: sourceType }], structuralImplementations: type => objectShapes.structuralImplementations(type) },
     names: { typeParameterNames: [] }, projectTypes: { definitionContainingDeclaration: () => undefined },
-    projections: { genericProjection: { get: () => [] } } });
+    projections: { genericProjection: { get: () => [] } }, declarations: { methodWrite: { get: () => undefined } } });
 }
 
 function sourceContract(input) {

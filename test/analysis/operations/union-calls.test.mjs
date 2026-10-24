@@ -50,7 +50,8 @@ function fixture() {
     navigation: { isProjectDeclaration: () => true },
     types: { resolveSelectedValue: () => union, resolveSourceCallParameter: () => incoming,
       resolveSourceCallResult: () => ({ selectedType: integer }), resolveSourceCallTypeArguments: () => [],
-      resolveNode: declaration => signatures[declarations.indexOf(declaration)],
+      resolveNode: declaration => { const type = signatures[declarations.indexOf(declaration)];
+        return type === undefined ? undefined : { kind: "resolved", type }; },
       resolveStorage: () => assert.fail("Body-local storage is not a native incoming parameter contract") },
     projectTypes: { catalog: {
         definitionForTarget: target => ({ kind: "class", declaration: owners[arms.indexOf(target)] }),

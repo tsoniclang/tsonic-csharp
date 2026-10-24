@@ -190,10 +190,11 @@ export function resolveMemberAccessTargetType(
   if (selection.kind === "project-indexer") return optionalAccessTargetType(
     mode === "selected" ? selection.selectedReadType ?? selection.valueType : selection.valueType, selection.source.optionalChain);
   if (selection.kind === "union-property") return selection.resultCarrier;
-  if ((selection.kind === "resolved" || selection.kind === "source-owned") && selection.source.accessMode === "read") {
+  if (selection.kind === "resolved" || selection.kind === "source-owned") {
     const receiverType = resolveSelectedReceiverTargetType(selection.source.receiver, queries, state);
     const methodValue = selectCsharpMethodValue(receiverType, queries.facts.selectedSubjects(
-      selection.source.selectedSymbol, selection.source.selectedDeclaration), host, selection.source.callCallee);
+      selection.source.selectedSymbol, selection.source.selectedDeclaration), host,
+      selection.source.accessMode !== "read" ? "storage" : selection.source.callCallee ? "call" : "value");
     if (methodValue !== undefined) return optionalAccessTargetType(methodValue, selection.source.optionalChain);
   }
   if (selection.kind === "resolved") {

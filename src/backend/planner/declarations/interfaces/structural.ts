@@ -69,14 +69,6 @@ export function planCsharpStructuralInterfaceMembers(
       if (planned === undefined) {
         return failCsharpPlannerInvariant("An admitted structural method lost its canonical native argument adaptation.", method.declaration);
       }
-      const call: CsharpExpression = { kind: "InvocationExpression", callee: {
-        kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: "this" }, name: method.sourceName,
-        ...(typeArguments.length === 0 ? {} : { typeArguments: typeArguments as NonNullable<typeof typeArguments[number]>[] }),
-      }, arguments: planned.arguments.map((expression, index) => ({ kind: "Argument", expression,
-        ...(incoming[index]?.passing === undefined ? {} : { passing: incoming[index]!.passing }) })) };
-      const value = applyCsharpConversionSelection(method.declaration, sourceFile, methodInput, diagnostics,
-        forwarding.result.source, forwarding.result.target, forwarding.result.conversion, call);
-      if (value === undefined) failCsharpPlannerInvariant("An admitted structural method requires its native forwarding result.", method.declaration);
       const typeParameters = binders.map(parameter => {
         const rendered = csharpTypeFromTargetTypeRef({
           kind: "type-parameter", identity: parameter.identity, name: parameter.name,
@@ -85,12 +77,22 @@ export function planCsharpStructuralInterfaceMembers(
           "An admitted structural method binder has no native identifier rendering.", parameter.csharpDeclaration ?? method.declaration);
         return { name: rendered.name };
       });
-      result.push({ kind: "MethodDeclaration", name: method.member.targetName, explicitInterface, modifiers: [], returnType,
-        parameters: parameters as CsharpParameter[],
-        ...(typeParameters.length === 0 ? {} : { typeParameters }),
-        body: { kind: "Block", statements: [...planned.statements, isCsharpVoidTargetType(forwarding.contract.returnType)
-          ? { kind: "ExpressionStatement", expression: value } : { kind: "ReturnStatement", expression: value }] },
-      });
+      for (const invocation of method.invocations) {
+        const call: CsharpExpression = { kind: "InvocationExpression", callee: {
+          kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: "this" }, name: invocation.sourceName,
+          ...(typeArguments.length === 0 ? {} : { typeArguments: typeArguments as NonNullable<typeof typeArguments[number]>[] }),
+        }, arguments: planned.arguments.map((expression, index) => ({ kind: "Argument", expression,
+          ...(incoming[index]?.passing === undefined ? {} : { passing: incoming[index]!.passing }) })) };
+        const value = applyCsharpConversionSelection(method.declaration, sourceFile, methodInput, diagnostics,
+          forwarding.result.source, forwarding.result.target, forwarding.result.conversion, call);
+        if (value === undefined) failCsharpPlannerInvariant("An admitted structural method requires its native forwarding result.", method.declaration);
+        result.push({ kind: "MethodDeclaration", name: invocation.name, explicitInterface, modifiers: [], returnType,
+          parameters: parameters as CsharpParameter[],
+          ...(typeParameters.length === 0 ? {} : { typeParameters }),
+          body: { kind: "Block", statements: [...planned.statements, isCsharpVoidTargetType(forwarding.contract.returnType)
+            ? { kind: "ExpressionStatement", expression: value } : { kind: "ReturnStatement", expression: value }] },
+        });
+      }
     }
   }
   return result;

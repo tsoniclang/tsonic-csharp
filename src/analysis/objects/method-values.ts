@@ -8,14 +8,14 @@ import { selectCsharpMethodValueEnvironment } from "../../policy/types/objects/m
 import { csharpNullableTargetType } from "../../target-model/types/carriers/nullable.js";
 
 export function selectCsharpMethodValue(
-  owner: TargetTypeRef | undefined, subjects: readonly ExtensionFactSubject[], host: CsharpTypePolicyHost, directCall = false,
+  owner: TargetTypeRef | undefined, subjects: readonly ExtensionFactSubject[], host: CsharpTypePolicyHost, role: "value" | "call" | "storage",
 ): TargetTypeRef | undefined {
   if (owner === undefined) return undefined;
   const shape = host.structuralTypes.resolveTarget(owner);
   if (shape === undefined) return undefined;
   const member = resolveCsharpObjectShapeMemberBySelectedSubject(shape, subjects);
   if (member.kind !== "resolved" || member.member.memberKind !== "method" || member.member.methodValueContract === undefined) return undefined;
-  if (directCall && member.member.optional !== true) return undefined;
+  if (role === "call" && member.member.optional !== true || role === "storage" && member.member.methodValueStorage === undefined) return undefined;
   if (member.member.methodValueStorage === undefined && shape.methodImplementation !== undefined) {
     if (csharpObjectShapeMethodDeclaration(shape, member.member) === undefined) return undefined;
   } else if (member.member.methodValueStorage === undefined && (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract !== true &&

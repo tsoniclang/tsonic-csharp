@@ -215,6 +215,10 @@ test("optional native method storage retains a required present protocol without
   assert.equal(recorded[0].members[0].optional, undefined);
   assert.equal(getCsharpNullableElementTargetType(recorded[0].members[0].type), undefined);
   assert.equal(shape.implements, undefined);
+  const repeated = retainCsharpMethodValueContracts({ ...shape, implements: [recorded[0].targetType] },
+    fact => fact, unconstrained, abstractMethodStorage);
+  assert.equal(repeated.implements, undefined, "an optional interface cannot acquire its present-only invocation protocol from a prior decoration");
+  assert.equal(csharpObjectShapesEqual(shape, repeated), true, "repeated publication preserves the same complete physical interface contract");
   assert.notEqual(csharpObjectShapeMemberContractKey(member), csharpObjectShapeMemberContractKey(recorded[0].members[0]));
   assert.deepEqual(csharpPresentObjectShapeMethod(member).type, contract("Item"));
   assert.equal(csharpPresentObjectShapeMethod({ ...member, memberKind: "property" }), undefined);

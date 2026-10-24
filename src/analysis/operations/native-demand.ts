@@ -1,5 +1,6 @@
 import { sealCsharpNativeUseClassifications } from "../program/records/native-uses.js";
 import type { Node } from "@tsonic/tsts";
+import type { CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
 import { targetUseSiteIdentity, type TargetUseSiteRef } from "@tsonic/target-api/analysis";
 import { failTargetAnalysisInvariant, targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
 import { sourceExpressionResultDisposition, sourceExpressionValueInputs, sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
@@ -10,6 +11,7 @@ import { csharpNativeUseSite, type CsharpExpectedNativeUse, type CsharpNativeChi
 import { csharpConstructorBaseCall } from "../callables/constructor-entry.js";
 import { isCsharpUnusedTupleDefault } from "../control-flow/binding-patterns.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
+import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import { isCsharpRecordDictionaryTargetType } from "../../target-model/types/carriers/collections.js";
 import { csharpVoidTargetType } from "../../target-model/types/carriers/scalar-types.js";
 import { csharpCarrierAdmitsSourceAbsence, isCsharpAbsenceTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
@@ -215,6 +217,13 @@ export function analyzeCsharpNativeDemand(
         if (inner === undefined) break;
         reference = inner;
       }
+      const member = input.operations.selectedProperty.get(reference)?.sourceOwned ??
+        input.operations.selectedElement.get(reference)?.sourceOwned;
+      if (member?.shapeMember?.kind !== "resolved" || member.shapeMember.member.memberKind !== "method") continue;
+      const receiver = getCsharpNullableElementTargetType(member.selectedReceiverType) ?? member.selectedReceiverType;
+      if (receiver?.kind !== "target-named") continue;
+      const nativeReceiver = receiver as CsharpTargetNamedTypeRef;
+      if (nativeReceiver.csharpStructuralContract !== true && nativeReceiver.csharpSourceDeclarationKind !== "interface") continue;
       const selected = input.sourceStorage.writeAt(reference, input.sourceStorage.emptyBindings);
       if (selected.kind !== "resolved" || selected.write.reason === undefined ||
         selected.write.operation !== child.expression && child.access !== "location") continue;

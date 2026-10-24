@@ -8,6 +8,9 @@ import type { CsharpGenericProjectionIndex } from "../../target-model/records/ty
 import { authoredTypeParameterNames, generatedTypeParameterNames } from "@tsonic/target-api/source";
 import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
 import { createCsharpStructuralInterfaceRecords } from "../program/records/structural-interfaces.js";
+import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
+import { targetTypeRefEquals } from "../../target-model/types/equality.js";
+import { objectShapeMethodInvocationName } from "../../target-model/names/object-members.js";
 
 export function analyzeCsharpStructuralInterfaceEmission(input: {
   readonly ast: AstReader;
@@ -15,6 +18,7 @@ export function analyzeCsharpStructuralInterfaceEmission(input: {
   readonly names: CsharpNamePlan;
   readonly projectTypes: CsharpProjectTypeClassifications;
   readonly projections: CsharpGenericProjectionIndex;
+  readonly declarations: Pick<CsharpDeclarationClassifications, "methodWrite">;
 }) {
   const sourceNames = new Map(input.names.typeParameterNames.map(parameter => [parameter.identity, parameter.name]));
   return createCsharpStructuralInterfaceRecords(input.shapes.knownShapes().map(shape => ({ carrier: shape.targetType,
@@ -43,7 +47,13 @@ export function analyzeCsharpStructuralInterfaceEmission(input: {
             .flatMap(type => type.kind === "type-parameter" ? [bareName(names.get(type.identity) ?? type.name)] : []),
           ...[...names].filter(([identity]) => !binderIds.has(identity)).map(([, name]) => bareName(name)),
         ]);
-        return Object.freeze({ ...method, typeParameterNames: Object.freeze([...selected].map(([identity, name]) => Object.freeze({ identity, name }))) });
+        const invocations = [Object.freeze({ name: method.member.targetName, sourceName: method.sourceName })];
+        if (method.member.methodValueContract !== undefined && targetTypeRefEquals(method.member.methodValueContract, implementation.interfaceType)) {
+          invocations.push(Object.freeze({ name: objectShapeMethodInvocationName(method.member),
+            sourceName: input.declarations.methodWrite.get(method.declaration)?.implementationName ?? method.sourceName }));
+        }
+        return Object.freeze({ ...method, invocations: Object.freeze(invocations),
+          typeParameterNames: Object.freeze([...selected].map(([identity, name]) => Object.freeze({ identity, name }))) });
       })) });
     })),
   })));

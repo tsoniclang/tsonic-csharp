@@ -77,7 +77,9 @@ export function retainCsharpMethodValueContracts(
 ): CsharpObjectShapeFact {
   if (csharpStructuralObjectShapeIdentity(shape.targetType) === undefined &&
     (shape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind !== "interface") return shape;
-  const implemented = new Map((shape.implements ?? []).map(type => [targetTypeRefKey(type), type]));
+  const implemented = new Map((shape.implements ?? []).filter(type => !shape.members.some(member =>
+    member.methodValueContract !== undefined && targetTypeRefEquals(member.methodValueContract, type)))
+    .map(type => [targetTypeRefKey(type), type]));
   const members = shape.members.map(member => {
     const signature = csharpPresentObjectShapeMethod(member);
     if (signature === undefined) return member;
