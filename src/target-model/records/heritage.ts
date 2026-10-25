@@ -36,6 +36,7 @@ export interface CsharpFinalStructuralInterfaceImplementation extends CsharpStru
     readonly read: CsharpCallableValueAdapter;
   })[];
   readonly methods: readonly (CsharpStructuralInterfaceImplementation["methods"][number] & {
+    readonly requiresMethodForwarding: boolean;
     readonly forwarding: CsharpStructuralMethodForwarding;
   })[];
 }

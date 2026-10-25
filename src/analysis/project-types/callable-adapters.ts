@@ -293,8 +293,11 @@ export function analyzeCsharpProjectCallableAdapters(
             parameter.targetParameter.passingMode === incoming[index]!.passingMode &&
             targetTypeRefEquals(parameter.targetParameter.type, incoming[index]!.type)) &&
           targetTypeRefEquals(implementation.returnType, contract.returnType);
-        if (sameSignature && result.conversion.kind === "identity") continue;
-        methods.push(Object.freeze({ ...method, forwarding: Object.freeze({ contract, implementation, typeArguments, typeParameters,
+        const requiresMethodForwarding = !sameSignature || result.conversion.kind !== "identity";
+        const requiresBodyInvocation = method.member.methodValueContract !== undefined &&
+          targetTypeRefEquals(method.member.methodValueContract, request.selected.interfaceType);
+        if (!requiresMethodForwarding && !requiresBodyInvocation) continue;
+        methods.push(Object.freeze({ ...method, requiresMethodForwarding, forwarding: Object.freeze({ contract, implementation, typeArguments, typeParameters,
           parameterDefaults: Object.freeze(implementation.nativeParameters.map(parameter => declarations.runtimeDefault.get(parameter.sourceParameter))),
           parameters, result }) }));
       }
