@@ -14,6 +14,7 @@ import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types
 import { retainCsharpMethodValueContracts, selectCsharpWritableMethodContract } from "../../../dist/analysis/objects/shapes/method-values.js";
 import { csharpCopiedObjectShapeMembers } from "../../../dist/policy/types/objects/method-environments.js";
 import { selectCsharpObjectMemberEmission, selectCsharpObjectMethodSignature } from "../../../dist/policy/types/objects/object-members.js";
+import { csharpOptionalStorageProjection, csharpProjectedType } from "../../../dist/target-model/types/projections.js";
 import { createStructuralObjectShapeTarget } from "../../../dist/analysis/objects/shapes/construction.js";
 import { analyzeCsharpStructuralObjectEmission } from "../../../dist/analysis/objects/structural-emission.js";
 import { renderObjectShapeMembers } from "../../../dist/backend/planner/objects/members.js";
@@ -328,6 +329,28 @@ test("native method-value storage identity includes the exact immutable invocati
   assert.equal(presentStorage !== undefined && targetTypeRefEquals(presentStorage, owner), true,
     "optional native method storage retains exactly its one physical absence state");
   assert.equal(getCsharpNullableElementTargetType(presentStorage) === undefined, true, "unwrapping removes the single native absence");
+});
+
+test("optional native method signatures retain exact generic absence storage", () => {
+  const parameter = Object.freeze({ kind: "type-parameter", identity: "test:Value", name: "Value" });
+  const storage = csharpOptionalStorageProjection(parameter);
+  const signature = csharpDelegateTargetType("System.Func", [storage], parameter, { optionalParameterIndexes: [0] });
+  const selected = selectCsharpObjectMethodSignature(signature);
+  assert.equal(selected?.parameters[0]?.type === storage && selected.parameters[0].optional === true, true,
+    "the canonical native optional storage identity is kept rather than re-derived or erased");
+  assert.equal(selected.returnType === parameter, true, "the original generic return binder remains exact");
+  for (const [label, type, indexes, rest] of [
+    ["bare generic", parameter, [0], undefined],
+    ["operations witness", csharpProjectedType({ kind: "optional", part: "operations", arguments: [parameter] }), [0], undefined],
+    ["duplicate optional", storage, [0, 0], undefined],
+    ["outside parameter", storage, [1], undefined],
+    ["rest collision", storage, [0], 0],
+  ]) {
+    const malformed = { ...signature, csharpDelegateSignature: { ...signature.csharpDelegateSignature,
+      parameters: [type], optionalParameterIndexes: indexes, restParameterIndex: rest } };
+    assert.equal(selectCsharpObjectMethodSignature(malformed) === undefined, true,
+      `${label}: no unproved native absence or malformed input geometry is admitted`);
+  }
 });
 
 function nativeModeMember(identity, modes, returnPassing) {
