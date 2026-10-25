@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { localProtectedAsyncSource, localProtectedErrorRegionSource,
+import { localProtectedAsyncSource, localProtectedErrorRegionSource, localProtectedIntrinsicSource,
   localProtectedModuleSource } from "../../../../tsonic/test/fixtures/local-protected-error-regions.mjs";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
@@ -18,3 +18,9 @@ for (const surface of ["native", "js"]) {
     });
   }
 }
+
+test("CLR local protection preserves a pure callback's independent intrinsic error", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: localProtectedIntrinsicSource });
+  assertCsharpCompilationSucceeded(compiled);
+  executeCsharpConstruction(compiled, "local-protected-intrinsic", false);
+});
