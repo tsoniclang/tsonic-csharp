@@ -523,6 +523,7 @@ export function finalizeCsharpNativeEmission(
   });
   if (constructors.issues.length !== 0) return rejectedTargetStage(constructors.issues);
   const records = createCsharpProgramRecords({ ...recordInput, constructors: constructors.records }, analysis.requiredRecords);
+  sourceStorage.sealFormalMemberWriteDemands();
 
   return resolvedTargetStage(Object.freeze({
     records,
