@@ -204,5 +204,12 @@ function resolveProjectCallableInterface(
     member !== undefined && host.ast.is.IsCallSignatureDeclaration(member)));
   const selected = ownSignature || inherited.length === 0
     ? scope.resolveCallableType(declaredType, queries, nextState(state)) : inherited[0];
-  return selected === undefined || inherited.some(base => !targetTypeRefEquals(base, selected)) ? undefined : selected;
+  if (selected === undefined) return undefined;
+  if (inherited.some(base => !targetTypeRefEquals(base, selected))) {
+    state.rejectNativeResolution?.(Object.freeze({ kind: "rejected", subject: declaration,
+      code: "CSHARP_CALLABLE_NATIVE_SIGNATURE_CONFLICT",
+      reason: "A callable interface requires one exact native signature across every inherited call contract." }));
+    return undefined;
+  }
+  return selected;
 }

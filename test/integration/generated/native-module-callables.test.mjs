@@ -33,4 +33,17 @@ for (const surface of [undefined, "js"]) {
     assert.ok(compiled.targetDiagnostics.length > 0);
     assert.equal(compiled.result.artifacts.length, 0);
   });
+  test(`matching inherited callable contracts preserve native widths on ${surface ?? "native"}`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      import type { int64 } from "@tsonic/core/types.js";
+      interface Left { (value: int64): int64; }
+      interface Right { (value: int64): int64; }
+      interface Matching extends Left, Right {}
+      export const identity: Matching = value => value;
+      export function run(): boolean { return identity(7n as int64) === 7n; }` });
+    assertCsharpCompilationSucceeded(compiled);
+    assert.match([...compiled.artifacts.values()].join("\n"), /long identity\(long value\)/u,
+      "equal inherited native signatures retain their exact source annotation rather than bigint widening");
+    executeCsharpConstruction(compiled, `matching-native-width-${surface ?? "native"}`);
+  });
 }
