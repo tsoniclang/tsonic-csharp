@@ -90,13 +90,17 @@ export function analyzeCsharpPromiseResults(input: {
         : { kind: "async", resultPolicy: js ? native ? "must-observe" : "observe-rejection" : "native-discard",
           contractDeclaration: declaration, checkedType: selected.sourceResultType };
     },
-    retentionFor(value) {
+    retentionFor(request) {
+      const { value } = request;
       const checked = input.storage.typeFor(value);
       if (checked.kind === "unresolved") return unresolved(value.node, checked.reason);
       // A retained call result is placed in the carrier its selected operation produces (for example the generator
       // protocol's Task<IteratorResult> for an async generator's next()), as for suspension below.
-      const carrier = ast.is.IsCallExpression(value.node) || ast.is.IsNewExpression(value.node)
+      const carrier = request.kind === "read-value" ? input.records.valueRead.get(request.reference)?.value
+        : ast.is.IsCallExpression(value.node) || ast.is.IsNewExpression(value.node)
         ? input.records.valueRead.get(value.node)?.value : input.sourceCarrier(checked.type, checked.sourceFile);
+      if (request.kind === "read-value" && (carrier === undefined || carrier.kind === "opaque" ||
+        isCsharpRefLikeTargetType(carrier))) return undefined;
       const uninhabited = input.source.semantics.forNode(value.node).types.isNever(checked.type);
       if (!uninhabited && (carrier === undefined || carrier.kind === "opaque" || isCsharpRefLikeTargetType(carrier))) {
         return unresolved(value.node, "Continuation retention requires this actual value's completed native CLR placement and carrier.");
