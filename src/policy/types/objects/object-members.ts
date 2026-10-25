@@ -10,6 +10,7 @@ import { objectShapeMethodBodyName, objectShapeMethodInvocationName, objectShape
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { selectCsharpMethodValueEnvironment } from "./method-environments.js";
 import { csharpDelegateSignatureHasSupportedPassingModes } from "../../../target-model/types/carriers/delegates.js";
+import { getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
 
 export function selectCsharpObjectMethodSignature(type: TargetTypeRef): CsharpObjectMethodSignature | undefined {
   const metadata = getCsharpDelegateSignature(getCsharpNullableElementTargetType(type) ?? type);
@@ -17,7 +18,9 @@ export function selectCsharpObjectMethodSignature(type: TargetTypeRef): CsharpOb
   const optional = new Set(metadata.optionalParameterIndexes ?? []);
   const rest = metadata.restParameterIndex;
   if (optional.size !== (metadata.optionalParameterIndexes?.length ?? 0) ||
-    [...optional].some(index => index < 0 || index >= metadata.parameters.length || index === rest || getCsharpNullableElementTargetType(metadata.parameters[index]) === undefined) ||
+    [...optional].some(index => index < 0 || index >= metadata.parameters.length || index === rest ||
+      getCsharpNullableElementTargetType(metadata.parameters[index]) === undefined &&
+      getCsharpGenericOptionalParts(metadata.parameters[index]) === undefined) ||
     rest !== undefined && (rest !== metadata.parameters.length - 1 || rest < 0)) return undefined;
   return Object.freeze({ returnType: metadata.returnType, returnPassing: metadata.returnPassing,
     returnsVoid: isCsharpVoidTargetType(metadata.returnType),

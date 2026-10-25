@@ -714,6 +714,28 @@ test("native implicit methods need no bridge while phantom destination binders s
   }
 });
 
+test("an implicit native method retains its distinct original-body protocol obligation", () => {
+  const value = fixture();
+  const owner = Object.freeze({});
+  value.policy.ast.parent = node => node === value.declaration ? owner : undefined;
+  value.policy.ast.hasModifierKind = () => false;
+  value.policy.projectTypes.catalog.definitionForDeclaration = node => node === owner
+    ? { kind: "class", declaration: owner, typeParameterBindings: [] } : undefined;
+  const selected = value.shapes.structuralImplementations(value.sourceType)[0];
+  value.shapes.structuralImplementations = () => [{ ...selected, methods: selected.methods.map(method => ({ ...method,
+    member: { ...method.member, methodValueContract: selected.interfaceType } })) }];
+  const result = analyzeCsharpProjectCallableAdapters(value.policy, value.callables, value.shapes,
+    value.declarations, value.projections, emptyNativeDispatch);
+  assert.equal(result.kind === "resolved" && result.value.issues.length === 0, true, "the exact original native method is admitted");
+  const methods = result.value.objectShapes.structuralImplementations(value.sourceType)[0].methods;
+  assert.equal(methods.length === 1 && methods[0].requiresMethodForwarding === false, true,
+    "the existing public method satisfies only its ordinary native entry");
+  assert.equal(methods[0].forwarding.implementation === value.implementation, true, "the body keeps its original physical contract");
+  const emitted = structuralInterfaceRecords(result.value.objectShapes, value.sourceType).structuralInterface.get(value.sourceType);
+  assert.deepEqual(emitted[0].methods[0].invocations.map(invocation => [invocation.name, invocation.sourceName]),
+    [["__tsonic_invoke_body_read", "read"]], "only the distinct body entry is forwarded, without a redundant ordinary bridge");
+});
+
 test("canonical generic admission alpha-aligns real body parameters and retains actual source metadata", () => {
   const value = fixture();
   const source = Object.freeze({ kind: "type-parameter", identity: "body:U", name: "U" });

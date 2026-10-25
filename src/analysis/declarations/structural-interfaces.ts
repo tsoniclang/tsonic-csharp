@@ -47,7 +47,8 @@ export function analyzeCsharpStructuralInterfaceEmission(input: {
             .flatMap(type => type.kind === "type-parameter" ? [bareName(names.get(type.identity) ?? type.name)] : []),
           ...[...names].filter(([identity]) => !binderIds.has(identity)).map(([, name]) => bareName(name)),
         ]);
-        const invocations = [Object.freeze({ name: method.member.targetName, sourceName: method.sourceName })];
+        const invocations = method.requiresMethodForwarding
+          ? [Object.freeze({ name: method.member.targetName, sourceName: method.sourceName })] : [];
         if (method.member.methodValueContract !== undefined && targetTypeRefEquals(method.member.methodValueContract, implementation.interfaceType)) {
           invocations.push(Object.freeze({ name: objectShapeMethodInvocationName(method.member),
             sourceName: input.declarations.methodWrite.get(method.declaration)?.implementationName ?? method.sourceName }));
