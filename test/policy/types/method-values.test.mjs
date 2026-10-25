@@ -65,6 +65,55 @@ test("native writable method contracts derive from the unchanged read-only ident
   }
 });
 
+test("inherited optional method handles retain every original native interface obligation", () => {
+  const scalar = { kind: "source-primitive", name: "int32" };
+  const signature = contract("Value");
+  const method = { sourceKey: { kind: "property", name: "identity" }, sourceName: "identity", targetName: "identity",
+    memberKind: "method", type: csharpNullableTargetType(signature), optional: true };
+  const base = { targetType: { kind: "target-named", id: "Identity", csharpRender: { kind: "named", name: "Identity" } },
+    members: [method] };
+  const count = { sourceKey: { kind: "property", name: "count" }, sourceName: "count", targetName: "count",
+    memberKind: "property", type: scalar };
+  const derived = { targetType: { kind: "target-named", id: "Counter", csharpRender: { kind: "named", name: "Counter" } },
+    members: [count, method], implements: [base.targetType] };
+  const producer = { targetType: { kind: "target-named", id: "CounterValue", csharpRender: { kind: "named", name: "CounterValue" } },
+    members: [count, method], implements: [derived.targetType] };
+  const shapes = [base, derived, producer];
+  const selected = analyzeCsharpStructuralObjectEmission({
+    shapes: { knownShapes: () => shapes, resolveTarget: type => shapes.find(shape => targetTypeRefEquals(shape.targetType, type)) },
+    demand: { artifacts: [], get: key => key === objectShapeArtifactKey(base) ? undefined
+      : { capabilities: ["method-values"], receiverBoundMethodKeys: [],
+        materialization: key === objectShapeArtifactKey(producer) ? "synthetic" : "declared" } },
+    storage: { nativeField: { get: () => undefined } },
+  });
+  assert.equal(selected.issues.length, 0, "the original optional callable has one exact native signature");
+  const contracts = selected.records.structuralObject.get(producer).contracts;
+  assert.equal(contracts.length, 2, "an inherited optional handle remains required without an independent extraction demand");
+  for (const [index, shape] of [derived, base].entries()) {
+    const contract = contracts.find(value => targetTypeRefEquals(value.interface, shape.targetType));
+    assert.equal(contract !== undefined, true, `native interface ${index} retains its own original obligation`);
+    assert.equal(contract.name, index === 0 ? "__tsonic_shape_method_1_identity" : "__tsonic_shape_method_0_identity",
+      "member ordering cannot substitute a different inherited native property");
+    assert.equal(contract.source, "__tsonic_shape_method_1_identity", "both contracts read the same original optional slot");
+    assert.equal(contract.writable, false, "inheritance does not manufacture a native setter");
+    assert.equal(targetTypeRefEquals(contract.type, method.type), true, "optional absence and generic signature are unchanged");
+  }
+  const required = { ...method, type: signature, optional: false };
+  const optionalData = { ...count, optional: true };
+  const dataBase = { ...base, members: [optionalData, required] };
+  const dataProducer = { ...producer, members: [optionalData, required], implements: [dataBase.targetType] };
+  const dataShapes = [dataBase, dataProducer];
+  const dataEmission = analyzeCsharpStructuralObjectEmission({
+    shapes: { knownShapes: () => dataShapes, resolveTarget: type => dataShapes.find(shape => targetTypeRefEquals(shape.targetType, type)) },
+    demand: { artifacts: [], get: key => key === objectShapeArtifactKey(dataProducer)
+      ? { capabilities: [], receiverBoundMethodKeys: [], materialization: "synthetic" } : undefined },
+    storage: { nativeField: { get: () => undefined } },
+  });
+  assert.equal(dataEmission.issues.length, 0, "optional data never changes ordinary native method admission");
+  assert.equal(dataEmission.records.structuralObject.get(dataProducer).contracts.length, 0,
+    "an optional data member cannot demand an otherwise unused method handle");
+});
+
 test("native write-consuming interfaces require real producer slots and emit real setter forwarding", () => {
   const scalar = { kind: "source-primitive", name: "int32" };
   const member = { sourceKey: { kind: "property", name: "read" }, sourceName: "read", targetName: "read",
