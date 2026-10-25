@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { createTargetSourceProgram, sourceSequenceInputChoice } from "@tsonic/target-api/source";
 import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { selectCsharpNativeOperandUses } from "../../../dist/analysis/operations/control-flow/native-operands.js";
 import { selectCsharpNativeCompletion } from "../../../dist/policy/operations/control-flow/native-completion.js";
+import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 
 const scalar = Object.freeze({ kind: "source-primitive", name: "int32" });
 const checked = checkCsharpSource({ sourceText: `
@@ -23,6 +24,10 @@ const checked = checkCsharpSource({ sourceText: `
   export const shorthandOrdered = { a: first(), short, ...tail(), m() { return body(); }, z: last() };
   export const accessorOrdered = { a: first(), get measured(): number { return body(); },
     set measured(value: number) { void value; }, z: last() };
+  function sourceValues(): number[] | undefined { return undefined; }
+  function fallbackValues(): number[] { return [1]; }
+  function neverValues(): number[] { throw new Error("unreachable fallback"); }
+  export const borrowedValues = [0, ...(sourceValues() ?? fallbackValues() ?? neverValues()), 2];
 ` });
 assert.equal(checked.sourceDiagnosticsText === "", true, checked.sourceDiagnosticsText);
 const source = createTargetSourceProgram(checked.source);
@@ -45,7 +50,7 @@ const classification = grouping => ({ form: { kind: "target", optionalReceiverRo
   sourceCall: { kind: "method", receiver: { expression: receiver, type: scalar } }, unionCall: { kind: "not-union" },
   sourceArgumentGrouping: grouping });
 const input = selected => ({ ast, evidence: { compileTimeMetadata: no, sourceArgument: none, sourceDefaultValue: none },
-  operations: { selectedCall: { get: node => node === call ? selected : undefined }, nativeHandler: none },
+  operations: { selectedCall: { get: node => node === call ? selected : undefined }, nativeHandler: none, borrowedSequence: none },
   valueReads: { valueRead: { get: () => ({ value: scalar }) } }, bindingPatterns: { bindingPatternProjection: none },
   unusedDefault: no, callableCreation: none, classFactories: { classFactory: none },
   navigation: { sourceReferenceFor: () => undefined, referenceFor: () => undefined, isProjectDeclaration: () => false } });
@@ -162,4 +167,28 @@ test("completion distinguishes mandatory, alternative, guarded and creation-time
     ["short-circuit right never", { kind: "short-circuit", left: normal, right: never }, "value"],
     ["creation does not execute body", { kind: "creation" }, "value"],
   ]) assert.equal(selectCsharpNativeCompletion(scalar, flow)?.kind, kind, label);
+});
+
+test("borrowed sequence demand keeps actual native branches and omits an unreachable fallback", () => {
+  const declaration = nodes.find(node => ast.is.IsVariableDeclaration(node) && ast.text(ast.name(node)) === "borrowedValues");
+  const array = ast.as.AsVariableDeclaration(declaration).Initializer;
+  const spread = ast.children(array)[1];
+  const expression = ast.as.AsSpreadElement(spread).Expression;
+  const choice = sourceSequenceInputChoice(ast, expression);
+  assert.equal(choice.inputs.length, 3, "all three original source operands are checked before native reachability");
+  const carrier = { kind: "array", element: scalar };
+  const fact = { expression, array, sourceCarrier: carrier, controlNodes: choice.controlNodes,
+    inputs: choice.inputs.map((expression, index) => ({ kind: "sequence", expression,
+      carrier: index === 0 ? csharpNullableTargetType(carrier) : carrier, presentCarrier: carrier,
+      optional: index === 0, lengthMember: "Length", elements: [scalar] })) };
+  const value = input(undefined);
+  value.operations.borrowedSequence = { get: node => node === expression ? fact : undefined };
+  const selected = selectCsharpNativeOperandUses(value, array);
+  assert.deepEqual(selected.runtime.map(child => text(child.expression)), ["0", "sourceValues()", "fallbackValues()", "2"]);
+  assert.deepEqual(selected.runtime.map(child => child.guard), [undefined, undefined, "if-absent", undefined]);
+  assert.equal(selected.runtime[1].owner === expression && selected.runtime[2].owner === expression &&
+    selected.runtime[1].slot.index === 0 && selected.runtime[2].slot.index === 1, true,
+  "the selected branches retain their original choice owner and input positions");
+  assert.equal(selected.planning.every((step, index) => step.kind === "use" && step.use === selected.runtime[index]), true,
+    "planning retains the identical runtime operands and cannot evaluate a fallback twice");
 });
