@@ -131,6 +131,7 @@ export function analyzeCsharpRepresentationIteration(
     policy,
   );
   const sourceEvidence = evidence.index;
+  if (sourceEvidence.fixedArrayIssues.length > 0) return rejectCsharpAnalysisIssues(sourceEvidence.fixedArrayIssues);
   const operations = analyzeCsharpTargetOperations(policy, sourceEvidence, statementErasure, sourceStorage.nodes, requiredRecords);
   const valueReadStages = analyzeCsharpValueReadStages(policy, sourceEvidence, operations);
   const typeProjections = analyzeCsharpTypeProjections(input.source, sourceEvidence, operations);
