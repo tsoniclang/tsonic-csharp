@@ -2,7 +2,7 @@ import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../../target-model/types/model.js";
 import { csharpSourcePrimitiveTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
 
 import { nextState } from "./state.js";
@@ -18,7 +18,7 @@ import { resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
 import { selectCsharpConditionalNumericCarrier } from "../../../../policy/types/conditional-numeric-carrier.js";
 import { getCsharpGenericOptionalParts } from "../../../../target-model/types/projections.js";
 import { resolveCsharpStaticMemberReceiver } from "../../../../policy/types/project/static-members.js";
-import { combineCsharpTargetUnionMembers } from "../../../../target-model/types/carriers/runtime-carriers.js";
+import { combineCsharpTargetUnionMembers, isCsharpJsValueTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { resolveCsharpContextualLiteralCarrier } from "./contextual-literals.js";
 import { resolveCsharpSourceLiteralTargetType } from "../../../../policy/conversions/source-literals.js";
@@ -43,11 +43,15 @@ export function resolveSelectedExpressionType(
         nextState(state),
       );
     }
-    return resolveNodeWithState(
+    const asserted = resolveNodeWithState(
       assertion?.Type,
       queries.sourceFile,
       nextState(state),
     );
+    const source = resolveNodeWithState(assertion?.Expression, queries.sourceFile, nextState(state));
+    if (asserted === undefined || source === undefined) return undefined;
+    return isCsharpJsValueTargetType(source) && asserted.kind === "target-named" && (asserted as CsharpTargetNamedTypeRef).csharpStructuralContract === true
+      ? source : asserted;
   }
   if (
     host.ast.is.IsParenthesizedExpression(node) ||

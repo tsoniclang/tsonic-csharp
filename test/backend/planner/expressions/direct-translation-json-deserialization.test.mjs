@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   compileCsharpSource,
 } from "../../../helpers/direct-csharp-session.mjs";
+import { executeCsharpConstruction } from "../../../helpers/native-construction.mjs";
 
 test("provider-owned CLR enums retain intrinsic C# equality and bitwise operations", () => {
   const compiled = compileCsharpSource({
@@ -229,15 +230,26 @@ test("JS structural views retain one closed value carrier through assertions, fl
         }
         public static string create()
         {
-            Tsonic.CSharp.Runtime.TsValue obj = Tsonic.CSharp.Runtime.TsValue.CreateDynamicObject("title", Tsonic.CSharp.Js.JSON.parse("\\\"created\\\""));
-            return Tsonic.CSharp.Runtime.TsValue.ApplyDynamicTypeof(obj.ReadDynamicSlot("title"));
+            ObjectShape_64173a5b655b<Tsonic.CSharp.Runtime.TsValue> obj = new ObjectShape_b1754c0ee162
+            {
+                title = Tsonic.CSharp.Js.JSON.parse("\\\"created\\\""),
+            };
+            return Tsonic.CSharp.Runtime.TsValue.ApplyDynamicTypeof(obj.title);
         }
     }
 }
 `);
-  assert.equal(compiled.artifacts.has("generated/TsonicObjectShapes.cs"), false);
+  assert.equal(compiled.artifacts.has("generated/TsonicObjectShapes.cs"), true,
+    "the actual closed literal retains its native field declaration independently of the JSON value views");
   assert.equal(source.includes("dynamic"), false);
   assert.equal(source.includes("System.Reflection"), false);
+  executeCsharpConstruction(compiled, "json-source-value-views", false, false, [], `
+using Index = Tsonic.Generated.Index;
+if (Index.parse(@"{""title"":""kept""}") != "kept" || Index.parse(@"{""title"":7}") != null)
+    throw new System.Exception("checked JSON field refinement");
+if (Index.update(@"{""title"":""kept""}") != "number" || !Index.identity(@"{""title"":""kept""}"))
+    throw new System.Exception("original JSON mutation and alias identity");
+`);
 });
 
 test("broad value object literals lower directly into nested closed JS-value carriers", () => {
@@ -258,11 +270,13 @@ test("broad value object literals lower directly into nested closed JS-value car
   const source = compiled.artifacts.get("src/Index.cs") ?? "";
   assert.match(
     source,
-    /TsValue createUnknown\(\)[\s\S]*TsValue\.CreateDynamicObject\("value", Tsonic\.CSharp\.Runtime\.TsValue\.from\(1\), "child", Tsonic\.CSharp\.Runtime\.TsValue\.CreateDynamicObject\("label", Tsonic\.CSharp\.Runtime\.TsValue\.from\("ready"\)\)\)/u,
+    /TsValue createUnknown\(\)[\s\S]*TsValue\.from\(new ObjectShape_[a-f0-9]+\s*\{\s*value = 1,\s*child = new ObjectShape_[a-f0-9]+\s*\{\s*label = "ready",\s*\},\s*\}\)/u,
   );
   assert.match(
     source,
-    /TsValue createAny\(\)[\s\S]*TsValue\.CreateDynamicObject\("enabled", Tsonic\.CSharp\.Runtime\.TsValue\.from\(true\)\)/u,
+    /TsValue createAny\(\)[\s\S]*TsValue\.from\(new ObjectShape_[a-f0-9]+\s*\{\s*enabled = true,\s*\}\)/u,
   );
-  assert.equal(compiled.artifacts.has("generated/TsonicObjectShapes.cs"), false);
+  assert.equal(compiled.artifacts.has("generated/TsonicObjectShapes.cs"), true,
+    "broad result boxing does not erase the closed native field inventories");
+  assert.doesNotMatch(source, /CreateDynamicObject|ReadDynamicSlot|WriteDynamicSlot|System\.Reflection/u);
 });
