@@ -26,7 +26,7 @@ export function selectCsharpIteration(
   const iterableType = input.types.resolveNode(
     expression,
     sourceFile,
-  );
+  )?.type;
   if (iterableType === undefined) {
     return rejectCsharpIteration(
       "The checked iterable expression does not have a closed C# target representation.",

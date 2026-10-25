@@ -6,13 +6,40 @@ import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts"
 import { createTargetSourceProgram, Node_Initializer } from "@tsonic/target-api/source";
 import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 import { csharpValueDomainHasTargetType as selectedValueDomainHasTargetType } from "../../../dist/policy/types/objects/value-domain-carrier.js";
-import { analyzeCsharpValueDomainCarriers } from "../../../dist/analysis/objects/value-domain-carriers.js";
+import { analyzeCsharpValueDomainCarriers, projectCsharpNativeSourceStorageCarrier } from "../../../dist/analysis/objects/value-domain-carriers.js";
+import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpEmptyObjectTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { substituteObjectShapeFactTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
 import { createCsharpMetadataBudget } from "../../../dist/target-model/metadata/immutable.js";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { frozenEmptyStorageSources } from "../../../../tsonic/test/fixtures/frozen-empty-storage.mjs";
+
+test("native source-storage projections preserve exact field, element and tuple identities at every consumer", () => {
+  const declaration = {};
+  const foreign = {};
+  const integer = csharpSourcePrimitiveTargetType("int64");
+  const owner = { kind: "target-named", id: "projection-owner", csharpAllowsRefLikeTypeArguments: [] };
+  const member = { sourceKey: { kind: "property", name: "payload" }, sourceName: "payload", targetName: "storedPayload",
+    memberKind: "property", type: { kind: "tuple", elements: [integer] }, sourceSubjects: [declaration], sourceDeclarations: [declaration] };
+  const shape = { targetType: owner, members: [member] };
+  const shapes = { resolveTarget: carrier => carrier === owner ? shape : undefined };
+  let work = 0;
+  const subject = { kind: "value", node: {}, projection: [{ kind: "array-element" },
+    { kind: "member", declaration }, { kind: "tuple-element", index: 0 }] };
+  const source = { kind: "array", element: owner };
+  assert.equal(projectCsharpNativeSourceStorageCarrier(source, subject, shapes, amount => { work += amount; }) === integer, true,
+    "the exact native int64 survives the complete source projection without a logical carrier reconstruction");
+  assert.equal(work, 3, "the existing metadata budget accounts for each projection once");
+  for (const [label, projection] of [
+    ["foreign same-name declaration", [{ kind: "array-element" }, { kind: "member", declaration: foreign }]],
+    ["missing tuple element", [...subject.projection.slice(0, 2), { kind: "tuple-element", index: 1 }]],
+    ["wrong native container", [{ kind: "tuple-element", index: 0 }]],
+  ]) assert.equal(projectCsharpNativeSourceStorageCarrier(source, { ...subject, projection }, shapes, () => {}) === undefined, true, label);
+  member.accessor = { getter: true, setter: false };
+  assert.equal(projectCsharpNativeSourceStorageCarrier(source, subject, shapes, () => {}) === undefined, true,
+    "a property getter is not silently treated as physical field storage");
+});
 
 function fixture() {
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/src",
@@ -49,7 +76,7 @@ function fixture() {
   const firstType = storage.typeFor(first.subject);
   assert.equal(firstType.kind, "resolved");
   const queries = source.semantics.forFile(file);
-  const relationship = queries.types.structuralMembers(firstType.type, firstType.type);
+  const relationship = queries.types.structuralMembers(firstType.type, firstType.type, "correspondence");
   assert.equal(relationship.kind, "available");
   const members = new Map(relationship.members.map(pair => [pair.source.property.name, pair.source]));
   return { source, file, storage, nodes, queries, members, firstType: firstType.type };
@@ -69,7 +96,7 @@ function domain(input, carrier, projection, root = "first", selected = "selected
     semantics: file => input.source.semantics.forFile(file),
     types: { resolveNode(selectedNode, file) {
       assert.equal(selectedNode === node && file === input.file, true, "retain original physical owner, never resolve field source type");
-      return carrier;
+      return { kind: "resolved", type: carrier };
     } },
   };
   return { host, expression, origin: origin.subject };
@@ -248,11 +275,12 @@ test("value-domain budget exhaustion rejects program publication instead of emit
   const program = `
     import assert from "node:assert/strict";
     import { mock } from "node:test";
-    const { analyzeCsharpValueDomainCarriers } = await import(${JSON.stringify(analyzer)});
+    const { analyzeCsharpValueDomainCarriers, projectCsharpNativeSourceStorageCarrier } = await import(${JSON.stringify(analyzer)});
     const { createCsharpMetadataBudget } = await import(${JSON.stringify(metadata)});
     let failures = 0;
     let failureNode;
     mock.module(${JSON.stringify(analyzer)}, { namedExports: {
+      projectCsharpNativeSourceStorageCarrier,
       analyzeCsharpValueDomainCarriers(host, expressions) {
         const budget = createCsharpMetadataBudget();
         budget.reserve(budget.remaining() - 1);

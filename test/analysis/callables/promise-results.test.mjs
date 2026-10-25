@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { csharpProgramPromiseResults } from "../../helpers/program-source-files.mjs";
+import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
 for (const [name, statement, discarded] of [
   ["discarded", "leaf();", 1],
@@ -25,12 +26,23 @@ for (const [name, statement, discarded] of [
   });
 }
 
-test("C# rejects a discarded native async call before publishing a program", () => {
-  const compiled = compileCsharpSource({ sourceText: `
-    async function leaf(): Promise<number> { return 1; }
+test("C# publishes a native eager Task discard without rejection observation", { timeout: 240_000 }, () => {
+  const compiled = compileCsharpSource({ targetOptions: { outputType: "Exe" }, sourceText: `
+    let starts = 0;
+    async function leaf(): Promise<number> { starts += 1; return 1; }
     export function outer(): void { leaf(); }
+    outer();
+    if (starts !== 1) throw new Error("native eager Task body");
   ` });
-  assert.deepEqual(compiled.targetDiagnostics.map(diagnostic => diagnostic.code), ["TSONIC_NATIVE_ASYNC_RESULT_DISCARDED"]);
-  assert.equal(compiled.result.program === undefined, true);
-  assert.equal(compiled.result.artifacts.length, 0);
+  assert.equal(compiled.sourceDiagnosticsText, "", "the exact native discard is checked source");
+  assert.deepEqual(compiled.targetDiagnostics.map(diagnostic => diagnostic.code), []);
+  assert.equal(compiled.result.program !== undefined, true, "native eager result dropping is admitted before publication");
+  const results = csharpProgramPromiseResults(compiled.result.program);
+  assert.equal(results.filter(row => row.disposition.kind === "discarded").length, 1, "the actual call has one native discard");
+  assert.equal(results.every(row => row.discard === undefined), true, "native discard never claims to observe rejection");
+  assert.equal(compiled.result.program.records.startup.get().driver === undefined, true, "native Task drop needs no JS loop owner");
+  const output = [...compiled.artifacts.values()].join("\n");
+  assert.match(output, /_ = global::Tsonic\.Generated\.Index\.leaf\(\)/u);
+  assert.doesNotMatch(output, /ObserveDiscarded|PromiseRuntime|Task\.Run|Wait\(|\.Result\b/u);
+  executeCsharpConstruction(compiled, "native-task-drop-no-loop");
 });

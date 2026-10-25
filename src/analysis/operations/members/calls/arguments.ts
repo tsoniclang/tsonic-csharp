@@ -75,10 +75,11 @@ export function validateArgumentsTargetSelectedParameters(
           `Source argument ${binding.sourceArgumentIndex} uses '${sourceArgument.argument.passingMode}', but exact target parameter '${argument.targetParameter.name}' requires '${argument.targetParameter.passingMode}'.`,
       };
     }
-    const sourceType = host.types.resolveNode(
+    const sourceSelection = host.types.resolveNode(
       sourceArgument.argument.storageExpression,
       sourceFile,
-    ) ?? (sourceArgument.argument.passingMode === "by-value"
+    );
+    const sourceType = sourceSelection?.kind === "rejected" ? undefined : sourceSelection?.type ?? (sourceArgument.argument.passingMode === "by-value"
       ? host.types.resolveType(
           binding.selectedArgumentType,
           sourceFile,

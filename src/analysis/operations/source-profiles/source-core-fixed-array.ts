@@ -9,6 +9,7 @@ import type { CsharpSourceProfileElementPolicyResult } from "../../../policy/mod
 import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/source-profile-invocations.js";
 import { csharpSourceProfileDiagnostic } from "../../../policy/operations/source-profiles/source-profile-policy.js";
 import { csharpLiteralIsRepresentableAs } from "../../../policy/conversions/literals.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
 
 type ResolvedSourcePropertyAccessInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["propertyAccess"]>
@@ -72,10 +73,12 @@ export function selectCsharpSourceCoreFixedArrayElement(
   if (rejection !== undefined) return rejectedFixedArrayOperation(rejection);
   const receiver = resolveFixedArrayReceiver(host, source.receiver, sourceFile);
   const integralLiteral = csharpLiteralIsRepresentableAs(host.literalValues.literalValue.get(source.argument.expression), csharpSourcePrimitiveTargetType("int32"));
-  const indexType = integralLiteral ? csharpSourcePrimitiveTargetType("int32") : host.types.resolveNode(
+  const indexSelection = integralLiteral ? undefined : host.types.resolveNode(
     source.argument.expression,
     sourceFile,
-  ) ?? host.types.resolveType(source.argument.type, sourceFile);
+  );
+  const indexType = integralLiteral ? csharpSourcePrimitiveTargetType("int32") : indexSelection?.kind === "rejected"
+    ? undefined : indexSelection?.type ?? host.types.resolveType(source.argument.type, sourceFile);
   if (
     receiver === undefined ||
     indexType === undefined ||
@@ -107,15 +110,14 @@ function resolveFixedArrayReceiver(
   receiver: ResolvedSourcePropertyAccessInfo["receiver"],
   sourceFile: SourceFile,
 ): {
-  readonly carrier: Extract<
-    NonNullable<ReturnType<typeof host.types.resolveNode>>,
-    { readonly kind: "array" }
-  >;
+  readonly carrier: Extract<TargetTypeRef, { readonly kind: "array" }>;
 } | undefined {
-  const carrier = host.types.resolveNode(
+  const selected = host.types.resolveNode(
     receiver.expression,
     sourceFile,
-  ) ?? host.types.resolveType(receiver.type, sourceFile);
+  );
+  if (selected?.kind === "rejected") return undefined;
+  const carrier = selected?.type ?? host.types.resolveType(receiver.type, sourceFile);
   return carrier?.kind === "array"
     ? { carrier }
     : undefined;

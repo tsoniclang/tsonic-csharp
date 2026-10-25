@@ -10,6 +10,10 @@ export type CsharpSourceMemberKey =
       readonly symbol: ResolvedSourceWellKnownSymbolInfo["kind"];
     };
 
+export type CsharpObjectMethodValueStorage =
+  | { readonly kind: "delegate"; readonly type: TargetTypeRef }
+  | { readonly kind: "protocol"; readonly type: TargetTypeRef; readonly invocationName: string };
+
 export interface CsharpObjectShapeMemberFact {
   readonly sourceKey: CsharpSourceMemberKey;
   readonly sourceName: string;
@@ -21,7 +25,7 @@ export interface CsharpObjectShapeMemberFact {
   readonly type: TargetTypeRef;
   readonly exactNumericStorage?: true;
   readonly methodValueContract?: TargetTypeRef;
-  readonly methodStorageType?: TargetTypeRef;
+  readonly methodValueStorage?: CsharpObjectMethodValueStorage;
   readonly typeParameters?: readonly {
     readonly declaration: Node;
     readonly identity: string;
@@ -201,7 +205,6 @@ export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "
   readonly csharpAbsorbsNullish?: true;
   readonly csharpJsValueCarrier?: true;
   readonly csharpJsStringCarrier?: true;
-  readonly csharpJsObjectShape?: true;
   readonly csharpStructuralContract?: true;
   readonly csharpGeneratedStructuralStorage?: true;
   readonly csharpArrayLiteralElementType?: TargetTypeRef;

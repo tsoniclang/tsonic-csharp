@@ -1,7 +1,7 @@
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, Type } from "@tsonic/tsts";
-import { sourcePresentCallableType, type SourceFileSemantics } from "@tsonic/target-api/source";
+import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { csharpSourcePrimitiveTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
 
@@ -21,6 +21,7 @@ import { resolveCsharpStaticMemberReceiver } from "../../../../policy/types/proj
 import { combineCsharpTargetUnionMembers } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { resolveCsharpContextualLiteralCarrier } from "./contextual-literals.js";
+import { resolveCsharpSourceLiteralTargetType } from "../../../../policy/conversions/source-literals.js";
 
 export function resolveSelectedExpressionType(
   { host, optionalAccessTargetType, policy, resolveNodeWithState, resolveReadStorage, resolveNonNullExpressionType, resolveMemberAccessTargetType, resolveSourceOwnedCallResult, resolveSourceOwnedConstructionResult, resolveSourceCallResultWithState, sourceUnions }: CsharpTypeResolutionScope,
@@ -109,6 +110,10 @@ export function resolveSelectedExpressionType(
     host.ast.is.IsPrefixUnaryExpression(node) ||
     host.ast.is.IsPostfixUnaryExpression(node)
   ) {
+    const literal = host.literalValues.literalValue.get(node);
+    const literalType = literal?.numeric?.kind === "authored"
+      ? resolveCsharpSourceLiteralTargetType(host, literal) : undefined;
+    if (literalType !== undefined) return literalType;
     const operand = host.ast.is.IsPrefixUnaryExpression(node)
       ? host.ast.as.AsPrefixUnaryExpression(node)?.Operand
       : host.ast.as.AsPostfixUnaryExpression(node)?.Operand;
@@ -185,17 +190,11 @@ export function resolveMemberAccessTargetType(
   if (selection.kind === "project-indexer") return optionalAccessTargetType(
     mode === "selected" ? selection.selectedReadType ?? selection.valueType : selection.valueType, selection.source.optionalChain);
   if (selection.kind === "union-property") return selection.resultCarrier;
-  const presentCallable = selection.kind === "resolved" || selection.kind === "source-owned"
-    ? sourcePresentCallableType(selection.source.sourceReadType, queries) : undefined;
-  if ((selection.kind === "resolved" || selection.kind === "source-owned") && selection.source.accessMode === "read" &&
-    presentCallable !== undefined && (queries.types.relationship(presentCallable, selection.source.sourceReadType!) !== "identical" ||
-    queries.types.callSignatures(presentCallable).some(signature => {
-      const declaration = queries.declarations.signatureDeclaration(signature);
-      return declaration !== undefined && host.ast.typeParameters(declaration).length > 0;
-    }))) {
+  if (selection.kind === "resolved" || selection.kind === "source-owned") {
     const receiverType = resolveSelectedReceiverTargetType(selection.source.receiver, queries, state);
     const methodValue = selectCsharpMethodValue(receiverType, queries.facts.selectedSubjects(
-      selection.source.selectedSymbol, selection.source.selectedDeclaration), host, selection.source.callCallee);
+      selection.source.selectedSymbol, selection.source.selectedDeclaration), host,
+      selection.source.accessMode !== "read" ? "storage" : selection.source.callCallee ? "call" : "value");
     if (methodValue !== undefined) return optionalAccessTargetType(methodValue, selection.source.optionalChain);
   }
   if (selection.kind === "resolved") {

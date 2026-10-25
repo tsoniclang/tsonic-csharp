@@ -121,8 +121,10 @@ export function createDotnetReflectionTypeDataProvider(
     references: options.references ?? [],
     telemetry,
   });
-  let runtimePrepared = false;
-  let runtimeProvider: DotnetReflectionTypeDataProvider | undefined;
+  let runtime: { readonly kind: "unprepared" }
+    | { readonly kind: "prepared"; readonly preparation: CsharpProviderRuntimePreparation }
+    | { readonly kind: "resolved"; readonly references: readonly string[]; readonly provider: DotnetReflectionTypeDataProvider | undefined }
+    | { readonly kind: "rejected"; readonly diagnostic: ExtensionDiagnostic } = { kind: "unprepared" };
 
   function loadModule(specifier: string, context: DotnetProviderDeclarationContext): DotnetProviderModuleResult {
     telemetry.request("module");
@@ -346,22 +348,18 @@ export function createDotnetReflectionTypeDataProvider(
     identity: providerIdentity,
     validateReferences(): ExtensionDiagnostic | undefined {
       const result = validateReferenceSnapshot();
-      return result === undefined ? runtimeProvider?.validateReferences() : dotnetProviderDiagnosticToExtensionDiagnostic(providerIdentity.id, result);
+      if (result !== undefined) return dotnetProviderDiagnosticToExtensionDiagnostic(providerIdentity.id, result);
+      return runtime.kind === "resolved" ? runtime.provider?.validateReferences()
+        : runtime.kind === "rejected" ? runtime.diagnostic : undefined;
     },
     prepareRuntimeSources(preparation: CsharpProviderRuntimePreparation): CsharpProviderRuntimeAcquisition {
-      if (runtimePrepared) throw new TypeError("Native runtime metadata is prepared exactly once before analysis queries.");
-      runtimePrepared = true;
-      const acquired = preparation.project.kind !== "user-owned" && preparation.sources.length === 0
-        ? Object.freeze({ kind: "resolved" as const, references: Object.freeze([]) })
-        : acquireCsharpRuntimeSources(preparation, toolchain);
-      if (acquired.kind === "rejected") return acquired;
-      if (acquired.references.length !== 0) {
-        runtimeProvider = createDotnetReflectionTypeDataProvider({
-          ...options, toolchain,
-          references: Object.freeze([...new Set([...(options.references ?? []), ...acquired.references])]),
-        });
-      }
-      return acquired;
+      if (runtime.kind !== "unprepared") throw new TypeError("Native runtime metadata is prepared exactly once before analysis queries.");
+      runtime = Object.freeze({ kind: "prepared", preparation: Object.freeze({ ...preparation,
+        sources: Object.freeze([...preparation.sources]),
+        projects: Object.freeze(preparation.projects.map(project => Object.freeze({ ...project }))),
+        properties: Object.freeze([...preparation.properties]),
+      }) });
+      return Object.freeze({ kind: "resolved", references: Object.freeze([]) });
     },
     ownsModule(specifier: string): DotnetProviderOwnership {
       return parseDotnetModuleSpecifier(specifier, moduleSpecifierPolicy) === undefined ? { kind: "unowned" } : { kind: "owned" };
@@ -460,7 +458,20 @@ export function createDotnetReflectionTypeDataProvider(
     query: (provider: DotnetReflectionTypeDataProvider) => CsharpProviderBindingResolution,
   ): CsharpProviderBindingResolution {
     if (purpose === "ordinary" || selected.kind !== "missing") return selected;
-    return runtimeProvider === undefined ? selected : query(runtimeProvider);
+    if (runtime.kind === "prepared") {
+      const preparation = runtime.preparation;
+      const acquired = preparation.project.kind !== "user-owned" && preparation.sources.length === 0
+        ? Object.freeze({ kind: "resolved" as const, references: Object.freeze([]) })
+        : acquireCsharpRuntimeSources(preparation, toolchain);
+      runtime = acquired.kind === "rejected" ? Object.freeze(acquired) : Object.freeze({ ...acquired,
+        provider: acquired.references.length === 0 ? undefined : createDotnetReflectionTypeDataProvider({
+          ...options, toolchain,
+          references: Object.freeze([...new Set([...(options.references ?? []), ...acquired.references])]),
+        }),
+      });
+    }
+    if (runtime.kind === "rejected") return runtime;
+    return runtime.kind === "resolved" && runtime.provider !== undefined ? query(runtime.provider) : selected;
   }
 
   function findTargetBinding(

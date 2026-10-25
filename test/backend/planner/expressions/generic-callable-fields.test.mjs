@@ -31,8 +31,8 @@ test("generic callable fields retain their receiver and escaped storage without 
   `);
   assert.match(source, /choose\s*(?:\{|=)/u);
   assert.doesNotMatch(source, /\bchoose<T>\(/u);
-  assert.match(source, /choose\.Invoke<string>\("left", "right"\)/u);
-  assert.match(source, /choose\.Invoke<double>\(3(?:\.0)?, 4(?:\.0)?\)/u);
+  assert.match(source, /choose\.__tsonic_invoke_body_Invoke<string>\("left", "right"\)/u);
+  assert.match(source, /choose\.__tsonic_invoke_body_Invoke<double>\(3(?:\.0)?, 4(?:\.0)?\)/u);
   assert.match(owners, /\bInvoke<T>\(T left, T right\)/u);
   assert.match(owners, /receiver0\.first/u);
   assert.match(source, /receiver0 = this/u);
@@ -53,8 +53,8 @@ test("reassigned generic callable fields preserve old aliases and exact alpha-eq
       return identical && before(1, 2) === 2 && value.choose("left", "right") === "right";
     }
   `);
-  assert.match(source, /before\.Invoke<double>\(/u);
-  assert.match(source, /value\.choose\.Invoke<string>\(/u);
+  assert.match(source, /before\.__tsonic_invoke_body_Invoke<double>\(/u);
+  assert.match(source, /value\.choose\.__tsonic_invoke_body_Invoke<string>\(/u);
   assert.match(source, /value\.choose = new /u);
   assert.match(owners, /\bInvoke<U>\(U left, U right\)/u);
   assert.match(owners, /return right;/u);
@@ -68,7 +68,7 @@ test("generic field declarations rebind invocation quantifiers rather than leaki
     }
     export function run(): string { return new Value().choose("left", "right"); }
   `);
-  assert.match(source, /\.choose\.Invoke<string>\(/u);
+  assert.match(source, /\.choose\.__tsonic_invoke_body_Invoke<string>\(/u);
   assert.match(owners, /\bInvoke<T>\(T left, T right\)/u);
   assert.match(owners, /\bInvoke<U>\(U arg0, U arg1\)/u);
 });
@@ -90,7 +90,7 @@ test("generic escaping callables share mutable lexical storage with ordinary cal
   assert.match(owners, /\bInvoke<T>\(T left, T right\)/u);
   assert.match(owners, /value\d+ \? left : right/u);
   assert.match(owners, /value\d+ = false/u);
-  assert.match(source, /\.choose\.Invoke<string>\(/u);
+  assert.match(source, /\.choose\.__tsonic_invoke_body_Invoke<string>\(/u);
   assert.equal(/class __TsonicCallable_/u.test(owners), false,
     "the once-per-activation callable reuses its shared native frame");
 });
@@ -106,8 +106,8 @@ test("nested generic callable owners are discovered before the synthetic source 
       return choose("left", "right");
     }
   `);
-  assert.match(source, /create\.Invoke<double>\(/u);
-  assert.match(source, /choose\.Invoke<string>\(/u);
+  assert.match(source, /create\.__tsonic_invoke_body_Invoke<double>\(/u);
+  assert.match(source, /choose\.__tsonic_invoke_body_Invoke<string>\(/u);
   assert.match(owners, /\bInvoke<Outer>\(/u);
   assert.match(owners, /\bInvoke<T>\(T left, T right\)/u);
   assert.match(owners, /\.Length/u);
@@ -127,7 +127,7 @@ test("native generic methods remain native calls alongside generic callable fiel
   `);
   assert.match(source, /value\.identity<string>\(/u);
   assert.match(source, /identity<string>\(/u);
-  assert.match(source, /\.choose\.Invoke<string>\(/u);
+  assert.match(source, /\.choose\.__tsonic_invoke_body_Invoke<string>\(/u);
   assert.doesNotMatch(source, /\.identity\.Invoke/u);
 });
 
@@ -162,10 +162,10 @@ test("nested generic callable owners retain outer payloads and distinct invocati
       return left.seed === 3 && left.value === "left" && right.seed === "seed" && right.value === 7;
     }
   `);
-  assert.match(source, /create\.Invoke<double>\(/u);
-  assert.match(source, /create\.Invoke<string>\(/u);
-  assert.match(source, /first\.Invoke<string>\(/u);
-  assert.match(source, /second\.Invoke<double>\(/u);
+  assert.match(source, /create\.__tsonic_invoke_body_Invoke<double>\(/u);
+  assert.match(source, /create\.__tsonic_invoke_body_Invoke<string>\(/u);
+  assert.match(source, /first\.__tsonic_invoke_body_Invoke<string>\(/u);
+  assert.match(source, /second\.__tsonic_invoke_body_Invoke<double>\(/u);
   assert.match(owners, /value0/u);
   assert.doesNotMatch(owners, /System\.Object|\bdynamic\b/u);
 });

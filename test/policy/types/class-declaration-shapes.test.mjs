@@ -7,6 +7,7 @@ import { createCsharpProjectTypeCatalog } from "../../../dist/analysis/project-t
 import { createCsharpObjectShapePolicy } from "../../../dist/analysis/objects/shapes/api.js";
 import { createCsharpTypeParameterEnvironment } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-environment.js";
 import { resolveCsharpTypeParameterConstraints } from "../../../dist/analysis/source-evidence/types/resolution/type-parameter-constraints.js";
+import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 
 function fixture() {
   const checked = createCompilerSessionFromFiles({
@@ -40,7 +41,10 @@ function fixture() {
       const sourceFile = source.ast.getSourceFile(declaration);
       return sourceFile === undefined ? undefined : resolveCsharpTypeParameterConstraints(declaration, parameter, sourceFile, {
         ast: source.ast,
-        types: { resolveNode: (node, file) => host.typeResolver.resolveNode(node, file, { depth: 0 }) },
+        types: { resolveNode: (node, file) => {
+          const type = host.typeResolver.resolveNode(node, file, { depth: 0 });
+          return type === undefined ? undefined : { kind: "resolved", type };
+        } },
       });
     }),
     projectTypeCatalog: catalog,
@@ -71,7 +75,16 @@ test("class declaration shapes select checked instances rather than constructor 
     const queries = source.semantics.forNode(definition.declaration);
     const declaredType = queries.declarations.declaredType(definition.declaration);
     const shape = policy.resolveNodeWithState(definition.declaration, definition.sourceFile, { depth: 3 });
-    assert.equal(shape?.targetType === types.get(declaredType), true, `exact checked nominal instance carrier ${definition.sourceName}: ${shape?.targetType?.id ?? "absent"}, expected ${types.get(declaredType)?.id ?? "absent"}`);
+    const original = types.get(declaredType);
+    const completed = { ...original, typeArguments: original.typeArguments.map(argument => ({ ...argument,
+      csharpConstraints: host.typeParameterConstraints(argument) })) };
+    assert.equal(shape !== undefined && targetTypeRefEquals(shape.targetType, completed), true,
+      `exact checked nominal instance carrier ${definition.sourceName}: ${shape?.targetType?.id ?? "absent"}, expected ${original.id}`);
+    for (const [index, argument] of shape.targetType.typeArguments.entries()) {
+      assert.equal(argument.csharpConstraints?.kind === "resolved", true, `${definition.sourceName}: resolved native binder ${index}`);
+      assert.equal(argument.csharpConstraints === completed.typeArguments[index].csharpConstraints, true,
+        `${definition.sourceName}: the canonical constraint environment completes binder ${index}`);
+    }
     assert.equal(shape?.sourceType === declaredType, true, "matching checked instance source type");
     assert.deepEqual(shape.targetType.typeArguments.map(argument => argument.identity),
       definition.typeParameterBindings.map(argument => argument.identity), "declaration-owned quantifier order");

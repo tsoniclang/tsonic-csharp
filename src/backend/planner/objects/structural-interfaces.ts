@@ -54,6 +54,7 @@ function renderMethod(
   const returnType = csharpTypeFromTargetTypeRef(method.returnType, typeParameterNames);
   if (returnType === undefined) failCsharpPlannerInvariant("An admitted native method requires its renderable return carrier.", subject);
   return { kind: "MethodDeclaration", name: method.name, returnType,
+    ...(method.returnPassing === undefined ? {} : { returnPassing: method.returnPassing === "byref-readonly" ? "ref-readonly" : "ref" }),
     modifiers: planCsharpArtifactMemberHiding(names, shape, method.name),
     typeParameters: method.typeParameters.map(parameter => ({
       name: typeParameterNames?.get(parameter.identity) ?? parameter.name,
@@ -69,6 +70,8 @@ function renderMethod(
       const type = csharpTypeFromTargetTypeRef(parameter.type, typeParameterNames);
       if (type === undefined) failCsharpPlannerInvariant("An admitted native method requires its renderable parameter carrier.", subject);
       return { name: `arg${index}`, type,
+        ...(parameter.passingMode === "by-value" ? {} : { passing: parameter.passingMode === "byref-readonly" ? "in" as const
+          : parameter.passingMode === "byref-readwrite" ? "ref" as const : "out" as const }),
         ...(parameter.rest ? { isParams: true } : {}),
         ...(parameter.optional ? { defaultValue: { kind: "DefaultExpression" as const, type } } : {}) };
     }) };

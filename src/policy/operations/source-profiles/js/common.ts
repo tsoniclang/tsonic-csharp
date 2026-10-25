@@ -1,7 +1,7 @@
 import type { CsharpTargetReceiverRelation } from "../../../../target-model/identities/provider-relations.js";
 
 import type { CsharpTargetMember, CsharpTargetParameter, TargetTypeRef } from "../../../types/index.js";
-import { csharpObjectTargetType, csharpQualifiedTypeRenderShape, csharpTargetNamedType } from "../../../../target-model/types/index.js";
+import { csharpNullableReferenceTargetType, csharpObjectTargetType, csharpQualifiedTypeRenderShape, csharpTargetNamedType } from "../../../../target-model/types/index.js";
 import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext, CsharpSourceProfileCallPolicyResult, CsharpSourceProfileElementPolicy, CsharpSourceProfileElementPolicyContext, CsharpSourceProfileElementPolicyResult, CsharpSourceProfileIdentitySelector, CsharpSourceProfilePropertyPolicy, CsharpSourceProfilePropertyPolicyContext } from "../../../model/source-profiles.js";
 import type { CsharpSourceProfilePropertyPolicyResult, CsharpTargetPropertyInvocation } from "../../../../target-model/records/source-profile-invocations.js";
 import type { CsharpTargetElementInvocation } from "../../../../target-model/records/members.js";
@@ -231,7 +231,7 @@ export function closedObjectParameter(
   name: string,
   options: Omit<CsharpTargetParameter, "name" | "type" | "passingMode"> = {},
 ): CsharpTargetParameter {
-  const type = csharpObjectTargetType();
+  const type = csharpNullableReferenceTargetType(csharpObjectTargetType());
   return targetParameter(
     name,
     options.paramsArray === true ? { kind: "array", element: type } : type,

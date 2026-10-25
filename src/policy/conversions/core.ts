@@ -1,4 +1,4 @@
-import { csharpEnumerableTargetType, csharpReadOnlyListTargetType, getCsharpJsArrayElementTargetType, getCsharpCollectionElementTargetType, getCsharpImplicitArrayInputElementTargetType, getCsharpTaskResultTargetType, isCsharpNeverTargetType, isCsharpVoidTargetType, isCsharpAbsenceTargetType, csharpCarrierAdmitsSourceAbsence, getCsharpNullableElementTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/index.js";
+import { csharpEnumerableTargetType, csharpReadOnlyListTargetType, getCsharpJsArrayElementTargetType, getCsharpCollectionElementTargetType, getCsharpImplicitArrayInputElementTargetType, getCsharpTaskResultTargetType, isCsharpNeverTargetType, isCsharpVoidTargetType, isCsharpAbsenceTargetType, csharpCarrierAdmitsSourceAbsence, targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/index.js";
 import { csharpConversionIsApplicable } from "./applicability.js";
 import { csharpObjectShapeImplicitlyAccepts, namedTargetTypeImplicitlyAccepts, namedTargetTypesAreRelated, selectDelegateConversion, selectJsValueConversion, selectNullableConversion, selectRuntimeUnionConversion } from "./carriers.js";
 import { selectProviderConversionOperator } from "./provider-operators.js";
@@ -37,11 +37,6 @@ export function selectCsharpConversion(
   };
   if (isCsharpAbsenceTargetType(source) && csharpCarrierAdmitsSourceAbsence(target)) {
     return { kind: "absence" };
-  }
-  // A nullable absence carrier (`null | undefined` as a value) holds nothing but absence: it converts as absence does.
-  const nullableAbsence = getCsharpNullableElementTargetType(source);
-  if (nullableAbsence !== undefined && isCsharpAbsenceTargetType(nullableAbsence)) {
-    return selectCsharpConversion(input, nullableAbsence, target, mode);
   }
   if (isCsharpNeverTargetType(source) && !isCsharpVoidTargetType(target)) {
     return { kind: "never" };

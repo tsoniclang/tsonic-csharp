@@ -15,7 +15,7 @@ export function isSourceOwnedCallableRuntimeCarrierSubject(
   if (node === undefined) {
     return false;
   }
-  const carrier = input.types.resolveNode(node, sourceFile);
+  const carrier = input.types.resolveNode(node, sourceFile)?.type;
   const reference = input.navigation.referenceFor(node);
   return (isCsharpDelegateTargetRef(carrier) || getCsharpMethodValue(carrier) !== undefined) &&
     (
@@ -56,7 +56,7 @@ export function isSourceOwnedProjectShapeSubject(
   if (node === undefined) {
     return false;
   }
-  const carrier = input.types.resolveNode(node, sourceFile);
+  const carrier = input.types.resolveNode(node, sourceFile)?.type;
   if (isCsharpJsValueTargetType(carrier)) {
     return false;
   }
@@ -72,7 +72,7 @@ export function isSourceOwnedProjectConstructibleObjectSubject(
   if (node === undefined) {
     return false;
   }
-  const carrier = input.types.resolveNode(node, sourceFile);
+  const carrier = input.types.resolveNode(node, sourceFile)?.type;
   return !isCsharpJsValueTargetType(carrier) &&
     !isTypeParameterTargetRef(carrier) &&
     input.navigation.isProjectConstructibleObject(node);

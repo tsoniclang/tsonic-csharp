@@ -6,6 +6,10 @@ import { analyzeCsharpAnalysisProgram } from "../../../dist/analysis/program/ind
 import { planFlowReadUseSiteProjection } from "../../../dist/backend/planner/expressions/flow-read-projections.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { selectCsharpFlowReadCarrier } from "../../../dist/policy/conversions/flow-read.js";
+import { selectCsharpNativeOperandUses } from "../../../dist/analysis/operations/control-flow/native-operands.js";
+import { csharpRuntimeUnionTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../dist/target-model/types/index.js";
+import { arrayRecordRefinementSource } from "../../../../tsonic/test/fixtures/recursive-array-refinement.mjs";
 
 function fixture(sourceText, surface = "native") {
   return withCsharpSessionRequest({ sourceText, surface }, request => {
@@ -26,6 +30,82 @@ function fixture(sourceText, surface = "native") {
     return { program: result.value, nodes, ast: original.ast, navigation: original.navigation };
   }).value;
 }
+
+test("a proved native flow selection survives unchanged logical source types without widening unproved native reads", () => {
+  const integer = csharpSourcePrimitiveTargetType("int32");
+  const floating = csharpSourcePrimitiveTargetType("float64");
+  const text = csharpStringTargetType();
+  const storage = csharpRuntimeUnionTargetType([integer, text]);
+  const input = { exactSourceRead: true, nativeSourceRead: true,
+    unrelatedSourceTypesShareTargetRepresentation: false, selectedTargetType: text,
+    readStorageTargetType: storage, memberTargetTypes: undefined };
+  assert.equal(selectCsharpFlowReadCarrier(input), text, "the canonical native guard's selected physical payload remains authoritative");
+  assert.equal(selectCsharpFlowReadCarrier({ ...input, nativeSourceRead: false }), storage,
+    "logical identity without native flow proof does not invent a projection");
+  assert.equal(selectCsharpFlowReadCarrier({ ...input, nativeSourceRead: false,
+    selectedTargetType: floating, readStorageTargetType: integer }), integer,
+  "an unchanged source number cannot discard an exact native integer carrier");
+});
+
+test("actual array and record branches publish exact physical receiver projections before sealing", () => {
+  const value = fixture(arrayRecordRefinementSource, "js");
+  const receivers = value.nodes.filter(node => value.ast.is.IsPropertyAccessExpression(node) &&
+    value.ast.text(value.ast.as.AsPropertyAccessExpression(node).name) === "length")
+    .map(node => value.ast.as.AsPropertyAccessExpression(node).Expression);
+  assert.equal(receivers.length > 0, true, "the actual checked source contains the native member reads");
+  for (const receiver of receivers) {
+    const projection = value.program.records.flowReadProjection.get(receiver);
+    assert.equal(projection?.kind === "conversion" && projection.selection.kind === "runtime-union-projection", true,
+      "both array and record branches consume a selected native payload instead of reading fields on the union struct");
+  }
+});
+
+for (const surface of ["native", "js"]) test(`${surface} native write locations keep their storage after read narrowing`, () => {
+  const value = fixture(`
+    class Slot { value: string | number = "before"; }
+    export function local(value: string | number): string | number {
+      if (typeof value === "string") { value = 4; return value; }
+      return value;
+    }
+    export function member(slot: Slot): string | number {
+      if (typeof slot.value === "string") { (slot.value) = 5; return slot.value; }
+      return slot.value;
+    }
+    export function element(values: (string | number)[]): string | number {
+      if (typeof values[0] === "string") { values[0] = 6; return values[0]; }
+      return values[0];
+    }
+  `, surface);
+  const records = value.program.records;
+  const input = {
+    ast: value.ast, navigation: value.program.sourceNavigation,
+    evidence: records, operations: records, valueReads: records,
+    classFactories: { classFactory: records.classFactory, factories: value.program.classFactories },
+    bindingPatterns: records,
+    unusedDefault: { get: () => false },
+    callableCreation: { get: () => assert.fail("a write location does not create a callable") },
+  };
+  const writes = value.nodes.filter(node => value.ast.is.IsBinaryExpression(node) && value.ast.operatorKindName(node) === "KindEqualsToken");
+  assert.equal(writes.length, 3, "local, parenthesized member and element writes are all retained");
+  let narrowed = 0;
+  for (const write of writes) {
+    const location = value.ast.as.AsBinaryExpression(write).Left;
+    const read = records.valueRead.get(location);
+    const operation = records.binaryOperation.get(write)?.target;
+    const selected = selectCsharpNativeOperandUses(input, location, "location");
+    assert.equal(operation?.kind === "resolved", true, "the actual native assignment was selected");
+    assert.equal(read?.flowReadStorage !== undefined, true, "the exact writable storage carrier is sealed");
+    assert.equal(selected.refusal === undefined, true, "the native location form is admitted");
+    assert.equal(targetTypeRefEquals(selected.carrier, read.flowReadStorage), true, "locations consume storage, not the narrowed read");
+    assert.equal(targetTypeRefEquals(selected.carrier, operation.leftInputType), true, "the actual assignment ABI agrees independently");
+    if (!targetTypeRefEquals(read.value, read.flowReadStorage)) narrowed += 1;
+    const missingStorage = selectCsharpNativeOperandUses({ ...input, valueReads: {
+      valueRead: { get: node => node === location ? { ...read, flowReadStorage: undefined } : records.valueRead.get(node) },
+    } }, location, "location");
+    assert.equal(missingStorage.carrier === undefined, true, "missing physical storage cannot fall back to a read projection");
+  }
+  assert.equal(narrowed > 0, true, "the controls contain an actual read/storage distinction");
+});
 
 for (const surface of ["native", "js"]) {
   test(`${surface} annotated destructuring keeps nullable storage at absence consumers`, () => {

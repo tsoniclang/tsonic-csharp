@@ -434,7 +434,7 @@ function isCsharpUnmanagedType(
             const fieldType = host.types.resolveNode(
               field.sourceType,
               project.sourceFile,
-            );
+            )?.type;
             return fieldType !== undefined &&
               isCsharpUnmanagedType(host, fieldType, active);
           });

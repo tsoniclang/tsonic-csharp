@@ -2,7 +2,8 @@ import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpDelegateContractProducer } from "../program/records/callable-conversions.js";
-import { getCsharpDelegateSignature } from "../../target-model/types/carriers/delegates.js";
+import { getCsharpCallableValueSignature, getCsharpDelegateSignature } from "../../target-model/types/carriers/delegates.js";
+import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import { isCsharpVoidTargetType } from "../../target-model/types/identity.js";
 import type { AstReader, Node } from "@tsonic/tsts";
@@ -19,7 +20,9 @@ export function admitCsharpDelegateEmission(producer: CsharpDelegateContractProd
     return;
   }
   if (selected.kind !== "delegate-adapter" || producer.records.delegateContract.get(source, target) !== undefined) return;
-  const sourceSignature = getCsharpDelegateSignature(source);
+  const sourceMethod = getCsharpMethodValue(source);
+  const sourceSignature = sourceMethod !== undefined && sourceMethod.typeParameters.length !== 0
+    ? undefined : getCsharpCallableValueSignature(source);
   const targetSignature = getCsharpDelegateSignature(target);
   if (sourceSignature === undefined || targetSignature === undefined)
     failTargetAnalysisInvariant("tsonic-csharp", "An admitted delegate conversion requires its exact native source and destination signatures.");

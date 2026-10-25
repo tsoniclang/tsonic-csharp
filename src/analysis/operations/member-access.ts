@@ -6,9 +6,7 @@ import { readCsharpSourceField } from "../../source/extension/markers.js";
 import { sourceParameterIsProperty } from "@tsonic/target-api/source";
 import type { CsharpTargetElementSelection } from "../../target-model/records/member-selections.js";
 import { validateCsharpJsValueOperationSelection } from "../../policy/operations/js-values/selection.js";
-import { resolveCsharpJsValueObjectShapeProperty } from "../../policy/operations/members/index.js";
 import { selectCsharpTargetProperty } from "./members/selected-members.js";
-import { selectCsharpJsValueReceiverOperation } from "../../policy/operations/js-values/selection.js";
 import { selectCsharpJsValueReceiverExpressionOperation } from "./js-values.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../policy/types/index.js";
 import { resolveCsharpObjectShapeMemberReadTargetType } from "./members/object-shape-members.js";
@@ -26,7 +24,7 @@ export function classifyCsharpMemberReceiver(
   source: Pick<ResolvedSourceElementAccessInfo, "receiver" | "optionalChain">,
   sourceFile: SourceFile,
 ): CsharpMemberReceiverProjection | undefined {
-  const raw = policy.types.resolveNode(source.receiver.expression, sourceFile);
+  const raw = policy.types.resolveNode(source.receiver.expression, sourceFile)?.type;
   const selected = policy.types.resolveSelectedValue(source.receiver.expression, source.receiver.type, sourceFile);
   const target = optionalResultType(selected, source.optionalChain);
   if (raw === undefined || target === undefined || targetTypeRefEquals(raw, target)) return undefined;
@@ -125,19 +123,7 @@ export function classifySourceOwnedMember(
     selectedSubjects,
     policy.typeDefinitions,
   );
-  const jsValueProperty = resolveCsharpJsValueObjectShapeProperty(
-    objectShape,
-    selectedSubjects,
-  );
-  const shapeMember = jsValueProperty.kind === "resolved"
-    ? {
-        kind: "resolved" as const,
-        member: jsValueProperty.member,
-        evidence: Object.freeze([
-          "Object-shape member resolved from exact checked JS-value property evidence.",
-        ]),
-      }
-    : objectShape === undefined
+  const shapeMember = objectShape === undefined
       ? undefined
       : resolveCsharpObjectShapeMemberBySelectedSubject(
           objectShape,
@@ -158,7 +144,7 @@ export function classifySourceOwnedMember(
     selection.source.optionalChain,
   );
   const selectedSourceReadType = selection.source.sourceReadType === undefined
-    ? policy.types.resolveNode(selection.source.expression, sourceFile)
+    ? policy.types.resolveNode(selection.source.expression, sourceFile)?.type
     : policy.types.resolveSelectedValue(
       selection.source.expression,
       selection.source.sourceReadType,
@@ -188,17 +174,9 @@ export function classifySourceOwnedMember(
     selectedSubjects: Object.freeze([...selectedSubjects]),
     ...(selectedReceiverType === undefined ? {} : { selectedReceiverType }),
     runtimeUnionProperty,
-    jsValueProperty,
     ...(shapeMember === undefined ? {} : { shapeMember }),
     ...(rawReadType === undefined ? {} : { rawReadType }),
     ...(selectedReadType === undefined ? {} : { selectedReadType }),
     ...(projectedWrite === undefined ? {} : { projectedWrite }),
-    jsValuePropertyWrite: selectCsharpJsValueReceiverOperation(
-      jsValueProperty.kind === "resolved"
-        ? jsValueProperty.shape.targetType
-        : undefined,
-      "property-write",
-      selection.source.optionalChain,
-    ),
   });
 }

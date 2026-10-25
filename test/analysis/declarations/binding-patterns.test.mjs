@@ -44,6 +44,17 @@ for (const surface of ["native", "js"]) {
     const visit = node => {
       const fact = program.records.bindingPatternProjection.get(node);
       if (fact?.element?.kind === "object-shape-absence") absent.push({ node, fact });
+      if (ast.is.IsVariableDeclaration(node)) {
+        const declaration = ast.as.AsVariableDeclaration(node);
+        if (declaration?.name !== undefined && ast.is.IsObjectBindingPattern(declaration.name) &&
+          declaration.Initializer !== undefined && ast.is.IsObjectLiteralExpression(declaration.Initializer)) {
+          const source = program.records.bindingPatternProjection.get(declaration.name)?.source;
+          const physical = program.records.nativeExpression.get(declaration.Initializer)?.physical;
+          assert.equal(source?.kind === "object-shape-source" && physical !== undefined && physical.kind !== "erased" &&
+            targetTypeRefKey(source.shape.targetType) === targetTypeRefKey(physical.carrier), true,
+          "destructuring reads its actual produced object carrier, not the annotation's distinct layout");
+        }
+      }
       ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
     };
     csharpProgramSourceFiles(program).forEach(visit);
@@ -94,6 +105,10 @@ function factsInput(program, source, target) {
     evidence: program.records,
     operations: program.records,
     valueReads: program.records,
+    initializerUses: { get: declaration => {
+      const expression = program.source.ast.as.AsVariableDeclaration(declaration)?.Initializer;
+      return expression === undefined ? undefined : program.records.nativeExpression.get(expression)?.physical;
+    } },
     objectShapes: program.objectShapes,
     storage: program.records,
     typePolicy: { resolveType: () => assert.fail("These array and object-shape fixtures require no source-owned member resolution.") },
@@ -133,6 +148,34 @@ function findNode(program, kindName, text) {
 }
 
 const float64Key = targetTypeRefKey(csharpSourcePrimitiveTargetType("float64"));
+
+test("binding initializers require one exact admitted physical expression without a logical-read fallback", () => {
+  const { program, source, target } = publishedProgram(`
+    export function run(): number {
+      const { value }: { value?: number } = { value: 4 };
+      return value ?? 0;
+    }
+  `, "native");
+  const declaration = findNode(program, "KindVariableDeclaration", "{ value }: { value?: number } = { value: 4 }");
+  const pattern = source.ast.as.AsVariableDeclaration(declaration).name;
+  const input = factsInput(program, source, target);
+  const selected = input.initializerUses.get(declaration);
+  assert.equal(selected !== undefined, true, "the original real initializer has its exact published physical use");
+  assert.equal(analyzeCsharpBindingPatterns(input).candidates.length, 0, "the actual admitted initializer remains supported");
+  for (const [label, actual] of [
+    ["missing physical admission", undefined],
+    ["ambiguous physical admission", null],
+    ["another physical expression", { ...selected, expression: declaration }],
+  ]) {
+    const analysis = analyzeCsharpBindingPatterns({ ...input, initializerUses: { get: () => actual } });
+    assert.equal(analysis.candidates.length, 1, `${label}: one precise private refusal`);
+    assert.equal(analysis.candidates[0].root === declaration && analysis.candidates[0].node === pattern &&
+      analysis.candidates[0].message === "Destructuring source requires its exact admitted physical initializer expression and carrier.", true,
+    `${label}: the exact initializer boundary owns the refusal`);
+    assert.equal(analysis.bindingPatternProjection.get(pattern) === undefined, true,
+      `${label}: neither a raw read nor an annotation fabricates a published physical layout`);
+  }
+});
 
 test("binding facts and tuple defaults are computed once for declaration, parameter, assignment and for-of patterns", () => {
   const { program, source, target } = publishedProgram(`
@@ -205,6 +248,7 @@ test("an unsupported pattern stays a candidate issue with its pattern root and n
     evidence: { compileTimeMetadata: { get: () => false } },
     operations: { nativeUnreachable: { get: () => false } },
     valueReads: { valueRead: { get: node => node === initializer ? { value: carrier } : undefined } },
+    initializerUses: new Map([[declaration, { expression: initializer, carrier }]]),
     objectShapes: { resolveNode: () => undefined },
     storage: { storageType: { get: () => assert.fail("The unsupported source is refused before destination storage is queried.") } },
     typePolicy: { resolveType: () => assert.fail("The unsupported array source has no source-owned member resolution.") },
@@ -345,8 +389,9 @@ test("array, tuple, default and rest renderers consume only their admitted immut
       fact: { ...firstFact, defaultValue: { ...firstFact.defaultValue, target: opaque } },
       message: "An admitted array default lost its native element rendering." },
     { label: "inconsistent optional payload guard", pattern: array, node: first,
-      fact: { ...firstFact, defaultValue: { ...firstFact.defaultValue, optional: true, guardType: opaque } },
-      message: "An admitted native default lost its exact optional payload guard." },
+      fact: { ...firstFact, defaultValue: { ...firstFact.defaultValue, kind: "guarded", optional: true, guardType: opaque } },
+      corruptPayload: true,
+      message: "An admitted optional guard requires its native payload type." },
     { label: "missing tuple default", pattern: tuple, node: second,
       fact: { ...secondFact, defaultValue: undefined },
       message: "Tuple default requires its admitted native default contract." },
@@ -361,7 +406,14 @@ test("array, tuple, default and rest renderers consume only their admitted immut
       message: "An admitted tuple rest lost its native carrier rendering." },
   ];
   for (const control of controls) {
+    const typeEmission = control.corruptPayload ? { get: carrier => {
+      const selected = program.records.typeEmission.get(carrier);
+      if (targetTypeRefKey(carrier) !== targetTypeRefKey(firstFact.defaultValue.storage)) return selected;
+      assert.equal(selected?.optionalStorage.kind === "native", true, "the corrupted payload belongs to the actual sealed native storage");
+      return { ...selected, optionalStorage: { ...selected.optionalStorage, present: opaque } };
+    } } : program.records.typeEmission;
     const corrupted = { ...program, records: { ...program.records,
+      typeEmission,
       bindingPatternProjection: { get: node => node === control.node ? control.fact
         : program.records.bindingPatternProjection.get(node) } } };
     const diagnostics = [];

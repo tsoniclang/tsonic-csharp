@@ -4,7 +4,7 @@ import type { CsharpObjectMemberRecords, CsharpObjectMemberEmission, CsharpObjec
 import type { CsharpStructuralObjectEmissionRecords } from "../../../target-model/records/structural-object-emission.js";
 import type { CsharpNativeMemberHidingReader } from "../../../target-model/records/native-member-names.js";
 import type { CsharpNativeLayoutRecords } from "../../../target-model/records/native-layout-emission.js";
-import type { CsharpExpression, CsharpParameter, CsharpTypeMember, CsharpTypeNode } from "../../target-ast/syntax/index.js";
+import type { CsharpExpression, CsharpParameter, CsharpStatement, CsharpTypeMember, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { planCsharpArtifactMemberHiding } from "../declarations/modifiers.js";
 import { planCsharpNativeMemoryCall } from "../expressions/native-memory.js";
@@ -15,6 +15,7 @@ import {
 import { renderCsharpStructuralMethod } from "./structural-interfaces.js";
 import { renderCsharpDeferredCaptureMember } from "./deferred-captures.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
+import { nullableCsharpType } from "../types/primitives.js";
 
 export function renderObjectShapeMembers(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
@@ -38,18 +39,74 @@ function renderMember(
   const publicModifiers = (name: string, required = false) => ["public" as const, ...(required ? ["required" as const] : []), ...hiding(name)];
   const render = (carrier: TargetTypeRef) => renderCarrier(carrier, typeParameterNames, subject);
   switch (selected.kind) {
-    case "authored": return [];
+    case "authored": {
+      const value = selected.value;
+      if (value.kind === "fixed") return [];
+      const method = renderCsharpStructuralMethod(typeParameterNames, shape, member, records);
+      const type = render(value.type);
+      const stored: CsharpExpression = { kind: "IdentifierName", name: value.valueName };
+      const original: CsharpExpression = { kind: "IdentifierName", name: value.kind === "protocol" ? "this" : selected.bodyName };
+      const initialized = value.kind === "protocol" && value.initializedName !== undefined
+        ? { kind: "IdentifierName" as const, name: value.initializedName } : undefined;
+      const notWritten: CsharpExpression = initialized === undefined
+        ? { kind: "NullPatternExpression", expression: stored, negated: false }
+        : { kind: "PrefixUnaryExpression", operatorToken: { kind: "ExclamationToken" }, operand: initialized };
+      const getter: CsharpExpression = value.kind === "delegate"
+        ? { kind: "AssignmentExpression", operatorToken: { kind: "QuestionQuestionEqualsToken" }, left: stored, right: original }
+        : initialized === undefined
+          ? { kind: "BinaryExpression", operatorToken: { kind: "QuestionQuestionToken" }, left: stored, right: original }
+          : { kind: "ConditionalExpression", condition: initialized, whenTrue: stored, whenFalse: original };
+      const arguments_ = method.parameters.map(parameter => ({ kind: "Argument" as const,
+        expression: { kind: "IdentifierName" as const, name: parameter.name },
+        ...(parameter.passing === undefined ? {} : { passing: parameter.passing }) }));
+      const typeArguments = (method.typeParameters ?? []).map(parameter => ({ kind: "IdentifierName" as const, name: parameter.name }));
+      const direct: CsharpExpression = { kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression",
+        receiver: { kind: "IdentifierName", name: "this" }, name: selected.bodyName, typeArguments }, arguments: arguments_ };
+      const present: CsharpExpression = { kind: "PostfixUnaryExpression", operand: stored, operatorToken: { kind: "ExclamationToken" } };
+      const indirect: CsharpExpression = { kind: "InvocationExpression", callee: value.kind === "delegate" ? present
+        : { kind: "SimpleMemberAccessExpression", receiver: present, name: value.invocationName, typeArguments }, arguments: arguments_ };
+      const complete = (expression: CsharpExpression): readonly CsharpStatement[] => selected.signature.returnsVoid
+        ? [{ kind: "ExpressionStatement", expression }, { kind: "ReturnStatement" }]
+        : [{ kind: "ReturnStatement", expression, ...(method.returnPassing === undefined ? {} : { ref: true as const }) }];
+      return [
+        { kind: "FieldDeclaration", name: value.valueName, type: nullableCsharpType(type), modifiers: ["private", ...hiding(value.valueName)] },
+        ...(initialized === undefined || value.kind !== "protocol" || value.initializedName === undefined ? [] : [
+          { kind: "FieldDeclaration" as const, name: value.initializedName, type: { kind: "PredefinedType" as const, name: "bool" },
+            modifiers: ["private" as const, ...hiding(value.initializedName)] },
+        ]),
+        { kind: "PropertyDeclaration", name: value.name, type, modifiers: publicModifiers(value.name),
+          getter: { kind: "Block", statements: [{ kind: "ReturnStatement", expression: getter }] },
+          setter: { kind: "Block", statements: [
+            { kind: "ExpressionStatement", expression: { kind: "AssignmentExpression", operatorToken: { kind: "EqualsToken" }, left: stored,
+              right: { kind: "IdentifierName", name: "value" } } },
+            ...(initialized === undefined ? [] : [{ kind: "ExpressionStatement" as const,
+              expression: { kind: "AssignmentExpression" as const, operatorToken: { kind: "EqualsToken" as const }, left: initialized,
+                right: { kind: "LiteralExpression" as const, value: true } } }]),
+          ] } },
+        { ...method, modifiers: publicModifiers(member.targetName), body: { kind: "Block", statements: [
+          { kind: "IfStatement", condition: notWritten, thenBody: { kind: "Block", statements: complete(direct) } },
+          ...complete(indirect),
+        ] } },
+      ];
+    }
     case "copied": {
       const method = renderCsharpStructuralMethod(typeParameterNames, shape, member, records);
       const name = objectShapeStorageMemberName(shape, member);
       const call: CsharpExpression = { kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression",
-        receiver: { kind: "IdentifierName", name }, name: member.targetName,
+        receiver: { kind: "IdentifierName", name }, name: selected.invocationName,
         typeArguments: (member.typeParameters ?? []).map(parameter => render({ kind: "type-parameter", identity: parameter.identity, name: parameter.name })) },
-        arguments: method.parameters.map(parameter => ({ kind: "Argument", expression: { kind: "IdentifierName", name: parameter.name } })) };
+        arguments: method.parameters.map(parameter => ({ kind: "Argument", expression: { kind: "IdentifierName", name: parameter.name },
+          ...(parameter.passing === undefined ? {} : { passing: parameter.passing }) })) };
       return [{ kind: "FieldDeclaration", name, type: render(selected.storage), modifiers: publicModifiers(name, true) },
         { ...method, modifiers: publicModifiers(member.targetName), body: { kind: "Block", statements: [
-          selected.signature.returnsVoid ? { kind: "ExpressionStatement", expression: call } : { kind: "ReturnStatement", expression: call },
-        ] } }];
+          selected.signature.returnsVoid ? { kind: "ExpressionStatement", expression: call }
+            : { kind: "ReturnStatement", expression: call, ...(method.returnPassing === undefined ? {} : { ref: true as const }) },
+        ] } }, { ...method, name: selected.bodyInvocationName, explicitInterface: render(selected.interface), modifiers: [],
+          typeParameters: method.typeParameters?.map(parameter => ({ name: parameter.name })),
+          parameters: method.parameters.map(({ defaultValue: _default, ...parameter }) => parameter),
+          body: { kind: "Block", statements: [selected.signature.returnsVoid
+            ? { kind: "ExpressionStatement", expression: call }
+            : { kind: "ReturnStatement", expression: call, ...(method.returnPassing === undefined ? {} : { ref: true as const }) }] } }];
     }
     case "optional-method": {
       const name = objectShapeStorageMemberName(shape, member);
@@ -60,12 +117,14 @@ function renderMember(
       const name = objectShapeStorageMemberName(shape, member);
       const parameters = renderParameters(selected.signature, typeParameterNames, subject);
       const call: CsharpExpression = { kind: "InvocationExpression", callee: { kind: "IdentifierName", name },
-        arguments: [...(emission.receiverBound ? [{ kind: "Argument" as const, expression: { kind: "IdentifierName" as const, name: "this" } }] : []),
-          ...parameters.map(parameter => ({ kind: "Argument" as const, expression: { kind: "IdentifierName" as const, name: parameter.name } }))] };
+        arguments: parameters.map(parameter => ({ kind: "Argument" as const, expression: { kind: "IdentifierName" as const, name: parameter.name },
+          ...(parameter.passing === undefined ? {} : { passing: parameter.passing }) })) };
       return [{ kind: "FieldDeclaration", name, modifiers: publicModifiers(name, member.optional !== true), type: render(selected.storage) },
         { kind: "MethodDeclaration", name: member.targetName, modifiers: publicModifiers(member.targetName), returnType: render(selected.signature.returnType),
+          ...(selected.signature.returnPassing === undefined ? {} : { returnPassing: selected.signature.returnPassing === "byref-readonly" ? "ref-readonly" : "ref" }),
           parameters, body: { kind: "Block", statements: [selected.signature.returnsVoid
-            ? { kind: "ExpressionStatement", expression: call } : { kind: "ReturnStatement", expression: call }] } }];
+            ? { kind: "ExpressionStatement", expression: call }
+            : { kind: "ReturnStatement", expression: call, ...(selected.signature.returnPassing === undefined ? {} : { ref: true as const }) }] } }];
     }
     case "accessor": {
       const getterName = objectShapeAccessorGetterStorageMemberName(shape, member);
@@ -137,6 +196,8 @@ function renderParameters(signature: CsharpObjectMethodSignature, names: Readonl
   return signature.parameters.map((parameter, index) => {
     const type = renderCarrier(parameter.type, names, subject);
     return { name: `arg${index}`, type, ...(parameter.rest ? { isParams: true } : {}),
+      ...(parameter.passingMode === "by-value" ? {} : { passing: parameter.passingMode === "byref-readonly" ? "in" as const
+        : parameter.passingMode === "byref-readwrite" ? "ref" as const : "out" as const }),
       ...(parameter.optional ? { defaultValue: { kind: "DefaultExpression" as const, type } } : {}) };
   });
 }

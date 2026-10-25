@@ -14,6 +14,7 @@ import type { CsharpNativeRepresentationPending } from "../../target-model/recor
 import type { CsharpExpectedTypeClassifications } from "../../target-model/records/expected-types.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
+import type { CsharpGenericProjectionIndex } from "../../target-model/records/type-projections.js";
 import type { CsharpExpectedNativeUseSites } from "./native-uses.js";
 import type { CsharpExpectedTypePropagation } from "./propagation.js";
 
@@ -27,6 +28,7 @@ export interface CsharpExpectedTypeAnalysisInput {
   readonly callables: CsharpCallableContractIndex;
   readonly valueReadStages: CsharpValueReadStageIndex;
   readonly declarations: Pick<CsharpDeclarationClassifications, "returnContract" | "runtimeDefault">;
+  readonly typeProjections: CsharpGenericProjectionIndex;
 }
 
 export interface CsharpExpectedTypeAnalysis extends CsharpExpectedTypeClassifications {

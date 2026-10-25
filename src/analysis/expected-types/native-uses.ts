@@ -140,25 +140,30 @@ export function admitCsharpExpectedNativeUses(
     if (active.length === 0) return unresolved ? { kind: "pending", reason: "forwarding-owner-unresolved" } : { kind: "inactive" };
     const request = active[0]!;
     if (request.kind === "pending") return { kind: "pending", reason: request.reason };
-    if (final.callableCreation.get(request.expression)?.kind === "discarded") return { kind: "inactive" };
+    const storage = request.site.role === "write-target" || request.site.role === "update-target";
+    const callable = storage ? undefined : final.callableCreation.get(request.expression);
+    if (callable?.kind === "discarded") return { kind: "inactive" };
     for (const other of active) {
       if (other.kind === "pending") return { kind: "pending", reason: other.reason };
       if (other.expression !== request.expression || !targetTypeRefEquals(other.targetType, request.targetType) || other.mode !== request.mode) {
         return { kind: "pending", reason: "inconsistent-request" };
       }
     }
-    const source = final.valueRead.get(request.expression)?.value;
-    const constructionCarrier = expected.constructions.constructionCarrier(request.expression, request.targetType);
+    const read = final.valueRead.get(request.expression);
+    const source = storage ? read?.flowReadStorage : read?.value;
+    const constructionCarrier = storage ? undefined : expected.constructions.constructionCarrier(request.expression, request.targetType);
     const selection = selectCsharpNativeUseRepresentation({ ast: final.ast, expression: request.expression, target: request.targetType,
-      mode: request.mode, source, absent: source !== undefined && isCsharpAbsenceTargetType(source),
-      ...(request.site.role === "present-payload" ? { projection: "present-payload" as const } : {}),
-      literal: final.exactLiteral.get(request.expression, constructionCarrier === undefined ? request.targetType : constructionCarrier),
-      callable: final.callableCreation.get(request.expression), constructionCarrier,
-      binary: final.operations.operatorForm.get(request.expression) !== "selected" ? undefined
+      mode: request.mode, source, absent: !storage && source !== undefined && isCsharpAbsenceTargetType(source),
+      ...(storage ? { projection: "storage" as const }
+        : request.site.role === "present-payload" ? { projection: "present-payload" as const } : {}),
+      literal: storage ? undefined : final.exactLiteral.get(request.expression, constructionCarrier === undefined ? request.targetType : constructionCarrier),
+      callable, constructionCarrier,
+      binary: storage || final.operations.operatorForm.get(request.expression) !== "selected" ? undefined
         : final.operations.operatorForm.usesExpectedResultType(request.expression)
           ? expected.expectedBinary.get(request.expression, request.targetType) : final.operations.binaryOperation.get(request.expression)?.target,
       children: group.childData });
     if (selection.kind === "pending") {
+      if (storage) return selection;
       const rejection = expected.constructions.constructionRejection(request.expression, request.targetType);
       return rejection === undefined ? selection : { ...selection, message: rejection };
     }
@@ -172,7 +177,7 @@ export function admitCsharpExpectedNativeUses(
       representation: selection.representation, children: selection.children, construction: selection.construction, mode: request.mode,
       ...(selection.literal === undefined ? {} : { literal: selection.literal }),
       ...(selection.binary === undefined ? {} : { binary: selection.binary }),
-      objectShape: expected.constructions.objectShape(request.expression, request.targetType),
+      objectShape: storage ? undefined : expected.constructions.objectShape(request.expression, request.targetType),
       strength: active.some(entry => entry.strength === "required") ? "required" : "contextual", exactInteger: active.some(entry => entry.exactInteger) });
     return { kind: "admitted", use, children };
   }

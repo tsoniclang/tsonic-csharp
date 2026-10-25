@@ -7,7 +7,7 @@ import type { CsharpNativeMemberIdentity } from "../../../target-model/names/mod
 import type { CsharpSourceNameRecords } from "../../../target-model/records/names.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
-import { objectShapeArtifactKey } from "../../../analysis/program/records/object-shape-keys.js";
+import { objectShapeArtifactKey } from "../../../target-model/records/object-shape-keys.js";
 import type { CsharpNativeMemberHidingReader } from "../../../target-model/records/native-member-names.js";
 
 export function planCsharpNativeMemberHiding(

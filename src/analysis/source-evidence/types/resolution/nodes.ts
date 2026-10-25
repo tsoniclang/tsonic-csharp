@@ -20,7 +20,18 @@ import { resolveCsharpProviderIndexedAccess } from "./indexed-access.js";
 import { csharpSourceStorageContext, csharpSourceStorageComponentContext } from "./source-storage-projection.js";
 
 import { selectCsharpParameterListCarrier } from "../../../../policy/types/callables/parameter-list.js";
+import { resolveCsharpNativeParameterCarrier, selectCsharpContextualParameterCarrier } from "./source-references.js";
 export function resolveNodeWithState(
+  scope: CsharpTypeResolutionScope,
+  node: Node | undefined,
+  sourceFile: SourceFile | undefined,
+  state: CsharpTypeResolutionState,
+): TargetTypeRef | undefined {
+  const selected = resolveNodeCarrierWithState(scope, node, sourceFile, state);
+  return node === undefined ? selected : resolveCsharpNativeParameterCarrier(scope, node, selected, state);
+}
+
+function resolveNodeCarrierWithState(
   scope: CsharpTypeResolutionScope,
   node: Node | undefined,
   sourceFile: SourceFile | undefined,
@@ -60,6 +71,8 @@ export function resolveNodeWithState(
   }
   if (host.ast.is.IsArrayLiteralExpression(node)) {
     const selection = scope.resolveArrayLiteralWithState(node, queries, state);
+    if (selection.kind === "rejected") state.rejectNativeResolution?.(Object.freeze({ kind: "rejected", subject: node,
+      code: "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH", reason: selection.reason }));
     return selection.kind === "resolved" ? selection.carrier : undefined;
   }
   if (host.ast.is.IsPropertyDeclaration(node) || host.ast.is.IsPropertySignatureDeclaration(node) ||
@@ -71,6 +84,9 @@ export function resolveNodeWithState(
         ? declared : csharpNullableTargetType(declared);
     }
   }
+  const contextualParameter = selectCsharpContextualParameterCarrier(scope, node, queries, state);
+  if (contextualParameter.kind !== "not-applicable") return contextualParameter.kind === "resolved"
+    ? contextualParameter.type : undefined;
   const selectedExpression = resolveSelectedExpressionType(
     node,
     queries,

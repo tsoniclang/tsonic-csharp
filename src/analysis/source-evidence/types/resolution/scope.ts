@@ -18,6 +18,7 @@ import { createCsharpSourceUnionDefinitions } from "./union-definitions.js";
 import { type CsharpArrayLiteralSelection } from "../../../../target-model/records/array-literals.js";
 
 import type { createCsharpTypePolicy } from "./engine.js";
+import type { CsharpNodeTypeResolution } from "../../../../policy/model/type-resolution.js";
 export interface CsharpTypeResolutionScope {
   resolveArrayLiteralWithState(node: Node, queries: SourceFileSemantics, state: CsharpTypeResolutionState): CsharpArrayLiteralSelection;
   resolvePointerReturn(
@@ -33,7 +34,7 @@ export interface CsharpTypeResolutionScope {
   resolveNode(
   node: Node | undefined,
   sourceFile?: SourceFile,
-): TargetTypeRef | undefined;
+): CsharpNodeTypeResolution | undefined;
   resolveType(
   type: Type | undefined,
   sourceFile: SourceFile,

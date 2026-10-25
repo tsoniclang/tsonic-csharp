@@ -1,15 +1,25 @@
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../types/model.js";
+import type { CsharpDelegateSignatureShape, CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../types/model.js";
 import type { CsharpNativeMemoryLayout } from "../operations/native-memory.js";
 
 export interface CsharpObjectMethodSignature {
   readonly returnType: TargetTypeRef;
+  readonly returnPassing: CsharpDelegateSignatureShape["returnPassing"];
   readonly returnsVoid: boolean;
-  readonly parameters: readonly { readonly type: TargetTypeRef; readonly rest: boolean; readonly optional: boolean }[];
+  readonly parameters: readonly { readonly type: TargetTypeRef; readonly passingMode: CsharpDelegateSignatureShape["parameterPassingModes"][number];
+    readonly rest: boolean; readonly optional: boolean }[];
 }
 
+export type CsharpAuthoredObjectMethodValue =
+  | { readonly kind: "fixed" }
+  | { readonly kind: "delegate"; readonly type: TargetTypeRef; readonly name: string; readonly valueName: string }
+  | { readonly kind: "protocol"; readonly type: TargetTypeRef; readonly interface: TargetTypeRef;
+      readonly name: string; readonly valueName: string; readonly invocationName: string; readonly initializedName: string | undefined };
+
 export type CsharpObjectMemberDeclaration =
-  | { readonly kind: "authored" }
-  | { readonly kind: "copied"; readonly signature: CsharpObjectMethodSignature; readonly storage: TargetTypeRef }
+  | { readonly kind: "authored"; readonly bodyName: string; readonly signature: CsharpObjectMethodSignature;
+      readonly value: CsharpAuthoredObjectMethodValue }
+  | { readonly kind: "copied"; readonly signature: CsharpObjectMethodSignature; readonly storage: TargetTypeRef;
+      readonly invocationName: string; readonly interface: TargetTypeRef; readonly bodyInvocationName: string }
   | { readonly kind: "optional-method"; readonly type: TargetTypeRef }
   | { readonly kind: "deferred"; readonly type: TargetTypeRef }
   | { readonly kind: "method"; readonly signature: CsharpObjectMethodSignature; readonly storage: TargetTypeRef }

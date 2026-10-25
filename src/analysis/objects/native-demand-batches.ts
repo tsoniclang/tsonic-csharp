@@ -10,7 +10,7 @@ import type { CsharpTypeDefinitions } from "../../target-model/types/source-unio
 import type { TargetTypeRef, CsharpObjectShapeProjectionKind } from "../../target-model/types/model.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeCapability, CsharpObjectShapeProjection } from "../../target-model/types/index.js";
 import { csharpObjectShapesEqual, csharpObjectShapeMemberContractKey } from "../../target-model/types/index.js";
-import { objectShapeArtifactKey } from "../program/records/object-shape-keys.js";
+import { objectShapeArtifactKey } from "../../target-model/records/object-shape-keys.js";
 import { objectShapeMaterialization } from "../../policy/types/objects/object-shape-materialization.js";
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";

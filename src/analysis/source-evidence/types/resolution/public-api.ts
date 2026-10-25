@@ -18,13 +18,18 @@ import { Node_Expression, sourceAbsenceUse } from "@tsonic/target-api/source";
 import { selectCsharpNativeFlowMembers } from "./native-flow-refinement.js";
 import { csharpUnionLeaves } from "../../../../target-model/types/union-relations.js";
 import { resolveCsharpInstanceType } from "./instance-tests.js";
+import type { CsharpNodeTypeResolution } from "../../../../policy/model/type-resolution.js";
 
 export function resolveNode(
   { resolveNodeWithState }: CsharpTypeResolutionScope,
   node: Node | undefined,
   sourceFile?: SourceFile,
-): TargetTypeRef | undefined {
-  return resolveNodeWithState(node, sourceFile, { depth: 0 });
+): CsharpNodeTypeResolution | undefined {
+  let rejected: Extract<CsharpNodeTypeResolution, { readonly kind: "rejected" }> | undefined;
+  const type = resolveNodeWithState(node, sourceFile, { depth: 0, rejectNativeResolution: rejection => {
+    rejected ??= rejection;
+  } });
+  return rejected ?? (type === undefined ? undefined : Object.freeze({ kind: "resolved", type }));
 }
 
 export function resolveType(
@@ -36,17 +41,21 @@ export function resolveType(
 }
 
 export function resolveStorage(
-  { catchVariableStorageCarrier, host, resolveNode, sourceValueDeclaration }: CsharpTypeResolutionScope,
+  { catchVariableStorageCarrier, host, resolveNode, resolveReadStorage, sourceValueDeclaration }: CsharpTypeResolutionScope,
   node: Node | undefined,
   sourceFile?: SourceFile,
 ): TargetTypeRef | undefined {
   if (node === undefined) {
     return undefined;
   }
+  if (host.ast.is.IsParenthesizedExpression(node)) {
+    return resolveReadStorage(host.ast.as.AsParenthesizedExpression(node)?.Expression, sourceFile);
+  }
   const reference = host.navigation.referenceFor(node);
   const declaration = sourceValueDeclaration(node, reference?.declaration);
   if (declaration === undefined) {
-    return resolveNode(node, sourceFile);
+    const selected = resolveNode(node, sourceFile);
+    return selected?.kind === "resolved" ? selected.type : undefined;
   }
   const catchCarrier = catchVariableStorageCarrier(declaration);
   if (catchCarrier !== undefined) {
@@ -56,10 +65,11 @@ export function resolveStorage(
     const file = host.ast.getSourceFile(declaration);
     return file === undefined ? undefined : host.bindingProjection(declaration, file)?.bindingCarrier;
   }
-  return resolveNode(
+  const selected = resolveNode(
     declaration,
     host.ast.getSourceFile(declaration) ?? sourceFile,
   );
+  return selected?.kind === "resolved" ? selected.type : undefined;
 }
 
 export function resolveReadStorage(
@@ -116,7 +126,8 @@ export function resolveValue(
   type: Type | undefined,
   sourceFile: SourceFile,
 ): TargetTypeRef | undefined {
-  return resolveNode(node, sourceFile) ?? resolveType(type, sourceFile);
+  const selected = resolveNode(node, sourceFile);
+  return selected?.kind === "rejected" ? undefined : selected?.type ?? resolveType(type, sourceFile);
 }
 
 export function resolveSelectedValue(
@@ -221,6 +232,7 @@ export function resolveSelectedValueWithState(
         scopedTarget,
         resolveTypeWithState(selectedType, sourceFile, nextState(state)),
         queries.types.relationship(declaredType, selectedType),
+        queries.types.isNonPrimitive(selectedType),
       );
     }
     return scopedTarget;

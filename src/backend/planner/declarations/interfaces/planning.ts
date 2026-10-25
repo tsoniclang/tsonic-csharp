@@ -75,7 +75,7 @@ export function planInterfaceDeclaration(
         return failCsharpPlannerInvariant("An admitted interface member lost its native declaration form.", member);
     }
   });
-  if (objectShape !== undefined && csharpObjectShapeArtifact(input, objectShape).capabilities.includes("method-values")) {
+  if (objectShape !== undefined) {
     const rendered = renderCsharpStructuralInterfaceMethodValues(input.scope.typeParameterNames, objectShape, input.program.records);
     if (rendered === undefined) failCsharpPlannerInvariant("An admitted interface method value lost its native callable storage.", node);
     members.push(...rendered);

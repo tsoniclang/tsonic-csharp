@@ -1,8 +1,9 @@
 import { sealCsharpNativeUseClassifications } from "../program/records/native-uses.js";
 import type { Node } from "@tsonic/tsts";
-import { targetUseSiteIdentity, type TargetUseSiteRef } from "@tsonic/target-api/analysis";
+import type { CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
+import { targetUseSiteIdentity, type SourceStorageSubject, type TargetUseSiteRef } from "@tsonic/target-api/analysis";
 import { failTargetAnalysisInvariant, targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
-import { sourceExpressionResultDisposition, sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
+import { sourceExpressionResultDisposition, sourceExpressionValueInputs, sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
 import { selectCsharpNativeConstructSteps } from "./control-flow/native-constructs.js";
 import { selectCsharpNativeOperandUses, type CsharpNativeOperandSelection, type CsharpNativeOperandStep } from "./control-flow/native-operands.js";
 import { selectCsharpNativeCompletion, type CsharpNativeCompletionFlow } from "../../policy/operations/control-flow/native-completion.js";
@@ -10,6 +11,7 @@ import { csharpNativeUseSite, type CsharpExpectedNativeUse, type CsharpNativeChi
 import { csharpConstructorBaseCall } from "../callables/constructor-entry.js";
 import { isCsharpUnusedTupleDefault } from "../control-flow/binding-patterns.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
+import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import { isCsharpRecordDictionaryTargetType } from "../../target-model/types/carriers/collections.js";
 import { csharpVoidTargetType } from "../../target-model/types/carriers/scalar-types.js";
 import { csharpCarrierAdmitsSourceAbsence, isCsharpAbsenceTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
@@ -72,6 +74,7 @@ export function analyzeCsharpNativeDemand(
   const unadmitted: CsharpNativeUnadmitted[] = [];
   const sourceRequirements = new Map<Node, CsharpNativeDemandAnalysisInput["nativeExpressionIssues"][number][]>();
   const refusedSourceExpressions = new Set<Node>();
+  const refusedSourceWriteReasons = new Map<Node | SourceStorageSubject, Set<string>>();
   for (const issue of input.nativeExpressionIssues) for (const requiredBy of issue.requiredBy) {
     const issues = sourceRequirements.get(requiredBy) ?? [];
     issues.push(issue);
@@ -105,6 +108,9 @@ export function analyzeCsharpNativeDemand(
     owner.set(targetUseSiteIdentity(entry.site), entry); exactPending.set(entry.site.subject, owner);
   }
   for (const file of input.sourceFiles) visitConstruct(file);
+  for (const declaration of requiredBindingRoots) {
+    if (ast.is.IsVariableDeclaration(declaration)) refuseSourceExpression(declaration);
+  }
   return sealCsharpNativeUseClassifications({ entries, unadmitted, requiredBindingRoots: [...requiredBindingRoots],
     requiredNativeValueDeclarations: [...requiredNativeValueDeclarations], published, orders, emissions });
 
@@ -143,7 +149,7 @@ export function analyzeCsharpNativeDemand(
     if (constructs.has(node)) return;
     constructs.add(node);
     const selected = selectCsharpNativeConstructSteps(policyInput, node);
-    if (selected.kind === "erased" || refuseSourceExpression(node)) {
+    if (selected.kind === "erased" || !ast.is.IsVariableDeclaration(node) && refuseSourceExpression(node)) {
       orders.set(node, Object.freeze([]));
       return;
     }
@@ -204,6 +210,48 @@ export function analyzeCsharpNativeDemand(
     return true;
   }
 
+  function refuseSourceWrite(child: CsharpNativeChildUse): boolean {
+    const inputs = sourceExpressionValueInputs(ast, child.expression)?.map(entry => entry.expression) ?? [];
+    if (child.access === "location") inputs.push(child.expression);
+    let refused = false;
+    for (const candidate of inputs) {
+      let reference = candidate;
+      for (;;) {
+        const inner = sourceTransparentExpressionOperand(ast, reference);
+        if (inner === undefined) break;
+        reference = inner;
+      }
+      const member = input.operations.selectedProperty.get(reference)?.sourceOwned ??
+        input.operations.selectedElement.get(reference)?.sourceOwned;
+      if (member?.shapeMember?.kind !== "resolved" || member.shapeMember.member.memberKind !== "method") continue;
+      const receiver = getCsharpNullableElementTargetType(member.selectedReceiverType) ?? member.selectedReceiverType;
+      if (receiver?.kind !== "target-named") continue;
+      const nativeReceiver = receiver as CsharpTargetNamedTypeRef;
+      if (nativeReceiver.csharpStructuralContract !== true && nativeReceiver.csharpSourceDeclarationKind !== "interface") continue;
+      const selected = input.sourceStorage.writeAt(reference, input.sourceStorage.emptyBindings);
+      if (selected.kind !== "resolved" || selected.write.reason === undefined ||
+        selected.write.operation !== child.expression && child.access !== "location") continue;
+      refused = true;
+      if (selected.write.receiver !== undefined) {
+        const subject = selected.write.receiver;
+        const declaration = subject.projection.length === 0 && ast.is.IsIdentifier(subject.node)
+          ? input.navigation.sourceReferenceFor(subject.node)?.declaration : undefined;
+        const receiver = declaration ?? subject;
+        const reasons = refusedSourceWriteReasons.get(receiver) ?? new Set<string>();
+        if (reasons.has(selected.write.reason)) continue;
+        reasons.add(selected.write.reason);
+        refusedSourceWriteReasons.set(receiver, reasons);
+      }
+      if (refusedSourceExpressions.has(selected.write.reference)) continue;
+      refusedSourceExpressions.add(selected.write.reference);
+      unadmitted.push(Object.freeze({ kind: "source-refusal", requiredBy: child.expression, diagnostic: Object.freeze({
+        code: "CSHARP_SOURCE_STORAGE_NOT_PROVEN", category: "error", source: "tsonic-csharp",
+        sourceNode: selected.write.reference, message: selected.write.reason,
+      }) }));
+    }
+    return refused;
+  }
+
   function visitStep(step: CsharpNativeOperandStep, steps: CsharpNativeOrderStep[], visited?: ReadonlyMap<CsharpNativeChildUse, VisitedUse>): void {
     if (step.kind === "construct") {
       visitConstruct(step.node);
@@ -224,7 +272,8 @@ export function analyzeCsharpNativeDemand(
         : Object.freeze({ site, expression, completion: Object.freeze({ kind: "void" as const }),
           discardedPresence: constantPresence(existing.kind === "erased" && existing.cause === "discarded-callable", []) });
     }
-    if (refuseSourceExpression(expression) || refuseAmbientValueUse(expression)) return Object.freeze({ site, expression, completion: undefined });
+    if (refuseSourceExpression(expression) || refuseAmbientValueUse(expression) || refuseSourceWrite(child))
+      return Object.freeze({ site, expression, completion: undefined });
     if (exact === undefined) {
       const candidates = slots.get(site.subject)?.get(site.role);
       const matching = candidates?.expressions.get(expression) ?? [];

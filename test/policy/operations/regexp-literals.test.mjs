@@ -72,7 +72,7 @@ function directInput(node, targetType) {
       },
       types: {
         resolveNode: (candidate) =>
-          candidate === node ? targetType : undefined,
+          candidate === node ? { kind: "resolved", type: targetType } : undefined,
       },
     },
     node,

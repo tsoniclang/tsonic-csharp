@@ -15,7 +15,8 @@ export function printCsharpStatement(
 ): string {
   switch (statement.kind) {
     case "ReturnStatement":
-      return statement.expression === undefined ? "return;" : `return ${context.printExpression(statement.expression)};`;
+      if (statement.ref === true && statement.expression === undefined) return failCsharpSyntaxInvariant(statement, "native reference return operand");
+      return statement.expression === undefined ? "return;" : `return ${statement.ref === true ? "ref " : ""}${context.printExpression(statement.expression)};`;
     case "YieldReturnStatement":
       return `yield return ${context.printExpression(statement.expression)};`;
     case "YieldBreakStatement":

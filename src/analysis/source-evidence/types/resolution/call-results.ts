@@ -18,7 +18,7 @@ export function selectCsharpSourceCallResult(
   if (isCsharpJsValueTargetType(nativeType)) {
     const selectedType = selected();
     return selectedType === undefined ? undefined : Object.freeze({ nativeType,
-      selectedType: retainCsharpBroadValueCarrier(nativeType, selectedType) ?? selectedType });
+      selectedType: retainCsharpBroadValueCarrier(nativeType, selectedType, false) ?? selectedType });
   }
   const nativeElement = getCsharpNullableElementTargetType(nativeType);
   const nativePayload = nativeElement ?? nativeType;

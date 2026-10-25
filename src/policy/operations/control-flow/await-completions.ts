@@ -4,7 +4,7 @@ import type { CsharpTypeDefinitions } from "../../../target-model/types/source-u
 import { csharpUnionLeaves } from "../../../target-model/types/union-relations.js";
 import { csharpUnionProjectionPath, selectCsharpUnionArmMapping } from "../../conversions/union-relations.js";
 import { combineCsharpTargetUnionMembers, csharpAbsenceTargetType, getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType, isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
-import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { isCsharpVoidTargetType } from "../../../target-model/types/identity.js";
 import { csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
@@ -36,11 +36,17 @@ export function selectCsharpAwaitCompletion(
   if (present !== undefined && results.some(result => !isCsharpVoidTargetType(result))) {
     results.push(csharpVoidTargetType());
   }
-  const result = combineCsharpTargetUnionMembers(results);
+  const identity = !alternatives.some(alternative => alternative.task);
+  const first = alternatives[0]!.result;
+  const uniform = alternatives.every(alternative => targetTypeRefEquals(alternative.result, first));
+  const result = identity ? carrier : uniform
+    ? present !== undefined && !isCsharpVoidTargetType(first) ? csharpNullableTargetType(first) : first
+    : combineCsharpTargetUnionMembers(results);
   if (result === undefined) return undefined;
   const resultElement = getCsharpNullableElementTargetType(result) ?? result;
   const selected = alternatives.map(alternative => {
-    const resultPath = targetTypeRefEquals(alternative.result, result) || targetTypeRefEquals(alternative.result, resultElement) ||
+    const resultPath = identity ? alternative.sourcePath
+      : targetTypeRefEquals(alternative.result, result) || targetTypeRefEquals(alternative.result, resultElement) ||
       isCsharpVoidTargetType(alternative.result) || isCsharpAbsenceTargetType(alternative.result)
       ? [] : csharpUnionProjectionPath(resultElement, alternative.result, definitions);
     if (resultPath !== undefined) return Object.freeze({ ...alternative, resultPath });
@@ -51,7 +57,7 @@ export function selectCsharpAwaitCompletion(
       resultMapping: Object.freeze({ kind: "union-map" as const, coverage: "source" as const, arms }) });
   });
   return selected.some(alternative => alternative === undefined) ? undefined : Object.freeze({
-    form: !alternatives.some(alternative => alternative.task) ? "identity"
+    form: identity ? "identity"
       : alternatives.length === 1 && present === undefined && alternatives[0]!.sourcePath.length === 0 ? "direct"
       : !isCsharpVoidTargetType(result) && alternatives.some(alternative => alternative.task && alternative.resultForm === "void") ? "void-branches" : "branches",
     discard: isCsharpVoidTargetType(result),

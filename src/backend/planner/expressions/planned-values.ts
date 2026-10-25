@@ -20,6 +20,7 @@ export interface CsharpPlannedValue {
 export type CsharpPlannedCallable =
   | { readonly kind: "lambda"; readonly expression: Extract<CsharpExpression, { readonly kind: "LambdaExpression" }> }
   | { readonly kind: "method" }
+  | { readonly kind: "stable-value" }
   | { readonly kind: "captured-method"; readonly receiver: CsharpExpression; readonly name: string };
 
 export interface CsharpPlannedCallableReference {

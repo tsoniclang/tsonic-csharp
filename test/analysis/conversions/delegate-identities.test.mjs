@@ -18,7 +18,7 @@ function fixture(text) {
   const sourceFile = checked.getSourceFile("/project/index.ts");
   const expressions = new Map();
   const policy = { ast: source.ast, navigation: source.navigation, sourceFiles: [sourceFile],
-    types: { resolveNode: () => sourceType }, projectTypes: { directSupertypes: () => [] },
+    types: { resolveNode: () => ({ kind: "resolved", type: sourceType }) }, projectTypes: { directSupertypes: () => [] },
     providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) }, target: {} };
   const conversion = selectCsharpConversion(policy, sourceType, targetType, "implicit");
   assert.equal(conversion.kind, "delegate-adapter");

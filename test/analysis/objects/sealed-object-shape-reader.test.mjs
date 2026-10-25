@@ -175,12 +175,15 @@ test("structural implementations are materialized at seal and an unrecorded inst
       resolveCopyShape: () => { assert.equal(closed, false, "copy selection precedes publication"); return undefined; },
     },
     projectTypes: { directSupertypes: () => [], catalog: { definitionForTarget: () => undefined } },
-    semanticsFor: () => ({ types: { expressionType: () => sourceType, structuralMembers: () => ({
+    semanticsFor: () => ({ types: { expressionType: () => sourceType, structuralMembers(_source, _destination, purpose) {
+      assert.equal(purpose, "read", "native implementation admission requires readable members before the seal");
+      return {
       kind: "available", destination: { calls: [], constructs: [], indexes: [] }, members: [{ kind: "present",
         source: { property: { symbol, rootSymbols: [] }, declarations: [] },
         destination: { property: { symbol, rootSymbols: [] }, declarations: [] },
       }],
-    }) } }),
+      };
+    } } }),
   };
   const builder = analyzeCsharpObjectShapes(policy, { targetTypes: [], compileTimeMetadata: { get: () => false } },
     { selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined } });
@@ -266,12 +269,15 @@ test("a generic structural implementation is substituted once at seal into froze
       resolveCopyShape: () => { assert.equal(closed, false, "copy selection precedes publication"); return undefined; },
     },
     projectTypes: { directSupertypes: () => [], catalog: { definitionForTarget: () => undefined } },
-    semanticsFor: () => ({ types: { expressionType: () => sourceType, structuralMembers: () => ({
+    semanticsFor: () => ({ types: { expressionType: () => sourceType, structuralMembers(_source, _destination, purpose) {
+      assert.equal(purpose, "read", "generic native implementation admission requires readable members before the seal");
+      return {
       kind: "available", destination: { calls: [], constructs: [], indexes: [] }, members: [{ kind: "present",
         source: { property: { symbol: sourceSymbol, rootSymbols: [] }, declarations: [] },
         destination: { property: { symbol: destinationSymbol, rootSymbols: [] }, declarations: [] },
       }],
-    }) } }),
+      };
+    } } }),
   };
   const builder = analyzeCsharpObjectShapes(policy, { targetTypes: [], compileTimeMetadata: { get: () => false } },
     { selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined } });

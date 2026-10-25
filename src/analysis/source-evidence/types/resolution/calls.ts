@@ -50,18 +50,22 @@ export function resolveSourceCallInstantiation(
   const parameterIdentities = sourceCallTypeParameterIdentities(scope, source, callable,
     callable === undefined ? "value" : "declaration");
   if (parameterIdentities === undefined) return undefined;
+  const identities = [...parameterIdentities, ...projections.map(projection => projection.identity)];
   if (
     expectedTypeParameterIdentities !== undefined &&
     (
-      selectedArguments.length + projections.length !== expectedTypeParameterIdentities.length ||
+      identities.length !== expectedTypeParameterIdentities.length ||
+      new Set(identities).size !== identities.length ||
+      new Set(expectedTypeParameterIdentities).size !== expectedTypeParameterIdentities.length ||
       parameterIdentities.some((name, index) =>
         name !== expectedTypeParameterIdentities[index]
-      ) || projections.some((projection, index) => projection.identity !== expectedTypeParameterIdentities[selectedArguments.length + index])
+      ) || expectedTypeParameterIdentities.slice(parameterIdentities.length).some(identity =>
+        !projections.some(projection => projection.identity === identity))
     )
   ) {
     return undefined;
   }
-  if (selectedArguments.length === 0) {
+  if (identities.length === 0) {
     return {
       arguments: Object.freeze([]),
       substitutions: new Map(),
@@ -136,7 +140,7 @@ export function resolveSourceCallInstantiation(
     }
   }
   return {
-    arguments: Object.freeze(arguments_),
+    arguments: Object.freeze((expectedTypeParameterIdentities ?? identities).map(identity => substitutions.get(identity)!)),
     substitutions,
   };
 }
@@ -454,8 +458,10 @@ export function sourceCallableTypeParametersMatch(
   if (identities === undefined) return false;
   const projections = callable.sourceDeclaration === undefined ? []
     : host.representations.genericProjections(callable.sourceDeclaration);
-  return selected.length + projections.length === callable.nativeSignature.methodTypeParameterIdentities.length &&
-    projections.every((projection, index) => projection.identity === callable.nativeSignature.methodTypeParameterIdentities[selected.length + index]) &&
+  const native = callable.nativeSignature.methodTypeParameterIdentities;
+  return selected.length + projections.length === native.length &&
+    new Set(native).size === native.length && new Set([...identities, ...projections.map(projection => projection.identity)]).size === native.length &&
+    native.slice(selected.length).every(identity => projections.some(projection => projection.identity === identity)) &&
     identities.every((identity, index) => identity === callable.nativeSignature.methodTypeParameterIdentities[index]);
 }
 

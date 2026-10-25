@@ -231,6 +231,25 @@ test("native module byref storage preserves destructured leaves and namespace id
   assert.doesNotMatch([...compiled.artifacts.values()].join("\n"), /State\.parsed(?:!|\.Value)|copy.?back/iu);
 });
 
+test("native instance byref storage evaluates its effectful receiver once", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ sourceText: `
+    import type { int32 } from "@tsonic/core/types.js";
+    import { Int32 } from "@tsonic/dotnet/System.js";
+    import { out } from "@tsonic/csharp/lang.js";
+    class Cell { value: int32 = 0; }
+    const cell = new Cell();
+    let reads = 0;
+    function receiver(): Cell { reads += 1; return cell; }
+    export function run(): boolean {
+      return Int32.TryParse("42", out(receiver().value)) && cell.value === 42 && reads === 1;
+    }
+  ` });
+  executeCsharpConstruction(compiled, "effectful-instance-byref");
+  const output = [...compiled.artifacts.values()].join("\n");
+  assert.equal((output.match(/Index\.receiver\(\)/gu) ?? []).length, 1, "the native receiver executes once");
+  assert.doesNotMatch(output, /copy.?back/iu);
+});
+
 function sourceArtifacts(compiled) {
   const artifacts = Object.fromEntries(compiled.artifacts);
   const project = artifacts["TsonicGenerated.csproj"];

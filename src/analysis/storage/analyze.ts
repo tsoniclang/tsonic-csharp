@@ -4,7 +4,7 @@ import { IsTypeSyntaxNode, sourceCallableValueParameters } from "@tsonic/target-
 import { conversionIsImplicitlyApplicable } from "../../policy/conversions/core.js";
 import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
 import { getCsharpCallableValueSignature, getCsharpLambdaSignature, getCsharpNullableElementTargetType, csharpNullableReferenceTargetType, csharpNullableTargetType, csharpTargetStorageIdentityEquals, csharpDelegateSignaturesMatchNativeBinding, targetTypeRefEquals, targetTypeRefKey } from "../../policy/types/index.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
 import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
@@ -233,7 +233,11 @@ export function analyzeCsharpStorage(
             continue;
           }
         }
-        requireTargetType(parameter, parameter, runtimeDefault?.valueType ?? effectiveAuthored ?? targetType);
+        const bodyType = runtimeDefault?.valueType ?? effectiveAuthored ?? targetType;
+        requireTargetType(parameter, parameter, bodyType);
+        if (runtimeDefault !== undefined && !targetTypeRefEquals(targetType, bodyType)) {
+          conversions.conversion.get(targetType, bodyType, "implicit");
+        }
         const contract = contracts.get(parameter);
         if (contract !== undefined) {
           requireCsharpRecord(requiredRecords, { family: "requiredStorageType", subject: parameter,
@@ -321,7 +325,7 @@ export function analyzeCsharpStorage(
           policy.ast.is.IsVariableDeclaration(declaration)
         ) {
           const variable = policy.ast.as.AsVariableDeclaration(declaration);
-          if (variable?.Type === undefined && variable?.Initializer !== undefined) {
+          if (variable?.Initializer !== undefined && storageDeclarationCanRefine(declaration, requiredStorageType)) {
             requireTargetType(expression, declaration, requiredStorageType);
           }
         }
@@ -335,7 +339,7 @@ export function analyzeCsharpStorage(
       if (declaration === undefined || !policy.ast.is.IsVariableDeclaration(declaration) ||
         aliases.has(declaration)) return;
       const variable = policy.ast.as.AsVariableDeclaration(declaration);
-      if (variable?.Type !== undefined || variable?.Initializer === undefined) return;
+      if (variable?.Initializer === undefined || !storageDeclarationCanRefine(declaration, requiredStorageType)) return;
       aliases.add(declaration);
       if (aliases.size > maximumStorageContracts) {
         issues.push(issue(expression, "CSHARP_STORAGE_ALIAS_BUDGET_EXCEEDED",
@@ -355,6 +359,20 @@ export function analyzeCsharpStorage(
       current = initializer;
     }
     for (const declaration of aliases) requireTargetType(expression, declaration, requiredStorageType);
+  }
+
+  function storageDeclarationCanRefine(declaration: Node, required: TargetTypeRef): boolean {
+    const variable = policy.ast.as.AsVariableDeclaration(declaration);
+    if (variable?.Initializer === undefined) return false;
+    if (variable.Type === undefined) return true;
+    const authored = evidence.nodeTargetType.get(variable.Type);
+    const payload = getCsharpNullableElementTargetType(authored);
+    const present = payload ?? authored;
+    if (present?.kind !== "target-named" || payload !== undefined && getCsharpNullableElementTargetType(required) === undefined) return false;
+    const native = present as CsharpTargetNamedTypeRef;
+    if (native.csharpSourceDeclarationKind !== "interface" && native.csharpStructuralContract !== true) return false;
+    const destination = objectShapes.resolveTarget(getCsharpNullableElementTargetType(required) ?? required);
+    return destination?.implements?.some(base => targetTypeRefEquals(base, present)) === true;
   }
 
   function recordOperationRequirements(node: Node): void {

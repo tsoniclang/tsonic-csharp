@@ -11,7 +11,7 @@ import type { CsharpObjectShapeDemand } from "../../target-model/records/object-
 import type { CsharpSourceUnionEmissionRecords } from "../../target-model/records/source-unions.js";
 import type { CsharpUnsafeEmission, CsharpSafetyPlacement } from "../../target-model/records/safety-emission.js";
 import type { CsharpTargetConfiguration } from "../../target-model/configuration/model.js";
-import { selectCsharpTypeUnsafeContext } from "../../policy/operations/pointers/native-type-safety.js";
+import { selectCsharpNativePointerUnsafeContext, selectCsharpTypeUnsafeContext } from "../../policy/operations/pointers/native-type-safety.js";
 import { createCsharpSafetyEmissionRecords } from "../program/records/safety-emission.js";
 import { sourceSafetyPositionIssue, createSourceExplicitUnsafeContextIndex } from "@tsonic/target-api/analysis";
 import type { CsharpObjectShapeFact } from "../../target-model/types/model.js";
@@ -92,11 +92,8 @@ export function analyzeCsharpSafetyEmission(input: {
     if (input.admitted(node) && (operation?.kind === "load" || operation?.kind === "store" || operation?.kind === "offset") && !explicit.has(node))
       issues.push({ code: "CSHARP_NATIVE_POINTER_UNSAFE_CONTEXT_REQUIRED", category: "error", source: "tsonic-csharp", sourceNode: node,
         message: `C# native-pointer '${operation.kind}' requires an explicit unsafecontext()/unsafe() source region.` });
-    // Layout queries fold to constants and raw pointer identity (RawPointer.Same/Hash) is a managed call; neither emits
-    // pointer syntax, so neither needs a C# unsafe context.
-    if (input.admitted(node) && operation !== undefined && operation.kind !== "not-native-pointer" && operation.kind !== "rejected" &&
-      operation.kind !== "layout-query" && operation.kind !== "raw-identity") {
-      context = true;
+    if (input.admitted(node) && operation !== undefined) {
+      context ||= selectCsharpNativePointerUnsafeContext(operation);
       if (operation.kind === "load" || operation.kind === "store") permission = true;
     }
     // Every safety marker is position-checked, including one in an erased statement: an incomplete builder statement
@@ -149,7 +146,7 @@ export function analyzeCsharpSafetyEmission(input: {
   };
   for (const file of input.source.sourceFiles) compilations.set(file, visit(file).permission);
   for (const artifact of input.shapes.artifacts) shapes.set(artifact.fact, !preview && (
-    artifact.fact.members.some(member => selectCsharpTypeUnsafeContext(member.methodStorageType ?? member.type)) ||
+    artifact.fact.members.some(member => selectCsharpTypeUnsafeContext(member.methodValueStorage?.type ?? member.type)) ||
     (artifact.fact.implements ?? []).some(selectCsharpTypeUnsafeContext)));
   compilations.set("object-shapes", [...shapes.values()].some(required => required));
   compilations.set("source-unions", !preview && input.unions.sourceUnions.get().some(union => selectCsharpTypeUnsafeContext(union.storage)));

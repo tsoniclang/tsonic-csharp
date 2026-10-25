@@ -1,9 +1,9 @@
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpObjectShapeDemand, CsharpObjectShapeArtifact } from "../../target-model/records/object-shape-demand.js";
-import { objectShapeArtifactKey } from "../program/records/object-shape-keys.js";
+import { objectShapeArtifactKey } from "../../target-model/records/object-shape-keys.js";
 import type { CsharpObjectShapeDeclarationEmission, CsharpObjectShapeEmission, CsharpObjectShapeParameter } from "../../target-model/records/object-shape-emission.js";
 import type { CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
-import { csharpStructuralObjectShapeIdentity, isCsharpJsValueObjectShapeTargetType } from "../../target-model/types/index.js";
+import { csharpStructuralObjectShapeIdentity } from "../../target-model/types/index.js";
 import { isCsharpEmptyObjectTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
 import type { CsharpNamePlan } from "../../target-model/names/model.js";
@@ -57,7 +57,7 @@ export function analyzeCsharpObjectShapeEmission(input: {
   const shapes = new Map([...input.shapes.knownShapes(), ...input.demand.artifacts.map(artifact => artifact.fact)]
     .map(fact => [objectShapeArtifactKey(fact), fact]));
   for (const fact of shapes.values()) {
-    if (isCsharpJsValueObjectShapeTargetType(fact.targetType) || isCsharpEmptyObjectTargetType(fact.targetType))
+    if (isCsharpEmptyObjectTargetType(fact.targetType))
       emissions.set(objectShapeArtifactKey(fact), Object.freeze({ kind: "runtime" }));
   }
   for (const artifact of input.demand.artifacts) {

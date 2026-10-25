@@ -267,14 +267,17 @@ export function analyzeCsharpSourceEvidence(
     ) {
       providerVirtualDeclarations.add(node);
     }
-    const array = source.ast.is.IsArrayLiteralExpression(node) ? types.resolveArrayLiteral(node, sourceFile) : undefined;
-    if (!typeOnly && array?.kind === "rejected") nativeExpressionIssues.set(node, {
-      diagnostic: Object.freeze({ code: "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH", category: "error", source: "tsonic-csharp",
-        sourceNode: node, message: array.reason }), requiredBy: new Set([node]),
-    });
-    nodeTargetTypes.set(node, recordTargetType(array === undefined ? types.resolveNode(node, sourceFile)
-      : array.kind === "resolved" ? array.carrier : undefined) ?? missing);
+    const nodeSelection = types.resolveNode(node, sourceFile);
+    nodeTargetTypes.set(node, recordTargetType(nodeSelection?.kind === "resolved" ? nodeSelection.type : undefined) ?? missing);
     const nodeTargetType = cachedValue(nodeTargetTypes.get(node));
+    if (!typeOnly && nodeSelection?.kind === "rejected") {
+      const previous = nativeExpressionIssues.get(nodeSelection.subject);
+      if (previous !== undefined) previous.requiredBy.add(node);
+      else nativeExpressionIssues.set(nodeSelection.subject, {
+        diagnostic: Object.freeze({ code: nodeSelection.code, category: "error", source: "tsonic-csharp",
+          sourceNode: nodeSelection.subject, message: nodeSelection.reason }), requiredBy: new Set([node]),
+      });
+    }
     sourceOwnedProjectShapes.set(
       node,
       !isCsharpJsValueTargetType(nodeTargetType) &&
@@ -355,6 +358,8 @@ export function analyzeCsharpSourceEvidence(
       targetTypeRefEquals(declaredTargetType, selectedTargetType);
     const flowReadTargetType = recordTargetType(selectCsharpFlowReadCarrier({
       exactSourceRead: refinement.kind === "resolved" && refinement.refinement.kind === "exact",
+      nativeSourceRead: refinement.kind === "resolved" && refinement.refinement.kind === "exact" &&
+        readStorageTargetType !== undefined && types.nativeFlowMembers(node, readStorageTargetType) !== undefined,
       unrelatedSourceTypesShareTargetRepresentation, selectedTargetType, readStorageTargetType, memberTargetTypes,
     }));
     refinements.set(node, Object.freeze({

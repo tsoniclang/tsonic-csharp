@@ -58,7 +58,13 @@ export interface CsharpObjectShapePropertyOrders {
   readonly assignmentSource: CsharpObjectShapePropertyOrderSelection;
 }
 
+export type CsharpNativeSourceCarrierSelection =
+  | { readonly kind: "resolved"; readonly type: TargetTypeRef }
+  | { readonly kind: "rejected"; readonly subject: Node; readonly code: string; readonly reason: string; readonly type?: never };
+
 export interface CsharpObjectShapePolicy {
+  resolveNativeParameter(declaration: Node, parameter: Node, type: TargetTypeRef): CsharpNativeSourceCarrierSelection;
+  resolveNativeReturn(declaration: Node, type: TargetTypeRef, observed: readonly TargetTypeRef[]): CsharpNativeSourceCarrierSelection;
   resolveCallableValue(signature: TargetTypeRef,
     typeParameters: NonNullable<CsharpObjectShapeMemberFact["typeParameters"]>): TargetTypeRef | undefined;
   resolveCopyShape(shape: CsharpObjectShapeFact): CsharpObjectShapeFact | undefined;

@@ -14,6 +14,15 @@ export function publishedGeneratorCarrier(records, node) {
   return fact.kind === "async" ? csharpAsyncGeneratorTargetType(protocol) : csharpGeneratorTargetType(protocol);
 }
 
+export function publishedGenericProjections(records, nodes) {
+  return Object.freeze({ genericProjection: records.genericProjection,
+    outerGenericProjection: records.outerGenericProjection, entries: Object.freeze(nodes.flatMap(declaration => {
+      const parameters = records.genericProjection.get(declaration);
+      const outerParameters = records.outerGenericProjection.get(declaration);
+      return parameters.length === 0 && outerParameters.length === 0 ? [] : [{ declaration, parameters, outerParameters }];
+    })) });
+}
+
 export function compileCsharpNativeUseSource(options) {
   let nativeStage;
   const compiled = compileCsharpSource({ ...options, compileTarget(request, observer) {
@@ -45,9 +54,19 @@ export function createExpectedNativeUseOwner(compiled) {
     ast.forEachChild(node, child => { if (child !== undefined) pending.push(child); });
   }
   const contracts = nodes.flatMap(node => {
-    const declared = records.returnContract.get(node);
-    const returnType = publishedGeneratorCarrier(records, node) ?? (declared?.kind === "resolved" ? declared.type : undefined);
-    return returnType === undefined ? [] : [{ sourceDeclaration: node, returnType }];
+    const contract = records.callableDeclaration.get(node)?.contract;
+    return contract === undefined ? [] : [contract];
+  });
+  const byDeclaration = new Map(contracts.map(contract => [contract.sourceDeclaration, contract]));
+  const typeProjections = publishedGenericProjections(records, nodes);
+  const evidence = Object.freeze({ ...records,
+    generator: Object.freeze({ get: node => source.semantics.forNode(node).operations.generator(node) }),
+    generatorTargetType: Object.freeze({ get: node => publishedGeneratorCarrier(records, node) }),
+    yield: Object.freeze({ get: node => source.semantics.forNode(node).operations.yield(node) }),
+    yieldTargetType: Object.freeze({ get: node => {
+      const yielded = source.semantics.forNode(node).operations.yield(node);
+      return yielded?.operand === undefined ? undefined : records.valueRead.get(yielded.operand.expression)?.value;
+    } }),
   });
   const policy = { ast, sourceFiles: csharpProgramSourceFiles(program), navigation: source.navigation,
     target: compiled.target, providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
@@ -55,16 +74,17 @@ export function createExpectedNativeUseOwner(compiled) {
     literalValues: analyzeSourceLiteralValues(ast, csharpProgramSourceFiles(program)),
     semantics: source.semantics.forFile, semanticsFor: source.semantics.forNode,
     typeDefinitions: program.typeDefinitions };
-  const input = { policy, evidence: records, operations: records, objectShapes: program.objectShapes,
-    callables: { declarationContracts: contracts, closedInputType: () => undefined, get: () => undefined },
+  const input = { policy, evidence, operations: records, objectShapes: program.objectShapes,
+    callables: { contracts, declarationContracts: contracts, closedInputType: records.callableTarget.get,
+      get: identity => identity.kind === "declaration" ? byDeclaration.get(identity.declaration) : undefined },
     valueReadStages: { get: node => {
       const read = records.valueRead.get(node);
       return read === undefined ? undefined : {
         literalTarget: read.selectedOperation ?? read.source,
         operationValue: read.selectedOperation ?? read.source,
       };
-    } }, declarations: records };
-  const analysis = analyzeCsharpExpectedTypes(policy, records, records, input.objectShapes,
-    input.callables, input.valueReadStages, records);
+    } }, declarations: records, typeProjections };
+  const analysis = analyzeCsharpExpectedTypes(policy, evidence, records, input.objectShapes,
+    input.callables, input.valueReadStages, records, typeProjections);
   return { analysis, input, program, source, nodes };
 }

@@ -25,7 +25,7 @@ export function selectCsharpMemoryBinding(
     const pointee = input.types.resolveSelectedType(typeNode, operation.pointeeType, file);
     if (pointee === undefined) return reject("The bound field has no exact C# value carrier.");
     const type = csharpRuntimeLocationTargetType(pointee);
-    const selectedPointer = input.types.resolveNode(operation.pointerExpression, file);
+    const selectedPointer = input.types.resolveNode(operation.pointerExpression, file)?.type;
     if (selectedPointer === undefined || !targetTypeRefEquals(type, selectedPointer)) {
       return reject("The selected location and bound field have different C# pointee carriers.");
     }
@@ -49,7 +49,7 @@ export function selectCsharpMemoryBinding(
     if (member.bound !== true || member.memberKind !== "property" || member.optional || member.accessor !== undefined) {
       return reject("The selected record member has no finalized live-location storage.");
     }
-    const selectedPointer = input.types.resolveNode(entry.expression, file);
+    const selectedPointer = input.types.resolveNode(entry.expression, file)?.type;
     if (selectedPointer === undefined || !targetTypeRefEquals(selectedPointer, csharpRuntimeLocationTargetType(member.type))) {
       return reject("The bound member and supplied location have different C# pointee carriers.");
     }

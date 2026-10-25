@@ -7,7 +7,7 @@ import type { CsharpFrozenDataProperty } from "../../target-model/records/frozen
 import type { CsharpAttributeApplicationIndex } from "../../target-model/records/attributes.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
-import { objectShapeArtifactKey } from "../program/records/object-shape-keys.js";
+import { objectShapeArtifactKey } from "../../target-model/records/object-shape-keys.js";
 import { csharpFrozenStorageName, objectShapeStorageMemberName } from "../../target-model/names/object-members.js";
 import { createCsharpFrozenDataPropertyRecords } from "../program/records/frozen-data-properties.js";
 
@@ -36,7 +36,8 @@ export function analyzeCsharpFrozenDataProperties(input: {
         if (selected === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted frozen object requires its native member storage selection.", member.sourceDeclarations?.[0]);
         const name = objectShapeStorageMemberName(shape, member);
         switch (selected.declaration.kind) {
-          case "authored": case "accessor": break;
+          case "authored": if (selected.declaration.value.kind !== "fixed") fields.set(name, Object.freeze({ kind: "setter" })); break;
+          case "accessor": break;
           case "native-backing": invalid = member.sourceDeclarations?.[0] ?? true; break;
           case "bound": if (!member.readonly) fields.set(member.targetName, Object.freeze({ kind: "setter" })); break;
           case "deferred": fields.set(member.targetName, Object.freeze({ kind: "setter" })); break;

@@ -103,7 +103,7 @@ export function genuineFloatWide(narrow: float32, wide: int64) {
   const floatWideValues = [narrow, wide]; return floatWideValues;
 }
 export function explicitUnionWide(wide: int64): (string | int64)[] {
-  const exactUnionValues: (string | int64)[] = ["text", wide, 9007199254740993]; return exactUnionValues;
+  const exactUnionValues: (string | int64)[] = ["text", wide, 9007199254740993n]; return exactUnionValues;
 }
 export function explicitUnionDecimal(): (string | nativeDecimal)[] {
   const decimalUnionValues: (string | nativeDecimal)[] = ["text", 9007199254740993]; return decimalUnionValues;
@@ -398,11 +398,11 @@ function expectedOperationRefusals(operation, size) {
       "values[0] + values[1]")];
     case "Math.max": return [conversion("values[0]"), conversion("values[1]")];
     case "includes": return [refused("Array.includes over a numeric union requires an exact native cross-arm key equality relation.",
-      "first.includes(values[1])", "TS9101001")];
+      "first.includes(values[1])", "CSHARP_JS_SOURCE_PROFILE_CALL_NOT_CLOSED")];
     case "indexOf": return [refused("Array.indexOf over a numeric union requires an exact native cross-arm key equality relation.",
-      "values.indexOf(values[1])", "TS9101001")];
+      "values.indexOf(values[1])", "CSHARP_JS_SOURCE_PROFILE_CALL_NOT_CLOSED")];
     case "lastIndexOf": return [refused("Array.lastIndexOf over a numeric union requires an exact native cross-arm key equality relation.",
-      "values.lastIndexOf(values[1])", "TS9101001")];
+      "values.lastIndexOf(values[1])", "CSHARP_JS_SOURCE_PROFILE_CALL_NOT_CLOSED")];
     case "Set": return [conversion("values", csharpJsArrayTargetType(union), csharpEnumerableTargetType(primitive("float64"))),
       conversion("values[1]")];
     case "Map": return [conversion("values[0]"), conversion("values[1]")];
@@ -457,7 +457,7 @@ for (const operation of ["includes", "indexOf", "lastIndexOf"]) test(`C130 js op
   const ast = compiled.nativeStage.source.ast;
   const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
   const text = range?.kind !== "authored" ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end).trim();
-  assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "TS9101001" &&
+  assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "CSHARP_JS_SOURCE_PROFILE_CALL_NOT_CLOSED" &&
     issue.message === `Array.${operation} over a numeric union requires an exact native cross-arm key equality relation.` &&
     text === `values.${operation}(value)`, true, "one exact source refusal, including its native key relation and operation node");
   assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
@@ -485,7 +485,7 @@ test("C130 js reports every winning numeric-union key refusal before program inc
     const issue = issues[0];
     const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
     const text = range?.kind !== "authored" ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end).trim();
-    assert.equal(issues.length === 1 && issue.code === "TS9101001" && text === expression, true,
+    assert.equal(issues.length === 1 && issue.code === "CSHARP_JS_SOURCE_PROFILE_CALL_NOT_CLOSED" && text === expression, true,
       `${operation}: one canonical diagnostic retains its exact selected reason and original operation node`);
   }
   assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,

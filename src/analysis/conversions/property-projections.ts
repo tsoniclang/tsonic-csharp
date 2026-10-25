@@ -51,7 +51,7 @@ export function selectCsharpPropertyProjections(
     }
     const shape = shapes.resolveTarget(selected);
     if (shape?.sourceType === undefined) return undefined;
-    const correspondence = semantics.types.structuralMembers(shape.sourceType, destinationType);
+    const correspondence = semantics.types.structuralMembers(shape.sourceType, destinationType, "read");
     if (correspondence.kind !== "available" || correspondence.destination.calls.length !== 0 ||
       correspondence.destination.constructs.length !== 0 || correspondence.destination.indexes.length !== 0) return undefined;
     const members: CsharpObjectShapeMemberFact[] = [];

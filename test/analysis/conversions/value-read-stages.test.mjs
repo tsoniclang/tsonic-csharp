@@ -19,6 +19,7 @@ function stagedNode(stages) {
     nodeTargetType: read("source"),
     storageTargetType: read("declaredStorage"),
     readStorageTargetType: read("readStorage"),
+    yield: Object.freeze({ get: () => undefined }),
     valueRefinement: Object.freeze({ get: subject => subject.stages?.narrowedRead === undefined ? undefined
       : { flowReadTargetType: subject.stages.narrowedRead } }),
   };

@@ -60,7 +60,7 @@ function fixture(kind = "identifier", options = {}) {
     navigation: { referenceFor: node => ({ declaration: node === expression ? declaration : options.receiverStorage?.declaration }),
       isProjectDeclaration: () => false },
     semantics: () => semantics, semanticsFor: () => semantics,
-    types: { resolveNode: node => node === receiver ? options.receiverType ?? owner : integer,
+    types: { resolveNode: node => ({ kind: "resolved", type: node === receiver ? options.receiverType ?? owner : integer }),
       resolveReadStorage: node => node === receiver ? options.receiverType ?? owner : options.storageType ?? integer,
       resolveStorage: () => options.receiverType ?? owner,
       resolveSelectedValue: () => options.receiverType ?? owner, nativeFlowTypes: () => undefined },

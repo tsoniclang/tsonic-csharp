@@ -6,6 +6,7 @@ import { selectCsharpSourceProfileElementPolicy } from "../../../dist/analysis/o
 import { csharpJsRegExpElementPolicies } from "../../../dist/policy/operations/source-profiles/js/regexp.js";
 import { csharpJsArrayElementPolicies } from "../../../dist/policy/operations/source-profiles/js/arrays.js";
 import { csharpJsArrayTargetType, csharpJsStringTargetType, csharpStringTargetType } from "../../../dist/policy/types/index.js";
+import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 
 function fixture(options = {}) {
   const sourceFile = {};
@@ -40,8 +41,10 @@ function fixture(options = {}) {
   };
   const host = {
     semantics: () => semantics,
+    providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
     projectTypes: { directSupertypes: () => [] },
     ast: { kindName: () => options.index ? "KindIndexSignature" : "KindPropertySignature",
+      is: { IsSpreadElement: () => false },
       getSourceFile: () => sourceFile, getFileName: () => "/project/foreign.ts", parent: () => undefined },
     sourceFacts: { getFact: (subject, key) => key === providerVirtualDeclarationFactKey
       && (subject === sourceDeclaration || subject === alternativeDeclaration) ? {
@@ -50,7 +53,9 @@ function fixture(options = {}) {
         memberName: options.wrongName ? "1" : "0",
       } : undefined },
     types: { nativeFlowTypes: () => options.emptyFlow ? [] : undefined,
-      resolveSelectedValue: () => csharpJsArrayTargetType(csharpStringTargetType()) },
+      resolveType: type => type === sourceType ? csharpJsArrayTargetType(csharpStringTargetType()) : undefined,
+      resolveNode: node => node === receiver ? { kind: "resolved", type: csharpJsArrayTargetType(csharpStringTargetType()) } : undefined,
+      resolveSelectedValue: node => node === receiver ? csharpJsArrayTargetType(csharpStringTargetType()) : undefined },
   };
   return { host, source, sourceFile };
 }

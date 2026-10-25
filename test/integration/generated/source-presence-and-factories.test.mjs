@@ -10,13 +10,30 @@ import { nativeSurfaceResultsSource, nativeNodeResultsSource } from "../../../..
 import { nativeOptionRuntimeSource } from "../../../../tsonic/test/fixtures/native-process-options.mjs";
 import { nativeAbsenceSource, nativeAbsenceJsSource, nativeAbsenceArraySource } from "../../../../tsonic/test/fixtures/native-absence.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { csharpObjectTargetType, getCsharpNullableElementTargetType, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 
 test("generic absence arrays retain native storage and aliases", { timeout: 300_000 }, () => {
   executeCsharpConstruction(compileCsharpSource({ surface: "js", sourceText: nativeAbsenceArraySource }), "native-absence-js-arrays");
 });
 
 test("JS surface absence keeps membership and native values", { timeout: 300_000 }, () => {
-  executeCsharpConstruction(compileCsharpSource({ surface: "js", sourceText: nativeAbsenceJsSource }), "native-absence-js-collections");
+  const compiled = compileCsharpSource({ surface: "js", sourceText: nativeAbsenceJsSource });
+  executeCsharpConstruction(compiled, "native-absence-js-collections");
+  const program = compiled.result.program;
+  assert.equal(program !== undefined, true, "the complete absence and identity program is admitted");
+  let selected = 0;
+  const visit = node => {
+    const target = program.records.selectedCall.get(node)?.target;
+    if (target?.kind === "resolved" && target.call.targetMember.id === "Tsonic.CSharp.Js.Object.is") {
+      selected += 1;
+      assert.equal(target.call.targetMember.parameters.length === 2 && target.call.targetMember.parameters.every(parameter =>
+        targetTypeRefEquals(getCsharpNullableElementTargetType(parameter.type), csharpObjectTargetType())), true,
+      "Object.is publishes its actual two object? native formals, not a broad conversion permission");
+    }
+    program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  program.source.navigation.sourceFiles.forEach(visit);
+  assert.equal(selected, 1, "the actual selected native identity helper is checked exactly once");
 });
 
 for (const surface of [undefined, "js"]) {

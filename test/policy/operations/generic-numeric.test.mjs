@@ -29,7 +29,7 @@ function scenario() {
     navigation: { referenceFor: () => ({ declaration: binding }) },
     semantics: () => semantics,
     types: { resolveSelectedValue: () => carrier,
-      resolveNode: node => node === constraint ? scalar : undefined },
+      resolveNode: node => node === constraint ? { kind: "resolved", type: scalar } : undefined },
   };
   return { input, file, declaration, expression, carrier, scalar };
 }

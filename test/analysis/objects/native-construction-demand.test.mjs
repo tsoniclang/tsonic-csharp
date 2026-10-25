@@ -82,7 +82,8 @@ function fixture() {
       expressionType: node => subjectTypes.get(nodeSubjects.get(node)),
       isIdentical: (source, destination) => source === destination,
       constructSignatures: type => rows.get(type)?.constructs ?? [],
-      structuralMembers(source, destination) {
+      structuralMembers(source, destination, purpose) {
+        assert.equal(purpose, "read", "native construction requires readable members");
         relationshipQueries += 1;
         const from = rows.get(source);
         const to = rows.get(destination);

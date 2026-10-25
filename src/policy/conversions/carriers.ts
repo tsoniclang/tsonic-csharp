@@ -9,10 +9,12 @@ import { targetBindingSubstitutions } from "./provider-operators.js";
 import type { CsharpTargetNamedTypeRef, TargetConstraint, TargetTypeParameter, TargetTypeRef } from "../types/index.js";
 import type { CsharpConversionMode, CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import type { CsharpPolicyContext } from "../model/context.js";
-import { collectCsharpUnionPaths, csharpUnionLeaves } from "../../target-model/types/union-relations.js";
-import { csharpUnionProjectionPath, selectCsharpUnionArmMapping } from "./union-relations.js";
+import { csharpUnionLeaves } from "../../target-model/types/union-relations.js";
+import { csharpUnionProjectionPath, selectCsharpUnionArmMapping, selectCsharpUnionInjection } from "./union-relations.js";
 import type { CsharpConversionShapeQueries } from "./shape-queries.js";
 import { csharpNativeRepresentationMatches } from "./native-representation.js";
+import { getCsharpCallableValueSignature } from "../../target-model/types/carriers/delegates.js";
+import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 
 export function selectJsValueConversion(
   source: TargetTypeRef,
@@ -42,7 +44,7 @@ export function selectJsValueConversion(
 }
 
 export function selectRuntimeUnionConversion(
-  input: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers"> & CsharpConversionShapeQueries,
+  input: Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers" | "target"> & CsharpConversionShapeQueries,
   source: TargetTypeRef,
   target: TargetTypeRef,
   mode: CsharpConversionMode,
@@ -53,11 +55,17 @@ export function selectRuntimeUnionConversion(
     return selectCsharpRuntimeUnionProjection(input, source, target);
   }
   const sourceArms = getCsharpRuntimeUnionArms(source, input.typeDefinitions);
+  const targetArms = getCsharpRuntimeUnionArms(target, input.typeDefinitions);
+  const completeInjection = selectCsharpUnionInjection(source, target, input.typeDefinitions, mode, () => undefined);
+  if (completeInjection !== undefined) return completeInjection;
   const widening = selectCsharpUnionArmMapping(source, target, "source", input.typeDefinitions,
     (sourceArm, targetArm) => csharpUnionReferenceImplicitlyAccepts(input, sourceArm, targetArm));
   if (widening !== undefined) return { kind: "union-map", coverage: "source", arms: widening };
   const narrowing = mode === "explicit" ? selectCsharpUnionArmMapping(source, target, "target", input.typeDefinitions) : undefined;
   if (narrowing !== undefined) return { kind: "union-map", coverage: "target", arms: narrowing };
+  if (sourceArms !== undefined && targetArms !== undefined) return {
+    kind: "rejected", reason: "C# runtime-union conversion requires unambiguous exact or native-reference payload correspondence.",
+  };
   const referenceTarget = getCsharpNullableElementTargetType(target) ?? target;
   if (sourceArms !== undefined && referenceTarget.kind === "target-named" &&
     !isCsharpValueTypeTargetType(referenceTarget) && sourceArms.every(arm =>
@@ -71,34 +79,13 @@ export function selectRuntimeUnionConversion(
   if (sourceArms !== undefined && mode === "explicit") {
     return selectCsharpRuntimeUnionProjection(input, source, target);
   }
-  const targetArms = getCsharpRuntimeUnionArms(target, input.typeDefinitions);
   if (targetArms === undefined) {
     return undefined;
   }
-  const matchingArms = collectCsharpUnionPaths(target, input.typeDefinitions, source);
-  const candidates = matchingArms === undefined ? [] : matchingArms.length > 0 ? matchingArms
-    : (csharpUnionLeaves(target, input.typeDefinitions) ?? []).filter(arm => source.kind === "target-named" && arm.carrier.kind === "target-named" &&
-      !isCsharpValueTypeTargetType(source) && !isCsharpValueTypeTargetType(arm.carrier) &&
-      namedTargetTypeImplicitlyAccepts(input, source, arm.carrier, new Set()));
-  if (candidates.length === 1) {
-    let conversion: CsharpConversionSelection = matchingArms?.length === 1
-      ? { kind: "identity" } : { kind: "implicit", proof: "reference" };
-    const path = candidates[0]!.path;
-    for (let index = path.length - 1; index >= 0; index -= 1) {
-      const step = path[index]!;
-      const armType = getCsharpRuntimeUnionArms(step.union, input.typeDefinitions)?.[step.index];
-      if (armType === undefined) return { kind: "rejected", reason: "A native union construction requires its exact complete arm path." };
-      conversion = { kind: "implicit", proof: "runtime-union-arm", armIndex: step.index, armType, sourceToArm: conversion };
-    }
-    return conversion;
-  }
-  return {
-    kind: "rejected",
-    reason:
-      candidates.length === 0
-        ? "C# runtime-union conversion requires the source representation to match one exact union arm."
-        : "C# runtime-union conversion matched more than one structurally identical union arm.",
-  };
+  return selectCsharpUnionInjection(source, target, input.typeDefinitions, mode,
+    arm => selectCsharpConversion(input, source, arm, mode)) ?? {
+      kind: "rejected", reason: "C# runtime-union conversion requires the source representation to match one exact union arm.",
+    };
 }
 
 export function csharpUnionReferenceImplicitlyAccepts(
@@ -211,7 +198,9 @@ export function selectDelegateConversion(
   source: TargetTypeRef,
   target: TargetTypeRef,
 ): CsharpConversionSelection | undefined {
-  const sourceSignature = getCsharpDelegateSignature(source);
+  const sourceMethod = getCsharpMethodValue(source);
+  const sourceSignature = sourceMethod !== undefined && sourceMethod.typeParameters.length !== 0
+    ? undefined : getCsharpCallableValueSignature(source);
   const targetSignature = getCsharpDelegateSignature(target);
   if (sourceSignature === undefined || targetSignature === undefined) {
     return undefined;
@@ -235,7 +224,8 @@ export function selectDelegateConversion(
     ),
   );
   const returnConversion = isCsharpVoidTargetType(targetSignature.returnType) ||
-    csharpVoidReturnCompletion(sourceSignature.returnType, targetSignature.returnType) === "absence"
+    isCsharpVoidTargetType(sourceSignature.returnType) &&
+      csharpVoidReturnCompletion(sourceSignature.returnType, targetSignature.returnType) === "absence"
     ? { kind: "void-return" as const } : selectCsharpConversion(
     input,
     sourceSignature.returnType,

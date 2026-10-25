@@ -88,6 +88,18 @@ test("C# union mapping prefers exact carriers and rejects ambiguous or repeated 
   assert.equal(selectCsharpConversion(ambiguous, source, csharpRuntimeUnionTargetType([text, base, unrelated]), "implicit").kind, "rejected");
   const duplicate = csharpRuntimeUnionTargetType([derived, second, derived]);
   assert.equal(selectCsharpConversion(policy, duplicate, csharpRuntimeUnionTargetType([base, text]), "implicit").kind, "rejected");
+  const repeatedSources = [duplicate, csharpRuntimeUnionTargetType([derived, csharpRuntimeUnionTargetType([second, derived])])];
+  const repeatedTargets = [csharpRuntimeUnionTargetType([base, text]),
+    csharpRuntimeUnionTargetType([text, csharpRuntimeUnionTargetType([base, csharpSourcePrimitiveTargetType("bool")])])];
+  for (const repeatedSource of repeatedSources) for (const repeatedTarget of repeatedTargets) {
+    for (const mode of ["implicit", "explicit"]) {
+      assert.equal(selectCsharpConversion(policy, repeatedSource, repeatedTarget, mode).kind, "rejected",
+        `${mode}: a rejected repeated union mapping cannot re-enter through a whole-union reference injection`);
+      assert.equal(selectCsharpConversion(policy, csharpNullableTargetType(repeatedSource),
+        csharpNullableTargetType(repeatedTarget), mode).kind, "rejected",
+        `${mode}: nullable composition retains the same repeated-arm refusal`);
+    }
+  }
   assert.equal(selectCsharpUnionArmMapping(source, target, "target", definitions,
     (from, to) => csharpUnionReferenceImplicitlyAccepts(policy, from, to)), undefined);
 });

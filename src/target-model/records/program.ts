@@ -218,7 +218,6 @@ export interface CsharpProgramRecords extends CsharpSourceNameRecords, CsharpSta
   readonly jsTypeof: CsharpTargetOperationClassifications["jsTypeof"];
   readonly typeofRuntimeKind: CsharpTargetOperationClassifications["typeofRuntimeKind"];
   readonly jsVoid: CsharpTargetOperationClassifications["jsVoid"];
-  readonly jsObjectLiteral: CsharpTargetOperationClassifications["jsObjectLiteral"];
   readonly jsArrayMutation: CsharpTargetOperationClassifications["jsArrayMutation"];
   readonly elementDeletion: CsharpTargetOperationClassifications["elementDeletion"];
   readonly providerValue: CsharpTargetOperationClassifications["providerValue"];

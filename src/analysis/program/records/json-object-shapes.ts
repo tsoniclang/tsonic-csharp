@@ -1,5 +1,5 @@
 import type { CsharpObjectShapeDemand } from "../../../target-model/records/object-shape-demand.js";
-import { objectShapeArtifactKey } from "./object-shape-keys.js";
+import { objectShapeArtifactKey } from "../../../target-model/records/object-shape-keys.js";
 import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
 import type { CsharpJsonObjectShapeRecords } from "../../../target-model/records/json-object-shapes.js";
 

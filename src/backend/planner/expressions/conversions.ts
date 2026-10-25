@@ -63,6 +63,9 @@ export function readCsharpConversionClassification(
       "C# planning requires a sealed target conversion classification that analysis did not produce.",
       node);
   }
+  if (selection.kind === "rejected" || selection.kind === "ambiguous") {
+    return failCsharpPlannerInvariant(`C# conversion reached planning after pre-seal refusal: ${selection.reason}`, node);
+  }
   return selection;
 }
 

@@ -1,8 +1,8 @@
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpRuntimeUnionTargetTypeRef, CsharpTargetNamedTypeRef, CsharpTaskTargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpNullableTargetType, isCsharpNullableReferenceTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
-import { csharpRuntimeUnionTargetType, getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
-import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
+import { getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { csharpTypeProjection, getCsharpGenericOptionalParts, type CsharpOptionalTypeProjection } from "../../../target-model/types/projections.js";
 import { resolveCsharpOptionalStorage } from "../storage/optional-storage.js";
 import { csharpFreeTypeParameterIdentities } from "../../../target-model/types/generic-references.js";
@@ -51,19 +51,6 @@ export function substituteTargetTypeParameters(
       const factory = (type as CsharpTargetNamedTypeRef).csharpClassFactory;
       const methodSubstitutions = methodValue === undefined ? substitutions
         : new Map([...substitutions].filter(([name]) => !methodValue.typeParameters.includes(name)));
-      if (runtimeUnionArms !== undefined) {
-        // Substitution can make two arms the same carrier (TResult1 | TResult2 with both bound to float64); a union of
-        // identical members is that member, and the remaining distinct arms keep their order and object shapes.
-        const arms = runtimeUnionArms.map(arm => substituteTargetTypeParameters(arm, substitutions));
-        const kept = arms.flatMap((arm, index) => arms.findIndex(other => targetTypeRefKey(other) === targetTypeRefKey(arm)) === index ? [index] : []);
-        if (kept.length < arms.length) {
-          if (kept.length === 1) return arms[kept[0]!]!;
-          const shapes = runtimeUnionObjectShapes?.map(objectShape => substituteObjectShapeFactTargetTypeParameters(objectShape, substitutions));
-          const union = csharpRuntimeUnionTargetType(kept.map(index => arms[index]!), shapes === undefined ? undefined : kept.map(index => shapes[index]));
-          if (union === undefined) throw new Error("A substituted runtime union has no native union carrier.");
-          return union;
-        }
-      }
       return {
         ...type,
         ...(expressionTreeDelegateType === undefined ? {} : {
@@ -314,8 +301,9 @@ export function substituteObjectShapeMemberTargetTypeParameters(
     : new Map([...substitutions].filter(([identity]) => !boundParameters.has(identity)));
   return Object.freeze({ ...member,
     type: substituteTargetTypeParameters(member.type, freeSubstitutions),
-    ...(member.methodStorageType === undefined ? {} : {
-      methodStorageType: substituteTargetTypeParameters(member.methodStorageType, substitutions),
+    ...(member.methodValueStorage === undefined ? {} : {
+      methodValueStorage: Object.freeze({ ...member.methodValueStorage,
+        type: substituteTargetTypeParameters(member.methodValueStorage.type, substitutions) }),
     }),
     ...(member.methodValueContract === undefined ? {} : {
       methodValueContract: substituteTargetTypeParameters(member.methodValueContract, substitutions),

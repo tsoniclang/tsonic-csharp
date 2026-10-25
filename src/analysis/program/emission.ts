@@ -6,6 +6,7 @@ import { analyzeCsharpConstructorArguments } from "../declarations/classes/const
 
 import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { CsharpResolvedBinaryOperation } from "../../target-model/records/operator-selection.js";
 
 import { analyzeCsharpNativeConstants } from "../operations/native-constants.js";
 import { analyzeCsharpBinaryEmission } from "../operations/binary-emission.js";
@@ -201,12 +202,17 @@ export function finalizeCsharpNativeEmission(
     return failTargetAnalysisInvariant("tsonic-csharp",
       `Native consumption '${incomplete.site.role}' requires completed '${incomplete.reason}' evidence before publication.`, incomplete.expression);
   }
+  const callableParameters = analyzeCsharpCallableParameterEmission({ ast: source.ast, callables: analysis.callables, nodes: sourceStorage.nodes,
+    declarations: analysis.declarations, values: analysis.valueReads, storage: analysis.storage, conversions, literals: literalValues,
+    exact: exactLiterals, admitted: admittedControlNode, required: analysis.requiredRecords });
+  if (callableParameters.issues.length !== 0) return rejectedTargetStage(callableParameters.issues);
   const boxSites: { readonly node: Node; readonly carrier: TargetTypeRef }[] = [];
   const objectShapeClosure = analyzeCsharpNativeArtifactDemand({
     ast: source.ast, sourceFiles, propertyNames: sourceSyntax.propertyNames,
     nativeDemand, participation: nativeParticipation.participation,
+    sourceStorage,
     objectShapes: callableAdapters.objectShapes, projectTypes, typeDefinitions,
-    valueReads: analysis.valueReads, operations: admittedOperations, storage: analysis.storage,
+    valueReads: analysis.valueReads, operations: admittedOperations, storage: analysis.storage, parameterEntries: callableParameters.records.lambdaParameterEntry,
     callables: analysis.callables, captureStorage, callableAdapters, flowReads, declarations: analysis.declarations,
     bindingPatterns, conversions, nativeValueCarriers, sourceEvidence: analysis.sourceEvidence,
     boxSites: { add: (node, carrier) => { boxSites.push({ node, carrier }); } },
@@ -267,13 +273,6 @@ export function finalizeCsharpNativeEmission(
   const lexicalValues = analyzeCsharpLexicalValues({ nodes: sourceStorage.nodes, navigation: source.navigation,
     captures: captureStorage, values: analysis.valueReads, metadata: analysis.sourceEvidence });
   if (lexicalValues.issues.length !== 0) return rejectedTargetStage(lexicalValues.issues);
-  const callableParameters = analyzeCsharpCallableParameterEmission({ ast: source.ast, callables: analysis.callables, nodes: sourceStorage.nodes,
-    declarations: analysis.declarations, values: analysis.valueReads, storage: analysis.storage, conversions, literals: literalValues,
-    exact: exactLiterals, admitted: admittedControlNode, required: analysis.requiredRecords });
-  if (callableParameters.issues.length !== 0) return rejectedTargetStage(callableParameters.issues);
-  const classEmission = analyzeCsharpClassEmission({ ast: source.ast, nodes: sourceStorage.nodes, projectTypes, factories: classFactories,
-    captures: captureStorage, storage: analysis.storage, names, admitted: admittedControlNode, callables: analysis.callables });
-  if (classEmission.issues.length !== 0) return rejectedTargetStage(classEmission.issues);
   const sourceOutputIdentities = analyzeCsharpSourceOutputIdentities({ ast: source.ast, sourceFiles, paths: input.paths,
     namespace: request.project.namespace, sourceFacts: source.sourceFacts,
     generatedTypeNames: [...projectTypes.declarationScopeNames, ...classFactories.factories.flatMap(factory => [
@@ -286,14 +285,14 @@ export function finalizeCsharpNativeEmission(
   const structuralObjectEmission = analyzeCsharpStructuralObjectEmission({ shapes: callableAdapters.objectShapes,
     demand: objectShapeDemand, storage: analysis.storage });
   if (structuralObjectEmission.issues.length !== 0) return rejectedTargetStage(structuralObjectEmission.issues);
-  const objectMethods = analyzeCsharpAuthoredObjectMethods({ ast: source.ast, shapes: callableAdapters.objectShapes,
-    demand: objectShapeDemand, captures: captureStorage });
-  if (objectMethods.issues.length !== 0) return rejectedTargetStage(objectMethods.issues);
   const objectMembers = analyzeCsharpObjectMemberEmission({ shapes: callableAdapters.objectShapes,
     demand: objectShapeDemand, storage: analysis.storage, captures: captureStorage });
   if (objectMembers.issues.length !== 0) return rejectedTargetStage(objectMembers.issues);
+  const objectMethods = analyzeCsharpAuthoredObjectMethods({ ast: source.ast, shapes: callableAdapters.objectShapes,
+    demand: objectShapeDemand, captures: captureStorage, members: objectMembers.records });
+  if (objectMethods.issues.length !== 0) return rejectedTargetStage(objectMethods.issues);
   const objectLiterals = analyzeCsharpObjectLiterals({ source: sourceSyntax, demand: nativeDemand, shapes: callableAdapters.objectShapes,
-    operations: admittedOperations, methods: objectMethods.records, members: objectMembers.records, storage: analysis.storage,
+    methods: objectMethods.records, members: objectMembers.records, storage: analysis.storage,
     callables: analysis.callables });
   if (objectLiterals.issues.length !== 0) return rejectedTargetStage(objectLiterals.issues);
   const thisEmission = analyzeCsharpThisEmission({ ast: source.ast, nodes: sourceStorage.nodes, admitted: admittedControlNode,
@@ -305,7 +304,7 @@ export function finalizeCsharpNativeEmission(
   const frozenDataProperties = analyzeCsharpFrozenDataProperties({ ast: source.ast, demand: objectShapeDemand, members: objectMembers.records,
     storage: analysis.storage, operations: admittedOperations, attributes: attributeApplications, methodWrites: analysis.declarations.methodWrite });
   if (frozenDataProperties.issues.length !== 0) return rejectedTargetStage(frozenDataProperties.issues);
-  const captureMethods = analyzeCsharpCaptureMethods(source.ast, captureStorage);
+  const captureMethods = analyzeCsharpCaptureMethods(source.ast, captureStorage, callableAdapters.objectShapes, analysis.callables);
   if (captureMethods.issues.length !== 0) return rejectedTargetStage(captureMethods.issues);
   const projectEmission = analyzeCsharpProjectEmission({ source, nodes: sourceStorage.nodes, projectTypes,
     factories: classFactories, evidence: analysis.sourceEvidence, names, projections: analysis.typeProjections });
@@ -338,15 +337,38 @@ export function finalizeCsharpNativeEmission(
     factories: classFactories, projects: projectEmission.records, parameters: typeParameterEmission.records,
     operations: admittedOperations, admitted: admittedControlNode });
   if (identifierIssues.length !== 0) return rejectedTargetStage(identifierIssues);
+  const classEmission = analyzeCsharpClassEmission({ ast: source.ast, nodes: sourceStorage.nodes, projectTypes, factories: classFactories,
+    captures: captureStorage, storage: analysis.storage, names, admitted: admittedControlNode, callables: analysis.callables });
+  if (classEmission.issues.length !== 0) return rejectedTargetStage(classEmission.issues);
   const sourceUnions = analyzeCsharpSourceUnionEmission(typeDefinitions);
   const nativeLayouts = analyzeCsharpNativeMemoryEmission({ nodes: sourceStorage.nodes, storage: analysis.storage, operations: admittedOperations });
   const typedLocationEmission = analyzeCsharpTypedLocationEmission({ source, nodes: sourceStorage.nodes,
     storage: analysis.storage, operations: admittedOperations, members: objectMembers.records, admitted: admittedControlNode });
   if (typedLocationEmission.issues.length !== 0) return rejectedTargetStage(typedLocationEmission.issues);
+  const binaryCarriers = (selection: CsharpResolvedBinaryOperation): readonly TargetTypeRef[] => [
+    selection.leftType, selection.rightType, selection.leftInputType, selection.rightInputType, selection.resultType,
+  ];
+  const operationCarriers = sourceStorage.nodes.flatMap(node => {
+    if (!admittedControlNode(node)) return [];
+    const binary = admittedOperations.binaryOperation.get(node);
+    const unary = admittedOperations.unaryOperation.get(node)?.target;
+    const mutation = admittedOperations.jsArrayMutation.get(node);
+    const selectedSwitch = admittedOperations.switchStatement.get(node);
+    return [
+      ...binary?.target.kind === "resolved" ? binaryCarriers(binary.target) : [],
+      ...binary?.destructuring.kind === "resolved" ? [binary.destructuring.sourceType, binary.destructuring.resultType] : [],
+      ...unary?.kind === "resolved" ? [unary.operandType, unary.resultType] : [],
+      ...mutation?.kind === "set-typed-element" && mutation.calculation !== undefined ? binaryCarriers(mutation.calculation) : [],
+      ...selectedSwitch === undefined || selectedSwitch.kind === "rejected" ? [] : [selectedSwitch.type],
+      ...selectedSwitch?.kind === "ordered" ? selectedSwitch.clauses.flatMap(clause =>
+        clause.comparison === undefined ? [] : binaryCarriers(clause.comparison)) : [],
+    ];
+  });
   const typeEmission = analyzeCsharpTypeEmission({ ast: source.ast, nodes: sourceStorage.nodes, evidence: analysis.sourceEvidence,
     languageDialect: configuration.languageDialect,
-    extraTypes: [...typedLocationEmission.carriers, ...nativeLayouts.carriers, ...restSequences.carriers, ...nativeDemand.entries.flatMap(({ use }) => use.kind === "erased" ? []
-      : use.kind === "converted" ? [use.carrier, use.target] : [use.carrier]),
+    extraTypes: [...typedLocationEmission.carriers, ...nativeLayouts.carriers, ...restSequences.carriers, ...operationCarriers,
+      ...nativeDemand.entries.flatMap(({ use }) => use.kind === "erased" ? []
+      : [use.carrier, ...use.kind === "converted" ? [use.target] : [], ...use.binary === undefined ? [] : binaryCarriers(use.binary)]),
       ...sourceUnions.sourceUnions.get().flatMap(union => [union.carrier, union.storage, ...union.arms])],
     values: analysis.valueReads, storage: analysis.storage, shapes: objectShapeDemand, admitted: admittedControlNode });
   if (typeEmission.issues.length !== 0) return rejectedTargetStage(typeEmission.issues);
@@ -377,7 +399,8 @@ export function finalizeCsharpNativeEmission(
   const arrayLiterals = analyzeCsharpArrayLiterals({ source, demand: nativeDemand, conversions,
     values: analysis.valueReads, expected: analysis.expectedTypes, evidence: analysis.sourceEvidence, operations: admittedOperations });
   if (arrayLiterals.issues.length !== 0) return rejectedTargetStage(arrayLiterals.issues);
-  const propertyValueProjection = analyzeCsharpPropertyValueProjection(conversions, callableAdapters.objectShapes, typeDefinitions);
+  const propertyValueProjection = analyzeCsharpPropertyValueProjection(conversions, callableAdapters.objectShapes, typeDefinitions,
+    objectLiterals.records, source);
   if (propertyValueProjection.issues.length !== 0) return rejectedTargetStage(propertyValueProjection.issues);
   const sourceCallEmission = analyzeCsharpSourceCallEmission({ source, nodes: sourceStorage.nodes, operations: admittedOperations,
     evidence: analysis.sourceEvidence, declarations: analysis.declarations, conversions, admitted: admittedControlNode });
@@ -391,7 +414,7 @@ export function finalizeCsharpNativeEmission(
   if (argumentPassing.issues.length !== 0) return rejectedTargetStage(argumentPassing.issues);
   const lambdaEmission = analyzeCsharpLambdaEmission({ source, nodes: sourceStorage.nodes, captures: captureStorage,
     declarations: callableDeclarations.records, parameters: callableParameters.records,
-    creations: callableCreations, storage: analysis.storage, expected: analysis.expectedTypes, values: analysis.valueReads,
+    creations: callableCreations, storage: analysis.storage, values: analysis.valueReads,
     types: typeEmission.records, arguments: targetArguments.records, constants: nativeConstants, demand: nativeDemand, admitted: admittedControlNode });
   if (lambdaEmission.issues.length !== 0) return rejectedTargetStage(lambdaEmission.issues);
   const locationRetentionIssues = admitCsharpLocationRetention({ source, nodes: sourceStorage.nodes, operations: admittedOperations,
@@ -447,7 +470,7 @@ export function finalizeCsharpNativeEmission(
     classFields: analyzeCsharpClassFieldInitialization({ ast: source.ast, nodes: sourceStorage.nodes, storage: analysis.storage }),
     lexicalValues: lexicalValues.records,
     structuralInterfaces: analyzeCsharpStructuralInterfaceEmission({ ast: source.ast,
-      shapes: callableAdapters.objectShapes, names, projectTypes, projections: analysis.typeProjections }),
+      shapes: callableAdapters.objectShapes, names, projectTypes, projections: analysis.typeProjections, declarations: analysis.declarations }),
     nativeDeclarations: analyzeCsharpNativeDeclarationForms({ ast: source.ast, nodes: sourceStorage.nodes, projectTypes, required: analysis.requiredRecords }),
     declarationModifiers: analyzeCsharpDeclarationModifiers({ ast: source.ast, nodes: sourceStorage.nodes,
       dispatch: callableAdapters.callableDispatch, helperAccess: captureStorage.helperAccess, required: analysis.requiredRecords, generators: generators.records, factories: classFactories.classFactory }),

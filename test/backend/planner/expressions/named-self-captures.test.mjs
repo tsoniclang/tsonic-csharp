@@ -3,7 +3,7 @@ import test from "node:test";
 import { planCsharpNamedSelfCaptureContext } from "../../../../dist/backend/planner/bindings/capture-closures.js";
 import { createDestructuringPlannerState, csharpCaptureFrameName } from "../../../../dist/backend/planner/bindings/binding-state.js";
 import { analyzeCsharpObjectShapeEmission } from "../../../../dist/analysis/objects/declaration-emission.js";
-import { objectShapeArtifactKey } from "../../../../dist/analysis/program/records/object-shape-keys.js";
+import { objectShapeArtifactKey } from "../../../../dist/target-model/records/object-shape-keys.js";
 
 // The analysis materializes each captured activation frame's shape before sealing; the planner reads that sealed
 // emission for the frame it retains. 'registered' observes those reads.
@@ -53,9 +53,12 @@ test("named self retains one reference to the existing activation for all of its
   const retained = planned.context.scope.captureFrames.get(input.scope);
   assert.equal(retained?.kind, "IdentifierName");
   assert.equal(retained?.name === input.original, false, "creation reference is distinct from the rotating local");
-  assert.equal(planned.context.scope.capturedBindings.get(input.first)?.receiver === retained, true);
-  assert.equal(planned.context.scope.capturedBindings.get(input.second)?.receiver === retained, true);
-  assert.equal(planned.context.scope.capturedBindings.get(input.first)?.name, "first");
+  assert.equal(planned.context.scope.capturedBindings.get(input.first)?.expression.receiver === retained, true);
+  assert.equal(planned.context.scope.capturedBindings.get(input.second)?.expression.receiver === retained, true);
+  assert.equal(planned.context.scope.capturedBindings.get(input.first)?.expression.name, "first");
+  assert.equal(planned.context.scope.capturedBindings.get(input.first)?.address.kind, "member");
+  assert.equal(planned.context.scope.capturedBindings.get(input.first)?.address.receiver.expression === retained, true);
+  assert.equal(planned.context.scope.capturedBindings.get(input.first)?.address.name, "first");
   assert.equal(planned.context.scope.capturedBindings.has(input.ordinary), false, "ordinary native captures remain native");
   assert.equal(input.input.scope.captureFrames === undefined, true, "caller retains its rotating owner");
   assert.equal(input.registered.length, 1);
@@ -65,7 +68,8 @@ test("named self retains one reference to the existing activation for all of its
 test("an already retained native method activation requires no further alias", () => {
   const input = fixture();
   const retained = { kind: "IdentifierName", name: "this" };
-  const first = { kind: "SimpleMemberAccessExpression", receiver: retained, name: "first" };
+  const first = { expression: { kind: "SimpleMemberAccessExpression", receiver: retained, name: "first" },
+    address: { kind: "member", receiver: { expression: retained }, name: "first", static: false } };
   const context = { ...input.input, scope: { captureFrames: new Map([[input.scope, retained]]),
     capturedBindings: new Map([[input.first, first]]) } };
   const { planned, diagnostics } = input.select(context);
@@ -89,8 +93,8 @@ test("distinct captured activations remain distinct references without duplicati
   const first = planned.context.scope.captureFrames.get(input.scope);
   const second = planned.context.scope.captureFrames.get(otherScope);
   assert.equal(first !== second, true, "equal type or slot spelling never identifies an activation");
-  assert.equal(planned.context.scope.capturedBindings.get(other)?.receiver === second, true);
-  assert.equal(planned.context.scope.capturedBindings.get(input.first)?.receiver === first, true);
+  assert.equal(planned.context.scope.capturedBindings.get(other)?.expression.receiver === second, true);
+  assert.equal(planned.context.scope.capturedBindings.get(input.first)?.expression.receiver === first, true);
   assert.equal(planned.prelude.every(statement => statement.initializer.kind === "IdentifierName"), true);
 });
 
@@ -107,7 +111,7 @@ test("each creation retains its own current-frame reference without mutating ano
 
 test("unframed native captures need no extra storage and existing overrides are preserved", () => {
   const input = fixture();
-  const override = { kind: "IdentifierName", name: "ordinary" };
+  const override = { expression: { kind: "IdentifierName", name: "ordinary" }, address: { kind: "root" } };
   const context = { ...input.input, scope: { capturedBindings: new Map([[input.ordinary, override]]) } };
   const { planned, diagnostics } = input.select(context, { ...input.self, captures: [input.ordinary] });
   assert.equal(diagnostics.length, 0);

@@ -33,10 +33,10 @@ for (const surface of ["native", "js"]) {
     const { program, call, declaration } = fixture(surface);
     assert.equal(Object.isFrozen(program) && Object.isFrozen(program.records), true, "sealed program and record port");
     const families = Object.entries(program.records);
-    // The sealed domain is the CsharpProgramRecords interface: 233 families after the rewrite moved planner decisions into records.
-    assert.equal(families.length, 233, "every sealed C# record family and nothing else");
+    assert.equal(families.length, 232, "every sealed C# record family and nothing else");
     for (const name of ["memoryBinding", "nativePointer", "typedLocation", "jsStringConversion",
-      "expectedType", "requiredExpectedType", "storageExpectedType", "exactIntegerConversion", "arrayLiteralCarrier", "expectedBinary"]) {
+      "expectedType", "requiredExpectedType", "storageExpectedType", "exactIntegerConversion", "arrayLiteralCarrier", "expectedBinary",
+      "receiverBoundCallables", "jsObjectLiteral"]) {
       assert.equal(Object.hasOwn(program.records, name), false, `${name}: applicability is not a backend capability`);
       assert.throws(() => program.records[name].get(call), TypeError, `${name}: the removed reader cannot be called`);
     }

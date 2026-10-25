@@ -35,8 +35,10 @@ export function analyzeCsharpIdentifierEmission(input: {
   };
   for (const node of new Set(input.nodes)) {
     if (!input.admitted(node)) continue;
-    if (input.ast.is.IsClassDeclaration(node) && input.factories.classFactory.get(node) !== undefined)
-      admit(node, input.ast.name(node), "Local class");
+    if (input.ast.is.IsClassDeclaration(node))
+      admit(node, input.ast.name(node), input.factories.classFactory.get(node) !== undefined ? "Local class" : "Class name");
+    if (input.ast.is.IsFunctionDeclaration(node) && input.ast.body(node) !== undefined)
+      admit(node, input.ast.name(node), "Function name");
     const declaration = input.projects.projectSourceReference.get(node);
     if (declaration !== undefined && input.factories.classFactory.get(declaration) === undefined)
       admit(declaration, input.projects.projectSourceType.get(declaration)?.name, "Project source type reference");

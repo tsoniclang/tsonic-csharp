@@ -16,7 +16,7 @@ export function classifyCsharpBorrowedSequenceInput(
   if (choice === undefined) return undefined;
   const spread = policy.ast.parent(expression);
   const array = spread === undefined ? undefined : policy.ast.parent(spread);
-  const sourceCarrier = array === undefined ? undefined : policy.types.resolveNode(array, sourceFile);
+  const sourceCarrier = array === undefined ? undefined : policy.types.resolveNode(array, sourceFile)?.type;
   if (array === undefined || sourceCarrier === undefined ||
     getCsharpCollectionElementTargetType(sourceCarrier) === undefined) return undefined;
   const inputs: CsharpBorrowedSequenceInput["inputs"][number][] = [];
@@ -25,7 +25,7 @@ export function classifyCsharpBorrowedSequenceInput(
       inputs.push(Object.freeze({ kind: "empty", expression: node }));
       continue;
     }
-    const carrier = policy.types.resolveNode(node, sourceFile);
+    const carrier = policy.types.resolveNode(node, sourceFile)?.type;
     if (carrier === undefined) return undefined;
     const optional = getCsharpGenericOptionalParts(carrier)?.element ?? getCsharpNullableElementTargetType(carrier);
     const presentCarrier = optional ?? carrier;

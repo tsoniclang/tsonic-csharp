@@ -1,5 +1,5 @@
-import type { CsharpObjectShapeFact, CsharpObjectShapeProjection } from "../../../target-model/types/model.js";
-import { targetTypeRefKey } from "../../../target-model/types/equality.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeProjection } from "../types/model.js";
+import { targetTypeRefKey } from "../types/equality.js";
 
 export function objectShapeArtifactKey(fact: CsharpObjectShapeFact): string {
   return `object-shape:${targetTypeRefKey(fact.targetType)}`;

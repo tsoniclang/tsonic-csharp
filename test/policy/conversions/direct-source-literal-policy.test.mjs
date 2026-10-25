@@ -52,6 +52,20 @@ test("signed pure C# literals apply the same exact representation policy", () =>
   );
 });
 
+test("checked negative zero remains a floating native value on every surface", () => {
+  for (const target of [{ id: "csharp" }, { id: "csharp", surfaces: ["js"] }]) {
+    for (const text of ["0", "0.0", "0e100"]) {
+      const negative = literalValue(prefixLiteral("KindMinusToken", text));
+      assert.equal(Object.is(negative?.number, -0), true, `${text}: the checked literal retains its actual sign`);
+      assert.equal(resolveCsharpSourceLiteralTargetType(literalPolicyHost(target), negative)?.name, "float64",
+        `${text}: integer storage cannot preserve negative zero`);
+    }
+    const positive = literalValue(numericLiteral("0"));
+    assert.equal(resolveCsharpSourceLiteralTargetType(literalPolicyHost(target), positive)?.name,
+      target.surfaces === undefined ? "int32" : "float64", "positive zero keeps the selected surface's exact native default");
+  }
+});
+
 test("C# integral and array-index policies remain distinct", () => {
   assert.equal(
     isCsharpIntegralTargetType(csharpSourcePrimitiveTargetType("int128")),

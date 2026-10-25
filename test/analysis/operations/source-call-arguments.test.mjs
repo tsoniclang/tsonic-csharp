@@ -73,8 +73,8 @@ test("tuple spreads preserve exact per-call refusal without admitting a prefix",
   const refused = compiled.result.diagnostics.map(diagnostic => [diagnostic.code, diagnostic.message,
     ast.is.IsCallExpression(diagnostic.sourceNode) ? text(diagnostic.sourceNode) : undefined]);
   assert.deepEqual(refused.sort((left, right) => String(left[2]).localeCompare(String(right[2]))), [
-    ["CSHARP_UNSUPPORTED_AST", "Source-owned arguments have no exact native parameter grouping.", "pair(...values)"],
-    ["CSHARP_UNSUPPORTED_AST", "Source-owned arguments have no exact native parameter grouping.", "triple(1 as int32, ...values)"],
+    ["CSHARP_UNSUPPORTED_AST", "Source-owned tuple-spread arguments require an explicit expansion plan.", "pair(...values)"],
+    ["CSHARP_UNSUPPORTED_AST", "Source-owned tuple-spread arguments require an explicit expansion plan.", "triple(1 as int32, ...values)"],
   ], "one original refusal on each original call; no prefix is admitted");
 });
 

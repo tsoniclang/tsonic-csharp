@@ -1,4 +1,4 @@
-import { canonicalCsharpObjectShapeImplementedTypes, canonicalCsharpObjectShapeMembers, csharpObjectShapeMemberContractKey } from "./object-shape-identity.js";
+import { canonicalCsharpObjectShapeImplementedTypes, canonicalCsharpObjectShapeMembers, csharpObjectMethodValueStorageKey, csharpObjectShapeMemberContractKey } from "./object-shape-identity.js";
 import { targetTypeRefEquals } from "./equality.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "./model.js";
 import { csharpSourceMemberKeysEqual } from "./source-member-keys.js";
@@ -35,8 +35,7 @@ export function csharpObjectShapesEqual(
         member.memberKind === other.memberKind &&
         member.optional === other.optional &&
         member.bound === other.bound &&
-        (member.methodStorageType === undefined ? other.methodStorageType === undefined :
-          other.methodStorageType !== undefined && targetTypeRefEquals(member.methodStorageType, other.methodStorageType)) &&
+        csharpObjectMethodValueStorageKey(member.methodValueStorage) === csharpObjectMethodValueStorageKey(other.methodValueStorage) &&
         (member.methodValueContract === undefined ? other.methodValueContract === undefined :
           other.methodValueContract !== undefined && targetTypeRefEquals(member.methodValueContract, other.methodValueContract)) &&
         member.accessor?.getter === other.accessor?.getter &&

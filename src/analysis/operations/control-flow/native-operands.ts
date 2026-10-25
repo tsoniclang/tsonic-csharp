@@ -82,7 +82,8 @@ export function csharpNativeChildUses(owner: Node, expression: Node | undefined,
 export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, node: Node, access?: "location"): CsharpNativeOperandSelection {
   const { ast, operations, evidence } = input;
   const resultUse = sourceExpressionResultDisposition(ast, node).kind === "discarded" ? "discarded" : "consumed";
-  const carrier = input.valueReads.valueRead.get(node)?.value;
+  const read = input.valueReads.valueRead.get(node);
+  const carrier = access === "location" ? read?.flowReadStorage : read?.value;
   const use = (expression: Node | undefined, slot: CsharpNativeUseSlot, target?: TargetTypeRef, access?: "location") =>
     csharpNativeChildUses(node, expression, slot, target, access);
   const plan = (uses: readonly CsharpNativeChildUse[]): readonly CsharpNativeOperandStep[] => Object.freeze(uses.map(child =>
@@ -104,6 +105,12 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
   const argumentsFirst = (head: readonly CsharpNativeChildUse[], arguments_: readonly CsharpNativeChildUse[],
     planningHead = head): CsharpNativeOperandSelection => chosen([...head, ...arguments_], "sequence", plan([...arguments_, ...planningHead]));
 
+  if (ast.is.IsPropertyAccessExpression(node)) {
+    const reference = input.navigation.referenceFor(node) ?? input.navigation.referenceFor(ast.name(node));
+    if (reference !== undefined && sourceDeclarationIsModuleScoped(reference.declaration, ast) &&
+      (ast.is.IsFunctionDeclaration(reference.declaration) || ast.is.IsVariableDeclaration(reference.declaration) ||
+        ast.is.IsBindingElement(reference.declaration) || ast.is.IsExportAssignment(reference.declaration))) return chosen([]);
+  }
   if (access === "location") {
     if (ast.is.IsPropertyAccessExpression(node)) return chosen(use(ast.as.AsPropertyAccessExpression(node)?.Expression, { kind: "receiver" }));
     if (ast.is.IsElementAccessExpression(node)) {
@@ -312,12 +319,6 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
       return selected?.kind !== "resolved" ? refused("operation-unresolved", selected?.kind === "rejected" ? selected.reason : undefined)
         : chosen(use(operand, { kind: "operand", position: "only" }), "sequence", undefined, selected.resultType);
     }
-    if (form === "js-value-object-shape-update") {
-      const selected = operand === undefined ? undefined : operations.selectedProperty.get(operand)?.sourceOwned?.jsValueProperty;
-      const operator = sourceOperatorFromKindName(ast.operatorKindName(node));
-      return refused("operation-unresolved", selected === undefined ? undefined : selected.kind === "rejected" ? selected.reason
-        : `Closed JS-value object-shape update '${operator}' requires an exact writable-location translation; emitting a read expression as a C# location is forbidden.`);
-    }
     const selected = operations.unaryOperation.get(node)?.target;
     if (selected?.kind !== "resolved") return refused("operation-unresolved", selected?.kind === "rejected" ? selected.reason : undefined);
     return chosen(use(selected.operand, selected.sourceOperator === "++" || selected.sourceOperator === "--"
@@ -325,10 +326,6 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
       selected.sourceOperator === "++" || selected.sourceOperator === "--" ? "location" : undefined), "sequence", undefined, selected.resultType);
   }
   if (ast.is.IsPropertyAccessExpression(node)) {
-    const reference = input.navigation.referenceFor(node) ?? input.navigation.referenceFor(ast.name(node));
-    if (reference !== undefined && sourceDeclarationIsModuleScoped(reference.declaration, ast) &&
-      (ast.is.IsFunctionDeclaration(reference.declaration) || ast.is.IsVariableDeclaration(reference.declaration) ||
-        ast.is.IsBindingElement(reference.declaration) || ast.is.IsExportAssignment(reference.declaration))) return chosen([]);
     const selection = operations.selectedProperty.get(node)?.selection;
     // The receiver is evaluated unless the member is static (no receiver): an instance member reads through it and a
     // target-parameter member (for example Error.stack through ErrorObject.stack(error)) passes it as its argument.

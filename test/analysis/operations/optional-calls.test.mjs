@@ -12,7 +12,7 @@ test("optional invocation classifies the evaluated receiver rather than its alre
     sourceCalleeAccess: { expression: access } };
   const policy = { ast: { as: { AsCallExpression: () => ({}),
     AsPropertyAccessExpression: () => ({ QuestionDotToken: {} }), AsElementAccessExpression: () => undefined } },
-    types: { resolveNode: subject => { assert.equal(subject === expression, true); return storage; },
+    types: { resolveNode: subject => { assert.equal(subject === expression, true); return { kind: "resolved", type: storage }; },
       resolveSelectedValue: () => assert.fail("Member-present type is not evaluated receiver storage") } };
   const selected = classifyCsharpOptionalCallReceiver(policy, source, undefined, {});
   assert.equal(selected?.expression === expression, true);

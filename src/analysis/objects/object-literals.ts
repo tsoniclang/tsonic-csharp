@@ -9,11 +9,9 @@ import type { CsharpNativeUse } from "../../target-model/records/native-demand.j
 import type { CsharpObjectLiteralEmission, CsharpObjectLiteralMemberEmission } from "../../target-model/records/object-literals.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
 import type { CsharpObjectMethodRecords } from "../../target-model/records/object-methods.js";
 import type { CsharpObjectMemberRecords } from "../../target-model/records/object-members.js";
-import { csharpPropertySourceMemberKey, csharpWellKnownSymbolSourceMemberKey, resolveCsharpObjectShapeMemberBySourceKey, csharpObjectShapeMemberLookupFailureMessage, isCsharpJsValueObjectShapeTargetType, csharpDelegateTargetType, csharpStringTargetType, getCsharpNullableElementTargetType, targetTypeRefEquals } from "../../target-model/types/index.js";
-import { validateCsharpJsValueObjectShapeCarrier } from "../../policy/types/objects/js-value-shapes.js";
+import { csharpPropertySourceMemberKey, csharpWellKnownSymbolSourceMemberKey, resolveCsharpObjectShapeMemberBySourceKey, csharpObjectShapeMemberLookupFailureMessage, csharpDelegateTargetType, getCsharpNullableElementTargetType, targetTypeRefEquals } from "../../target-model/types/index.js";
 import { getCsharpGenericOptionalParts } from "../../target-model/types/projections.js";
 import { csharpObjectShapeMethodDeclaration } from "../../target-model/types/method-values.js";
 import { objectShapeStorageMemberName, objectShapeAccessorGetterStorageMemberName, objectShapeAccessorSetterStorageMemberName } from "../../target-model/names/object-members.js";
@@ -29,7 +27,6 @@ export function analyzeCsharpObjectLiterals(input: {
   readonly source: TargetSourceSyntaxProgram;
   readonly demand: CsharpNativeDemandAnalysis;
   readonly shapes: CsharpObjectShapeClassifications;
-  readonly operations: Pick<CsharpTargetOperationClassifications, "jsObjectLiteral">;
   readonly methods: CsharpObjectMethodRecords;
   readonly members: CsharpObjectMemberRecords;
   readonly storage: Pick<CsharpStorageClassifications, "requiredStorageType">;
@@ -83,16 +80,10 @@ export function analyzeCsharpObjectLiterals(input: {
     if (requests === undefined) { requests = new Set(); seen.set(shape, requests); }
     if (requests.has(node)) continue;
     requests.add(node);
-    const js = isCsharpJsValueObjectShapeTargetType(shape.targetType);
-    if (js) { const reason = validateCsharpJsValueObjectShapeCarrier(shape); if (reason !== undefined) reject(node, reason); }
     const members: CsharpObjectLiteralMemberEmission[] = [];
     for (const property of literal.Properties?.Nodes ?? []) {
       if (property === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A checked native object literal requires dense source properties.", node);
       const kind = ast.kindName(property);
-      if (js && kind !== KindPropertyAssignment && kind !== KindShorthandPropertyAssignment) {
-        reject(property, "Closed JS-value object literals require explicit property assignments; spread and method members need their own exact runtime operation contract.");
-        continue;
-      }
       if (kind === KindSpreadAssignment) {
         const expression = AsSpreadAssignment(ast, property)?.Expression;
         if (expression === undefined) { reject(property, "Object literal spread requires a source expression."); continue; }
@@ -108,7 +99,8 @@ export function analyzeCsharpObjectLiterals(input: {
             continue;
           }
           const target = selected.member;
-          if (shared && target.methodValueContract !== undefined && csharpObjectShapeMethodDeclaration(shape, target) === csharpObjectShapeMethodDeclaration(sourceShape, sourceMember)) continue;
+          if (shared && target.methodValueContract !== undefined && target.methodValueStorage === undefined &&
+            csharpObjectShapeMethodDeclaration(shape, target) === csharpObjectShapeMethodDeclaration(sourceShape, sourceMember)) continue;
           if (!targetTypeRefEquals(sourceMember.type, target.type)) { reject(property, `Object literal spread member '${sourceMember.sourceName}' requires matching finalized source and target member carriers.`); continue; }
           const carrier = target.memberKind === "method" ? input.members.objectMember.get(shape, target)?.methodStorage : target.type;
           if (carrier === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted spread method requires its selected native callable storage.", property);
@@ -145,7 +137,7 @@ export function analyzeCsharpObjectLiterals(input: {
         members.push(Object.freeze({ kind: "value", property, member, initializer }));
       } else if (kind === KindMethodDeclaration) {
         const authored = shape.methodImplementation?.declaration === ast.parent(property) &&
-          shape.members.some(candidate => candidate.methodValueContract !== undefined && candidate.sourceDeclarations?.includes(property));
+          input.members.objectMember.get(shape, member)?.declaration.kind === "authored";
         if (authored) { members.push(Object.freeze({ kind: "authored", property, member })); continue; }
         const declaration = AsMethodDeclaration(ast, property);
         if (declaration === undefined) { reject(property, "Object literal method emission requires a method-declaration AST node."); continue; }
@@ -157,7 +149,9 @@ export function analyzeCsharpObjectLiterals(input: {
         if (layout === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted object method requires its selected native member layout.", property);
         const storage = member.memberKind === "method" ? layout.methodStorage : member.type;
         if (storage === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted object method requires its native callable storage.", property);
-        const receiver = layout.receiverBound ? shape.targetType : undefined;
+        if (member.memberKind !== "property" || layout.receiverBound) failTargetAnalysisInvariant("tsonic-csharp",
+          "An admitted non-authored method initializer requires its actual closed native delegate field.", property);
+        const receiver = undefined;
         const selected = selectCsharpObjectLiteralCallable({ carrier: member.type, storage, receiver });
         if (selected.kind === "rejected") {
           reject(property, selected.reason === "carrier"
@@ -202,21 +196,12 @@ export function analyzeCsharpObjectLiterals(input: {
       }
       else reject(property, "Object literal member is outside the current C# planning surface.");
     }
-    if (js) {
-      const operation = input.operations.jsObjectLiteral.get(node);
-      if (operation?.kind !== "resolved") {
-        reject(node, operation?.kind === "rejected" ? operation.reason : "C# object-literal planning requires a sealed JS-value operation classification produced during analysis.");
-        continue;
-      }
-      entries.push({ shape, node, value: Object.freeze({ kind: "js", members: Object.freeze(members), keyCarrier: csharpStringTargetType(), operation }) });
-    } else {
-      const captures = input.methods.objectCaptures.get(shape)
-        ?? failTargetAnalysisInvariant("tsonic-csharp", "An admitted object literal requires its complete native capture-field inventory.", node);
-      const initialization = analyzeCsharpObjectInitialization(node, shape, members, captures,
-        expression => { const selected = childUse(use, expression); return selected !== undefined && selected.kind !== "erased" && selected.completion.kind === "never"; });
-      issues.push(...initialization.issues);
-      entries.push({ shape, node, value: Object.freeze({ kind: "native", members: Object.freeze(members), initialization: initialization.value }) });
-    }
+    const captures = input.methods.objectCaptures.get(shape)
+      ?? failTargetAnalysisInvariant("tsonic-csharp", "An admitted object literal requires its complete native capture-field inventory.", node);
+    const initialization = analyzeCsharpObjectInitialization(node, shape, members, captures,
+      expression => { const selected = childUse(use, expression); return selected !== undefined && selected.kind !== "erased" && selected.completion.kind === "never"; });
+    issues.push(...initialization.issues);
+    entries.push({ shape, node, value: Object.freeze({ kind: "native", members: Object.freeze(members), initialization: initialization.value }) });
   }
   return Object.freeze({ records: createCsharpObjectLiteralRecords(entries), issues: Object.freeze(issues) });
 }

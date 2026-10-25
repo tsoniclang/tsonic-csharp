@@ -66,7 +66,7 @@ export function classifyCsharpUnionCall(
     const parameters = sourceCallableValueParameters(policy.ast, declaration, policy.semanticsFor(declaration));
     const file = policy.ast.getSourceFile(declaration);
     const signature = file === undefined ? undefined
-      : getCsharpCallableValueSignature(policy.types.resolveNode(declaration, file));
+      : getCsharpCallableValueSignature(policy.types.resolveNode(declaration, file)?.type);
     if (selectedName?.kind !== "resolved" || parameters === undefined || parameters.length !== parameterTypes.length ||
       signature === undefined || !csharpDelegateSignatureHasSupportedPassingModes(signature) ||
       signature.parameters.length !== parameters.length || signature.returnPassing !== undefined ||

@@ -45,7 +45,8 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
       return;
     }
     const target = policy.ast.is.IsParameterDeclaration(node) ? declarations.runtimeDefault.get(node)?.valueType : undefined;
-    record(initializer, target ?? (typeNode === undefined ? evidence.storageTargetType.get(node) : evidence.nodeTargetType.get(typeNode)),
+    record(initializer, target ?? (policy.ast.is.IsVariableDeclaration(node) || typeNode === undefined
+      ? evidence.storageTargetType.get(node) : evidence.nodeTargetType.get(typeNode)),
       typeNode === undefined ? "contextual" : "required", slot === undefined ? undefined : at(node, slot));
   }
 
@@ -194,8 +195,8 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
       const mapping = mappings?.get(argument.effectiveArgumentIndex);
       // A property-projected argument (Intl options) is read at its own value: the call projects its selected properties
       // into the TsValue parameter, so the argument itself is not boxed.
-      const projected = argument.targetParameter.csharpValueProjection === "properties" && expression !== undefined &&
-        !policy.ast.is.IsObjectLiteralExpression(expression) ? valueReadStages.get(expression)?.operationValue : undefined;
+      const projected = argument.targetParameter.csharpValueProjection === "properties" && expression !== undefined
+        ? valueReadStages.get(expression)?.operationValue : undefined;
       const target = sequence?.sourceType ?? projected ?? csharpProviderArgumentSourceCarrier(mapping) ??
         sourceArgumentExpectedType(expression, argument.targetParameter, argument.sourceForm);
       const binding = bySource.get(argument.sourceArgumentIndex)?.get(argument.effectiveArgumentIndex);

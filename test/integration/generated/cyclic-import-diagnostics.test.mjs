@@ -21,7 +21,7 @@ test("type-import cycles retain concrete planning diagnostics without publishing
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.equal(compiled.targetDiagnostics.length, 2, JSON.stringify(compiled.targetDiagnostics));
   for (const diagnostic of compiled.targetDiagnostics) {
-    assert.equal(diagnostic.code, "TS9101002");
+    assert.equal(diagnostic.code, "CSHARP_JS_SOURCE_PROFILE_OPERATION_UNSUPPORTED");
     assert.match(diagnostic.message, /eval requires runtime source evaluation with lexical-scope access/u);
   }
   assert.equal(compiled.targetDiagnostics.some(diagnostic => diagnostic.code === "TARGET_ARTIFACT_BLOCKED_WITHOUT_PROGRESS"), false);

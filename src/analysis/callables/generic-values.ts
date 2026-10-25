@@ -3,6 +3,7 @@ import { getCsharpDelegateSignature } from "../../target-model/types/carriers/de
 import { csharpMethodValueType } from "../../target-model/types/method-values.js";
 import { createStructuralObjectShapeTarget } from "../objects/shapes/construction.js";
 import type { CsharpTypeParameterConstraintResolver } from "../../target-model/types/generic-references.js";
+import { objectShapeMethodInvocationName } from "../../target-model/names/object-members.js";
 
 export function retainCsharpGenericCallableValue(
   signature: TargetTypeRef, typeParameters: NonNullable<CsharpObjectShapeMemberFact["typeParameters"]>,
@@ -15,7 +16,7 @@ export function retainCsharpGenericCallableValue(
     memberKind: "method" as const, type: signature, typeParameters,
   });
   const owner = createStructuralObjectShapeTarget([member], undefined, environment, true);
-  const value = csharpMethodValueType(owner, "Invoke", "tsonic.generic-callable", signature,
+  const value = csharpMethodValueType(owner, objectShapeMethodInvocationName(member), "tsonic.generic-callable", signature,
     typeParameters.map(parameter => parameter.identity));
   if (value === undefined) return undefined;
   remember({ targetType: owner, members: [Object.freeze({ ...member, methodValueContract: owner })] });

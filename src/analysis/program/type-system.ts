@@ -62,9 +62,14 @@ function createCsharpTypeSystem(
     if (sourceType === undefined) return undefined;
     return resolveCsharpTypeParameterConstraints(declaration, parameter, sourceFile, {
       ast: host.ast,
-      types: { resolveNode: (node, file) => typeResolution.recursive.resolveNode(node, file, {
-        depth: 0, sourceBindings: new Map([[declaration, { sourceType, targetType: parameter }]]),
-      }) },
+      types: { resolveNode: (node, file) => {
+        let rejected: Extract<import("../../policy/model/type-resolution.js").CsharpNodeTypeResolution, { readonly kind: "rejected" }> | undefined;
+        const type = typeResolution.recursive.resolveNode(node, file, {
+          depth: 0, sourceBindings: new Map([[declaration, { sourceType, targetType: parameter }]]),
+          rejectNativeResolution: rejection => { rejected ??= rejection; },
+        });
+        return rejected ?? (type === undefined ? undefined : Object.freeze({ kind: "resolved" as const, type }));
+      } },
     });
   });
   const createTypeResolution = (

@@ -36,7 +36,7 @@ export function analyzeCsharpCallAdmission(ast: AstReader, nodes: readonly Node[
     if (form.kind === "source-flow-rejected") { refuse(node, form.sourceFlow.code, form.sourceFlow.reason); continue; }
     if (form.kind === "js-value") {
       if (form.operation.kind === "rejected") { refuse(node, "CSHARP_UNSUPPORTED_AST", form.operation.reason); continue; }
-      values.set(node, { ...common, form: { ...form, operation: form.operation } });
+      values.set(node, { ...common, form: Object.freeze({ ...form, operation: form.operation }) });
       continue;
     }
     const target = classification.target;

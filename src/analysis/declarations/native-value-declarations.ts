@@ -14,7 +14,7 @@ import type { CsharpProjectCallableAdapters } from "../../target-model/records/c
 import type { CsharpClassFactoryIndex } from "../../target-model/records/class-factories.js";
 import type { CsharpCaptureStorage } from "../../target-model/records/capture-storage.js";
 import type { CsharpObjectShapeDemand } from "../../target-model/records/object-shape-demand.js";
-import { objectShapeArtifactKey } from "../program/records/object-shape-keys.js";
+import { objectShapeArtifactKey } from "../../target-model/records/object-shape-keys.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 import type { CsharpObjectShapeFact } from "../../target-model/types/model.js";
 import { csharpSourceTypeParameters } from "../../source/extension/type-parameters.js";

@@ -33,7 +33,7 @@ export function selectCsharpJsStringConversion(
         "The exact JavaScript string conversion requires one non-spread native string value.",
     };
   }
-  const sourceType = policy.types.resolveNode(sourceValue, sourceFile);
-  const resultType = policy.types.resolveNode(node, sourceFile);
+  const sourceType = policy.types.resolveNode(sourceValue, sourceFile)?.type;
+  const resultType = policy.types.resolveNode(node, sourceFile)?.type;
   return selectCsharpNativeJsStringConversion(sourceValue, sourceType, resultType);
 }

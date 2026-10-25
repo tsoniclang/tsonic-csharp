@@ -1,4 +1,4 @@
-import type { CsharpObjectShapeFact } from "../types/model.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../types/model.js";
 
 export const csharpJsonValueWriterMethodName = "__tsonicWriteJson";
 export const csharpJsonValueProjectionMethodName = "__tsonicJsonValue";
@@ -49,6 +49,26 @@ export function objectShapeBoundStorageMemberName(
   member: CsharpObjectShapeFact["members"][number],
 ): string {
   return objectShapeSyntheticStorageMemberName(objectShape, member, "bound_field");
+}
+
+export function objectShapeMethodBodyName(objectShape: CsharpObjectShapeFact, member: CsharpObjectShapeFact["members"][number]): string {
+  return objectShapeSyntheticStorageMemberName(objectShape, member, "method_body");
+}
+
+export function objectShapeMethodInvocationName(member: CsharpObjectShapeMemberFact): string {
+  return `__tsonic_invoke_body_${member.targetName}`;
+}
+
+export function objectShapeMethodValueStorageNames(objectShape: CsharpObjectShapeFact, member: CsharpObjectShapeFact["members"][number]): {
+  readonly name: string;
+  readonly valueName: string;
+  readonly initializedName: string;
+} {
+  return {
+    name: objectShapeStorageMemberName(objectShape, member),
+    valueName: objectShapeSyntheticStorageMemberName(objectShape, member, "method_value"),
+    initializedName: objectShapeSyntheticStorageMemberName(objectShape, member, "method_initialized"),
+  };
 }
 
 export function objectShapeAccessorSetterStorageMemberName(

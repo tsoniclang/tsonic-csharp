@@ -9,6 +9,8 @@ import { admitCsharpExpectedNativeUses } from "../../../dist/analysis/expected-t
 import { analyzeCsharpExactLiteralSelections } from "../../../dist/analysis/conversions/literal-plans.js";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
+import { publishedGenericProjections } from "../../helpers/expected-native-uses.mjs";
+import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 
 function owners(sourceText, surface = "native") {
   const compiled = compileCsharpSource({ sourceText, surface });
@@ -24,6 +26,10 @@ function owners(sourceText, surface = "native") {
   const participation = records.nativeParticipation;
   const bindingPatterns = analyzeCsharpBindingPatterns({ ast, semanticsFor: source.semantics.forNode, sourceFiles: csharpProgramSourceFiles(program), participation, evidence: records,
     operations: records, valueReads: records, objectShapes: program.objectShapes, storage: records,
+    initializerUses: { get: declaration => {
+      const expression = ast.as.AsVariableDeclaration(declaration)?.Initializer;
+      return expression === undefined ? undefined : records.nativeExpression.get(expression)?.physical;
+    } },
     typePolicy: { resolveType: () => assert.fail("These native-use fixtures require no source-owned member resolution.") },
     conversionPolicy: { target: compiled.target, typeDefinitions: program.typeDefinitions, objectShapes: program.objectShapes,
       providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
@@ -33,7 +39,7 @@ function owners(sourceText, surface = "native") {
           ? heritage.interfaces : [heritage.baseType, ...heritage.interfaces];
       } } } });
   const input = { ast, sourceFiles: csharpProgramSourceFiles(program), navigation: program.sourceNavigation, evidence: records, operations: records,
-    nativeExpressionIssues: [],
+    nativeExpressionIssues: [], sourceStorage: createSourceStorageQuery(source, csharpProgramSourceFiles(program)),
     declarations: records, objectShapes: program.objectShapes,
     exactLiteral: records.exactLiteral, propertyKeyBindings: expression => {
       const use = records.nativeExpression.get(expression)?.use;
@@ -54,7 +60,8 @@ function owners(sourceText, surface = "native") {
     semantics: source.semantics.forFile, semanticsFor: source.semantics.forNode, typeDefinitions: program.typeDefinitions }, records, records, program.objectShapes,
     { declarationContracts: contracts, closedInputType: () => undefined, get: () => undefined },
     { get: node => { const read = records.valueRead.get(node); return read === undefined ? undefined
-      : { literalTarget: read.selectedOperation ?? read.source, operationValue: read.selectedOperation ?? read.source }; } }, records);
+      : { literalTarget: read.selectedOperation ?? read.source, operationValue: read.selectedOperation ?? read.source }; } }, records,
+    publishedGenericProjections(records, nodes));
   const exact = analyzeCsharpExactLiteralSelections(literalValues, [
     ...expected.constructions.propertyKeyRequests,
     ...expected.nativeUseSites.requests.flatMap(request =>

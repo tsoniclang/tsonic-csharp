@@ -3,6 +3,7 @@ import test from "node:test";
 import { csharpRuntimeParameterDefault } from "../../dist/policy/types/storage/parameter-defaults.js";
 import { csharpNullableTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType,
   csharpTsValueTargetType, csharpTargetNamedType, csharpVoidTargetType } from "../../dist/target-model/types/index.js";
+import { targetTypeRefEquals } from "../../dist/target-model/types/equality.js";
 
 test("native defaults select one explicit incoming absence ABI without wrapping closed values", () => {
   const closed = csharpTsValueTargetType();
@@ -58,4 +59,37 @@ test("contextual default parameters retain one exact nullable input and present 
     csharpNullableTargetType(csharpSourcePrimitiveTargetType("int64"))), undefined);
   assert.equal(csharpRuntimeParameterDefault(csharpNullableTargetType(csharpSourcePrimitiveTargetType("int32")),
     csharpNullableTargetType(csharpSourcePrimitiveTargetType("int64"))), undefined);
+});
+
+test("native generic omission defaults use the actual closed projection rather than a null literal", () => {
+  const value = { kind: "type-parameter", name: "Value", identity: "native-default-value",
+    csharpConstraints: { kind: "resolved", constraints: [] } };
+  const incoming = csharpNullableTargetType(value);
+  const selected = csharpRuntimeParameterDefault(value);
+  assert.equal(selected?.kind, "closed-value", "an open optional-storage parameter cannot use a null default");
+  assert.equal(selected.valueType === value, true, "the callee still receives its actual present binder");
+  assert.equal(targetTypeRefEquals(selected.parameterType, incoming), true, "the existing native optional ABI is retained");
+  const contextual = csharpRuntimeParameterDefault(value, incoming);
+  assert.equal(contextual?.kind, "closed-value", "contextual admission uses the same physical omission form");
+  assert.equal(contextual.parameterType === incoming, true, "the exact selected native input is retained");
+  const optional = csharpRuntimeParameterDefault(incoming);
+  assert.equal(optional?.kind, "closed-value", "an already optional generic projection is not lifted again");
+  assert.equal(optional.valueType === incoming && optional.parameterType === incoming, true, "native optional storage identity remains exact");
+  const contextualOptional = csharpRuntimeParameterDefault(incoming, incoming);
+  assert.equal(contextualOptional?.kind, "closed-value", "an already optional contextual generic input still requires its native value default");
+  assert.equal(contextualOptional.valueType === incoming && contextualOptional.parameterType === incoming, true,
+    "contextual omission never replaces the optional-storage struct with a null literal");
+  const boxed = csharpTsValueTargetType();
+  const boxedDefault = csharpRuntimeParameterDefault(boxed, boxed);
+  assert.equal(boxedDefault?.kind, "closed-value", "the real closed scalar uses its native value default at a contextual boundary too");
+  assert.equal(boxedDefault.valueType === boxed && boxedDefault.parameterType === boxed, true, "closed scalar ABI identity is unchanged");
+  assert.equal(csharpRuntimeParameterDefault(boxed, incoming) === undefined, true, "unrelated omission representations stay rejected");
+  assert.equal(csharpRuntimeParameterDefault(value, value) === undefined, true, "a plain generic value is not a missing-value representation");
+  const other = { ...value, identity: "other-default-value" };
+  assert.equal(csharpRuntimeParameterDefault(value, csharpNullableTargetType(other)) === undefined, true,
+    "unrelated native generic inputs remain refused");
+  const reference = { ...value, identity: "native-reference-default",
+    csharpConstraints: { kind: "resolved", constraints: [{ kind: "keyword", keyword: "class" }] } };
+  const referenceDefault = csharpRuntimeParameterDefault(reference);
+  assert.equal(referenceDefault?.kind, "nullable", "an actual class constraint retains the real native nullable-reference form");
 });

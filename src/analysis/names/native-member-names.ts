@@ -20,8 +20,8 @@ import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../t
 import { csharpWellKnownSymbolTargetMemberName, getCsharpDelegateSignature, getCsharpLambdaSignature,
   getCsharpExpressionTreeDelegateType, csharpStringTargetType } from "../../target-model/types/index.js";
 import { substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
-import { csharpObjectShapeMethodDeclaration } from "../../target-model/types/method-values.js";
-import { targetTypeRefKey } from "../../target-model/types/equality.js";
+import { csharpObjectShapeMethodDeclaration, csharpPresentObjectShapeMethod } from "../../target-model/types/method-values.js";
+import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 import { csharpTargetStorageIdentityEquals } from "../../policy/types/storage/storage-identity.js";
 import type { CsharpSourceNameResolver } from "./plan.js";
 import type { CsharpObjectShapeDemandClosure } from "../../target-model/records/object-shape-demand.js";
@@ -31,9 +31,10 @@ import type { CsharpModuleInitializationIndex } from "../../target-model/records
 import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
 import type { CsharpCallableCreationIndex } from "../../target-model/records/callable-values.js";
 import type { CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
-import { objectShapeArtifactKey } from "../program/records/object-shape-keys.js";
+import { objectShapeArtifactKey } from "../../target-model/records/object-shape-keys.js";
 import { objectShapeStorageMemberName, objectShapeBoundStorageMemberName,
   objectShapeAccessorGetterStorageMemberName, objectShapeAccessorSetterStorageMemberName,
+  objectShapeMethodBodyName, objectShapeMethodInvocationName, objectShapeMethodValueStorageNames,
   csharpDeferredCaptureStorageNames, csharpFrozenStorageName, csharpJsonValueProjectionMethodName,
   csharpJsonValueWriterMethodName, csharpEnumerableKeysMethodName, csharpEnumerableKeysStorageName } from "../../target-model/names/object-members.js";
 
@@ -312,7 +313,7 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
   }
 
   function shapeSignature(member: CsharpObjectShapeMemberFact, name: string, kind: NativeMemberSignature["kind"]): NativeMemberSignature {
-    const signature = kind === "method" ? getCsharpDelegateSignature(member.type) : undefined;
+    const signature = kind === "method" ? getCsharpDelegateSignature(csharpPresentObjectShapeMethod(member)?.type) : undefined;
     if (kind === "method" && signature === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
       "An admitted native object method requires its closed physical signature before name sealing.");
     return { name: nativeName(name), kind,
@@ -328,6 +329,8 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
       if (member.memberKind === "method") {
         if (values || member.optional === true) names.push(nativeName(objectShapeStorageMemberName(shape, member)));
         if (member.optional !== true) names.push(nativeName(member.targetName));
+        if (member.methodValueContract !== undefined && targetTypeRefEquals(member.methodValueContract, shape.targetType))
+          names.push(nativeName(objectShapeMethodInvocationName(member)));
       } else {
         names.push(nativeName(member.targetName));
         const backing = input.storage.nativeField.get(shape.targetType, member.targetName);
@@ -442,7 +445,16 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
         }
         const storageName = objectShapeStorageMemberName(shape, member);
         if (storageName !== member.targetName) field(storageName,
-          member.methodStorageType === undefined && method !== undefined || structural ? "property" : "field");
+          method !== undefined || structural ? "property" : "field");
+        if (method !== undefined && member.methodValueStorage !== undefined) {
+          recordHeader(objectShapeMethodBodyName(shape, member), shapeSignature(member, objectShapeMethodBodyName(shape, member), "method"));
+          const names = objectShapeMethodValueStorageNames(shape, member);
+          field(names.valueName);
+          if (member.optional === true && member.methodValueContract !== undefined) field(names.initializedName);
+        }
+        if (structural && member.memberKind === "method" && member.methodValueContract !== undefined &&
+          targetTypeRefEquals(member.methodValueContract, shape.targetType))
+          recordHeader(objectShapeMethodInvocationName(member), shapeSignature(member, objectShapeMethodInvocationName(member), "method"));
         if (member.accessor !== undefined && !structural) {
           field(objectShapeAccessorGetterStorageMemberName(shape, member));
           if (member.accessor.setter) field(objectShapeAccessorSetterStorageMemberName(shape, member));

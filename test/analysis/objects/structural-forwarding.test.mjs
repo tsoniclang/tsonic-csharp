@@ -36,8 +36,13 @@ import { finalizeCsharpStructuralInterfaceForwarding } from "../../../dist/analy
 import { retainCsharpMethodValueContracts } from "../../../dist/analysis/objects/shapes/method-values.js";
 import { csharpCopiedObjectShapeMembers } from "../../../dist/policy/types/objects/method-environments.js";
 import { selectCsharpObjectMethodImplementation } from "../../../dist/analysis/objects/shapes/method-implementations.js";
+import { selectCsharpObjectMemberEmission } from "../../../dist/policy/types/objects/object-members.js";
 
 const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
+const noAuthoredNativeMethod = Object.freeze({
+  memberSubjectFor: () => assert.fail("an abstract protocol has no authored native slot"),
+  memberWritesFor: () => assert.fail("an abstract protocol has no authored native writes"),
+});
 
 test("a single native method contract and its extracted protocol publish the same canonical shape", () => {
   const member = Object.freeze({ sourceKey: { kind: "property", name: "run" }, sourceName: "run",
@@ -45,9 +50,10 @@ test("a single native method contract and its extracted protocol publish the sam
   const environment = () => assert.fail("a monomorphic protocol has no native constraint query");
   const targetType = createStructuralObjectShapeTarget([member], undefined, environment, true);
   const remember = () => assert.fail("an existing method contract cannot allocate or register a second self protocol");
-  const logical = retainCsharpMethodValueContracts({ targetType, members: Object.freeze([member]) }, remember, environment);
+  const logical = retainCsharpMethodValueContracts({ targetType, members: Object.freeze([member]) }, remember, environment,
+    noAuthoredNativeMethod);
   const physical = retainCsharpMethodValueContracts({ targetType,
-    members: Object.freeze([{ ...member, methodValueContract: targetType }]) }, remember, environment);
+    members: Object.freeze([{ ...member, methodValueContract: targetType }]) }, remember, environment, noAuthoredNativeMethod);
   assert.equal(targetTypeRefKey(logical.members[0].methodValueContract), targetTypeRefKey(targetType),
     "the logical contract already owns its actual self protocol");
   assert.equal(targetTypeRefKey(physical.members[0].methodValueContract), targetTypeRefKey(targetType),
@@ -116,17 +122,142 @@ test("every actual authored native method uses the same body and copy protocol",
   const implementation = Object.freeze({ declaration: literal, identity: "authored-body", methods: Object.freeze([declaration]),
     captures: Object.freeze([]) });
   const environment = () => assert.fail("a monomorphic native method has no free generic constraint to resolve");
+  const subject = Object.freeze({ node: declaration });
+  const sourceStorage = Object.freeze({
+    memberSubjectFor: node => {
+      assert.equal(node === declaration, true, "the native owner queries the exact authored method slot");
+      return Object.freeze({ kind: "resolved", subject });
+    },
+    memberWritesFor: selected => {
+      assert.equal(selected === subject, true, "the proof covers the canonical physical slot, not a spelling");
+      return Object.freeze({ kind: "open", writes: Object.freeze([]),
+        boundaries: Object.freeze([{ kind: "external-write", subject, exposure: literal }]) });
+    },
+  });
   const admitted = retainCsharpMethodValueContracts({ targetType, members: Object.freeze([member]),
-    methodImplementation: implementation }, shape => shape, environment);
+    methodImplementation: implementation }, shape => shape, environment, sourceStorage);
   assert.equal(admitted.methodImplementation === implementation, true, "native body and checked capture identity are retained");
   assert.equal(admitted.members[0].methodValueContract !== undefined, true, "an ordinary native body gets the existing method protocol");
-  assert.equal(admitted.members[0].methodStorageType === undefined, true, "the native body does not introduce a delegate storage field");
-  assert.equal(csharpCopiedObjectShapeMembers(admitted)[0].methodStorageType === targetType, true,
+  assert.equal(admitted.members[0].methodValueStorage === undefined, true, "the native body does not introduce a delegate storage field");
+  assert.equal(csharpCopiedObjectShapeMembers(admitted)[0].methodValueStorage.type === targetType, true,
     "a copy retains the actual original native environment");
-  const unimplemented = retainCsharpMethodValueContracts({ targetType, members: Object.freeze([member]) }, shape => shape, environment);
+  const unimplemented = retainCsharpMethodValueContracts({ targetType, members: Object.freeze([member]) }, shape => shape, environment,
+    noAuthoredNativeMethod);
   assert.equal(unimplemented.members[0].methodValueContract === undefined, true,
     "a method signature alone never manufactures an authored native body");
+  for (const [label, selection] of [
+    ["complete readonly slot", { kind: "complete", writes: [] }],
+    ["open without an exposure proof", { kind: "open", writes: [], boundaries: [] }],
+    ["actual replacement", { kind: "complete", writes: [{ kind: "mutation" }] }],
+    ["same-value write", { kind: "open", writes: [{ kind: "mutation", value: subject }],
+      boundaries: [{ kind: "external-write", subject, exposure: literal }] }],
+    ["opaque native effect", { kind: "open", writes: [],
+      boundaries: [{ kind: "opaque-write", subject, exposure: literal }] }],
+    ["external input", { kind: "open", writes: [],
+      boundaries: [{ kind: "external-input", subject, exposure: literal }] }],
+    ["unclassified exposure", { kind: "open", writes: [],
+      boundaries: [{ kind: "unclassified-exposure", subject, exposure: literal }] }],
+    ["missing write proof", { kind: "unresolved", reason: "exact writes unavailable" }],
+  ]) {
+    const selected = retainCsharpMethodValueContracts({ targetType, members: Object.freeze([member]),
+      methodImplementation: implementation }, shape => shape, environment, {
+        ...sourceStorage, memberWritesFor: () => selection,
+      });
+    assert.equal(selected.members[0].methodValueContract !== undefined, label === "complete readonly slot",
+      `${label}: only the actual immutable native method contract removes delegate storage`);
+    assert.equal(selected.members[0].methodValueStorage === undefined, label === "complete readonly slot",
+      `${label}: every actual or unproved write keeps one closed callable-value slot`);
+    if (label !== "complete readonly slot") assert.equal(targetTypeRefKey(selected.members[0].methodValueStorage.type), targetTypeRefKey(member.type),
+      `${label}: stored values retain the closed native delegate, never an extra synthetic self parameter`);
+    assert.equal(selected.methodImplementation === implementation, true, `${label}: source body and capture identity remain`);
+  }
 });
+
+test("authored bodies admit only exact closed delegate or optional protocol slots", () => {
+  const declaration = Object.freeze({});
+  const type = csharpDelegateTargetType("System.Func", [], integer);
+  const targetType = csharpTargetNamedType("ClosedMethodBody", [], { kind: "named", name: "ClosedMethodBody" },
+    { allowsRefLikeTypeArguments: [] });
+  const member = Object.freeze({ sourceKey: Object.freeze({ kind: "property", name: "read" }), sourceName: "read",
+    targetName: "read", memberKind: "method", type, sourceDeclarations: Object.freeze([declaration]) });
+  const shape = Object.freeze({ targetType, members: Object.freeze([member]) });
+  const select = (selected, receiverBound = false) => selectCsharpObjectMemberEmission({ shape: { ...shape, members: [selected] },
+    member: selected, receiverBound, authored: true, deferred: false, implementsInterface: false, nativeField: undefined });
+  const fixed = select(member);
+  assert.equal(fixed.kind === "selected" && fixed.value.declaration.kind === "authored" &&
+    fixed.value.declaration.value.kind === "fixed", true, "the native fixed body has no callable slot");
+  const closed = select({ ...member, methodValueStorage: { kind: "delegate", type } });
+  assert.equal(closed.kind === "selected" && closed.value.declaration.kind === "authored" &&
+    closed.value.declaration.value.kind === "delegate", true, "the mutable monomorphic value uses its exact closed delegate");
+  for (const [label, stored] of [
+    ["synthetic self parameter", csharpDelegateTargetType("System.Func", [targetType], integer)],
+    ["wrong result", csharpDelegateTargetType("System.Func", [], { kind: "source-primitive", name: "string" })],
+    ["unproved absence", csharpNullableTargetType(type)],
+  ]) assert.equal(select({ ...member, methodValueStorage: { kind: "delegate", type: stored } }).kind, "rejected", `${label}: mismatched physical storage is refused before publication`);
+  assert.equal(select({ ...member, methodValueStorage: { kind: "delegate", type } }, true).kind, "rejected",
+    "an independent open-receiver mismatch cannot be relabelled as a native body");
+  const protocol = csharpTargetNamedType("OptionalMethodProtocol", [], { kind: "named", name: "OptionalMethodProtocol" },
+    { structuralContract: true, allowsRefLikeTypeArguments: [] });
+  const optional = select({ ...member, optional: true, methodValueContract: protocol,
+    methodValueStorage: { kind: "protocol", type: csharpNullableTargetType(protocol), invocationName: "__tsonic_invoke_body_read" } });
+  assert.equal(optional.kind === "selected" && optional.value.declaration.kind === "authored" &&
+    optional.value.declaration.value.kind === "protocol" && optional.value.declaration.value.initializedName !== undefined, true,
+    "a written optional absence has its own state, never a null-coalescing resurrection");
+  assert.equal(select({ ...member, optional: true, methodValueContract: protocol,
+    methodValueStorage: { kind: "protocol", type: protocol, invocationName: "__tsonic_invoke_body_read" } }).kind, "rejected",
+    "a present-only field cannot silently erase optional callable absence");
+  assert.equal(select({ ...member, optional: true, methodValueContract: protocol,
+    methodValueStorage: { kind: "protocol", type: csharpNullableTargetType(protocol), invocationName: "read" } }).kind, "rejected",
+    "a stored body cannot dispatch through its later current-value method");
+});
+
+for (const surface of ["native", "js"]) {
+  for (const [name, action, fixed] of [
+    ["exported readonly method", "return value;", true],
+    ["source alias replacement", "const alias = value; alias.read = () => 11; return value;", false],
+    ["same-value alias write", "const alias = value; alias.read = value.read; return value;", false],
+  ]) test(`${surface}: ${name} retains its actual native exposure and checked writes`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+import type { int32 } from "@tsonic/core/types.js";
+export function make(seed: int32) {
+  const value = { count: seed, read(): int32 { return this.count; } };
+  ${action}
+}
+export function run(): boolean { return make(7).read() === ${name === "source alias replacement" ? 11 : 7}; }
+` });
+    assertCsharpCompilationSucceeded(compiled);
+    const program = compiled.result.program;
+    const shapes = program.objectShapes.knownShapes().filter(shape => shape.methodImplementation !== undefined);
+    assert.equal(shapes.length > 0, true, `${name}: the actual native object implementation is published`);
+    const members = shapes.flatMap(shape => shape.members.filter(member => member.sourceName === "read"));
+    assert.equal(members.length > 0 && members.every(member => (member.methodValueContract !== undefined) === fixed), true,
+      `${name}: native method selection follows the original physical slot writes, not source syntax alone`);
+    assert.equal(members.every(member => (member.methodValueStorage === undefined) === fixed), true,
+      `${name}: a mutable native body is not mistaken for a fixed public method`);
+    const bodies = shapes.flatMap(shape => program.records.objectMethods.get(shape) ?? []);
+    assert.equal(bodies.length > 0 && bodies.every(body => (body.emission.value.kind === "fixed") === fixed), true,
+      `${name}: one sealed body and callable-value decision drives all native consumers`);
+    executeCsharpConstruction(compiled, `native-method-exposure-${surface}-${name.replaceAll(" ", "-")}`);
+  });
+  test(`${surface}: a fixed native method retains extraction, receiver alias and capture identity`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+import type { int32 } from "@tsonic/core/types.js";
+function make(seed: int32) {
+  return { count: seed, read(): int32 { return this.count; } };
+}
+export function run(): boolean {
+  const value = make(7);
+  const alias = value;
+  const first = value.read;
+  const second = alias.read;
+  alias.count = 11;
+  return first === second && first() === 11 && value.read() === 11;
+}
+` });
+    assertCsharpCompilationSucceeded(compiled);
+    executeCsharpConstruction(compiled, `native-method-extraction-${surface}`);
+  });
+}
 
 test("a raw interface copy admits its method protocol before selecting native storage", () => {
   const declaration = Object.freeze({});
@@ -145,7 +276,7 @@ test("a raw interface copy admits its method protocol before selecting native st
   const copied = policy.resolveCopyShape(shape);
   assert.equal(copied !== undefined && copied !== shape, true, "the interface has one physical copy representation");
   assert.equal(copied.members[0].methodValueContract !== undefined &&
-    copied.members[0].methodStorageType === copied.members[0].methodValueContract, true,
+    copied.members[0].methodValueStorage.type === copied.members[0].methodValueContract, true,
   "the copied generic method retains an admitted native environment instead of an unrenderable open delegate");
   assert.equal(copied.members[0].typeParameters[0].identity === parameter.identity, true,
     "the real generic method binder is unchanged");
@@ -266,12 +397,15 @@ function defaultEvidenceFixture(kind) {
   const parameter = Object.freeze({});
   const policy = {
     projectTypes: { directSupertypes: () => [], catalog: { definitionForTarget: () => undefined } },
-    semanticsFor: () => ({ types: { expressionType: () => sourceType, structuralMembers: () => ({ kind: "available",
+    semanticsFor: () => ({ types: { expressionType: () => sourceType, structuralMembers(_source, _destination, purpose) {
+      assert.equal(purpose, "read", "native method forwarding requires readable source members");
+      return { kind: "available",
       destination: { calls: [], constructs: [], indexes: [] }, members: [{ kind: "present",
         source: { property: { symbol: sourceSymbol, rootSymbols: [] }, declarations: [declaration] },
         destination: { property: { symbol: destinationSymbol, rootSymbols: [] }, declarations: [] },
       }],
-    }) } }),
+      };
+    } } }),
     ast: {
       is: { IsMethodDeclaration: node => node.kind === "method-declaration",
         IsMethodSignatureDeclaration: node => node.kind === "method-signature" },
@@ -340,7 +474,7 @@ test("canonical member substitution preserves method shadowing while closing out
   const local = Object.freeze({ kind: "type-parameter", identity: "method:T", name: "T" });
   const stored = csharpDelegateTargetType("System.Func", [outer], outer);
   const member = Object.freeze({ sourceKey: { kind: "property", name: "read" }, sourceName: "read", targetName: "read", memberKind: "method",
-    type: csharpDelegateTargetType("System.Func", [local, outer], local), methodStorageType: stored, methodValueContract: stored,
+    type: csharpDelegateTargetType("System.Func", [local, outer], local), methodValueStorage: { kind: "delegate", type: stored }, methodValueContract: stored,
     typeParameters: Object.freeze([{ declaration: {}, identity: local.identity, name: local.name, csharpAllowsRefLike: false,
       constraints: Object.freeze([{ kind: "type", type: outer }]) }]) });
   const selected = substituteObjectShapeMemberTargetTypeParameters(member,
@@ -349,8 +483,8 @@ test("canonical member substitution preserves method shadowing while closing out
   assert.equal(signature.parameters[0] === local && signature.returnType === local, true, "the method's own binder shadows same-named owner substitutions");
   assert.equal(signature.parameters[1] === integer, true, "the distinct outer owner argument is substituted");
   assert.equal(selected.typeParameters[0].constraints[0].type === integer, true, "the outer constraint is closed through the same helper");
-  for (const field of ["methodStorageType", "methodValueContract"]) {
-    const contract = getCsharpDelegateSignature(selected[field]);
+  for (const [field, type] of [["methodValueStorage", selected.methodValueStorage.type], ["methodValueContract", selected.methodValueContract]]) {
+    const contract = getCsharpDelegateSignature(type);
     assert.equal(contract.parameters[0] === integer && contract.returnType === integer, true, `${field}: the selected physical contract is closed`);
   }
   assert.equal(Object.isFrozen(selected) && Object.isFrozen(selected.typeParameters) && Object.isFrozen(selected.typeParameters[0].constraints), true,
@@ -372,7 +506,8 @@ test("structural publication closes late inherited obligations through its singl
       resolveTarget: type => shapes.find(shape => targetTypeRefKey(shape.targetType) === targetTypeRefKey(type)),
       resolveCopyShape: shape => shape,
     }, projectTypes: { directSupertypes: () => [], catalog: { definitionForTarget: () => undefined } },
-    semanticsFor: () => ({ types: { structuralMembers(source, destination) {
+    semanticsFor: () => ({ types: { structuralMembers(source, destination, purpose) {
+      assert.equal(purpose, "read", "inherited native implementations require readable source members");
       correspondenceReads += 1;
       const sourceShape = shapes.find(shape => shape.sourceType === source);
       const destinationShape = shapes.find(shape => shape.sourceType === destination);
@@ -401,7 +536,7 @@ function structuralInterfaceRecords(objectShapes, sourceType) {
   return analyzeCsharpStructuralInterfaceEmission({ ast: {},
     shapes: { knownShapes: () => [{ targetType: sourceType }], structuralImplementations: type => objectShapes.structuralImplementations(type) },
     names: { typeParameterNames: [] }, projectTypes: { definitionContainingDeclaration: () => undefined },
-    projections: { genericProjection: { get: () => [] } } });
+    projections: { genericProjection: { get: () => [] } }, declarations: { methodWrite: { get: () => undefined } } });
 }
 
 function sourceContract(input) {

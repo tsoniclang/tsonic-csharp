@@ -64,18 +64,6 @@ export function validateCsharpJsValueOperationSelection(
   });
 }
 
-export function selectCsharpJsObjectLiteralOperation(): Extract<
-  CsharpJsValueOperationSelection,
-  { readonly kind: "resolved" }
-> {
-  return {
-    kind: "resolved",
-    runtimeMember: "CreateDynamicObject",
-    dispatch: "static",
-    resultType: csharpTsValueTargetType(),
-  };
-}
-
 export function selectCsharpJsValueReceiverOperation(
   receiverType: TargetTypeRef | undefined,
   operation: CsharpJsValueReceiverOperation,

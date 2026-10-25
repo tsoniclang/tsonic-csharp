@@ -111,8 +111,13 @@ function sourceParameterContracts(
     return undefined;
   }
   const questionToken = policy.ast.questionToken(parameterNode);
-  const targetType: TargetTypeRef = declarations.runtimeDefault.get(parameterNode)?.parameterType ??
+  const incomingType: TargetTypeRef = declarations.runtimeDefault.get(parameterNode)?.parameterType ??
     (questionToken === undefined ? selectedType : csharpNullableTargetType(selectedType));
+  const declaration = policy.ast.parent(parameterNode);
+  if (declaration === undefined) return undefined;
+  const native = policy.objectShapes.resolveNativeParameter(declaration, parameterNode, incomingType);
+  if (native.kind === "rejected") return undefined;
+  const targetType = native.type;
   const resolvedName = HasSourceKind(
       policy.ast,
       parameter.name,
@@ -247,7 +252,8 @@ export function selectCsharpSourceCallableValueAbi(input: {
     return Object.freeze({ ...common, kind: "native", nativeParameters: Object.freeze(nativeParameters),
       ...(declaration === undefined ? {} : { sourceDeclaration: declaration }) });
   }
-  const parameters = sourceCallableValueParameters(ast, declaration, semantics);
+  const parameters = sourceCallableValueParameters(ast, declaration, semantics,
+    { kind: "selected-invocation", signature: source.selectedSignature });
   if (parameters === undefined) return undefined;
   const sourceNativeParameters: CsharpSourceCallableParameterContract[] = [];
   for (const parameter of nativeParameters) {

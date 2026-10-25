@@ -6,6 +6,38 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { compileCsharpSource } from "../../../helpers/direct-csharp-session.mjs";
 import { memoryAbiCapability, rawAddressProofSource } from "../../../helpers/memory-abi.mjs";
+import { selectCsharpNativePointerUnsafeContext, selectCsharpTypeUnsafeContext } from "../../../../dist/policy/operations/pointers/native-type-safety.js";
+import { csharpRuntimeLocationTargetType, csharpRuntimeRawPointerTargetType } from "../../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/index.js";
+
+test("selected native pointer syntax determines lexical context independently of source permission", () => {
+  const scalar = csharpSourcePrimitiveTargetType("int32");
+  const raw = csharpRuntimeRawPointerTargetType();
+  const pointer = { kind: "pointer", pointee: scalar };
+  for (const method of ["Address", "FromAddress", "Offset", "OffsetUnsigned"]) {
+    assert.equal(selectCsharpNativePointerUnsafeContext({ kind: "raw-address", method, width: 64,
+      resultType: method === "Address" ? scalar : raw,
+      arguments: [{ expression: {}, sourceType: scalar, parameterType: scalar, cast: true }] }), false, method);
+  }
+  for (const method of ["Same", "Hash"]) {
+    assert.equal(selectCsharpNativePointerUnsafeContext({ kind: "raw-identity", method,
+      arguments: [], carrier: raw, parameterType: raw }), false, method);
+  }
+  for (const kind of ["load", "store", "offset"]) {
+    assert.equal(selectCsharpNativePointerUnsafeContext({ kind, call: {}, pointerExpression: {},
+      pointerType: pointer, pointeeType: scalar, valueExpression: {}, offsetExpression: {}, offsetType: scalar }), true, kind);
+  }
+  assert.equal(selectCsharpNativePointerUnsafeContext({ kind: "layout-query", value: 4n }), false, "constant layout query");
+  assert.equal(selectCsharpTypeUnsafeContext(pointer), true, "actual native pointer type remains unsafe");
+  const layout = { kind: "scalar", pointeeType: scalar, size: 4n, alignment: 4n, width: 64, littleEndian: true, fields: [] };
+  for (const method of ["ToRaw", "Reinterpret"]) {
+    const selected = { kind: "raw-location", method, expression: {}, inputType: csharpRuntimeLocationTargetType(scalar), layout };
+    assert.equal(selectCsharpNativePointerUnsafeContext(selected), false, `${method} managed codec`);
+    const nested = { ...layout, kind: "record", fields: [{ name: "pointer", offset: 0n, alignment: 4n,
+      layout: { ...layout, pointeeType: pointer } }] };
+    assert.equal(selectCsharpNativePointerUnsafeContext({ ...selected, layout: nested }), true, `${method} native codec type`);
+  }
+});
 
 test("raw address integers preserve every bit through nested native byte offsets", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ sourceText: rawAddressProofSource, capabilities: [memoryAbiCapability("csharp")] });

@@ -31,8 +31,6 @@ function projectReceiver(kind, scopeName = "ModuleScope") {
   const name = {};
   const file = { IsDeclarationFile: false };
   const carrier = csharpStringTargetType();
-  // The checked reference of the receiver expression (and of its declaration's name) is the project declaration, whose
-  // native type is '<scopeName>.Entry'; the receiver value read publishes its native carrier.
   const references = { expression: true };
   const records = {
     projectSourceReference: { get: node => node === expression && references.expression || node === name ? declaration : undefined },
@@ -49,15 +47,17 @@ function projectReceiver(kind, scopeName = "ModuleScope") {
 
 test("project class and enum receivers consume the exact module qualification without acquiring constructor delegates", () => {
   for (const kind of ["KindClassDeclaration", "KindEnumDeclaration"]) {
-    const { expression, file, carrier, input } = projectReceiver(kind);
+    const { expression, input } = projectReceiver(kind);
+    input.program.records.valueRead = { get: () => assert.fail("native type qualification has no runtime carrier lookup") };
     const diagnostics = [];
     const result = receive({ expression, type: {} }, input, diagnostics,
       () => assert.fail("native type references are not runtime constructor acquisition"));
     assert.equal(result === undefined, false, kind);
-    assert.equal(result.completion.carrier === carrier, true, "exact retained value evidence");
-    assert.deepEqual(result.completion.expression,
+    assert.equal(result.kind, "type", "the sealed type acquisition remains native type syntax");
+    assert.deepEqual(result.expression,
       { kind: "QualifiedName", left: { kind: "IdentifierName", name: "ModuleScope" }, name: "Entry" });
-    assert.equal(result.prelude.length, 0, "no allocation or receiver evaluation");
+    assert.equal(Object.hasOwn(result, "value"), false, "no fabricated constructor or delegate value");
+    assert.equal(Object.hasOwn(result, "prelude"), false, "no allocation or receiver evaluation");
     assert.equal(diagnostics.length, 0, kind);
   }
 });
@@ -74,7 +74,8 @@ test("constructed instance receivers never become static references merely becau
     evaluations += 1;
     return planned;
   });
-  assert.equal(result === planned, true, "the constructed receiver and its effects remain intact");
+  assert.equal(result.kind, "value");
+  assert.equal(result.value === planned, true, "the constructed receiver and its effects remain intact");
   assert.equal(evaluations, 1);
   assert.equal(diagnostics.length, 0);
 });
@@ -86,28 +87,38 @@ test("checked receiver value identity supports transparent syntax without recons
   const result = receive({ expression, type: {}, valueDeclaration: declaration }, input, diagnostics,
     () => assert.fail("parenthesized type syntax is not runtime factory acquisition"));
   assert.equal(result === undefined, false);
-  assert.equal(result.completion.expression.kind, "QualifiedName");
+  assert.equal(result.kind, "type");
+  assert.equal(result.expression.kind, "QualifiedName");
   assert.equal(diagnostics.length, 0);
   const rejected = receive({ expression, type: {}, valueDeclaration: {} }, input, diagnostics,
     () => csharpPlannedValue(csharpStringTargetType(), { kind: "IdentifierName", name: "actualValue" }));
-  assert.equal(rejected.completion.expression.kind, "IdentifierName", "mismatched exact declarations cannot select static syntax");
+  assert.equal(rejected.kind, "value");
+  assert.equal(rejected.value.completion.expression.kind, "IdentifierName", "mismatched exact declarations cannot select static syntax");
 });
 
-test("project type receivers never bypass missing or rejected selected carrier evidence", () => {
-  // The analysis admits neither form; a planner handed one fails its invariant instead of acquiring a constructor.
-  for (const [label, missingCarrier, projection] of [
-    ["missing native carrier", true, undefined],
-    ["rejected receiver projection", false, { source: csharpNullableReferenceTargetType(csharpStringTargetType()), target: csharpStringTargetType(),
-      conversion: { kind: "rejected", reason: "missing selected proof" } }],
-  ]) {
-    const { expression, input, references } = projectReceiver("KindClassDeclaration");
-    if (missingCarrier) references.carrier = false;
+test("project type receivers never bypass missing or contradictory native type evidence", () => {
+  for (const label of ["missing acquisition", "missing checked module", "missing native declaration"]) {
+    const { expression, input } = projectReceiver("KindClassDeclaration");
+    input.program.records.memberReceiver = { get: () => label === "missing acquisition" ? undefined : { kind: "type", reference: expression } };
+    if (label === "missing checked module") input.program.source.ast.getSourceFile = () => undefined;
+    if (label === "missing native declaration") input.program.records.projectSourceType = { get: () => undefined };
     const diagnostics = [];
-    assert.throws(() => receive({ expression, type: {} }, input, diagnostics,
-      () => assert.fail("no speculative constructor acquisition"), projection),
+    assert.throws(() => translateCsharpSelectedReceiver({ expression, type: {} }, {}, input, diagnostics,
+      () => assert.fail("no speculative constructor acquisition")),
     error => error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT", label);
     assert.equal(diagnostics.length, 0, label);
   }
+});
+
+test("native type qualification never conceals a rejected receiver projection", () => {
+  const { expression, input } = projectReceiver("KindClassDeclaration");
+  const diagnostics = [];
+  assert.throws(() => receive({ expression, type: {} }, input, diagnostics,
+    () => assert.fail("rejected evidence cannot acquire a constructor"),
+    { source: csharpNullableReferenceTargetType(csharpStringTargetType()), target: csharpStringTargetType(),
+      conversion: { kind: "rejected", reason: "missing selected proof" } }),
+  error => error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT");
+  assert.equal(diagnostics.length, 0);
 });
 
 test("local class factories remain exact runtime receiver values rather than namespace references", () => {
@@ -121,7 +132,8 @@ test("local class factories remain exact runtime receiver values rather than nam
     evaluations += 1;
     return planned;
   });
-  assert.equal(result === planned, true, "the owning factory contract remains authoritative");
+  assert.equal(result.kind, "value");
+  assert.equal(result.value === planned, true, "the owning factory contract remains authoritative");
   assert.equal(evaluations, 1);
   assert.equal(diagnostics.length, 0);
 });
@@ -138,8 +150,9 @@ test("selected receiver projections consume an already-selected planned value ex
   const diagnostics = [];
   const result = receive({ expression: node, type: {} }, instanceInput, diagnostics,
     () => planned, { source: storage, target: selected, conversion: { kind: "nullable-reference" } });
-  assert.equal(result === planned, true, "no second null suppression or duplicated effects");
-  assert.equal(result.prelude.length, 1);
+  assert.equal(result.kind, "value");
+  assert.equal(result.value === planned, true, "no second null suppression or duplicated effects");
+  assert.equal(result.value.prelude.length, 1);
   assert.equal(diagnostics.length, 0);
 });
 

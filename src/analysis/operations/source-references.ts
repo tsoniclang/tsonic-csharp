@@ -48,7 +48,8 @@ export function analyzeCsharpSourceReferences(input: { readonly source: TargetSo
     if (declaration !== undefined && input.captures.captureClosure.get(declaration) !== undefined) {
       identifiers.set(node, { kind: "frame", declaration }); continue;
     }
-    if (declaration !== undefined && (input.factories.classFactory.get(declaration) !== undefined || ast.is.IsClassDeclaration(declaration))) {
+    if (declaration !== undefined && input.source.navigation.isProjectDeclaration(declaration) &&
+      (input.factories.classFactory.get(declaration) !== undefined || ast.is.IsClassDeclaration(declaration))) {
       const use = input.demand.nativeUse.expression(node)?.use;
       const signature = use === undefined || use.kind === "erased" ? undefined : getCsharpDelegateSignature(use.carrier);
       if (signature !== undefined && (!selectCsharpTypeEmission({ carrier: signature.returnType }) ||

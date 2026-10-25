@@ -30,10 +30,10 @@ for (const surface of ["native", "js"]) {
     const compiled = compileCsharpSource({ surface, sourceText: source });
     assertCsharpCompilationSucceeded(compiled);
     const output = [...compiled.artifacts.values()].join("\n");
-    assert.equal(/\(string\? (__tsonic_param\d+)\) =>\s*\{\s*string x = \1 \?\? "d";/u.test(output), true,
-      "the string default is applied to the nullable incoming parameter");
-    assert.equal(/\(int\? (__tsonic_param\d+)\) =>\s*\{\s*int x = \1 \?\? 5;/u.test(output), true,
-      "the int32 default is applied to the nullable incoming parameter");
+    assert.equal(/\bstring m\(string\? (__tsonic_param\d+) = null\)\s*\{\s*string x = \1 \?\? "d";/u.test(output), true,
+      "the native method applies its string default to the exact nullable incoming parameter");
+    assert.equal(/\bint m\(int\? (__tsonic_param\d+) = null\)\s*\{\s*int x = \1 \?\? 5;/u.test(output), true,
+      "the native method applies its int32 default to the exact nullable incoming parameter");
     executeCsharpConstruction(compiled, `object-literal-method-defaults-${surface}`);
   });
 }

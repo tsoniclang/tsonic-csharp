@@ -243,13 +243,14 @@ export function planFunctionExpression(
       const planned = complete(value, [...captureContext?.prelude ?? [], method]);
       return planned === undefined || creationPolicy.kind !== "direct" ? planned : { ...planned, callable: { kind: "method" } };
     }
-    return complete({ kind: "IdentifierName", name: valueName }, [
+    const planned = complete({ kind: "IdentifierName", name: valueName }, [
       ...captureContext?.prelude ?? [],
       { kind: "LocalDeclarationStatement", name: valueName, type: targetContext.type,
         initializer: { kind: "DefaultExpression", type: targetContext.type, nullForgiving: true } }, method,
       { kind: "ExpressionStatement", expression: { kind: "AssignmentExpression", left: { kind: "IdentifierName", name: valueName },
         operatorToken: { kind: "EqualsToken" }, right: value } },
     ]);
+    return planned === undefined ? undefined : { ...planned, callable: { kind: "stable-value" } };
   };
   const sourceParameters = planLambdaParameters(
     parameterNodes,

@@ -1,6 +1,6 @@
 import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
 import type { CsharpObjectCaptureField, CsharpAuthoredObjectMethod, CsharpObjectMethodRecords } from "../../../target-model/records/object-methods.js";
-import { objectShapeArtifactKey } from "./object-shape-keys.js";
+import { objectShapeArtifactKey } from "../../../target-model/records/object-shape-keys.js";
 
 export function createCsharpObjectMethodRecords(
   captures: ReadonlyMap<string, readonly CsharpObjectCaptureField[]>,

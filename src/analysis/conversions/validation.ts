@@ -6,7 +6,8 @@ import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpUnionPathsEqual } from "../../target-model/types/union-relations.js";
 import { csharpUnionArmMappingsMatch } from "../../policy/conversions/union-relations.js";
 import { csharpMetadataDescriptors } from "../../target-model/metadata/immutable.js";
-import { csharpDelegateSignatureHasSupportedPassingModes, csharpDelegateSignaturesMatchNativeBinding } from "../../target-model/types/carriers/delegates.js";
+import { csharpDelegateSignatureHasSupportedPassingModes, csharpDelegateSignaturesMatchNativeBinding, getCsharpCallableValueSignature } from "../../target-model/types/carriers/delegates.js";
+import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import { csharpCarrierAdmitsSourceAbsence, getCsharpDelegateSignature, getCsharpGenericOptionalParts,
   getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType,
   isCsharpNullableReferenceTargetType } from "../../target-model/types/index.js";
@@ -125,7 +126,9 @@ export function admitCsharpConversionSelection(
         break;
       }
       case "delegate-adapter": {
-        const sourceSignature = getCsharpDelegateSignature(current.source);
+        const sourceMethod = getCsharpMethodValue(current.source);
+        const sourceSignature = sourceMethod !== undefined && sourceMethod.typeParameters.length !== 0
+          ? undefined : getCsharpCallableValueSignature(current.source);
         const targetSignature = getCsharpDelegateSignature(current.target);
         if (sourceSignature === undefined || targetSignature === undefined ||
           !csharpDelegateSignatureHasSupportedPassingModes(sourceSignature) ||

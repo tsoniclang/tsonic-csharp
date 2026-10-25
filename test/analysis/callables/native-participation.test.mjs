@@ -46,11 +46,16 @@ const ambientCases = [
   { name: "original dormant", sourceText: ambientOriginal(false), errors: 0, references: 1, call: "Subject.run()",
     erased: ["hidden"], forbidden: ["external", "hidden"] },
   { name: "original active", sourceText: ambientOriginal(true), errors: 1, references: 1 },
-  { name: "erased callable subtree", sourceText: `declare const external: number;
+  { name: "stored callable subtree", sourceText: `declare const external: number;
     export function run(): number {
       const unused = () => { function nested(): number { return external; } return nested(); };
       void unused; return 42;
-    }`, errors: 0, references: 1, call: "Subject.run()", erased: [], forbidden: ["external", "unused", "nested"] },
+    }`, errors: 1, references: 1 },
+  { name: "erased callable subtree", sourceText: `declare const external: number;
+    export function run(): number {
+      (() => { function nested(): number { return external; } return nested(); });
+      return 42;
+    }`, errors: 0, references: 1, call: "Subject.run()", erased: [], forbidden: ["external", "nested"] },
   { name: "type-only query", sourceText: `declare const external: number;
     export type External = typeof external;
     export function run(value: External): number { return value; }`, errors: 0, references: 0,

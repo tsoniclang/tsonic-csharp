@@ -4,13 +4,117 @@ import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../hel
 import { compileCsharpRequiredRecordSource } from "../../helpers/required-records.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { transformCsharpTargetAst } from "../../../dist/backend/target-ast/normalization/transformation.js";
-import { csharpStructuralObjectShapeIdentity } from "../../../dist/target-model/types/index.js";
+import { csharpStructuralObjectShapeIdentity, csharpSourcePrimitiveTargetType, isCsharpJsValueTargetType, isCsharpRecordDictionaryTargetType, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
+import { objectShapeArtifactKey } from "../../../dist/target-model/records/object-shape-keys.js";
 import { printCsharpType } from "../../../dist/print/source/printer.js";
 import { createCsharpObjectShapeValueStorage } from "../../../dist/policy/types/objects/shape-carriers.js";
 import { applyCsharpObjectShapeDisplayNames } from "../../../dist/backend/target-ast/normalization/object-shape-names.js";
+import { selectCsharpObjectShapeDisplayNames } from "../../../dist/analysis/names/object-shapes.js";
+import { createStructuralObjectShapeTarget } from "../../../dist/analysis/objects/shapes/construction.js";
 
 const header = 'import type { int32 } from "@tsonic/core/types.js";';
 const payload = "sealed class NativePayload : ITsClosedValueCarrier { public int count = 7; }";
+
+test("explicit JSON demand follows native boxed payload origins without changing unrelated broad storage", () => {
+  const { program, nodes, source } = compileCsharpRequiredRecordSource(`
+    import type { int64 } from "@tsonic/core/types.js";
+    function stringify(value: unknown): string { return JSON.stringify(value) ?? "null"; }
+    const unrelated: unknown = { unrelated: 9n as int64 };
+    export function run(): string {
+      const child: unknown = { childValue: 9007199254740993n as int64 };
+      const selected: unknown = { selected: true, child };
+      const alias = selected;
+      const values: unknown = [alias];
+      void unrelated;
+      return stringify(values);
+    }
+  `, "js");
+  let demanded = 0;
+  let untouched = 0;
+  for (const node of nodes.filter(node => source.ast.is.IsObjectLiteralExpression(node))) {
+    const use = program.records.nativeExpression.get(node)?.physical;
+    assert.equal(use?.objectShape !== undefined, true, "every authored literal retains its actual native shape before boxing");
+    const shape = use.objectShape;
+    const artifact = program.records.objectShapeArtifact.get(objectShapeArtifactKey(shape));
+    assert.equal(artifact !== undefined, true, "every boxed native shape has its artifact");
+    if (shape.members.some(member => member.sourceName === "unrelated")) {
+      assert.equal(artifact.capabilities.includes("json-serialization"), false, "an unrelated box does not acquire a JSON protocol");
+      assert.equal(artifact.capabilities.includes("reference-identity"), true, "unrelated native identity remains intact");
+      untouched++;
+    } else {
+      assert.equal(artifact.capabilities.includes("json-serialization"), true, "known aliases, array elements and broad fields retain their actual native JSON payloads");
+      assert.equal(artifact.capabilities.includes("reference-identity"), true, "serialization demand does not replace the native identity carrier");
+      demanded++;
+    }
+  }
+  assert.equal(demanded, 2, "both actual JSON-reachable native shapes receive the existing protocol");
+  assert.equal(untouched, 1, "only the actual selected JSON roots drive the demand");
+});
+
+for (const surface of ["native", "js"]) test(`${surface}: checked source object narrowing retains closed broad storage and native identity`, { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface, sourceText: header + `
+    function objectKind(value: unknown): boolean {
+      const original = value;
+      if (value === null || typeof value !== "object") return false;
+      return typeof value === "object" && value === original;
+    }
+    export function run(): boolean {
+      const value = { count: 7 as int32 };
+      return objectKind(value) && !objectKind(7) && !objectKind("text") && !objectKind(undefined);
+    }
+  ` });
+  executeCsharpConstruction(compiled, `artifact-box-source-object-${surface}`);
+});
+
+for (const surface of ["native", "js"]) test(`${surface}: broad literal destinations retain native payload fields before boxing`, () => {
+  const { program, nodes, source } = compileCsharpRequiredRecordSource(header + `
+    const root: unknown = { count: 1 as int32 };
+    function returned(): unknown { return { count: 2 as int32 }; }
+    class Holder { value: unknown = { count: 3 as int32 }; }
+    function accept(value: unknown): unknown { return value; }
+    class Base { read(): unknown { return undefined; } }
+    class Derived extends Base { override read() { return { count: 7 as int32 }; } }
+    export function run(): boolean {
+      const values: unknown[] = [{ count: 4 as int32 }];
+      const pair: [unknown, string] = [{ count: 5 as int32 }, "kept"];
+      const argument = accept({ count: 6 as int32 });
+      const dictionary: Record<string, int32> = { count: 8 as int32 };
+      const derived: Base = new Derived();
+      return typeof root === "object" && typeof returned() === "object" && typeof new Holder().value === "object" &&
+        typeof values[0] === "object" && typeof pair[0] === "object" && typeof argument === "object" &&
+        typeof derived.read() === "object" && dictionary["count"] === 8;
+    }
+  `, surface);
+  const integer = csharpSourcePrimitiveTargetType("int32");
+  let payloads = 0;
+  let dictionaries = 0;
+  for (const node of nodes.filter(node => source.ast.is.IsObjectLiteralExpression(node))) {
+    const selected = program.records.nativeExpression.get(node);
+    const physical = selected?.physical;
+    assert.equal(physical !== undefined, true, "each actual literal has its admitted physical construction");
+    if (isCsharpRecordDictionaryTargetType(physical.carrier)) {
+      dictionaries += 1;
+      assert.equal(targetTypeRefEquals(physical.carrier.typeArguments[1], integer), true,
+        "an explicit Record retains its actual native dictionary value carrier");
+      continue;
+    }
+    const shape = physical.objectShape;
+    assert.equal(shape !== undefined, true, "a broad destination constructs its checked native source shape");
+    assert.equal(isCsharpJsValueTargetType(shape.targetType), false, "the native payload is not reinterpreted as a broad runtime object");
+    assert.equal(shape.members.length, 1, "the payload keeps its exact field inventory");
+    assert.equal(targetTypeRefEquals(shape.members[0].type, integer), true, "the actual int32 field remains native int32");
+    assert.equal(selected.use.kind === "converted" && isCsharpJsValueTargetType(selected.use.target), true,
+      "the broad destination is a separate admitted conversion, not the physical construction");
+    assert.equal(selected.conversion?.kind, "js-value-box", "the existing native reference boxing edge owns the boundary");
+    const artifact = program.records.objectShapeArtifact.get(objectShapeArtifactKey(shape));
+    assert.equal(artifact?.capabilities.includes("reference-identity"), true,
+      "the actual boxed payload publishes reference identity before the seal");
+    payloads += 1;
+  }
+  assert.equal(payloads, 7, "module, return, field, array, tuple, argument and inherited return positions share one rule");
+  assert.equal(dictionaries, 1, "the explicit native dictionary follows its separate existing owner");
+});
+
 const boxing = [
   ["logical-right", `function choose(input: unknown): unknown {
     const fallback = { count: 7 as int32 }; return input || fallback;
@@ -188,6 +292,43 @@ const originalPrograms = [
   ["same-role-uses", "export function pair(left: int32, right: int32) { const first = { left }; const second = { right }; return { first, second }; }"],
 ];
 
+for (const surface of ["native", "js"]) test(`${surface}: present native lambda inputs adapt without evaluating an absent-only default`, () => {
+  const compiled = compileCsharpSource({ surface, sourceText: header + `
+    let defaults: int32 = 0;
+    function defaultCount(): int32 { return defaults; }
+    function fallback(): unknown { defaults += 1; return { count: 11 as int32 }; }
+    function invoke(callback: (value: { count: int32 }) => boolean): boolean {
+      return callback({ count: 7 as int32 });
+    }
+    function optional(value: unknown = fallback()): boolean { return typeof value === "object"; }
+    export function run(): boolean {
+      defaults = 0;
+      const selected = invoke((value: unknown = fallback()): boolean => typeof value === "object");
+      if (!selected || defaultCount() !== 0) return false;
+      if (!optional() || defaultCount() !== 1) return false;
+      return true;
+    }
+  ` });
+  assertCsharpCompilationSucceeded(compiled);
+  const program = compiled.result.program;
+  let entries = 0;
+  const visit = node => {
+    if (program.source.ast.is.IsArrowFunction(node)) {
+      const parameter = program.records.callableDeclaration.get(node).contract.parameters[0];
+      const entry = program.records.lambdaParameterEntry.get(parameter);
+      assert.equal(entry.kind, "conversion", "the admitted present native input retains its actual boxing adaptation");
+      assert.equal(entry.conversion.kind, "js-value-box", "the native parameter does not masquerade as body storage");
+      assert.equal(program.records.jsValueBoxing.get(parameter, entry.source)?.kind, "wrap",
+        "the same selected parameter conversion owns its complete native boxing demand before artifact sealing");
+      entries += 1;
+    }
+    program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  program.source.navigation.sourceFiles.forEach(visit);
+  assert.equal(entries, 1, "the witness observes the actual defaulted native lambda");
+  executeCsharpConstruction(compiled, `present-native-lambda-default-${surface}`);
+});
+
 function originalNativeProgram(name, selected) {
   if (name === "module-spread") return nativeCostProgram("return Index.copy().count;", "return new NativeCopy { count = 7 }.count;",
     "sealed class NativeCopy { public int count; }", "Index.__tsonic_module_init();");
@@ -250,12 +391,11 @@ test("native value storage preserves the selected generic vector and its declara
   const parameter = Object.freeze({ kind: "type-parameter", identity: "native.storage.item", name: "Item",
     csharpConstraints: Object.freeze({ kind: "resolved", constraints: Object.freeze([]) }) });
   const selected = Object.freeze({ kind: "source-primitive", name: "int32" });
-  const permissions = Object.freeze([false]);
-  const open = Object.freeze({ kind: "target-named", id: "tsonic.shape:storage-template",
-    typeArguments: Object.freeze([parameter]), csharpAllowsRefLikeTypeArguments: permissions,
-    csharpRender: Object.freeze({ kind: "named", name: "NativeStorage" }), csharpTypeofRuntimeKind: "object" });
   const member = Object.freeze({ sourceKey: Object.freeze({ kind: "property", name: "item" }), sourceName: "item",
     targetName: "item", memberKind: "property", type: parameter });
+  const open = Object.freeze(createStructuralObjectShapeTarget(Object.freeze([member]), undefined,
+    () => Object.freeze({ kind: "resolved", constraints: Object.freeze([]) })));
+  const permissions = open.csharpAllowsRefLikeTypeArguments;
   const template = Object.freeze({ targetType: open, members: Object.freeze([member]) });
   const vector = Object.freeze([selected]);
   const closed = Object.freeze({ targetType: Object.freeze({ ...open, typeArguments: vector }),
@@ -270,6 +410,7 @@ test("native value storage preserves the selected generic vector and its declara
   assert.equal(physical.targetType.id !== open.id && open.csharpValueType === undefined, true, "per-use physical storage cannot mutate the source-wide reference layout");
   assert.equal(Object.isFrozen(physical) && Object.isFrozen(physical.targetType), true, "the physical selection is immutable");
   for (const [name, shape] of [
+    ["unproved generated storage", { ...closed, targetType: { ...closed.targetType, csharpGeneratedStructuralStorage: undefined } }],
     ["nominal", { ...closed, targetType: { ...closed.targetType, csharpSourceDeclarationKind: "class" } }],
     ["reference guarantee", { ...closed, targetType: { ...closed.targetType, csharpConstraintRequiresReferenceType: true } }],
     ["interface", { ...closed, targetType: { ...closed.targetType, csharpStructuralContract: true } }],
@@ -284,6 +425,7 @@ test("native value storage preserves the selected generic vector and its declara
 test("a selected native value layout uses the same declared identity and reference display name", () => {
   const identity = "aaaaaaaaaaaa1111111111111111111111111111111111111111111111111111";
   const canonicalName = `__TsonicShape_${identity}`;
+  const displayName = selectCsharpObjectShapeDisplayNames([{ identity, canonicalName, preferredStem: "Value" }]).get(canonicalName);
   const [unit] = applyCsharpObjectShapeDisplayNames([{
     kind: "CompilationUnit", usings: [], members: [{ kind: "NamespaceDeclaration", name: "Generated", members: [{
       kind: "StructDeclaration", name: canonicalName, objectShapeIdentity: identity, modifiers: ["public"],
@@ -293,7 +435,7 @@ test("a selected native value layout uses the same declared identity and referen
       members: [{ kind: "FieldDeclaration", name: "next", modifiers: ["public"],
         type: { kind: "IdentifierName", name: canonicalName, objectShapeIdentity: identity } }],
     }] }],
-  }], [{ identity, canonicalName, preferredStem: "Value" }]);
+  }], [{ identity, canonicalName, displayName }]);
   const declaration = unit.members[0].members[0];
   assert.equal(declaration.kind, "StructDeclaration", "display naming never changes the analysis-selected native kind");
   assert.equal(declaration.name, "ValueShape_aaaaaaaaaaaa", "the selected declaration is renamed at the existing canonical owner");

@@ -26,8 +26,11 @@ function fixture(options = {}) {
       },
       arguments: () => options.arguments ?? [sourceValue],
     },
-    types: { resolveNode: subject => subject === sourceValue ? options.sourceType ?? nativeString
-      : subject === node ? options.resultType ?? exactString : undefined },
+    types: { resolveNode: subject => {
+      const type = subject === sourceValue ? options.sourceType ?? nativeString
+        : subject === node ? options.resultType ?? exactString : undefined;
+      return type === undefined ? undefined : { kind: "resolved", type };
+    } },
   };
   return { node, sourceValue, sourceFile, selection: selectCsharpJsStringConversion(policy, node, sourceFile) };
 }

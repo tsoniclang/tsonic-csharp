@@ -130,7 +130,7 @@ for (const [name, sourceText] of openSources) {
     assert.equal(compiled.sourceDiagnosticsText, "", "source remains valid without annotations");
     assert.equal(compiled.extensionDiagnostics.length + compiled.targetDiagnostics.length > 0, true,
       "missing exact native origin evidence must fail closed");
-    assert.equal(compiled.targetDiagnostics.some(diagnostic => diagnostic.code === "TS9101001" &&
+    assert.equal(compiled.targetDiagnostics.some(diagnostic => diagnostic.code === "CSHARP_JS_SOURCE_PROFILE_CALL_NOT_CLOSED" &&
       /^The exact selected JS source-profile call 'js\.ObjectConstructor\.(?:freeze|isFrozen)\.member' has no closed C# target relation\.$/.test(diagnostic.message)), true,
       "the exact freeze operation owner rejects the unproven domain");
     assert.equal(compiled.artifacts.size, 0, "rejected source publishes no target artifacts");

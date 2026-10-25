@@ -87,17 +87,25 @@ for (const [name, source] of cases) {
   });
 }
 
-test("C# native discarded results retain both actual failing call sites", () => {
+test("C# native discarded results retain both actual eager call sites without observation", { timeout: 240_000 }, () => {
   const compiled = compileCsharpSource({ sourceText: `
-async function leaf(): Promise<number> { return 1; }
+let executions = 0;
+async function leaf(): Promise<number> { executions += 1; return 1; }
 export function reject(): void { leaf(); leaf(); }
+export function starts(): number { return executions; }
 ` });
   const issues = compiled.result.diagnostics;
-  assert.equal(issues.length, 2, "two independent source demands survive the same admission window");
-  assert.equal(issues.every(issue => issue.code === "TSONIC_NATIVE_ASYNC_RESULT_DISCARDED"), true,
-    "native observation remains the same shared rule");
-  assert.equal(issues[0].sourceNode !== undefined && issues[1].sourceNode !== undefined &&
-    issues[0].sourceNode !== issues[1].sourceNode, true, "each diagnostic retains its own actual checked call");
-  assert.equal(compiled.result.program === undefined && compiled.result.artifacts.length === 0, true,
-    "the rejected program is never sealed into output");
+  assert.equal(compiled.sourceDiagnosticsText, "", "both original native calls remain checked source");
+  assert.equal(issues.length, 0, "both independent eager Task calls are admitted under native semantics");
+  assert.equal(compiled.result.program !== undefined, true, "the admitted native program is published");
+  const results = csharpProgramPromiseResults(compiled.result.program);
+  assert.equal(results.filter(row => row.disposition.kind === "discarded").length, 2,
+    "both actual source demands survive the same admission window");
+  assert.equal(results.every(row => row.discard === undefined), true, "neither native drop is relabelled rejection observation");
+  const generated = [...compiled.artifacts.values()].join("\n");
+  assert.equal((generated.match(/_ = global::Tsonic\.Generated\.Index\.leaf\(\);/gu) ?? []).length, 2,
+    "each actual native call is emitted exactly once");
+  assert.doesNotMatch(generated, /ObserveDiscarded|Task\.Run|Wait\(|\.Result\b/u);
+  executeCsharpConstruction(compiled, "two-native-eager-task-drops", false, false, [],
+    "Tsonic.Generated.Index.reject(); if (Tsonic.Generated.Index.starts() != 2) throw new System.Exception(\"native eager calls\");");
 });

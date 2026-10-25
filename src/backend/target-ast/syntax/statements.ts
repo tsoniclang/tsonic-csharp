@@ -8,7 +8,7 @@ export interface CsharpBlock {
 }
 
 export type CsharpStatement =
-  | { readonly kind: "ReturnStatement"; readonly expression?: CsharpExpression }
+  | { readonly kind: "ReturnStatement"; readonly expression?: CsharpExpression; readonly ref?: true }
   | { readonly kind: "YieldReturnStatement"; readonly expression: CsharpExpression }
   | { readonly kind: "YieldBreakStatement" }
   | { readonly kind: "ExpressionStatement"; readonly expression: CsharpExpression }

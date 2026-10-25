@@ -64,9 +64,10 @@ export function classFactoryContext(
   for (const slot of slots) if (slot.frame !== undefined) frames.set(slot.frame.scope, member(receiver, slot.name));
   for (const capture of factory.captures) {
     const shared = input.program.records.capturedBinding.get(capture.declaration);
-    const target = shared === undefined ? member(receiver, capture.fieldName)
-      : member(frames.get(shared.frame.scope)!, shared.fieldName);
-    bindings.set(capture.declaration, target);
+    const owner = shared === undefined ? receiver : frames.get(shared.frame.scope)!;
+    const name = shared === undefined ? capture.fieldName : shared.fieldName;
+    bindings.set(capture.declaration, { expression: member(owner, name),
+      address: { kind: "member", receiver: { expression: owner }, name, static: false } });
   }
   return { ...input, scope: { ...input.scope, capturedBindings: bindings, captureFrames: frames,
     sourceThisBinding: { name: "this", targetType: receiverKind === "instance" ? factory.contract.instance : factory.factoryType },

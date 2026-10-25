@@ -92,20 +92,21 @@ function translateSelectedProperty(
     if (receiver === undefined) {
       return undefined;
     }
+    if (receiver.kind !== "value") failCsharpPlannerInvariant("An admitted source-name indexer requires a native receiver value.", node);
     const key: CsharpExpression = { kind: "LiteralExpression", value: sourceName };
     if (selection.invocation.optionalRead) {
-      return projectCsharpPlannedValue(node, sourceFile, input, diagnostics, receiver, value => csharpRecordOptionalRead(node, value, key,
+      return projectCsharpPlannedValue(node, sourceFile, input, diagnostics, receiver.value, value => csharpRecordOptionalRead(node, value, key,
         `__tsonic_record_${input.program.source.ast.pos(node)}_${input.program.source.ast.end(node)}`, input));
     }
-    const planned = projectCsharpPlannedValue(node, sourceFile, input, diagnostics, receiver, value => ({
+    const planned = projectCsharpPlannedValue(node, sourceFile, input, diagnostics, receiver.value, value => ({
       kind: conditional
         ? "ConditionalElementAccessExpression"
         : "ElementAccessExpression",
       receiver: value,
       arguments: [key],
     }));
-    return planned === undefined || receiver.completion.kind !== "value" ? planned : { ...planned,
-      address: { kind: "element", receiver: csharpPlannedAddressOperand(receiver), arguments: [key] } };
+    return planned === undefined || receiver.value.completion.kind !== "value" ? planned : { ...planned,
+      address: { kind: "element", receiver: csharpPlannedAddressOperand(receiver.value), arguments: [key] } };
   }
   if (selection.receiver.kind === "none") {
     const receiver = targetStaticReceiver(input.scope.typeParameterNames, member, node);
@@ -124,8 +125,9 @@ function translateSelectedProperty(
   if (receiver === undefined) {
     return undefined;
   }
+  if (receiver.kind !== "value") failCsharpPlannerInvariant("An admitted instance property requires a native receiver value.", node);
   const projection = selection.invocation.kind === "array-like" ? selection.invocation.projection : undefined;
-  const projected = projection === undefined ? receiver : mapCsharpPlannedValue(receiver, projection.target,
+  const projected = projection === undefined ? receiver.value : mapCsharpPlannedValue(receiver.value, projection.target,
     value => applyCsharpConversionSelection(node, sourceFile, input, diagnostics, projection.source, projection.target, projection.conversion, value));
   return projected === undefined ? undefined : projectCsharpPlannedMember(node, sourceFile, input, diagnostics,
     projected, member.targetName, conditional);

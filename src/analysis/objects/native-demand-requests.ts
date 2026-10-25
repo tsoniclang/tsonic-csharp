@@ -6,6 +6,7 @@ import type {
   TargetTypeRef,
 } from "../../target-model/types/index.js";
 import type { CsharpObjectShapeDemandScope } from "./native-demand-batches.js";
+import type { CsharpJsonObjectShapeContractResult } from "../../target-model/records/json-object-shapes.js";
 import { selectCsharpJsonObjectShapeContract } from "../../policy/types/objects/json-object-shapes.js";
 import type { CsharpArtifactRequestResult, CsharpObjectShapeProjectionRequestResult } from "./native-demand-batches.js";
 import type { CsharpObjectShapeArtifactClosure, CsharpObjectShapeDeclarationNaming, CsharpObjectShapeDemandClosure, CsharpPreparedObjectShapeProjection } from "../../target-model/records/object-shape-demand.js";
@@ -20,9 +21,9 @@ import {
   isCsharpEmptyObjectTargetType,
   isSourceDeclaredNominalShape,
 } from "../../target-model/types/index.js";
-import { objectShapeArtifactKey } from "../program/records/object-shape-keys.js";
+import { objectShapeArtifactKey } from "../../target-model/records/object-shape-keys.js";
 import { objectShapeMaterialization } from "../../policy/types/objects/object-shape-materialization.js";
-import { objectShapeProjectionKey } from "../program/records/object-shape-keys.js";
+import { objectShapeProjectionKey } from "../../target-model/records/object-shape-keys.js";
 import { csharpObjectShapeMethodDeclaration } from "../../target-model/types/method-values.js";
 import type { CsharpObjectShapeDemandHost } from "./native-demand-batches.js";
 import type { CsharpObjectShapeProjectionAdmission } from "../../target-model/records/object-shape-demand.js";
@@ -391,8 +392,7 @@ export function requireObjectShapeMethodReceiver(
     return prepared;
   }
   const receiverBoundMethodsByShape = new Map<string, Set<string>>();
-  const nativeReceiver = exactMember.methodValueContract !== undefined && exactMember.methodStorageType === undefined &&
-    csharpObjectShapeMethodDeclaration(fact, exactMember) !== undefined;
+  const nativeReceiver = csharpObjectShapeMethodDeclaration(fact, exactMember) !== undefined;
   if (!nativeReceiver) {
     receiverBoundMethodsByShape.set(objectShapeArtifactKey(fact), new Set([memberKey]));
     if (fact.declarationTemplate !== undefined) {
@@ -519,6 +519,7 @@ export function connect(
 export function createCsharpObjectShapeDemandEngine(host: CsharpObjectShapeDemandHost):
   Pick<CsharpObjectShapeDemandScope, "registerObjectShape" | "requireObjectShapeCapability" |
     "requireObjectShapeProjection" | "requireObjectShapeMethodReceiver"> & {
+      readonly jsonContract: (fact: CsharpObjectShapeFact) => CsharpJsonObjectShapeContractResult | undefined;
       readonly close: () => CsharpObjectShapeDemandClosure;
     } {
   let scope: CsharpObjectShapeDemandScope;
@@ -568,6 +569,7 @@ export function createCsharpObjectShapeDemandEngine(host: CsharpObjectShapeDeman
     requireObjectShapeCapability: operations.requireObjectShapeCapability,
     requireObjectShapeProjection: operations.requireObjectShapeProjection,
     requireObjectShapeMethodReceiver: operations.requireObjectShapeMethodReceiver,
+    jsonContract: (fact: CsharpObjectShapeFact) => scope.jsonContracts.get(fact),
     close(): CsharpObjectShapeDemandClosure {
       requireOpen();
       const targetShapes = host.objectShapes.targetShapes;

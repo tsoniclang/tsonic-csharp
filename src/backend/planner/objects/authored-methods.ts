@@ -13,8 +13,9 @@ import type { CsharpObjectCaptureField } from "../../../target-model/records/obj
 import type { DestructuringPlannerState } from "../bindings/binding-state.js";
 import { getCsharpLocalBindingName } from "../bindings/binding-state.js";
 import { csharpCapturedBindingExpression, csharpCaptureFrameExpression } from "../bindings/capture-storage.js";
-import { objectShapeArtifactKey } from "../../../analysis/program/records/object-shape-keys.js";
+import { objectShapeArtifactKey } from "../../../target-model/records/object-shape-keys.js";
 import { planCsharpArtifactMemberHiding } from "../declarations/modifiers.js";
+import type { CsharpPlannedAddressOperand } from "../expressions/planned-values.js";
 
 export function csharpObjectCaptureFields(shape: CsharpObjectShapeFact, input: CsharpPlanningContext): readonly CsharpObjectCaptureField[] {
   const selected = input.program.records.objectCaptures.get(shape);
@@ -28,7 +29,7 @@ export function renderCsharpAuthoredObjectMethods(
   const implementation = shape.methodImplementation;
   if (implementation === undefined) return [];
   const members: CsharpTypeMember[] = [];
-  const capturedBindings = new Map<Node, CsharpExpression>();
+  const capturedBindings = new Map<Node, CsharpPlannedAddressOperand>();
   const captureFrames = new Map<Node, CsharpExpression>();
   for (const field of csharpObjectCaptureFields(shape, input)) {
     const type = csharpTypeFromTargetTypeRef(field.type, input.scope.typeParameterNames);
@@ -37,10 +38,15 @@ export function renderCsharpAuthoredObjectMethods(
     if (frame !== undefined && csharpTypeFromObjectShapeFact(input, frame.shape, diagnostics, implementation.declaration) === undefined) return undefined;
     members.push({ kind: "FieldDeclaration", name: field.name, type,
       modifiers: ["public", "required", ...planCsharpArtifactMemberHiding(input.program.records.nativeMemberHiding, shape, field.name)] });
-    const receiver: CsharpExpression = { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: "this" }, name: field.name };
+    const owner: CsharpExpression = { kind: "IdentifierName", name: "this" };
+    const receiver: CsharpExpression = { kind: "SimpleMemberAccessExpression", receiver: owner, name: field.name };
     if (field.frameScope !== undefined) captureFrames.set(field.frameScope, receiver);
-    for (const binding of field.declarations) capturedBindings.set(binding.declaration, binding.member === undefined ? receiver
-      : { kind: "SimpleMemberAccessExpression", receiver, name: binding.member });
+    for (const binding of field.declarations) capturedBindings.set(binding.declaration, binding.member === undefined ? {
+      expression: receiver, address: { kind: "member", receiver: { expression: owner }, name: field.name, static: false },
+    } : {
+      expression: { kind: "SimpleMemberAccessExpression", receiver, name: binding.member },
+      address: { kind: "member", receiver: { expression: receiver }, name: binding.member, static: false },
+    });
   }
   const context = createCsharpThisBindingPlanningContext({ ...input, scope: { ...input.scope, capturedBindings, captureFrames } }, "this", shape.targetType);
   const methods = input.program.records.objectMethods.get(shape);
@@ -51,9 +57,28 @@ export function renderCsharpAuthoredObjectMethods(
     if (sourceFile === undefined) failCsharpPlannerInvariant("An admitted native object method requires its checked source file.", declaration);
     const methodContext = createCsharpMemberPlanningContext(context);
     const method = planMethodDeclaration(declaration, sourceFile, methodContext, diagnostics,
-      { kind: "artifact", container: objectShapeArtifactKey(shape), member: member.name, role: "member" });
-    members.push({ ...method, name: member.name });
+      { kind: "artifact", container: objectShapeArtifactKey(shape), member: member.emission.bodyName, role: "member" });
+    const value = member.emission.value;
+    members.push({ ...method, name: member.emission.bodyName,
+      ...(value.kind === "fixed" ? {} : { modifiers: ["private", ...method.modifiers.filter(modifier =>
+        modifier !== "public" && modifier !== "protected" && modifier !== "internal" && modifier !== "private")] }) });
     members.push(...methodContext.scope.generatedMethods?.values() ?? []);
+    if (member.bodyInvocation !== undefined) {
+      const explicitInterface = csharpTypeFromTargetTypeRef(member.bodyInvocation.interface, input.scope.typeParameterNames);
+      if (explicitInterface === undefined) failCsharpPlannerInvariant("An admitted original method body requires its native protocol.", declaration);
+      const call: CsharpExpression = { kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression",
+        receiver: { kind: "IdentifierName", name: "this" }, name: member.emission.bodyName,
+        typeArguments: (method.typeParameters ?? []).map(parameter => ({ kind: "IdentifierName", name: parameter.name })) },
+        arguments: method.parameters.map(parameter => ({ kind: "Argument", expression: { kind: "IdentifierName", name: parameter.name },
+          ...(parameter.passing === undefined ? {} : { passing: parameter.passing }) })) };
+      members.push({ kind: "MethodDeclaration", name: member.bodyInvocation.name, explicitInterface, modifiers: [], returnType: method.returnType,
+        ...(method.returnPassing === undefined ? {} : { returnPassing: method.returnPassing }),
+        typeParameters: method.typeParameters?.map(parameter => ({ name: parameter.name })),
+        parameters: method.parameters.map(({ defaultValue: _default, ...parameter }) => parameter),
+        body: { kind: "Block", statements: [member.emission.signature.returnsVoid
+          ? { kind: "ExpressionStatement", expression: call }
+          : { kind: "ReturnStatement", expression: call, ...(method.returnPassing === undefined ? {} : { ref: true as const }) }] } });
+    }
     if (member.handleName !== undefined) {
       const type = csharpTypeFromTargetTypeRef(shape.targetType, input.scope.typeParameterNames);
       if (type === undefined) failCsharpPlannerInvariant("An admitted method handle requires its renderable native carrier.", declaration);

@@ -6,12 +6,14 @@ import { combineCsharpTargetUnionMembers } from "../types/index.js";
 
 export function selectCsharpFlowReadCarrier(input: {
   readonly exactSourceRead: boolean;
+  readonly nativeSourceRead: boolean;
   readonly unrelatedSourceTypesShareTargetRepresentation: boolean;
   readonly selectedTargetType: TargetTypeRef | undefined;
   readonly readStorageTargetType: TargetTypeRef | undefined;
   readonly memberTargetTypes: readonly (TargetTypeRef | undefined)[] | undefined;
 }): TargetTypeRef | undefined {
   const { selectedTargetType, readStorageTargetType, memberTargetTypes } = input;
+  if (input.nativeSourceRead && selectedTargetType !== undefined) return selectedTargetType;
   const absenceUsesStorage = isCsharpAbsenceTargetType(selectedTargetType) &&
     getCsharpNullableElementTargetType(readStorageTargetType) !== undefined;
   return (input.exactSourceRead || input.unrelatedSourceTypesShareTargetRepresentation || absenceUsesStorage) &&

@@ -7,7 +7,8 @@ export interface CsharpCaptureMethodEmission {
   readonly quotation: boolean;
   readonly returnsVoid: boolean;
   readonly returnType: TargetTypeRef;
-  readonly signature: CsharpDelegateSignatureShape;
+  readonly signature: CsharpDelegateSignatureShape & { readonly returnPassing?: undefined };
+  readonly protocolMethods: readonly { readonly interface: TargetTypeRef; readonly name: string }[];
 }
 
 export interface CsharpCaptureMethodRecords {

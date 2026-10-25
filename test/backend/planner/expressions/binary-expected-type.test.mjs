@@ -130,6 +130,7 @@ test("the one sealed native binary plans its operands in order with their select
   const records = { nativeExpression: { get: node => node === binary ? { use: native, physical: native, conversion: undefined } : undefined },
     nativeBinaryEmission: { get: (node, selection) => node === binary && selection === selected ? emission : undefined },
     int32Remainder: { get: () => false },
+    nativeConstant: { get: () => false }, nativeAbsence: { get: () => false },
     typeEmission: csharpTypeEmissionRecord(),
     expectedBinary: { get: () => assert.fail("the planner cannot reselect") } };
   const input = { scope: {}, program: { source: { ast: current.ast }, records } };

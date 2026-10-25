@@ -10,6 +10,10 @@ import type { CsharpArrayLiteralSelection } from "../../target-model/records/arr
 
 import type { ResolvedSourceCallInfo } from "../../target-model/records/source-calls.js";
 import type { CsharpSourceCallResult } from "../../target-model/operations/source-call-results.js";
+import type { CsharpNativeSourceCarrierSelection } from "../../target-model/records/object-shapes.js";
+
+export type CsharpNodeTypeResolution = CsharpNativeSourceCarrierSelection;
+
 export interface CsharpTypeQueries {
   resolveArrayLiteral(node: Node, sourceFile: SourceFile): CsharpArrayLiteralSelection;
   nativeGuardResult(expression: Node): boolean | undefined;
@@ -19,7 +23,7 @@ export interface CsharpTypeQueries {
   resolveBindingProjection(node: Node, sourceFile: SourceFile): import("../../target-model/records/binding-projection-policy.js").CsharpBindingProjection | undefined;
   selectFixedArray(type: Type, sourceFile: SourceFile): TsonicFixedArraySelection | undefined;
   resolvePointerReturn(declaration: Node): CsharpPointerReturnContract | undefined;
-  resolveNode(node: Node | undefined, sourceFile?: SourceFile): TargetTypeRef | undefined;
+  resolveNode(node: Node | undefined, sourceFile?: SourceFile): CsharpNodeTypeResolution | undefined;
   resolveStorage(node: Node | undefined, sourceFile?: SourceFile): TargetTypeRef | undefined;
   resolveReadStorage(node: Node | undefined, sourceFile?: SourceFile): TargetTypeRef | undefined;
   resolveType(type: Type | undefined, sourceFile: SourceFile): TargetTypeRef | undefined;

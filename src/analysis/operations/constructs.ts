@@ -27,7 +27,6 @@ import { selectCsharpElementDeletion } from "./collections/element-deletion.js";
 import { selectCsharpSwitch } from "./control-flow/switch.js";
 import { AsForInOrOfStatement, sourceClassFieldIsTypeOnly } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import { selectCsharpJsObjectLiteralOperation } from "../../policy/operations/js-values/selection.js";
 import { selectCsharpJsValueCallOperation, selectCsharpJsValueBinaryOperation, selectCsharpJsValueReceiverExpressionOperation, selectCsharpJsValueUnaryOperation, selectCsharpJsTypeofOperation, selectCsharpJsValueCondition, selectCsharpJsValueVoidOperation } from "./js-values.js";
 import { selectCsharpProviderValue } from "./members/values.js";
 import { selectCsharpTargetProperty } from "./members/selected-members.js";
@@ -79,7 +78,7 @@ export function analyzeCsharpOperationConstruct(
   if (ast.is.IsAwaitExpression(node)) {
     const expression = ast.as.AsAwaitExpression(node)?.Expression;
     const completion = selectCsharpAwaitCompletion(
-      expression === undefined ? undefined : policy.types.resolveNode(expression, sourceFile),
+      expression === undefined ? undefined : policy.types.resolveNode(expression, sourceFile)?.type,
       policy.typeDefinitions);
     const rejection = awaitResultMappingRejection(policy, completion);
     if (rejection !== undefined) {
@@ -107,7 +106,7 @@ export function analyzeCsharpOperationConstruct(
   );
   if (ast.is.IsTypeOfExpression(node)) {
     const operand = ast.as.AsTypeOfExpression(node)?.Expression;
-    const selected = operand === undefined ? undefined : getCsharpTypeofResult(policy.types.resolveNode(operand, sourceFile), undefined, policy.typeDefinitions);
+    const selected = operand === undefined ? undefined : getCsharpTypeofResult(policy.types.resolveNode(operand, sourceFile)?.type, undefined, policy.typeDefinitions);
     if (operand !== undefined && selected !== undefined) producer.typeofRuntimeKind.selected(operand, selected);
   }
   if (ast.is.IsIdentifier(node)) {
@@ -150,10 +149,6 @@ export function analyzeCsharpOperationConstruct(
   if (ast.is.IsVoidExpression(node)) {
     const operand = ast.as.AsVoidExpression(node)?.Expression;
     producer.jsVoid.selected(node, selectCsharpJsValueVoidOperation(policy, operand, sourceFile),
-    );
-  }
-  if (ast.is.IsObjectLiteralExpression(node)) {
-    producer.jsObjectLiteral.selected(node, selectCsharpJsObjectLiteralOperation(),
     );
   }
   const operationNode =
@@ -206,7 +201,7 @@ export function analyzeCsharpOperationConstruct(
     }
     const selectedResultType = jsValue.kind === "resolved"
       ? jsValue.resultType
-      : policy.types.resolveNode(node, sourceFile);
+      : policy.types.resolveNode(node, sourceFile)?.type;
     const selectedOptionalReceiver = classifyCsharpOptionalCallReceiver(policy, source, target, sourceFile);
     const receiverIssue = csharpOperationConversionIssue(node, selectedOptionalReceiver?.conversion, "CSHARP_MEMBER_RECEIVER_CONVERSION_NOT_PROVEN");
     if (receiverIssue !== undefined) issues?.push(receiverIssue);
@@ -215,7 +210,7 @@ export function analyzeCsharpOperationConstruct(
     const sourceCall = source === undefined || target?.kind !== "source-owned" ? undefined
       : classifyCsharpSourceCallee(policy, source, sourceFile);
     const sourceMethodValue = source === undefined || sourceCall?.kind !== "value" ? undefined
-      : getCsharpMethodValue(policy.types.resolveNode(source.sourceCallee.expression, sourceFile));
+      : getCsharpMethodValue(policy.types.resolveNode(source.sourceCallee.expression, sourceFile)?.type);
     producer.call.selected(node, Object.freeze({
       form,
       ...(sourceMethodValue === undefined ? {} : { sourceMethodValue }),
@@ -272,7 +267,7 @@ export function analyzeCsharpOperationConstruct(
     }
     const selectedResultType = jsValue.kind === "resolved"
       ? jsValue.resultType
-      : policy.types.resolveNode(node, sourceFile);
+      : policy.types.resolveNode(node, sourceFile)?.type;
     producer.construction.selected(node, Object.freeze({
       jsValue,
       ...(target === undefined ? {} : { target }),
@@ -442,7 +437,7 @@ export function analyzeCsharpOperationConstruct(
   if (ast.is.IsThrowStatement(node)) {
     const expression = ast.as.AsThrowStatement(node)?.Expression;
     if (expression !== undefined) {
-      const sourceCarrier = policy.types.resolveNode(expression, sourceFile);
+      const sourceCarrier = policy.types.resolveNode(expression, sourceFile)?.type;
       producer.throwValue.selected(node, Object.freeze({ expression, sourceCarrier, targetCarrier: selectCsharpThrownOperandCarrier(policy, sourceCarrier, isCsharpThrowableType(policy, sourceCarrier)) }),
       );
       producer.exactCatchRethrow.selected(node, classifyExactUnmodifiedCatchRethrow(policy, node, expression),

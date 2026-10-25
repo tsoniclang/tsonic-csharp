@@ -7,11 +7,13 @@ import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../hel
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import {
   csharpDelegateTargetType,
+  csharpAbsenceTargetType,
   csharpNullableTargetType,
   csharpRuntimeUnionTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpTsValueTargetType,
+  targetTypeRefKey,
 } from "../../../dist/target-model/types/index.js";
 
 const policy = {
@@ -24,6 +26,24 @@ const integerType = csharpSourcePrimitiveTargetType("int32");
 const booleanType = csharpSourcePrimitiveTargetType("bool");
 const identity = Object.freeze({ kind: "identity" });
 const identityReason = "C# identity conversion requires the exact same source and destination carrier.";
+
+test("canonical native absence keeps the original complete carrier at conversion boundaries", () => {
+  const source = csharpAbsenceTargetType();
+  for (const target of [integerType, booleanType, csharpSourcePrimitiveTargetType("float64")]) {
+    const selected = selectCsharpConversion(policy, source, target, "implicit");
+    assert.equal(selected.kind, "rejected", "native absence cannot manufacture a non-absent scalar");
+    assert.equal(selected.reason,
+      `No exact C# implicit conversion relates '${targetTypeRefKey(source)}' to '${targetTypeRefKey(target)}'.`,
+      "the exact rejected source/target pair is retained rather than replacing absence with a second carrier");
+    assert.equal(admitCsharpConversionSelection(policy, source, target, Object.freeze({ kind: "absence" })).kind, "rejected",
+      "independent admission cannot bless a fabricated absence conversion");
+    const nullable = csharpNullableTargetType(target);
+    const admitted = selectCsharpConversion(policy, source, nullable, "implicit");
+    assert.equal(admitted.kind, "absence", "the same native absence enters an actually nullable carrier");
+    assert.equal(admitCsharpConversionSelection(policy, source, nullable, admitted) === admitted, true,
+      "the actual optional destination owns its valid absence conversion");
+  }
+});
 
 for (const [name, source] of [["reference", stringType], ["value", integerType]]) {
   test(`${name} nullable lifting classifies the complete outer carrier without a runtime adapter`, () => {
@@ -62,8 +82,8 @@ test("identity admission requires the same complete carrier and exact generic bi
 
 test("closed JsValue facets preserve their logical identities under an explicit native representation proof", () => {
   const native = csharpTsValueTargetType();
-  const left = Object.freeze({ ...native, id: "logical:left", csharpJsObjectShape: true });
-  const right = Object.freeze({ ...native, id: "logical:right", csharpJsObjectShape: true });
+  const left = Object.freeze({ ...native, id: "logical:left" });
+  const right = Object.freeze({ ...native, id: "logical:right" });
   for (const [source, target] of [[native, left], [left, native], [left, right]]) {
     const selected = selectCsharpConversion(policy, source, target, "implicit");
     assert.equal(selected.kind, "implicit", "a different complete logical pair is not identity");

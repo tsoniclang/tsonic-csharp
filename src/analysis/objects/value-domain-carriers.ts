@@ -73,14 +73,8 @@ export function analyzeCsharpValueDomainCarriers(
       if (origin.subject.kind !== "value") return undefined;
       let selectedCarrier = originCarriers.get(origin.subject);
       if (!originCarriers.has(origin.subject)) {
-        selectedCarrier = host.types.resolveNode(origin.subject.node, origin.sourceFile);
-        for (const component of origin.subject.projection) {
-          budget.reserve(1);
-          selectedCarrier = component.kind === "array-element" ? getCsharpCollectionElementTargetType(selectedCarrier)
-            : component.kind === "tuple-element"
-              ? selectedCarrier?.kind === "tuple" ? selectedCarrier.elements[component.index] : undefined
-              : selectedCarrier === undefined ? undefined : projectedMemberCarrier(component.declaration, selectedCarrier);
-        }
+        selectedCarrier = projectCsharpNativeSourceStorageCarrier(host.types.resolveNode(origin.subject.node, origin.sourceFile)?.type,
+          origin.subject, host.objectShapes, amount => budget.reserve(amount));
         originCarriers.set(origin.subject, selectedCarrier);
       }
       if (selectedCarrier === undefined || carrier !== undefined && !targetTypeRefEquals(carrier, selectedCarrier)) return undefined;
@@ -89,11 +83,22 @@ export function analyzeCsharpValueDomainCarriers(
     return carrier;
   }
 
-  function projectedMemberCarrier(declaration: Node, owner: TargetTypeRef): TargetTypeRef | undefined {
-    const shape = host.objectShapes?.resolveTarget(owner);
-    if (shape === undefined) return undefined;
-    const selected = resolveCsharpObjectShapeMemberBySelectedSubject(shape, [declaration]);
-    return selected.kind === "resolved" && selected.member.memberKind !== "method" &&
-      selected.member.accessor === undefined ? selected.member.type : undefined;
+}
+
+export function projectCsharpNativeSourceStorageCarrier(carrier: TargetTypeRef | undefined, subject: SourceStorageSubject,
+  shapes: Pick<CsharpObjectShapePolicy, "resolveTarget"> | undefined, reserve: (amount: number) => void): TargetTypeRef | undefined {
+  for (const component of subject.projection) {
+    reserve(1);
+    if (component.kind === "array-element") carrier = getCsharpCollectionElementTargetType(carrier);
+    else if (component.kind === "tuple-element") carrier = carrier?.kind === "tuple" ? carrier.elements[component.index] : undefined;
+    else {
+      const shape = carrier === undefined ? undefined : shapes?.resolveTarget(carrier);
+      if (shape === undefined) return undefined;
+      const selected = resolveCsharpObjectShapeMemberBySelectedSubject(shape, [component.declaration]);
+      carrier = selected.kind === "resolved" && selected.member.memberKind !== "method" && selected.member.accessor === undefined
+        ? selected.member.type : undefined;
+    }
+    if (carrier === undefined) return undefined;
   }
+  return carrier;
 }

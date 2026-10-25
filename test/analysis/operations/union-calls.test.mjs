@@ -19,6 +19,8 @@ function fixture() {
   const name = {};
   const parameters = [{ Initializer: {} }, { Initializer: {} }];
   const declarations = parameters.map(parameter => ({ parameter }));
+  const parameterSymbols = parameters.map(declaration => ({ declaration }));
+  const checkedSignatures = parameterSymbols.map(parameter => ({ parameters: [parameter] }));
   const signatures = declarations.map(() => csharpDelegateTargetType("System.Func", [incoming], integer,
     { optionalParameterIndexes: [0] }));
   const selected = { parameterDeclaration: parameters[0], acceptsOmission: true, rest: false };
@@ -27,10 +29,17 @@ function fixture() {
   const union = csharpRuntimeUnionTargetType(arms);
   const semantics = { operations: { propertyAccess: () => ({ receiver: { expression: receiver, type: {} },
       selectedSymbol, selectedDeclaration: declarations[0], optionalChain: false }) },
-    types: { propertyInfos: () => [] }, facts: { selectedSubjects: () => declarations },
+    types: { propertyInfos: () => [] },
+    declarations: {
+      declarationSignature: declaration => checkedSignatures[declarations.indexOf(declaration)],
+      signatureParameters: signature => signature.parameters,
+      primarySymbolDeclaration: symbol => symbol.declaration,
+    },
+    facts: { selectedSubjects: () => declarations },
     propertyNames: { get: subject => subject === name ? { kind: "resolved", name: "value" } : undefined } };
   const policy = {
     ast: { is: { IsPropertyAccessExpression: subject => subject === access,
+        IsParameterDeclaration: subject => parameters.includes(subject),
         IsIdentifier: subject => subject === name },
       kind: () => 1, kindName: () => "KindMethodDeclaration", hasModifierKind: () => false,
       name: () => name, text: () => "value", parameters: declaration => [declaration.parameter],
@@ -41,7 +50,8 @@ function fixture() {
     navigation: { isProjectDeclaration: () => true },
     types: { resolveSelectedValue: () => union, resolveSourceCallParameter: () => incoming,
       resolveSourceCallResult: () => ({ selectedType: integer }), resolveSourceCallTypeArguments: () => [],
-      resolveNode: declaration => signatures[declarations.indexOf(declaration)],
+      resolveNode: declaration => { const type = signatures[declarations.indexOf(declaration)];
+        return type === undefined ? undefined : { kind: "resolved", type }; },
       resolveStorage: () => assert.fail("Body-local storage is not a native incoming parameter contract") },
     projectTypes: { catalog: {
         definitionForTarget: target => ({ kind: "class", declaration: owners[arms.indexOf(target)] }),

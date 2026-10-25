@@ -6,9 +6,10 @@ import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/so
 import type { CsharpValueReadClassifications } from "../../../target-model/records/conversions.js";
 import type { CsharpStorageClassifications } from "../../../target-model/records/storage.js";
 import { targetTypeRefKey } from "../../../target-model/types/equality.js";
-import { getCsharpNullableElementTargetType, isCsharpRuntimeUnionTargetType, isCsharpEmptyObjectTargetType, isCsharpJsValueObjectShapeTargetType } from "../../../target-model/types/index.js";
+import { getCsharpNullableElementTargetType, isCsharpRuntimeUnionTargetType, isCsharpEmptyObjectTargetType } from "../../../target-model/types/index.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import { createCsharpTypeEmissionProducer } from "../../program/records/type-emission.js";
+import { csharpTypeEmissionKey } from "../../../target-model/records/type-emission.js";
 import { selectCsharpTypeEmission } from "../../../policy/types/resolution/type-emission.js";
 import { selectCsharpTypeUnsafeContext } from "../../../policy/operations/pointers/native-type-safety.js";
 import { getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
@@ -60,22 +61,22 @@ export function analyzeCsharpTypeEmission(input: { readonly ast: AstReader; read
     }
   };
   for (const fact of Object.values(input.shapes.targetShapes)) pending.push(fact.targetType,
-    ...fact.members.map(member => member.methodStorageType ?? member.type), ...fact.implements ?? []);
+    ...fact.members.map(member => member.methodValueStorage?.type ?? member.type), ...fact.implements ?? []);
   const seen = new Set<string>();
   for (let index = 0; index < pending.length; index++) {
     const root = pending[index]!;
-    const key = targetTypeRefKey(root);
+    const key = csharpTypeEmissionKey(root);
     if (seen.has(key)) continue;
     seen.add(key);
     const shapes = new Set<CsharpObjectShapeFact>();
     const payloads = new Set<CsharpObjectShapeFact>();
     const visited = new Set<TargetTypeRef>();
     const shape = (fact: CsharpObjectShapeFact, payload: boolean): void => {
-      if (isCsharpJsValueObjectShapeTargetType(fact.targetType) || isCsharpEmptyObjectTargetType(fact.targetType)) return;
+      if (isCsharpEmptyObjectTargetType(fact.targetType)) return;
       shapes.add(fact);
       if (!payload || payloads.has(fact)) return;
       payloads.add(fact);
-      for (const member of fact.members) visit(member.methodStorageType ?? member.type);
+      for (const member of fact.members) visit(member.methodValueStorage?.type ?? member.type);
       for (const inherited of fact.implements ?? []) visit(inherited);
     };
     const visit = (carrier: TargetTypeRef): void => {

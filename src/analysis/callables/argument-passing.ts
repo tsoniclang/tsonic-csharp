@@ -82,7 +82,7 @@ export function analyzeCsharpArgumentPassing(input: { readonly source: TargetSou
       suspends: input.source.navigation.expressionEffects(argument.storageExpression).suspends });
     if (parameter !== undefined) {
       const entries = projections.get(request.node) ?? new Map<CsharpTargetParameter, boolean>();
-      entries.set(parameter, parameter.csharpValueProjection === "properties" && !input.source.ast.is.IsObjectLiteralExpression(argument.storageExpression));
+      entries.set(parameter, parameter.csharpValueProjection === "properties");
       projections.set(request.node, entries);
     }
   }

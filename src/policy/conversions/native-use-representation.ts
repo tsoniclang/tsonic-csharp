@@ -36,6 +36,9 @@ export function selectCsharpNativeUseRepresentation(input: CsharpNativeRepresent
       construction: Object.freeze({ site, carrier, children: Object.freeze([...children]) }) });
   };
 
+  if (input.projection === "storage") return input.source === undefined || !targetTypeRefEquals(input.source, target)
+    ? pending("source-unresolved") : selected("forward", input.source);
+
   if (input.projection === "present-payload") return input.source === undefined ? pending("source-unresolved")
     : selected(targetTypeRefEquals(input.source, target) ? "forward" : "convert", input.source);
 

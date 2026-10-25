@@ -6,7 +6,7 @@ import { createCsharpProgramRecords } from "../../../dist/analysis/program/recor
 import { assertCsharpRequiredRecords } from "../../../dist/analysis/program/records/required-records.js";
 import { createCsharpObjectShapeDemandEngine } from "../../../dist/analysis/objects/native-demand-requests.js";
 import { publishCsharpNativeArtifactDemand } from "../../../dist/analysis/program/records/native-demand.js";
-import { objectShapeArtifactKey } from "../../../dist/analysis/program/records/object-shape-keys.js";
+import { objectShapeArtifactKey } from "../../../dist/target-model/records/object-shape-keys.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { createCsharpPlanningContext } from "../../../dist/backend/planner/context.js";
 import { csharpObjectShapeArtifact } from "../../../dist/backend/planner/artifacts/object-shapes.js";
@@ -23,6 +23,28 @@ const programs = [
   ["receiver-bearing literal method", `export function make(seed: int32) { return { value: seed, read(): int32 { return this.value; } }; }`],
   ["two separate same-role uses", `export function pair(left: int32, right: int32) { const first = { left }; const second = { right }; return { first, second }; }`],
 ];
+
+for (const surface of ["native", "js"]) test(`${surface}: selected native generic projections publish their exact constructible shape`, () => {
+  const { compiled, program, nodes } = compileCsharpRequiredRecordSource(`
+import { JsonSerializer } from "@tsonic/dotnet/System.Text.Json.js";
+import type { int32 } from "@tsonic/core/types.js";
+export interface Input { title: string; count: int32; }
+export function parse(json: string): Input | undefined { return JsonSerializer.Deserialize<Input>(json); }
+`, surface);
+  assertCsharpCompilationSucceeded(compiled);
+  const projections = nodes.flatMap(node => [program.records.selectedCall.get(node), program.records.selectedConstruction.get(node)]
+    .flatMap(classification => classification?.methodTypeArgumentProjections ?? []))
+    .filter(entry => entry.projection.kind === "resolved");
+  assert.equal(projections.length, 1, "the native generic call has one checked constructible projection");
+  for (const { projection } of projections) {
+    const artifact = program.records.objectShapeArtifact.get(objectShapeArtifactKey(projection.shape));
+    assert.equal(artifact !== undefined, true, "the selected physical shape is demanded before sealing");
+    assert.equal(artifact?.materialization, "synthetic", "an interface result uses its actual constructible implementation");
+    assert.equal(program.records.objectShapeEmission.get(projection.shape)?.kind, "synthetic", "the renderer receives the sealed native materialization");
+    assert.equal(artifact?.dependencies.every(key => program.records.objectShapeArtifact.get(key) !== undefined), true,
+      "the actual projected native generic shape has every required component");
+  }
+});
 
 for (const surface of ["native", "js"]) for (const [name, body] of programs) {
   test(`${surface}: ${name} has complete immutable artifact demand before planning`, () => {
@@ -67,7 +89,7 @@ for (const surface of ["native", "js"]) test(`${surface}: authored native method
   assert.equal(implementations.length > 0, true, "the actual optional method body has admitted native implementation evidence");
   let nativeMethods = 0;
   for (const artifact of implementations) for (const member of artifact.fact.members) {
-    if (member.memberKind !== "method" || member.methodValueContract === undefined || member.methodStorageType !== undefined) continue;
+    if (member.memberKind !== "method" || member.methodValueContract === undefined || member.methodValueStorage !== undefined) continue;
     nativeMethods += 1;
     assert.equal(artifact.receiverBoundMethodKeys.includes(csharpObjectShapeMemberContractKey(member)), false,
       "an authored native method uses this directly, never a synthetic receiver-delegate ABI");
@@ -214,7 +236,7 @@ for (const [name, sourceText] of [
   assert.equal(compiled.sourceDiagnosticsText, "", "the checked constructor reaches the actual native refusal owner");
   assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
     "an actual unsupported construction is refused before publication and never emulated");
-  assert.equal(compiled.result.diagnostics.some(diagnostic => diagnostic.code === "TS9101002" &&
+  assert.equal(compiled.result.diagnostics.some(diagnostic => diagnostic.code === "CSHARP_JS_SOURCE_PROFILE_OPERATION_UNSUPPORTED" &&
     diagnostic.message === "Proxy traps redefine object operations dynamically and have no closed C# source-to-source representation."), true,
     "the exact supported diagnostic is retained, not an internal failure");
   assert.equal(compiled.result.diagnostics.length, 1, "the exact participating constructor has one owning refusal");
@@ -238,7 +260,7 @@ test("constructor refusals and other participating native refusals share one com
     "neither known source refusal becomes published or planned");
   const diagnostics = compiled.result.diagnostics;
   assert.equal(diagnostics.length, 2, "the constructor cannot hide a different pending source refusal");
-  assert.equal(diagnostics.some(diagnostic => diagnostic.code === "TS9101002" &&
+  assert.equal(diagnostics.some(diagnostic => diagnostic.code === "CSHARP_JS_SOURCE_PROFILE_OPERATION_UNSUPPORTED" &&
     diagnostic.message === "Proxy traps redefine object operations dynamically and have no closed C# source-to-source representation."), true,
   "exact constructor diagnostic transport");
   assert.equal(diagnostics.some(diagnostic => diagnostic.code === "CSHARP_UNSUPPORTED_AST" &&

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { targetUseSiteIdentity } from "@tsonic/target-api/analysis";
+import { createSourceStorageQuery, targetUseSiteIdentity } from "@tsonic/target-api/analysis";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpBindingPatterns } from "../../../dist/analysis/control-flow/binding-patterns.js";
 import { analyzeCsharpNativeDemand } from "../../../dist/analysis/operations/native-demand.js";
@@ -545,6 +545,10 @@ function owners(sourceText, surface = "js") {
   for (const file of csharpProgramSourceFiles(program)) walk(file);
   const bindingPatterns = analyzeCsharpBindingPatterns({ ast, semanticsFor: source.semantics.forNode, sourceFiles: csharpProgramSourceFiles(program), participation: records.nativeParticipation,
     evidence: records, operations: records, valueReads: records, objectShapes: program.objectShapes, storage: records,
+    initializerUses: { get: declaration => {
+      const expression = ast.as.AsVariableDeclaration(declaration)?.Initializer;
+      return expression === undefined ? undefined : records.nativeExpression.get(expression)?.physical;
+    } },
     typePolicy: { resolveType: () => assert.fail("These native-use closure fixtures require no source-owned member resolution.") },
     conversionPolicy: { target: compiled.target, typeDefinitions: program.typeDefinitions, objectShapes: program.objectShapes,
       providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
@@ -554,7 +558,7 @@ function owners(sourceText, surface = "js") {
           ? heritage.interfaces : [heritage.baseType, ...heritage.interfaces];
       } } } });
   const input = { ast, sourceFiles: csharpProgramSourceFiles(program), navigation: program.sourceNavigation, evidence: records, operations: records,
-    nativeExpressionIssues: [],
+    nativeExpressionIssues: [], sourceStorage: createSourceStorageQuery(source, csharpProgramSourceFiles(program)),
     declarations: records, objectShapes: program.objectShapes,
     exactLiteral: records.exactLiteral, propertyKeyBindings: expression => {
       const use = records.nativeExpression.get(expression)?.use;
@@ -696,31 +700,33 @@ for (const [label, body, expression, family] of [
     value.input.operations[family].get(candidate) !== undefined);
   assert.equal(node !== undefined, true, `${label}: the real operation owner publishes its selected boundary`);
   const original = value.input.operations[family].get(node);
-  const diagnostic = Object.freeze({ extensionId: "test-source-policy", extensionCode: "EXACT_NATIVE_RELATION",
-    publicCode: "DO_NOT_SUBSTITUTE_PUBLIC_CODE", numericCode: 9101001, category: "error",
-    nodeOrSpan: node, message: `Selected ${label} native relation is not closed.`, evidence: Object.freeze([
-      Object.freeze({ message: "The selected physical carrier is exact." }),
-      Object.freeze({ message: "Its required native relation is absent." }),
-      Object.freeze({ message: "The selected physical carrier is exact." }),
-    ]) });
-  const target = Object.freeze({ kind: "rejected", diagnostic });
-  const selected = label === "property" ? { ...original, selection: target }
-    : { ...original, target };
-  const operations = { ...value.input.operations, [family]: { get: candidate => candidate === node
-    ? selected : value.input.operations[family].get(candidate) } };
-  const demand = analyzeCsharpNativeDemand({ ...value.input, operations }, []);
-  const refusals = demand.unadmitted.filter(entry => entry.kind === "source-refusal");
-  const refusal = refusals[0];
-  assert.equal(refusals.length === 1 && refusal.requiredBy === node && refusal.diagnostic.sourceNode === node &&
-    refusal.diagnostic.code === "TS9101001" && refusal.diagnostic.category === diagnostic.category &&
-    refusal.diagnostic.source === diagnostic.extensionId && refusal.diagnostic.message === diagnostic.message, true,
-  `${label}: the one canonical mapper preserves the actual selected node, numeric code, category, owner and reason`);
-  assert.equal(refusal.diagnostic.evidence?.length === 2 &&
-    refusal.diagnostic.evidence[0] === diagnostic.evidence[0].message &&
-    refusal.diagnostic.evidence[1] === diagnostic.evidence[1].message && Object.isFrozen(refusal.diagnostic.evidence), true,
-  `${label}: all distinct evidence survives once, in its original order`);
-  assert.equal(demand.nativeUse.expression(node) === undefined, true,
-    `${label}: a refused operation is never published as an accepted native use`);
+  for (const publicCode of ["DO_NOT_SUBSTITUTE_PUBLIC_CODE", undefined]) {
+    const diagnostic = Object.freeze({ extensionId: "test-source-policy", extensionCode: "EXACT_NATIVE_RELATION",
+      ...(publicCode === undefined ? {} : { publicCode }), numericCode: 9101001, category: "error",
+      nodeOrSpan: node, message: `Selected ${label} native relation is not closed.`, evidence: Object.freeze([
+        Object.freeze({ message: "The selected physical carrier is exact." }),
+        Object.freeze({ message: "Its required native relation is absent." }),
+        Object.freeze({ message: "The selected physical carrier is exact." }),
+      ]) });
+    const target = Object.freeze({ kind: "rejected", diagnostic });
+    const selected = label === "property" ? { ...original, selection: target }
+      : { ...original, target };
+    const operations = { ...value.input.operations, [family]: { get: candidate => candidate === node
+      ? selected : value.input.operations[family].get(candidate) } };
+    const demand = analyzeCsharpNativeDemand({ ...value.input, operations }, []);
+    const refusals = demand.unadmitted.filter(entry => entry.kind === "source-refusal");
+    const refusal = refusals[0];
+    assert.equal(refusals.length === 1 && refusal.requiredBy === node && refusal.diagnostic.sourceNode === node &&
+      refusal.diagnostic.code === (publicCode ?? "TS9101001") && refusal.diagnostic.category === diagnostic.category &&
+      refusal.diagnostic.source === diagnostic.extensionId && refusal.diagnostic.message === diagnostic.message, true,
+    `${label}: the canonical mapper preserves an explicit public code or the exact numeric fallback, selected node, category, owner and reason`);
+    assert.equal(refusal.diagnostic.evidence?.length === 2 &&
+      refusal.diagnostic.evidence[0] === diagnostic.evidence[0].message &&
+      refusal.diagnostic.evidence[1] === diagnostic.evidence[1].message && Object.isFrozen(refusal.diagnostic.evidence), true,
+    `${label}: all distinct evidence survives once, in its original order`);
+    assert.equal(demand.nativeUse.expression(node) === undefined, true,
+      `${label}: a refused operation is never published as an accepted native use`);
+  }
 });
 
 test("an actual selected empty construct differs from an erased construct for native key requirements", () => {

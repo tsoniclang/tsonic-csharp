@@ -5,8 +5,8 @@ import type { CsharpTargetOperationClassifications, CsharpSourceOwnedMemberClass
 import type { CsharpTargetPropertySelection, CsharpTargetElementSelection } from "../../target-model/records/member-selections.js";
 import type { CsharpAdmittedPropertyClassification, CsharpSourceMemberEmission, CsharpUnionPropertyProjection } from "../../target-model/records/property-admission.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
-import type { CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
+import { selectCsharpMethodValueEnvironment } from "../../policy/types/objects/method-environments.js";
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 import { createCsharpPropertyAdmissionRecords } from "../program/records/property-admission.js";
 import { selectCsharpEmittedExpressions } from "../operations/emitted-expressions.js";
@@ -31,7 +31,7 @@ export function analyzeCsharpPropertyAdmission(input: { readonly ast: AstReader;
   const admitMember = (node: Node, selection: Extract<CsharpTargetPropertySelection | CsharpTargetElementSelection, { readonly kind: "source-owned" }>,
     classification: CsharpSourceOwnedMemberClassification | undefined): void => {
     if (classification === undefined) { refuse(node, "A source-owned property has no sealed C# source-property classification.", "CSHARP_SOURCE_PROPERTY_CLASSIFICATION_MISSING"); return; }
-    const { jsValueOperation, objectShape, runtimeUnionProperty, jsValueProperty, shapeMember, rawReadType, selectedReadType } = classification;
+    const { jsValueOperation, objectShape, runtimeUnionProperty, shapeMember, rawReadType, selectedReadType } = classification;
     if (jsValueOperation.kind === "rejected") { refuse(node, jsValueOperation.reason); return; }
     if (runtimeUnionProperty.kind === "rejected") { refuse(node, runtimeUnionProperty.reason); return; }
     if (runtimeUnionProperty.kind === "resolved") {
@@ -46,7 +46,6 @@ export function analyzeCsharpPropertyAdmission(input: { readonly ast: AstReader;
       members.set(node, { kind: "union", flow: true });
       return;
     }
-    if (jsValueProperty.kind === "rejected") { refuse(node, jsValueProperty.reason); return; }
     if (objectShape !== undefined && shapeMember?.kind !== "resolved") {
       refuse(node, "The exact selected source property is absent from its finalized object-shape contract."); return;
     }
@@ -72,11 +71,10 @@ export function analyzeCsharpPropertyAdmission(input: { readonly ast: AstReader;
         refuse(node, "A stored generic method value lost its exact selected native storage type."); return;
       }
     } else if (generic !== undefined) {
-      const owner = objectShape?.targetType as CsharpTargetNamedTypeRef | undefined;
-      if (objectShape === undefined || shapeMember?.kind !== "resolved" || generic.method !== shapeMember.member.targetName ||
-        !targetTypeRefEquals(generic.owner, shapeMember.member.methodStorageType ??
-          (owner?.csharpStructuralContract === true || owner?.csharpSourceDeclarationKind === "interface"
-            ? shapeMember.member.methodValueContract ?? objectShape.targetType : objectShape.targetType))) {
+      const environment = objectShape === undefined || shapeMember?.kind !== "resolved" ? undefined
+        : selectCsharpMethodValueEnvironment(objectShape, shapeMember.member);
+      if (objectShape === undefined || shapeMember?.kind !== "resolved" || environment?.kind !== "protocol" ||
+        generic.method !== environment.invocationName || !targetTypeRefEquals(generic.owner, environment.type)) {
         refuse(node, "A generic method value lost its exact selected native owner."); return;
       }
     }
@@ -86,7 +84,7 @@ export function analyzeCsharpPropertyAdmission(input: { readonly ast: AstReader;
     }
     if (jsValueOperation.kind === "resolved") {
       const syntax = ast.as.AsPropertyAccessExpression(node)?.name;
-      const name = jsValueProperty.kind === "resolved" ? jsValueProperty.member.sourceName : syntax === undefined ? undefined : ast.text(syntax);
+      const name = syntax === undefined ? undefined : ast.text(syntax);
       if (name === undefined) { refuse(node, "A JS-value property read requires an exact authored property name."); return; }
       members.set(node, { kind: "js-value", name, operation: jsValueOperation, flow });
     } else members.set(node, { kind: "member", methodValue, flow,

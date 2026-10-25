@@ -38,7 +38,7 @@ test("direct C# translation separates flow-selected values from nullable storage
             return new TodoCreateInputShape_6454a09c3abc
             {
                 title = title,
-                id = id.Value,
+                id = id!.Value,
             };
         }
         public static void report(string title, int? id)

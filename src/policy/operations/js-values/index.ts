@@ -1,5 +1,5 @@
 export {
-  validateCsharpJsValueOperationSelection, selectCsharpJsObjectLiteralOperation, selectCsharpJsValueReceiverOperation,
+  validateCsharpJsValueOperationSelection, selectCsharpJsValueReceiverOperation,
   selectCsharpNativeJsValueCallOperation, selectCsharpNativeJsValueBinaryOperation,
   selectCsharpNativeJsValueUnaryOperation, selectCsharpNativeJsValueTypeofOperation,
   selectCsharpNativeJsValueVoidOperation, selectCsharpNativeJsValueConditionOperation,

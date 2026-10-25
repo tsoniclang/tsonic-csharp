@@ -20,7 +20,7 @@ export interface CsharpNativeRepresentationInput {
   readonly mode: CsharpConversionMode;
   readonly source?: TargetTypeRef;
   readonly absent: boolean;
-  readonly projection?: "present-payload";
+  readonly projection?: "present-payload" | "storage";
   readonly literal: CsharpExactLiteralSelection | undefined;
   readonly callable: CsharpNativeCallableCreation | undefined;
   readonly constructionCarrier?: TargetTypeRef;

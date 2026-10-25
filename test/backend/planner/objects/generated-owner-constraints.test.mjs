@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { renderObjectShapeTypeParameters } from "../../../../dist/backend/planner/objects/type-parameters.js";
 import { analyzeCsharpObjectShapeEmission } from "../../../../dist/analysis/objects/declaration-emission.js";
-import { objectShapeArtifactKey } from "../../../../dist/analysis/program/records/object-shape-keys.js";
+import { objectShapeArtifactKey } from "../../../../dist/target-model/records/object-shape-keys.js";
 
 const parameter = Object.freeze({ kind: "type-parameter", identity: "outer", name: "Outer" });
 const declaration = {};
