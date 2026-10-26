@@ -106,6 +106,27 @@ export const producersCarrierRegistry = Object.freeze([
     frozen: false,
   },
   {
+    id: "src/analysis/source-evidence/types/resolution/project-types.ts#resolveProjectSourceSemanticType",
+    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
+    declaration: { module: "src/analysis/source-evidence/types/resolution/project-types.ts", symbol: "resolveProjectSourceSemanticType" },
+    responsibility: "producers/resolve-instance-type",
+    frozen: false,
+  },
+  {
+    id: "src/analysis/source-evidence/types/resolution/project-types.ts#resolveProjectSourceType",
+    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
+    declaration: { module: "src/analysis/source-evidence/types/resolution/project-types.ts", symbol: "resolveProjectSourceType" },
+    responsibility: "producers/resolve-instance-type",
+    frozen: false,
+  },
+  {
+    id: "src/analysis/source-evidence/types/resolution/project-types.ts#projectSourceDeclarationTargetType",
+    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
+    declaration: { module: "src/analysis/source-evidence/types/resolution/project-types.ts", symbol: "projectSourceDeclarationTargetType" },
+    responsibility: "producers/resolve-instance-type",
+    frozen: false,
+  },
+  {
     id: "src/analysis/source-evidence/types/resolution/source-union-refinement.ts#retainCsharpUnionObjectShapes",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/analysis/source-evidence/types/resolution/source-union-refinement.ts", symbol: "retainCsharpUnionObjectShapes" },

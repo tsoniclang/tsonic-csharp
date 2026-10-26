@@ -3,11 +3,26 @@ import test from "node:test";
 import { substituteTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
 import { csharpRuntimeUnionTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType,
   getCsharpRuntimeUnionArms, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
+import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 
 const value = Object.freeze({ kind: "type-parameter", identity: "native-union:Value", name: "Value" });
 const other = Object.freeze({ kind: "type-parameter", identity: "native-union:Other", name: "Other" });
 const integer = csharpSourcePrimitiveTargetType("int32");
 const text = csharpStringTargetType();
+
+test("checked native Promise results join source payloads before selecting the Task carrier", () => {
+  const compiled = compileCsharpSource({ sourceText:
+    "export function chain(): Promise<number> {\n" +
+    "  return Promise.resolve(1).then((value: number): number => value + 1);\n" +
+    "}\n",
+  });
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.targetDiagnostics.map(diagnostic => [diagnostic.code, diagnostic.message]), [[
+    "CSHARP_UNSUPPORTED_AST",
+    "Declaration/provider identifier 'Promise' requires a selected target operation or type-position usage before C# emission.",
+  ]], "the unsupported native continuation retains its actual declaration refusal, not an invented invariant Task<Union<double,double>> result");
+  assert.equal(compiled.artifacts.size, 0, "unsupported native continuation calls publish no target artifacts");
+});
 
 for (const depth of [1, 2, 4]) {
   for (const [name, replacement] of [["equal payload", integer], ["reference payload", text], ["open payload", other]]) {

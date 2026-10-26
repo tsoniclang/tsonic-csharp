@@ -55,7 +55,7 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
       policy.ast.is.IsNonNullExpression(node))) {
       const operand = policy.ast.is.IsNonNullExpression(node) ? policy.ast.as.AsNonNullExpression(node)?.Expression
         : policy.ast.is.IsAsExpression(node) ? policy.ast.as.AsAsExpression(node)?.Expression : policy.ast.as.AsTypeAssertion(node)?.Expression;
-      record(operand, evidence.nodeTargetType.get(policy.ast.is.IsNonNullExpression(node) ? node : policy.ast.typeNode(node)!), "required",
+      record(operand, evidence.nodeTargetType.get(node), "required",
         { owner: node, slot: { kind: "operand", position: "only" }, mode: "explicit" });
     }
     const handler = operations.nativeHandler.get(node);

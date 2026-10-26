@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { collectJsonType } from "../../../dist/analysis/objects/native-demand-closure.js";
+import { maximumJsonClosureDepth } from "../../../dist/analysis/objects/native-demand-batches.js";
+import { csharpAbsenceTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import test from "node:test";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { compileCsharpRequiredRecordSource, csharpRecordInput } from "../../helpers/required-records.mjs";
@@ -13,6 +16,31 @@ import { csharpObjectShapeArtifact } from "../../../dist/backend/planner/artifac
 import { csharpObjectShapeMemberContractKey } from "../../../dist/target-model/types/object-shape-identity.js";
 import { monomorphicStructuralOptionalFiles } from "../../../../tsonic/test/fixtures/generic-structural-methods.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+
+test("closed JSON admits one exact native absence without admitting foreign or unbounded data", () => {
+  const scope = {
+    host: { objectShapes: { resolveTarget: () => undefined }, typeDefinitions: undefined },
+    collectJsonShape: () => assert.fail("native absence has no object shape or serialization adapter"),
+    collectJsonType: (type, preferred, state) => collectJsonType(scope, type, preferred, state),
+  };
+  const absent = csharpAbsenceTargetType();
+  for (const [name, type] of [["absence", absent], ["absence array", { kind: "array", element: absent }]]) {
+    const state = { depth: 0, visiting: new Set(), collected: new Map() };
+    assert.equal(collectJsonType(scope, type, undefined, state), undefined, `${name}: the existing native null writer is sufficient`);
+    assert.equal(state.depth, 0, "successful closure releases its original finite-depth charge");
+    assert.equal(state.collected.size, 0, "native absence creates no adapter or object artifact");
+  }
+  for (const type of [{ kind: "target-named", id: "foreign.native.absence" }, { kind: "opaque", id: "unclosed" }]) {
+    const state = { depth: 0, visiting: new Set(), collected: new Map() };
+    assert.equal(typeof collectJsonType(scope, type, undefined, state), "string", "unknown or foreign storage is still refused precisely");
+    assert.equal(state.depth, 0, "refused closure releases its original finite-depth charge");
+  }
+  let nested = absent;
+  for (let index = 0; index <= maximumJsonClosureDepth; index++) nested = { kind: "array", element: nested };
+  const state = { depth: 0, visiting: new Set(), collected: new Map() };
+  assert.match(collectJsonType(scope, nested, undefined, state), /finite depth limit/u, "an absence leaf cannot bypass the finite closure budget");
+  assert.equal(state.depth, 0, "budget refusal unwinds every actual nested charge");
+});
 
 const header = 'import type { int32 } from "@tsonic/core/types.js";';
 const programs = [

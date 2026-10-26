@@ -5,7 +5,8 @@ import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpProviderRelationResolver } from "../../../../providers/model/relation-resolver.js";
 import type { CsharpTargetBindingFact, CsharpTargetMember, CsharpTargetTypeParameter, TargetConstraint, TargetTypeRef } from "../../../../target-model/types/model.js";
 import { csharpTargetBindingFact } from "../../../../target-model/types/model.js";
-import { getCsharpNullableElementTargetType, isCsharpNullableReferenceTargetType, isCsharpValueTypeTargetType, targetTypeRefKey } from "../../../../target-model/types/index.js";
+import { getCsharpNullableElementTargetType, isCsharpNullableReferenceTargetType, isCsharpValueTypeTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/index.js";
+import { csharpSourcePrimitiveDotnetMetadataName } from "../../../../target-model/types/carriers/scalar-types.js";
 import type { CsharpTypeParameterConstraint } from "../../../../target-model/types/generic-constraints.js";
 import { csharpTypeParameterConstraintsImply } from "../../../../policy/constraints/type-parameter-constraints.js";
 import { resolveCsharpTypeParameterConstraints } from "../../../source-evidence/types/resolution/type-parameter-constraints.js";
@@ -94,10 +95,7 @@ export function validateCsharpProviderConstraints(
       dispatchArgument,
       {
         kind: "implements",
-        contract: declaringType.id,
-        ...(declaringType.typeArguments === undefined
-          ? {}
-          : { typeArguments: declaringType.typeArguments }),
+        contract: declaringType,
       },
       selection.sourceFile,
     );
@@ -172,6 +170,13 @@ function targetTypeFailsConstraint(
     case "implements": {
       const contract = implementedConstraintType(host, constraint, new Map());
       if (contract === undefined) return "The required native contract has no exact registered target carrier metadata.";
+      if (target.kind === "source-primitive") {
+        const native = csharpTargetBindingFact(csharpProviderBindingFromResolution(host.providers.findTargetBindingByMetadataName(
+          csharpSourcePrimitiveDotnetMetadataName(target.name), "ordinary")));
+        if (native === undefined) return "The primitive's exact CLR inheritance metadata is unavailable.";
+        return native.implementedContracts?.some(entry => entry.kind === "implements" && targetTypeRefEquals(entry.contract, contract)) === true
+          ? undefined : "The primitive's exact CLR inheritance inventory does not contain the required contract.";
+      }
       return namedTargetTypeImplicitlyAccepts(
           host,
           target,
@@ -465,7 +470,7 @@ function isCsharpUnmanagedType(
 function constraintDescription(host: CsharpConstraintSatisfactionHost, constraint: TargetConstraint): string {
   if (constraint.kind === "implements") {
     const carrier = implementedConstraintType(host, constraint, new Map());
-    return carrier === undefined ? constraint.contract : targetTypeRefKey(carrier);
+    return targetTypeRefKey(carrier ?? constraint.contract);
   }
   return constraint.kind === "target-specific" ? `${constraint.target}:${constraint.name}` : constraint.kind;
 }

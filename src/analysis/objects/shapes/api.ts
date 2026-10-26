@@ -520,9 +520,10 @@ export function createCsharpObjectShapePolicy(
       const literals = symbol === undefined ? [] : queries.declarations.symbolDeclarations(symbol)
         .filter(declaration => host.ast.is.IsObjectLiteralExpression(declaration));
       const authoredLiteral = objectLiteral ? node : literals.length === 1 ? literals[0] : undefined;
-      const structuralContract = !objectLiteral && !members.some(member => member.bound === true) && symbol !== undefined &&
-        queries.declarations.symbolDeclarations(symbol).some(declaration =>
-          host.ast.is.IsTypeLiteralNode(declaration) || host.ast.is.IsMappedTypeNode(declaration));
+      const structuralContract = !objectLiteral && !members.some(member => member.bound === true) &&
+        (queries.types.isIntersection(type) || symbol !== undefined &&
+          queries.declarations.symbolDeclarations(symbol).some(declaration =>
+            host.ast.is.IsTypeLiteralNode(declaration) || host.ast.is.IsMappedTypeNode(declaration)));
       const methodImplementation = structuralContract ? undefined : selectCsharpObjectMethodImplementation(members, host, state, authoredLiteral);
       const shape: CsharpObjectShapeFact = {
         targetType: unionDefinitions.reference(type) ?? createStructuralObjectShapeTarget(members, implemented, environment, structuralContract, methodImplementation),

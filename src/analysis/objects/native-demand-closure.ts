@@ -2,7 +2,7 @@ import type { CsharpObjectShapeFact, CsharpObjectShapeCapability, CsharpObjectSh
 import type { CsharpObjectShapeDemandScope } from "./native-demand-batches.js";
 import type { JsonClosureState } from "./native-demand-batches.js";
 import type { CsharpObjectShapeProjectionAdmission } from "../../target-model/records/object-shape-demand.js";
-import { csharpObjectShapesEqual, csharpObjectShapeAssignmentMembers, csharpObjectShapeProjectionMembers, getCsharpJsArrayElementTargetType, getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms, isCsharpClosedJsonRuntimeLeaf, isCsharpRecordDictionaryTargetType, isCsharpStringTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/index.js";
+import { csharpObjectShapesEqual, csharpObjectShapeAssignmentMembers, csharpObjectShapeProjectionMembers, getCsharpJsArrayElementTargetType, getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType, isCsharpClosedJsonRuntimeLeaf, isCsharpRecordDictionaryTargetType, isCsharpStringTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/index.js";
 import { rejected } from "./native-demand-batches.js";
 import { maximumJsonClosureDepth } from "./native-demand-batches.js";
 import { objectShapeArtifactKey } from "../../target-model/records/object-shape-keys.js";
@@ -157,6 +157,7 @@ export function collectJsonType(
     }
     if (
       type.kind === "source-primitive" ||
+      isCsharpAbsenceTargetType(type) ||
       isCsharpStringTargetType(type) ||
       isCsharpClosedJsonRuntimeLeaf(type)
     ) {

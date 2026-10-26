@@ -99,7 +99,7 @@ export type TargetTypeRef =
   | { readonly kind: "opaque"; readonly id: string };
 
 export type TargetConstraint =
-  | { readonly kind: "implements"; readonly contract: string; readonly typeArguments?: readonly TargetTypeRef[] }
+  | { readonly kind: "implements"; readonly contract: CsharpTargetNamedTypeRef }
   | { readonly kind: "value-type" }
   | { readonly kind: "reference-type" }
   | { readonly kind: "constructible" }

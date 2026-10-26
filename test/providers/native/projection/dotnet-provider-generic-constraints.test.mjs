@@ -12,9 +12,39 @@ import {
 } from "../../../helpers/dotnet-reflection-provider.mjs";
 import { buildDotnetFixture } from "../../../helpers/dotnet-fixtures.mjs";
 import { getCompleteDotnetModule } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
+import { createCsharpProviderRelationResolver } from "../../../../dist/providers/native/projection/relation-resolution.js";
+import { implementedConstraintType } from "../../../../dist/policy/conversions/carriers.js";
+import { csharpQualifiedTypeRenderShape } from "../../../../dist/target-model/types/render-shapes.js";
+import { csharpTargetNamedType } from "../../../../dist/target-model/types/factories.js";
+import { csharpSourcePrimitiveDotnetMetadataName } from "../../../../dist/target-model/types/carriers/scalar-types.js";
+import { targetTypeRefEquals } from "../../../../dist/target-model/types/equality.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 const constraintModuleSpecifier = "@tsonic/dotnet/ProviderConstraintFixtures.js";
+
+test("native primitive constraints retain their exact CLR contract and inherited self arguments", () => {
+  const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
+  const providers = createCsharpProviderRelationResolver({ providers: [provider], providerPolicies: [] });
+  const host = { providers, projectTypes: { catalog: { definitionForId: () => undefined } } };
+  for (const [name, expected] of [["int32", true], ["int64", true], ["float64", true], ["bool", false]]) {
+    const primitive = { kind: "source-primitive", name };
+    const requested = csharpTargetNamedType("System.Numerics.INumberBase`1", [primitive],
+      csharpQualifiedTypeRenderShape("System.Numerics", "INumberBase"), { allowsRefLikeTypeArguments: [false] });
+    const contract = implementedConstraintType(host, { kind: "implements", contract: requested }, new Map());
+    assert.equal(contract?.kind, "target-named", `${name}: the actual native contract metadata is complete`);
+    assert.match(contract.id, /::System\.Numerics\.INumberBase`1$/u,
+      `${name}: the native producer retains its real assembly-qualified type identity`);
+    assert.equal(contract.typeArguments[0] === primitive, true, `${name}: no numeric widening or copied self argument`);
+    const native = providers.findTargetBindingByMetadataName(csharpSourcePrimitiveDotnetMetadataName(name), "ordinary");
+    assert.equal(native.kind, "resolved", `${name}: actual CLR inheritance is complete`);
+    assert.equal(native.binding.implementedContracts?.some(entry => entry.kind === "implements" &&
+      targetTypeRefEquals(entry.contract, contract)) === true, expected,
+      `${name}: the exact native inventory, not a numeric-name whitelist, proves the bound`);
+  }
+  assert.equal(implementedConstraintType(host, { kind: "implements", contract: "System.Numerics.INumberBase`1",
+    typeArguments: [{ kind: "source-primitive", name: "int32" }] }, new Map()), undefined,
+  "the removed string-id plus separate-arguments record is not accepted");
+});
 
 test("native bound metadata round-trips actual class, interface, value, enum and delegate declarations", () => {
   const provider = createDotnetReflectionTypeDataProvider({ references: [buildConstraintFixture()], disablePersistentCache: true });
@@ -184,7 +214,7 @@ function targetConstraintKindOrName(constraint) {
   if (constraint.kind !== "implements") {
     return constraint.kind;
   }
-  return stripAssemblyQualifiers(constraint.contract).split(".").at(-1);
+  return stripAssemblyQualifiers(constraint.contract.id).split(".").at(-1);
 }
 
 function idEndsWith(id, metadataSuffix) {
