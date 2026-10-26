@@ -1,4 +1,4 @@
-import type { AstReader, Node } from "@tsonic/tsts";
+import type { AstReader, ExtensionDiagnostic, Node } from "@tsonic/tsts";
 import type { TargetPlanningSourceNavigation } from "@tsonic/target-api/analysis";
 import { sourceDeclarationIsModuleScoped, sourceNodesEqual, sourceExpressionResultDisposition, sourceExpressionValueInputs } from "@tsonic/target-api/source";
 import type { CsharpNativeCallableCreation, CsharpNativeChildUse, CsharpNativeUseSlot, CsharpNativeDiscardedGuard } from "../../../target-model/records/native-demand.js";
@@ -49,6 +49,7 @@ export interface CsharpNativeOperandSelection {
   readonly refusal?: CsharpNativeOperandRefusal;
   readonly refusalMessage?: string;
   readonly refusalCode?: string;
+  readonly sourceDiagnostic?: ExtensionDiagnostic;
   readonly discardedGuard?: CsharpNativeDiscardedGuard;
 }
 
@@ -76,6 +77,32 @@ export function csharpNativeChildUses(owner: Node, expression: Node | undefined,
   target?: TargetTypeRef, access?: "location"): readonly CsharpNativeChildUse[] {
   return expression === undefined ? [] : [Object.freeze({ owner, expression, slot: Object.freeze(slot),
     ...(target === undefined ? {} : { context: Object.freeze({ target }) }), ...(access === undefined ? {} : { access }) })];
+}
+
+export function selectCsharpNativeSourceRefusal(
+  input: Pick<CsharpNativeOperandInput, "ast" | "operations">,
+  node: Node,
+): ExtensionDiagnostic | undefined {
+  if (input.operations.nativeHandler.get(node) !== undefined) return undefined;
+  if (input.ast.is.IsCallExpression(node)) {
+    const call = input.operations.selectedCall.get(node);
+    return call?.form.kind === "target" && call.target?.kind === "rejected" ? call.target.diagnostic : undefined;
+  }
+  if (input.ast.is.IsNewExpression(node)) {
+    const construction = input.operations.selectedConstruction.get(node);
+    return construction?.jsValue.kind === "not-js-value" && construction.target?.kind === "rejected"
+      ? construction.target.diagnostic : undefined;
+  }
+  if (input.ast.is.IsPropertyAccessExpression(node)) {
+    const property = input.operations.selectedProperty.get(node)?.selection;
+    return property?.kind === "rejected" ? property.diagnostic : undefined;
+  }
+  if (input.ast.is.IsElementAccessExpression(node)) {
+    const element = input.operations.selectedElement.get(node);
+    return element?.jsValue.kind === "not-js-value" && element.target?.kind === "rejected"
+      ? element.target.diagnostic : undefined;
+  }
+  return undefined;
 }
 
 export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, node: Node, access?: "location"): CsharpNativeOperandSelection {
@@ -186,6 +213,8 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
       }
     }
   }
+  const sourceDiagnostic = selectCsharpNativeSourceRefusal(input, node);
+  if (sourceDiagnostic !== undefined) return Object.freeze({ ...refused("operation-unresolved"), sourceDiagnostic });
   if (ast.is.IsCallExpression(node)) {
     const call = operations.selectedCall.get(node);
     if (call === undefined) return refused("operation-unresolved");

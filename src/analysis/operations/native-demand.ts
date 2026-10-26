@@ -5,7 +5,7 @@ import { targetUseSiteIdentity, type SourceStorageSubject, type TargetUseSiteRef
 import { failTargetAnalysisInvariant, targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
 import { sourceExpressionResultDisposition, sourceExpressionValueInputs, sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
 import { csharpNativeConstructIsErased, selectCsharpNativeConstructSteps } from "./control-flow/native-constructs.js";
-import { selectCsharpNativeOperandUses, type CsharpNativeOperandSelection, type CsharpNativeOperandStep } from "./control-flow/native-operands.js";
+import { selectCsharpNativeOperandUses, selectCsharpNativeSourceRefusal, type CsharpNativeOperandSelection, type CsharpNativeOperandStep } from "./control-flow/native-operands.js";
 import { selectCsharpNativeCompletion, type CsharpNativeCompletionFlow } from "../../policy/operations/control-flow/native-completion.js";
 import { csharpNativeUseSite, type CsharpExpectedNativeUse, type CsharpNativeChildUse, type CsharpNativeCompletion, type CsharpNativeEvaluation, type CsharpNativeOrderStep, type CsharpNativeUse, type CsharpNativeDiscardedPresence } from "../../target-model/records/native-demand.js";
 import { csharpConstructorBaseCall } from "../callables/constructor-entry.js";
@@ -201,14 +201,7 @@ export function analyzeCsharpNativeDemand(
       refusedSourceExpressions.add(diagnostic.sourceNode);
       unadmitted.push(Object.freeze({ kind: "source-refusal", requiredBy, diagnostic }));
     }
-    const call = input.operations.selectedCall.get(requiredBy);
-    const construction = input.operations.selectedConstruction.get(requiredBy);
-    const property = input.operations.selectedProperty.get(requiredBy)?.selection;
-    const element = input.operations.selectedElement.get(requiredBy);
-    const diagnostic = call?.form.kind === "target" && call.target?.kind === "rejected" ? call.target.diagnostic
-      : construction?.jsValue.kind === "not-js-value" && construction.target?.kind === "rejected" ? construction.target.diagnostic
-      : property?.kind === "rejected" ? property.diagnostic
-      : element?.jsValue.kind === "not-js-value" && element.target?.kind === "rejected" ? element.target.diagnostic : undefined;
+    const diagnostic = selectCsharpNativeSourceRefusal(input, requiredBy);
     if (diagnostic === undefined) return issues !== undefined;
     const dependencies = sourceExpressionValueInputs(ast, requiredBy);
     if (dependencies?.some(input => refuseSourceExpression(input.expression))) return true;
