@@ -173,11 +173,11 @@ export function createCsharpLiteralShapeResolver(
             accessor.getter.element,
             ...(accessor.setter === undefined ? [] : [accessor.setter.element]),
           ]),
-          sourceDeclarations: Object.freeze([
+          sourceDeclarations: Object.freeze([...new Set([
             ...(matched.member.sourceDeclarations ?? []),
             accessor.getter.element,
             ...(accessor.setter === undefined ? [] : [accessor.setter.element]),
-          ]),
+          ])]),
           sourceTypes: Object.freeze([
             ...(matched.member.sourceTypes ?? []),
             accessor.getter.sourceSelectedType,
