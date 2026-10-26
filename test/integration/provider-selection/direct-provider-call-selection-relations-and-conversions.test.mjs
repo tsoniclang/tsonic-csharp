@@ -674,7 +674,7 @@ test("provider constructor and interface constraints use exact project type fact
   const implementing = createConstrainedMethodFixture(
     {
       kind: "implements",
-      contract: contractType.id,
+      contract: contractType,
     },
     implementingType,
     {
@@ -694,7 +694,7 @@ test("provider constructor and interface constraints use exact project type fact
   const unrelated = createConstrainedMethodFixture(
     {
       kind: "implements",
-      contract: contractType.id,
+      contract: contractType,
     },
     concreteType,
     {

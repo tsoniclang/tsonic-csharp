@@ -124,12 +124,10 @@ function csharpApplyExternAliasToConstraint(
   constraint: TargetConstraint,
   specifier: CsharpExternAliasSpecifier,
 ): TargetConstraint {
-  return constraint.kind === "implements" && constraint.typeArguments !== undefined
-    ? {
-        ...constraint,
-        typeArguments: constraint.typeArguments.map((argument) => csharpApplyExternAliasToTargetType(argument, specifier)),
-      }
-    : constraint;
+  if (constraint.kind !== "implements") return constraint;
+  const contract = csharpApplyExternAliasToTargetType(constraint.contract, specifier);
+  if (contract.kind !== "target-named") throw new Error("An aliased native constraint requires a named contract.");
+  return { ...constraint, contract };
 }
 
 function csharpApplyExternAliasToTargetMember(

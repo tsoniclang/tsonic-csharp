@@ -24,8 +24,7 @@ export function dotnetConstraintToTargetConstraint(constraint: DotnetConstraint)
       }
       return {
         kind: "implements",
-        contract: contract.id,
-        ...(contract.typeArguments !== undefined ? { typeArguments: contract.typeArguments } : {}),
+        contract,
       };
     }
     case "value-type":

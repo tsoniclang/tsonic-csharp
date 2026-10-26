@@ -15,6 +15,7 @@ import type { CsharpConversionShapeQueries } from "./shape-queries.js";
 import { csharpNativeRepresentationMatches } from "./native-representation.js";
 import { getCsharpCallableValueSignature } from "../../target-model/types/carriers/delegates.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
+import { csharpNativeInheritanceLookup } from "../../target-model/types/native-inheritance.js";
 
 export function selectJsValueConversion(
   source: TargetTypeRef,
@@ -483,11 +484,18 @@ export function implementedConstraintType(
   constraint: Extract<TargetConstraint, { readonly kind: "implements" }>,
   substitutions: ReadonlyMap<string, TargetTypeRef>,
 ): TargetTypeRef | undefined {
-  const arguments_ = constraint.typeArguments?.map(argument => substituteTargetTypeParameters(argument, substitutions)) ?? [];
-  const definition = input.projectTypes.catalog.definitionForId(constraint.contract);
+  if (constraint.contract?.kind !== "target-named") return undefined;
+  const contract = substituteTargetTypeParameters(constraint.contract, substitutions);
+  if (contract.kind !== "target-named") return undefined;
+  const arguments_ = contract.typeArguments ?? [];
+  const definition = input.projectTypes.catalog.definitionForId(contract.id);
   if (definition !== undefined) {
     return input.projectTypes.catalog.targetTypeForDeclaration(definition.declaration, arguments_);
   }
-  const binding = csharpTargetBindingFact(csharpProviderBindingFromResolution(input.providers.findTargetBindingByTargetId(constraint.contract, "ordinary")));
+  const lookup = csharpNativeInheritanceLookup(contract);
+  const selected = lookup.kind === "target-id"
+    ? input.providers.findTargetBindingByTargetId(lookup.targetId, "ordinary")
+    : input.providers.findTargetBindingByMetadataName(lookup.metadataName, "ordinary");
+  const binding = csharpTargetBindingFact(csharpProviderBindingFromResolution(selected));
   return binding === undefined ? undefined : csharpTargetTypeFromBinding(binding, arguments_);
 }

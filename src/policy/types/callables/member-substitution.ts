@@ -111,12 +111,8 @@ export function substituteTargetConstraint(
   constraint: TargetConstraint,
   substitutions: ReadonlyMap<string, TargetTypeRef>,
 ): TargetConstraint {
-  return constraint.kind === "implements" &&
-      constraint.typeArguments !== undefined
-    ? {
-        ...constraint,
-        typeArguments: constraint.typeArguments.map((argument) =>
-          substituteTargetTypeParameters(argument, substitutions)),
-      }
-    : constraint;
+  if (constraint.kind !== "implements") return constraint;
+  const contract = substituteTargetTypeParameters(constraint.contract, substitutions);
+  if (contract.kind !== "target-named") throw new Error("A native implementation constraint requires a named contract.");
+  return { ...constraint, contract };
 }
