@@ -282,8 +282,10 @@ export function finalizeCsharpNativeEmission(
   const objectShapeEmission = analyzeCsharpObjectShapeEmission({ ast: source.ast, nodes: sourceStorage.nodes, nativeDemand, bindings: bindingPatterns,
     demand: objectShapeDemand, shapes: callableAdapters.objectShapes, names });
   if (objectShapeEmission.issues.length !== 0) return rejectedTargetStage(objectShapeEmission.issues);
+  const captureMethods = analyzeCsharpCaptureMethods(source.ast, captureStorage, callableAdapters.objectShapes, analysis.callables);
+  if (captureMethods.issues.length !== 0) return rejectedTargetStage(captureMethods.issues);
   const structuralObjectEmission = analyzeCsharpStructuralObjectEmission({ shapes: callableAdapters.objectShapes,
-    demand: objectShapeDemand, storage: analysis.storage });
+    demand: objectShapeDemand, storage: analysis.storage, captureMethods: captureMethods.records.captureMethods });
   if (structuralObjectEmission.issues.length !== 0) return rejectedTargetStage(structuralObjectEmission.issues);
   const objectMembers = analyzeCsharpObjectMemberEmission({ shapes: callableAdapters.objectShapes,
     demand: objectShapeDemand, storage: analysis.storage, captures: captureStorage });
@@ -304,8 +306,6 @@ export function finalizeCsharpNativeEmission(
   const frozenDataProperties = analyzeCsharpFrozenDataProperties({ ast: source.ast, demand: objectShapeDemand, members: objectMembers.records,
     storage: analysis.storage, operations: admittedOperations, attributes: attributeApplications, methodWrites: analysis.declarations.methodWrite });
   if (frozenDataProperties.issues.length !== 0) return rejectedTargetStage(frozenDataProperties.issues);
-  const captureMethods = analyzeCsharpCaptureMethods(source.ast, captureStorage, callableAdapters.objectShapes, analysis.callables);
-  if (captureMethods.issues.length !== 0) return rejectedTargetStage(captureMethods.issues);
   const projectEmission = analyzeCsharpProjectEmission({ source, nodes: sourceStorage.nodes, projectTypes,
     factories: classFactories, evidence: analysis.sourceEvidence, names, projections: analysis.typeProjections });
   if (projectEmission.issues.length !== 0) return rejectedTargetStage(projectEmission.issues);
@@ -403,7 +403,8 @@ export function finalizeCsharpNativeEmission(
     objectLiterals.records, source);
   if (propertyValueProjection.issues.length !== 0) return rejectedTargetStage(propertyValueProjection.issues);
   const sourceCallEmission = analyzeCsharpSourceCallEmission({ source, nodes: sourceStorage.nodes, operations: admittedOperations,
-    evidence: analysis.sourceEvidence, declarations: analysis.declarations, conversions, admitted: admittedControlNode });
+    evidence: analysis.sourceEvidence, declarations: analysis.declarations, conversions, captures: captureStorage,
+    references: sourceReferences.records, admitted: admittedControlNode });
   if (sourceCallEmission.issues.length !== 0) return rejectedTargetStage(sourceCallEmission.issues);
   const targetArguments = analyzeCsharpTargetArguments({ ast: source.ast, nodes: sourceStorage.nodes, operations: admittedOperations,
     sources: sourceCallEmission.records, demand: nativeDemand, admitted: admittedControlNode });

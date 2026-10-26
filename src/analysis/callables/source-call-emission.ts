@@ -16,10 +16,15 @@ import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emi
 import { createCsharpSourceCallEmissionRecords } from "../program/records/source-call-emission.js";
 import { csharpCallIsPlannedAsSourceCall } from "../operations/emitted-expressions.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { CsharpCaptureStorage } from "../../target-model/records/capture-storage.js";
+import type { CsharpSourceReferenceRecords } from "../../target-model/records/source-references.js";
+import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 
 export function analyzeCsharpSourceCallEmission(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];
   readonly operations: CsharpTargetOperationClassifications; readonly evidence: CsharpSourceEvidenceIndex;
   readonly declarations: CsharpDeclarationClassifications; readonly conversions: CsharpConversionClassifications;
+  readonly captures: Pick<CsharpCaptureStorage, "captureClosure">;
+  readonly references: Pick<CsharpSourceReferenceRecords, "identifierEmission">;
   readonly admitted: (node: Node) => boolean }) {
   const calls = new Map<Node, CsharpSourceCallEmission>();
   const arguments_ = new Map<Node, CsharpSourceArgumentsEmission>();
@@ -109,11 +114,23 @@ export function analyzeCsharpSourceCallEmission(input: { readonly source: Target
     }
     const result = classification.sourceResult;
     if (result === undefined) { refuse(node, "An admitted source call requires its exact native completion and selected result."); continue; }
-    if (selected.kind === "value" && typeArguments.length !== 0 && classification.sourceMethodValue === undefined) {
+    let methodValue = classification.sourceMethodValue;
+    if (selected.kind === "value") {
+      const reference = input.references.identifierEmission.get(selected.expression);
+      if (reference?.kind === "frame") {
+        const closure = input.captures.captureClosure.get(reference.declaration);
+        if (closure === undefined) { refuse(node, "A captured source callee requires its completed native closure acquisition contract."); continue; }
+        methodValue = closure.reference === "frame" ? getCsharpMethodValue(closure.method.type) : undefined;
+        if (closure.reference === "frame" && methodValue === undefined) {
+          refuse(node, "A captured invocation handle requires its completed native method-value contract."); continue;
+        }
+      }
+    }
+    if (selected.kind === "value" && typeArguments.length !== 0 && methodValue === undefined) {
       refuse(node, "Selected generic source call requires a C# callee shape that can carry type arguments."); continue;
     }
     calls.set(node, { kind: "source", callee: selected, result, typeArguments,
-      methodValue: classification.sourceMethodValue?.method, optionalCallee: classification.optionalCallee });
+      methodValue: methodValue?.method, optionalCallee: classification.optionalCallee });
   }
   return Object.freeze({ records: createCsharpSourceCallEmissionRecords({ calls, arguments: arguments_, optional, arrays }), issues: Object.freeze(issues) });
 }

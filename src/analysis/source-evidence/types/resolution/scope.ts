@@ -289,7 +289,7 @@ export interface CsharpTypeResolutionScope {
 ): TargetTypeRef | undefined;
   inferSourceCallTargetTypeArguments(
   source: ResolvedSourceCallInfo,
-  callable: SourceCallableContract,
+  callable: SourceCallableContract | undefined,
   sourceFile: SourceFile,
   parameterNames: ReadonlySet<string>,
   state: CsharpTypeResolutionState,

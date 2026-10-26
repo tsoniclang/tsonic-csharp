@@ -78,8 +78,8 @@ export function resolveSourceCallInstantiation(
   const inferredParameterIdentities = new Set(
     selectedArguments.flatMap((argument, index) => argument.explicitTypeNode === undefined ? [parameterIdentities[index]!] : []),
   );
-  const inferredTargetArguments = callable === undefined ||
-      inferredParameterIdentities.size === 0
+  const inferredTargetArguments = inferredParameterIdentities.size === 0 ||
+      callable === undefined && excludedSourceArgumentIndexes === undefined
     ? new Map<string, TargetTypeRef>()
     : inferSourceCallTargetTypeArguments(
         source,
@@ -312,7 +312,7 @@ export function resolveSourceCallableContractType(
 export function inferSourceCallTargetTypeArguments(
   scope: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
-  callable: SourceCallableContract,
+  callable: SourceCallableContract | undefined,
   sourceFile: SourceFile,
   parameterIdentities: ReadonlySet<string>,
   state: CsharpTypeResolutionState,
@@ -327,7 +327,18 @@ export function inferSourceCallTargetTypeArguments(
     excludedSourceArgumentIndexes?.has(binding.sourceArgumentIndex) !== true).sort((left, right) =>
     Number(contextual(left.sourceArgumentIndex)) - Number(contextual(right.sourceArgumentIndex)));
   for (const binding of bindings) {
-    const parameter = csharpSourceCallArgumentParameter(callable, binding.effectiveArgumentIndex)?.targetParameter;
+    let parameter = callable === undefined ? undefined
+      : csharpSourceCallArgumentParameter(callable, binding.effectiveArgumentIndex)?.targetParameter;
+    if (callable === undefined) {
+      const selected = source.sourceSelectedSignatureParameters[binding.sourceParameterIndex];
+      if (selected === undefined) return undefined;
+      const authored = selected.authoredTypeNode;
+      const file = authored === undefined ? undefined : scope.host.ast.getSourceFile(authored);
+      const type = authored === undefined || file === undefined ? undefined
+        : scope.resolveNodeWithState(authored, file, nextState(state));
+      if (type === undefined) continue;
+      parameter = { name: selected.parameterName, type, passingMode: "by-value", paramsArray: selected.rest };
+    }
     const argument = source.sourceArguments[binding.sourceArgumentIndex];
     if (parameter === undefined || argument === undefined) {
       return undefined;
