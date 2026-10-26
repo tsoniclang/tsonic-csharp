@@ -300,9 +300,10 @@ test(".NET reflection provider exposes contracts, operators, and nested public t
   const int32 = getDotnetBinding(provider, "@tsonic/dotnet/System.js", "System.Int32");
   assert.ok(int32.implementedContracts.some((contract) =>
     contract.kind === "implements" &&
-    idEndsWith(contract.contract, "System.IEquatable`1") &&
-    contract.typeArguments?.[0]?.kind === "source-primitive" &&
-    contract.typeArguments[0].name === "int32"
+    contract.contract.kind === "target-named" &&
+    idEndsWith(contract.contract.id, "System.IEquatable`1") &&
+    contract.contract.typeArguments?.[0]?.kind === "source-primitive" &&
+    contract.contract.typeArguments[0].name === "int32"
   ));
 
   const dateTime = getDotnetBinding(provider, "@tsonic/dotnet/System.js", "System.DateTime");
