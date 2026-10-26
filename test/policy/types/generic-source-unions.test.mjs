@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { createCompilerSessionFromFiles } from "@tsonic/tsts";
+import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { csharpAbsenceTargetType, csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { inferCsharpTargetTypeParameterBindings, substituteObjectShapeFactTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
@@ -8,7 +11,7 @@ import { selectCsharpAuthoredUnionRefinement, sourceRefinementOnlyRemovesNullish
 import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
 import { selectCsharpObjectLiteralUnionCarrier } from "../../../dist/analysis/objects/shapes/union-construction.js";
 import { csharpSourceUnionTargetType } from "../../../dist/target-model/types/source-union-definitions.js";
-import { csharpStringTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
+import { csharpStringTargetType, csharpVoidTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 
 const byte = { kind: "source-primitive", name: "uint8" };
 const integer = { kind: "source-primitive", name: "int32" };
@@ -118,7 +121,7 @@ test("source-union refinement requires exact unique member declarations", () => 
   }));
   let declarations = [firstDeclaration];
   const queries = {
-    types: { refinement: () => ({ kind: "members", types: [selectedType] }), isNullish: () => false,
+    types: { refinement: () => ({ kind: "members", types: [selectedType] }), isNullish: () => false, isVoidLike: () => false,
       unionOrIntersectionTypes: () => [selectedType, {}],
       propertyInfos: () => [{ symbol: selectedSymbol, rootSymbols: [] }], },
     declarations: { symbolDeclarations: () => declarations },
@@ -135,6 +138,35 @@ test("source-union refinement requires exact unique member declarations", () => 
   assert.equal(select(union).kind, "rejected");
   declarations = [];
   assert.equal(select(union).kind, "rejected");
+});
+
+test("checked void union members select only an already-admitted native absence", () => {
+  const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: {
+    "/src/index.ts": "class Later {} type Outcome = void | string | Later;",
+  }, compilerOptions: { strict: true, module: "esnext" } }).checkSource();
+  assert.equal(checked.diagnostics.length, 0);
+  const source = createTargetSourceProgram(checked);
+  const file = checked.getSourceFile("/src/index.ts");
+  let alias;
+  source.ast.forEachChild(file, node => {
+    if (source.ast.is.IsTypeAliasDeclaration(node)) alias = node;
+  });
+  assert.equal(alias !== undefined, true, "the real checked union has its authored declaration");
+  const queries = source.semantics.forNode(alias);
+  const declared = queries.types.authoredType(source.ast.typeNode(alias));
+  const selected = queries.types.unionOrIntersectionTypes(declared)
+    .find(member => member !== undefined && queries.types.isVoidLike(member));
+  assert.equal(selected !== undefined, true, "the original absence arm is genuinely checked void, not guessed undefined");
+  const later = csharpTargetNamedType("source.Later", undefined, { kind: "named", name: "Later" },
+    { allowsRefLikeTypeArguments: [], sourceDeclarationKind: "class" });
+  const union = csharpRuntimeUnionTargetType([csharpStringTargetType(), later]);
+  const resolve = carrier => selectCsharpAuthoredUnionRefinement(carrier, declared, selected, queries,
+    () => undefined, () => undefined);
+  const absent = resolve(csharpNullableTargetType(union));
+  assert.equal(absent.kind === "resolved" && targetTypeRefEquals(absent.type, csharpAbsenceTargetType()), true,
+    "the source void value uses the nullable union's one proven absence, never a present payload");
+  assert.equal(resolve(union).kind, "rejected", "a non-optional native union cannot manufacture an absent variant");
+  assert.equal(resolve(csharpVoidTargetType()).kind, "not-applicable", "ordinary native void remains a completion, not value storage");
 });
 
 test("nullish refinement retains a native carrier only for the complete non-nullish selection", () => {
