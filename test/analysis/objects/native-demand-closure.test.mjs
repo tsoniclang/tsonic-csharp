@@ -127,25 +127,46 @@ for (const surface of ["native", "js"]) test(`${surface}: authored native method
 
 for (const surface of ["native", "js"]) test(`${surface}: source-only generic method storage is not an emitted native artifact`, { timeout: 300_000 }, () => {
   const { compiled, program, source, nodes } = compileCsharpRequiredRecordSource(header + `
+    type UnconsumedIdentity = { unconsumedIdentity<Value>(value: Value): Value; };
     interface Identity { identity<Value>(value: Value): Value; }
     export function identity(): Identity { return { identity<Value>(value: Value): Value { return value; } }; }
     export function run(): boolean { return identity().identity<int32>(7 as int32) === 7; }
   `, surface);
+  const alias = nodes.find(node => source.ast.is.IsTypeAliasDeclaration(node) &&
+    source.ast.text(source.ast.name(node)) === "UnconsumedIdentity");
+  assert.equal(alias !== undefined, true, "the negative control is a real checked private alias");
+  const viewNode = source.ast.typeNode(alias);
+  assert.equal(viewNode !== undefined && source.ast.is.IsTypeLiteralNode(viewNode), true,
+    "the negative control has its own authored structural source view");
+  const sourceOnly = program.records.nodeObjectShape.get(viewNode);
+  assert.equal(sourceOnly !== undefined, true, "the source-only view was classified and sealed before artifact demand");
+  const memberDeclaration = nodes.find(node => source.ast.is.IsMethodSignatureDeclaration(node) &&
+    source.ast.text(source.ast.name(node)) === "unconsumedIdentity");
+  const sourceOnlyMember = sourceOnly.members.find(member => member.sourceName === "unconsumedIdentity");
+  assert.equal(memberDeclaration !== undefined && sourceOnlyMember?.memberKind === "method" &&
+    sourceOnlyMember.typeParameters?.length === 1 && sourceOnlyMember.sourceDeclarations?.includes(memberDeclaration) === true &&
+    sourceOnly.methodImplementation === undefined, true,
+    "the absent artifact witness is actual checked generic source evidence, not a manufactured implementation");
   const literal = nodes.find(node => source.ast.is.IsObjectLiteralExpression(node));
   const selected = program.records.nativeExpression.get(literal)?.use;
-  const logical = program.records.storageType.get(literal);
-  assert.equal(selected !== undefined && selected.kind !== "erased" && selected.objectShape !== undefined && logical !== undefined, true,
-    "the control has both its source storage view and its actual native construction");
+  const storage = program.records.storageType.get(literal);
+  assert.equal(selected !== undefined && selected.kind !== "erased" && selected.objectShape !== undefined && storage !== undefined, true,
+    "the control has its actual physical storage and native construction");
   const physical = selected.objectShape;
   const completed = program.records.objectShapeArtifact.targetShapes[targetTypeRefKey(physical.targetType)];
   assert.equal(completed !== undefined && program.records.objectShapeArtifact.get(objectShapeArtifactKey(physical))?.fact === completed, true,
     "the actual native body carrier is retained by its canonical completed identity");
   assert.equal(physical.methodImplementation !== undefined && completed.methodImplementation?.identity === physical.methodImplementation.identity, true,
     "completion preserves the exact admitted native method implementation rather than manufacturing a body from its source-only view");
-  assert.equal(targetTypeRefKey(logical) !== targetTypeRefKey(physical.targetType), true,
+  assert.equal(targetTypeRefKey(storage) === targetTypeRefKey(physical.targetType), true,
+    "physical storage is not mislabelled as an unconsumed logical view");
+  assert.equal(targetTypeRefKey(sourceOnly.targetType) !== targetTypeRefKey(physical.targetType), true,
     "the source-only generic method view is not mistaken for its physical implementation");
-  assert.equal(program.records.objectShapeArtifact.get(`object-shape:${targetTypeRefKey(logical)}`) === undefined, true,
+  assert.equal(program.records.objectShapeArtifact.get(objectShapeArtifactKey(sourceOnly)) === undefined, true,
     "no unconstructed source-only generic method declaration is invented");
+  assert.equal(program.records.objectShapeArtifact.artifacts.some(artifact =>
+    targetTypeRefKey(artifact.fact.targetType) === targetTypeRefKey(sourceOnly.targetType)), false,
+    "the source-only view is not emitted under an alternate artifact entry");
   executeCsharpConstruction(compiled, `artifact-demand-physical-method-${surface}`);
 });
 
