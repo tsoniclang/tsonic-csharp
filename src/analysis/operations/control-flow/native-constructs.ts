@@ -19,9 +19,17 @@ export type CsharpNativeConstructSelection =
   | { readonly kind: "erased" }
   | { readonly kind: "selected"; readonly steps: readonly CsharpNativeOperandStep[] };
 
+export function csharpNativeConstructIsErased(
+  input: Pick<CsharpNativeConstructInput, "evidence" | "operations" | "participation">,
+  node: Node,
+): boolean {
+  return input.evidence.compileTimeMetadata.get(node) || input.operations.nativeUnreachable.get(node) ||
+    input.participation.get(node) === "erased";
+}
+
 export function selectCsharpNativeConstructSteps(input: CsharpNativeConstructInput, node: Node): CsharpNativeConstructSelection {
   const { ast } = input;
-  if (input.evidence.compileTimeMetadata.get(node) || input.operations.nativeUnreachable.get(node) || input.participation.get(node) === "erased") {
+  if (csharpNativeConstructIsErased(input, node)) {
     return Object.freeze({ kind: "erased" });
   }
   const construct = (child: Node): CsharpNativeOperandStep => Object.freeze({ kind: "construct", node: child });
