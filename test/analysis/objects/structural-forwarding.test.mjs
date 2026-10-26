@@ -24,7 +24,7 @@ import { selectCsharpStructuralInterfaceImplementation } from "../../../dist/pol
 import { planCsharpStructuralInterfaceMembers } from "../../../dist/backend/planner/declarations/interfaces/structural.js";
 import { analyzeCsharpStructuralInterfaceEmission } from "../../../dist/analysis/declarations/structural-interfaces.js";
 import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
-import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
+import { targetTypeRefEquals, targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { substituteObjectShapeMemberTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
 import { printCsharpCompilationUnit } from "../../../dist/print/source/index.js";
 import { csharpProjectedType } from "../../../dist/target-model/types/projections.js";
@@ -143,8 +143,10 @@ test("every actual authored native method uses the same body and copy protocol",
     "a copy retains the actual original native environment");
   const unimplemented = retainCsharpMethodValueContracts({ targetType, members: Object.freeze([member]) }, shape => shape, environment,
     noAuthoredNativeMethod);
-  assert.equal(unimplemented.members[0].methodValueContract === undefined, true,
-    "a method signature alone never manufactures an authored native body");
+  assert.equal(unimplemented.members[0].methodValueContract !== undefined, true,
+    "an abstract method retains the same native invocation contract independently of unrelated object fields");
+  assert.equal(unimplemented.methodImplementation === undefined && unimplemented.members[0].methodValueStorage === undefined, true,
+    "an abstract invocation contract never manufactures an authored native body or writable slot");
   for (const [label, selection] of [
     ["complete readonly slot", { kind: "complete", writes: [] }],
     ["open without an exposure proof", { kind: "open", writes: [], boundaries: [] }],
@@ -258,6 +260,26 @@ export function run(): boolean {
     executeCsharpConstruction(compiled, `native-method-extraction-${surface}`);
   });
 }
+
+test("a native rest-copy layout stores the required invocation protocol without inventing a body", () => {
+  const integer = { kind: "source-primitive", name: "int32" };
+  const schema = Object.freeze({ targetType: Object.freeze({ kind: "target-named", id: "tsonic.shape:rest-schema",
+    csharpGeneratedStructuralStorage: true, csharpAllowsRefLikeTypeArguments: Object.freeze([]) }),
+    members: Object.freeze([Object.freeze({ sourceKey: Object.freeze({ kind: "property", name: "run" }),
+      sourceName: "run", targetName: "run", memberKind: "method",
+      type: csharpDelegateTargetType("System.Func", [integer], integer) })]) });
+  const policy = createCsharpObjectShapePolicy({
+    typeParameterConstraints: () => assert.fail("the monomorphic rest layout has no free native binder"),
+    ast: { is: {} }, sourceStorage: noAuthoredNativeMethod,
+  });
+  const copy = policy.resolveCopyShape(schema);
+  assert.equal(copy !== undefined && copy !== schema, true, "a generated rest schema receives one materializable native copy layout");
+  const member = copy.members[0];
+  assert.equal(member.methodValueContract !== undefined && member.methodValueStorage?.kind === "protocol" &&
+    targetTypeRefEquals(member.methodValueStorage.type, member.methodValueContract), true,
+  "the rest field stores the original input's exact selected native invocation contract, never a CLR delegate adaptation");
+  assert.equal(copy.methodImplementation === undefined, true, "copying an abstract field never manufactures an authored source body");
+});
 
 test("a raw interface copy admits its method protocol before selecting native storage", () => {
   const declaration = Object.freeze({});
