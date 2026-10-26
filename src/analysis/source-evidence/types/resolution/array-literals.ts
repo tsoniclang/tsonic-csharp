@@ -194,7 +194,7 @@ function selectArrayElementDestination(
         continue;
       }
       const contextual = ownerQueries.types.contextualValueSelection(owner);
-      const callable = contextual.kind === "selected" ? ownerQueries.types.callable(contextual.type) : undefined;
+      const callable = contextual.kind === "selected" ? ownerQueries.types.callable(contextual.component.selectedType) : undefined;
       if (callable?.result.authoredTypeNode !== undefined) {
         const formal = resolveNodeWithState(callable.result.authoredTypeNode,
           ownerQueries.sourceFile, nextState(state));
@@ -207,7 +207,7 @@ function selectArrayElementDestination(
   }
   if (destinations.length === 0 && directContext) {
     const contextual = queries.types.contextualValueSelection(expression);
-    if (contextual.kind === "selected") add(scope.resolveTypeWithState(contextual.type, queries.sourceFile, nextState(state)));
+    if (contextual.kind === "selected") add(resolveSourceTypeComponentEvidence(contextual.component, queries, nextState(state)));
   }
   const selected = destinations[0];
   if (selected === undefined) return { kind: "unavailable" };

@@ -489,12 +489,12 @@ export function selectCsharpContextualParameterCarrier(
   const contextual = queries.types.contextualValueSelection(owner);
   if (contextual.kind === "ambiguous") return { kind: "unresolved" };
   if (contextual.kind !== "selected") return { kind: "not-applicable" };
-  const callable = queries.types.callable(contextual.type);
+  const callable = queries.types.callable(contextual.component.selectedType);
   const restIndex = callable?.parameters.findIndex(parameter => parameter.parameterKind === "rest") ?? -1;
   const parameter = index < 0 ? undefined : callable?.parameters[restIndex >= 0 && index >= restIndex ? restIndex : index];
   const restBinding = host.ast.as.AsParameterDeclaration(declaration)?.DotDotDotToken !== undefined;
   if (parameter === undefined || restBinding && parameter.parameterKind !== "rest") return { kind: "not-applicable" };
-  let parameterState = bindCsharpSourceTypeArguments(scope, contextual.type, queries, nextState(state));
+  let parameterState = bindCsharpSourceTypeArguments(scope, contextual.component.selectedType, queries, nextState(state));
   const ownParameters = host.ast.typeParameters(owner);
   if (ownParameters.length !== 0) {
     const contextualParameters = callable?.result.declaration === undefined ? []

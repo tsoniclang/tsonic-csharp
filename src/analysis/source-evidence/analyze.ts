@@ -301,13 +301,14 @@ export function analyzeCsharpSourceEvidence(
       classifyType(expressionType, sourceFile);
     }
     const contextualType = semantics.types.contextualType(node);
-    if (!typeOnly && contextualType !== undefined) recordSelectedFixedArrayIssues(node, contextualType, sourceFile);
-    contextualTypes.set(node, contextualType ?? missing);
+    if (contextualType !== undefined) classifyType(contextualType.selectedType, sourceFile);
+    if (!typeOnly && contextualType !== undefined) recordSelectedFixedArrayIssues(node, contextualType.selectedType, sourceFile);
+    contextualTypes.set(node, contextualType?.selectedType ?? missing);
     contextualTargetTypes.set(
       node,
       contextualType === undefined
         ? missing
-        : classifyType(contextualType, sourceFile).targetType ?? missing,
+        : recordTargetType(types.resolveSelectedType(contextualType.authoredTypeNode, contextualType.selectedType, sourceFile)) ?? missing,
     );
     if (source.ast.is.IsEnumMember(node)) {
       const constant = source.semantics.enumConstants.get(node);

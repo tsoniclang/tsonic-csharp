@@ -3,7 +3,7 @@ import test from "node:test";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { getCsharpMethodValue } from "../../../dist/target-model/types/method-values.js";
-import { getCsharpLambdaSignature } from "../../../dist/target-model/types/carriers/delegates.js";
+import { getCsharpLambdaSignature, getCsharpTaskResultTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 
@@ -114,6 +114,37 @@ const invalidOwnQuantifierSource = `
     };
     export function run(): boolean { return checked("kept", 7) === "kept"; }
   `;
+
+for (const surface of ["native", "js"]) for (const [name, destination, expected, parenthesized] of [
+  ["default native result", "AsyncCallback<int32>", "int32", false],
+  ["parenthesized native result", "AsyncCallback<int32>", "int32", true],
+  ["explicit wider native result", "AsyncCallback<int32, int64>", "int64", false],
+  ["authored floating result", "AsyncCallback<int32, number>", "float64", false],
+]) test(`authored async contextual completion retains ${name} on ${surface}`, { timeout: 240_000 }, () => {
+  const body = 'async value => { if (value < 0) throw new Error("negative"); return value; }';
+  const compiled = compileCsharpSource({ surface, sourceText: `
+    import type { int32, int64 } from "@tsonic/core/types.js";
+    interface AsyncCallback<Input, Output = Input> { (value: Input): Promise<Output>; }
+    export const checked: ${destination} = ${parenthesized ? `((${body}))` : body};
+    export async function run(): Promise<boolean> { return await checked(7) === 7; }
+  ` });
+  assertCsharpCompilationSucceeded(compiled);
+  const program = compiled.result.program;
+  const declarations = [];
+  const visit = node => {
+    if (program.source.ast.is.IsArrowFunction(node)) declarations.push(node);
+    program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  program.source.navigation.sourceFiles.forEach(visit);
+  assert.equal(declarations.length, 1, "one original contextual async callable is admitted");
+  const contract = program.records.callableDeclaration.get(declarations[0])?.contract;
+  assert.equal(contract?.kind, "source", "the native body uses its sealed source declaration contract");
+  const result = getCsharpTaskResultTargetType(contract.returnType);
+  assert.equal(result?.kind, "source-primitive", "contextual completion keeps a native scalar result");
+  assert.equal(result.name, expected, "only the actual authored destination may select the native output width");
+  executeCsharpConstruction(compiled, `authored-context-${name.replaceAll(" ", "-")}-${surface}`, true,
+    false, [], 'if (!await Tsonic.Generated.Index.run()) throw new System.Exception("authored contextual result");');
+});
 
 const authoredOwnQuantifierSource = `
     import type { int32 } from "@tsonic/core/types.js";

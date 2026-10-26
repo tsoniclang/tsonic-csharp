@@ -30,7 +30,7 @@ export function selectedObjectShapeSource(
   if (contextual.kind !== "selected") {
     return { type: semanticType };
   }
-  const contextualType = contextual.type;
+  const contextualType = contextual.component.selectedType;
   const contextualSymbol = queries.declarations.typeAliasSymbol(contextualType) ??
     queries.declarations.typeSymbol(contextualType);
   const contextualDeclarations = contextualSymbol === undefined
