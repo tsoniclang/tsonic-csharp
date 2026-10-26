@@ -641,7 +641,8 @@ for (const surface of ["native", "js"]) {
     state.generator = {};
     const diagnostics = [];
     assert.throws(() => planLocalDeclarationStatements(declaration, ast.getSourceFile(declaration),
-      { program: { source: { ast }, records: { compileTimeMetadata: { get: () => false } } } }, diagnostics, state),
+      { program: { source: { ast }, records: { compileTimeMetadata: { get: () => false },
+        localBinding: { get: () => undefined } } } }, diagnostics, state),
     error => error.message.includes("post-resume identifier binding"),
     "only bypassing successful admission exposes the checked-pattern corruption invariant");
     assert.equal(diagnostics.length, 0, "the renderer cannot repeat the pre-seal source refusal");
