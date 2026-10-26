@@ -532,8 +532,7 @@ export function createCsharpObjectShapePolicy(
         ...(methodImplementation === undefined ? {} : { methodImplementation }),
         ...(implemented === undefined ? {} : { implements: implemented }),
       };
-      if (authoredLiteral !== undefined && members.some(member => (member.typeParameters?.length ?? 0) > 0) &&
-        host.ast.properties(authoredLiteral).some(property => property !== undefined && host.ast.is.IsSpreadAssignment(property))) {
+      if (authoredLiteral !== undefined) {
         const selected = resolveObjectLiteralTargetShape(shape, authoredLiteral, queries.sourceFile);
         return selected.kind === "resolved" ? { ...selected.shape, sourceType: type } : undefined;
       }
