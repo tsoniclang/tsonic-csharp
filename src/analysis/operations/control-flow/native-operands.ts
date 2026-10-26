@@ -155,6 +155,7 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
   if (passing?.kind === "resolved" && !sourceNodesEqual(ast, passing.argument.storageExpression, node)) {
     return chosen(use(passing.argument.storageExpression, { kind: "operand", position: "only" }, undefined, "location"));
   }
+  if (ast.is.IsParenthesizedExpression(node)) return sourceSelection();
   const handler = operations.nativeHandler.get(node);
   if (handler !== undefined) {
     const selection = handler.selection;
@@ -424,7 +425,7 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
     const expression = ast.as.AsDeleteExpression(node)?.Expression;
     return operations.elementDeletion.get(node) === undefined ? refused("operation-unresolved") : chosen(use(expression, { kind: "write-target" }, undefined, "location"));
   }
-  if (ast.is.IsParenthesizedExpression(node) || ast.is.IsAsExpression(node) || ast.is.IsTypeAssertion(node) || ast.is.IsSatisfiesExpression(node) ||
+  if (ast.is.IsAsExpression(node) || ast.is.IsTypeAssertion(node) || ast.is.IsSatisfiesExpression(node) ||
     ast.is.IsNonNullExpression(node) || ast.is.IsAwaitExpression(node) || ast.is.IsYieldExpression(node) || ast.is.IsVoidExpression(node) ||
     ast.is.IsTypeOfExpression(node)) return sourceSelection();
   return isCsharpNativeExpression(ast, node) && ast.children(node).every(child => child === undefined || !isCsharpNativeExpression(ast, child))
