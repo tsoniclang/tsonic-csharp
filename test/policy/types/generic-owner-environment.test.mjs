@@ -48,8 +48,14 @@ test("selected transitive class evidence is finite without guessing through unpr
   assert.equal(csharpConstraintsRequireReference(first.csharpConstraints.constraints), false,
     "an actual cyclic dependency is not positive native class evidence");
   second.csharpConstraints = resolved([typeConstraint(first), { kind: "keyword", keyword: "class" }]);
+  assert.equal(csharpConstraintsRequireReference(first.csharpConstraints.constraints), false,
+    "a class keyword reached through another binder permits a native value-type argument");
+  assert.equal(csharpConstraintsRequireReference(second.csharpConstraints.constraints), true,
+    "a direct class keyword still proves reference storage for its own binder");
+  second.csharpConstraints = resolved([typeConstraint(csharpTargetNamedType("fixture.NativeBase", undefined, undefined,
+    { allowsRefLikeTypeArguments: [], sourceDeclarationKind: "class", constraintRequiresReferenceType: true }))]);
   assert.equal(csharpConstraintsRequireReference(first.csharpConstraints.constraints), true,
-    "a real terminal class requirement proves reference storage without reopening a declaration");
+    "a transitive concrete native base remains positive reference evidence");
   const selected = parameter("selected");
   selected.csharpConstraints = resolved([{ kind: "type", type: { kind: "target-named", id: "LooksLikeClass",
     csharpAllowsRefLikeTypeArguments: [], csharpSourceDeclarationKind: "interface" } }]);

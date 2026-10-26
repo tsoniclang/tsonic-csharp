@@ -32,8 +32,10 @@ test("native optional projections close only with exact selected reference const
   const reference = { ...outer, csharpConstraints: { kind: "resolved", constraints: [{ kind: "keyword", keyword: "class" }] } };
   const nominalParameter = { ...outer, csharpConstraints: { kind: "resolved", constraints: [{ kind: "type", type: nominal }] } };
   const dependent = { ...inner, csharpConstraints: { kind: "resolved", constraints: [{ kind: "type", type: reference }] } };
+  const dependentNominal = { ...inner, csharpConstraints: { kind: "resolved", constraints: [{ kind: "type", type: nominalParameter }] } };
   for (const [label, element, expected] of [
-    ["class", reference, true], ["nominal", nominalParameter, true], ["dependent", dependent, true],
+    ["class", reference, true], ["nominal", nominalParameter, true], ["dependent", dependent, false],
+    ["dependent-concrete-base", dependentNominal, true],
     ["unconstrained", { ...outer, csharpConstraints: { kind: "resolved", constraints: [] } }, false],
     ["interface", { ...outer, csharpConstraints: { kind: "resolved", constraints: [{ kind: "type", type: interfaceType }] } }, false],
     ["class-kind-without-native-proof", { ...outer, csharpConstraints: { kind: "resolved", constraints: [{ kind: "type", type: unprovedClass }] } }, false],

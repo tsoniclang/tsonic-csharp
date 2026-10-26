@@ -163,6 +163,7 @@ function classForwarder(control) {
       parameterPassingModes: Object.freeze([...control.modes]) }) }) });
   const forwarding = Object.freeze({ contract: Object.freeze({ nativeParameters: contract.nativeParameters, returnType: contract.returnType }),
     implementation, typeArguments: Object.freeze([]), typeParameters: Object.freeze([]), parameters, result,
+    explicitConstraints: Object.freeze([]),
     parameterDefaults: Object.freeze(implementation.nativeParameters.map(() => undefined)) });
   const interfaceImplementation = Object.freeze({ sourceNode: declaration, sourceType, interfaceType, properties: Object.freeze([]),
     methods: Object.freeze([Object.freeze({ sourceName: "read", declaration, member, forwarding, typeParameterNames: Object.freeze([]),
