@@ -16,6 +16,7 @@ import { csharpCapturedBindingExpression, csharpCaptureFrameExpression } from ".
 import { objectShapeArtifactKey } from "../../../target-model/records/object-shape-keys.js";
 import { planCsharpArtifactMemberHiding } from "../declarations/modifiers.js";
 import type { CsharpPlannedAddressOperand } from "../expressions/planned-values.js";
+import { planCsharpExplicitSourceTypeParameters } from "../types/type-parameters.js";
 
 export function csharpObjectCaptureFields(shape: CsharpObjectShapeFact, input: CsharpPlanningContext): readonly CsharpObjectCaptureField[] {
   const selected = input.program.records.objectCaptures.get(shape);
@@ -73,7 +74,8 @@ export function renderCsharpAuthoredObjectMethods(
           ...(parameter.passing === undefined ? {} : { passing: parameter.passing }) })) };
       members.push({ kind: "MethodDeclaration", name: member.bodyInvocation.name, explicitInterface, modifiers: [], returnType: method.returnType,
         ...(method.returnPassing === undefined ? {} : { returnPassing: method.returnPassing }),
-        typeParameters: method.typeParameters?.map(parameter => ({ name: parameter.name })),
+        typeParameters: method.typeParameters === undefined ? undefined
+          : planCsharpExplicitSourceTypeParameters(method.typeParameters, declaration, methodContext),
         parameters: method.parameters.map(({ defaultValue: _default, ...parameter }) => parameter),
         body: { kind: "Block", statements: [member.emission.signature.returnsVoid
           ? { kind: "ExpressionStatement", expression: call }
