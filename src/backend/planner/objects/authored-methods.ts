@@ -12,6 +12,7 @@ import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { CsharpObjectCaptureField } from "../../../target-model/records/object-methods.js";
 import type { DestructuringPlannerState } from "../bindings/binding-state.js";
 import { getCsharpLocalBindingName } from "../bindings/binding-state.js";
+import { renderCsharpExplicitImplementationTypeParameters } from "../types/type-parameters.js";
 import { csharpCapturedBindingExpression, csharpCaptureFrameExpression } from "../bindings/capture-storage.js";
 import { objectShapeArtifactKey } from "../../../target-model/records/object-shape-keys.js";
 import { planCsharpArtifactMemberHiding } from "../declarations/modifiers.js";
@@ -73,7 +74,8 @@ export function renderCsharpAuthoredObjectMethods(
           ...(parameter.passing === undefined ? {} : { passing: parameter.passing }) })) };
       members.push({ kind: "MethodDeclaration", name: member.bodyInvocation.name, explicitInterface, modifiers: [], returnType: method.returnType,
         ...(method.returnPassing === undefined ? {} : { returnPassing: method.returnPassing }),
-        typeParameters: method.typeParameters?.map(parameter => ({ name: parameter.name })),
+        typeParameters: renderCsharpExplicitImplementationTypeParameters(
+          (method.typeParameters ?? []).map(parameter => parameter.name), member.bodyInvocation.explicitConstraints),
         parameters: method.parameters.map(({ defaultValue: _default, ...parameter }) => parameter),
         body: { kind: "Block", statements: [member.emission.signature.returnsVoid
           ? { kind: "ExpressionStatement", expression: call }

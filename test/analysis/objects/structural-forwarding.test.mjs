@@ -941,6 +941,12 @@ for (const control of [
     const methods = finalized.objectShapes.structuralImplementations(value.sourceType)[0].methods;
     assert.equal(methods.length, control.accepted ? control.bridges : 0,
       `${control.name}: invocation implication does not replace native implicit constraint equivalence`);
+    for (const method of methods) {
+      assert.equal(method.forwarding.explicitConstraints.length, method.forwarding.typeParameters.length,
+        `${control.name}: every implemented binder has its required sealed primary disposition`);
+      assert.equal(Object.isFrozen(method.forwarding.explicitConstraints), true,
+        `${control.name}: the renderer cannot recompute native constraints`);
+    }
     if (!control.accepted) assert.equal(finalized.issues[0]?.node === value.declaration &&
       finalized.issues[0]?.code === "CSHARP_PROJECT_CALLABLE_ADAPTER_NOT_PROVEN" &&
       finalized.issues[0]?.message === "An interface method's native type arguments do not satisfy its implementation's generic constraints.", true,

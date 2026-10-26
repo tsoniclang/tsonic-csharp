@@ -19,21 +19,26 @@ export type CsharpTypeParameterConstraintResolution =
       readonly reason: string;
     };
 
+export type CsharpExplicitImplementationConstraint = "class" | "default" | undefined;
+
 export function csharpConstraintsRequireReference(
   constraints: readonly CsharpTypeParameterConstraint[],
+  parameters: ReadonlyMap<string, readonly CsharpTypeParameterConstraint[]> = new Map(),
 ): boolean {
+  if (constraints.some(constraint => constraint.kind === "keyword" && constraint.keyword === "class")) return true;
   const pending = [...constraints];
   const visited = new Set<string>();
   for (let index = 0; index < pending.length; index += 1) {
     const constraint = pending[index]!;
-    if (constraint.kind === "keyword" && constraint.keyword === "class") return true;
     if (constraint.kind !== "type") continue;
     const type = constraint.type;
     if (type.kind === "target-named" &&
       (type as CsharpTargetNamedTypeRef).csharpConstraintRequiresReferenceType === true) return true;
     if (type.kind !== "type-parameter" || visited.has(type.identity)) continue;
     visited.add(type.identity);
-    if (type.csharpConstraints?.kind === "resolved") pending.push(...type.csharpConstraints.constraints);
+    const bound = parameters.get(type.identity);
+    if (bound !== undefined) pending.push(...bound);
+    else if (type.csharpConstraints?.kind === "resolved") pending.push(...type.csharpConstraints.constraints);
   }
   return false;
 }

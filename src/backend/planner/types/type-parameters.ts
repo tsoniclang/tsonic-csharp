@@ -4,10 +4,24 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpGenericConstraint, CsharpTypeParameter } from "../../target-ast/syntax/index.js";
 import { planIdentifierName } from "../names/source-identifiers.js";
 import { csharpTypeFromTargetTypeRef } from "./render.js";
-import type { CsharpTypeParameterConstraint } from "../../../target-model/types/generic-constraints.js";
+import type { CsharpExplicitImplementationConstraint, CsharpTypeParameterConstraint } from "../../../target-model/types/generic-constraints.js";
 import type { CsharpProjectedType } from "../../../target-model/types/projections.js";
 import { sanitizeIdentifier } from "../../../target-model/names/identifiers.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
+
+export function renderCsharpExplicitImplementationTypeParameters(
+  names: readonly string[],
+  constraints: readonly CsharpExplicitImplementationConstraint[],
+): readonly CsharpTypeParameter[] {
+  if (names.length !== constraints.length) failCsharpPlannerInvariant(
+    "An admitted explicit method requires one sealed native primary constraint per implemented binder.");
+  return names.map((name, index) => {
+    const keyword = constraints[index];
+    return { name, ...(keyword === undefined ? {} : {
+      constraints: [{ kind: "KeywordConstraint" as const, keyword }],
+    }) };
+  });
+}
 
 export function planTypeParameters(
   nodes: readonly (Node | undefined)[], input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],

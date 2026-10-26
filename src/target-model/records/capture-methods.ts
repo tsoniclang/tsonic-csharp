@@ -1,5 +1,6 @@
 import type { CsharpFrameClosure } from "./capture-storage.js";
 import type { CsharpDelegateSignatureShape, CsharpObjectShapeFact, TargetTypeRef } from "../types/model.js";
+import type { CsharpExplicitImplementationConstraint } from "../types/generic-constraints.js";
 
 export interface CsharpCaptureMethodEmission {
   readonly method: CsharpFrameClosure;
@@ -8,7 +9,8 @@ export interface CsharpCaptureMethodEmission {
   readonly returnsVoid: boolean;
   readonly returnType: TargetTypeRef;
   readonly signature: CsharpDelegateSignatureShape & { readonly returnPassing?: undefined };
-  readonly protocolMethods: readonly { readonly interface: TargetTypeRef; readonly name: string }[];
+  readonly protocolMethods: readonly { readonly interface: TargetTypeRef; readonly name: string;
+    readonly explicitConstraints: readonly CsharpExplicitImplementationConstraint[] }[];
 }
 
 export interface CsharpCaptureMethodRecords {

@@ -7,6 +7,8 @@ import { csharpConstraintsRequireReference, csharpTypeParameterConstraintResolut
 import { csharpTypeParameterConstraintsEqual } from "../../../dist/policy/constraints/type-parameter-constraints.js";
 import { substituteTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
 import { csharpTargetTypeFromBinding } from "../../../dist/policy/types/storage/bindings.js";
+import { csharpNullableTargetType, isCsharpNullableReferenceTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
+import { getCsharpGenericOptionalParts } from "../../../dist/target-model/types/projections.js";
 
 const resolved = type => Object.freeze({ kind: "resolved", constraints: Object.freeze([{ kind: "type", type }]) });
 const named = proof => csharpTargetNamedType("Actual::Example.Base", undefined, undefined,
@@ -81,4 +83,26 @@ test("native instantiation and substitution transport the selected proof without
   assert.equal(instantiated.csharpConstraintRequiresReferenceType, true, "canonical binding instantiation retains selected evidence");
   assert.equal(instantiated.typeArguments[0].kind, "source-primitive", "the same canonical instantiation replaces its binder");
   assert.equal(instantiated.typeArguments[0].name, "int32", "the exact argument is retained");
+});
+
+test("dependent class keywords do not prove reference storage while concrete base bounds do", () => {
+  const direct = { kind: "type-parameter", identity: "root:T", name: "T",
+    csharpConstraints: { kind: "resolved", constraints: [{ kind: "keyword", keyword: "class" }] } };
+  const dependent = { kind: "type-parameter", identity: "child:U", name: "U", csharpConstraints: resolved(direct) };
+  assert.equal(csharpConstraintsRequireReference(direct.csharpConstraints.constraints), true, "the declared class primary remains a proof");
+  assert.equal(csharpConstraintsRequireReference(dependent.csharpConstraints.constraints), false,
+    "U:T permits a value actual when T is object despite T's class primary");
+  assert.equal(isCsharpNullableReferenceTargetType(csharpNullableTargetType(direct)), true,
+    "a genuine class-only parameter retains its zero-cost nullable native reference");
+  assert.equal(getCsharpGenericOptionalParts(csharpNullableTargetType(dependent))?.element.identity, dependent.identity,
+    "absence for a dependent parameter is not confused with a present default integer");
+  const bounds = new Map([[direct.identity, [{ kind: "type", type: named(true) }]]]);
+  assert.equal(csharpConstraintsRequireReference(dependent.csharpConstraints.constraints, bounds), true,
+    "the actual contextual concrete base bound is authoritative");
+  bounds.set(direct.identity, [{ kind: "keyword", keyword: "class" }]);
+  assert.equal(csharpConstraintsRequireReference(dependent.csharpConstraints.constraints, bounds), false,
+    "contextual class keywords are not promoted either");
+  bounds.set(direct.identity, [{ kind: "type", type: dependent }]);
+  assert.equal(csharpConstraintsRequireReference(dependent.csharpConstraints.constraints, bounds), false,
+    "an identity cycle cannot manufacture a proof");
 });

@@ -8,6 +8,7 @@ import { selectCsharpStructuralInterfaceImplementation } from "../../../dist/pol
 import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
+import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 test("an outer argument used only in native method constraints retains its source-template relationship", () => {
   const sourceOuter = { kind: "type-parameter", identity: "body:Outer", name: "BodyOuter" };
@@ -124,6 +125,9 @@ if (body.read<Tsonic.Generated.DerivedValue>(value, false) != 7 || view.read<Tso
     body.payload<Tsonic.Generated.DerivedValue>(value, false) != null ||
     !System.Object.ReferenceEquals(view.payload<Tsonic.Generated.DerivedValue>(value, true), value))
     throw new System.Exception("one native binder, absence and original payload identity");
+Tsonic.Generated.DependentOptionalView dependent = new Tsonic.Generated.DependentOptionalBody();
+if (dependent.read<object, int>(0, false) != 7 || dependent.read<object, int>(0, true) != 11)
+    throw new System.Exception("dependent native value actual distinguishes absent from present zero");
 for (int index = 0; index < 8192; index++) { _ = view.read(value, (index & 1) == 0); _ = NativeRead(value, (index & 1) == 0); }
 long generatedBefore = System.GC.GetAllocatedBytesForCurrentThread(); long generatedSum = 0;
 for (int index = 0; index < 8192; index++) generatedSum += view.read(value, (index & 1) == 0);
@@ -147,8 +151,23 @@ for (const surface of ["native", "js"]) {
     assert.equal(compiled.result.diagnostics.length, 0,
       `bounded native admission: ${compiled.result.diagnostics.map(issue => `${issue.code}: ${issue.message}`).join(" | ")}`);
     const generated = [...compiled.artifacts.values()].join("\n");
-    assert.equal(/Optional(?:Operations|Storage)_/u.test(generated), false,
-      "proven class and nominal/dependent reference bounds never add a body-only generic witness");
+    const ast = compiled.result.program.source.ast;
+    const referenceOwners = new Set(["ReferenceOptionalBody", "NominalOptionalBody", "OuterOptionalBody"]);
+    let referenceMethods = 0;
+    const inspect = node => {
+      if (ast.is.IsMethodDeclaration(node)) {
+        const owner = ast.parent(node);
+        const name = owner === undefined ? undefined : ast.name(owner);
+        if (name !== undefined && referenceOwners.has(ast.text(name))) {
+          referenceMethods += 1;
+          assert.equal(compiled.result.program.records.genericProjection.get(node).length, 0,
+            "genuine class and concrete-base binders never add a body-only generic witness");
+        }
+      }
+      ast.forEachChild(node, child => { if (child !== undefined) inspect(child); });
+    };
+    csharpProgramSourceFiles(compiled.result.program).forEach(inspect);
+    assert.equal(referenceMethods, 4, "all genuine reference-bound source bodies retain the same exact no-witness check");
     assert.equal(/ReferenceOptionalView\.(?:read|payload)</u.test(generated), false,
       "identical native signatures gain no gratuitous explicit bridge");
     const captureRoot = new URL("../../../.temp/C19-bounded-optional-storage/", import.meta.url);

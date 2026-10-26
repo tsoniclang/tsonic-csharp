@@ -11,6 +11,7 @@ import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { selectCsharpMethodValueEnvironment } from "./method-environments.js";
 import { csharpDelegateSignatureHasSupportedPassingModes } from "../../../target-model/types/carriers/delegates.js";
 import { getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
+import { selectCsharpExplicitImplementationConstraints } from "../../constraints/type-parameter-constraints.js";
 
 export function selectCsharpObjectMethodSignature(type: TargetTypeRef): CsharpObjectMethodSignature | undefined {
   const metadata = getCsharpDelegateSignature(getCsharpNullableElementTargetType(type) ?? type);
@@ -84,7 +85,9 @@ export function selectCsharpObjectMemberEmission(input: CsharpObjectMemberPolicy
       if (selected === undefined || !renderable([storage.type, selected.returnType, ...selected.parameters.map(parameter => parameter.type)]))
         return reject("An admitted object declaration requires its complete native member rendering.");
       return emit({ kind: "copied", storage: storage.type, signature: selected, invocationName: storage.invocationName,
-        interface: member.methodValueContract, bodyInvocationName: objectShapeMethodInvocationName(member) });
+        interface: member.methodValueContract, bodyInvocationName: objectShapeMethodInvocationName(member),
+        explicitConstraints: selectCsharpExplicitImplementationConstraints(member.typeParameters ?? [],
+          [selected.returnType, ...selected.parameters.map(parameter => parameter.type)]) });
     }
     if (member.optional === true && member.methodValueContract !== undefined) {
       const type = csharpNullableTargetType(member.methodValueContract);

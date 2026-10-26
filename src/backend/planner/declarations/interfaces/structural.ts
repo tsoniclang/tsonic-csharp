@@ -7,6 +7,7 @@ import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { planCsharpCallableArguments } from "../callables/parameter-adapters.js";
 import { applyCsharpConversionSelection } from "../../expressions/conversions.js";
+import { renderCsharpExplicitImplementationTypeParameters } from "../../types/type-parameters.js";
 
 export function planCsharpStructuralInterfaceMembers(
   shape: CsharpObjectShapeFact,
@@ -69,14 +70,14 @@ export function planCsharpStructuralInterfaceMembers(
       if (planned === undefined) {
         return failCsharpPlannerInvariant("An admitted structural method lost its canonical native argument adaptation.", method.declaration);
       }
-      const typeParameters = binders.map(parameter => {
+      const typeParameters = renderCsharpExplicitImplementationTypeParameters(binders.map(parameter => {
         const rendered = csharpTypeFromTargetTypeRef({
           kind: "type-parameter", identity: parameter.identity, name: parameter.name,
         }, methodInput.scope.typeParameterNames);
         if (rendered?.kind !== "IdentifierName") return failCsharpPlannerInvariant(
           "An admitted structural method binder has no native identifier rendering.", parameter.csharpDeclaration ?? method.declaration);
-        return { name: rendered.name };
-      });
+        return rendered.name;
+      }), forwarding.explicitConstraints);
       for (const invocation of method.invocations) {
         const call: CsharpExpression = { kind: "InvocationExpression", callee: {
           kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: "this" }, name: invocation.sourceName,

@@ -10,6 +10,8 @@ import type { CsharpObjectShapeClassifications } from "../../target-model/record
 import { csharpMethodValueContractsEqual, csharpMethodValueType, getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import { objectShapeMethodInvocationName } from "../../target-model/names/object-members.js";
 import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
+import { selectCsharpExplicitImplementationConstraints } from "../../policy/constraints/type-parameter-constraints.js";
+import { getCsharpDelegateSignature } from "../../target-model/types/carriers/delegates.js";
 
 export function analyzeCsharpCaptureMethods(ast: AstReader, captures: CsharpCaptureStorage, shapes: CsharpObjectShapeClassifications,
   callables: Pick<CsharpCallableContractIndex, "get">) {
@@ -52,7 +54,15 @@ export function analyzeCsharpCaptureMethods(ast: AstReader, captures: CsharpCapt
             message: "A captured generic method requires its complete native source and immutable-body invocation contract." });
           continue;
         }
-        protocolMethods.push(Object.freeze({ interface: value.owner, name: candidate.targetName }));
+        const signature = getCsharpDelegateSignature(candidate.type);
+        if (signature === undefined) {
+          issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: method.declaration,
+            message: "A captured generic method requires its exact native invocation signature." });
+          continue;
+        }
+        protocolMethods.push(Object.freeze({ interface: value.owner, name: candidate.targetName,
+          explicitConstraints: selectCsharpExplicitImplementationConstraints(candidate.typeParameters ?? [],
+            [signature.returnType, ...signature.parameters]) }));
       }
       methods.push(Object.freeze({ method, form: ast.is.IsFunctionDeclaration(method.declaration) ? "declaration"
         : ast.is.IsArrowFunction(method.declaration) ? "arrow" : "function", quotation,

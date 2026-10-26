@@ -1,5 +1,6 @@
 import type { CsharpDelegateSignatureShape, CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../types/model.js";
 import type { CsharpNativeMemoryLayout } from "../operations/native-memory.js";
+import type { CsharpExplicitImplementationConstraint } from "../types/generic-constraints.js";
 
 export interface CsharpObjectMethodSignature {
   readonly returnType: TargetTypeRef;
@@ -19,7 +20,8 @@ export type CsharpObjectMemberDeclaration =
   | { readonly kind: "authored"; readonly bodyName: string; readonly signature: CsharpObjectMethodSignature;
       readonly value: CsharpAuthoredObjectMethodValue }
   | { readonly kind: "copied"; readonly signature: CsharpObjectMethodSignature; readonly storage: TargetTypeRef;
-      readonly invocationName: string; readonly interface: TargetTypeRef; readonly bodyInvocationName: string }
+      readonly invocationName: string; readonly interface: TargetTypeRef; readonly bodyInvocationName: string;
+      readonly explicitConstraints: readonly CsharpExplicitImplementationConstraint[] }
   | { readonly kind: "optional-method"; readonly type: TargetTypeRef }
   | { readonly kind: "deferred"; readonly type: TargetTypeRef }
   | { readonly kind: "method"; readonly signature: CsharpObjectMethodSignature; readonly storage: TargetTypeRef }

@@ -3,6 +3,7 @@ import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpStructur
 import type { SourceCallableContract, SourceCallableSourceContract } from "./source-callable-contract.js";
 import type { CsharpCallableParameterAdapter, CsharpCallableValueAdapter } from "./callable-adapters.js";
 import type { CsharpDefaultParameterContract } from "./declarations.js";
+import type { CsharpExplicitImplementationConstraint } from "../types/generic-constraints.js";
 
 export interface CsharpStructuralInterfaceMemberEvidence {
   readonly source: CsharpObjectShapeMemberFact;
@@ -26,6 +27,7 @@ export interface CsharpStructuralMethodForwarding {
   readonly implementation: SourceCallableSourceContract;
   readonly typeArguments: readonly import("../types/model.js").TargetTypeRef[];
   readonly typeParameters: readonly Extract<import("../types/model.js").TargetTypeRef, { readonly kind: "type-parameter" }>[];
+  readonly explicitConstraints: readonly CsharpExplicitImplementationConstraint[];
   readonly parameterDefaults: readonly (CsharpDefaultParameterContract | undefined)[];
   readonly parameters: readonly CsharpCallableParameterAdapter[];
   readonly result: CsharpCallableValueAdapter;

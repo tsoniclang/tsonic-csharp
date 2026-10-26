@@ -91,7 +91,7 @@ export interface CsharpTypeParameter {
 
 export type CsharpGenericConstraint =
   | { readonly kind: "TypeConstraint"; readonly type: CsharpTypeNode }
-  | { readonly kind: "KeywordConstraint"; readonly keyword: "class" | "struct" | "notnull" | "unmanaged" }
+  | { readonly kind: "KeywordConstraint"; readonly keyword: "class" | "struct" | "notnull" | "unmanaged" | "default" }
   | { readonly kind: "ConstructorConstraint" };
 
 export interface CsharpFieldDeclaration {

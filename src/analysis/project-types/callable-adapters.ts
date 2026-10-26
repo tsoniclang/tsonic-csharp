@@ -19,7 +19,7 @@ import { csharpCallableParametersEqual, instantiateCsharpInheritedCallable } fro
 import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
 import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 import { finalizeCsharpStructuralInterfaceForwarding } from "../objects/structural-forwarding.js";
-import { csharpTypeParameterConstraintsEqual, csharpTypeParameterConstraintsImply } from "../../policy/constraints/type-parameter-constraints.js";
+import { csharpTypeParameterConstraintsEqual, csharpTypeParameterConstraintsImply, selectCsharpExplicitImplementationConstraints } from "../../policy/constraints/type-parameter-constraints.js";
 import type { CsharpTypeParameterConstraint } from "../../target-model/types/generic-constraints.js";
 import type { CsharpGenericProjectionIndex } from "../../target-model/records/type-projections.js";
 import { selectCsharpNativeQuantifierArguments } from "../../policy/types/callables/method-values.js";
@@ -298,6 +298,9 @@ export function analyzeCsharpProjectCallableAdapters(
           targetTypeRefEquals(method.member.methodValueContract, request.selected.interfaceType);
         if (!requiresMethodForwarding && !requiresBodyInvocation) continue;
         methods.push(Object.freeze({ ...method, requiresMethodForwarding, forwarding: Object.freeze({ contract, implementation, typeArguments, typeParameters,
+          explicitConstraints: selectCsharpExplicitImplementationConstraints(typeParameters.map(parameter => ({
+            identity: parameter.identity, constraints: parameter.csharpConstraints.constraints,
+          })), [contract.returnType, ...contract.nativeParameters.map(parameter => parameter.targetParameter.type)]),
           parameterDefaults: Object.freeze(implementation.nativeParameters.map(parameter => declarations.runtimeDefault.get(parameter.sourceParameter))),
           parameters, result }) }));
       }

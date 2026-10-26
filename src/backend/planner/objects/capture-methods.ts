@@ -7,7 +7,7 @@ import type { CsharpPlanningContext } from "../context.js";
 import { createCsharpMemberPlanningContext } from "../context.js";
 import { planCsharpArrowLambdaSyntax, planCsharpCapturedFunctionLambdaSyntax } from "../expressions/callable.js";
 import { planExpression } from "../expressions/index.js";
-import { planTypeParameters } from "../types/type-parameters.js";
+import { planTypeParameters, renderCsharpExplicitImplementationTypeParameters } from "../types/type-parameters.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planSourceFunctionDeclaration } from "../declarations/callables/functions.js";
@@ -53,7 +53,8 @@ export function renderCsharpCaptureFrameMethods(
           ...(parameter.passing === undefined ? {} : { passing: parameter.passing }) })) };
       members.push({ kind: "MethodDeclaration", name: contract.name, explicitInterface, modifiers: [], returnType: method.returnType,
         ...(method.returnPassing === undefined ? {} : { returnPassing: method.returnPassing }),
-        typeParameters: method.typeParameters?.map(parameter => ({ name: parameter.name })),
+        typeParameters: renderCsharpExplicitImplementationTypeParameters(
+          (method.typeParameters ?? []).map(parameter => parameter.name), contract.explicitConstraints),
         parameters: method.parameters.map(({ defaultValue: _default, ...parameter }) => parameter),
         body: { kind: "Block", statements: [selected.returnsVoid
           ? { kind: "ExpressionStatement", expression: call }
