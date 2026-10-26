@@ -277,6 +277,32 @@ test("a native class named Proxy is not confused with the unsupported source-pro
   assert.equal(compiled.artifacts.size > 0, true, "the selected native constructor remains admitted without a name-based rejection");
 });
 
+for (const [name, sourceText] of [
+  ["returned call", "export function make(target: object): object { return Proxy.revocable(target, {}); }"],
+  ["module initializer", "export const value = Proxy.revocable({}, {});"],
+  ["conditional call", "export function make(flag: boolean): object { return flag ? Proxy.revocable({}, {}) : {}; }"],
+  ["invoked closure", "export const value = (() => Proxy.revocable({}, {}))();"],
+]) test(`participating ${name} retains its source-profile call rejection before native result admission`, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText });
+  assert.equal(compiled.sourceDiagnosticsText, "", "the original call is valid checked source");
+  assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+    "an unsupported source operation publishes no native program, plan or artifacts");
+  assert.equal(compiled.result.diagnostics.length, 1, "the selected operation has one precise refusal");
+  const diagnostic = compiled.result.diagnostics[0];
+  assert.equal(diagnostic.code, "CSHARP_JS_SOURCE_PROFILE_OPERATION_UNSUPPORTED");
+  assert.equal(diagnostic.message, "Proxy traps redefine object operations dynamically and have no closed C# source-to-source representation.");
+  assert.equal(compiled.source.ast.is.IsCallExpression(diagnostic.sourceNode), true, "the exact call owns its native admission refusal");
+});
+
+test("a native class static method named Proxy.revocable retains its actual selected identity", () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+    class Proxy { static revocable(value: object): object { return value; } }
+    export function run(value: object): object { return Proxy.revocable(value); }
+  ` });
+  assertCsharpCompilationSucceeded(compiled);
+  assert.equal(compiled.artifacts.size > 0, true, "the native static call is not rejected by source spelling");
+});
+
 test("constructor refusals and other participating native refusals share one complete pre-seal result", () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: `
     export const value = new Proxy({}, {});
