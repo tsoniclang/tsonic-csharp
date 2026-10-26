@@ -16,7 +16,6 @@ import { renderCsharpStructuralMethod } from "./structural-interfaces.js";
 import { renderCsharpDeferredCaptureMember } from "./deferred-captures.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { nullableCsharpType } from "../types/primitives.js";
-import { planCsharpExplicitTypeParameters } from "../types/type-parameters.js";
 
 export function renderObjectShapeMembers(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
@@ -103,8 +102,7 @@ function renderMember(
           selected.signature.returnsVoid ? { kind: "ExpressionStatement", expression: call }
             : { kind: "ReturnStatement", expression: call, ...(method.returnPassing === undefined ? {} : { ref: true as const }) },
         ] } }, { ...method, name: selected.bodyInvocationName, explicitInterface: render(selected.interface), modifiers: [],
-          typeParameters: method.typeParameters === undefined ? undefined
-            : planCsharpExplicitTypeParameters(method.typeParameters, (member.typeParameters ?? []).map(parameter => parameter.constraints)),
+          typeParameters: method.typeParameters?.map(parameter => ({ name: parameter.name })),
           parameters: method.parameters.map(({ defaultValue: _default, ...parameter }) => parameter),
           body: { kind: "Block", statements: [selected.signature.returnsVoid
             ? { kind: "ExpressionStatement", expression: call }

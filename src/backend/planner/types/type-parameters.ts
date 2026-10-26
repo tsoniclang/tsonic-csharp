@@ -4,41 +4,10 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpGenericConstraint, CsharpTypeParameter } from "../../target-ast/syntax/index.js";
 import { planIdentifierName } from "../names/source-identifiers.js";
 import { csharpTypeFromTargetTypeRef } from "./render.js";
-import { csharpConstraintsRequireReference, type CsharpTypeParameterConstraint } from "../../../target-model/types/generic-constraints.js";
+import type { CsharpTypeParameterConstraint } from "../../../target-model/types/generic-constraints.js";
 import type { CsharpProjectedType } from "../../../target-model/types/projections.js";
 import { sanitizeIdentifier } from "../../../target-model/names/identifiers.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-
-export function planCsharpExplicitTypeParameters(
-  parameters: readonly CsharpTypeParameter[], constraints: readonly (readonly CsharpTypeParameterConstraint[])[],
-): readonly CsharpTypeParameter[] {
-  if (parameters.length !== constraints.length)
-    failCsharpPlannerInvariant("An admitted explicit method requires its identical native binder constraint inventory.");
-  return parameters.map((parameter, index) => {
-    const selected = constraints[index]!;
-    const keyword = csharpConstraintsRequireReference(selected) ? "class"
-      : selected.some(constraint => constraint.kind === "keyword" &&
-        (constraint.keyword === "struct" || constraint.keyword === "unmanaged")) ? "struct" : undefined;
-    return { name: parameter.name, ...(keyword === undefined ? {} : {
-      constraints: [{ kind: "KeywordConstraint" as const, keyword }],
-    }) };
-  });
-}
-
-export function planCsharpExplicitSourceTypeParameters(
-  parameters: readonly CsharpTypeParameter[], owner: Node, input: CsharpPlanningContext,
-): readonly CsharpTypeParameter[] {
-  const constraints = input.program.source.ast.typeParameters(owner).map(node => {
-    if (node === undefined)
-      failCsharpPlannerInvariant("An admitted explicit method requires its dense checked binder inventory.", owner);
-    const selected = input.program.records.typeParameterEmission.get(node);
-    if (selected === undefined)
-      failCsharpPlannerInvariant("An admitted explicit method requires its sealed source binder constraints.", owner);
-    return selected.constraints;
-  });
-  return planCsharpExplicitTypeParameters(parameters, [...constraints,
-    ...input.program.records.genericProjection.get(owner).map(parameter => parameter.csharpProjectionConstraints)]);
-}
 
 export function planTypeParameters(
   nodes: readonly (Node | undefined)[], input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
