@@ -478,7 +478,8 @@ export function finalizeCsharpNativeEmission(
     generators: generators.records,
     localBindings: analyzeCsharpLocalBindings({ ast: source.ast, navigation: source.navigation, nodes: sourceStorage.nodes,
       admitted: admittedControlNode, nativeRefs: admittedOperations.nativeRefReturn, storage: analysis.storage.storageType,
-      moduleInitialization: moduleInitialization.index.moduleBindingInitialization, required: analysis.requiredRecords }),
+      moduleInitialization: moduleInitialization.index.moduleBindingInitialization, required: analysis.requiredRecords,
+      optionalLocals: analysis.optionalLocals }),
     resourceScopes: analyzeCsharpResourceScopes({ ast: source.ast, nodes: sourceStorage.nodes,
       erased: node => analysis.sourceEvidence.compileTimeMetadata.get(node) === true ||
         admittedOperations.nativeUnreachable.get(node) === true || nativeParticipation.participation.get(node) === "erased",

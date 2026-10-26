@@ -90,6 +90,7 @@ import type { CsharpPromiseDiscard } from "../../../target-model/records/promise
 import type { CsharpStatement } from "../../target-ast/syntax/index.js";
 import { requireExpressionPlan } from "./required-plan.js";
 import { readCsharpNativeExpressionCarrier } from "./native-uses.js";
+import { planCsharpOptionalLocal } from "./optional-locals.js";
 
 export function planExpression(
   node: Node,
@@ -99,6 +100,9 @@ export function planExpression(
   state?: DestructuringPlannerState,
 ): CsharpPlannedValue | undefined {
   return requireExpressionPlan(node, () => {
+    const optionalLocal = input.program.records.localBinding.get(node)?.optionalLocal;
+    if (optionalLocal !== undefined && optionalLocal.kind !== "declaration")
+      return planCsharpOptionalLocal(node, optionalLocal, sourceFile, input, diagnostics, planExpression, state);
     const planned = planSelectedExpression(node, sourceFile, input, diagnostics, state);
     const discard = input.program.records.promiseResult.get(node)?.discard;
     if (planned === undefined || planned.completion.kind !== "value" || discard === undefined) return planned;

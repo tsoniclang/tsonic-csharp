@@ -6,6 +6,8 @@ import type { CsharpLocalBindingCompletion } from "../../target-model/records/lo
 import { csharpCarrierAdmitsSourceAbsence } from "../../target-model/types/carriers/runtime-carriers.js";
 import { createCsharpLocalBindingRecords } from "../program/records/local-bindings.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
+import type { CsharpOptionalLocalPlan } from "./optional-locals.js";
+import { csharpSourcePrimitiveTargetType, csharpVoidTargetType } from "../../target-model/types/carriers/scalar-types.js";
 
 export function analyzeCsharpLocalBindings(input: {
   readonly ast: AstReader; readonly navigation: SourceProgramNavigation; readonly nodes: readonly Node[];
@@ -13,6 +15,7 @@ export function analyzeCsharpLocalBindings(input: {
   readonly nativeRefs: CsharpProgramRecords["nativeRefReturn"]; readonly storage: CsharpProgramRecords["storageType"];
   readonly moduleInitialization: CsharpProgramRecords["moduleBindingInitialization"];
   readonly required: CsharpRequiredRecord[];
+  readonly optionalLocals: CsharpOptionalLocalPlan;
 }) {
   const values = new Map<Node, CsharpLocalBindingCompletion>();
   for (const node of input.nodes) {
@@ -34,11 +37,22 @@ export function analyzeCsharpLocalBindings(input: {
       }
       return false;
     });
+    const optionalLocal = input.optionalLocals.get(node);
     values.set(node, Object.freeze({ carrier,
       initialization: initializer !== undefined ? "source" : input.moduleInitialization.get(node) !== "declaration" &&
         csharpCarrierAdmitsSourceAbsence(input.storage.get(node)) ? "absence" : "declaration",
       refKind: nativeRef?.kind === "resolved" ? nativeRef.returnPassing === "byref-readonly" ? "ref-readonly" : "ref" : undefined,
-      recursiveInitializer }));
+      recursiveInitializer, ...(optionalLocal === undefined ? {} : { optionalLocal }) }));
+    requireCsharpRecord(input.required, { family: "localBinding", subject: node,
+      construct: input.ast.kindName(node), producer: "analyzeCsharpLocalBindings" });
+  }
+  for (const { node, operation } of input.optionalLocals.entries) {
+    if (operation.kind === "declaration" || !input.admitted(node)) continue;
+    const carrier = operation.kind === "absence-test" ? csharpSourcePrimitiveTargetType("bool")
+      : operation.kind === "write" || operation.kind === "coalesce" && operation.assignment
+        ? csharpVoidTargetType() : operation.placement.payload;
+    values.set(node, Object.freeze({ carrier, initialization: "declaration", refKind: undefined,
+      recursiveInitializer: false, optionalLocal: operation }));
     requireCsharpRecord(input.required, { family: "localBinding", subject: node,
       construct: input.ast.kindName(node), producer: "analyzeCsharpLocalBindings" });
   }

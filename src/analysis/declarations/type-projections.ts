@@ -9,9 +9,11 @@ import { targetTypeRefKey } from "../../target-model/types/equality.js";
 import { csharpFreeTypeParameterIdentities } from "../../target-model/types/generic-references.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
 import { createCsharpTypeProjectionRecords } from "../program/records/type-projections.js";
+import type { CsharpOptionalLocalPlan } from "../storage/optional-locals.js";
 
 export function analyzeCsharpTypeProjections(
   source: TargetSourceProgram, evidence: CsharpSourceEvidenceIndex, operations: CsharpTargetOperationClassifications,
+  optionalLocals: Pick<CsharpOptionalLocalPlan, "removesProjection">,
 ): CsharpGenericProjectionIndex {
   const byDeclaration = new Map<Node, Map<string, CsharpProjectedType>>();
   const outerByDeclaration = new Map<Node, Map<string, CsharpProjectedType>>();
@@ -26,22 +28,27 @@ export function analyzeCsharpTypeProjections(
     const parent = ast.parent(node);
     const isName = parent !== undefined && ast.name(parent) === node;
     const declarationOnly = ast.is.IsClassDeclaration(node) || ast.is.IsClassExpression(node) || ast.is.IsInterfaceDeclaration(node);
-    const pending = isName || declarationOnly ? [] : [evidence.nodeTargetType.get(node), evidence.storageTargetType.get(node),
-      evidence.bindingProjection.get(node)?.storageCarrier,
-      ...operations.selectedCall.get(node)?.sourceTypeArguments ?? []];
+    const pending = isName || declarationOnly ? [] : [
+      ...[evidence.nodeTargetType.get(node), evidence.storageTargetType.get(node), evidence.bindingProjection.get(node)?.storageCarrier]
+        .map(type => ({ type, local: true })),
+      ...(operations.selectedCall.get(node)?.sourceTypeArguments ?? []).map(type => ({ type, local: false })),
+    ];
     const visited = new Set<string>();
     for (let index = 0; index < pending.length; index += 1) {
-      const type = pending[index];
-      if (type === undefined || visited.has(targetTypeRefKey(type))) continue;
-      visited.add(targetTypeRefKey(type));
+      const { type, local } = pending[index]!;
+      if (type === undefined) continue;
+      const key = `${local ? "local" : "contract"}:${targetTypeRefKey(type)}`;
+      if (visited.has(key)) continue;
+      visited.add(key);
       const projection = csharpTypeProjection(type);
       if (projection === undefined) {
-        pending.push(...csharpTargetTypeComponents(type));
+        pending.push(...csharpTargetTypeComponents(type).map(type => ({ type, local })));
         continue;
       }
-      pending.push(...projection.csharpProjection.arguments);
+      if (local && optionalLocals.removesProjection(node, projection.identity)) continue;
+      pending.push(...projection.csharpProjection.arguments.map(type => ({ type, local })));
       const optional = getCsharpGenericOptionalParts(projection);
-      if (optional !== undefined) pending.push(optional.operations);
+      if (optional !== undefined) pending.push({ type: optional.operations, local });
       const free = csharpFreeTypeParameterIdentities(projection.csharpProjection.arguments);
       if (free.size === 0) continue;
       for (let owner: Node | undefined = node; owner !== undefined; owner = ast.parent(owner)) {

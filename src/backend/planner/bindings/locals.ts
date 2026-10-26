@@ -34,6 +34,7 @@ import {
 } from "../../../target-model/syntax/yield-expression.js";
 import { csharpPlannedValue, mapCsharpPlannedValue, type CsharpPlannedValue } from "../expressions/planned-values.js";
 import { consumeCsharpPlannedValue } from "../statements/statement-output.js";
+import { planCsharpOptionalLocalDeclaration } from "../expressions/optional-locals.js";
 
 export type CsharpPlannedLocalDeclaration = Omit<CsharpLocalDeclaration, "initializer"> & {
   readonly initializer?: CsharpPlannedValue;
@@ -107,6 +108,13 @@ export function planLocalDeclarationStatements(
   if (input.program.records.compileTimeMetadata.get(declarationNode)) return [];
   const variable = AsVariableDeclaration(input.program.source.ast, declarationNode)!;
   const declarationKind = input.program.source.ast.variableDeclarationKind(declarationNode);
+  const optionalLocal = input.program.records.localBinding.get(declarationNode)?.optionalLocal;
+  if (optionalLocal?.kind === "declaration") {
+    const name = declareCsharpLocalBindingName(variable.name!, input, state);
+    if (name !== optionalLocal.placement.payloadName)
+      failCsharpPlannerInvariant("A private optional local must retain its sealed authored binding name.", declarationNode);
+    return planCsharpOptionalLocalDeclaration(optionalLocal, sourceFile, input, diagnostics, planExpression, state);
+  }
   if (declarationKind === "using" || declarationKind === "await using") {
     if (!input.program.source.ast.is.IsIdentifier(variable.name)) {
       return failCsharpPlannerInvariant("An admitted resource lost its exact identifier binding.", variable.name ?? declarationNode);
