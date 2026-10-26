@@ -7,6 +7,7 @@ import type { CsharpTargetOperationClassifications } from "../../target-model/re
 import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
 import type { CsharpNativeConstantRecords } from "../../target-model/records/native-constants.js";
+import type { CsharpOptionalLocalPlan } from "../storage/optional-locals.js";
 import { csharpSourcePrimitiveTargetType } from "../../target-model/types/carriers/scalar-types.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { sourceOperatorFromKindName } from "../../target-model/syntax/operators.js";
@@ -15,6 +16,7 @@ import { createCsharpBinaryEmissionRecords } from "../program/records/binary-emi
 
 export function analyzeCsharpBinaryEmission(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];
   readonly operations: CsharpTargetOperationClassifications; readonly demand: CsharpNativeDemandAnalysis;
+  readonly optionalLocals: Pick<CsharpOptionalLocalPlan, "get">;
   readonly storage: CsharpStorageClassifications; readonly constants: CsharpNativeConstantRecords; readonly admitted: (node: Node) => boolean }) {
   const forms = new Map<Node, CsharpBinaryEmission>();
   const native = new Map<Node, Map<CsharpResolvedBinaryOperation, CsharpNativeBinaryEmission>>();
@@ -73,6 +75,8 @@ export function analyzeCsharpBinaryEmission(input: { readonly source: TargetSour
   }
   for (const node of input.nodes) {
     if (!input.admitted(node) || !ast.is.IsBinaryExpression(node) || borrowedControls.has(node)) continue;
+    const optionalLocal = input.optionalLocals.get(node);
+    if (optionalLocal !== undefined && optionalLocal.kind !== "declaration") continue;
     const form = input.operations.operatorForm.get(node);
     if (form === "destructuring-assignment") continue;
     if (form === "js-array-mutation" || form === "type-test" || form === "typeof-comparison") {

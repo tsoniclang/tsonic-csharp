@@ -378,7 +378,8 @@ export function finalizeCsharpNativeEmission(
     evidence: analysis.sourceEvidence, factories: classFactories, operations: admittedOperations });
   if (expressionEmission.issues.length !== 0) return rejectedTargetStage(expressionEmission.issues);
   const binaryEmission = analyzeCsharpBinaryEmission({ source, nodes: sourceStorage.nodes, operations: admittedOperations,
-    demand: nativeDemand, storage: analysis.storage, constants: nativeConstants, admitted: admittedControlNode });
+    demand: nativeDemand, storage: analysis.storage, constants: nativeConstants, optionalLocals: analysis.optionalLocals,
+    admitted: admittedControlNode });
   if (binaryEmission.issues.length !== 0) return rejectedTargetStage(binaryEmission.issues);
   const sourceFileEmission = analyzeCsharpSourceFileEmission({ source, identities: sourceOutputIdentities.records,
     factories: classFactories, evidence: analysis.sourceEvidence, operations: admittedOperations,
