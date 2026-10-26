@@ -59,8 +59,8 @@ export function selectedObjectShapeSource(
   if (!projectDeclaration && !providerDeclaration) {
     return { type: semanticType };
   }
-  const contextualTarget = host.typeResolver.resolveType(
-    contextualType,
+  const contextualTarget = host.typeResolver.resolveSelectedType(
+    contextual.component.authoredTypeNode, contextualType,
     queries.sourceFile,
     nextState(state),
   );
