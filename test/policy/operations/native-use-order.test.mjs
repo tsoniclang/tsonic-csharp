@@ -52,7 +52,7 @@ const classification = grouping => ({ form: { kind: "target", optionalReceiverRo
 const input = selected => ({ ast, evidence: { compileTimeMetadata: no, sourceArgument: none, sourceDefaultValue: none },
   operations: { selectedCall: { get: node => node === call ? selected : undefined }, nativeHandler: none, borrowedSequence: none },
   valueReads: { valueRead: { get: () => ({ value: scalar }) } }, bindingPatterns: { bindingPatternProjection: none },
-  unusedDefault: no, callableCreation: none, classFactories: { classFactory: none },
+  unusedDefault: no, callableCreation: none, optionalLocals: none, classFactories: { classFactory: none },
   navigation: { sourceReferenceFor: () => undefined, referenceFor: () => undefined, isProjectDeclaration: () => false } });
 
 test("source method runtime order differs from planning order without a copied argument binder", () => {
@@ -66,6 +66,43 @@ test("source method runtime order differs from planning order without a copied a
     const refused = selectCsharpNativeOperandUses(input(classification({ kind, reason: kind })), call);
     assert.equal(refused.refusal, `argument-${kind}`, "native-use-order:49: refused.refusal");
     assert.equal(refused.runtime.length + refused.planning.length, 0, `${kind}: no accepted prefix or positional fallback`);
+  }
+});
+
+test("private optional local operands consume their selected physical plan and preserve lazy writes", () => {
+  const placement = Object.freeze({ declaration: call, storage: scalar, payload: scalar,
+    payloadName: "payload", presenceName: "present" });
+  const present = Object.freeze({ kind: "present", expression: argument });
+  const absent = Object.freeze({ kind: "absence", expression: argument });
+  const copied = Object.freeze({ kind: "copy", expression: argument, placement });
+  for (const [label, operation, count, guarded] of [
+    ["read", { kind: "read", placement, guarded: false }, 0, false],
+    ["guarded read", { kind: "read", placement, guarded: true }, 0, false],
+    ["present write", { kind: "write", placement, value: present }, 1, false],
+    ["absence write", { kind: "write", placement, value: absent }, 1, false],
+    ["copy write", { kind: "write", placement, value: copied }, 0, false],
+    ["absence test", { kind: "absence-test", placement, other: argument, localFirst: true, negated: false }, 1, false],
+    ["coalescing read", { kind: "coalesce", placement, right: argument, assignment: false }, 1, true],
+    ["coalescing write", { kind: "coalesce", placement, right: argument, assignment: true }, 1, true],
+  ]) {
+    const value = input(undefined);
+    value.optionalLocals = { get: node => node === call ? operation : undefined };
+    value.operations.nativeHandler = { get: () => assert.fail(label + ": an ordinary handler does not replace the selected local operation") };
+    const selected = selectCsharpNativeOperandUses(value, call);
+    assert.equal(selected.refusal === undefined, true, label + ": only an admitted local plan selects its native operation");
+    assert.equal(selected.runtime.length, count, label + ": the renderer's exact expression inputs are retained");
+    assert.equal(selected.planning.length, count, label + ": synthetic local storage has no additional source evaluation");
+    assert.equal(selected.runtime.every(child => child.expression === argument), true, label + ": original source input identity is exact");
+    assert.equal(selected.runtime.every(child => child.guard === (guarded ? "if-absent" : undefined)), true,
+      label + ": fallback evaluation stays guarded by the selected presence");
+    assert.equal(selected.planning.every((step, index) => step.use === selected.runtime[index]), true,
+      label + ": runtime and planning use the same physical children");
+    if (guarded) {
+      const completion = selectCsharpNativeCompletion(selected.carrier, { kind: "sequence",
+        children: [{ completion: { kind: "never" }, guarded: true }] });
+      assert.equal(completion?.kind === (operation.assignment ? "void" : "value"), true,
+        label + ": a throwing fallback does not make the present path diverge");
+    }
   }
 });
 

@@ -267,7 +267,7 @@ export function analyzeCsharpRepresentationIteration(
   evidence.sealCompileTimeDeclarations();
   const nativeDemand = analyzeCsharpNativeDemand({
     ast: source.ast, sourceFiles, navigation: source.navigation, evidence: sourceEvidence,
-    operations, valueReads, participation: nativeParticipation.participation, declarations, objectShapes,
+    operations, valueReads, optionalLocals, participation: nativeParticipation.participation, declarations, objectShapes,
     bindingPatterns: bindingCandidates, callableCreation: callableCreations.callableCreation, attributeApplications: attributes.index,
     propertyKeyBindings: expectedTypes.constructions.propertyKeys, exactLiteral: exactLiterals.exactLiteral,
     classInitialization, projectTypes: typeSystem.projectTypes.catalog, classFactories, expected: expectedUse,

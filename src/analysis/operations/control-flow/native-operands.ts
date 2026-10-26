@@ -17,6 +17,7 @@ import { csharpSelectedTargetArgumentBindings, csharpSourceOwnedArgumentBindings
 import { sourceOperatorFromKindName } from "../../../target-model/syntax/operators.js";
 import { csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpRuntimeLocationTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import type { CsharpOptionalLocalOperation } from "../../../target-model/records/local-bindings.js";
 
 export interface CsharpNativeOperandInput {
   readonly ast: AstReader;
@@ -30,6 +31,7 @@ export interface CsharpNativeOperandInput {
   readonly bindingPatterns: CsharpBindingPatternClassifications;
   readonly unusedDefault: { readonly get: (initializer: Node) => boolean };
   readonly callableCreation: { readonly get: (expression: Node) => CsharpNativeCallableCreation | undefined };
+  readonly optionalLocals: { readonly get: (node: Node) => CsharpOptionalLocalOperation | undefined };
 }
 
 export type CsharpNativeOperandRefusal = "argument-refused" | "argument-unresolved" | "argument-inconsistent"
@@ -154,6 +156,20 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
   if (passing?.kind === "rejected") return refused("source-argument-rejected", passing.reason);
   if (passing?.kind === "resolved" && !sourceNodesEqual(ast, passing.argument.storageExpression, node)) {
     return chosen(use(passing.argument.storageExpression, { kind: "operand", position: "only" }, undefined, "location"));
+  }
+  const optionalLocal = input.optionalLocals.get(node);
+  if (optionalLocal !== undefined) {
+    if (optionalLocal.kind === "read") return chosen([], "sequence", [], optionalLocal.placement.payload);
+    if (optionalLocal.kind === "absence-test")
+      return chosen(use(optionalLocal.other, { kind: "operand", position: optionalLocal.localFirst ? "right" : "left" }));
+    if (optionalLocal.kind === "coalesce") {
+      const guarded = use(optionalLocal.right, { kind: "operand", position: "right" })
+        .map(child => Object.freeze({ ...child, guard: "if-absent" as const }));
+      return chosen(guarded, "sequence", plan(guarded),
+        optionalLocal.assignment ? csharpVoidTargetType() : optionalLocal.placement.payload);
+    }
+    return chosen(optionalLocal.value.kind === "copy" ? []
+      : use(optionalLocal.value.expression, { kind: "operand", position: "right" }), "sequence", undefined, csharpVoidTargetType());
   }
   if (ast.is.IsParenthesizedExpression(node)) return sourceSelection();
   const handler = operations.nativeHandler.get(node);

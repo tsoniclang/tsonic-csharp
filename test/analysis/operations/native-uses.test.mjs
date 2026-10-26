@@ -45,7 +45,8 @@ function owners(sourceText, surface = "native") {
       const use = records.nativeExpression.get(expression)?.use;
       return use === undefined || use.kind === "erased" ? undefined : use.propertyKeys;
     },
-    valueReads: records, participation, bindingPatterns, callableCreation: { get: node => {
+    valueReads: records, optionalLocals: { get: node => records.localBinding.get(node)?.optionalLocal },
+    participation, bindingPatterns, callableCreation: { get: node => {
       const closure = records.captureClosure.get(node);
       return closure === undefined ? undefined : { kind: "selected", carrier: closure.method.type };
     } }, attributeApplications: records, classInitialization: records, projectTypes: program.projectTypes,

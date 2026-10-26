@@ -80,6 +80,7 @@ for (const surface of ["native", "js"]) test(`${surface} native write locations 
   const input = {
     ast: value.ast, navigation: value.program.sourceNavigation,
     evidence: records, operations: records, valueReads: records,
+    optionalLocals: { get: node => records.localBinding.get(node)?.optionalLocal },
     classFactories: { classFactory: records.classFactory, factories: value.program.classFactories },
     bindingPatterns: records,
     unusedDefault: { get: () => false },

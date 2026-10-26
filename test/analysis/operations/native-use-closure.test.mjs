@@ -564,7 +564,8 @@ function owners(sourceText, surface = "js") {
       const use = records.nativeExpression.get(expression)?.use;
       return use === undefined || use.kind === "erased" ? undefined : use.propertyKeys;
     },
-    valueReads: records, participation: records.nativeParticipation, bindingPatterns, callableCreation: { get: () => undefined },
+    valueReads: records, optionalLocals: { get: node => records.localBinding.get(node)?.optionalLocal },
+    participation: records.nativeParticipation, bindingPatterns, callableCreation: { get: () => undefined },
     attributeApplications: records, classInitialization: records, projectTypes: program.projectTypes,
     classFactories: { classFactory: records.classFactory, factories: program.classFactories },
     expected: { entries: [], pending: [], inactive: [], expectedUse: { get: () => undefined } } };

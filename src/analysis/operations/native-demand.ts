@@ -562,7 +562,8 @@ function completionFlow(selected: CsharpNativeOperandSelection, runtime: readonl
 
 function evaluationOf(selected: CsharpNativeOperandSelection, runtime: readonly NativeRuntimeChild[]): CsharpNativeEvaluation | undefined {
   if (selected.flow === "creation") return Object.freeze({ kind: "creation" });
-  if (runtime.length === 1 && runtime[0]!.visited.completion?.kind === "never") return Object.freeze({ kind: "sequence",
+  if (runtime.length === 1 && runtime[0]!.child.guard === undefined &&
+    runtime[0]!.visited.completion?.kind === "never") return Object.freeze({ kind: "sequence",
     steps: Object.freeze([Object.freeze({ site: runtime[0]!.visited.site })]) });
   if (selected.flow === "conditional") return runtime.length === 3 ? Object.freeze({ kind: "conditional", condition: runtime[0]!.visited.site,
     whenTrue: runtime[1]!.visited.site, whenFalse: runtime[2]!.visited.site }) : undefined;
