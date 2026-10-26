@@ -8,7 +8,7 @@ import { retainCsharpGenericCallableValue } from "../../../dist/analysis/callabl
 import { substituteTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
 import { csharpFreeTypeParameterIdentities } from "../../../dist/target-model/types/generic-references.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
-import { sourceCallableTypeParametersMatch, resolveSourceCallReceiverTargetType, resolveSourceCallInstantiation } from "../../../dist/analysis/source-evidence/types/resolution/calls.js";
+import { sourceCallableTypeParametersMatch, resolveSourceCallReceiverTargetType, resolveSourceCallInstantiation, inferSourceCallTargetTypeArguments } from "../../../dist/analysis/source-evidence/types/resolution/calls.js";
 import { csharpProjectedType } from "../../../dist/target-model/types/projections.js";
 import { csharpSourceTypeParameter } from "../../../dist/source/extension/type-parameters.js";
 import { selectSourceCallParameterSlots } from "../../../../tsonic/packages/target-api/dist/source-semantics/call-parameter-slots.js";
@@ -20,6 +20,54 @@ import { csharpMethodValueType } from "../../../dist/target-model/types/method-v
 const integer = { kind: "source-primitive", name: "int64" };
 const string = { kind: "source-primitive", name: "string" };
 const outer = { kind: "type-parameter", identity: "outer:Item", name: "Item" };
+
+test("independent checked arguments infer native destinations before the body ABI without self-authorizing an array", () => {
+  const selectedParameter = { kind: "type-parameter", identity: "checked:Item", name: "Item" };
+  const nativeParameter = { kind: "type-parameter", identity: "native:Item", name: "Item" };
+  const floating = { kind: "source-primitive", name: "float64" };
+  const sampleType = {};
+  const valuesType = {};
+  const sample = {};
+  const values = {};
+  const file = {};
+  const source = { sourceArguments: [{ expression: sample }, { expression: values }],
+    sourceSelectedSignatureParameters: [
+      { parameterName: "sample", authoredTypeNode: sampleType, rest: false },
+      { parameterName: "values", authoredTypeNode: valuesType, rest: false },
+    ], sourceArgumentBindings: [0, 1].map(index => ({ sourceArgumentIndex: index,
+      effectiveArgumentIndex: index, sourceParameterIndex: index, sourceForm: "value" })) };
+  let originalQueries = 0;
+  const scope = { host: { ast: { getSourceFile: node => node === sampleType || node === valuesType ? file : undefined,
+    is: { IsArrowFunction: () => false, IsFunctionExpression: () => false, IsParenthesizedExpression: () => false,
+      IsSatisfiesExpression: () => false, IsArrayLiteralExpression: () => false, IsObjectLiteralExpression: () => false } },
+    literalValues: { literalValue: { get: () => undefined } },
+    semantics: () => ({ types: { expressionType: node => {
+      assert.equal(node === sample, true, "the same array cannot participate in its independent destination proof");
+      return {};
+    } } }) },
+    resolveNodeWithState: node => {
+      originalQueries++;
+      return node === sampleType ? selectedParameter : { kind: "array", element: selectedParameter };
+    }, resolveSelectedValueWithState: () => floating };
+  const excluded = new Set([1]);
+  const selected = inferSourceCallTargetTypeArguments(scope, source, undefined, file,
+    new Set([selectedParameter.identity]), { depth: 0 }, excluded);
+  assert.equal(selected?.get(selectedParameter.identity) === floating && originalQueries === 1, true,
+    "the actual independent input selects float64 through its original checked formal");
+  const absent = inferSourceCallTargetTypeArguments(scope, source, undefined, file,
+    new Set([selectedParameter.identity]), { depth: 0 }, new Set([0, 1]));
+  assert.equal(absent?.size, 0, "no independent input is not an inferred rounding authority");
+  scope.host.ast.getSourceFile = () => undefined;
+  const foreign = inferSourceCallTargetTypeArguments(scope, source, undefined, file,
+    new Set([selectedParameter.identity]), { depth: 0 }, excluded);
+  assert.equal(foreign?.size === 0 && originalQueries === 1, true,
+    "missing original declaration provenance cannot manufacture a formal or use the selected array's type");
+  const complete = { nativeParameters: [{ targetParameter: { name: "sample", type: nativeParameter, passingMode: "by-value" } }] };
+  const native = inferSourceCallTargetTypeArguments(scope, source, complete, file,
+    new Set([nativeParameter.identity]), { depth: 0 }, excluded);
+  assert.equal(native?.get(nativeParameter.identity) === floating && originalQueries === 1, true,
+    "a completed native ABI keeps its own binder identity and never reselects an authored formal");
+});
 
 function fixture(carrier = csharpDelegateTargetType("System.Func", [integer], integer), direct = false) {
   const expression = {};
