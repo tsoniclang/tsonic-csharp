@@ -22,6 +22,7 @@ import { combineCsharpTargetUnionMembers, isCsharpJsValueTargetType } from "../.
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { resolveCsharpContextualLiteralCarrier } from "./contextual-literals.js";
 import { resolveCsharpSourceLiteralTargetType } from "../../../../policy/conversions/source-literals.js";
+import { selectCsharpObjectShapeProperty } from "../../../operations/members/object-shape-members.js";
 
 export function resolveSelectedExpressionType(
   { host, optionalAccessTargetType, policy, resolveNodeWithState, resolveReadStorage, resolveNonNullExpressionType, resolveMemberAccessTargetType, resolveSourceOwnedCallResult, resolveSourceOwnedConstructionResult, resolveSourceCallResultWithState, sourceUnions }: CsharpTypeResolutionScope,
@@ -222,10 +223,15 @@ export function resolveMemberAccessTargetType(
       return optionalAccessTargetType(receiverType.elements[index], selection.source.optionalChain);
     if (receiverType?.kind === "array") return optionalAccessTargetType(receiverType.element, selection.source.optionalChain);
   }
-  const selectedSourceType = mode === "selected"
+  const sourceType = mode === "selected"
     ? selectedType ?? selection.source.sourceReadType ?? selection.source.sourceWriteType
     : undefined;
-  const declaredMemberType = queries.types.typeOfSymbol(selection.source.selectedSymbol);
+  const selectedProperty = selectCsharpObjectShapeProperty(receiverType === undefined ? undefined : host.structuralTypes.resolveTarget(receiverType),
+    selection.source.receiver.type, selection.source.expression,
+    queries.facts.selectedSubjects(selection.source.selectedSymbol, selection.source.selectedDeclaration), sourceType, queries, host.ast);
+  const selectedSourceType = selectedProperty.type;
+  const declaredMemberType = queries.types.isAny(selection.source.receiver.type) || queries.types.isUnknown(selection.source.receiver.type)
+    ? selectedSourceType : queries.types.typeOfSymbol(selection.source.selectedSymbol);
   if (selection.source.selectedDeclaration !== undefined && host.ast.is.IsBindingElement(selection.source.selectedDeclaration)) {
     const selected = selectedSourceType ?? declaredMemberType;
     const projected = mode === "storage" || selected === undefined
@@ -247,10 +253,7 @@ export function resolveMemberAccessTargetType(
   }
   const structuralMemberType = host.structuralTypes.resolveSelectedProperty(
     receiverType,
-    queries.facts.selectedSubjects(
-      selection.source.selectedSymbol,
-      selection.source.selectedDeclaration,
-    ),
+    selectedProperty.subjects,
     selectedSourceType,
     queries.sourceFile,
     declaredMemberType,

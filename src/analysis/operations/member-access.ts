@@ -9,7 +9,7 @@ import { validateCsharpJsValueOperationSelection } from "../../policy/operations
 import { selectCsharpTargetProperty } from "./members/selected-members.js";
 import { selectCsharpJsValueReceiverExpressionOperation } from "./js-values.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../policy/types/index.js";
-import { resolveCsharpObjectShapeMemberReadTargetType } from "./members/object-shape-members.js";
+import { resolveCsharpObjectShapeMemberReadTargetType, selectCsharpObjectShapeProperty } from "./members/object-shape-members.js";
 import { selectCsharpFlowReadConversion } from "../../policy/conversions/index.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpElementClassification, CsharpPropertyClassification, CsharpMemberReceiverProjection } from "../../target-model/records/operations.js";
@@ -105,10 +105,6 @@ export function classifySourceOwnedMember(
     "property-read",
     selection.source.optionalChain,
   ));
-  const selectedSubjects = semantics.facts.selectedSubjects(
-    selection.source.selectedSymbol,
-    selection.source.selectedDeclaration,
-  );
   const selectedReceiverType = policy.types.resolveSelectedValue(
     selection.source.receiver.expression,
     selection.source.receiver.type,
@@ -117,6 +113,11 @@ export function classifySourceOwnedMember(
   const objectShape = policy.projectTypes.catalog.definitionForTarget(selectedReceiverType)?.kind === "class"
     ? undefined
     : policy.objectShapes.resolveNode(selection.source.receiver.expression, sourceFile);
+  const selectedProperty = selectCsharpObjectShapeProperty(objectShape, selection.source.receiver.type,
+    selection.source.expression,
+    semantics.facts.selectedSubjects(selection.source.selectedSymbol, selection.source.selectedDeclaration),
+    selection.source.sourceReadType, semantics, policy.ast);
+  const selectedSubjects = selectedProperty.subjects;
   const runtimeUnionProperty = resolveCsharpRuntimeUnionObjectShapeProperty(
     policy.objectShapes,
     selectedReceiverType,
@@ -143,17 +144,17 @@ export function classifySourceOwnedMember(
     selectedMethodValue ?? rawMemberReadType,
     selection.source.optionalChain,
   );
-  const selectedSourceReadType = selection.source.sourceReadType === undefined
+  const selectedSourceReadType = selectedProperty.type === undefined
     ? policy.types.resolveNode(selection.source.expression, sourceFile)?.type
     : policy.types.resolveSelectedValue(
       selection.source.expression,
-      selection.source.sourceReadType,
+      selectedProperty.type,
       sourceFile,
     );
   const selectedMemberReadType = shapeMember?.kind === "resolved"
     ? resolveCsharpObjectShapeMemberReadTargetType(
         shapeMember.member,
-        selection.source.sourceReadType,
+        selectedProperty.type,
         (left, right) =>
           semantics.types.relationship(left, right) !== "unrelated",
         selectedSourceReadType,

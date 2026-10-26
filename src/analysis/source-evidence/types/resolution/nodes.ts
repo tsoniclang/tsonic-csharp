@@ -17,7 +17,7 @@ import { sourceFactSubjectsForNode } from "./source-evidence.js";
 
 import { retainCsharpUnionObjectShapes } from "./source-union-refinement.js";
 import { resolveCsharpProviderIndexedAccess } from "./indexed-access.js";
-import { csharpSourceStorageContext, csharpSourceStorageComponentContext } from "./source-storage-projection.js";
+import { csharpSourceStorageContext, csharpSourceStorageComponentContext, resolveCsharpClosedSourceStorageCarrier } from "./source-storage-projection.js";
 
 import { selectCsharpParameterListCarrier } from "../../../../policy/types/callables/parameter-list.js";
 import { resolveCsharpNativeParameterCarrier, selectCsharpContextualParameterCarrier } from "./source-references.js";
@@ -111,7 +111,8 @@ function resolveNodeCarrierWithState(
     host.ast.kindName(node),
   );
   if (keyword !== undefined) {
-    return keyword;
+    return host.ast.kindName(node) === "KindAnyKeyword" || host.ast.kindName(node) === "KindUnknownKeyword"
+      ? resolveCsharpClosedSourceStorageCarrier(scope, state) ?? keyword : keyword;
   }
   if (host.ast.is.IsFunctionTypeNode(node)) {
     const selected = queries.types.authoredType(node);

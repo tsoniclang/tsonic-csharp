@@ -30,7 +30,7 @@ import { readCsharpRawLocation } from "../../../../source/extension/native-memor
 import { resolveTypeParameter, definedValues } from "./source-evidence.js";
 import { tsonicMemoryFieldBindingFactKey, tsonicMemoryRecordBindingFactKey, selectTsonicMemoryFieldBinding, selectTsonicMemoryRecordBinding } from "@tsonic/source-core/facts";
 
-import { csharpSourceStorageComponentContext } from "./source-storage-projection.js";
+import { csharpSourceStorageComponentContext, resolveCsharpClosedSourceStorageCarrier } from "./source-storage-projection.js";
 
 export function resolveTypeWithState(
   scope: CsharpTypeResolutionScope,
@@ -92,10 +92,10 @@ export function resolveTypeWithState(
     return typeParameter;
   }
   if (queries.types.isAny(type)) {
-    return csharpAnyTargetType();
+    return resolveCsharpClosedSourceStorageCarrier(scope, state) ?? csharpAnyTargetType();
   }
   if (queries.types.isUnknown(type)) {
-    return csharpTsValueTargetType();
+    return resolveCsharpClosedSourceStorageCarrier(scope, state) ?? csharpTsValueTargetType();
   }
   if (queries.types.isNever(type)) {
     return csharpNeverTargetType();

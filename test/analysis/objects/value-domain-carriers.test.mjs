@@ -15,6 +15,36 @@ import { createCsharpMetadataBudget } from "../../../dist/target-model/metadata/
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { frozenEmptyStorageSources } from "../../../../tsonic/test/fixtures/frozen-empty-storage.mjs";
 
+test("closed broad returns and aliases retain checked native property identities without a dynamic carrier", () => {
+  const compiled = compileCsharpSource({ sourceText: `
+    export function make(): unknown { return { value: 7, child: { label: "kept" } }; }
+    const alias: any = make();
+    export const value: number = alias.value;
+    export const label: string = alias.child.label;
+  ` });
+  assertCsharpCompilationSucceeded(compiled);
+  const text = [...compiled.artifacts.values()].join("\n");
+  const carrier = /public static (ObjectShape_[a-f0-9]{12}) make\(\)/u.exec(text)?.[1];
+  assert.ok(carrier, "the complete original return owns one exact native object");
+  assert.match(text, new RegExp(`static ${carrier} alias\\b`, "u"));
+  assert.match(text, /alias\.value/u);
+  assert.match(text, /alias\.child\.label/u);
+  assert.doesNotMatch(text, /TsValue|DynamicSlot|CreateDynamicObject|System\.Reflection/u);
+});
+
+test("open and heterogeneous broad domains never acquire a guessed native object carrier", () => {
+  for (const [name, sourceText] of [
+    ["open", "export function transfer(value: unknown): unknown { return value; }"],
+    ["heterogeneous", "export function transfer(flag: boolean): unknown { return flag ? { value: 7 } : 'other'; }"],
+  ]) {
+    const compiled = compileCsharpSource({ sourceText });
+    assertCsharpCompilationSucceeded(compiled);
+    const text = [...compiled.artifacts.values()].join("\n");
+    assert.match(text, /public static Tsonic\.CSharp\.Runtime\.TsValue transfer\(/u, name);
+    if (name === "open") assert.match(text, /transfer\(Tsonic\.CSharp\.Runtime\.TsValue value\)/u);
+  }
+});
+
 test("native source-storage projections preserve exact field, element and tuple identities at every consumer", () => {
   const declaration = {};
   const foreign = {};
