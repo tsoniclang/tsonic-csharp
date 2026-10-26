@@ -4,8 +4,8 @@ import type { CsharpTargetNamedTypeRef } from "../../target-model/types/model.js
 import { targetUseSiteIdentity, type SourceStorageSubject, type TargetUseSiteRef } from "@tsonic/target-api/analysis";
 import { failTargetAnalysisInvariant, targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
 import { sourceExpressionResultDisposition, sourceExpressionValueInputs, sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
-import { selectCsharpNativeConstructSteps } from "./control-flow/native-constructs.js";
-import { selectCsharpNativeOperandUses, type CsharpNativeOperandSelection, type CsharpNativeOperandStep } from "./control-flow/native-operands.js";
+import { csharpNativeConstructIsErased, selectCsharpNativeConstructSteps } from "./control-flow/native-constructs.js";
+import { selectCsharpNativeOperandUses, selectCsharpNativeSourceRefusal, type CsharpNativeOperandSelection, type CsharpNativeOperandStep } from "./control-flow/native-operands.js";
 import { selectCsharpNativeCompletion, type CsharpNativeCompletionFlow } from "../../policy/operations/control-flow/native-completion.js";
 import { csharpNativeUseSite, type CsharpExpectedNativeUse, type CsharpNativeChildUse, type CsharpNativeCompletion, type CsharpNativeEvaluation, type CsharpNativeOrderStep, type CsharpNativeUse, type CsharpNativeDiscardedPresence } from "../../target-model/records/native-demand.js";
 import { csharpConstructorBaseCall } from "../callables/constructor-entry.js";
@@ -49,7 +49,11 @@ export function analyzeCsharpNativeDemand(
   const baseCalls = new WeakMap<Node, Node>();
   const unusedDefaults = new WeakSet<Node>();
   const requiredCatchBindings = new WeakSet<Node>();
+  const nativeBodyRoots: Node[] = [];
   const indexInputs = (node: Node): void => {
+    if (csharpNativeConstructIsErased(input, node) || input.operations.erasedStatement.get(node)) return;
+    const participation = input.participation.get(node);
+    if (participation === "body" || participation === "frame-body") nativeBodyRoots.push(node);
     if (ast.is.IsConstructorDeclaration(node)) {
       const call = csharpConstructorBaseCall(ast, node);
       if (call !== undefined) baseCalls.set(node, call);
@@ -108,6 +112,7 @@ export function analyzeCsharpNativeDemand(
     owner.set(targetUseSiteIdentity(entry.site), entry); exactPending.set(entry.site.subject, owner);
   }
   for (const file of input.sourceFiles) visitConstruct(file);
+  for (const body of nativeBodyRoots) visitConstruct(body);
   for (const declaration of requiredBindingRoots) {
     if (ast.is.IsVariableDeclaration(declaration)) refuseSourceExpression(declaration);
   }
@@ -141,7 +146,15 @@ export function analyzeCsharpNativeDemand(
   }
 
   function pending(site: TargetUseSiteRef, expression: Node, reason: CsharpNativeUnadmittedReason, message?: string, code?: string): VisitedUse {
-    unadmitted.push(Object.freeze({ kind: "pending-use", site, expression, reason, ...(message === undefined ? {} : { message }), ...(code === undefined ? {} : { code }) }));
+    if (reason === "expression-form-unresolved" && message !== undefined) {
+      if (!refusedSourceExpressions.has(expression)) {
+        refusedSourceExpressions.add(expression);
+        unadmitted.push(Object.freeze({ kind: "source-refusal", requiredBy: expression, diagnostic: Object.freeze({
+          sourceNode: expression, source: "tsonic-csharp", category: "error", code: code ?? "CSHARP_UNSUPPORTED_AST", message,
+        }) }));
+      }
+    } else unadmitted.push(Object.freeze({ kind: "pending-use", site, expression, reason,
+      ...(message === undefined ? {} : { message }), ...(code === undefined ? {} : { code }) }));
     return Object.freeze({ site, expression, completion: undefined });
   }
 
@@ -183,11 +196,19 @@ export function analyzeCsharpNativeDemand(
 
   function refuseSourceExpression(requiredBy: Node): boolean {
     const issues = sourceRequirements.get(requiredBy);
-    if (issues === undefined) return false;
-    for (const diagnostic of issues) {
+    for (const diagnostic of issues ?? []) {
       if (refusedSourceExpressions.has(diagnostic.sourceNode)) continue;
       refusedSourceExpressions.add(diagnostic.sourceNode);
       unadmitted.push(Object.freeze({ kind: "source-refusal", requiredBy, diagnostic }));
+    }
+    const diagnostic = selectCsharpNativeSourceRefusal(input, requiredBy);
+    if (diagnostic === undefined) return issues !== undefined;
+    const dependencies = sourceExpressionValueInputs(ast, requiredBy);
+    if (dependencies?.some(input => refuseSourceExpression(input.expression))) return true;
+    if (!refusedSourceExpressions.has(requiredBy)) {
+      refusedSourceExpressions.add(requiredBy);
+      unadmitted.push(Object.freeze({ kind: "source-refusal", requiredBy,
+        diagnostic: targetDiagnosticFromExtension(requiredBy, diagnostic) }));
     }
     return true;
   }
@@ -328,17 +349,6 @@ export function analyzeCsharpNativeDemand(
       ? selectCsharpNativeOperandUses(policyInput, expression, child.access)
       : Object.freeze({ runtime: Object.freeze([]), planning: Object.freeze([]), flow: "sequence", carrier: expected.carrier,
         resultUse: sourceExpressionResultDisposition(ast, expression).kind === "discarded" ? "discarded" : "consumed" });
-    if (selected.sourceDiagnostic !== undefined) {
-      const dependencies = sourceExpressionValueInputs(ast, expression);
-      if (dependencies?.some(input => refuseSourceExpression(input.expression)))
-        return Object.freeze({ site, expression, completion: undefined });
-      if (!refusedSourceExpressions.has(expression)) {
-        refusedSourceExpressions.add(expression);
-        unadmitted.push(Object.freeze({ kind: "source-refusal", requiredBy: expression,
-          diagnostic: targetDiagnosticFromExtension(expression, selected.sourceDiagnostic) }));
-      }
-      return Object.freeze({ site, expression, completion: undefined });
-    }
     const expectedChildren = new Map<string, TargetUseSiteRef[]>();
     for (const reference of expected?.construction?.children ?? expected?.children ?? []) {
       const matching = expectedChildren.get(reference.role) ?? [];

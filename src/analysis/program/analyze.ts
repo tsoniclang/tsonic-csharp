@@ -290,7 +290,6 @@ function analyzeCsharpTargetProgramBeforeSeal(
       if (construction?.jsValue.kind === "rejected") return [{ sourceNode: use.expression,
         source: "tsonic-csharp", category: "error", code: "CSHARP_UNSUPPORTED_AST", message: construction.jsValue.reason }];
       const selected = construction?.target;
-      if (selected?.kind === "rejected") return [targetDiagnosticFromExtension(use.expression, selected.diagnostic)];
       if (selected?.kind === "missing" || selected?.kind === "conflict" || selected?.kind === "ambiguous") {
         const code = selected.kind === "missing" ? "CSHARP_TARGET_CONSTRUCTION_NOT_CLOSED"
           : selected.kind === "conflict" ? "CSHARP_TARGET_CONSTRUCTION_IDENTITY_CONFLICT" : "CSHARP_TARGET_CONSTRUCTION_AMBIGUOUS";
@@ -299,9 +298,6 @@ function analyzeCsharpTargetProgramBeforeSeal(
         }];
       }
     }
-    // A use left pending because its own call was refused (its expected use could not close) reports that refusal.
-    const call = use.kind === "pending-use" && use.message === undefined ? analysis.operations.selectedCall.get(use.expression) : undefined;
-    if (call?.target?.kind === "rejected") return [targetDiagnosticFromExtension(use.expression, call.target.diagnostic)];
     if (use.message === undefined && use.reason !== "argument-refused" && use.reason !== "source-argument-rejected" &&
       use.reason !== "property-key-refused") return [];
     return [{ sourceNode: use.expression, source: "tsonic-csharp", category: "error",
