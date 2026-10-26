@@ -159,6 +159,7 @@ test("generated method-value handles reuse only the identical available inherite
     const capabilities = new Map([[objectShapeArtifactKey(child), ["method-values"]],
       ...facts.flatMap((fact, index) => parents[index].methodValues ? [[objectShapeArtifactKey(fact), ["method-values"]]] : [])]);
     const emission = analyzeCsharpStructuralObjectEmission({
+      captureMethods: { get: () => undefined },
       shapes: { knownShapes: () => [child, ...facts], resolveTarget: carrier => byKey.get(targetTypeRefKey(carrier)) },
       demand: { artifacts: [], get: key => capabilities.has(key) ? { capabilities: capabilities.get(key) } : undefined }, storage });
     assert.equal(emission.issues.length, 0, "every fixture member has native type syntax");

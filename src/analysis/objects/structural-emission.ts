@@ -4,6 +4,7 @@ import type { CsharpObjectShapeClassifications } from "../../target-model/record
 import type { CsharpObjectShapeDemand } from "../../target-model/records/object-shape-demand.js";
 import { objectShapeArtifactKey } from "../../target-model/records/object-shape-keys.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
+import type { CsharpCaptureMethodRecords } from "../../target-model/records/capture-methods.js";
 import type { CsharpMethodValueContractEmission, CsharpStructuralInterfaceMemberEmission, CsharpStructuralMethodEmission, CsharpStructuralObjectEmission, CsharpStructuralPropertyEmission } from "../../target-model/records/structural-object-emission.js";
 import { csharpObjectShapeMemberContractKey, targetTypeRefKey, targetTypeRefEquals } from "../../target-model/types/index.js";
 import { csharpNullableTargetType } from "../../target-model/types/carriers/nullable.js";
@@ -18,6 +19,7 @@ export function analyzeCsharpStructuralObjectEmission(input: {
   readonly shapes: CsharpObjectShapeClassifications;
   readonly demand: CsharpObjectShapeDemand;
   readonly storage: Pick<CsharpStorageClassifications, "nativeField">;
+  readonly captureMethods: CsharpCaptureMethodRecords["captureMethods"];
 }) {
   const values = new Map<string, CsharpStructuralObjectEmission>();
   const issues: TargetDiagnostic[] = [];
@@ -40,6 +42,7 @@ export function analyzeCsharpStructuralObjectEmission(input: {
   };
   for (const [key, shape] of shapes) {
     const artifact = input.demand.get(key);
+    const captureMethods = input.captureMethods.get(shape);
     const structural = shape.targetType.kind === "target-named" && (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true;
     const interfaceMembers: CsharpStructuralInterfaceMemberEmission[] = [];
     const methodValues: CsharpStructuralPropertyEmission[] = [];
@@ -119,6 +122,14 @@ export function analyzeCsharpStructuralObjectEmission(input: {
         if (!admit(type)) continue;
         for (const required of contract.members) {
           if (required.memberKind !== "method" || handleIsInherited(contract, required)) continue;
+          const captured = captureMethods?.filter(method => method.protocolMethods.some(protocol =>
+            targetTypeRefEquals(protocol.interface, type) && protocol.name === required.targetName));
+          if (captured?.length === 1 && required.optional !== true && required.methodValueStorage === undefined &&
+            required.methodValueContract !== undefined && targetTypeRefEquals(required.methodValueContract, type)) {
+            contracts.push(Object.freeze({ name: objectShapeStorageMemberName(contract, required), interface: type,
+              type: required.methodValueContract, writable: false, source: "this" }));
+            continue;
+          }
           const signature = csharpPresentObjectShapeMethod(required);
           const exact = shape.members.filter(candidate => {
             const selected = csharpPresentObjectShapeMethod(candidate);

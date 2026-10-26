@@ -80,6 +80,7 @@ test("inherited optional method handles retain every original native interface o
     members: [count, method], implements: [derived.targetType] };
   const shapes = [base, derived, producer];
   const selected = analyzeCsharpStructuralObjectEmission({
+    captureMethods: { get: () => undefined },
     shapes: { knownShapes: () => shapes, resolveTarget: type => shapes.find(shape => targetTypeRefEquals(shape.targetType, type)) },
     demand: { artifacts: [], get: key => key === objectShapeArtifactKey(base) ? undefined
       : { capabilities: ["method-values"], receiverBoundMethodKeys: [],
@@ -104,6 +105,7 @@ test("inherited optional method handles retain every original native interface o
   const dataProducer = { ...producer, members: [optionalData, required], implements: [dataBase.targetType] };
   const dataShapes = [dataBase, dataProducer];
   const dataEmission = analyzeCsharpStructuralObjectEmission({
+    captureMethods: { get: () => undefined },
     shapes: { knownShapes: () => dataShapes, resolveTarget: type => dataShapes.find(shape => targetTypeRefEquals(shape.targetType, type)) },
     demand: { artifacts: [], get: key => key === objectShapeArtifactKey(dataProducer)
       ? { capabilities: [], receiverBoundMethodKeys: [], materialization: "synthetic" } : undefined },
@@ -127,6 +129,7 @@ test("native write-consuming interfaces require real producer slots and emit rea
     const producer = makeProducer(current);
     const shapes = [base, writable, producer];
     const selected = analyzeCsharpStructuralObjectEmission({
+      captureMethods: { get: () => undefined },
       shapes: { knownShapes: () => shapes, resolveTarget: type => shapes.find(shape => targetTypeRefEquals(shape.targetType, type)) },
       demand: { artifacts: [], get: key => ({ capabilities: ["method-values"], receiverBoundMethodKeys: [],
         materialization: key === objectShapeArtifactKey(producer) ? "synthetic" : "declared" }) },
@@ -175,6 +178,7 @@ test("an optional native method keeps its immutable present body distinct from i
     methodImplementation: { declaration: {}, methods: [declaration], captures: [] } };
   const shapes = [protocolShape, base, writable, producer];
   const selected = analyzeCsharpStructuralObjectEmission({
+    captureMethods: { get: () => undefined },
     shapes: { knownShapes: () => shapes, resolveTarget: type => shapes.find(shape => targetTypeRefEquals(shape.targetType, type)) },
     demand: { artifacts: [], get: key => ({ capabilities: ["method-values"], receiverBoundMethodKeys: [],
       materialization: key === objectShapeArtifactKey(producer) ? "synthetic" : "declared" }) },
@@ -190,6 +194,51 @@ test("an optional native method keeps its immutable present body distinct from i
   assert.equal(current?.source !== "this", true, "current extraction never turns a writable whole object into its original body");
   assert.equal(targetTypeRefEquals(current.type, csharpNullableTargetType(protocol)), true,
     "current slot keeps the one native absence, not a nonnullable original-body promise");
+});
+
+test("a captured invocation handle requires its single completed original native body contract", () => {
+  const scalar = { kind: "source-primitive", name: "int32" };
+  const declaration = {};
+  const signature = csharpDelegateTargetType("System.Func", [scalar], scalar);
+  const member = { sourceKey: { kind: "property", name: "read" }, sourceName: "read", targetName: "read",
+    memberKind: "method", type: signature };
+  const protocol = createStructuralObjectShapeTarget([member], undefined, unconstrained, true);
+  const protocolShape = { targetType: protocol, members: [{ ...member, methodValueContract: protocol }] };
+  const type = csharpMethodValueType(protocol, "__tsonic_invoke_body_read", "original-captured-body", signature, []);
+  const method = { declaration, scope: declaration, methodName: "__tsonic_invoke_body_read", type, captures: [], receivers: [] };
+  const shape = { targetType: owner, members: [], implements: [protocol] };
+  const frame = { scope: declaration, ownership: "value", methods: [method], bindings: [], parents: [], receivers: [], shape };
+  const shapes = { knownShapes: () => [protocolShape, shape], resolveTarget: type =>
+    targetTypeRefEquals(type, protocol) ? protocolShape : targetTypeRefEquals(type, owner) ? shape : undefined };
+  const body = { kind: "source", sourceDeclaration: declaration, returnType: scalar,
+    nativeParameters: [{ sourceParameter: {}, targetParameter: { type: scalar, passingMode: "by-value" } }] };
+  const completed = analyzeCsharpCaptureMethods({ getSourceFile: () => ({}), is: {
+    IsFunctionDeclaration: () => false, IsArrowFunction: () => true,
+  } }, { frames: [frame] }, shapes, { get: () => body });
+  assert.equal(completed.issues.length, 0, "the existing body owner validates the complete native signature first");
+  const record = completed.records.captureMethods.get(shape)[0];
+  assert.equal(record.method === method && record.protocolMethods.length === 1, true,
+    "the original captured body, not an equal-shaped fabricated object member, owns the protocol");
+  const demand = { artifacts: [], get: key => key === objectShapeArtifactKey(shape)
+    ? { capabilities: ["method-values"], receiverBoundMethodKeys: [], materialization: "synthetic" }
+    : key === objectShapeArtifactKey(protocolShape)
+      ? { capabilities: ["method-values"], receiverBoundMethodKeys: [], materialization: "declared" } : undefined };
+  const classify = captureMethods => analyzeCsharpStructuralObjectEmission({ shapes, demand,
+    captureMethods, storage: { nativeField: { get: () => undefined } } });
+  const selected = classify(completed.records.captureMethods);
+  assert.equal(selected.issues.length, 0, "an actually completed body needs no invented data member or delegate");
+  const handle = selected.records.structuralObject.get(shape).contracts[0];
+  assert.equal(handle.source === "this" && handle.writable === false && targetTypeRefEquals(handle.type, protocol), true,
+    "the immutable present body handle retains the same native object and cannot become a writable current slot");
+  for (const [label, rows] of [
+    ["absent body", undefined],
+    ["ambiguous body", [record, record]],
+    ["foreign same-signature protocol", [{ ...record, protocolMethods: [{ ...record.protocolMethods[0], interface: owner }] }]],
+  ]) {
+    const rejected = classify({ get: () => rows });
+    assert.equal(rejected.issues.length === 1 && rejected.records.structuralObject.get(shape).contracts.length === 0, true,
+      `${label}: no body or setter is inferred from an equal signature`);
+  }
 });
 
 test("a captured source body cannot acquire reference-return or parameter semantics from a contextual protocol", () => {
@@ -473,7 +522,7 @@ for (const returnPassing of [undefined, "byref-readwrite", "byref-readonly"]) {
       assert.equal(signature.parameters.every((parameter, index) => parameter.passingMode === modes[index]) &&
         signature.returnPassing === returnPassing, true, "object member publication retains every exact native passing mode");
       const shapes = [shape, protocolShape];
-      const structural = analyzeCsharpStructuralObjectEmission({ shapes: { knownShapes: () => shapes,
+      const structural = analyzeCsharpStructuralObjectEmission({ captureMethods: { get: () => undefined }, shapes: { knownShapes: () => shapes,
         resolveTarget: type => shapes.find(candidate => targetTypeRefEquals(candidate.targetType, type)) },
       demand: { artifacts: [], get: () => undefined }, storage: { nativeField: { get: () => undefined } } });
       assert.equal(structural.issues.length, 0, "complete native signature evidence is admitted before syntax rendering");
