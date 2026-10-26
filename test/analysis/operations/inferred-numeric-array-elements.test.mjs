@@ -590,7 +590,21 @@ for (const surface of ["native", "js"]) {
   });
   test(`${surface} an erased callable does not admit or reject its numeric body`, () => {
     accepted(compile(surface, `export function run(narrow: float32, signed: int32): number {
-      const unused = () => { const values = [narrow, signed]; return values[0]; }; void unused; return 7; }`));
+      void (() => { const values = [narrow, signed]; return values[0]; }); return 7; }`));
+  });
+  test(`${surface} a stored callable retains numeric body admission after a discarded read`, () => {
+    const compiled = compile(surface, `export function run(narrow: float32, signed: int32): number {
+      const unused = () => { const values = [narrow, signed]; return values[0]; }; void unused; return 7; }`);
+    assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
+    const issue = compiled.nativeStage.diagnostics[0];
+    const ast = compiled.nativeStage.source.ast;
+    const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
+    const text = range?.kind !== "authored" ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end);
+    assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH" &&
+      issue.message === "Inferred array elements require an exact common native numeric carrier; an explicit native array destination is required for a rounding conversion." &&
+      text === "[narrow, signed]", true, `discarding a read does not erase the stored callable's required native body; ${diagnosticLabel(compiled)}`);
+    assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
+      "the stored numeric body is rejected before publication and emission");
   });
   test(`${surface} an authored integer outside the canonical floating arm is refused without a native-integer cap`, () => {
     const compiled = compile(surface, `export function run(signed: int32, unsigned: uint32): number {
