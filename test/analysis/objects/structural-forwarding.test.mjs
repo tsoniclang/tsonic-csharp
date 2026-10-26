@@ -89,6 +89,70 @@ export function run(): boolean { const handler = make(); return handler.run(6) =
     executeCsharpConstruction(compiled, `native-class-delegate-initializer-${surface}`);
   });
 
+for (const surface of ["native", "js"]) test(`${surface}: selected method slots cache one native extraction and preserve rest receivers`,
+  { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+import type { int32 } from "@tsonic/core/types.js";
+type Payload = { extra: int32; run(value: int32): int32 };
+export function make(extra: int32): Payload { return { extra, run(value: int32): int32 { return this.extra + value; } }; }
+export function call(value: Payload, input: int32): int32 { return value.run(input); }
+export function extract(value: Payload): (input: int32) => int32 { return value.run; }
+export function copy(value: Payload): Payload { return { ...value }; }
+` });
+    assertCsharpCompilationSucceeded(compiled);
+    const output = executeCsharpConstruction(compiled, `selected-method-native-cost-${surface}`, false, false, [], `
+var warm = Tsonic.Generated.Index.make(4);
+var nativeWarm = new NativeMethod(4);
+for (int index = 0; index < 4096; index++) {
+    _ = Tsonic.Generated.Index.call(warm, 7);
+    _ = Tsonic.Generated.Index.extract(warm);
+    _ = nativeWarm.Run(7);
+    _ = nativeWarm.Extract();
+}
+var value = Tsonic.Generated.Index.make(4);
+var native = new NativeMethod(4);
+long before = System.GC.GetAllocatedBytesForCurrentThread();
+int checksum = 0;
+for (int index = 0; index < 4096; index++) checksum += Tsonic.Generated.Index.call(value, 7);
+long direct = System.GC.GetAllocatedBytesForCurrentThread() - before;
+before = System.GC.GetAllocatedBytesForCurrentThread();
+for (int index = 0; index < 4096; index++) checksum -= native.Run(7);
+long nativeDirect = System.GC.GetAllocatedBytesForCurrentThread() - before;
+before = System.GC.GetAllocatedBytesForCurrentThread();
+var first = Tsonic.Generated.Index.extract(value);
+long extraction = System.GC.GetAllocatedBytesForCurrentThread() - before;
+before = System.GC.GetAllocatedBytesForCurrentThread();
+var nativeFirst = native.Extract();
+long nativeExtraction = System.GC.GetAllocatedBytesForCurrentThread() - before;
+before = System.GC.GetAllocatedBytesForCurrentThread();
+for (int index = 0; index < 4096; index++)
+    if (!object.ReferenceEquals(first, Tsonic.Generated.Index.extract(value))) throw new System.Exception("extraction identity");
+long repeated = System.GC.GetAllocatedBytesForCurrentThread() - before;
+var copy = Tsonic.Generated.Index.copy(value);
+before = System.GC.GetAllocatedBytesForCurrentThread();
+var copied = Tsonic.Generated.Index.extract(copy);
+long copiedExtraction = System.GC.GetAllocatedBytesForCurrentThread() - before;
+copy.extra = 90;
+value.extra = 11;
+if (!object.ReferenceEquals(first, copied) || first(3) != 14 || Tsonic.Generated.Index.call(copy, 3) != 14 || copy.extra != 90)
+    throw new System.Exception("rest preserves the original callable, receiver and body");
+if (direct != 0 || nativeDirect != 0 || extraction <= 0 || extraction != nativeExtraction || repeated != 0 || copiedExtraction != 0 || checksum != 0)
+    throw new System.Exception($"native allocation mismatch {direct}/{nativeDirect}/{extraction}/{nativeExtraction}/{repeated}/{copiedExtraction}/{checksum}");
+System.Console.Write($"direct={direct};first={extraction};nativeFirst={nativeExtraction};repeat={repeated};copy={copiedExtraction}");
+System.GC.KeepAlive(nativeFirst);
+sealed class NativeMethod {
+    private readonly int extra;
+    private System.Func<int, int>? value;
+    public NativeMethod(int extra) { this.extra = extra; }
+    public int Run(int input) => extra + input;
+    public System.Func<int, int> Extract() => value ??= Run;
+}
+`);
+    assert.equal(/^direct=0;first=\d+;nativeFirst=\d+;repeat=0;copy=0$/u.test(output), true,
+      "native execution measures one baseline-sized cached delegate, no direct-call/repeated-read allocation and exact copied identity");
+    process.stdout.write(`${surface}: ${output}\n`);
+  });
+
 test("a physical method protocol retains checked source and generic declaration provenance when completed", () => {
   const targetType = Object.freeze({ kind: "target-named", id: "tsonic.shape:checked-method-protocol",
     csharpAllowsRefLikeTypeArguments: Object.freeze([]) });
@@ -141,12 +205,18 @@ test("every actual authored native method uses the same body and copy protocol",
   assert.equal(admitted.members[0].methodValueStorage === undefined, true, "the native body does not introduce a delegate storage field");
   assert.equal(csharpCopiedObjectShapeMembers(admitted)[0].methodValueStorage.type === targetType, true,
     "a copy retains the actual original native environment");
-  const unimplemented = retainCsharpMethodValueContracts({ targetType, members: Object.freeze([member]) }, shape => shape, environment,
+  const selectedContract = admitted.members[0].methodValueContract;
+  const unimplemented = retainCsharpMethodValueContracts({ targetType,
+    members: Object.freeze([{ ...member, methodValueContract: selectedContract }]) }, shape => shape, environment,
     noAuthoredNativeMethod);
-  assert.equal(unimplemented.members[0].methodValueContract !== undefined, true,
-    "an abstract method retains the same native invocation contract independently of unrelated object fields");
+  assert.equal(unimplemented.members[0].methodValueContract === selectedContract, true,
+    "an abstract method retains its actual selected native invocation contract independently of unrelated object fields");
   assert.equal(unimplemented.methodImplementation === undefined && unimplemented.members[0].methodValueStorage === undefined, true,
     "an abstract invocation contract never manufactures an authored native body or writable slot");
+  const unselected = retainCsharpMethodValueContracts({ targetType, members: Object.freeze([member]) }, shape => shape, environment,
+    noAuthoredNativeMethod);
+  assert.equal(unselected.members[0].methodValueContract === undefined, true,
+    "an absent body is not evidence of a selected native invocation contract");
   for (const [label, selection] of [
     ["complete readonly slot", { kind: "complete", writes: [] }],
     ["open without an exposure proof", { kind: "open", writes: [], boundaries: [] }],
@@ -191,6 +261,15 @@ test("authored bodies admit only exact closed delegate or optional protocol slot
   const closed = select({ ...member, methodValueStorage: { kind: "delegate", type } });
   assert.equal(closed.kind === "selected" && closed.value.declaration.kind === "authored" &&
     closed.value.declaration.value.kind === "delegate", true, "the mutable monomorphic value uses its exact closed delegate");
+  const selectedMember = Object.freeze({ ...member, methodValueStorage: Object.freeze({ kind: "delegate", type }) });
+  const retained = retainCsharpMethodValueContracts({ ...shape, members: [selectedMember],
+    methodImplementation: { declaration, methods: [declaration], captures: [], identity: "selected-native-delegate" } },
+    () => assert.fail("a selected native delegate cannot invent a second method protocol"),
+    () => assert.fail("the selected monomorphic delegate has no generic constraint"), {
+      memberSubjectFor: () => assert.fail("an already-selected delegate is not reclassified from method mutation evidence"),
+    });
+  assert.equal(retained.members[0] === selectedMember, true,
+    "the exact required native delegate slot remains authoritative even for a fixed authored method");
   for (const [label, stored] of [
     ["synthetic self parameter", csharpDelegateTargetType("System.Func", [targetType], integer)],
     ["wrong result", csharpDelegateTargetType("System.Func", [], { kind: "source-primitive", name: "string" })],
@@ -263,11 +342,13 @@ export function run(): boolean {
 
 test("a native rest-copy layout stores the required invocation protocol without inventing a body", () => {
   const integer = { kind: "source-primitive", name: "int32" };
+  const signature = Object.freeze({ sourceKey: Object.freeze({ kind: "property", name: "run" }),
+    sourceName: "run", targetName: "run", memberKind: "method", type: csharpDelegateTargetType("System.Func", [integer], integer) });
+  const selectedContract = createStructuralObjectShapeTarget([signature], undefined,
+    () => assert.fail("the selected monomorphic protocol has no free native binder"), true);
   const schema = Object.freeze({ targetType: Object.freeze({ kind: "target-named", id: "tsonic.shape:rest-schema",
     csharpGeneratedStructuralStorage: true, csharpAllowsRefLikeTypeArguments: Object.freeze([]) }),
-    members: Object.freeze([Object.freeze({ sourceKey: Object.freeze({ kind: "property", name: "run" }),
-      sourceName: "run", targetName: "run", memberKind: "method",
-      type: csharpDelegateTargetType("System.Func", [integer], integer) })]) });
+    members: Object.freeze([Object.freeze({ ...signature, methodValueContract: selectedContract })]) });
   const policy = createCsharpObjectShapePolicy({
     typeParameterConstraints: () => assert.fail("the monomorphic rest layout has no free native binder"),
     ast: { is: {} }, sourceStorage: noAuthoredNativeMethod,
@@ -278,7 +359,11 @@ test("a native rest-copy layout stores the required invocation protocol without 
   assert.equal(member.methodValueContract !== undefined && member.methodValueStorage?.kind === "protocol" &&
     targetTypeRefEquals(member.methodValueStorage.type, member.methodValueContract), true,
   "the rest field stores the original input's exact selected native invocation contract, never a CLR delegate adaptation");
+  assert.equal(member.methodValueContract === selectedContract, true, "copying retains the actual published input contract identity");
   assert.equal(copy.methodImplementation === undefined, true, "copying an abstract field never manufactures an authored source body");
+  const unselected = policy.resolveCopyShape({ ...schema, members: [signature] });
+  assert.equal(unselected.members[0].methodValueContract === undefined, true,
+    "an absent body alone cannot invent a native protocol for an ordinary monomorphic callable field");
 });
 
 test("a raw interface copy admits its method protocol before selecting native storage", () => {

@@ -35,16 +35,19 @@ export function resolveSourceCallInstantiation(
   | {
       readonly arguments: readonly TargetTypeRef[];
       readonly substitutions: ReadonlyMap<string, TargetTypeRef>;
+      readonly sourceArguments: readonly Type[];
     }
   | undefined {
   const { host, inferSourceCallTargetTypeArguments, resolveAuthoredAndSelectedSourceType } = scope;
   const selectedArguments = source.sourceSelectedMethodTypeArguments ?? [];
+  const sourceArguments = Object.freeze(selectedArguments.map(argument => argument.selectedType));
   const owner = callable?.sourceDeclaration ?? source.sourceCalleeAccess?.selectedDeclaration ?? source.sourceCallee.selectedDeclaration;
   const projections = owner === undefined ? [] : host.representations.genericProjections(owner);
   if (expectedTypeParameterIdentities?.length === 0) {
     return {
       arguments: Object.freeze([]),
       substitutions: new Map(),
+      sourceArguments,
     };
   }
   const parameterIdentities = sourceCallTypeParameterIdentities(scope, source, callable,
@@ -69,6 +72,7 @@ export function resolveSourceCallInstantiation(
     return {
       arguments: Object.freeze([]),
       substitutions: new Map(),
+      sourceArguments,
     };
   }
   const inferredParameterIdentities = new Set(
@@ -132,7 +136,7 @@ export function resolveSourceCallInstantiation(
     arguments_.push(targetArgument);
   }
   if (owner !== undefined && projections.length > 0) {
-    const results = resolveCsharpProjectionArguments(scope, owner, selectedArguments.map(argument => argument.selectedType), arguments_, state, projections);
+    const results = resolveCsharpProjectionArguments(scope, owner, sourceArguments, arguments_, state, projections);
     if (results === undefined) return undefined;
     for (const [index, result] of results.entries()) {
       substitutions.set(projections[index]!.identity, result);
@@ -142,6 +146,7 @@ export function resolveSourceCallInstantiation(
   return {
     arguments: Object.freeze((expectedTypeParameterIdentities ?? identities).map(identity => substitutions.get(identity)!)),
     substitutions,
+    sourceArguments,
   };
 }
 export function resolveSourceCallSelectedType(
@@ -183,14 +188,13 @@ export function resolveSourceCallSelectedType(
   }
   const authoredSourceFile = host.ast.getSourceFile(authoredTypeNode) ??
     selectedSourceFile;
-  const selectedArguments = source.sourceSelectedMethodTypeArguments ?? [];
-  if (authoredTypeNode !== undefined && host.hasSemantics(authoredSourceFile) && selectedArguments.length > 0) {
+  if (authoredTypeNode !== undefined && host.hasSemantics(authoredSourceFile) && instantiation.sourceArguments.length > 0) {
     const selectedDeclaration = source.sourceSelectedSignatureKind === "resolved"
       ? host.semantics(selectedSourceFile).declarations.signatureDeclaration(source.selectedSignature) : undefined;
     if (selectedDeclaration === undefined) return undefined;
     const bound = bindCsharpSourceDeclarationArguments(scope, selectedDeclaration,
-      instantiation.arguments.slice(0, selectedArguments.length),
-      selectedArguments.map(argument => argument.selectedType), state);
+      instantiation.arguments.slice(0, instantiation.sourceArguments.length),
+      instantiation.sourceArguments, state);
     if (bound === undefined) return undefined;
     state = bound;
   }

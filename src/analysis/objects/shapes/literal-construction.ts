@@ -73,7 +73,14 @@ export function createCsharpLiteralShapeResolver(
           (expectedShape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true)
       ? [expectedShape.targetType]
       : expectedShape.implements;
-    const members = [...retainLiteralMemberEvidence(expectedShape.members, objectLiteral, host.semantics(sourceFile))];
+    const members = retainLiteralMemberEvidence(expectedShape.members, objectLiteral, host.semantics(sourceFile)).map(member =>
+      implemented?.includes(expectedShape.targetType) === true && expectedShape.methodImplementation === undefined &&
+      member.memberKind === "method" && !csharpObjectShapeMethodRequiresProtocol(member) &&
+      member.methodValueStorage === undefined && member.sourceDeclarations?.some(declaration =>
+        host.ast.is.IsMethodDeclaration(declaration) && host.ast.body(declaration) !== undefined &&
+        host.ast.parent(declaration) === objectLiteral) === true
+        ? { ...member, methodValueStorage: Object.freeze({ kind: "delegate" as const, type: member.type }) }
+        : member);
     const nativeMethodLiteral = members.some(member => member.memberKind === "method" &&
       member.sourceDeclarations?.some(declaration => host.ast.is.IsMethodDeclaration(declaration) &&
         host.ast.body(declaration) !== undefined && host.ast.parent(declaration) === objectLiteral) === true);
