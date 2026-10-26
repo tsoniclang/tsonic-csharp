@@ -202,6 +202,14 @@ export function finalizeCsharpNativeEmission(
     return failTargetAnalysisInvariant("tsonic-csharp",
       `Native consumption '${incomplete.site.role}' requires completed '${incomplete.reason}' evidence before publication.`, incomplete.expression);
   }
+  const generators = analyzeCsharpGenerators({ ast: source.ast, nodes: sourceStorage.nodes, evidence: analysis.sourceEvidence,
+    admitted: admittedControlNode, erased: node => analysis.sourceEvidence.compileTimeMetadata.get(node) === true ||
+      admittedOperations.nativeUnreachable.get(node) === true || nativeParticipation.participation.get(node) === "erased",
+    required: analysis.requiredRecords });
+  if (generators.issues.length !== 0) return rejectedTargetStage(generators.issues);
+  const callableDeclarations = analyzeCsharpCallableDeclarationEmission({ ast: source.ast, nodes: sourceStorage.nodes,
+    admitted: admittedControlNode, declarations: analysis.declarations, generators: generators.records, callables: analysis.callables });
+  if (callableDeclarations.issues.length !== 0) return rejectedTargetStage(callableDeclarations.issues);
   const callableParameters = analyzeCsharpCallableParameterEmission({ ast: source.ast, callables: analysis.callables, nodes: sourceStorage.nodes,
     declarations: analysis.declarations, values: analysis.valueReads, storage: analysis.storage, conversions, literals: literalValues,
     exact: exactLiterals, admitted: admittedControlNode, required: analysis.requiredRecords });
@@ -262,14 +270,6 @@ export function finalizeCsharpNativeEmission(
     operations: admittedOperations, metadata: analysis.sourceEvidence.compileTimeMetadata,
     participation: nativeParticipation.participation, values: analysis.valueReads.valueRead,
     switchCoversDiscriminant, required: analysis.requiredRecords });
-  const generators = analyzeCsharpGenerators({ ast: source.ast, nodes: sourceStorage.nodes, evidence: analysis.sourceEvidence,
-    admitted: admittedControlNode, erased: node => analysis.sourceEvidence.compileTimeMetadata.get(node) === true ||
-      admittedOperations.nativeUnreachable.get(node) === true || nativeParticipation.participation.get(node) === "erased",
-    required: analysis.requiredRecords });
-  if (generators.issues.length !== 0) return rejectedTargetStage(generators.issues);
-  const callableDeclarations = analyzeCsharpCallableDeclarationEmission({ ast: source.ast, nodes: sourceStorage.nodes,
-    admitted: admittedControlNode, declarations: analysis.declarations, generators: generators.records, callables: analysis.callables });
-  if (callableDeclarations.issues.length !== 0) return rejectedTargetStage(callableDeclarations.issues);
   const lexicalValues = analyzeCsharpLexicalValues({ nodes: sourceStorage.nodes, navigation: source.navigation,
     captures: captureStorage, values: analysis.valueReads, metadata: analysis.sourceEvidence });
   if (lexicalValues.issues.length !== 0) return rejectedTargetStage(lexicalValues.issues);

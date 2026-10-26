@@ -14,6 +14,7 @@ import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types
 import { retainCsharpMethodValueContracts, selectCsharpWritableMethodContract } from "../../../dist/analysis/objects/shapes/method-values.js";
 import { csharpCopiedObjectShapeMembers } from "../../../dist/policy/types/objects/method-environments.js";
 import { selectCsharpObjectMemberEmission, selectCsharpObjectMethodSignature } from "../../../dist/policy/types/objects/object-members.js";
+import { csharpOptionalStorageProjection, csharpProjectedType } from "../../../dist/target-model/types/projections.js";
 import { createStructuralObjectShapeTarget } from "../../../dist/analysis/objects/shapes/construction.js";
 import { analyzeCsharpStructuralObjectEmission } from "../../../dist/analysis/objects/structural-emission.js";
 import { renderObjectShapeMembers } from "../../../dist/backend/planner/objects/members.js";
@@ -62,6 +63,55 @@ test("native writable method contracts derive from the unchanged read-only ident
     assert.equal(selectCsharpWritableMethodContract({ ...base, members: [readonly] }, [readonly], unconstrained), undefined,
       "the derived native facet cannot override a real readonly source contract");
   }
+});
+
+test("inherited optional method handles retain every original native interface obligation", () => {
+  const scalar = { kind: "source-primitive", name: "int32" };
+  const signature = contract("Value");
+  const method = { sourceKey: { kind: "property", name: "identity" }, sourceName: "identity", targetName: "identity",
+    memberKind: "method", type: csharpNullableTargetType(signature), optional: true };
+  const base = { targetType: { kind: "target-named", id: "Identity", csharpRender: { kind: "named", name: "Identity" } },
+    members: [method] };
+  const count = { sourceKey: { kind: "property", name: "count" }, sourceName: "count", targetName: "count",
+    memberKind: "property", type: scalar };
+  const derived = { targetType: { kind: "target-named", id: "Counter", csharpRender: { kind: "named", name: "Counter" } },
+    members: [count, method], implements: [base.targetType] };
+  const producer = { targetType: { kind: "target-named", id: "CounterValue", csharpRender: { kind: "named", name: "CounterValue" } },
+    members: [count, method], implements: [derived.targetType] };
+  const shapes = [base, derived, producer];
+  const selected = analyzeCsharpStructuralObjectEmission({
+    shapes: { knownShapes: () => shapes, resolveTarget: type => shapes.find(shape => targetTypeRefEquals(shape.targetType, type)) },
+    demand: { artifacts: [], get: key => key === objectShapeArtifactKey(base) ? undefined
+      : { capabilities: ["method-values"], receiverBoundMethodKeys: [],
+        materialization: key === objectShapeArtifactKey(producer) ? "synthetic" : "declared" } },
+    storage: { nativeField: { get: () => undefined } },
+  });
+  assert.equal(selected.issues.length, 0, "the original optional callable has one exact native signature");
+  const contracts = selected.records.structuralObject.get(producer).contracts;
+  assert.equal(contracts.length, 2, "an inherited optional handle remains required without an independent extraction demand");
+  for (const [index, shape] of [derived, base].entries()) {
+    const contract = contracts.find(value => targetTypeRefEquals(value.interface, shape.targetType));
+    assert.equal(contract !== undefined, true, `native interface ${index} retains its own original obligation`);
+    assert.equal(contract.name, index === 0 ? "__tsonic_shape_method_1_identity" : "__tsonic_shape_method_0_identity",
+      "member ordering cannot substitute a different inherited native property");
+    assert.equal(contract.source, "__tsonic_shape_method_1_identity", "both contracts read the same original optional slot");
+    assert.equal(contract.writable, false, "inheritance does not manufacture a native setter");
+    assert.equal(targetTypeRefEquals(contract.type, method.type), true, "optional absence and generic signature are unchanged");
+  }
+  const required = { ...method, type: signature, optional: false };
+  const optionalData = { ...count, optional: true };
+  const dataBase = { ...base, members: [optionalData, required] };
+  const dataProducer = { ...producer, members: [optionalData, required], implements: [dataBase.targetType] };
+  const dataShapes = [dataBase, dataProducer];
+  const dataEmission = analyzeCsharpStructuralObjectEmission({
+    shapes: { knownShapes: () => dataShapes, resolveTarget: type => dataShapes.find(shape => targetTypeRefEquals(shape.targetType, type)) },
+    demand: { artifacts: [], get: key => key === objectShapeArtifactKey(dataProducer)
+      ? { capabilities: [], receiverBoundMethodKeys: [], materialization: "synthetic" } : undefined },
+    storage: { nativeField: { get: () => undefined } },
+  });
+  assert.equal(dataEmission.issues.length, 0, "optional data never changes ordinary native method admission");
+  assert.equal(dataEmission.records.structuralObject.get(dataProducer).contracts.length, 0,
+    "an optional data member cannot demand an otherwise unused method handle");
 });
 
 test("native write-consuming interfaces require real producer slots and emit real setter forwarding", () => {
@@ -328,6 +378,28 @@ test("native method-value storage identity includes the exact immutable invocati
   assert.equal(presentStorage !== undefined && targetTypeRefEquals(presentStorage, owner), true,
     "optional native method storage retains exactly its one physical absence state");
   assert.equal(getCsharpNullableElementTargetType(presentStorage) === undefined, true, "unwrapping removes the single native absence");
+});
+
+test("optional native method signatures retain exact generic absence storage", () => {
+  const parameter = Object.freeze({ kind: "type-parameter", identity: "test:Value", name: "Value" });
+  const storage = csharpOptionalStorageProjection(parameter);
+  const signature = csharpDelegateTargetType("System.Func", [storage], parameter, { optionalParameterIndexes: [0] });
+  const selected = selectCsharpObjectMethodSignature(signature);
+  assert.equal(selected?.parameters[0]?.type === storage && selected.parameters[0].optional === true, true,
+    "the canonical native optional storage identity is kept rather than re-derived or erased");
+  assert.equal(selected.returnType === parameter, true, "the original generic return binder remains exact");
+  for (const [label, type, indexes, rest] of [
+    ["bare generic", parameter, [0], undefined],
+    ["operations witness", csharpProjectedType({ kind: "optional", part: "operations", arguments: [parameter] }), [0], undefined],
+    ["duplicate optional", storage, [0, 0], undefined],
+    ["outside parameter", storage, [1], undefined],
+    ["rest collision", storage, [0], 0],
+  ]) {
+    const malformed = { ...signature, csharpDelegateSignature: { ...signature.csharpDelegateSignature,
+      parameters: [type], optionalParameterIndexes: indexes, restParameterIndex: rest } };
+    assert.equal(selectCsharpObjectMethodSignature(malformed) === undefined, true,
+      `${label}: no unproved native absence or malformed input geometry is admitted`);
+  }
 });
 
 function nativeModeMember(identity, modes, returnPassing) {

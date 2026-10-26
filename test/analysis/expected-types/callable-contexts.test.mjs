@@ -5,7 +5,7 @@ import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { analyzeCsharpCallableContracts } from "../../../dist/analysis/callables/analyze.js";
 import { selectCsharpClosedCallableContext } from "../../../dist/analysis/expected-types/callable-contexts.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
-import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { csharpSourceTypeParameter } from "../../../dist/source/extension/type-parameters.js";
 import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
 
@@ -64,7 +64,20 @@ function fixture(body, overrides = {}) {
       } }]),
     } } };
   } } };
-  const policy = { ast: source.ast, sourceFiles: [file],
+  const objectShapes = Object.freeze({
+    resolveNativeParameter(declaration, parameter, type) {
+      assert.equal(source.ast.is.IsParameterDeclaration(parameter), true, "checked native value parameter");
+      assert.equal(source.ast.parent(parameter) === declaration, true, "original implementation owns its parameter");
+      const present = getCsharpNullableElementTargetType(type) ?? type;
+      assert.equal(present.kind !== "target-named" ||
+        present.csharpStructuralContract !== true && present.csharpSourceDeclarationKind !== "interface", true,
+        "this fixture has no structural native parameter selection");
+      return Object.freeze({ kind: "resolved", type });
+    },
+    resolveNode: () => undefined,
+    resolveTarget: () => undefined,
+  });
+  const policy = { ast: source.ast, sourceFiles: [file], navigation: source.navigation, objectShapes,
     semantics: sourceFile => source.semantics.forFile(sourceFile),
     semanticsFor: node => source.semantics.forNode(node),
     projectTypes: { catalog: { definitions: [] } },
@@ -79,7 +92,7 @@ function fixture(body, overrides = {}) {
   const context = selectCsharpClosedCallableContext(source, policy, operations, lambda);
   const analyzed = analyzeCsharpCallableContracts(policy, evidence, declarations, names, { genericProjection: Object.freeze({ get: () => [] }) }, source, operations,
     Object.freeze({ typeDefinitions: undefined, projectTypes: policy.projectTypes, providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) }, target: {},
-      objectShapes: Object.freeze({ resolveNode: () => undefined, resolveTarget: () => undefined }) }));
+      objectShapes }));
   return { context, scopedType, type: analyzed.closedInputType(lambda), contract: analyzed.get({ kind: "declaration", declaration: lambda }),
     aliasTypes: source.navigation.expressionValueFlow(lambda).aliasDeclarations.map(alias => analyzed.closedInputType(alias)),
   };

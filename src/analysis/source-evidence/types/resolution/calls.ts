@@ -21,7 +21,7 @@ import { resolveTypeParameter } from "./source-evidence.js";
 import { resolveCsharpProjectionArguments } from "./projection-arguments.js";
 import { getCsharpClassFactory } from "../../../../target-model/types/carriers/class-factories.js";
 import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
-import { bindCsharpSourceTypeArguments } from "./generic-arguments.js";
+import { bindCsharpSourceDeclarationArguments, bindCsharpSourceTypeArguments } from "./generic-arguments.js";
 
 export function resolveSourceCallInstantiation(
   scope: CsharpTypeResolutionScope,
@@ -183,6 +183,17 @@ export function resolveSourceCallSelectedType(
   }
   const authoredSourceFile = host.ast.getSourceFile(authoredTypeNode) ??
     selectedSourceFile;
+  const selectedArguments = source.sourceSelectedMethodTypeArguments ?? [];
+  if (authoredTypeNode !== undefined && host.hasSemantics(authoredSourceFile) && selectedArguments.length > 0) {
+    const selectedDeclaration = source.sourceSelectedSignatureKind === "resolved"
+      ? host.semantics(selectedSourceFile).declarations.signatureDeclaration(source.selectedSignature) : undefined;
+    if (selectedDeclaration === undefined) return undefined;
+    const bound = bindCsharpSourceDeclarationArguments(scope, selectedDeclaration,
+      instantiation.arguments.slice(0, selectedArguments.length),
+      selectedArguments.map(argument => argument.selectedType), state);
+    if (bound === undefined) return undefined;
+    state = bound;
+  }
   const authored = authoredTypeNode === undefined ||
       !host.hasSemantics(authoredSourceFile)
     ? undefined

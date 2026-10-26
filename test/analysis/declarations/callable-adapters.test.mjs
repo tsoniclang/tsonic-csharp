@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { analyzeCsharpCallableDeclarationEmission } from "../../../dist/analysis/callables/declaration-emission.js";
 import test from "node:test";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -382,6 +383,27 @@ if (Tsonic.Generated.Index.run() != 17) throw new System.Exception("native admit
 `);
   });
 }
+
+test("callable declaration refusals precede dependent parameter and native ABI reads", () => {
+  const owner = Object.freeze({});
+  const returned = Object.freeze({ kind: "rejected", reason: "one exact conflicting native pointee contract" });
+  const unreachable = () => assert.fail("a rejected source declaration cannot require its missing completed native ABI");
+  const selected = analyzeCsharpCallableDeclarationEmission({
+    ast: { body: node => node === owner ? Object.freeze({}) : undefined,
+      is: { IsFunctionDeclaration: node => node === owner, IsFunctionExpression: () => false, IsArrowFunction: () => false,
+        IsMethodDeclaration: () => false, IsGetAccessorDeclaration: () => false } },
+    nodes: [owner], admitted: node => node === owner,
+    declarations: { returnContract: { get: node => {
+      assert.equal(node === owner, true, "the original checked callable owns the return rejection");
+      return returned;
+    } } },
+    generators: { generator: { get: unreachable } }, callables: { get: unreachable },
+  });
+  assert.equal(selected.issues.length, 1, "the source owner publishes one precise refusal");
+  assert.equal(selected.issues[0].code, "CSHARP_UNSUPPORTED_AST", "a native source refusal is not an internal missing-record failure");
+  assert.equal(selected.issues[0].message, returned.reason, "the original completed return reason is preserved");
+  assert.equal(selected.issues[0].sourceNode === owner, true, "the refusal retains exact original declaration identity");
+});
 
 test("method admission owns exact return, parameter, adapter and logical-return refusals", () => {
   const compiled = compileCsharpSource({ sourceText:

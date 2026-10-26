@@ -24,7 +24,7 @@ export interface CsharpNativeOperandInput {
   readonly evidence: Pick<CsharpSourceEvidenceIndex, "compileTimeMetadata" | "sourceArgument" | "sourceDefaultValue" | "sourceField" | "sourceStruct">;
   readonly operations: Pick<CsharpTargetOperationClassifications, "nativeHandler" | "selectedCall" | "selectedConstruction" |
     "selectedProperty" | "selectedElement" | "operatorForm" | "binaryOperation" | "unaryOperation" | "jsArrayMutation" |
-    "elementDeletion" | "nativeUnreachable" | "erasedStatement" | "exactCatchRethrow">;
+    "elementDeletion" | "nativeUnreachable" | "erasedStatement" | "exactCatchRethrow" | "borrowedSequence">;
   readonly valueReads: CsharpValueReadClassifications;
   readonly classFactories: Pick<CsharpClassFactoryIndex, "classFactory" | "factories">;
   readonly bindingPatterns: CsharpBindingPatternClassifications;
@@ -349,11 +349,23 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
     const inputs = sourceExpressionValueInputs(ast, node);
     if (inputs === undefined) return refused("expression-form-unresolved");
     const elements = ast.children(node);
-    return chosen(inputs.filter(entry => {
-      if (entry.slot.kind !== "element") return false;
+    const runtime: CsharpNativeChildUse[] = [];
+    for (const entry of inputs) {
+      if (entry.slot.kind !== "element") continue;
       const element = elements[entry.slot.index];
-      return element !== undefined && isCsharpNativeExpression(ast, element);
-    }));
+      if (element === undefined || !isCsharpNativeExpression(ast, element)) continue;
+      const borrowed = ast.is.IsSpreadElement(element) ? operations.borrowedSequence.get(entry.expression) : undefined;
+      const single = borrowed?.inputs.length === 1 && borrowed.inputs[0]?.kind === "sequence" && !borrowed.inputs[0].optional;
+      if (borrowed === undefined || single) { runtime.push(entry); continue; }
+      for (const [index, branch] of borrowed.inputs.entries()) {
+        if (branch.kind === "empty") break;
+        runtime.push(Object.freeze({ owner: borrowed.expression, expression: branch.expression,
+          slot: Object.freeze({ kind: "intrinsic-operand" as const, operand: "value" as const, index }),
+          ...(index === 0 ? {} : { guard: "if-absent" as const }) }));
+        if (!branch.optional) break;
+      }
+    }
+    return chosen(runtime);
   }
   if (ast.is.IsObjectLiteralExpression(node)) {
     const inputs = sourceExpressionValueInputs(ast, node);

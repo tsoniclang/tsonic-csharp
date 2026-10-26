@@ -115,7 +115,7 @@ export function analyzeCsharpStructuralObjectEmission(input: {
         const contract = input.shapes.resolveTarget(type);
         if (contract === undefined) { refuse("An admitted object declaration requires its complete native member rendering."); continue; }
         pending.push(...contract.implements ?? []);
-        if (!hasMethodValues(contract) && !contract.members.some(member => member.methodValueStorage !== undefined)) continue;
+        if (!hasMethodValues(contract) && !contract.members.some(member => member.memberKind === "method" && member.optional === true || member.methodValueStorage !== undefined)) continue;
         if (!admit(type)) continue;
         for (const required of contract.members) {
           if (required.memberKind !== "method" || handleIsInherited(contract, required)) continue;

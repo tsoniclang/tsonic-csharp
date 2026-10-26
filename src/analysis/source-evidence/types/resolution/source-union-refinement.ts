@@ -2,7 +2,7 @@ import type { Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeFact, CsharpRuntimeUnionTargetTypeRef, TargetTypeRef } from "../../../../target-model/types/model.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
-import { csharpAbsenceTargetType, csharpRuntimeUnionTargetType, getCsharpRuntimeUnionArms } from "../../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpAbsenceTargetType, csharpCarrierAdmitsSourceAbsence, csharpRuntimeUnionTargetType, getCsharpRuntimeUnionArms } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { getCsharpGenericOptionalParts } from "../../../../target-model/types/projections.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import type { CsharpTypeDefinitions } from "../../../../target-model/types/source-union-definitions.js";
@@ -65,7 +65,7 @@ export function selectCsharpAuthoredUnionRefinement(
   const indexes = new Set<number>();
   let nullish = false;
   for (const member of refinement.types) {
-    if (queries.types.isNullish(member)) {
+    if (queries.types.isNullish(member) || csharpCarrierAdmitsSourceAbsence(authored) && queries.types.isVoidLike(member)) {
       nullish = true;
       continue;
     }

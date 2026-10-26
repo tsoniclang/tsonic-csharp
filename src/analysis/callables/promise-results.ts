@@ -90,7 +90,9 @@ export function analyzeCsharpPromiseResults(input: {
         : { kind: "async", resultPolicy: js ? native ? "must-observe" : "observe-rejection" : "native-discard",
           contractDeclaration: declaration, checkedType: selected.sourceResultType };
     },
-    retentionFor(value) {
+    retentionFor(request) {
+      if (request.kind !== "origin") return undefined;
+      const { value } = request;
       const checked = input.storage.typeFor(value);
       if (checked.kind === "unresolved") return unresolved(value.node, checked.reason);
       // A retained call result is placed in the carrier its selected operation produces (for example the generator

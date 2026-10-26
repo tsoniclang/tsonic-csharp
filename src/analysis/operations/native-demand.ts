@@ -329,6 +329,9 @@ export function analyzeCsharpNativeDemand(
       : Object.freeze({ runtime: Object.freeze([]), planning: Object.freeze([]), flow: "sequence", carrier: expected.carrier,
         resultUse: sourceExpressionResultDisposition(ast, expression).kind === "discarded" ? "discarded" : "consumed" });
     if (selected.sourceDiagnostic !== undefined) {
+      const dependencies = sourceExpressionValueInputs(ast, expression);
+      if (dependencies?.some(input => refuseSourceExpression(input.expression)))
+        return Object.freeze({ site, expression, completion: undefined });
       if (!refusedSourceExpressions.has(expression)) {
         refusedSourceExpressions.add(expression);
         unadmitted.push(Object.freeze({ kind: "source-refusal", requiredBy: expression,
