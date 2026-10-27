@@ -38,6 +38,7 @@ import type { CsharpTargetOperationClassifications } from "../../target-model/re
 import type { CsharpValueReadStageIndex } from "../../target-model/records/operations/conversions.js";
 import type { CsharpDeclarationClassifications, CsharpReturnTargetContract } from "../../target-model/records/program/declarations.js";
 import { createCsharpDeclarationProducer } from "../program/records/program/declarations.js";
+import { selectCsharpParameterDefaultContext } from "./parameter-default-context.js";
 
 export function analyzeCsharpDeclarations(
   policy: CsharpPolicyContext,
@@ -85,8 +86,7 @@ export function analyzeCsharpDeclarations(
         : evidence.nodeTargetType.get(parameter.Type ?? parameter.name!);
       if (parameter?.Initializer !== undefined && selected !== undefined) {
         const owner = policy.ast.parent(node);
-        const contextual = owner === undefined ? undefined : evidence.contextualTargetType.get(owner);
-        const signature = contextual === undefined ? undefined : getCsharpDelegateSignature(contextual);
+        const signature = owner === undefined ? undefined : selectCsharpParameterDefaultContext(policy, evidence, owner);
         const parameters = owner === undefined ? undefined : sourceCallableValueParameters(policy.ast, owner, policy.semanticsFor(owner));
         const index = parameters?.indexOf(node) ?? -1;
         const incoming = index < 0 ? undefined : signature?.parameters[index];
@@ -97,9 +97,13 @@ export function analyzeCsharpDeclarations(
           ? queries.types.unionOrIntersectionTypes(source) : [source];
         const presentInitializer = members.length > 0 && members.every(member =>
           member !== undefined && !queries.types.isNullish(member) && !queries.types.isAny(member) && !queries.types.isUnknown(member));
-        const runtimeDefault = incoming !== undefined && value !== undefined && presentInitializer
-          ? csharpRuntimeParameterDefault(parameter.Type === undefined ? value : selected, incoming)
-          : csharpRuntimeParameterDefault(selected);
+        const presentOnly = incoming !== undefined && !csharpCarrierAdmitsSourceAbsence(incoming) &&
+          signature?.optionalParameterIndexes?.includes(index) !== true && targetTypeRefEquals(incoming, selected);
+        const runtimeDefault = presentOnly
+          ? Object.freeze({ kind: "present" as const, valueType: selected, parameterType: incoming })
+          : incoming !== undefined && value !== undefined && presentInitializer
+            ? csharpRuntimeParameterDefault(parameter.Type === undefined ? value : selected, incoming)
+            : csharpRuntimeParameterDefault(selected);
         if (runtimeDefault !== undefined) {
           const slot = owner === undefined ? undefined : queries.types.declarationSignatureInfo(owner)
             ?.parameters.find(parameter => parameter.declaration === node);
@@ -108,7 +112,7 @@ export function analyzeCsharpDeclarations(
           const absentInitializer = source !== undefined && queries.types.isNullish(source) &&
             (policy.ast.kindName(parameter.Initializer) === "KindNullKeyword" ||
               policy.ast.is.IsIdentifier(parameter.Initializer) && policy.navigation.sourceReferenceFor(parameter.Initializer) === undefined);
-          declarations.runtimeDefault(node, Object.freeze({ ...runtimeDefault, acceptsOmission: slot.acceptsOmission, native,
+          declarations.runtimeDefault(node, Object.freeze({ ...runtimeDefault, acceptsOmission: presentOnly ? false : slot.acceptsOmission, native,
             passthrough: (native.kind === "value" || absentInitializer) && !native.normalize &&
               targetTypeRefEquals(native.source, native.target) }));
         }
