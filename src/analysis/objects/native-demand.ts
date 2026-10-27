@@ -50,6 +50,7 @@ import { createCsharpMetadataBudget } from "../../target-model/metadata/immutabl
 import { projectCsharpNativeSourceStorageCarrier } from "./value-domain-carriers.js";
 import { objectShapeStorageMemberName } from "../../target-model/names/object-members.js";
 import { selectCsharpCopiedMethodReceiver } from "./copied-methods.js";
+import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
 
 export interface CsharpNativeArtifactDemandInput extends CsharpObjectShapeDemandHost, CsharpNativeParticipationInput {
   readonly ast: AstReader;
@@ -89,7 +90,7 @@ export function analyzeCsharpNativeArtifactDemand(
   const frames = new Set<CsharpCaptureFrame>();
   const requiredShapes = new Map<string, Node>();
   const forwarding = new Set<string>();
-  const jsonSources = new Map<SourceStorageBindings, Set<SourceStorageSubject>>();
+  const jsonSources = new Map<SourceStorageBindings, Map<SourceStorageSubject, Set<string>>>();
   const jsonBudget = createCsharpMetadataBudget();
   for (const sourceFile of input.sourceFiles) visitConstruct(sourceFile);
   for (const binding of input.nativeDemand.requiredBindingRoots) {
@@ -166,19 +167,26 @@ export function analyzeCsharpNativeArtifactDemand(
   function demandJsonPayloads(node: Node): void {
     const selected = input.sourceStorage.subjectFor(node);
     if (selected.kind !== "resolved") return;
-    const pending = [{ subject: selected.subject, bindings: input.sourceStorage.emptyBindings }];
+    const narrowedCarrier = (expression: Node): TargetTypeRef | undefined => {
+      const read = input.valueReads.valueRead.get(expression);
+      return read?.narrowedRead ?? read?.flowReadValue;
+    };
+    const pending = [{ subject: selected.subject, bindings: input.sourceStorage.emptyBindings, constraint: narrowedCarrier(node) }];
     const enqueue = (subject: SourceStorageSubject, bindings: SourceStorageBindings,
       projection: SourceStorageSubject["projection"]): void => {
       const child = input.sourceStorage.subject(subject.node, subject.kind, [...subject.projection, ...projection]);
-      if (child.kind === "resolved") pending.push({ subject: child.subject, bindings });
+      if (child.kind === "resolved") pending.push({ subject: child.subject, bindings, constraint: undefined });
     };
     try {
       for (let index = 0; index < pending.length; index++) {
-        const { subject, bindings } = pending[index]!;
-        const seen = jsonSources.get(bindings) ?? new Set<SourceStorageSubject>();
-        if (seen.has(subject)) continue;
+        const { subject, bindings, constraint } = pending[index]!;
+        const seen = jsonSources.get(bindings) ?? new Map<SourceStorageSubject, Set<string>>();
+        const contexts = seen.get(subject) ?? new Set<string>();
+        const key = constraint === undefined ? "" : targetTypeRefKey(constraint);
+        if (contexts.has(key)) continue;
         jsonBudget.reserve(1);
-        seen.add(subject);
+        contexts.add(key);
+        seen.set(subject, contexts);
         jsonSources.set(bindings, seen);
         const origins = input.sourceStorage.storageProducersFor(subject, bindings);
         if (origins.kind === "unresolved") continue;
@@ -190,10 +198,15 @@ export function analyzeCsharpNativeArtifactDemand(
             ? use.input.type : use.completion.type;
           const carrier = projectCsharpNativeSourceStorageCarrier(source, origin.subject, input.objectShapes,
             amount => jsonBudget.reserve(amount), input.projectIndexedCarrier);
-          if (carrier === undefined || !capability(origin.subject.node, carrier, "json-serialization", "value")) continue;
+          if (carrier === undefined) continue;
           const present = getCsharpNullableElementTargetType(carrier) ?? carrier;
           const leaves = csharpUnionLeaves(present, input.typeDefinitions)?.map(leaf => leaf.carrier) ?? [present];
           for (const leaf of leaves) {
+            if (constraint !== undefined && !isCsharpJsValueTargetType(constraint)) {
+              const selected = input.conversions.conversion.get(leaf, constraint, "implicit");
+              if (selected !== undefined && !csharpConversionIsApplicable(selected, "implicit")) continue;
+            }
+            if (!capability(origin.subject.node, leaf, "json-serialization", "value")) continue;
             if (leaf.kind === "tuple") for (const [index] of leaf.elements.entries())
               enqueue(origin.subject, origin.bindings, [{ kind: "tuple-element", index }]);
             else if (leaf.kind === "array" || getCsharpJsArrayElementTargetType(leaf) !== undefined)
@@ -205,7 +218,7 @@ export function analyzeCsharpNativeArtifactDemand(
             if (contract.contract.kind === "to-json") {
               for (const declaration of contract.contract.member.sourceDeclarations ?? []) {
                 const result = input.sourceStorage.subject(declaration, "return");
-                if (result.kind === "resolved") pending.push({ subject: result.subject, bindings: origin.bindings });
+                if (result.kind === "resolved") pending.push({ subject: result.subject, bindings: origin.bindings, constraint: undefined });
               }
               continue;
             }

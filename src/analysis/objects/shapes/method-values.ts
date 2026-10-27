@@ -46,6 +46,15 @@ function selectMethodValueUses(storage: SourceStorageQueries): ReadonlySet<Node>
       for (const declaration of semantics.declarations.symbolDeclarations(property.symbol)) add(declaration);
     }
   }
+  for (const boundary of storage.boundaries) {
+    if (boundary.kind !== "external-input" && boundary.kind !== "external-write" && boundary.kind !== "unclassified-exposure") continue;
+    const selected = storage.typeFor(boundary.subject);
+    if (selected.kind !== "resolved") continue;
+    const semantics = source.semantics.forFile(selected.sourceFile);
+    for (const property of semantics.types.propertyInfos(selected.type)) {
+      for (const declaration of semantics.declarations.symbolDeclarations(property.symbol)) add(declaration);
+    }
+  }
   for (let index = 0; index < pending.length; index++) {
     const subject = storage.memberSubjectFor(pending[index]!);
     if (subject.kind !== "resolved") continue;

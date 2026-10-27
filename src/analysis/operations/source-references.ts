@@ -43,6 +43,17 @@ export function analyzeCsharpSourceReferences(input: { readonly source: TargetSo
       (reference.sourceFile.IsDeclarationFile || input.files.providerSourceFile.get(reference.sourceFile) === true);
     if (memberReference !== undefined && !external(memberReference) && moduleStatic(memberReference.declaration)) modules.set(node, memberReference);
     if (!required.has(node) || !ast.is.IsIdentifier(node)) continue;
+    const parent = ast.parent(node);
+    if (parent !== undefined && ast.is.IsNewExpression(parent) && ast.as.AsNewExpression(parent)?.Expression === node &&
+      input.operations.selectedConstruction.get(parent)?.target?.kind === "resolved") continue;
+    if (parent !== undefined && ast.is.IsPropertyAccessExpression(parent) && ast.as.AsPropertyAccessExpression(parent)?.Expression === node) {
+      const property = input.operations.selectedProperty.get(parent)?.selection;
+      if (property?.kind === "resolved" && property.receiver.kind === "none") continue;
+      const owner = ast.parent(parent);
+      const call = owner !== undefined && ast.is.IsCallExpression(owner) && ast.as.AsCallExpression(owner)?.Expression === parent
+        ? input.operations.selectedCall.get(owner)?.target : undefined;
+      if (call?.kind === "resolved" && call.call.receiver.kind === "none") continue;
+    }
     const refuse = (message: string): void => { issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message }); };
     const declaration = declarationReference?.declaration;
     if (declaration !== undefined && input.captures.captureClosure.get(declaration) !== undefined) {

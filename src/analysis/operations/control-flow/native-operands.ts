@@ -268,7 +268,8 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
     if (ast.kindName(call.source.sourceCallee.expression) === "KindSuperKeyword") return argumentsFirst([], arguments_);
     if (call.unionCall.kind === "resolved") return chosen([...use(call.unionCall.receiver, { kind: "receiver" }), ...guarded(arguments_)]);
     const callee = call.sourceCall;
-    if (callee === undefined || callee.kind === "rejected" || callee.kind === "union-method") return refused("operation-unresolved");
+    if (callee?.kind === "rejected") return refused("operation-unresolved", callee.reason);
+    if (callee === undefined || callee.kind === "union-method") return refused("operation-unresolved");
     // A declared function is called by its declaration reference (a static method group), never evaluated as a value,
     // so it has no runtime callee use; only a callee value is evaluated before the arguments.
     if (callee.kind === "function") return argumentsFirst([], guarded(arguments_));
