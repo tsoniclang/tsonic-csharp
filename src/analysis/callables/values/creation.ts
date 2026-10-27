@@ -8,6 +8,7 @@ import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/pr
 import type { CsharpStorageClassifications } from "../../../target-model/records/storage/storage.js";
 import type { CsharpConversionClassifications } from "../../../target-model/records/operations/conversions.js";
 import { csharpConversionIsApplicable } from "../../../policy/conversions/applicability.js";
+import { csharpArgumentVectorCallbackResultMatches } from "../../../policy/conversions/callable-completions.js";
 import { getCsharpLambdaSignature, getCsharpTaskResultTargetType } from "../../../target-model/types/carriers/delegates.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
@@ -83,7 +84,8 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
       const awaited = bodyResult === undefined || delegateResult === undefined ? undefined
         : input.conversions.conversion.get(bodyResult, delegateResult, "implicit");
       // A literal-only body returns through the delegate's own return context, so `() => 9n` matches Func<long>.
-      return completion !== undefined && csharpConversionIsApplicable(completion, "implicit") ||
+      return csharpArgumentVectorCallbackResultMatches(contract.returnType, signature.returnType) ||
+        completion !== undefined && csharpConversionIsApplicable(completion, "implicit") ||
         awaited !== undefined && csharpConversionIsApplicable(awaited, "implicit") ||
         csharpLiteralReturnsFit(input.ast, input.literals, node, signature.returnType);
     }

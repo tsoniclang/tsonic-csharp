@@ -16,6 +16,7 @@ import {
   targetTypeRefEquals,
   targetTypeRefKey,
   isCsharpVoidTargetType,
+  isCsharpNeverTargetType,
 } from "../../policy/types/index.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
@@ -166,7 +167,8 @@ export function createCsharpExpectedReturnTargets(
         (HasSyntacticModifier(policy.ast, declaration, ModifierFlagsAsync) &&
           getCsharpTaskResultTargetType(callable.returnType) !== undefined &&
           getCsharpTaskResultTargetType(signature.returnType) === undefined ||
-        isCsharpVoidTargetType(signature.returnType) && !isCsharpVoidTargetType(callable.returnType))) {
+        isCsharpVoidTargetType(signature.returnType) && !isCsharpVoidTargetType(callable.returnType) &&
+          !isCsharpNeverTargetType(callable.returnType))) {
         return csharpCallableValueType(callable);
       }
       return value;

@@ -14,7 +14,8 @@ export async function run(): Promise<boolean> {
   const exact: uint64 = 9007199254740993n;
   const immediate = new Promise<uint64>(resolve => { resolve(exact); });
   const adopted = new Promise<uint64>(resolve => { resolve(immediate); });
-  return await immediate === exact && await adopted === exact;
+  const throwing = new Promise<uint64>(resolve => { resolve(exact); throw new Error("after completion"); });
+  return await immediate === exact && await adopted === exact && await throwing === exact;
 }
 ` });
     assertCsharpCompilationSucceeded(compiled);
@@ -38,7 +39,7 @@ export async function run(): Promise<boolean> {
       ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
     };
     csharpProgramSourceFiles(program).forEach(visit);
-    assert.equal(checked, 2, "both direct completion and Task adoption use the same physical resolver contract");
+    assert.equal(checked, 3, "direct completion, Task adoption and throwing completion use the same physical resolver contract");
     const generated = [...compiled.artifacts.values()].join("\n");
     assert.equal(/TaskCompletion<ulong>\.Create/u.test(generated), true, "native completion uses the exact selected scalar");
     assert.equal(/Task<[^>]*BigInteger/u.test(generated), false, "Task completion does not round-trip through arbitrary precision");
