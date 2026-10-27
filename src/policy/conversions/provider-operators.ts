@@ -1,6 +1,7 @@
 import { csharpProviderBindingFromResolution } from "../../providers/model/relation-resolver.js";
 import { csharpTargetBindingFact, targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/index.js";
 import { substituteTargetTypeParameters } from "../types/resolution/substitution.js";
+import { csharpNativeInheritanceLookup } from "../../target-model/types/native-inheritance.js";
 import type { CsharpConversionMode, CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import type { CsharpPolicyContext } from "../model/context.js";
 import type { CsharpTargetBindingFact, CsharpTargetConversionOperatorFact, TargetTypeRef } from "../types/index.js";
@@ -94,9 +95,10 @@ function uniqueProviderBindingCandidates(
     if (type.kind !== "target-named") {
       continue;
     }
-    const binding = csharpTargetBindingFact(
-      csharpProviderBindingFromResolution(input.providers.findTargetBindingByTargetId(type.id, "ordinary")),
-    );
+    const lookup = csharpNativeInheritanceLookup(type);
+    const binding = csharpTargetBindingFact(csharpProviderBindingFromResolution(lookup.kind === "metadata-name"
+      ? input.providers.findTargetBindingByMetadataName(lookup.metadataName, "ordinary")
+      : input.providers.findTargetBindingByTargetId(lookup.targetId, "ordinary")));
     if (binding === undefined) {
       continue;
     }
