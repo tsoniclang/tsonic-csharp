@@ -17,7 +17,8 @@ test(`${surface} overloaded source permission remains native false (${explicit ?
         }` });
       assert.equal(compiled.sourceDiagnosticsText, "", "the actual source generic instantiation is checked");
       assert.equal(compiled.result.diagnostics.some(issue => issue.code === "CSHARP_REFLIKE_GENERIC_ARGUMENT"), true,
-        "the proved ordinary source slot retains its actual native no-ref-struct permission");
+        `the proved ordinary source slot retains its actual native no-ref-struct permission: ${compiled.result.diagnostics
+          .slice(0, 4).map(issue => `${issue.code}: ${issue.message.slice(0, 1024)}`).join(" | ")}`);
       assert.equal(compiled.result.diagnostics.some(issue => issue.code === "CSHARP_REFLIKE_METADATA_NOT_PROVEN"), false,
         "an exact checked project overload no longer lacks its producer contract");
       assert.equal(compiled.result.program === undefined && compiled.result.artifacts.length === 0, true,

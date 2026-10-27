@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { closedInstanceFiles, closedNativeInstanceSource } from "../../../../tsonic/test/fixtures/closed-instance-tests.mjs";
 
@@ -13,6 +13,7 @@ for (const surface of [undefined, "js"]) {
 
 test("selected native constructors test closed payloads without copying them", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: closedNativeInstanceSource });
+  assertCsharpCompilationSucceeded(compiled);
   const output = compiled.artifacts.get("src/Index.cs");
   assert.ok(output);
   const start = output.indexOf("public static bool pattern(");

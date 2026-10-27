@@ -42,8 +42,11 @@ for (const surface of ["native", "js"]) {
     const output = [...compiled.artifacts.values()].join("\n");
     // C-0745/C-0746: method-only slots retain their native body; literals follow RULINGS 2026-10-22.
     const defaultLiteral = surface === "js" ? "5D" : "5";
+    const selectedDefaultLines = output.split("\n")
+      .filter(line => /public double m\(|double x =|double __tsonic_param/u.test(line))
+      .slice(0, 30).map(line => line.slice(0, 512)).join("\n");
     assert.equal(new RegExp(`public double m\\(double\\? (__tsonic_param\\d+)\\)\\s*\\{\\s*double x = \\1 \\?\\? ${defaultLiteral};`, "u").test(output), true,
-      "a nullable selected delegate parameter still applies the default");
+      `a nullable selected delegate parameter still applies the default: ${selectedDefaultLines}`);
     assert.equal(/\(double (__tsonic_param\d+)\)[^\n]*\n?[^\n]*\1 \?\? 5/u.test(output), false,
       "a non-nullable selected delegate parameter is never coalesced");
     executeCsharpConstruction(compiled, `selected-delegate-parameter-defaults-${surface}`);
