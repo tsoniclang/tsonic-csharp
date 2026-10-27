@@ -178,6 +178,7 @@ export function admitCsharpExpectedNativeUses(
       ...(selection.literal === undefined ? {} : { literal: selection.literal }),
       ...(selection.binary === undefined ? {} : { binary: selection.binary }),
       objectShape: storage ? undefined : expected.constructions.objectShape(request.expression, request.targetType),
+      dynamicObject: storage ? undefined : expected.constructions.dynamicObject(request.expression, request.targetType),
       strength: active.some(entry => entry.strength === "required") ? "required" : "contextual", exactInteger: active.some(entry => entry.exactInteger) });
     return { kind: "admitted", use, children };
   }

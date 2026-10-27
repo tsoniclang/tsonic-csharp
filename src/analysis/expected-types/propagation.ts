@@ -6,7 +6,7 @@ import { getCsharpRuntimeUnionArms } from "../../target-model/types/carriers/run
 import { getCsharpNullableElementTargetType, csharpNullableTargetType, getCsharpArrayLiteralElementTargetType, isCsharpJsValueTargetType, isCsharpRecordDictionaryTargetType, csharpPropertySourceMemberKey, csharpWellKnownSymbolSourceMemberKey, resolveCsharpObjectShapeMemberBySourceKey, csharpObjectTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../policy/types/index.js";
 import type { selectCsharpBinaryOperation } from "../operations/operators.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpNativeUseSlot } from "../../target-model/records/native/native-demand.js";
+import type { CsharpNativeObjectMember, CsharpNativeUseSlot } from "../../target-model/records/native/native-demand.js";
 import type { CsharpConversionMode } from "../../target-model/conversions/selection.js";
 import type { CsharpExactLiteralRequest, CsharpNativePropertyKeyBinding } from "../../target-model/conversions/exact-literals.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
@@ -28,6 +28,7 @@ export interface CsharpExpectedTypePropagation {
     readonly arrayLiteralCarrier: (expression: Node, targetType: TargetTypeRef) => TargetTypeRef | undefined;
     readonly constructionCarrier: (expression: Node, targetType: TargetTypeRef) => TargetTypeRef | undefined;
     readonly objectShape: (expression: Node, targetType: TargetTypeRef) => CsharpObjectShapeFact | undefined;
+    readonly dynamicObject: (expression: Node, targetType: TargetTypeRef) => readonly CsharpNativeObjectMember[] | undefined;
     /** The reason an object literal has no construction at this expected type (its shape construction was rejected). */
     readonly constructionRejection: (expression: Node, targetType: TargetTypeRef) => string | undefined;
     readonly intrinsicTarget: (expression: Node, targetType: TargetTypeRef) => boolean;
@@ -46,6 +47,7 @@ export function createCsharpExpectedTypePropagation(
   const arrayCarriers = new WeakMap<Node, Map<string, TargetTypeRef>>();
   const nonArrayCarriers = new WeakMap<Node, Map<string, TargetTypeRef>>();
   const objectConstructions = new WeakMap<Node, Map<string, CsharpObjectShapeFact>>();
+  const dynamicObjects = new WeakMap<Node, Map<string, readonly CsharpNativeObjectMember[]>>();
   const constructionRejections = new WeakMap<Node, Map<string, string>>();
   const intrinsicTargets = new WeakMap<Node, Set<string>>();
   const positionsByOwner = new WeakMap<Node, ReadonlyMap<Node, number>>();
@@ -63,6 +65,8 @@ export function createCsharpExpectedTypePropagation(
         (arrayCarriers.get(expression) ?? nonArrayCarriers.get(expression))?.get(targetTypeRefKey(targetType)),
       objectShape: (expression: Node, targetType: TargetTypeRef) =>
         objectConstructions.get(expression)?.get(targetTypeRefKey(targetType)),
+      dynamicObject: (expression: Node, targetType: TargetTypeRef) =>
+        dynamicObjects.get(expression)?.get(targetTypeRefKey(targetType)),
       constructionRejection: (expression: Node, targetType: TargetTypeRef) =>
         constructionRejections.get(expression)?.get(targetTypeRefKey(targetType)),
       intrinsicTarget: (expression: Node, targetType: TargetTypeRef) =>
@@ -175,6 +179,43 @@ export function createCsharpExpectedTypePropagation(
       ? carrier.typeArguments?.[1] : undefined;
     const positions = childPositions(expression);
     const member = (property: Node) => positioned(positions, property, index => forwarded(expression, { kind: "member", index }, parent, mode));
+    if (isCsharpJsValueTargetType(carrier)) {
+      const members: CsharpNativeObjectMember[] = [];
+      const properties: Node[] = [];
+      let closed = true;
+      for (const property of policy.ast.properties(expression)) {
+        if (property === undefined || !policy.ast.is.IsPropertyAssignment(property) &&
+          !policy.ast.is.IsShorthandPropertyAssignment(property)) { closed = false; break; }
+        const initializer = policy.ast.is.IsPropertyAssignment(property)
+          ? policy.ast.as.AsPropertyAssignment(property)?.Initializer : policy.ast.name(property);
+        if (initializer === undefined || policy.ast.is.IsShorthandPropertyAssignment(property) &&
+          policy.ast.as.AsShorthandPropertyAssignment(property)?.ObjectAssignmentInitializer !== undefined) { closed = false; break; }
+        const name = policy.ast.name(property);
+        let selectedName: string;
+        if (name !== undefined && policy.ast.is.IsComputedPropertyName(name)) {
+          const selected = policy.semanticsFor(property).propertyNames.get(name);
+          const key = policy.ast.as.AsComputedPropertyName(name)?.Expression;
+          const effects = key === undefined ? undefined : policy.navigation.expressionEffects(key);
+          if (selected?.kind !== "resolved" || effects === undefined ||
+            effects.invokes || effects.mutates || effects.suspends || effects.mayThrow) { closed = false; break; }
+          selectedName = selected.name;
+        } else {
+          const selected = ObjectLiteralProperty_SourceName(policy.ast, property);
+          if (selected.kind !== "resolved") { closed = false; break; }
+          selectedName = selected.name;
+        }
+        properties.push(property);
+        members.push(Object.freeze({ name: selectedName, initializer }));
+      }
+      if (closed) {
+        recordObjectCarrier(expression, targetType, carrier);
+        const targets = dynamicObjects.get(expression) ?? new Map<string, readonly CsharpNativeObjectMember[]>();
+        targets.set(targetTypeRefKey(targetType), Object.freeze(members));
+        dynamicObjects.set(expression, targets);
+        for (const [index, entry] of members.entries()) record(entry.initializer, carrier, strength, member(properties[index]!));
+        return;
+      }
+    }
     if (indexedValueType !== undefined) {
       recordObjectCarrier(expression, targetType, carrier);
       recordDictionaryKeys(expression, carrier);

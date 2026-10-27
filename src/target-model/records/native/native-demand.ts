@@ -88,11 +88,17 @@ export interface CsharpExpectedNativeUse {
   readonly literal?: CsharpExactLiteralRecipe;
   readonly binary?: CsharpResolvedBinaryOperation;
   readonly objectShape?: CsharpObjectShapeFact;
+  readonly dynamicObject?: readonly CsharpNativeObjectMember[];
   readonly construction?: {
     readonly site: TargetUseSiteRef;
     readonly carrier: TargetTypeRef;
     readonly children: readonly TargetUseSiteRef[];
   };
+}
+
+export interface CsharpNativeObjectMember {
+  readonly name: string;
+  readonly initializer: Node;
 }
 
 export interface CsharpExpectedNativeUseInput {
@@ -144,6 +150,7 @@ interface CsharpNativeEvaluatedUse {
   readonly propertyKeys?: readonly CsharpNativePropertyKey[];
   readonly binary?: CsharpResolvedBinaryOperation;
   readonly objectShape?: CsharpObjectShapeFact;
+  readonly dynamicObject?: readonly CsharpNativeObjectMember[];
   readonly defaultValue?: CsharpDefaultValueContract;
   readonly exactInteger?: true;
   readonly discardedPresence?: CsharpNativeDiscardedPresence;
