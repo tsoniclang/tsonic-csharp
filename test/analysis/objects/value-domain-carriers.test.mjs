@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
+import { createCompilerSessionFromFiles, formatDiagnostics, providerVirtualDeclarationFactKey } from "@tsonic/tsts";
 import { createTargetSourceProgram, Node_Initializer } from "@tsonic/target-api/source";
 import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 import { csharpValueDomainHasTargetType as selectedValueDomainHasTargetType } from "../../../dist/policy/types/objects/value-domain-carrier.js";
@@ -14,6 +14,11 @@ import { substituteObjectShapeFactTargetTypeParameters } from "../../../dist/pol
 import { createCsharpMetadataBudget } from "../../../dist/target-model/metadata/immutable.js";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { frozenEmptyStorageSources } from "../../../../tsonic/test/fixtures/frozen-empty-storage.mjs";
+import { providerIndexedPolicyFixture } from "../../../../tsonic/test/fixtures/provider-indexed-policy.mjs";
+import { directProviderHost, signatureRelation, providerBinding, providerDeclaration, providerField } from "../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
+import { projectCsharpProviderIndexedStorageCarrier } from "../../../dist/analysis/source-evidence/types/resolution/indexed-access.js";
+
+const noIndexedProjection = () => assert.fail("a nonindexed source projection cannot require native index evidence");
 
 test("native source-storage projections preserve exact field, element and tuple identities at every consumer", () => {
   const declaration = {};
@@ -28,17 +33,57 @@ test("native source-storage projections preserve exact field, element and tuple 
   const subject = { kind: "value", node: {}, projection: [{ kind: "array-element" },
     { kind: "member", declaration }, { kind: "tuple-element", index: 0 }] };
   const source = { kind: "array", element: owner };
-  assert.equal(projectCsharpNativeSourceStorageCarrier(source, subject, shapes, amount => { work += amount; }) === integer, true,
+  assert.equal(projectCsharpNativeSourceStorageCarrier(source, subject, shapes, amount => { work += amount; }, noIndexedProjection) === integer, true,
     "the exact native int64 survives the complete source projection without a logical carrier reconstruction");
   assert.equal(work, 3, "the existing metadata budget accounts for each projection once");
   for (const [label, projection] of [
     ["foreign same-name declaration", [{ kind: "array-element" }, { kind: "member", declaration: foreign }]],
     ["missing tuple element", [...subject.projection.slice(0, 2), { kind: "tuple-element", index: 1 }]],
     ["wrong native container", [{ kind: "tuple-element", index: 0 }]],
-  ]) assert.equal(projectCsharpNativeSourceStorageCarrier(source, { ...subject, projection }, shapes, () => {}) === undefined, true, label);
+  ]) assert.equal(projectCsharpNativeSourceStorageCarrier(source, { ...subject, projection }, shapes, () => {}, noIndexedProjection) === undefined, true, label);
   member.accessor = { getter: true, setter: false };
-  assert.equal(projectCsharpNativeSourceStorageCarrier(source, subject, shapes, () => {}) === undefined, true,
+  assert.equal(projectCsharpNativeSourceStorageCarrier(source, subject, shapes, () => {}, noIndexedProjection) === undefined, true,
     "a property getter is not silently treated as physical field storage");
+});
+
+test("indexed source-storage projections use the exact native provider owner and preserve native generic carriers", () => {
+  const selected = providerIndexedPolicyFixture("string");
+  const checkedMember = selected.evidence.members[0];
+  assert.equal(checkedMember.selection.kind, "index", "the checked source owns a real index signature");
+  const ownerType = selected.semantics.types.authoredType(selected.evidence.owner);
+  assert.equal(ownerType !== undefined, true, "the checked index retains its actual instantiated owner type");
+  const component = { kind: "indexed-value", sourceType: ownerType,
+    ownerType, index: checkedMember.selection.index };
+  const integer = csharpSourcePrimitiveTargetType("int64");
+  const binding = providerBinding({ id: "Native.Indexed", typeParameters: [{ identity: "Value", name: "Value", csharpAllowsRefLike: false }] });
+  const declaration = providerDeclaration({ signatureId: "native-index", memberId: "native-index" });
+  const relation = signatureRelation({ declaration, binding, member: { ...providerField({ id: "Native.Indexed.Item",
+    returnType: { kind: "type-parameter", identity: "Value", name: "Value" } }), kind: "indexer" } });
+  const providers = directProviderHost({ relations: [relation] }).host.providers;
+  const subjects = new Set(checkedMember.subjects);
+  const facts = { getFact: (subject, key) => key === providerVirtualDeclarationFactKey && subjects.has(subject) ? declaration : undefined };
+  const owner = { kind: "target-named", id: binding.id, csharpAllowsRefLikeTypeArguments: [false], typeArguments: [integer] };
+  const subject = { kind: "value", node: selected.node, projection: [{ kind: "array-element" }, component] };
+  let calls = 0;
+  let work = 0;
+  const actual = projectCsharpNativeSourceStorageCarrier({ kind: "array", element: owner }, subject, undefined,
+    amount => { work += amount; }, (index, carrier) => {
+      calls += 1;
+      assert.equal(index === component && carrier === owner, true, "the native owner and checked index are transported without reconstruction");
+      return projectCsharpProviderIndexedStorageCarrier(index, carrier, providers, facts, selected.semantics);
+    });
+  assert.equal(actual === integer, true, "the selected int64 is not rounded through the source number carrier");
+  assert.equal(calls, 1, "one native indexed projection owner decides the result");
+  assert.equal(work, 2, "both array and indexed components retain their original finite accounting");
+  for (const [label, nativeOwner, nativeProviders, nativeFacts] of [
+    ["wrong native owner", { ...owner, id: "Native.Other" }, providers, facts],
+    ["missing native type argument", { ...owner, typeArguments: [] }, providers, facts],
+    ["missing native index relation", owner, directProviderHost({ relations: [] }).host.providers, facts],
+    ["foreign source index ownership", owner, providers, { getFact: () => undefined }],
+  ]) {
+    const carrier = projectCsharpProviderIndexedStorageCarrier(component, nativeOwner, nativeProviders, nativeFacts, selected.semantics);
+    assert.equal(carrier === undefined || carrier.kind === "opaque", true, label);
+  }
 });
 
 function fixture() {
@@ -90,6 +135,7 @@ function domain(input, carrier, projection, root = "first", selected = "selected
   assert.equal(typed.kind, "resolved", "exact projection has checked selected field type");
   const expression = Node_Initializer(input.source.ast, input.nodes.get(selected));
   const host = {
+    providers: { resolveSignature: noIndexedProjection, resolveMember: noIndexedProjection },
     sourceStorage: { ...input.storage,
       closedOriginsFor: () => ({ kind: "complete", origins: [{ subject: origin.subject, type: typed.type, sourceFile: typed.sourceFile }] }),
     },
