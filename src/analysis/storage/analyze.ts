@@ -193,7 +193,9 @@ export function analyzeCsharpStorage(
         const authored = declaration?.Type === undefined
           ? undefined
           : evidence.nodeTargetType.get(declaration.Type);
-        const tupleRest = declaration?.DotDotDotToken !== undefined && authored?.kind === "tuple" ? authored : undefined;
+        const restCarrier = declaration?.DotDotDotToken === undefined ? undefined
+          : authored ?? evidence.nodeTargetType.get(parameter);
+        const tupleRest = restCarrier?.kind === "tuple" ? restCarrier : undefined;
         const width = tupleRest === undefined ? 1 : tupleRest.elements.length;
         if (nativeIndex + width > parameterTypes.length) {
           issues.push(issue(parameter, "CSHARP_LAMBDA_PARAMETER_ARITY_CONFLICT",

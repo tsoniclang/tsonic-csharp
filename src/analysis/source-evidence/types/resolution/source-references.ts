@@ -512,7 +512,8 @@ export function selectCsharpContextualParameterCarrier(
   const nativeParameter = parameterState === undefined ? undefined
     : scope.resolveSignatureParameterEvidence(parameter, queries, parameterState, "callable");
   const native = nativeParameter === undefined ? undefined : parameter.parameterKind === "rest" && !restBinding
-    ? csharpTargetParameterValueType({ name: "", type: nativeParameter, passingMode: "by-value", paramsArray: true }, "value")
+    ? nativeParameter.kind === "tuple" ? nativeParameter.elements[index - restIndex]
+      : csharpTargetParameterValueType({ name: "", type: nativeParameter, passingMode: "by-value", paramsArray: true }, "value")
     : nativeParameter;
   return native === undefined ? { kind: "unresolved" } : { kind: "resolved", type: native };
 }
