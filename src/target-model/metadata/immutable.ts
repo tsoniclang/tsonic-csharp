@@ -14,6 +14,7 @@ export function snapshotCsharpMetadata<Value>(
   value: Value,
   identityAt?: (path: readonly (string | number)[]) => boolean,
   budget = createCsharpMetadataBudget(),
+  project?: (input: object) => object,
 ): Value {
   const copies = new Map<object, unknown>();
   const active = new Set<object>();
@@ -25,24 +26,29 @@ export function snapshotCsharpMetadata<Value>(
     if (identityAt?.(path) === true) return input;
     if (active.has(input)) throw new TypeError("C# immutable metadata contains a cycle.");
     if (copies.has(input)) return copies.get(input);
-    const descriptors = csharpMetadataDescriptors(input);
+    const originalDescriptors = csharpMetadataDescriptors(input);
+    const projected = project?.(input) ?? input;
+    const descriptors = projected === input ? originalDescriptors : csharpMetadataDescriptors(projected);
     const keys = Object.keys(descriptors);
     active.add(input);
     let result: unknown;
-    if (Array.isArray(input)) {
-      if (input.length > budget.remaining() || keys.length !== input.length + 1) {
+    if (Array.isArray(projected)) {
+      if (projected.length > budget.remaining() || keys.length !== projected.length + 1) {
         throw new TypeError("C# immutable metadata requires bounded dense arrays.");
       }
       const entries: unknown[] = [];
-      for (let index = 0; index < input.length; index += 1) {
+      for (let index = 0; index < projected.length; index += 1) {
         const descriptor = descriptors[String(index)];
         if (descriptor === undefined) throw new TypeError("C# immutable metadata requires dense arrays.");
         entries.push(copy(descriptor.value, depth + 1, identityAt === undefined ? path : [...path, index]));
       }
-      result = Object.freeze(entries);
+      result = project !== undefined && entries.every((entry, index) => entry === projected[index])
+        ? projected : Object.freeze(entries);
     } else {
-      result = Object.freeze(Object.fromEntries(keys.map(key => [key, copy(descriptors[key]!.value, depth + 1,
-        identityAt === undefined ? path : [...path, key])])));
+      const entries = keys.map(key => [key, copy(descriptors[key]!.value, depth + 1,
+        identityAt === undefined ? path : [...path, key])] as const);
+      result = project !== undefined && entries.every(([key, entry]) => entry === descriptors[key]!.value)
+        ? projected : Object.freeze(Object.fromEntries(entries));
     }
     active.delete(input);
     copies.set(input, result);

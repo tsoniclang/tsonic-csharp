@@ -14,7 +14,8 @@ import { assertCsharpProviderLookupPurpose } from "../../model/relation-resolver
 import type { CsharpProviderRuntimePreparation, CsharpProviderRuntimeAcquisition } from "../../model/relation-resolver.js";
 import { csharpNativeTargetBindingFact } from "../../../target-model/types/native-inheritance.js";
 import { csharpNativeInheritanceLookup } from "../../../target-model/types/native-inheritance.js";
-import { findUniqueTargetBinding } from "../acquisition/target-binding-index.js";
+import { findUniqueTargetBinding, isCsharpProviderTargetBinding } from "../acquisition/target-binding-index.js";
+import { createCsharpProviderIdentityPublication, type CsharpProviderIdentityPublication } from "./native-identity-publication.js";
 
 export interface CsharpProviderRelationResolverInputs {
   readonly providers: readonly DotnetReflectionTypeDataProvider[];
@@ -52,6 +53,10 @@ export function createCsharpProviderRelationResolver(
   const staticBindings = uniqueStaticBindings(
     staticCatalogs.flatMap(entry => entry.targetBindings),
   );
+  const publish = createCsharpProviderIdentityPublication(staticCatalogs.flatMap(policy =>
+    policy.relationCatalog.relations.filter(relation => !policy.targetBindings.some(binding =>
+      binding.id === relation.targetBinding.id)).map(relation => relation.targetBinding)), acquireReferencedBinding);
+  const publishedBindings = new WeakMap<TargetBindingFact, CsharpProviderBindingResolution>();
   assertUniqueProviderIdentities(providers);
   assertUniqueProviderSources(providers, staticCatalogs);
   const resolutions = new WeakMap<
@@ -136,19 +141,28 @@ export function createCsharpProviderRelationResolver(
     return lookup.kind === "metadata-name" ? ordinaryQuery(lookup.metadataName, "metadata")
       : ordinaryQuery(lookup.targetId, "id");
   }
+  function publishBinding(result: CsharpProviderBindingResolution): CsharpProviderBindingResolution {
+    if (result.kind !== "resolved") return result;
+    const existing = publishedBindings.get(result.binding);
+    if (existing !== undefined) return existing;
+    const selected = publish(result.binding);
+    const published = selected.kind === "resolved" ? Object.freeze({ kind: "resolved" as const, binding: selected.value }) : selected;
+    publishedBindings.set(result.binding, published);
+    return published;
+  }
   function findTargetBindingByTargetId(targetId: string, purpose: "inheritance"): CsharpProviderNativeBindingResolution;
   function findTargetBindingByTargetId(targetId: string, purpose: CsharpProviderBindingLookupPurpose): CsharpProviderBindingResolution;
   function findTargetBindingByTargetId(targetId: string, purpose: CsharpProviderBindingLookupPurpose): CsharpProviderBindingResolution {
     assertCsharpProviderLookupPurpose(purpose);
     return retained(purpose === "inheritance" ? inheritanceQuery(targetId, "id")
-      : ordinaryQuery(targetId, "id"));
+      : publishBinding(ordinaryQuery(targetId, "id")));
   }
   function findTargetBindingByMetadataName(metadataName: string, purpose: "inheritance"): CsharpProviderNativeBindingResolution;
   function findTargetBindingByMetadataName(metadataName: string, purpose: CsharpProviderBindingLookupPurpose): CsharpProviderBindingResolution;
   function findTargetBindingByMetadataName(metadataName: string, purpose: CsharpProviderBindingLookupPurpose): CsharpProviderBindingResolution {
     assertCsharpProviderLookupPurpose(purpose);
     return retained(purpose === "inheritance" ? inheritanceQuery(metadataName, "metadata")
-      : ordinaryQuery(metadataName, "metadata"));
+      : publishBinding(ordinaryQuery(metadataName, "metadata")));
   }
   const resolve = (
     declaration: ProviderVirtualDeclarationFact | undefined,
@@ -186,6 +200,7 @@ export function createCsharpProviderRelationResolver(
               source.identity,
               staticCatalog.relationCatalog.resolveType(source.identity),
               acquireReferencedBinding,
+              publish,
             );
       }
       case "value": {
@@ -197,6 +212,7 @@ export function createCsharpProviderRelationResolver(
               source.identity,
               staticCatalog.relationCatalog.resolveValue(source.identity),
               acquireReferencedBinding,
+              publish,
             );
       }
       case "member": {
@@ -208,6 +224,7 @@ export function createCsharpProviderRelationResolver(
               source.identity,
               staticCatalog.relationCatalog.resolveMember(source.identity),
               acquireReferencedBinding,
+              publish,
             );
       }
       case "signature": {
@@ -221,6 +238,7 @@ export function createCsharpProviderRelationResolver(
                 source.identity,
               ),
               acquireReferencedBinding,
+              publish,
             );
       }
     }
@@ -301,6 +319,7 @@ function resolveStaticProviderPolicy(
   source: Parameters<StaticProviderPolicy["rejectionCatalog"]["resolve"]>[0],
   relations: readonly CsharpProviderTargetRelation[],
   acquire: (reference: CsharpTargetBindingFact) => CsharpProviderBindingResolution,
+  publish: <Value>(value: Value) => CsharpProviderIdentityPublication<Value>,
 ): CsharpProviderRelationResolution {
   const diagnostic = policy.rejectionCatalog.resolve(source);
   if (diagnostic !== undefined) return { kind: "rejected", diagnostic };
@@ -313,7 +332,11 @@ function resolveStaticProviderPolicy(
     if (selected.kind === "rejected") return selected;
     if (selected.kind === "missing") return { kind: "missing",
       reason: "A source provider relation requires its exact physical binding from the declared native owner." };
-    resolved.push(Object.freeze({ ...relation, targetBinding: selected.binding }));
+    if (!isCsharpProviderTargetBinding(selected.binding)) return { kind: "missing",
+      reason: "A source provider relation requires its complete C# native generic parameter permissions." };
+    const published = publish(Object.freeze({ ...relation, targetBinding: selected.binding }));
+    if (published.kind !== "resolved") return published;
+    resolved.push(published.value);
   }
   return { kind: "resolved", relations: Object.freeze(resolved) };
 }

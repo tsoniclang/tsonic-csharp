@@ -1,4 +1,5 @@
-import type { CsharpTargetBindingFact, TargetBindingFact } from "../../../target-model/types/model.js";
+import type { CsharpTargetBindingFact, TargetBindingFact, TargetTypeParameter } from "../../../target-model/types/model.js";
+import { isCsharpTargetTypeRef } from "../../../target-model/types/snapshot.js";
 import type { DotnetModuleModel, DotnetTypeDeclaration } from "../model/index.js";
 import { dotnetExportToTargetBinding } from "../projection/index.js";
 import type { DotnetTargetBindingFact } from "../projection/index.js";
@@ -179,6 +180,14 @@ export function createDotnetTargetBindingIndex(): DotnetTargetBindingIndex {
       ) ?? [];
     },
   };
+}
+
+export function isCsharpProviderTargetBinding(binding: TargetBindingFact): binding is CsharpTargetBindingFact {
+  const permissions = (parameter: TargetTypeParameter): boolean =>
+    "csharpAllowsRefLike" in parameter && typeof parameter.csharpAllowsRefLike === "boolean";
+  return (binding.typeParameters?.every(permissions) ?? true) &&
+    (binding.members?.every(member => member.typeParameters?.every(permissions) ?? true) ?? true) &&
+    (!("csharpType" in binding) || binding.csharpType === undefined || isCsharpTargetTypeRef(binding.csharpType));
 }
 
 export function findUniqueTargetBinding(
