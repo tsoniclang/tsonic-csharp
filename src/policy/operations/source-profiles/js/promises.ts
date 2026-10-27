@@ -1,11 +1,12 @@
 import type { CsharpTargetMember, TargetTypeRef } from "../../../types/index.js";
-import { csharpDelegateTargetType, csharpEnumerableTargetType, csharpObjectTargetType, csharpNullableTargetType, csharpTaskTargetType, getCsharpCollectionElementTargetType, getCsharpTaskResultTargetType, getCsharpDelegateSignature, isCsharpVoidTargetType, targetTypeRefEquals } from "../../../../target-model/types/index.js";
+import { csharpDelegateTargetType, csharpEnumerableTargetType, csharpObjectTargetType, csharpNullableTargetType, csharpTaskTargetType, getCsharpCollectionElementTargetType, getCsharpTaskResultTargetType, getCsharpDelegateSignature, isCsharpAbsenceTargetType, isCsharpVoidTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/index.js";
 import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext } from "../../../model/source-profiles.js";
 import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
 import { jsCallPolicy, jsMemberIdentity, receiverHelperMethod, staticMethod, targetParameter } from "./common.js";
 import { csharpQualifiedTypeRenderShape } from "../../../../target-model/types/index.js";
 import { csharpTargetNamedType } from "../../../../target-model/types/index.js";
 import { csharpJsEventLoopBinaryExecutionDriver } from "../../../../target-model/project/binary-execution-drivers.js";
+import { resolveCsharpOptionalStorage } from "../../../types/storage/optional-storage.js";
 
 const objectType = csharpObjectTargetType();
 const rejectionType = csharpNullableTargetType(objectType);
@@ -44,10 +45,7 @@ export const csharpJsPromiseCallPolicies:
       jsMemberIdentity(owner, "then"),
       context => promiseContinuationMember(context, "then"),
       firstParameterReceiver,
-      { targetMethodTypeArguments: context => {
-        const result = getCsharpTaskResultTargetType(promiseContinuationMember(context, "then")?.returnType);
-        return result === undefined ? undefined : isCsharpVoidTargetType(result) ? [] : [result];
-      } },
+      { targetMethodTypeArguments: (_context, member) => promiseContinuationTypeArguments(member) },
     )),
     jsCallPolicy(
       jsMemberIdentity("Promise", "catch"),
@@ -67,6 +65,16 @@ function promiseContinuationMember(
   if (name === "catch" && !targetTypeRefEquals(input, output.result)) return undefined;
   const callbackResults = context.source.sourceArguments.map(argument =>
     getCsharpDelegateSignature(resolveCsharpSelectedSourceValue(context, argument))?.returnType);
+  const fulfilled = context.source.sourceArguments[0];
+  const fulfilledType = resolveCsharpSelectedSourceValue(context, fulfilled);
+  if (name === "then" && (fulfilled === undefined || isCsharpAbsenceTargetType(fulfilledType) ||
+    fulfilledType !== undefined && isCsharpVoidTargetType(fulfilledType))) {
+    const rejected = context.source.sourceArguments[1];
+    const rejectedType = resolveCsharpSelectedSourceValue(context, rejected);
+    const absentRejected = rejected === undefined || isCsharpAbsenceTargetType(rejectedType) ||
+      rejectedType !== undefined && isCsharpVoidTargetType(rejectedType);
+    return promiseAbsentFulfilledMember(receiver, input, absentRejected ? undefined : callbackResults[1], absentRejected);
+  }
   const asynchronous = name === "then" && callbackResults[0] !== undefined &&
     getCsharpTaskResultTargetType(callbackResults[0]) !== undefined;
   const selected = context.source.sourceSelectedMethodTypeArguments?.[0];
@@ -93,6 +101,74 @@ function promiseContinuationMember(
         ? { typeParameters: [{ name: "TResult", csharpAllowsRefLike: false }] } : {}),
     },
   );
+}
+
+function promiseAbsentFulfilledMember(
+  receiver: TargetTypeRef,
+  input: TargetTypeRef,
+  rejectedResult: TargetTypeRef | undefined,
+  absentRejected: boolean,
+): CsharpTargetMember | undefined {
+  if (!absentRejected && rejectedResult === undefined) return undefined;
+  const asynchronousResult = getCsharpTaskResultTargetType(rejectedResult);
+  const asynchronous = asynchronousResult !== undefined;
+  const completed = asynchronousResult ?? rejectedResult ?? input;
+  const inputVoid = isCsharpVoidTargetType(input);
+  const completedVoid = isCsharpVoidTargetType(completed) || isCsharpAbsenceTargetType(completed);
+  let result: TargetTypeRef;
+  let targetName: string;
+  let typeParameterNames: readonly string[];
+  if (absentRejected || targetTypeRefEquals(input, completed) || inputVoid && completedVoid) {
+    result = input;
+    targetName = inputVoid && !asynchronous ? "Then" : asynchronous ? "ThenIdentityAsync" : "ThenIdentity";
+    typeParameterNames = [];
+  } else if (inputVoid || completedVoid) {
+    const element = inputVoid ? completed : input;
+    const storage = resolveCsharpOptionalStorage({ kind: "optional", part: "storage", arguments: [element] }, element);
+    if (storage === undefined) return undefined;
+    result = storage;
+    targetName = asynchronous ? "ThenOptionalAsync" : "ThenOptional";
+    typeParameterNames = inputVoid ? ["TResult", "TStorage", "TOperations"] : ["TStorage", "TOperations"];
+  } else {
+    return undefined;
+  }
+  const fulfilledResult = inputVoid ? completed : completedVoid ? completed : input;
+  const delegate = (parameters: readonly TargetTypeRef[], value: TargetTypeRef): TargetTypeRef => {
+    const returnsVoid = isCsharpVoidTargetType(value) || isCsharpAbsenceTargetType(value);
+    return returnsVoid && !asynchronous
+      ? csharpDelegateTargetType("System.Action", parameters)
+      : csharpDelegateTargetType("System.Func", parameters, asynchronous ? csharpTaskTargetType(value) : value);
+  };
+  return receiverHelperMethod(
+    `Tsonic.CSharp.Js.PromiseRuntime.then:absent:${targetTypeRefKey(input)}:${targetTypeRefKey(completed)}`,
+    "then", targetName, promiseRuntimeType(input), receiver,
+    [targetParameter("fulfilled", csharpNullableTargetType(delegate(inputVoid ? [] : [input], fulfilledResult)),
+        { optional: absentRejected || inputVoid && completedVoid }),
+      targetParameter("rejected", csharpNullableTargetType(delegate([rejectionType], completed)),
+        { optional: absentRejected || inputVoid && completedVoid && !asynchronous })],
+    csharpTaskTargetType(result),
+    {
+      csharpBinaryExecutionDriver: csharpJsEventLoopBinaryExecutionDriver,
+      ...(typeParameterNames.length === 0 ? {} : {
+        typeParameters: typeParameterNames.map(name => ({ name, csharpAllowsRefLike: false })),
+      }),
+    },
+  );
+}
+
+function promiseContinuationTypeArguments(member: CsharpTargetMember | undefined): readonly TargetTypeRef[] | undefined {
+  const result = getCsharpTaskResultTargetType(member?.returnType);
+  if (member === undefined || result === undefined) return undefined;
+  const count = member.typeParameters?.length ?? 0;
+  if (count === 0) return [];
+  if (count === 1) return [result];
+  const owner = member.declaringType;
+  const callback = getCsharpDelegateSignature(member.parameters?.[2]?.type)?.returnType;
+  const element = count === 2 && owner?.kind === "target-named" ? owner.typeArguments?.[0]
+    : getCsharpTaskResultTargetType(callback) ?? callback;
+  if (element === undefined) return undefined;
+  const operations = resolveCsharpOptionalStorage({ kind: "optional", part: "operations", arguments: [element] }, element);
+  return operations === undefined ? undefined : count === 2 ? [result, operations] : [element, result, operations];
 }
 
 function promiseResolveMember(
