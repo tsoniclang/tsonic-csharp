@@ -100,7 +100,7 @@ function errorCapturePolicy(owner: CsharpSourceProfileOwner): CsharpSourceProfil
   return Object.freeze({
     source: { owner, kind: "member" as const, declaringName: "ErrorConstructor", name: "captureStackTrace" },
     select(context: CsharpSourceProfileCallPolicyContext): CsharpSourceProfileCallPolicyResult {
-      const call = csharpSourceProfileCall(context.source, {
+      const member = context.host.providers.publishNativeIdentities<CsharpTargetMember>({
         id: "Tsonic.CSharp.Runtime.Error.captureStackTrace",
         sourceName: "captureStackTrace",
         targetName: "captureStackTrace",
@@ -109,7 +109,9 @@ function errorCapturePolicy(owner: CsharpSourceProfileOwner): CsharpSourceProfil
         declaringType: errorType,
         parameters: [{ name: "error", type: errorType, passingMode: "by-value" }],
         returnType: csharpVoidTargetType(),
-      }, noReceiver);
+      });
+      if (member.kind === "rejected") return member;
+      const call = member.kind === "resolved" ? csharpSourceProfileCall(context.source, member.value, noReceiver) : undefined;
       return call === undefined ? {
         kind: "rejected",
         diagnostic: csharpSourceProfileDiagnostic("CSHARP_ERROR_CAPTURE_CONTRACT", 9100952,
@@ -130,17 +132,21 @@ export const csharpErrorSourceProfilePropertyPolicies:
         native,
       }) => Object.freeze({
         source: errorIdentity(owner, "member", sourceName),
-        select: (context: CsharpSourceProfilePropertyPolicyContext): CsharpSourceProfilePropertyPolicyResult => {
+        select: (context: CsharpSourceProfilePropertyPolicyContext): CsharpSourceProfilePropertyPolicyResult | undefined => {
+          const exception = context.host.providers.publishNativeIdentities(exceptionType);
+          if (exception.kind === "rejected") return exception;
+          if (exception.kind !== "resolved") return undefined;
           const receiver = getCsharpNullableElementTargetType(context.receiverType) ?? context.receiverType;
-          if (receiver !== undefined && targetTypeRefEquals(receiver, exceptionType)) {
+          if (receiver !== undefined && targetTypeRefEquals(receiver, exception.value)) {
             if (context.source.accessMode !== "read") return {
               kind: "rejected",
               diagnostic: csharpSourceProfileDiagnostic("CSHARP_ERROR_READONLY_STORAGE", 9100953,
                 "The selected native Exception storage does not admit source Error field mutation.", []),
             };
-            return native;
+            const published = context.host.providers.publishNativeIdentities(native);
+            return published.kind === "resolved" ? published.value : published.kind === "rejected" ? published : undefined;
           }
-          return {
+          const published = context.host.providers.publishNativeIdentities({
             kind: "resolved" as const,
             targetMember: Object.freeze({
               id: targetId,
@@ -153,7 +159,8 @@ export const csharpErrorSourceProfilePropertyPolicies:
             }),
             receiver: instanceReceiver,
             invocation: { kind: "member" as const },
-          };
+          });
+          return published.kind === "resolved" ? published.value : published.kind === "rejected" ? published : undefined;
         },
       })),
     ),
@@ -174,9 +181,11 @@ function errorCallPolicy(
     select(
       context: CsharpSourceProfileCallPolicyContext,
     ): CsharpSourceProfileCallPolicyResult {
-      const call = csharpSourceProfileCall(
+      const member = context.host.providers.publishNativeIdentities(constructor);
+      if (member.kind === "rejected") return member;
+      const call = member.kind !== "resolved" ? undefined : csharpSourceProfileCall(
         context.source,
-        constructor,
+        member.value,
         noReceiver,
       );
       return call === undefined

@@ -2,11 +2,7 @@ import type { CsharpProviderBindingResolution } from "../../../target-model/meta
 import type { CsharpTargetBindingFact } from "../../../target-model/types/model.js";
 import { snapshotCsharpMetadata } from "../../../target-model/metadata/immutable.js";
 import { findUniqueTargetBinding, isCsharpProviderTargetBinding } from "../acquisition/target-binding-index.js";
-
-export type CsharpProviderIdentityPublication<Value> =
-  | { readonly kind: "resolved"; readonly value: Value }
-  | { readonly kind: "missing"; readonly reason: string }
-  | Extract<CsharpProviderBindingResolution, { readonly kind: "rejected" }>;
+import type { CsharpProviderIdentityPublication } from "../../model/relation-resolver.js";
 
 export function createCsharpProviderIdentityPublication(
   references: readonly CsharpTargetBindingFact[],

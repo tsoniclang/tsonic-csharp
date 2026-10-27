@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { createCsharpProviderIdentityPublication } from "../../../dist/providers/native/projection/native-identity-publication.js";
+import { snapshotCsharpMetadata } from "../../../dist/target-model/metadata/immutable.js";
 import { csharpProviderPolicyContribution } from "../../../dist/public/provider.js";
 import { providerTypeSourceIdentity, providerMemberSourceIdentity } from "../../../dist/providers/model/provider-relations.js";
 import { providerDeclaration } from "../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
@@ -13,8 +14,8 @@ function fixture() {
   const reference = { id: "Fixture.Exception", target: "csharp", kind: "class", sourceName: "Exception",
     targetName: "Fixture.Exception", csharpType: csharpTargetNamedType("Fixture.Exception", undefined,
       csharpQualifiedTypeRenderShape("Fixture", "Exception"), { allowsRefLikeTypeArguments: [] }) };
-  const physical = { ...reference, id: "Actual.Native.Owner::Fixture.Exception",
-    csharpType: { ...reference.csharpType, id: "Actual.Native.Owner::Fixture.Exception" } };
+  const physical = snapshotCsharpMetadata({ ...reference, id: "Actual.Native.Owner::Fixture.Exception",
+    csharpType: { ...reference.csharpType, id: "Actual.Native.Owner::Fixture.Exception" } });
   return { reference, physical };
 }
 
@@ -122,4 +123,52 @@ test("native graph publication never evaluates accessors or publishes an unresol
   assert.equal(reads, 0, "an invalid metadata accessor is not invoked");
   const result = publish({ returnType: csharpDelegateTargetType("System.Func", [], reference.csharpType) });
   assert.equal(result.kind, "missing", "a nested callback missing its native owner publishes no partial canonical relation");
+});
+
+test("native publication snapshots all mutable containers even when no identity changes", () => {
+  const publish = createCsharpProviderIdentityPublication([], () => ({ kind: "missing" }));
+  const shared = { name: "before" };
+  const input = { items: [shared], other: shared };
+  const result = publish(input);
+  assert.equal(result.kind, "resolved", "no replacement is required for ordinary metadata publication");
+  assert.equal(result.value !== input && result.value.items !== input.items && result.value.other !== shared, true,
+    "unchanged mutable records and arrays are owning snapshots rather than caller aliases");
+  assert.equal(result.value.items[0] === result.value.other && Object.isFrozen(result.value) &&
+    Object.isFrozen(result.value.items) && Object.isFrozen(result.value.other), true,
+  "the snapshot preserves shared-child identity and freezes every retained container");
+  shared.name = "after";
+  input.items.push({ name: "new" });
+  assert.equal(result.value.other.name, "before", "mutating retained caller records cannot change published evidence");
+  assert.equal(result.value.items.length, 1, "mutating retained caller arrays cannot change published evidence");
+  assert.equal(Object.isFrozen(input) || Object.isFrozen(input.items) || Object.isFrozen(shared), false,
+    "publication never freezes caller-owned input as a shortcut");
+  const immutable = snapshotCsharpMetadata({ items: [{ name: "stable" }] });
+  assert.equal(publish(immutable).value === immutable, true, "already deeply immutable authority remains shared");
+  const shallow = Object.freeze({ items: [{ name: "mutable child" }] });
+  assert.equal(publish(shallow).value !== shallow, true, "a frozen outer record does not certify its descendants");
+});
+
+test("a changed native graph snapshots untouched mutable children and retains graph validation", () => {
+  const { reference, physical } = fixture();
+  let acquisitions = 0;
+  const publish = createCsharpProviderIdentityPublication([reference], () => {
+    acquisitions += 1;
+    return { kind: "resolved", binding: physical };
+  });
+  const untouched = { items: ["before"] };
+  const result = publish({ type: reference.csharpType, first: untouched, second: untouched });
+  assert.equal(result.kind, "resolved", "physical identity publication completes before the handoff");
+  assert.equal(result.value.type.id, physical.csharpType.id, "the actual native identity is retained");
+  assert.equal(result.value.first === result.value.second && result.value.first !== untouched &&
+    Object.isFrozen(result.value.first) && Object.isFrozen(result.value.first.items), true,
+  "an unrelated mutable child is snapshotted once, not shared or split");
+  untouched.items[0] = "after";
+  assert.equal(result.value.first.items[0], "before", "unchanged metadata cannot mutate after publication");
+  assert.equal(acquisitions, 1, "copying never re-acquires native identity");
+  const cycle = {};
+  cycle.self = cycle;
+  assert.throws(() => publish(cycle), { name: "TypeError", message: "C# immutable metadata contains a cycle." });
+  assert.throws(() => publish([, "hole"]), TypeError, "sparse metadata arrays remain rejected");
+  assert.throws(() => snapshotCsharpMetadata({ item: 1 }, undefined, { reserve() { throw new TypeError("budget"); } }, value => value),
+    { name: "TypeError", message: "budget" }, "projection never bypasses the owning resource budget");
 });

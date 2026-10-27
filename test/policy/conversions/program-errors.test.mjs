@@ -14,7 +14,13 @@ const derived = csharpTargetNamedType("Project.Failure", undefined, { kind: "nam
 const unrelated = csharpTargetNamedType("Project.Value", undefined, { kind: "named", name: "Value" }, { allowsRefLikeTypeArguments: [],});
 const host = {
   projectTypes: { directSupertypes: carrier => carrier === derived ? [source] : [] },
-  providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
+  providers: createCsharpProviderRelationResolver({ providers: [{
+    identity: { id: "fixture.native-errors", version: "1" }, validateReferences: () => undefined,
+    findTargetBindingByMetadataName: name => name === "System.Exception" ? { kind: "resolved", binding: {
+      id: native.id, target: "csharp", kind: "class", sourceName: "Exception", targetName: "System.Exception", csharpType: native,
+    } } : { kind: "missing" },
+    findTargetBindingByTargetId: () => ({ kind: "missing" }),
+  }], providerPolicies: [] }),
   target: {},
 };
 

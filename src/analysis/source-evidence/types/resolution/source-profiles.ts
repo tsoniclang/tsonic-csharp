@@ -22,13 +22,17 @@ import { csharpSourceStorageContext } from "./source-storage-projection.js";
 import { resolveCsharpNativeParameterCarrier } from "./source-references.js";
 
 import { selectCsharpSourceProfileCarrier } from "../../../../policy/operations/source-profiles/type-carriers.js";
+import type { CsharpProviderRelationResolver } from "../../../../providers/model/relation-resolver.js";
 export function resolveCsharpSourceProfileBaseType(
   type: Type,
   queries: SourceFileSemantics,
   ast: AstReader,
+  providers: CsharpProviderRelationResolver,
 ): TargetTypeRef | undefined {
   const identity = classifyCsharpSourceProfileType(type, queries, ast);
-  return identity?.kind === "error" ? csharpRuntimeErrorTargetType(identity.errorName) : undefined;
+  if (identity?.kind !== "error") return undefined;
+  const selected = providers.publishNativeIdentities(csharpRuntimeErrorTargetType(identity.errorName));
+  return selected.kind === "resolved" ? selected.value : undefined;
 }
 
 export function resolveSourceProfileType(
@@ -55,7 +59,10 @@ export function resolveSourceProfileType(
     ? csharpProviderBindingFromResolution(host.providers.findTargetBindingByMetadataName("System.Collections.Generic.Dictionary`2", "ordinary"))
     : undefined;
   const dictionaryCarrier = binding === undefined ? undefined : csharpTargetTypeFromBinding(binding, typeArguments);
-  return selectCsharpSourceProfileCarrier({ baseErrorCarrier, dictionaryCarrier }, identity, typeArguments);
+  const selected = selectCsharpSourceProfileCarrier({ baseErrorCarrier, dictionaryCarrier }, identity, typeArguments);
+  if (identity?.kind !== "error" || selected === undefined) return selected;
+  const published = host.providers.publishNativeIdentities(selected);
+  return published.kind === "resolved" ? published.value : undefined;
 }
 export function resolveUnionType(
   { host, resolveTypeWithState, sourceUnions, sourceUnionDefinitions }: CsharpTypeResolutionScope,

@@ -11,11 +11,11 @@ import {
   compileCsharpSource,
 } from "../../helpers/direct-csharp-session.mjs";
 import { createCsharpErrorStorageDemandQuery } from "../../../dist/analysis/objects/error-storage-demands.js";
-import { csharpExceptionTargetType, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
+import { targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 
 test("retained-provider catch reads select exact readonly C# Error flow and observation facts", () => {
   // C# member naming reads the System.Object inventory, so the analysis runs with the session's live providers.
-  const { source, analysis } = analyzeCsharpSource({ surface: "js", capabilities: [createTsonicPlugin()],
+  const { source, analysis, providers } = analyzeCsharpSource({ surface: "js", capabilities: [createTsonicPlugin()],
     sourceText: nativeRetainedErrorFlowSource });
   assert.equal(analysis.kind, "resolved", "C# retained Error source has one closed target analysis");
   assert.equal(analysis.diagnostics.length, 0, "C# retained Error analysis has no diagnostics");
@@ -23,7 +23,9 @@ test("retained-provider catch reads select exact readonly C# Error flow and obse
   const storage = createSourceStorageQuery(source, source.navigation.sourceFiles);
   const demands = createCsharpErrorStorageDemandQuery(source, storage);
   const { ast } = source;
-  const exception = csharpExceptionTargetType();
+  const nativeException = providers.findTargetBindingByMetadataName("System.Exception", "ordinary");
+  assert.equal(nativeException.kind, "resolved", "the same session's native metadata supplies the exact Exception owner");
+  const exception = nativeException.binding.csharpType;
   const projections = [];
   const properties = [];
   const equalities = [];

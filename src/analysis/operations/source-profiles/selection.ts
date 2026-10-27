@@ -16,6 +16,7 @@ import type { CsharpTargetMember } from "../../../target-model/types/model.js";
 import { sourceProfileIdentityMatches } from "../../../policy/operations/source-profiles/source-profile-policy.js";
 import { selectCsharpSourceProfileCallPolicy, selectCsharpSourceProfileElementPolicy, selectCsharpSourceProfilePropertyPolicy } from "./policy-selection.js";
 import type { ResolvedSourceCallInfo } from "../../../target-model/records/calls/source-calls.js";
+import type { CsharpProviderRelationResolver } from "../../../providers/model/relation-resolver.js";
 type ResolvedSourcePropertyAccessInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["propertyAccess"]>
 >;
@@ -47,6 +48,7 @@ export function selectCsharpSourceProfileConstructor(
   host: {
     readonly ast: AstReader;
     readonly sourceFacts?: ReadonlySourceFactResolver;
+    readonly providers: CsharpProviderRelationResolver;
     semanticsFor(node: Node): SourceFileSemantics;
   },
   declaration: Node,
@@ -54,8 +56,11 @@ export function selectCsharpSourceProfileConstructor(
   const identity = csharpSourceProfileDeclarationIdentity(host.ast,
     host.semanticsFor(declaration), host.sourceFacts, declaration);
   if (identity === undefined || identity.kind !== "construct") return [];
-  return callPolicies.flatMap(policy => policy.inheritableConstructor === undefined ||
-    !sourceProfileIdentityMatches(policy.source, identity) ? [] : [policy.inheritableConstructor]);
+  return callPolicies.flatMap(policy => {
+    if (policy.inheritableConstructor === undefined || !sourceProfileIdentityMatches(policy.source, identity)) return [];
+    const published = host.providers.publishNativeIdentities(policy.inheritableConstructor);
+    return published.kind === "resolved" ? [published.value] : [];
+  });
 }
 
 export function selectCsharpComposedSourceProfileCall(

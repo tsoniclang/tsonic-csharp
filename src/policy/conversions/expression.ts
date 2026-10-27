@@ -162,11 +162,11 @@ export function selectCsharpFlowReadConversion(
     if (mapping !== undefined) return { kind: "union-map", coverage: "target", arms: mapping };
     return selectCsharpRuntimeUnionProjection(input, storageType, selectedReadType);
   }
-  if (
-    targetTypeRefEquals(storageType, csharpExceptionTargetType()) &&
-    selectedThrowable
-  ) {
-    return { kind: "cast", proof: "reference" };
+  if (selectedThrowable) {
+    const exception = input.providers.publishNativeIdentities(csharpExceptionTargetType());
+    if (exception.kind === "resolved" && targetTypeRefEquals(storageType, exception.value)) {
+      return { kind: "cast", proof: "reference" };
+    }
   }
   const selected = selectCsharpConversion(
     input,

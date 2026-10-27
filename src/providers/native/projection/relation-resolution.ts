@@ -15,7 +15,10 @@ import type { CsharpProviderRuntimePreparation, CsharpProviderRuntimeAcquisition
 import { csharpNativeTargetBindingFact } from "../../../target-model/types/native-inheritance.js";
 import { csharpNativeInheritanceLookup } from "../../../target-model/types/native-inheritance.js";
 import { findUniqueTargetBinding, isCsharpProviderTargetBinding } from "../acquisition/target-binding-index.js";
-import { createCsharpProviderIdentityPublication, type CsharpProviderIdentityPublication } from "./native-identity-publication.js";
+import { createCsharpProviderIdentityPublication } from "./native-identity-publication.js";
+import type { CsharpProviderIdentityPublication } from "../../model/relation-resolver.js";
+import { csharpExceptionTargetType, csharpRuntimeErrorTargetType } from "../../../target-model/types/carriers/scalar-types.js";
+import { csharpSourceErrorNames } from "../../../target-model/identities/source-errors.js";
 
 export interface CsharpProviderRelationResolverInputs {
   readonly providers: readonly DotnetReflectionTypeDataProvider[];
@@ -53,9 +56,14 @@ export function createCsharpProviderRelationResolver(
   const staticBindings = uniqueStaticBindings(
     staticCatalogs.flatMap(entry => entry.targetBindings),
   );
-  const publish = createCsharpProviderIdentityPublication(staticCatalogs.flatMap(policy =>
+  const sourceErrorReferences: readonly CsharpTargetBindingFact[] = [csharpExceptionTargetType(),
+    ...csharpSourceErrorNames.map(name => csharpRuntimeErrorTargetType(name))].map<CsharpTargetBindingFact>(type => Object.freeze({
+      id: type.id, target: "csharp", kind: "class", sourceName: type.id, targetName: type.id, csharpType: type,
+    }));
+  const sourceErrorIds = new Set(sourceErrorReferences.map(reference => reference.id));
+  const publish = createCsharpProviderIdentityPublication([...sourceErrorReferences, ...staticCatalogs.flatMap(policy =>
     policy.relationCatalog.relations.filter(relation => !policy.targetBindings.some(binding =>
-      binding.id === relation.targetBinding.id)).map(relation => relation.targetBinding)), acquireReferencedBinding);
+      binding.id === relation.targetBinding.id)).map(relation => relation.targetBinding))], acquireReferencedBinding);
   const publishedBindings = new WeakMap<TargetBindingFact, CsharpProviderBindingResolution>();
   assertUniqueProviderIdentities(providers);
   assertUniqueProviderSources(providers, staticCatalogs);
@@ -138,8 +146,11 @@ export function createCsharpProviderRelationResolver(
     const type = reference.csharpType;
     if (type?.kind !== "target-named") return Object.freeze({ kind: "missing" });
     const lookup = csharpNativeInheritanceLookup(type);
-    return lookup.kind === "metadata-name" ? ordinaryQuery(lookup.metadataName, "metadata")
+    const selected = lookup.kind === "metadata-name" ? ordinaryQuery(lookup.metadataName, "metadata")
       : ordinaryQuery(lookup.targetId, "id");
+    return selected.kind !== "missing" || !sourceErrorIds.has(reference.id) ? selected
+      : lookup.kind === "metadata-name" ? inheritanceQuery(lookup.metadataName, "metadata")
+      : inheritanceQuery(lookup.targetId, "id");
   }
   function publishBinding(result: CsharpProviderBindingResolution): CsharpProviderBindingResolution {
     if (result.kind !== "resolved") return result;
@@ -260,6 +271,11 @@ export function createCsharpProviderRelationResolver(
     return result;
   };
   return Object.freeze({
+    publishNativeIdentities<Value>(value: Value): CsharpProviderIdentityPublication<Value> {
+      const result = publish(value);
+      if (result.kind === "rejected") retained(result);
+      return result;
+    },
     failures(): readonly ExtensionDiagnostic[] {
       return Object.freeze([...failures.values()]);
     },

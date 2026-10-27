@@ -10,7 +10,9 @@ export function selectCsharpProgramErrorCarrier(
 ): TargetTypeRef | undefined {
   if (source === undefined) return undefined;
   if (sourceThrowable) return source;
-  const target = csharpExceptionTargetType();
+  const selected = input.providers.publishNativeIdentities(csharpExceptionTargetType());
+  if (selected.kind !== "resolved") return undefined;
+  const target = selected.value;
   const conversion = selectCsharpConversion(input, source, target, "implicit");
   return conversion.kind === "runtime-union-reference" || conversion.kind === "implicit" &&
     (conversion.proof === "reference" || conversion.proof === "provider-operator") ? target : undefined;

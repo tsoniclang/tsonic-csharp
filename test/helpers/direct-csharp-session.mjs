@@ -181,8 +181,10 @@ export function checkCsharpSource(options) {
 export function analyzeCsharpSource(options) {
   let analysis;
   let source;
+  let providers;
   const checked = createCheckedCsharpSource({ ...options, compileTarget: request => {
     source = request.input.source;
+    providers = request.providers;
     analysis = analyzeCsharpAnalysisProgram(request);
     return analysis.kind === "rejected" ? analysis : { kind: "resolved", diagnostics: analysis.diagnostics, value: { artifacts: [] } };
   } });
@@ -201,7 +203,7 @@ export function analyzeCsharpSource(options) {
     checked.targetSession.close();
   }
   assert.notEqual(analysis, undefined, "the session ran the C# analysis");
-  return { ...checked, source, analysis };
+  return { ...checked, source, analysis, providers };
 }
 
 // Runs `use` with the complete analysis request of a real compilation session (its live providers, classified

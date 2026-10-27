@@ -354,7 +354,7 @@ export function selectCsharpProjectTypeHeritage(
       };
     }
     const profileBase = definition.kind === "class" && edge.kind === "extends"
-      ? resolveCsharpSourceProfileBaseType(edge.selectedType, host.semanticsFor(edge.heritage), host.ast)
+      ? resolveCsharpSourceProfileBaseType(edge.selectedType, host.semanticsFor(edge.heritage), host.ast, host.providers)
       : undefined;
     const target = profileBase ?? host.types.resolveSelectedType(
       edge.heritage,

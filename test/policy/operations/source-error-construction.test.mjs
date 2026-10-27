@@ -2,6 +2,19 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { csharpErrorSourceProfileCallPolicies, csharpErrorSourceProfilePropertyPolicies } from "../../../dist/policy/operations/source-profiles/error-source-profile.js";
 import { csharpExceptionTargetType, csharpNullableTargetType, csharpRuntimeErrorTargetType, csharpStringTargetType } from "../../../dist/policy/types/index.js";
+import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
+import { csharpSourceErrorNames } from "../../../dist/target-model/identities/source-errors.js";
+
+const bindings = [csharpExceptionTargetType(), ...csharpSourceErrorNames.map(name => csharpRuntimeErrorTargetType(name))]
+  .map(type => ({ id: type.id, target: "csharp", kind: "class", sourceName: type.id, targetName: type.id, csharpType: type }));
+const host = { providers: createCsharpProviderRelationResolver({ providers: [{
+  identity: { id: "fixture.native-errors", version: "1" }, validateReferences: () => undefined,
+  findTargetBindingByMetadataName: name => {
+    const binding = bindings.find(binding => binding.targetName === name);
+    return binding === undefined ? { kind: "missing" } : { kind: "resolved", binding };
+  },
+  findTargetBindingByTargetId: () => ({ kind: "missing" }),
+}], providerPolicies: [] }) };
 
 test("source error construction and inheritance consume one exact native profile contract", () => {
   let constructors = 0;
@@ -23,7 +36,7 @@ test("source error construction and inheritance consume one exact native profile
   }
   assert.equal(constructors, 5);
   for (const policy of csharpErrorSourceProfilePropertyPolicies.filter(policy => policy.source.name === "message")) {
-    assert.deepEqual(policy.select({ source: { accessMode: "read" }, receiverType: csharpRuntimeErrorTargetType() }).targetMember.returnType,
+    assert.deepEqual(policy.select({ host, source: { accessMode: "read" }, receiverType: csharpRuntimeErrorTargetType() }).targetMember.returnType,
       csharpStringTargetType());
   }
 });
@@ -33,7 +46,7 @@ test("native Exception observation consumes immutable exact property records and
     ["message", ["System.Exception.Message", "member"]],
     ["stack", ["Tsonic.CSharp.Runtime.ErrorObject.stack", "receiver-call"]]]);
   for (const policy of csharpErrorSourceProfilePropertyPolicies) {
-    const context = { receiverType: csharpExceptionTargetType(), source: { accessMode: "read" } };
+    const context = { host, receiverType: csharpExceptionTargetType(), source: { accessMode: "read" } };
     const selected = policy.select(context);
     assert.equal(selected.kind, "resolved");
     assert.deepEqual([selected.targetMember.id, selected.invocation.kind], expected.get(policy.source.name));

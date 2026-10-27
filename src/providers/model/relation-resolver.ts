@@ -51,7 +51,13 @@ export type CsharpProviderRelationResolution =
       readonly diagnostic: ExtensionDiagnostic;
     };
 
+export type CsharpProviderIdentityPublication<Value> =
+  | { readonly kind: "resolved"; readonly value: Value }
+  | { readonly kind: "missing"; readonly reason: string }
+  | Extract<CsharpProviderBindingResolution, { readonly kind: "rejected" }>;
+
 export interface CsharpProviderRelationResolver {
+  publishNativeIdentities<Value>(value: Value): CsharpProviderIdentityPublication<Value>;
   validateReferences(): readonly ExtensionDiagnostic[];
   failures(): readonly ExtensionDiagnostic[];
   prepareRuntimeSources(preparation: CsharpProviderRuntimePreparation): CsharpProviderRuntimeAcquisition;

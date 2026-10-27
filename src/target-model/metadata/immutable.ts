@@ -42,12 +42,12 @@ export function snapshotCsharpMetadata<Value>(
         if (descriptor === undefined) throw new TypeError("C# immutable metadata requires dense arrays.");
         entries.push(copy(descriptor.value, depth + 1, identityAt === undefined ? path : [...path, index]));
       }
-      result = project !== undefined && entries.every((entry, index) => entry === projected[index])
+      result = project !== undefined && Object.isFrozen(projected) && entries.every((entry, index) => entry === projected[index])
         ? projected : Object.freeze(entries);
     } else {
       const entries = keys.map(key => [key, copy(descriptors[key]!.value, depth + 1,
         identityAt === undefined ? path : [...path, key])] as const);
-      result = project !== undefined && entries.every(([key, entry]) => entry === descriptors[key]!.value)
+      result = project !== undefined && Object.isFrozen(projected) && entries.every(([key, entry]) => entry === descriptors[key]!.value)
         ? projected : Object.freeze(Object.fromEntries(entries));
     }
     active.delete(input);

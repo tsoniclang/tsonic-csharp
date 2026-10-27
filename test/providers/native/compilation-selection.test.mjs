@@ -11,6 +11,7 @@ import { csharpProviderPolicyContribution } from "../../../dist/public/provider.
 import { providerTypeSourceIdentity } from "../../../dist/providers/model/provider-relations.js";
 import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
 import { csharpQualifiedTypeRenderShape } from "../../../dist/target-model/types/render-shapes.js";
+import { snapshotCsharpMetadata } from "../../../dist/target-model/metadata/immutable.js";
 
 test("source relations acquire their undeclared physical binding once from the actual native owner", () => {
   for (const order of ["source-first", "metadata-first"]) {
@@ -19,8 +20,8 @@ test("source relations acquire their undeclared physical binding once from the a
     const reference = { id: "Fixture.Exception", target: "csharp", kind: "class", sourceName: "Exception",
       targetName: "Fixture.Exception", csharpType: csharpTargetNamedType("Fixture.Exception", undefined,
         csharpQualifiedTypeRenderShape("Fixture", "Exception"), { allowsRefLikeTypeArguments: [] }) };
-    const physical = { ...reference, id: "Actual.Native.Owner::Fixture.Exception",
-      csharpType: { ...reference.csharpType, id: "Actual.Native.Owner::Fixture.Exception" } };
+    const physical = snapshotCsharpMetadata({ ...reference, id: "Actual.Native.Owner::Fixture.Exception",
+      csharpType: { ...reference.csharpType, id: "Actual.Native.Owner::Fixture.Exception" } });
     let reads = 0;
     const native = {
       identity: { id: "fixture.native-owner", version: "1.0.0" }, validateReferences: () => undefined,
