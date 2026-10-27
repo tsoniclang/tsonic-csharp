@@ -76,6 +76,7 @@ export function jsCallPolicy(
       ) => readonly (number | undefined)[]);
     readonly targetMethodTypeArguments?: (
       context: CsharpSourceProfileCallPolicyContext,
+      targetMember: CsharpTargetMember | undefined,
     ) => readonly TargetTypeRef[] | undefined;
   } = {},
 ): CsharpSourceProfileCallPolicy {
@@ -90,7 +91,7 @@ export function jsCallPolicy(
       const targetMethodTypeArguments =
         options.targetMethodTypeArguments === undefined
           ? []
-          : options.targetMethodTypeArguments(context);
+          : options.targetMethodTypeArguments(context, targetMember);
       const targetParameterBySourceParameter =
         typeof options.targetParameterBySourceParameter === "function"
           ? options.targetParameterBySourceParameter(context)

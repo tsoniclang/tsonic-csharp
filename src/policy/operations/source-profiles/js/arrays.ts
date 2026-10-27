@@ -7,6 +7,7 @@ import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileElementPolicy, C
 import { csharpSourceProfileDiagnostic, resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
 
 import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpOptionalStorageProjection, getCsharpGenericOptionalParts } from "../../../../target-model/types/projections.js";
 import { type JsSourceProfileTargetMemberFactory, instanceMethod, jsCallIdentity, jsCallPolicy, jsConstructIdentity, jsElementPolicy, jsMemberIdentity, jsPropertyPolicy, jsRuntimeTargetType, receiverHelperMethod, staticMethod, targetIndexer, targetParameter, targetProperty } from "./common.js";
 
 const intType = csharpSourcePrimitiveTargetType("int32");
@@ -209,6 +210,11 @@ export const csharpJsArrayCallPolicies:
           jsMemberIdentity(declaringName, row.sourceName),
           (context) => nullableArrayMember(context, row),
           firstParameterReceiver,
+          { targetMethodTypeArguments: (_context, member) => {
+            const result = member?.returnType;
+            const parts = getCsharpGenericOptionalParts(result);
+            return parts === undefined || result === undefined ? [] : [parts.element, result, parts.operations];
+          } },
         )
       ),
     ]),
@@ -504,8 +510,19 @@ function nullableArrayMember(
   row: typeof nullableArrayRows[number],
 ): CsharpTargetMember | undefined {
   const shape = arrayCallShape(context);
-  if (shape === undefined || shape.element.kind === "type-parameter") {
+  if (shape === undefined || shape.element.kind === "type-parameter" && row.parameterKind !== "predicate") {
     return undefined;
+  }
+  if (shape.element.kind === "type-parameter") {
+    const storage = csharpOptionalStorageProjection(shape.element);
+    return Object.freeze({
+      ...staticMethod(`Tsonic.CSharp.Js.Array.${row.targetName}:native-optional-storage`,
+        row.sourceName, row.targetName, arrayHelperType,
+        [targetParameter("array", shape.receiver), ...nullableArrayParameters(row.parameterKind, shape)], storage,
+        { typeParameters: [{ name: "T", csharpAllowsRefLike: false },
+          { name: "TStorage", csharpAllowsRefLike: false }, { name: "TOperations", csharpAllowsRefLike: false }] }),
+      receiverPassing: "target-parameter",
+    });
   }
   const targetName = isCsharpValueTypeTargetType(shape.element)
     ? `${row.targetName}Value`
