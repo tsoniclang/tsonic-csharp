@@ -27,3 +27,28 @@ public unsafe readonly struct PointerSourceConversion
         return new PointerSourceConversion();
     }
 }
+
+public readonly struct ReturnSelectedConversion
+{
+    public ReturnSelectedConversion(long value)
+    {
+        Value = value;
+    }
+
+    public long Value { get; }
+
+    public static explicit operator int(ReturnSelectedConversion value)
+    {
+        return checked((int)value.Value);
+    }
+
+    public static explicit operator long(ReturnSelectedConversion value)
+    {
+        return value.Value;
+    }
+
+    public static explicit operator ulong(ReturnSelectedConversion value)
+    {
+        return checked((ulong)value.Value);
+    }
+}

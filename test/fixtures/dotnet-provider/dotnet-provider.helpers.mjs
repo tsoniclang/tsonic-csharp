@@ -161,7 +161,7 @@ export function findByIdSuffix(values, metadataSuffix) {
 
 export function stripAssemblyQualifiers(id) {
   return id
-    .replace(/(^|[<(,])(?:(out|ref|in) )?[^:<>()]+::/gu, (_match, delimiter, passingMode) =>
+    .replace(/(^|[<(,:])(?:(out|ref|in) )?[^:<>()]+::/gu, (_match, delimiter, passingMode) =>
       `${delimiter}${passingMode === undefined ? "" : `${passingMode} `}`)
     .replace(/\+/gu, ".");
 }

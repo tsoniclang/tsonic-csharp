@@ -7,7 +7,7 @@ sealed partial class ReflectionProvider
         foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
             .Where(IsConversionOperator)
             .Where(method => UnsupportedOperatorReason(type, method) is null)
-            .OrderBy(MethodId, StringComparer.Ordinal))
+            .OrderBy(OperatorId, StringComparer.Ordinal))
         {
             var parameters = method.GetParameters();
             if (parameters.Length != 1)
@@ -30,7 +30,7 @@ sealed partial class ReflectionProvider
             }
             yield return new
             {
-                id = MethodId(method),
+                id = OperatorId(method),
                 targetName = method.Name,
                 metadataName = MethodMetadataId(method),
                 conversionKind = method.Name == "op_Implicit" ? "implicit" : "explicit",

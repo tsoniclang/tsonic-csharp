@@ -137,8 +137,8 @@ test(".NET reflection provider records conversion operators as target-only facts
     operator.sourceType.kind,
     operator.targetType.kind,
   ]), [
-    ["op_Explicit", "ProviderConversionFixtures.Meter.op_Explicit(System.Double)", "explicit", "source-primitive", "named"],
-    ["op_Implicit", "ProviderConversionFixtures.Meter.op_Implicit(ProviderConversionFixtures.Meter)", "implicit", "named", "source-primitive"],
+    ["op_Explicit", "ProviderConversionFixtures.Meter.op_Explicit(System.Double):ProviderConversionFixtures.Meter", "explicit", "source-primitive", "named"],
+    ["op_Implicit", "ProviderConversionFixtures.Meter.op_Implicit(ProviderConversionFixtures.Meter):System.Double", "implicit", "named", "source-primitive"],
   ]);
 
   const declarationModel = dotnetModuleToProviderDeclarationModel(module);
@@ -155,8 +155,8 @@ test(".NET reflection provider records conversion operators as target-only facts
     operator.sourceType.kind,
     operator.targetType.kind,
   ]), [
-    ["ProviderConversionFixtures.Meter.op_Explicit(System.Double)", "explicit", "source-primitive", "target-named"],
-    ["ProviderConversionFixtures.Meter.op_Implicit(ProviderConversionFixtures.Meter)", "implicit", "target-named", "source-primitive"],
+    ["ProviderConversionFixtures.Meter.op_Explicit(System.Double):ProviderConversionFixtures.Meter", "explicit", "source-primitive", "target-named"],
+    ["ProviderConversionFixtures.Meter.op_Implicit(ProviderConversionFixtures.Meter):System.Double", "implicit", "target-named", "source-primitive"],
   ]);
 
   const rawPointerSourceConversion = module.exports.find((declaration) => declaration.sourceName === "PointerSourceConversion");
