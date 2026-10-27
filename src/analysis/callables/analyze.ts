@@ -71,10 +71,19 @@ export function analyzeCsharpCallableContracts(
   const closedInputs = new Map<Node, TargetTypeRef>();
   const invocationInputs = new Map<Node, TargetTypeRef>();
   for (const [declaration, contract] of byDeclaration) {
-    const context = closedContexts.get(declaration);
-    if (context === undefined) continue;
     const nativeType = csharpCallableValueType(contract);
     if (nativeType === undefined) continue;
+    if (policy.ast.is.IsFunctionExpression(declaration) && policy.ast.name(declaration) !== undefined &&
+      contract.parameters.some(parameter => declarations.runtimeDefault.get(parameter)?.acceptsOmission === true)) {
+      closedInputs.set(declaration, nativeType);
+      invocationInputs.set(declaration, nativeType);
+      for (const alias of source.navigation.expressionValueFlow(declaration).aliasDeclarations) {
+        if (!source.navigation.declarationUseSummary(alias).bindingWritten) closedAliases.set(alias, declaration);
+      }
+      continue;
+    }
+    const context = closedContexts.get(declaration);
+    if (context === undefined) continue;
     if (context.invocationType !== undefined && csharpClosedInvocationMatches(nativeType, context.invocationType)) {
       closedInputs.set(declaration, context.invocationType);
       invocationInputs.set(declaration, context.invocationType);

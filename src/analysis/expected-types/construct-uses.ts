@@ -42,7 +42,8 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
         "required", slot === undefined ? undefined : at(node, slot));
       return;
     }
-    const target = policy.ast.is.IsParameterDeclaration(node) ? declarations.runtimeDefault.get(node)?.valueType : undefined;
+    const target = policy.ast.is.IsParameterDeclaration(node) ? declarations.runtimeDefault.get(node)?.valueType
+      : policy.ast.is.IsVariableDeclaration(node) ? callables.closedInputType(node) : undefined;
     record(initializer, target ?? (policy.ast.is.IsVariableDeclaration(node) || typeNode === undefined
       ? evidence.storageTargetType.get(node) : evidence.nodeTargetType.get(typeNode)),
       typeNode === undefined ? "contextual" : "required", slot === undefined ? undefined : at(node, slot));

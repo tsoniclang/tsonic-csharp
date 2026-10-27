@@ -10,6 +10,9 @@ export function selectCsharpParameterDefaultContext(
   evidence: CsharpSourceEvidenceIndex,
   owner: Node,
 ) {
+  if (policy.ast.is.IsFunctionExpression(owner) && policy.ast.name(owner) !== undefined &&
+    policy.navigation.declarationUses(owner).some(use =>
+      use.kind !== "type-only" && !evidence.compileTimeMetadata.get(use.reference))) return undefined;
   const direct = evidence.contextualTargetType.get(owner);
   const signature = getCsharpDelegateSignature(getCsharpNullableElementTargetType(direct) ?? direct);
   if (signature !== undefined) return signature;

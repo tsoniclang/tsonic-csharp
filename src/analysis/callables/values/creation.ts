@@ -44,8 +44,11 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
     const sourceCarrier = input.evidence.nodeTargetType.get(node);
     const contextualCarrier = input.expectedTypes.callableTarget.get(node);
     const contract = input.contracts.get({ kind: "declaration", declaration: node });
-    const native = contract === undefined ? undefined : input.contracts.closedInputType(node) ?? csharpCallableValueType(contract);
-    const carrier = closure !== undefined ? closure.method.type : observedSelf || getCsharpMethodValue(sourceCarrier) !== undefined ? sourceCarrier
+    const closed = input.contracts.closedInputType(node);
+    const native = contract === undefined ? undefined : closed ?? csharpCallableValueType(contract);
+    const carrier = closure !== undefined ? closure.method.type
+      : closed !== undefined && contract?.nativeParameters.some(parameter => parameter.targetParameter.optional === true) ? closed
+      : observedSelf || getCsharpMethodValue(sourceCarrier) !== undefined ? sourceCarrier
       : contextualCarrier !== undefined && matches(contextualCarrier) ? contextualCarrier : native;
     if (carrier === undefined) {
       producer.publish(node, Object.freeze({ kind: "pending" }));
