@@ -56,7 +56,7 @@ test("native Task resolution rejects inconsistent sealed input and completion ev
       source: {}, argumentPassing: [false], optional: false, projection: undefined, liftedResult: undefined,
       selection: { receiver: { kind: "none" }, targetMember: { kind: "method", id: "native-task-resolution-control",
         static: true, targetName: "FromResult", declaringType: completed,
-        parameters: [{ name: "value", type: parameter }], returnType: result,
+        parameters: [{ name: "value", type: parameter, passingMode: "by-value" }], returnType: result,
         csharpInvocation: { kind: "native-task-resolution", form } } },
     });
     assert.equal(selected.kind === "rejected", rejected, `${form}: exact native parameter/result correspondence`);

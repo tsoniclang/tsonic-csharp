@@ -144,7 +144,7 @@ export const csharpPromiseSourceProfileCallPolicies:
             id: `tsonic.csharp.Promise.resolve:${targetTypeRefKey(parameter)}:${targetTypeRefKey(result)}`,
             sourceName: "resolve", targetName: "FromResult", kind: "method" as const, static: true,
             declaringType: csharpTaskTargetType(voidType),
-            parameters: Object.freeze([Object.freeze({ name: "value", type: parameter })]),
+            parameters: Object.freeze([Object.freeze({ name: "value", type: parameter, passingMode: "by-value" as const })]),
             returnType: result,
             csharpInvocation: Object.freeze({ kind: "native-task-resolution" as const, form }),
           });
