@@ -73,7 +73,10 @@ function numeric(type: TargetTypeRef | undefined): boolean {
 function flexibleInteger(contribution: CsharpNumericArrayContribution): boolean {
   const literal = contribution.literal;
   return literal?.numeric?.kind === "authored" && literal.numeric.token.exponent >= 0n &&
-    !(literal.numeric.token.negative && literal.numeric.token.coefficient === 0n);
+    !(literal.numeric.token.negative && literal.numeric.token.coefficient === 0n) &&
+    !(contribution.carrier.kind === "source-primitive" &&
+      (contribution.carrier.name === "float32" || contribution.carrier.name === "float64") &&
+      !sourceNumericLiteralIsExactlyRepresentableAsBinaryFloat(literal.numeric.token, contribution.carrier.name));
 }
 
 function fits(candidate: TargetTypeRef, contribution: CsharpNumericArrayContribution): boolean {

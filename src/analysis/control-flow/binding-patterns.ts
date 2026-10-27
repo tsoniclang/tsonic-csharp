@@ -410,7 +410,17 @@ export function analyzeCsharpBindingPatterns(
         if (selected.kind === "unresolved") for (const reason of selected.reasons) issue(elementNode, reason);
         continue;
       }
-      const carrier = selected.element.kind === "object-shape-member" ? selected.element.member.type : selected.element.carrier;
+      let carrier = selected.element.kind === "object-shape-member" ? selected.element.member.type : selected.element.carrier;
+      if (isBindingPattern(name) && selected.element.kind === "object-shape-member") {
+        const initializers = [...new Set(selected.element.member.sourceDeclarations?.flatMap(declaration => {
+          const initializer = ast.is.IsPropertyAssignment(declaration) ? ast.as.AsPropertyAssignment(declaration)?.Initializer : undefined;
+          return initializer !== undefined && ast.is.IsObjectLiteralExpression(initializer) ? [initializer] : [];
+        }) ?? [])];
+        if (initializers.length === 1) {
+          const physical = input.objectShapes.resolveNode(initializers[0]!, sourceFile);
+          if (physical !== undefined) carrier = physical.targetType;
+        }
+      }
       recordElement(elementNode, selected.element, element.Initializer);
       if (element.Initializer === undefined) {
         analyzeNested(name, elementNode, sourceFile, carrier);

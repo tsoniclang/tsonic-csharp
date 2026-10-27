@@ -94,7 +94,10 @@ test("JS indexed compound writes preserve evaluation order and exact result carr
 });
 
 test("object rest retains stored method values through reordered structural interfaces", { timeout: 300_000 }, () => {
-  executeCsharpConstruction(compileCsharpSource({ surface: "js", sourceText: structuralMethodRestSource }), "structural-method-rest");
+  const compiled = compileCsharpSource({ surface: "js", sourceText: structuralMethodRestSource });
+  executeCsharpConstruction(compiled, "structural-method-rest");
+  const shapes = compiled.artifacts.get("generated/TsonicObjectShapes.cs") ?? "";
+  assert.match(shapes, /\bFunc<double, double>/u);
 });
 
 test("object rest never binds a copied method to its original receiver", () => {
@@ -102,4 +105,41 @@ test("object rest never binds a copied method to its original receiver", () => {
   assert.equal(compiled.artifacts.size, 0);
   assert.ok(compiled.result.diagnostics.some(({ code, message }) =>
     code === "CSHARP_UNSUPPORTED_AST" && message.includes("copied method-value contract")));
+});
+
+test("object rest projects the actual nested producer before checking its receiver", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+    type Contract = { removed: number; run(value: number): number };
+    function copy(value: Contract): { run(value: number): number } {
+      const { removed, ...rest } = value;
+      return rest;
+    }
+    export function run(): boolean {
+      const outer = {
+        value: 3,
+        unrelated(): number { return this.value; },
+        inner: { removed: 1, run(value: number): number { return value + 7; } },
+      };
+      return copy(outer.inner).run(2) === 9;
+    }
+  ` });
+  executeCsharpConstruction(compiled, "structural-method-rest-projected-producer");
+});
+
+test("object rest rejects a receiver-dependent nested producer", () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+    type Contract = { removed: number; run(value: number): number };
+    function copy(value: Contract): { run(value: number): number } {
+      const { removed, ...rest } = value;
+      return rest;
+    }
+    export function run(): boolean {
+      const outer = { inner: { removed: 3, run(value: number): number { return this.removed + value; } } };
+      return copy(outer.inner).run(2) === 5;
+    }
+  ` });
+  assert.equal(compiled.artifacts.size, 0, "an incompatible projected receiver emits no artifacts");
+  assert.equal(compiled.result.diagnostics.some(({ code, message }) =>
+    code === "CSHARP_UNSUPPORTED_AST" && message.includes("copied method-value contract")), true,
+  "the copied producer retains its actual receiver-dependent method provenance");
 });

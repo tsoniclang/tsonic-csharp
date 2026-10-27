@@ -105,9 +105,8 @@ export function createCsharpExpectedReturnTargets(
         [targetTypeRefKey(use.targetType), use.targetType]));
       const sourceTarget = evidence.nodeTargetType.get(declaration);
       const intrinsic = getCsharpMethodValue(sourceTarget) === undefined ? undefined : sourceTarget;
-      const targetType = callables.closedInputType(declaration) ?? (distinctTargets.size === 1
-        ? [...distinctTargets.values()][0]
-        : distinctTargets.size === 0 ? intrinsic : undefined);
+      const targetType = distinctTargets.size === 1 ? [...distinctTargets.values()][0]
+        : distinctTargets.size === 0 ? callables.closedInputType(declaration) ?? intrinsic : undefined;
       const previousTarget = callableTargets.get(declaration);
       if (
         previousTarget === undefined

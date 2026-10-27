@@ -19,7 +19,7 @@ import { planVoidExpression } from "./expression-void.js";
 import { planCsharpAbsentValue, planCsharpStorageIsAbsent } from "./optional-storage.js";
 import { csharpPlannedEffect, csharpPlannedValue, mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { planCsharpJsValueBox, translateCsharpJsValueInvocation } from "./js-value-operations.js";
-import { captureCsharpPlannedValue, planCsharpExpressionCompletion, planCsharpValueBranch } from "./planned-value-composition.js";
+import { captureCsharpPlannedValue, composeCsharpPlannedValues, planCsharpExpressionCompletion, planCsharpValueBranch } from "./planned-value-composition.js";
 import { applyCsharpConversionSelection } from "./conversions.js";
 import { requireCsharpNativeExpressionUse } from "./native-uses.js";
 import { planCsharpPlannedDiscard } from "../statements/statement-output.js";
@@ -79,6 +79,20 @@ export function planCsharpNativeExpression(
       const literal = planCsharpExactLiteralRecipe(input.scope.typeParameterNames, use.literal);
       return literal.kind === "resolved" ? complete(literal.expression)
         : failCsharpPlannerInvariant("An admitted native literal requires its renderable exact recipe.", node);
+    }
+    if (use.dynamicObject !== undefined) {
+      const type = csharpTypeFromTargetTypeRef(use.carrier, input.scope.typeParameterNames)
+        ?? failCsharpPlannerInvariant("An admitted broad literal requires its selected native value owner.", node);
+      const members = use.dynamicObject;
+      return composeCsharpPlannedValues(node, sourceFile, input, diagnostics,
+        members.map(member => planners.planExpression(member.initializer, sourceFile, input, diagnostics, state)), values =>
+          csharpPlannedValue(use.carrier, { kind: "InvocationExpression",
+            callee: { kind: "SimpleMemberAccessExpression", receiver: type, name: "CreateDynamicObject" },
+            arguments: members.flatMap((member, index) => [
+              { kind: "Argument" as const, expression: { kind: "LiteralExpression" as const, value: member.name } },
+              { kind: "Argument" as const, expression: values[index]! },
+            ]),
+          }));
     }
     if (use.discardedPresence !== undefined) return renderDiscarded(use.discardedPresence);
     if (use.binary !== undefined) return planSelectedCsharpBinaryOperation(node, use.binary, sourceFile, input, diagnostics, planners.planExpression, state);

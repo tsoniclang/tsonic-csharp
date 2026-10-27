@@ -68,6 +68,7 @@ export function analyzeCsharpObjectShapes(
   let structuralRevision = 0;
   let closedStructuralRevision = 0;
   const declaredStructuralIssues: CsharpProjectTypeIssue[] = [];
+  const literalIssues: CsharpProjectTypeIssue[] = [];
   let structuralIssues: readonly CsharpProjectTypeIssue[] = Object.freeze([]);
   const sealedStructuralImplementations = new Map<string, readonly CsharpStructuralInterfaceImplementation[]>();
   const instantiatedShapes = new Map<string, CsharpObjectShapeFact>();
@@ -323,6 +324,10 @@ export function analyzeCsharpObjectShapes(
     for (const shape of expectedShapes) {
       classifyLiteral(shape, literal);
     }
+    const selectedLiteral = classifyLiteral(contextualShape ?? byNode.get(literal), literal);
+    if (selectedLiteral?.kind === "rejected") literalIssues.push(Object.freeze({
+      node: selectedLiteral.subject, code: "CSHARP_UNSUPPORTED_AST", message: selectedLiteral.reason,
+    }));
   }
 
   function classifyLiteral(expected: CsharpObjectShapeFact | undefined, literal: Node): CsharpObjectLiteralTargetShapeResolution | undefined {
@@ -500,7 +505,7 @@ export function analyzeCsharpObjectShapes(
       admittedShapes.clear();
       sealed = true;
       published = sealCsharpObjectShapeClassifications({
-        issues: [...declaredStructuralIssues, ...structuralIssues],
+        issues: [...declaredStructuralIssues, ...structuralIssues, ...literalIssues],
         propertyOrders,
         structuralDefinitionIds: new Set(structuralInterfaces.keys()),
         structuralImplementations: sealedStructuralImplementations,

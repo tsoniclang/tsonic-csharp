@@ -48,8 +48,33 @@ test("synchronous generator yield expressions receive exact next values", () => 
   assert.doesNotMatch(source, /default\(int\).*NextValue|Task/);
 });
 
-test("synchronous generator protocol exposes next return throw and discriminated completion", () => {
+test("synchronous generator protocol exposes next return and discriminated completion", () => {
   const source = compileGenerator(`
+    import { Exception } from "@tsonic/dotnet/System.js";
+    import type { int } from "@tsonic/csharp/types.js";
+    export function* counter(): Generator<int, string, int> {
+      const increment: int = yield 1;
+      yield increment;
+      return "done";
+    }
+    export function useGenerator(): string {
+      const generator = counter();
+      const first = generator.next();
+      const second = generator.next(7);
+      const completed = generator.return("stopped");
+      return first.done === false && second.value === 7 && completed.done === true
+        ? completed.value as string
+        : "invalid";
+    }
+  `);
+
+  assert.match(source, /\.Next\(/);
+  assert.match(source, /\.Return\(/);
+  assert.match(source, /IteratorResult<int, string>/);
+});
+
+test("synchronous generator throw-in is refused before artifact emission", () => {
+  const compiled = compileCsharpSource({ sourceText: `
     import { Exception } from "@tsonic/dotnet/System.js";
     import type { int } from "@tsonic/csharp/types.js";
     export function* counter(): Generator<int, string, int> {
@@ -69,12 +94,15 @@ test("synchronous generator protocol exposes next return throw and discriminated
         ? completed.value as string
         : "invalid";
     }
-  `);
+  ` });
 
-  assert.match(source, /\.Next\(/);
-  assert.match(source, /\.Return\(/);
-  assert.match(source, /\.Throw\(/);
-  assert.match(source, /IteratorResult<int, string>/);
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.equal(compiled.result.diagnostics.length, 1, "throw-in has exactly one precise refusal");
+  assert.equal(compiled.result.diagnostics.some(diagnostic =>
+    diagnostic.code === "TSONIC_GENERATOR_THROW_UNSUPPORTED" &&
+    diagnostic.message === "Generator throw-in is not supported."), true,
+  "throw-in has the exact approved source refusal");
+  assert.equal(compiled.result.artifacts.length, 0, "a refused throw-in program emits no artifacts");
 });
 
 test("synchronous generators preserve lazy execution and locals across suspensions", () => {

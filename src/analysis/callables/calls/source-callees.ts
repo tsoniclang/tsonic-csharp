@@ -29,6 +29,8 @@ export function classifyCsharpSourceCallee(
   const declaration = reference?.declaration ?? source.sourceCalleeAccess?.declaration ?? source.sourceCallee.declaration;
   if (declaration !== undefined && selected !== undefined &&
     policy.ast.is.IsFunctionDeclaration(declaration) && policy.ast.is.IsFunctionDeclaration(selected)) {
+    if (!policy.navigation.isProjectDeclaration(selected)) return Object.freeze({ kind: "rejected",
+      reason: "The exact selected source callee is external to the project and has no C# target relation." });
     return Object.freeze({ kind: "function", expression, declaration: selected });
   }
   const access = source.sourceCalleeAccess;

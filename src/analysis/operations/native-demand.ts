@@ -450,6 +450,7 @@ export function analyzeCsharpNativeDemand(
       ...(expected?.literal === undefined ? {} : { literal: expected.literal }),
       ...(expected?.binary === undefined ? {} : { binary: expected.binary }),
       ...(objectShape === undefined ? {} : { objectShape }),
+      ...(expected?.dynamicObject === undefined ? {} : { dynamicObject: expected.dynamicObject }),
       ...(propertyKeys === undefined ? {} : { propertyKeys }),
       ...(defaultValue === undefined ? {} : { defaultValue }) };
     if (inputCompletion.kind === "void" && discarded) return publish(site, { ...common, kind: "effect" }, presence);

@@ -13,6 +13,62 @@ import { csharpObjectMethodHasFixedNativeExposure } from "../../../policy/types/
 import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { objectShapeMethodInvocationName } from "../../../target-model/names/object-members.js";
 
+const methodValueUses = new WeakMap<SourceStorageQueries, ReadonlySet<Node>>();
+
+function selectMethodValueUses(storage: SourceStorageQueries): ReadonlySet<Node> {
+  const cached = methodValueUses.get(storage);
+  if (cached !== undefined) return cached;
+  const { source } = storage;
+  const { ast } = source;
+  const values = new Set<Node>();
+  const pending: Node[] = [];
+  const add = (declaration: Node): void => {
+    if ((!ast.is.IsMethodDeclaration(declaration) && !ast.is.IsMethodSignatureDeclaration(declaration)) || values.has(declaration)) return;
+    values.add(declaration);
+    pending.push(declaration);
+  };
+  for (const node of storage.nodes) {
+    if (ast.is.IsMethodDeclaration(node) || ast.is.IsMethodSignatureDeclaration(node)) {
+      const uses = source.navigation.declarationUseSummary(node);
+      if (uses.firstClassUseCount > 0 || uses.exported || uses.memberWritten) add(node);
+    }
+    const binding = ast.is.IsBindingElement(node) ? ast.as.AsBindingElement(node) : undefined;
+    const pattern = binding?.DotDotDotToken === undefined ? undefined : ast.parent(node);
+    const owner = pattern === undefined || !ast.is.IsObjectBindingPattern(pattern) ? undefined : ast.parent(pattern);
+    const expression = ast.is.IsSpreadAssignment(node) ? ast.as.AsSpreadAssignment(node)?.Expression
+      : owner === undefined ? undefined : ast.is.IsVariableDeclaration(owner) ? ast.as.AsVariableDeclaration(owner)?.Initializer
+      : ast.is.IsParameterDeclaration(owner) ? owner : undefined;
+    if (expression === undefined) continue;
+    const semantics = source.semantics.forNode(expression);
+    const type = semantics.types.expressionType(expression) ?? semantics.types.authoredType(expression);
+    if (type === undefined) continue;
+    for (const property of semantics.types.propertyInfos(type)) {
+      for (const declaration of semantics.declarations.symbolDeclarations(property.symbol)) add(declaration);
+    }
+  }
+  for (const boundary of storage.boundaries) {
+    if (boundary.kind !== "external-input" && boundary.kind !== "external-write" && boundary.kind !== "unclassified-exposure") continue;
+    const selected = storage.typeFor(boundary.subject);
+    if (selected.kind !== "resolved") continue;
+    const semantics = source.semantics.forFile(selected.sourceFile);
+    for (const property of semantics.types.propertyInfos(selected.type)) {
+      for (const declaration of semantics.declarations.symbolDeclarations(property.symbol)) add(declaration);
+    }
+  }
+  for (let index = 0; index < pending.length; index++) {
+    const subject = storage.memberSubjectFor(pending[index]!);
+    if (subject.kind !== "resolved") continue;
+    const origins = storage.originSubjectsFor(subject.subject);
+    if (origins.kind !== "resolved") continue;
+    for (const origin of origins.subjects) {
+      add(origin.node);
+      for (const component of origin.projection) if (component.kind === "method-value") add(component.declaration);
+    }
+  }
+  methodValueUses.set(storage, values);
+  return values;
+}
+
 export function selectCsharpWritableMethodContract(
   shape: CsharpObjectShapeFact,
   writtenMembers: readonly CsharpObjectShapeMemberFact[],
@@ -27,6 +83,10 @@ export function selectCsharpWritableMethodContract(
   if (writtenMembers.every(member => member.methodValueStorage !== undefined)) return shape;
   const members = shape.members.map(member => {
     if (!writtenMembers.includes(member) || member.methodValueStorage !== undefined) return member;
+    if ((member.typeParameters?.length ?? 0) === 0 && member.optional !== true) {
+      const { methodValueContract: _contract, ...value } = member;
+      return Object.freeze({ ...value, methodValueStorage: Object.freeze({ kind: "delegate" as const, type: member.type }) });
+    }
     const contract = member.methodValueContract;
     const storage = contract === undefined
       ? Object.freeze({ kind: "delegate" as const, type: member.type })
@@ -65,13 +125,7 @@ export function resolveCsharpCopiedObjectShape(
   const receiver = selectCsharpCopiedMethodReceiver(shape.members, original === undefined ? [shape] : [original], ast);
   if (receiver.kind === "rejected") return undefined;
   if (receiver.kind === "selected") return receiver.shape;
-  const members = shape.methodImplementation !== undefined ? csharpCopiedObjectShapeMembers(shape)
-    : shape.members.map(member => member.memberKind !== "method" || member.methodValueContract === undefined ||
-      member.methodValueStorage !== undefined ? member : Object.freeze({ ...member, methodValueStorage: Object.freeze({
-        kind: "protocol" as const,
-        type: member.optional === true ? csharpNullableTargetType(member.methodValueContract) : member.methodValueContract,
-        invocationName: objectShapeMethodInvocationName(member),
-      }) }));
+  const members = csharpCopiedObjectShapeMembers(shape);
   const implemented = contract ? [shape.targetType] : shape.implements;
   return rememberTargetShape({
     targetType: createStructuralObjectShapeTarget(members, implemented, environment),
@@ -90,25 +144,29 @@ export function retainCsharpMethodValueContracts(
   const implemented = new Map((shape.implements ?? []).filter(type => !shape.members.some(member =>
     member.methodValueContract !== undefined && targetTypeRefEquals(member.methodValueContract, type)))
     .map(type => [targetTypeRefKey(type), type]));
+  const valueUses = selectMethodValueUses(sourceStorage);
   const members = shape.members.map(member => {
     const signature = csharpPresentObjectShapeMethod(member);
     if (signature === undefined) return member;
-    if (member.methodValueContract === undefined && member.methodValueStorage?.kind === "delegate") return member;
     const declaration = csharpObjectShapeMethodDeclaration(shape, member);
     const subject = declaration === undefined ? undefined : sourceStorage.memberSubjectFor(declaration);
     const writes = subject?.kind === "resolved" ? sourceStorage.memberWritesFor(subject.subject) : undefined;
     const nativeMethod = csharpObjectMethodHasFixedNativeExposure(writes);
+    const requiresProtocol = (member.typeParameters?.length ?? 0) > 0 || member.optional === true;
+    const needsValue = member.methodValueStorage?.kind === "delegate" ||
+      member.sourceDeclarations?.some(source => valueUses.has(source)) === true;
+    if (!requiresProtocol && (needsValue || declaration !== undefined && !nativeMethod)) {
+      const { methodValueContract: _contract, ...value } = member;
+      return { ...value, methodValueStorage: Object.freeze({ kind: "delegate" as const, type: member.type }) };
+    }
+    if (!requiresProtocol && declaration === undefined) return member;
     let contract = member.methodValueContract;
     if (contract === undefined) {
       const required = csharpObjectShapeMethodRequiresProtocol(member);
-      const selfContract = shape.members.length === 1 && shape.targetType.kind === "target-named" &&
-        (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true;
-      if (!required && !nativeMethod && !selfContract) return declaration === undefined ? member : {
+      if (!required && !nativeMethod) return declaration === undefined ? member : {
         ...member, methodValueStorage: Object.freeze({ kind: "delegate", type: member.type }) };
       const protocol = createStructuralObjectShapeTarget([signature], undefined, environment, true);
       const ownProtocol = targetTypeRefEquals(shape.targetType, protocol);
-      if (!required && !nativeMethod && !ownProtocol) return declaration === undefined ? member : {
-        ...member, methodValueStorage: Object.freeze({ kind: "delegate", type: member.type }) };
       contract = protocol;
       if (!ownProtocol) remember({ targetType: contract, members: [{ ...signature, methodValueContract: contract }] });
     }
