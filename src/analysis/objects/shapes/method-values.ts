@@ -138,6 +138,8 @@ export function retainCsharpMethodValueContracts(
 ): CsharpObjectShapeFact {
   if (csharpStructuralObjectShapeIdentity(shape.targetType) === undefined &&
     (shape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind !== "interface") return shape;
+  const nativeInterface = shape.targetType.kind === "target-named" &&
+    (shape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "interface";
   const implemented = new Map((shape.implements ?? []).filter(type => !shape.members.some(member =>
     member.methodValueContract !== undefined && targetTypeRefEquals(member.methodValueContract, type)))
     .map(type => [targetTypeRefKey(type), type]));
@@ -151,7 +153,7 @@ export function retainCsharpMethodValueContracts(
     const nativeMethod = csharpObjectMethodHasFixedNativeExposure(writes);
     const requiresProtocol = (member.typeParameters?.length ?? 0) > 0 || member.optional === true ||
       member.methodValueContract !== undefined;
-    const valueUses = !requiresProtocol && !nativeMethod && (member.sourceDeclarations?.length ?? 0) > 0
+    const valueUses = !nativeInterface && !requiresProtocol && !nativeMethod && (member.sourceDeclarations?.length ?? 0) > 0
       ? selectMethodValueUses(sourceStorage) : undefined;
     const needsValue = member.methodValueStorage?.kind === "delegate" ||
       member.sourceDeclarations?.some(source => valueUses?.has(source) === true) === true;
