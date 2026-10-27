@@ -249,7 +249,8 @@ for (const surface of [undefined, "js"]) {
       });
       assert.equal(compiled.sourceDiagnosticsText, "", "checked source stays valid");
       assert.equal(compiled.extensionDiagnostics.length, 0, "no extension rejection");
-      assert.equal(compiled.targetDiagnostics.length, 0, "exact native receivers stay admitted");
+      assert.equal(compiled.targetDiagnostics.length, 0, `exact native receivers stay admitted: ${compiled.targetDiagnostics
+        .map(issue => `${issue.code}: ${issue.message}`).join(" | ").slice(0, 3000)}`);
       assert.equal(compiled.result.program !== undefined, true, "analysis program is published");
       const { source, sourceFiles } = compiled.result.program;
       const storage = createSourceStorageQuery(source, sourceFiles);

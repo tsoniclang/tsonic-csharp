@@ -151,11 +151,11 @@ export function retainCsharpMethodValueContracts(
     const nativeMethod = csharpObjectMethodHasFixedNativeExposure(writes);
     const requiresProtocol = (member.typeParameters?.length ?? 0) > 0 || member.optional === true ||
       member.methodValueContract !== undefined;
-    const valueUses = !requiresProtocol && (member.sourceDeclarations?.length ?? 0) > 0
+    const valueUses = !requiresProtocol && !nativeMethod && (member.sourceDeclarations?.length ?? 0) > 0
       ? selectMethodValueUses(sourceStorage) : undefined;
     const needsValue = member.methodValueStorage?.kind === "delegate" ||
       member.sourceDeclarations?.some(source => valueUses?.has(source) === true) === true;
-    if (!requiresProtocol && (needsValue || declaration !== undefined && !nativeMethod)) {
+    if (!requiresProtocol && !nativeMethod && (needsValue || declaration !== undefined)) {
       const { methodValueContract: _contract, ...value } = member;
       return { ...value, methodValueStorage: Object.freeze({ kind: "delegate" as const, type: member.type }) };
     }
