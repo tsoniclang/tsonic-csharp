@@ -22,10 +22,19 @@ export function buildDotnetProject(project, argumentsList = [], options = {}) {
 }
 
 export function executeDotnetProject(project, argumentsList = [], options = {}) {
-  const built = buildDotnetProject(project, argumentsList, options);
+  const built = buildDotnetProject(project, [...argumentsList, "-target:Build", "-getProperty:TargetPath,TargetFramework"], {
+    ...options,
+    encoding: "utf8",
+  });
   if (built.status !== 0) return built;
-  return childProcess.spawnSync("dotnet", ["run", "--project", project,
-    ...argumentsList, "--no-build", "--no-restore"], {
+  const output = JSON.parse(built.stdout);
+  const target = output?.Properties?.TargetPath;
+  const framework = output?.Properties?.TargetFramework;
+  if (typeof target !== "string" || !isAbsolute(target) || !target.endsWith(".dll") ||
+      !existsSync(target) || typeof framework !== "string" || framework.length === 0) {
+    throw new Error("The successful native build did not publish its exact executable target.");
+  }
+  return childProcess.spawnSync("dotnet", [target], {
     ...options,
     env: nativeEnvironment(options.env),
   });

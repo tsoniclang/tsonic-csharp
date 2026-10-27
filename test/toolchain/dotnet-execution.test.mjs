@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import childProcess from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { buildDotnetProject, closeDotnetCompilerServers, executeDotnetProject } from "../helpers/dotnet-execution.mjs";
@@ -14,6 +14,7 @@ function withNativeCalls(context, nativeCall, verify) {
   const compiler = join(sdk, "10.0.400", "Roslyn", "bincore", "VBCSCompiler.dll");
   mkdirSync(join(sdk, "10.0.400", "Roslyn", "bincore"), { recursive: true });
   writeFileSync(compiler, "native-call stub; never executed");
+  writeFileSync(join(root, "Proof.dll"), "native build-output stub; never executed");
   const calls = [];
   context.mock.method(childProcess, "spawnSync", (command, args, options) => {
     assert.equal(command, "dotnet", "one canonical native executable");
@@ -30,23 +31,28 @@ function withNativeCalls(context, nativeCall, verify) {
 }
 
 function successfulNativeCall(args) {
-  return { status: 0, stdout: args[0] === "run" ? "native output\n" : "", stderr: "", signal: null };
+  const stdout = args[0] === "build" && args.includes("-getProperty:TargetPath,TargetFramework")
+    ? JSON.stringify({ Properties: { TargetPath: join(dirname(args[1]), "Proof.dll"), TargetFramework: "net10.0" } })
+    : args[0].endsWith("Proof.dll") ? "native output\n" : "";
+  return { status: 0, stdout, stderr: "", signal: null };
 }
 
-test("native execution builds a fresh project before its exact no-build run", context => {
+test("native execution builds a fresh project before running its exact native target", context => {
   withNativeCalls(context, successfulNativeCall, ({ root, calls }) => {
     const project = join(root, "Proof.csproj");
     const result = executeDotnetProject(project, ["-c", "Release", "--verbosity", "quiet"],
       { cwd: root, encoding: "utf8", timeout: 240_000 });
     const builds = calls.filter(call => call.args[0] === "build");
-    const runs = calls.filter(call => call.args[0] === "run");
+    const runs = calls.filter(call => call.args[0] === join(root, "Proof.dll"));
     assert.equal(builds.length, 1, "one actual build is required");
     assert.equal(runs.length, 1, "one native run follows the build");
     assert.equal(calls.indexOf(builds[0]) < calls.indexOf(runs[0]), true, "build precedes native run");
     assert.equal(builds[0].args[1], project, "build uses the original project");
-    assert.equal(runs[0].args[2], project, "run uses the built project");
-    assert.equal(runs[0].args.includes("--no-build"), true, "run never repeats the build");
-    assert.equal(runs[0].args.includes("--no-restore"), true, "run reuses the build's restore");
+    assert.equal(builds[0].args.includes("-target:Build"), true,
+      "native output-property evaluation cannot replace the actual Build target");
+    assert.deepEqual(runs[0].args, [join(root, "Proof.dll")], "run uses only the native build's exact target");
+    assert.equal(calls.some(call => call.args[0] === "run" || call.args[0] === "restore"), false,
+      "executing the native target performs no second project evaluation, build or restore");
     assert.equal(result.stdout, "native output\n", "build output does not contaminate program stdout");
     assert.equal(runs[0].options.timeout, 240_000, "native timeout is preserved");
   });
@@ -57,7 +63,36 @@ test("a failed native build never runs an unbuilt project", context => {
   withNativeCalls(context, args => args[0] === "build" ? failed : successfulNativeCall(args), ({ root, calls }) => {
     const result = executeDotnetProject(join(root, "Proof.csproj"), [], { cwd: root });
     assert.equal(result === failed, true, "the exact native build failure is preserved");
-    assert.equal(calls.some(call => call.args[0] === "run"), false, "there is no run after rejection");
+    assert.equal(calls.some(call => call.args[0] === join(root, "Proof.dll")), false, "there is no run after rejection");
+  });
+});
+
+test("native execution uses the build's target path rather than guessing an assembly name", context => {
+  let target;
+  withNativeCalls(context, args => {
+    if (args[0] === "build") {
+      target = join(dirname(args[1]), "CustomName.dll");
+      writeFileSync(target, "native output stub; never executed");
+      return { status: 0, stdout: JSON.stringify({ Properties: { TargetPath: target, TargetFramework: "net10.0" } }), stderr: "" };
+    }
+    return successfulNativeCall(args);
+  }, ({ root, calls }) => {
+    executeDotnetProject(join(root, "Proof.csproj"), ["-c", "Release"], { cwd: root });
+    assert.equal(calls.some(call => call.args.length === 1 && call.args[0] === target), true,
+      "the actual native target wins over the project filename");
+    assert.equal(calls.some(call => call.args[0] === join(root, "Proof.dll")), false,
+      "there is no guessed output fallback");
+  });
+});
+
+test("a successful command without exact native target evidence cannot execute stale output", context => {
+  withNativeCalls(context, args => args[0] === "build"
+    ? { status: 0, stdout: JSON.stringify({ Properties: { TargetFramework: "net10.0" } }), stderr: "" }
+    : successfulNativeCall(args), ({ root, calls }) => {
+    assert.throws(() => executeDotnetProject(join(root, "Proof.csproj"), [], { cwd: root }),
+      /did not publish its exact executable target/u, "successful build status is not guessed output provenance");
+    assert.equal(calls.some(call => call.args[0] === join(root, "Proof.dll")), false,
+      "an existing file cannot replace native output evidence");
   });
 });
 
@@ -67,7 +102,7 @@ test("a timed out native build preserves its signal and never runs", context => 
     const result = executeDotnetProject(join(root, "Proof.csproj"), [], { cwd: root });
     assert.equal(result === timeout, true, "native timeout result retains identity");
     assert.equal(result.signal, "SIGTERM", "the original timeout signal is not hidden");
-    assert.equal(calls.some(call => call.args[0] === "run"), false, "a timed out build has no run");
+    assert.equal(calls.some(call => call.args[0] === join(root, "Proof.dll")), false, "a timed out build has no run");
   });
 });
 
