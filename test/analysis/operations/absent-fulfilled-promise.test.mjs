@@ -44,14 +44,14 @@ test("absent fulfilled async handlers and void sources retain exact native optio
   const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText: `
 import type { int64 } from "@tsonic/core/types.js";
 const wide = 9007199254740993n as int64;
-const kept = await Promise.resolve<int64>(wide).then(undefined, async () => { await Promise.resolve(); return wide; });
-const recovered = await Promise.reject<int64>(new Error("source")).then(undefined, async () => { await Promise.resolve(); return wide; });
-const present = await Promise.resolve<number>(0).then(undefined, async () => { await Promise.resolve(); });
-const missing = await Promise.reject<number>(new Error("source")).then(undefined, async () => { await Promise.resolve(); });
-const voidSource = await Promise.resolve().then(undefined, () => wide);
+const kept = await Promise.resolve<int64>(wide).then(undefined, async () => { await Promise.resolve<void>(undefined); return wide; });
+const recovered = await Promise.reject<int64>(new Error("source")).then(undefined, async () => { await Promise.resolve<void>(undefined); return wide; });
+const present = await Promise.resolve<number>(0).then(undefined, async () => { await Promise.resolve<void>(undefined); });
+const missing = await Promise.reject<number>(new Error("source")).then(undefined, async () => { await Promise.resolve<void>(undefined); });
+const voidSource = await Promise.resolve<void>(undefined).then(undefined, () => wide);
 const voidRejected = await Promise.reject<void>(new Error("source")).then(undefined, () => wide);
-const asyncVoidSource = await Promise.resolve().then(undefined, async () => { await Promise.resolve(); return wide; });
-const asyncVoidRejected = await Promise.reject<void>(new Error("source")).then(undefined, async () => { await Promise.resolve(); return wide; });
+const asyncVoidSource = await Promise.resolve<void>(undefined).then(undefined, async () => { await Promise.resolve<void>(undefined); return wide; });
+const asyncVoidRejected = await Promise.reject<void>(new Error("source")).then(undefined, async () => { await Promise.resolve<void>(undefined); return wide; });
 console.log(kept === wide && recovered === wide && present === 0 && missing === undefined &&
   voidSource === undefined && voidRejected === wide && asyncVoidSource === undefined && asyncVoidRejected === wide);
 ` });

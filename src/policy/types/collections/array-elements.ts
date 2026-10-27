@@ -28,6 +28,13 @@ export function selectCsharpInferredNumericArrayElement(
   if (contributions.length === 0) return unavailable();
   if (destination !== undefined) return numeric(destination)
     ? Object.freeze({ kind: "resolved", carrier: destination }) : unavailable();
+  const originalFloating = contributions[0]!.carrier;
+  if (originalFloating.kind === "source-primitive" &&
+    (originalFloating.name === "float32" || originalFloating.name === "float64") &&
+    contributions.every(contribution => targetTypeRefEquals(contribution.carrier, originalFloating) &&
+      (contribution.literal?.numeric?.kind !== "authored" || csharpLiteralIsRepresentableAs(contribution.literal, originalFloating)))) {
+    return Object.freeze({ kind: "resolved", carrier: originalFloating });
+  }
   const allNumeric = contributions.every(contribution => numeric(contribution.carrier));
   const fixed = [...new Map(contributions.filter(contribution => !flexibleInteger(contribution)).map(contribution =>
     [targetTypeRefKey(contribution.carrier), contribution.carrier])).values()];

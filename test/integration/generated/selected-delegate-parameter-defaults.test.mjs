@@ -45,7 +45,7 @@ for (const surface of ["native", "js"]) {
     const selectedDefaultLines = output.split("\n")
       .filter(line => /public double m\(|double x =|double __tsonic_param/u.test(line))
       .slice(0, 30).map(line => line.slice(0, 512)).join("\n");
-    assert.equal(new RegExp(`public double m\\(double\\? (__tsonic_param\\d+)\\)\\s*\\{\\s*double x = \\1 \\?\\? ${defaultLiteral};`, "u").test(output), true,
+    assert.equal(new RegExp(`public double m\\(double\\? (__tsonic_param\\d+) = null\\)\\s*\\{\\s*double x = \\1 \\?\\? ${defaultLiteral};`, "u").test(output), true,
       `a nullable selected delegate parameter still applies the default: ${selectedDefaultLines}`);
     assert.equal(/\(double (__tsonic_param\d+)\)[^\n]*\n?[^\n]*\1 \?\? 5/u.test(output), false,
       "a non-nullable selected delegate parameter is never coalesced");

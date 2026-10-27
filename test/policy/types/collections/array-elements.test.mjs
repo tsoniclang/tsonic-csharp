@@ -19,6 +19,39 @@ const select = (contributions, destination, checked = primitive("float64")) =>
 const selected = (selection, name, label) => assert.equal(selection.kind === "resolved" &&
   selection.carrier.kind === "source-primitive" && selection.carrier.name === name, true, label);
 
+test("homogeneous native floating contributions retain their already-selected carrier", () => {
+  const authored = literal(1n, 100n);
+  const huge = Object.freeze({ ...authored, literal: Object.freeze({ ...authored.literal, number: 1e100 }) });
+  for (const contributions of [[fixed("float64"), huge], [huge, fixed("float64")], [huge]]) {
+    const actual = select(contributions);
+    assert.equal(actual.kind === "resolved" && actual.carrier === contributions[0].carrier, true,
+      "same native floating input is identity, not a new integer-to-floating conversion");
+  }
+  for (const carrier of ["float32", "float64"]) {
+    const inputs = [fixed(carrier), fixed(carrier)];
+    const actual = select(inputs);
+    assert.equal(actual.kind === "resolved" && actual.carrier === inputs[0].carrier, true,
+      `${carrier}: the native floating identity is retained without changing contribution metadata`);
+  }
+});
+
+test("homogeneous floating identity cannot admit an out-of-range authored literal", () => {
+  const authored = literal(1n, 1000n);
+  const overflow = Object.freeze({ ...authored, literal: Object.freeze({ ...authored.literal, number: Infinity }) });
+  assert.equal(select([fixed("float64"), overflow]).kind, "rejected",
+    "an invalid native authored literal does not become an already-valid floating input");
+  const narrow = Object.freeze({ ...overflow, carrier: primitive("float32") });
+  assert.equal(select([fixed("float32"), narrow]).kind, "rejected",
+    "the existing native float32 range refusal remains required");
+  assert.equal(select([fixed("int32"), hugeLiteral()]).kind, "rejected",
+    "a real integer peer still requires exact integer-to-float inference");
+
+  function hugeLiteral() {
+    const value = literal(1n, 100n);
+    return Object.freeze({ ...value, literal: Object.freeze({ ...value.literal, number: 1e100 }) });
+  }
+});
+
 for (const integer of ["int32", "uint32", "int64", "uint64", "native-int", "native-uint"]) {
   for (const reverse of [false, true]) test(`inferred float32 refuses the full ${integer} domain (${reverse})`, () => {
     const inputs = [fixed("float32"), fixed(integer)];
