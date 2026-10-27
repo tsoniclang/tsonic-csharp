@@ -28,7 +28,7 @@ import { targetTypeRefEquals, targetTypeRefKey } from "../../../dist/target-mode
 import { substituteObjectShapeMemberTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
 import { printCsharpCompilationUnit } from "../../../dist/print/source/index.js";
 import { csharpProjectedType } from "../../../dist/target-model/types/projections.js";
-import { instantiateCsharpInheritedCallable } from "../../../dist/analysis/callables/instantiation.js";
+import { instantiateCsharpInheritedCallable } from "../../../dist/analysis/callables/generics/instantiation.js";
 import { csharpSourceTypeParameter } from "../../../dist/source/extension/type-parameters.js";
 import { createCsharpObjectShapePolicy } from "../../../dist/analysis/objects/shapes/api.js";
 import { createStructuralObjectShapeTarget, mergeCsharpObjectShapeSubjects } from "../../../dist/analysis/objects/shapes/construction.js";
@@ -1301,7 +1301,7 @@ function buildNativeProof(name, omitModes = []) {
 }
 
 function buildNativeProject(name, sourceText, artifacts = new Map()) {
-  const scratch = fileURLToPath(new URL("../../../.temp/structural-forwarding-native/", import.meta.url));
+  const scratch = fileURLToPath(new URL("../../../.temp/structural-forwarding-native", import.meta.url));
   mkdirSync(scratch, { recursive: true });
   const root = mkdtempSync(join(scratch, `${name}-`));
   writeFileSync(join(root, "Program.cs"), sourceText);

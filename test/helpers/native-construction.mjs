@@ -13,7 +13,7 @@ export function executeCsharpConstruction(compiled, name, asynchronous = false, 
       "Native construction assemblyName must be a nonempty simple assembly name.");
   }
   assertCsharpCompilationSucceeded(compiled);
-  const scratch = fileURLToPath(new URL("../../.temp/", import.meta.url));
+  const scratch = fileURLToPath(new URL("../../.temp", import.meta.url));
   const root = createTestWorkspace(scratch, `${name}-`);
   for (const [path, text] of compiled.artifacts) {
     if (!path.endsWith(".cs")) continue;

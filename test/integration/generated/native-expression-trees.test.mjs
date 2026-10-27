@@ -7,7 +7,7 @@ import { buildDotnetFixture } from "../../helpers/dotnet-fixtures.mjs";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
-const root = fileURLToPath(new URL("../../../", import.meta.url));
+const root = fileURLToPath(new URL("../../..", import.meta.url));
 const fixture = join(root, "test/fixtures/dotnet-provider/expression-trees");
 const reference = buildDotnetFixture({ project: join(fixture, "ExpressionTrees.csproj"), projectDirectory: fixture,
   outputDirectory: join(root, ".temp/dotnet-provider-fixtures/expression-trees/bin"),

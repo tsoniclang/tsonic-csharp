@@ -7,7 +7,7 @@ import { readSourceInventory } from "../../../tsonic/test/architecture/tooling/f
 import { buildTypeScriptModuleAnalysis } from "../../../tsonic/test/architecture/tooling/module-graph.mjs";
 import { maskNonCode } from "./source-code-mask.mjs";
 
-const repositoryRoot = fileURLToPath(new URL("../../", import.meta.url));
+const repositoryRoot = fileURLToPath(new URL("../..", import.meta.url));
 const domain = "src/backend/planner/objects/object-literals/";
 const entrypoint = `${domain}planning.ts`;
 const owners = new Map([

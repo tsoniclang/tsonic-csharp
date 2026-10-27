@@ -4,7 +4,7 @@ import { sourceTypeSyntaxRoot, sourceNodeIsNativeUnreachable } from "@tsonic/tar
 
 import { resolveSourceCallContract as resolveSourceCallContractImplementation } from "./call-contracts.js";
 
-import { resolveCsharpPointerReturnContract } from "../../../callables/pointer-return.js";
+import { resolveCsharpPointerReturnContract } from "../../../callables/ownership/pointer-return.js";
 
 import type { CsharpRecursiveTypeResolver, CsharpTypePolicyHost, CsharpTypePolicy, CsharpTypeResolutionState } from "./model.js";
 

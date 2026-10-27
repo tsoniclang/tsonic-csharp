@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { analyzeCsharpSourceCallEmission } from "../../../dist/analysis/callables/source-call-emission.js";
+import { analyzeCsharpSourceCallEmission } from "../../../dist/analysis/callables/emission/source-call-emission.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpMethodValueType } from "../../../dist/target-model/types/method-values.js";
 

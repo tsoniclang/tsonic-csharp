@@ -38,7 +38,7 @@ test("compilation selection reuses exact immutable facts, not spelling or partia
 });
 
 test("compilation reference validation retains the reflection provider's actual mutation guard", () => {
-  const root = createTestWorkspace(new URL("../../../.temp/reference-integrity/", import.meta.url).pathname, "selection-");
+  const root = createTestWorkspace(new URL("../../../.temp/reference-integrity", import.meta.url).pathname, "selection-");
   const reference = join(root, "Evidence.dll");
   writeFileSync(reference, "first");
   const provider = createDotnetReflectionTypeDataProvider({ references: [reference] });

@@ -8,7 +8,7 @@ import { csharpNativeConstructIsErased, selectCsharpNativeConstructSteps } from 
 import { selectCsharpNativeOperandUses, selectCsharpNativeSourceRefusal, type CsharpNativeOperandSelection, type CsharpNativeOperandStep } from "./control-flow/native-operands.js";
 import { selectCsharpNativeCompletion, type CsharpNativeCompletionFlow } from "../../policy/operations/control-flow/native-completion.js";
 import { csharpNativeUseSite, type CsharpExpectedNativeUse, type CsharpNativeChildUse, type CsharpNativeCompletion, type CsharpNativeEvaluation, type CsharpNativeOrderStep, type CsharpNativeUse, type CsharpNativeDiscardedPresence } from "../../target-model/records/native-demand.js";
-import { csharpConstructorBaseCall } from "../callables/constructor-entry.js";
+import { csharpConstructorBaseCall } from "../callables/emission/constructor-entry.js";
 import { isCsharpUnusedTupleDefault } from "../control-flow/binding-patterns.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";

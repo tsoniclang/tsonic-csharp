@@ -1,5 +1,5 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
-import { selectCsharpSourceCallableAbi, selectCsharpProjectConstructorAbi } from "./source-callable-abi.js";
+import { selectCsharpSourceCallableAbi, selectCsharpProjectConstructorAbi } from "./calls/source-callable-abi.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { isCsharpSourceCallableArtifactDeclaration, targetTypeRefEquals } from "../../policy/types/index.js";
 import type { CsharpTargetParameter, TargetTypeRef } from "../../policy/types/index.js";
@@ -16,7 +16,7 @@ import type { CsharpClosedCallableContext } from "../expected-types/callable-con
 import { csharpCallableValueType } from "../../policy/types/callables/value-type.js";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpCallableConversionPolicy } from "./adapters.js";
+import type { CsharpCallableConversionPolicy } from "./native/adapters.js";
 
 export function analyzeCsharpCallableContracts(
   policy: CsharpPolicyContext,

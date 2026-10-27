@@ -1,4 +1,4 @@
-import { getCsharpJsArrayElementTargetType } from "../../policy/types/index.js";
+import { getCsharpJsArrayElementTargetType } from "../types/index.js";
 
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 

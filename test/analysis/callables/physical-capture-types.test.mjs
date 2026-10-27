@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { analyzeCsharpCaptureStorage } from "../../../dist/analysis/callables/capture-storage.js";
+import { analyzeCsharpCaptureStorage } from "../../../dist/analysis/callables/storage/capture-storage.js";
 import { csharpRuntimeLocationTargetType, csharpRuntimeNativeArrayTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 

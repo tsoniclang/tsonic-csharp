@@ -1,7 +1,7 @@
 import { classifyCsharpJsValueCallShape } from "./js-value-calls.js";
 import { classifyCsharpSourceCallArguments } from "./source-call-arguments.js";
 import { classifyCsharpUnionCall } from "./union-calls.js";
-import { classifyCsharpSourceCallee } from "../callables/source-callees.js";
+import { classifyCsharpSourceCallee } from "../callables/calls/source-callees.js";
 import { classifyCsharpBorrowedSequenceInput } from "./borrowed-sequences.js";
 
 import { classifyTypeofComparison } from "./typeof-comparisons.js";

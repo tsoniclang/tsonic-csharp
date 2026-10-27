@@ -4,7 +4,7 @@ import { resolveSourceCallContract } from "../../../dist/analysis/source-evidenc
 import { resolveSourceCallParameter, resolveSourceCallParameters, resolveSourceCallArgumentParameter, resolveSourceCallResultWithState, resolveSourceCallTypeArguments } from "../../../dist/analysis/source-evidence/types/resolution/call-api.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
-import { retainCsharpGenericCallableValue } from "../../../dist/analysis/callables/generic-values.js";
+import { retainCsharpGenericCallableValue } from "../../../dist/analysis/callables/generics/generic-values.js";
 import { substituteTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
 import { csharpFreeTypeParameterIdentities } from "../../../dist/target-model/types/generic-references.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";

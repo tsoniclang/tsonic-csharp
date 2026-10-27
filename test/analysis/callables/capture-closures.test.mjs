@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
 import { createTargetSourceProgram, sourceCallableDefinitionIsDiscarded } from "@tsonic/target-api/source";
-import { selectCsharpFrameClosures } from "../../../dist/analysis/callables/capture-closures.js";
+import { selectCsharpFrameClosures } from "../../../dist/analysis/callables/values/capture-closures.js";
 
 const scalar = Object.freeze({ kind: "source-primitive", name: "float64" });
 const callable = Object.freeze({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [true], id: "System.Func", typeArguments: [scalar] });

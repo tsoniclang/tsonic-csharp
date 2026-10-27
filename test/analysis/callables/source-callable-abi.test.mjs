@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
-import { selectCsharpProjectConstructorAbi } from "../../../dist/analysis/callables/source-callable-abi.js";
+import { selectCsharpProjectConstructorAbi } from "../../../dist/analysis/callables/calls/source-callable-abi.js";
 
 test("source receiver annotations do not change generated callable, class or interface ABI", () => {
   const sourceText = `

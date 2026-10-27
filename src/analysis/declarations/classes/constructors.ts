@@ -4,7 +4,7 @@ import type { CsharpConstructorArgumentEmission, CsharpConstructorEntryEmission 
 import type { CsharpDeclarationClassifications } from "../../../target-model/records/declarations.js";
 import type { CsharpStorageClassifications } from "../../../target-model/records/storage.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { csharpConstructorBaseCall, csharpConstructorRequiresPreparation } from "../../callables/constructor-entry.js";
+import { csharpConstructorBaseCall, csharpConstructorRequiresPreparation } from "../../callables/emission/constructor-entry.js";
 import { createCsharpConstructorEmissionRecords } from "../../program/records/constructor-emission.js";
 
 export interface CsharpConstructorArgumentEvidence {

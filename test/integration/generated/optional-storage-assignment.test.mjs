@@ -170,7 +170,7 @@ for (const surface of ["native", "js"]) {
     assert.equal(referenceMethods, 4, "all genuine reference-bound source bodies retain the same exact no-witness check");
     assert.equal(/ReferenceOptionalView\.(?:read|payload)</u.test(generated), false,
       "identical native signatures gain no gratuitous explicit bridge");
-    const captureRoot = new URL("../../../.temp/C19-bounded-optional-storage/", import.meta.url);
+    const captureRoot = new URL("../../../.temp/C19-bounded-optional-storage", import.meta.url);
     mkdirSync(captureRoot, { recursive: true });
     writeFileSync(new URL(`${surface}.json`, captureRoot), JSON.stringify({ sourceText: boundedSource,
       nativeProgram: boundedObserver, artifacts: [...compiled.artifacts] }) + "\n");

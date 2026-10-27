@@ -3,7 +3,7 @@ import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpNativeUse } from "../../../target-model/records/native-demand.js";
 import type { CsharpProgramRecordInput } from "../../program/records/create.js";
 import type { CsharpConstructorArgumentEvidence } from "./constructors.js";
-import { csharpConstructorBaseCall } from "../../callables/constructor-entry.js";
+import { csharpConstructorBaseCall } from "../../callables/emission/constructor-entry.js";
 
 export function analyzeCsharpConstructorArguments(
   ast: AstReader,

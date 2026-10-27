@@ -87,7 +87,7 @@ test("Intl exact integer, optional precision and grouping contracts execute in C
     }
   ` });
   assertCsharpCompilationSucceeded(compiled);
-  const scratch = fileURLToPath(new URL("../../../.temp/", import.meta.url));
+  const scratch = fileURLToPath(new URL("../../../.temp", import.meta.url));
   const root = createTestWorkspace(scratch, "intl-number-proof-");
   for (const [path, text] of compiled.artifacts) if (path.endsWith(".cs")) {
     const file = join(root, path);

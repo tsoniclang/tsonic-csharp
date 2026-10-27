@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { analyzeCsharpCallableDeclarationEmission } from "../../../dist/analysis/callables/declaration-emission.js";
+import { analyzeCsharpCallableDeclarationEmission } from "../../../dist/analysis/callables/emission/declaration-emission.js";
 import test from "node:test";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { admitCsharpCallableParameterAdapters, admitCsharpCallableValueAdapter } from "../../../dist/analysis/callables/adapters.js";
+import { admitCsharpCallableParameterAdapters, admitCsharpCallableValueAdapter } from "../../../dist/analysis/callables/native/adapters.js";
 import { csharpCallableParameterConversionRequests, selectCsharpCallableParameterAdapters } from "../../../dist/policy/conversions/callable-parameters.js";
 import { csharpSourcePrimitiveTargetType, csharpNullableTargetType, csharpTargetNamedType, csharpDelegateTargetType, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
@@ -255,7 +255,7 @@ public static class Entry {
 }
 
 function buildNativeForwarding(name, omitModes = []) {
-  const scratch = fileURLToPath(new URL("../../../.temp/class-forwarding-native/", import.meta.url));
+  const scratch = fileURLToPath(new URL("../../../.temp/class-forwarding-native", import.meta.url));
   mkdirSync(scratch, { recursive: true });
   const root = mkdtempSync(join(scratch, `${name}-`));
   writeFileSync(join(root, "Program.cs"), nativeForwardingSource(omitModes));

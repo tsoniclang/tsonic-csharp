@@ -12,7 +12,7 @@ import { analyzeCsharpNativeConstants } from "../operations/native-constants.js"
 import { analyzeCsharpBinaryEmission } from "../operations/binary-emission.js";
 import { analyzeCsharpDictionaryLiterals } from "../objects/dictionary-literals.js";
 import { analyzeCsharpExpressionEmission } from "../operations/expression-emission.js";
-import { analyzeCsharpLambdaEmission } from "../callables/lambda-emission.js";
+import { analyzeCsharpLambdaEmission } from "../callables/emission/lambda-emission.js";
 import { analyzeCsharpTypedLocationEmission } from "../storage/typed-location-emission.js";
 import { createCsharpPromiseResultRecords } from "./records/promise-results.js";
 import { admitCsharpLocationRetention } from "../storage/location-retention.js";
@@ -23,17 +23,17 @@ import { createCsharpProgramRecords } from "./records/create.js";
 import { analyzeCsharpSourceArtifacts } from "../source-modules/artifacts.js";
 import { analyzeCsharpArrayLiterals } from "../operations/array-literals.js";
 import { analyzeCsharpPropertyAdmission } from "../objects/property-admission.js";
-import { analyzeCsharpOptionalCallChains } from "../callables/optional-call-chains.js";
+import { analyzeCsharpOptionalCallChains } from "../callables/calls/optional-call-chains.js";
 import { analyzeCsharpElementAdmission } from "../objects/element-admission.js";
 import { analyzeCsharpSourceReferences } from "../operations/source-references.js";
 import { analyzeCsharpMemberReceivers } from "../objects/member-receivers.js";
-import { analyzeCsharpSourceCallEmission } from "../callables/source-call-emission.js";
-import { analyzeCsharpTargetArguments } from "../callables/target-arguments.js";
-import { analyzeCsharpArgumentPassing } from "../callables/argument-passing.js";
-import { analyzeCsharpTargetCallEmission } from "../callables/target-call-emission.js";
+import { analyzeCsharpSourceCallEmission } from "../callables/emission/source-call-emission.js";
+import { analyzeCsharpTargetArguments } from "../callables/native/target-arguments.js";
+import { analyzeCsharpArgumentPassing } from "../callables/values/argument-passing.js";
+import { analyzeCsharpTargetCallEmission } from "../callables/emission/target-call-emission.js";
 import { analyzeCsharpConstructionEmission } from "../project-types/construction-emission.js";
 import { analyzeCsharpLiteralAdmission } from "../operations/literals.js";
-import { analyzeCsharpAwaitAdmission } from "../callables/await-admission.js";
+import { analyzeCsharpAwaitAdmission } from "../callables/async/await-admission.js";
 import { analyzeCsharpVoidAdmission } from "../operations/expression-void.js";
 import { analyzeCsharpJsValueBoxing } from "../operations/js-value-boxing.js";
 import { analyzeCsharpConditions } from "../control-flow/conditions.js";
@@ -49,10 +49,10 @@ import { analyzeCsharpCaptureMethods } from "../objects/capture-methods.js";
 import { analyzeCsharpDeclarationModifiers } from "../declarations/classes/modifiers.js";
 import { analyzeCsharpNativeDeclarationForms } from "../declarations/native-forms.js";
 import { analyzeCsharpStructuralInterfaceEmission } from "../declarations/structural-interfaces.js";
-import { analyzeCsharpLexicalValues } from "../callables/lexical-values.js";
+import { analyzeCsharpLexicalValues } from "../callables/values/lexical-values.js";
 import { analyzeCsharpClassFieldInitialization } from "../project-types/class-initialization.js";
-import { analyzeCsharpCallableParameterEmission } from "../callables/parameters.js";
-import { analyzeCsharpCallableDeclarationEmission } from "../callables/declaration-emission.js";
+import { analyzeCsharpCallableParameterEmission } from "../callables/values/parameters.js";
+import { analyzeCsharpCallableDeclarationEmission } from "../callables/emission/declaration-emission.js";
 import { analyzeCsharpMethodEmission } from "../declarations/classes/methods.js";
 import { analyzeCsharpClassEmission } from "../declarations/classes/planning.js";
 import { analyzeCsharpProjectEmission } from "../project-types/emission.js";
@@ -67,9 +67,9 @@ import { analyzeCsharpUnaryEmission } from "../operations/expression-unary.js";
 import { analyzeCsharpThisEmission } from "../operations/expression-this.js";
 import { analyzeCsharpSourceMemberNames } from "../objects/source-member-names.js";
 import { analyzeCsharpReceiverCallProperties } from "../operations/receiver-call-property.js";
-import { analyzeCsharpRestSequences } from "../callables/rest-sequences.js";
+import { analyzeCsharpRestSequences } from "../callables/values/rest-sequences.js";
 import { analyzeCsharpJsCalls } from "../operations/js-value-call-emission.js";
-import { analyzeCsharpCallAdmission } from "../callables/call-admission.js";
+import { analyzeCsharpCallAdmission } from "../callables/calls/call-admission.js";
 import { analyzeCsharpIdentifierEmission } from "../names/source-identifiers.js";
 import { analyzeCsharpSourceFileEmission } from "../source-modules/emission.js";
 import { analyzeCsharpStartup } from "../source-modules/startup.js";
@@ -83,7 +83,7 @@ import { analyzeCsharpSourceOutputIdentities } from "../names/source-output-iden
 import { createCsharpObjectShapeRecords } from "./records/object-shapes.js";
 import { analyzeCsharpObjectShapeEmission } from "../objects/declaration-emission.js";
 import { analyzeCsharpSourceUnionEmission } from "../objects/source-union-emission.js";
-import { analyzeCsharpGenerators } from "../callables/generators.js";
+import { analyzeCsharpGenerators } from "../callables/async/generators.js";
 
 import { analyzeCsharpNativeControlFlow, admitCsharpStatementBindings, admitCsharpIterationBindings, admitCsharpNativeStorageBindings } from "../control-flow/native-control-flow.js";
 
@@ -109,7 +109,7 @@ import { analyzeCsharpModuleInitialization } from "../module-initialization/inde
 
 import { type SourceStorageQueries } from "@tsonic/target-api/analysis";
 
-import { analyzeCsharpPromiseResults } from "../callables/promise-results.js";
+import { analyzeCsharpPromiseResults } from "../callables/async/promise-results.js";
 
 import { csharpJsEventLoopBinaryExecutionDriver } from "../../target-model/project/binary-execution-drivers.js";
 import { analyzeCsharpFlowReadProjections } from "../conversions/flow-read-projections.js";

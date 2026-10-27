@@ -89,7 +89,7 @@ test(`native ${name} locations retain storage and replacement semantics`, { time
   }
   assert.match(output, /NativeLocation.Reinterpret<uint>/u);
   if (name.endsWith("scalar")) assert.match(output, /value.Value/u);
-  const repository = fileURLToPath(new URL("../../../../", import.meta.url));
+  const repository = fileURLToPath(new URL("../../../..", import.meta.url));
   const root = join(repository, `.temp/native-location-aliases-${name.replaceAll(" ", "-")}`);
   mkdirSync(root, { recursive: true });
   for (const [path, text] of compiled.artifacts) if (path.endsWith(".cs")) {

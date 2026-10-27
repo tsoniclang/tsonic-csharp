@@ -22,7 +22,7 @@ function compiledEvents(source) {
 }
 
 function runNative(compiled, assembly, program) {
-  mkdirSync(fileURLToPath(new URL("../../../../.temp/", import.meta.url)), { recursive: true });
+  mkdirSync(fileURLToPath(new URL("../../../../.temp", import.meta.url)), { recursive: true });
   const root = mkdtempSync(fileURLToPath(new URL("../../../../.temp/native-event-identity-", import.meta.url)));
   for (const [index, [, source]] of [...compiled.artifacts].filter(([path]) => path.endsWith(".cs")).entries()) {
     writeFileSync(join(root, `Generated${index}.cs`), source);

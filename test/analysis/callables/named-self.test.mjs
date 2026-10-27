@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { selectCsharpNamedSelfBinding } from "../../../dist/analysis/callables/named-self.js";
+import { selectCsharpNamedSelfBinding } from "../../../dist/analysis/callables/values/named-self.js";
 
 function fixture() {
   const declaration = {};

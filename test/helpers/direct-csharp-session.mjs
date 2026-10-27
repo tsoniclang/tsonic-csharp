@@ -53,7 +53,7 @@ export function compileCsharpAnalysisTarget(request, observer) {
 function createCheckedCsharpSource(options) {
   const projectRoot = options.projectRoot ?? "/project";
   const cacheRoot = options.cacheRoot ?? fileURLToPath(
-    new URL("../../.temp/direct-csharp-session-cache/", import.meta.url),
+    new URL("../../.temp/direct-csharp-session-cache", import.meta.url),
   );
   const targetPack = createCsharpTargetPack();
   const target = {
@@ -82,7 +82,7 @@ function createCheckedCsharpSource(options) {
   };
   const sessionContext = {
     project,
-    projectDirectory: options.projectDirectory ?? fileURLToPath(new URL("../../", import.meta.url)),
+    projectDirectory: options.projectDirectory ?? fileURLToPath(new URL("../..", import.meta.url)),
     target,
     paths,
     selectedSurfaceIds: selectedSurfaces.map((surface) => surface.id),

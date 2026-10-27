@@ -14,8 +14,8 @@ import { scopedTargetTypeRefKey, targetTypeRefEquals, targetTypeRefKey } from ".
 import type { CsharpStructuralInterfaceImplementation, CsharpTargetNamedTypeRef, CsharpTargetParameter, TargetTypeRef } from "../../target-model/types/model.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/object-shape-members.js";
 import { substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
-import { admitCsharpCallableParameterAdapters, admitCsharpCallableResultAdapter, type CsharpCallableConversionPolicy } from "../callables/adapters.js";
-import { csharpCallableParametersEqual, instantiateCsharpInheritedCallable } from "../callables/instantiation.js";
+import { admitCsharpCallableParameterAdapters, admitCsharpCallableResultAdapter, type CsharpCallableConversionPolicy } from "../callables/native/adapters.js";
+import { csharpCallableParametersEqual, instantiateCsharpInheritedCallable } from "../callables/generics/instantiation.js";
 import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
 import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
 import { finalizeCsharpStructuralInterfaceForwarding } from "../objects/structural-forwarding.js";

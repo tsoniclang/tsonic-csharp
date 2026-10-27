@@ -49,7 +49,7 @@ test("raw address integers preserve every bit through nested native byte offsets
   assert.match(output, /RawPointer\.OffsetUnsigned/u);
   assert.doesNotMatch(output, /\(double\)|\bunsafe\b/u);
   assert.doesNotMatch(output, /headerAlias|headerLayout|localLayout|tagField/u);
-  const repository = fileURLToPath(new URL("../../../../", import.meta.url));
+  const repository = fileURLToPath(new URL("../../../..", import.meta.url));
   const root = join(repository, ".temp/raw-address-round-trip");
   mkdirSync(root, { recursive: true });
   for (const [path, text] of compiled.artifacts) if (path.endsWith(".cs")) {

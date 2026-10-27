@@ -12,7 +12,7 @@ import { dotnetTypeRefToTargetTypeRef } from "../../../../dist/providers/native/
 import { csharpSourceErrorNames } from "../../../../dist/target-model/identities/source-errors.js";
 import { csharpStringTargetType, csharpExceptionTargetType, csharpRuntimeErrorTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
 
-const root = fileURLToPath(new URL("../../../../", import.meta.url));
+const root = fileURLToPath(new URL("../../../..", import.meta.url));
 const scratch = join(root, `.temp/constraint-reference-owner-${process.pid}`);
 let context;
 

@@ -71,9 +71,9 @@ export const callablesCarrierRegistry = Object.freeze([
     frozen: true,
   },
   {
-    id: "src/analysis/callables/generic-values.ts#retainCsharpGenericCallableValue",
+    id: "src/analysis/callables/generics/generic-values.ts#retainCsharpGenericCallableValue",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/callables/generic-values.ts", symbol: "retainCsharpGenericCallableValue" },
+    declaration: { module: "src/analysis/callables/generics/generic-values.ts", symbol: "retainCsharpGenericCallableValue" },
     responsibility: "callables/method-value-type",
     frozen: false,
   },

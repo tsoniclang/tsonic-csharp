@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { retainCsharpGenericCallableValue } from "../../../dist/analysis/callables/generic-values.js";
+import { retainCsharpGenericCallableValue } from "../../../dist/analysis/callables/generics/generic-values.js";
 import { csharpDelegateTargetType, getCsharpCallableValueSignature, getCsharpDelegateSignature } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpMethodValueType, getCsharpMethodValue } from "../../../dist/target-model/types/method-values.js";
 import { rebindCsharpMethodValueTypeParameters, selectCsharpNativeQuantifierArguments } from "../../../dist/policy/types/callables/method-values.js";

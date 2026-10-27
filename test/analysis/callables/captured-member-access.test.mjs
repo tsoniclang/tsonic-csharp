@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { csharpCapturedMemberAccess } from "../../../dist/analysis/callables/captured-member-access.js";
+import { csharpCapturedMemberAccess } from "../../../dist/analysis/callables/values/captured-member-access.js";
 
 test("hoisted native callbacks request access only to exact selected restricted members", () => {
   const privateMember = { access: "private" };

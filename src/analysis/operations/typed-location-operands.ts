@@ -3,7 +3,7 @@ import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpOperationIssue } from "../../target-model/records/operations.js";
 import { readCsharpSourceTypedLocationOperation } from "../../source/extension/typed-locations.js";
 import { selectCsharpTargetCall } from "./members/selected-members.js";
-import { csharpTargetCallRefusal } from "../callables/call-refusals.js";
+import { csharpTargetCallRefusal } from "../callables/calls/call-refusals.js";
 
 // A typed-location operand whose value comes from a refused target call cannot resolve its pointee; that call's own
 // refusal is the root diagnostic (RULINGS 2026-10-23, option b). The operand is the call itself or an unwritten local

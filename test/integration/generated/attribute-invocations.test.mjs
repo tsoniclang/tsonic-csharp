@@ -10,7 +10,7 @@ import { testRepositoryRoots } from "../../../../tsonic/test/scripts/workspace-l
 
 function nativeAttributeProject(compiled, name, program) {
   assertCsharpCompilationSucceeded(compiled);
-  const root = createTestWorkspace(fileURLToPath(new URL("../../../.temp/", import.meta.url)), name);
+  const root = createTestWorkspace(fileURLToPath(new URL("../../../.temp", import.meta.url)), name);
   for (const [path, contents] of compiled.artifacts) {
     if (!path.endsWith(".cs")) continue;
     const target = join(root, path);

@@ -15,7 +15,7 @@ const paths = Object.freeze({
   create: "src/analysis/program/records/create.ts",
   classFactories: "src/analysis/project-types/class-factories.ts",
   storage: "src/analysis/storage/analyze.ts",
-  participation: "src/analysis/callables/participation.ts",
+  participation: "src/analysis/callables/calls/participation.ts",
   operations: "src/analysis/operations/analyze.ts",
   nativeHandlers: "src/analysis/operations/native-handlers.ts",
   nativeDemand: "src/analysis/operations/native-demand.ts",
@@ -522,9 +522,9 @@ test("requirement state stays inside its twenty-five analysis owners", () => {
     .filter(path => /requiredRecords|CsharpRequiredRecord|requireCsharpRecord|assertCsharpRequiredRecords/u.test(readFileSync(path, "utf8")))
     .map(path => path.slice(repositoryRoot.length + 1)).sort();
   assert.deepEqual(users, [
-  "src/analysis/callables/generators.ts",
-  "src/analysis/callables/parameters.ts",
-  "src/analysis/callables/participation.ts",
+  "src/analysis/callables/async/generators.ts",
+  "src/analysis/callables/values/parameters.ts",
+  "src/analysis/callables/calls/participation.ts",
   "src/analysis/control-flow/binding-patterns.ts",
   "src/analysis/control-flow/resource-scopes.ts",
   "src/analysis/control-flow/statement-completion.ts",
@@ -555,7 +555,7 @@ test("each seal name and producer is mentioned only by its owner and the composi
   [
     "requiredRecords",
     [
-      "src/analysis/callables/participation.ts",
+      "src/analysis/callables/calls/participation.ts",
       "src/analysis/control-flow/binding-patterns.ts",
       "src/analysis/conversions/analyze.ts",
       "src/analysis/conversions/model.ts",
@@ -572,9 +572,9 @@ test("each seal name and producer is mentioned only by its owner and the composi
   [
     "CsharpRequiredRecord",
     [
-      "src/analysis/callables/generators.ts",
-      "src/analysis/callables/parameters.ts",
-      "src/analysis/callables/participation.ts",
+      "src/analysis/callables/async/generators.ts",
+      "src/analysis/callables/values/parameters.ts",
+      "src/analysis/callables/calls/participation.ts",
       "src/analysis/control-flow/binding-patterns.ts",
       "src/analysis/control-flow/resource-scopes.ts",
       "src/analysis/control-flow/statement-completion.ts",
@@ -599,9 +599,9 @@ test("each seal name and producer is mentioned only by its owner and the composi
   [
     "requireCsharpRecord",
     [
-      "src/analysis/callables/generators.ts",
-      "src/analysis/callables/parameters.ts",
-      "src/analysis/callables/participation.ts",
+      "src/analysis/callables/async/generators.ts",
+      "src/analysis/callables/values/parameters.ts",
+      "src/analysis/callables/calls/participation.ts",
       "src/analysis/control-flow/binding-patterns.ts",
       "src/analysis/control-flow/resource-scopes.ts",
       "src/analysis/control-flow/statement-completion.ts",
@@ -643,7 +643,7 @@ test("each seal name and producer is mentioned only by its owner and the composi
   [
     "analyzeCsharpNativeParticipation",
     [
-      "src/analysis/callables/participation.ts",
+      "src/analysis/callables/calls/participation.ts",
       "src/analysis/program/iteration.ts"
     ]
   ],

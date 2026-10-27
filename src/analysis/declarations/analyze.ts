@@ -14,7 +14,7 @@ import { selectCsharpConversion } from "../../policy/conversions/index.js";
 import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
 import { csharpNumericReturnBaselineCovered, csharpSourceUnionLayoutsMatch, csharpSourceUnionReturnLayout } from "../../policy/conversions/union-relations.js";
 import { classifyCsharpSourceProfileType } from "../../policy/identities/source-types.js";
-import { csharpLiteralReturnsFit, forEachCsharpDirectReturnExpression } from "../callables/return-expressions.js";
+import { csharpLiteralReturnsFit, forEachCsharpDirectReturnExpression } from "../callables/calls/return-expressions.js";
 import { selectCsharpCommonImplicitTarget } from "../conversions/common-target.js";
 import {
   csharpAbsenceTargetType,

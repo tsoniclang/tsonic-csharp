@@ -26,7 +26,7 @@ import { csharpPresentObjectShapeMethod } from "../../../target-model/types/meth
 
 import { parameterizeCsharpStructuralContract } from "./structural-contracts.js";
 
-import { retainCsharpGenericCallableValue } from "../../callables/generic-values.js";
+import { retainCsharpGenericCallableValue } from "../../callables/generics/generic-values.js";
 
 import type { CsharpObjectShapePolicyHost, CsharpRecursiveObjectShapePolicy } from "./model.js";
 

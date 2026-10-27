@@ -4,7 +4,7 @@ import { createSourceStorageQuery, defaultSourceStorageLimits } from "@tsonic/ta
 import { assertCsharpCheckingSucceeded, assertCsharpCompilationSucceeded, compileCsharpSource, compileCsharpAnalysisTarget } from "../../helpers/direct-csharp-session.mjs";
 import { compileCsharpNativeUseSource } from "../../helpers/expected-native-uses.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
-import { analyzeCsharpNativeParticipation } from "../../../dist/analysis/callables/participation.js";
+import { analyzeCsharpNativeParticipation } from "../../../dist/analysis/callables/calls/participation.js";
 import { analyzeCsharpTypeOnlyDeclarations } from "../../../dist/analysis/declarations/type-only.js";
 
 function analyze(sourceText, surface = "native") {

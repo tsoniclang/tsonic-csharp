@@ -45,7 +45,7 @@ test("the public C# SDK exposes one package factory, not its source-provider mac
 });
 
 test("C# package transport contains no capability-specific module, surface or runtime data", () => {
-  const root = new URL("../../src/providers/packages/", import.meta.url);
+  const root = new URL("../../src/providers/packages", import.meta.url);
   for (const file of readdirSync(root).filter((entry) => entry.endsWith(".ts"))) {
     const source = readFileSync(new URL(file, root), "utf8");
     assert.doesNotMatch(source, /@tsonic\/(?:csharp-nodejs|rust-nodejs)|Tsonic\.CSharp\.Node|["']node:|includeJsSurfaceMembers|\.includes\(["']js["']\)/u, file);

@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../../helpers/native-construction.mjs";
-import { csharpConstructorBaseCall, csharpConstructorRequiresPreparation } from "../../../../dist/analysis/callables/constructor-entry.js";
+import { csharpConstructorBaseCall, csharpConstructorRequiresPreparation } from "../../../../dist/analysis/callables/emission/constructor-entry.js";
 import { createCsharpPlanningContext } from "../../../../dist/backend/planner/context.js";
 import { planConstructorDeclarations } from "../../../../dist/backend/planner/declarations/classes/constructors.js";
 import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";

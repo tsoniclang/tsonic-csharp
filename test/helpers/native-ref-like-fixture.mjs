@@ -4,7 +4,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { buildDotnetFixture } from "./dotnet-fixtures.mjs";
 import { createDotnetModuleSpecifierPolicy, csharpDotnetProviderContributionKind } from "../../dist/public/provider-dotnet.js";
 
-const root = fileURLToPath(new URL("../../", import.meta.url));
+const root = fileURLToPath(new URL("../..", import.meta.url));
 const directory = join(root, `.temp/ref-like-native-owner-${process.pid}`);
 export const nativeRefLikeProject = join(directory, "RefLikeProof.csproj");
 let fixture;

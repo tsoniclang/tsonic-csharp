@@ -1,7 +1,7 @@
 import type { SourceFile } from "@tsonic/tsts";
 import type { SourceCallableContract } from "../../../../target-model/records/source-callable-contract.js";
-import { classifyCsharpSourceCallee } from "../../../callables/source-callees.js";
-import { selectCsharpSourceCallableValueAbi } from "../../../callables/source-callable-abi.js";
+import { classifyCsharpSourceCallee } from "../../../callables/calls/source-callees.js";
+import { selectCsharpSourceCallableValueAbi } from "../../../callables/calls/source-callable-abi.js";
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";

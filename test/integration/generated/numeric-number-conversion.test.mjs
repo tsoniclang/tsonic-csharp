@@ -60,7 +60,7 @@ export function literal(): number { return Number(3); }
     assert.doesNotMatch(body, /Globals\.Number|object/u, name);
   }
   assert.match(output, /Globals\.Number/u);
-  const root = createTestWorkspace(fileURLToPath(new URL("../../../.temp/", import.meta.url)), "numeric-number-");
+  const root = createTestWorkspace(fileURLToPath(new URL("../../../.temp", import.meta.url)), "numeric-number-");
   for (const [path, text] of compiled.artifacts) if (path.endsWith(".cs")) {
     const file = join(root, path);
     mkdirSync(dirname(file), { recursive: true });

@@ -1,9 +1,9 @@
 import { rejectCsharpAnalysisIssues } from "./issues.js";
 import { csharpProviderBindingFromResolution } from "../../providers/model/relation-resolver.js";
 import type { SourceFile } from "@tsonic/tsts";
-import { analyzeCsharpCaptureStorage } from "../callables/capture-storage.js";
+import { analyzeCsharpCaptureStorage } from "../callables/storage/capture-storage.js";
 
-import { analyzeCsharpNativeParticipation } from "../callables/participation.js";
+import { analyzeCsharpNativeParticipation } from "../callables/calls/participation.js";
 
 import { analyzeCsharpClassFactories } from "../project-types/class-factories.js";
 import { analyzeCsharpClassInitialization } from "../project-types/class-initialization.js";
@@ -51,7 +51,7 @@ import type { CsharpStorageClassifications } from "../../target-model/records/st
 import { type SourceStorageQueries } from "@tsonic/target-api/analysis";
 
 import { analyzeCsharpRefLikePlacements } from "../storage/native-placement.js";
-import { analyzeCsharpCallableCreations } from "../callables/creation.js";
+import { analyzeCsharpCallableCreations } from "../callables/values/creation.js";
 import { analyzeCsharpBindingPatterns, admitCsharpBindingPatterns } from "../control-flow/binding-patterns.js";
 import { admitCsharpExpectedNativeUses } from "../expected-types/native-uses.js";
 import { analyzeCsharpNativeDemand } from "../operations/native-demand.js";

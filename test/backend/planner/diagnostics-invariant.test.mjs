@@ -2,4 +2,4 @@ import { registerTargetPlannerInvariantContractTests } from "../../../../tsonic/
 import { failCsharpPlannerInvariant } from "../../../dist/backend/planner/diagnostics.js";
 
 registerTargetPlannerInvariantContractTests("tsonic-csharp", failCsharpPlannerInvariant,
-  new URL("../../../src/backend/", import.meta.url));
+  new URL("../../../src/backend", import.meta.url));
