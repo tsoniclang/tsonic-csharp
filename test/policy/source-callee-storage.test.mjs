@@ -17,7 +17,8 @@ function classify(declaration, selected, access, carrier = delegate, isStatic = 
     ast: { is: { IsFunctionDeclaration: node => node?.kind === "function", IsMethodDeclaration: node => node?.kind === "method",
       IsClassDeclaration: node => node?.kind === "class" }, parent: node => node.parent,
       kindName: node => node.kind, hasModifierKind: () => isStatic },
-    navigation: { sourceReferenceFor: () => declaration === undefined ? undefined : { declaration } },
+    navigation: { sourceReferenceFor: () => declaration === undefined ? undefined : { declaration },
+      isProjectDeclaration: node => node === functionDeclaration },
     projectTypes: { catalog: { definitionForDeclaration: () => undefined } },
     types: { resolveSelectedValue: node => node === expression ? carrier : owner },
   }, { sourceCallee: { expression, selectedDeclaration: selected }, sourceCalleeAccess: access }, {});
@@ -33,7 +34,8 @@ test("source direct functions do not become delegate operands", () => {
 test("exact direct functions never request a first-class delegate projection", () => {
   const selected = classifyCsharpSourceCallee({
     ast: { is: { IsFunctionDeclaration: node => node === functionDeclaration } },
-    navigation: { sourceReferenceFor: () => ({ declaration: functionDeclaration }) },
+    navigation: { sourceReferenceFor: () => ({ declaration: functionDeclaration }),
+      isProjectDeclaration: node => node === functionDeclaration },
     projectTypes: { catalog: {} },
     types: { resolveSelectedValue: () => { throw new Error("unnecessary callable projection"); } },
   }, { sourceCallee: { expression, selectedDeclaration: functionDeclaration } }, {});

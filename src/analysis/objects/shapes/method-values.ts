@@ -141,29 +141,35 @@ export function retainCsharpMethodValueContracts(
   const implemented = new Map((shape.implements ?? []).filter(type => !shape.members.some(member =>
     member.methodValueContract !== undefined && targetTypeRefEquals(member.methodValueContract, type)))
     .map(type => [targetTypeRefKey(type), type]));
-  const valueUses = selectMethodValueUses(sourceStorage);
   const members = shape.members.map(member => {
     const signature = csharpPresentObjectShapeMethod(member);
     if (signature === undefined) return member;
+    if (member.methodValueContract === undefined && member.methodValueStorage?.kind === "delegate") return member;
     const declaration = csharpObjectShapeMethodDeclaration(shape, member);
     const subject = declaration === undefined ? undefined : sourceStorage.memberSubjectFor(declaration);
     const writes = subject?.kind === "resolved" ? sourceStorage.memberWritesFor(subject.subject) : undefined;
     const nativeMethod = csharpObjectMethodHasFixedNativeExposure(writes);
-    const requiresProtocol = (member.typeParameters?.length ?? 0) > 0 || member.optional === true;
+    const requiresProtocol = (member.typeParameters?.length ?? 0) > 0 || member.optional === true ||
+      member.methodValueContract !== undefined;
+    const valueUses = !requiresProtocol && declaration !== undefined ? selectMethodValueUses(sourceStorage) : undefined;
     const needsValue = member.methodValueStorage?.kind === "delegate" ||
-      member.sourceDeclarations?.some(source => valueUses.has(source)) === true;
+      member.sourceDeclarations?.some(source => valueUses?.has(source) === true) === true;
     if (!requiresProtocol && (needsValue || declaration !== undefined && !nativeMethod)) {
       const { methodValueContract: _contract, ...value } = member;
       return { ...value, methodValueStorage: Object.freeze({ kind: "delegate" as const, type: member.type }) };
     }
-    if (!requiresProtocol && declaration === undefined) return member;
+    const selfContract = shape.members.length === 1 && shape.targetType.kind === "target-named" &&
+      (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true;
+    if (!requiresProtocol && declaration === undefined && !selfContract) return member;
     let contract = member.methodValueContract;
     if (contract === undefined) {
       const required = csharpObjectShapeMethodRequiresProtocol(member);
-      if (!required && !nativeMethod) return declaration === undefined ? member : {
+      if (!required && !nativeMethod && !selfContract) return declaration === undefined ? member : {
         ...member, methodValueStorage: Object.freeze({ kind: "delegate", type: member.type }) };
       const protocol = createStructuralObjectShapeTarget([signature], undefined, environment, true);
       const ownProtocol = targetTypeRefEquals(shape.targetType, protocol);
+      if (!required && !nativeMethod && !ownProtocol) return declaration === undefined ? member : {
+        ...member, methodValueStorage: Object.freeze({ kind: "delegate", type: member.type }) };
       contract = protocol;
       if (!ownProtocol) remember({ targetType: contract, members: [{ ...signature, methodValueContract: contract }] });
     }

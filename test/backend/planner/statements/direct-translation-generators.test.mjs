@@ -48,7 +48,7 @@ test("synchronous generator yield expressions receive exact next values", () => 
   assert.doesNotMatch(source, /default\(int\).*NextValue|Task/);
 });
 
-test("synchronous generator protocol exposes next return and discriminated completion", () => {
+test("synchronous generator protocol exposes next return throw and discriminated completion", () => {
   const source = compileGenerator(`
     import { Exception } from "@tsonic/dotnet/System.js";
     import type { int } from "@tsonic/csharp/types.js";

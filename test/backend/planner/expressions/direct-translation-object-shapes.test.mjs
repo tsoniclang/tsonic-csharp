@@ -250,8 +250,8 @@ for (const surface of [undefined, "js"]) {
       assert.equal(compiled.sourceDiagnosticsText, "", "checked source stays valid");
       assert.equal(compiled.extensionDiagnostics.length, 0, "no extension rejection");
       assert.equal(compiled.targetDiagnostics.length, 0, "exact native receivers stay admitted");
-      assert.equal(compiled.program !== undefined, true, "analysis program is published");
-      const { source, sourceFiles } = compiled.program;
+      assert.equal(compiled.result.program !== undefined, true, "analysis program is published");
+      const { source, sourceFiles } = compiled.result.program;
       const storage = createSourceStorageQuery(source, sourceFiles);
       const method = storage.nodes.find(node => source.navigation.isProjectDeclaration(node) &&
         (external ? source.ast.is.IsMethodSignatureDeclaration(node) : source.ast.is.IsMethodDeclaration(node)));
@@ -268,7 +268,7 @@ for (const surface of [undefined, "js"]) {
         assert.equal(storage.boundaries.some(boundary => boundary.kind === "opaque-invocation"), true,
           "an unrelated raw invocation boundary does not open the native method domain");
       }
-      const members = compiled.program.objectShapes.knownShapes().flatMap(shape => shape.members)
+      const members = compiled.result.program.objectShapes.knownShapes().flatMap(shape => shape.members)
         .filter(member => member.memberKind === "method" && member.sourceDeclarations?.includes(method));
       assert.equal(members.length > 0, true, "selected shapes retain the exact original method identity");
       assert.equal(members.every(member => (member.methodValueStorage?.kind === "delegate") === external), true,

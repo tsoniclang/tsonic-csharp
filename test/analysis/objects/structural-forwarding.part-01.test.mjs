@@ -180,6 +180,8 @@ test("every actual authored native method uses the same body and copy protocol",
   const environment = () => assert.fail("a monomorphic native method has no free generic constraint to resolve");
   const subject = Object.freeze({ node: declaration });
   const sourceStorage = Object.freeze({
+    source: Object.freeze({ ast: Object.freeze({ is: Object.freeze({}) }) }),
+    nodes: Object.freeze([]),
     memberSubjectFor: node => {
       assert.equal(node === declaration, true, "the native owner queries the exact authored method slot");
       return Object.freeze({ kind: "resolved", subject });
