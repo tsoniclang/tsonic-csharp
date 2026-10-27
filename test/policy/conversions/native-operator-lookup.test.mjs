@@ -75,6 +75,37 @@ test("metadata-name conversion requires the resolved physical owner and exact op
   }
 });
 
+test("metadata operands substitute the acquired generic owner on either side of the operator", () => {
+  const integer = csharpSourcePrimitiveTargetType("int64");
+  const parameter = { kind: "type-parameter", identity: "Fixture.Box:Value", name: "Value" };
+  const named = (id, element) => csharpTargetNamedType(id, [element],
+    csharpQualifiedTypeRenderShape("Fixture", "Box"), { allowsRefLikeTypeArguments: [false], valueType: true });
+  const canonical = named("Fixture.Box`1", integer);
+  const physical = named("Native::Fixture.Box`1", parameter);
+  for (const direction of ["source", "target"]) {
+    let reads = 0;
+    const operator = { id: `Fixture.Box.${direction}`, conversionKind: "explicit", declaringType: physical,
+      sourceType: direction === "source" ? physical : integer,
+      targetType: direction === "target" ? physical : integer };
+    const binding = { id: "Native::Fixture.Box`1", sourceName: "Box", targetName: "Fixture.Box`1",
+      target: "csharp", kind: "struct", csharpType: physical, typeParameters: [parameter],
+      conversionOperators: [operator] };
+    const selected = selectProviderConversionOperator({ providers: {
+      findTargetBindingByMetadataName(name, purpose) {
+        assert.equal(name, "Fixture.Box`1", `${direction}: exact generic metadata owner`);
+        assert.equal(purpose, "ordinary", `${direction}: no runtime preparation`);
+        reads += 1;
+        return { kind: "resolved", binding };
+      },
+      findTargetBindingByTargetId: () => assert.fail("an acquired generic owner never retries by target id"),
+    } }, direction === "source" ? canonical : integer,
+    direction === "target" ? canonical : integer, "explicit");
+    assert.equal(selected.kind === "cast" && selected.providerOperatorId === operator.id, true,
+      `${direction}: actual acquired generic operands correspond after substitution`);
+    assert.equal(reads, 1, `${direction}: the native owner is acquired once`);
+  }
+});
+
 for (const surface of ["native", "js"]) {
   test(`native arbitrary-precision explicit conversion uses exact operator metadata and native overflow on ${surface}`, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
