@@ -1,5 +1,5 @@
 import type { ExtensionDiagnostic, ProviderVirtualDeclarationFact } from "@tsonic/tsts";
-import type { TargetBindingFact } from "../../../target-model/types/model.js";
+import type { CsharpTargetBindingFact, TargetBindingFact } from "../../../target-model/types/model.js";
 import type { DotnetReflectionTypeDataProvider } from "../acquisition/provider.js";
 import { resolveDotnetProviderTargetRelations } from "./target-relation-resolver.js";
 import type { CsharpProviderTargetRelation } from "../../../target-model/identities/provider-relations.js";
@@ -13,6 +13,7 @@ import type { CsharpProviderRelationResolution, CsharpProviderRelationResolver }
 import { assertCsharpProviderLookupPurpose } from "../../model/relation-resolver.js";
 import type { CsharpProviderRuntimePreparation, CsharpProviderRuntimeAcquisition } from "../../model/relation-resolver.js";
 import { csharpNativeTargetBindingFact } from "../../../target-model/types/native-inheritance.js";
+import { csharpNativeInheritanceLookup } from "../../../target-model/types/native-inheritance.js";
 import { findUniqueTargetBinding } from "../acquisition/target-binding-index.js";
 
 export interface CsharpProviderRelationResolverInputs {
@@ -27,7 +28,7 @@ export function createCsharpProviderRelationResolver(
   const staticCatalogs = [
     ...csharpBuiltInProviderPolicies().map((policy) => ({
       ...policy,
-      targetBindings: [],
+      targetBindings: Object.freeze(policy.relations.map(relation => relation.targetBinding)),
       rejections: [],
     })),
     ...inputs.providerPolicies,
@@ -49,10 +50,7 @@ export function createCsharpProviderRelationResolver(
     return policy;
   });
   const staticBindings = uniqueStaticBindings(
-    staticCatalogs.flatMap((entry) => [
-      ...entry.targetBindings,
-      ...entry.relationCatalog.relations.map((relation) => relation.targetBinding),
-    ]),
+    staticCatalogs.flatMap(entry => entry.targetBindings),
   );
   assertUniqueProviderIdentities(providers);
   assertUniqueProviderSources(providers, staticCatalogs);
@@ -131,6 +129,13 @@ export function createCsharpProviderRelationResolver(
     cache.set(query, result);
     return result;
   }
+  function acquireReferencedBinding(reference: CsharpTargetBindingFact): CsharpProviderBindingResolution {
+    const type = reference.csharpType;
+    if (type?.kind !== "target-named") return Object.freeze({ kind: "missing" });
+    const lookup = csharpNativeInheritanceLookup(type);
+    return lookup.kind === "metadata-name" ? ordinaryQuery(lookup.metadataName, "metadata")
+      : ordinaryQuery(lookup.targetId, "id");
+  }
   function findTargetBindingByTargetId(targetId: string, purpose: "inheritance"): CsharpProviderNativeBindingResolution;
   function findTargetBindingByTargetId(targetId: string, purpose: CsharpProviderBindingLookupPurpose): CsharpProviderBindingResolution;
   function findTargetBindingByTargetId(targetId: string, purpose: CsharpProviderBindingLookupPurpose): CsharpProviderBindingResolution {
@@ -180,6 +185,7 @@ export function createCsharpProviderRelationResolver(
               staticCatalog,
               source.identity,
               staticCatalog.relationCatalog.resolveType(source.identity),
+              acquireReferencedBinding,
             );
       }
       case "value": {
@@ -190,6 +196,7 @@ export function createCsharpProviderRelationResolver(
               staticCatalog,
               source.identity,
               staticCatalog.relationCatalog.resolveValue(source.identity),
+              acquireReferencedBinding,
             );
       }
       case "member": {
@@ -200,6 +207,7 @@ export function createCsharpProviderRelationResolver(
               staticCatalog,
               source.identity,
               staticCatalog.relationCatalog.resolveMember(source.identity),
+              acquireReferencedBinding,
             );
       }
       case "signature": {
@@ -212,6 +220,7 @@ export function createCsharpProviderRelationResolver(
               staticCatalog.relationCatalog.resolveSignature(
                 source.identity,
               ),
+              acquireReferencedBinding,
             );
       }
     }
@@ -278,6 +287,7 @@ export function createCsharpProviderRelationResolver(
 type StaticProviderPolicy = {
   readonly providerId: string;
   readonly providerVersion: string;
+  readonly targetBindings: readonly CsharpTargetBindingFact[];
   readonly relationCatalog: ReturnType<
     typeof createCsharpProviderRelationCatalog
   >;
@@ -290,11 +300,22 @@ function resolveStaticProviderPolicy(
   policy: StaticProviderPolicy,
   source: Parameters<StaticProviderPolicy["rejectionCatalog"]["resolve"]>[0],
   relations: readonly CsharpProviderTargetRelation[],
+  acquire: (reference: CsharpTargetBindingFact) => CsharpProviderBindingResolution,
 ): CsharpProviderRelationResolution {
   const diagnostic = policy.rejectionCatalog.resolve(source);
-  return diagnostic === undefined
-    ? { kind: "resolved", relations }
-    : { kind: "rejected", diagnostic };
+  if (diagnostic !== undefined) return { kind: "rejected", diagnostic };
+  const resolved: CsharpProviderTargetRelation[] = [];
+  for (const relation of relations) {
+    const owned = policy.targetBindings.filter(binding => binding.id === relation.targetBinding.id);
+    const selected = owned.length === 0 ? acquire(relation.targetBinding)
+      : findUniqueTargetBinding([...owned, relation.targetBinding].map(binding =>
+        Object.freeze({ kind: "resolved" as const, binding })), relation.targetBinding.id);
+    if (selected.kind === "rejected") return selected;
+    if (selected.kind === "missing") return { kind: "missing",
+      reason: "A source provider relation requires its exact physical binding from the declared native owner." };
+    resolved.push(Object.freeze({ ...relation, targetBinding: selected.binding }));
+  }
+  return { kind: "resolved", relations: Object.freeze(resolved) };
 }
 
 function uniqueStaticBindings(

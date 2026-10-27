@@ -2,6 +2,7 @@ import type { CsharpTargetMember, TargetTypeRef } from "../../../types/index.js"
 import { csharpDelegateTargetType, csharpEnumerableTargetType, csharpObjectTargetType, csharpNullableTargetType, csharpTaskTargetType, getCsharpCollectionElementTargetType, getCsharpNullableElementTargetType, getCsharpTaskResultTargetType, getCsharpDelegateSignature, isCsharpAbsenceTargetType, isCsharpVoidTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/index.js";
 import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext } from "../../../model/source-profiles.js";
 import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
+import { promiseResolutionMember } from "../promise-source-profile.js";
 import { jsCallPolicy, jsMemberIdentity, receiverHelperMethod, staticMethod, targetParameter } from "./common.js";
 import { csharpQualifiedTypeRenderShape } from "../../../../target-model/types/index.js";
 import { csharpTargetNamedType } from "../../../../target-model/types/index.js";
@@ -204,6 +205,9 @@ function promiseResolveMember(
     ? inputResult ?? argument
     : context.inputs.selectedType.get(explicit.explicitTypeNode, explicit.selectedType);
   if (result === undefined || inputResult !== undefined && !targetTypeRefEquals(inputResult, result)) return undefined;
+  if (context.source.sourceArguments.length === 1 && isCsharpVoidTargetType(result)) {
+    return promiseResolutionMember(argument, result);
+  }
   const parameter = inputResult === undefined ? result : argument;
   return staticMethod(
         `Tsonic.CSharp.Js.PromiseRuntime.Resolve:${targetIdentity(result)}:${targetIdentity(parameter)}`,

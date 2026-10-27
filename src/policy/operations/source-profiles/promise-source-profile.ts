@@ -89,6 +89,27 @@ function completionDelegate(
     });
 }
 
+export function promiseResolutionMember(
+  argument: TargetTypeRef | undefined,
+  payload: TargetTypeRef | undefined,
+): CsharpTargetMember | undefined {
+  const taskPayload = getCsharpTaskResultTargetType(argument);
+  const form = taskPayload !== undefined ? "task" : isCsharpVoidTargetType(payload) ? "absence" : "value";
+  const parameter = form === "absence" ? csharpAbsenceTargetType() : form === "task" ? argument : payload;
+  const result = payload === undefined ? undefined : csharpTaskTargetType(payload);
+  return result === undefined || parameter === undefined || argument === undefined ||
+    (form === "task" ? !targetTypeRefEquals(argument, result)
+      : form === "absence" && !isCsharpAbsenceTargetType(argument) && !isCsharpVoidTargetType(argument))
+    ? undefined : Object.freeze({
+      id: `tsonic.csharp.Promise.resolve:${targetTypeRefKey(parameter)}:${targetTypeRefKey(result)}`,
+      sourceName: "resolve", targetName: "FromResult", kind: "method" as const, static: true,
+      declaringType: csharpTaskTargetType(voidType),
+      parameters: Object.freeze([Object.freeze({ name: "value", type: parameter, passingMode: "by-value" as const })]),
+      returnType: result,
+      csharpInvocation: Object.freeze({ kind: "native-task-resolution" as const, form }),
+    });
+}
+
 export const csharpPromiseSourceProfileCallPolicies:
   readonly CsharpSourceProfileCallPolicy[] = Object.freeze([
     ...owners.map(owner => Object.freeze({
@@ -133,21 +154,8 @@ export const csharpPromiseSourceProfileCallPolicies:
         const taskPayload = getCsharpTaskResultTargetType(argument);
         const explicit = context.inputs.typeArguments[0];
         const payload = explicit?.node === undefined ? taskPayload ?? argument : explicit.carrier;
-        const form = taskPayload !== undefined ? "task" : isCsharpVoidTargetType(payload) ? "absence" : "value";
-        const parameter = form === "absence" ? csharpAbsenceTargetType() : form === "task" ? argument : payload;
-        const result = payload === undefined ? undefined : csharpTaskTargetType(payload);
-        const member: CsharpTargetMember | undefined = result === undefined || parameter === undefined || argument === undefined ||
-          context.source.sourceArguments.length !== 1 ||
-          (form === "task" ? !targetTypeRefEquals(argument, result)
-            : form === "absence" && !isCsharpAbsenceTargetType(argument) && !isCsharpVoidTargetType(argument))
-          ? undefined : Object.freeze({
-            id: `tsonic.csharp.Promise.resolve:${targetTypeRefKey(parameter)}:${targetTypeRefKey(result)}`,
-            sourceName: "resolve", targetName: "FromResult", kind: "method" as const, static: true,
-            declaringType: csharpTaskTargetType(voidType),
-            parameters: Object.freeze([Object.freeze({ name: "value", type: parameter, passingMode: "by-value" as const })]),
-            returnType: result,
-            csharpInvocation: Object.freeze({ kind: "native-task-resolution" as const, form }),
-          });
+        const member = context.source.sourceArguments.length !== 1
+          ? undefined : promiseResolutionMember(argument, payload);
         const call = member === undefined ? undefined : csharpSourceProfileCall(context.source, member, noReceiver);
         return call === undefined ? { kind: "rejected", diagnostic: csharpSourceProfileDiagnostic(
           "CSHARP_NATIVE_PROMISE_RESOLUTION_NOT_CLOSED", 9100972,
