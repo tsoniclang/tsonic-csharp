@@ -1,0 +1,87 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
+import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { getCsharpMethodValue } from "../../../dist/target-model/types/method-values.js";
+import { getCsharpLambdaSignature, getCsharpTaskResultTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
+import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
+import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
+
+const cases = [
+  ["authored field signature", `
+    export class Owner {
+      identity: <Context>(value: Context) => Context = <Authored>(value: Authored): Authored => value;
+    }
+    export function run(): string { return new Owner().identity("value"); }
+  `],
+  ["reassigned generic callable", `
+    export class Owner { identity = <Original>(value: Original): Original => value; }
+    export function run(): string {
+      const owner = new Owner();
+      const retained = owner.identity;
+      owner.identity = <Replacement>(value: Replacement): Replacement => value;
+      return retained("first") + owner.identity("second");
+    }
+  `],
+  ["outer payload and independent invocation binder", `
+    export function create<Outer>(outer: Outer) {
+      return <Inner>(value: Inner): { outer: Outer; value: Inner } => ({ outer, value });
+    }
+    export function run(): boolean {
+      const value = create(3)("value");
+      return value.outer === 3 && value.value === "value";
+    }
+  `],
+];
+
+const contextualInputs = [
+  ["async alias input", `
+    import type { int32 } from "@tsonic/core/types.js";
+    interface AsyncCallback<Input, Output = Input> { (value: Input): Promise<Output>; }
+    export const checked: AsyncCallback<int32> = async value => {
+      if (value < 0) throw new Error("negative");
+      return value;
+    };
+    export async function run(): Promise<boolean> { return await checked(7) === 7; }
+  `],
+  ["explicit this is not an input slot", `
+    import type { int32 } from "@tsonic/core/types.js";
+    interface Callback<Input> { (this: void, value: Input): Input; }
+    export const checked: Callback<int32> = function(value) { return value; };
+    export function run(): boolean { return checked(7) === 7; }
+  `],
+  ["narrowed optional input", `
+    import type { int32 } from "@tsonic/core/types.js";
+    type Callback = (value: int32 | undefined) => int32;
+    export const checked: Callback = value => value === undefined ? 3 : value;
+    export function run(): boolean { return checked(undefined) === 3 && checked(7) === 7; }
+  `],
+  ["rest native input", `
+    import type { int32 } from "@tsonic/core/types.js";
+    type Callback = (...values: int32[]) => int32;
+    export const checked: Callback = (...values) => values[0];
+    export function run(): boolean { return checked(7, 8) === 7; }
+  `],
+];
+
+const invalidOwnQuantifierSource = `
+    import type { int32 } from "@tsonic/core/types.js";
+    type Callback = <Context>(value: Context, count: int32) => Context;
+    export const checked: Callback = <Authored>(value, count) => {
+      const native: int32 = count;
+      return value;
+    };
+    export function run(): boolean { return checked("kept", 7) === "kept"; }
+  `;
+
+const authoredOwnQuantifierSource = `
+    import type { int32 } from "@tsonic/core/types.js";
+    type Callback = <Context>(value: Context, count: int32) => Context;
+    export const checked: Callback = <Authored>(value: Authored, count: int32): Authored => {
+      const native: int32 = count;
+      return value;
+    };
+    export function run(): boolean { return checked("kept", 7) === "kept"; }
+  `;
+
+export { cases, contextualInputs, invalidOwnQuantifierSource, authoredOwnQuantifierSource };
