@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { csharpSourceDiagnosticLabel } from "../../helpers/source-diagnostic-label.mjs";
 import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
@@ -19,9 +20,7 @@ test("C# native callback ordinary matrix executes every retained entry under one
     "\n" + nativeEntryCases.map((entry, index) => `console.log(await run${index}());`).join("\n");
   const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText, files });
   assert.equal(compiled.result.diagnostics.length, 0,
-    compiled.result.diagnostics.slice(0, 8).map(issue => `${issue.code}: ${issue.message}; ${issue.sourceNode === undefined
-      ? "no source node" : `${compiled.source.ast.getPath(compiled.source.ast.getSourceFile(issue.sourceNode))}: ${
-        compiled.source.ast.text(issue.sourceNode).slice(0, 1024)}`}`).join("\n"));
+    compiled.result.diagnostics.slice(0, 8).map(issue => csharpSourceDiagnosticLabel(compiled.source, issue)).join("\n"));
   const output = executeCsharpConstruction(compiled, "native-callback-entry-matrix", false, false, [], "");
   assert.deepEqual(output.trim().split(/\r?\n/u), nativeEntryCases.map(() => "7"),
     "every synchronous/deferred/aliased/helper/recursive entry preserves the ordinary native payload");

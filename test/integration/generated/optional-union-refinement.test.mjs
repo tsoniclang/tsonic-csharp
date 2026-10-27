@@ -1,4 +1,6 @@
 import test from "node:test";
+import assert from "node:assert/strict";
+import { csharpSourceDiagnosticLabel } from "../../helpers/source-diagnostic-label.mjs";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
@@ -42,6 +44,8 @@ export function run(): boolean {
     exactInteger(undefined) === 0n && exactInteger(7) === 1n && exactInteger(9007199254740993n) === 9007199254740993n;
 }
 ` });
+    assert.equal(compiled.result.diagnostics.length, 0, compiled.result.diagnostics.slice(0, 8)
+      .map(issue => csharpSourceDiagnosticLabel(compiled.source, issue)).join("\n"));
     assertCsharpCompilationSucceeded(compiled);
     executeCsharpConstruction(compiled, "optional-union-refinement");
   });

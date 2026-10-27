@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { csharpSourceDiagnosticLabel } from "../../helpers/source-diagnostic-label.mjs";
 
 test("an absent fulfilled Promise handler preserves native identity and exact optional rejection correspondence", () => {
   const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText: `
@@ -15,8 +16,7 @@ const unchanged = await Promise.resolve<int64>(wide).then();
 console.log(kept === wide && present === 0 && missing === undefined && recovered === wide && unchanged === wide);
 ` });
   assert.equal(compiled.result.diagnostics.length, 0, compiled.result.diagnostics.slice(0, 8)
-    .map(issue => `${issue.code}: ${issue.message}; ${issue.sourceNode === undefined ? "no source node" :
-      compiled.source.ast.text(issue.sourceNode).slice(0, 1024)}`).join("\n"));
+    .map(issue => csharpSourceDiagnosticLabel(compiled.source, issue)).join("\n"));
   assertCsharpCompilationSucceeded(compiled);
   const generated = [...compiled.artifacts.values()].join("\n");
   assert.equal(generated.includes(".ThenIdentity("), true, "missing fulfilled callbacks select native identity passthrough");
