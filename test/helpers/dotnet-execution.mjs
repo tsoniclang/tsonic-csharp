@@ -1,11 +1,32 @@
 import childProcess from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import { after } from "node:test";
+import { fileURLToPath } from "node:url";
 import { guardCgroupPath } from "../../../tsonic/test/scripts/guard-cgroup.mjs";
 
 const compilerServers = new Map();
+let dependencyArtifacts;
+let activeNativeCalls = 0;
+
+export function dotnetDependencyArtifactsDirectory() {
+  const guard = process.env.TSONIC_TEST_GUARD_CGROUP;
+  assertGuardContainsProcess(guard);
+  if (dependencyArtifacts !== undefined) {
+    if (dependencyArtifacts.guard !== guard) {
+      throw new Error("Native dependency outputs cannot cross their owning test scope.");
+    }
+    return dependencyArtifacts.path;
+  }
+  const parent = fileURLToPath(new URL("../../.temp/native-dependency-artifacts/", import.meta.url));
+  mkdirSync(parent, { recursive: true });
+  const path = mkdtempSync(join(realpathSync(parent), "process-"));
+  chmodSync(path, 0o700);
+  const identity = lstatSync(path, { bigint: true });
+  dependencyArtifacts = Object.freeze({ path, guard, dev: identity.dev, ino: identity.ino });
+  return path;
+}
 
 export function buildDotnetProject(project, argumentsList = [], options = {}) {
   const context = compilerServer(options);
@@ -13,7 +34,7 @@ export function buildDotnetProject(project, argumentsList = [], options = {}) {
   if (!/^[1-9][0-9]*$/u.test(childJobs ?? "")) {
     throw new Error("Native test builds require an explicit positive child-job budget.");
   }
-  return childProcess.spawnSync("dotnet", ["build", project, ...argumentsList,
+  return invokeDotnet(["build", project, ...argumentsList,
     `--maxcpucount:${childJobs}`, "-nr:false", "-p:UseSharedCompilation=true",
     `-p:SharedCompilationId=${context.pipeName}`], {
     ...options,
@@ -27,26 +48,36 @@ export function executeDotnetProject(project, argumentsList = [], options = {}) 
     encoding: "utf8",
   });
   if (built.status !== 0) return built;
-  const output = JSON.parse(built.stdout);
+  let output;
+  try {
+    output = JSON.parse(built.stdout);
+  } catch (error) {
+    retireDependencyArtifacts();
+    throw error;
+  }
   const target = output?.Properties?.TargetPath;
   const framework = output?.Properties?.TargetFramework;
   if (typeof target !== "string" || !isAbsolute(target) || !target.endsWith(".dll") ||
       !existsSync(target) || typeof framework !== "string" || framework.length === 0) {
+    retireDependencyArtifacts();
     throw new Error("The successful native build did not publish its exact executable target.");
   }
-  return childProcess.spawnSync("dotnet", [target], {
+  return invokeDotnet([target], {
     ...options,
     env: nativeEnvironment(options.env),
   });
 }
 
 export function closeDotnetCompilerServers() {
+  if (activeNativeCalls !== 0) {
+    throw new Error("Native dependency cleanup cannot run while a native call is in flight.");
+  }
   const failures = [];
   for (const [identity, context] of compilerServers) {
     compilerServers.delete(identity);
     try {
       assertGuardContainsProcess(context.guard);
-      const stopped = childProcess.spawnSync("dotnet", [context.compiler,
+      const stopped = invokeDotnet([context.compiler,
         "-shutdown", `-pipename:${context.pipeName}`], {
         cwd: context.cwd,
         env: context.environment,
@@ -62,8 +93,42 @@ export function closeDotnetCompilerServers() {
     }
   }
   if (failures.length !== 0) {
+    retireDependencyArtifacts();
     throw new AggregateError(failures, "Owned C# compiler servers did not all shut down.");
   }
+  if (dependencyArtifacts !== undefined) {
+    assertGuardContainsProcess(dependencyArtifacts.guard);
+    const identity = lstatSync(dependencyArtifacts.path, { bigint: true });
+    if (!identity.isDirectory() || identity.dev !== dependencyArtifacts.dev ||
+        identity.ino !== dependencyArtifacts.ino || realpathSync(dependencyArtifacts.path) !== dependencyArtifacts.path) {
+      retireDependencyArtifacts();
+      throw new Error("Native dependency output identity changed; refusing cleanup.");
+    }
+    rmSync(dependencyArtifacts.path, { recursive: true });
+    dependencyArtifacts = undefined;
+  }
+}
+
+function invokeDotnet(argumentsList, options) {
+  activeNativeCalls += 1;
+  try {
+    const result = childProcess.spawnSync("dotnet", argumentsList, options);
+    if (result.status !== 0 || result.signal != null || result.error !== undefined) {
+      retireDependencyArtifacts();
+    }
+    return result;
+  } catch (error) {
+    retireDependencyArtifacts();
+    throw error;
+  } finally {
+    activeNativeCalls -= 1;
+  }
+}
+
+function retireDependencyArtifacts() {
+  if (dependencyArtifacts === undefined) return;
+  process.stderr.write(`Retained native dependency outputs after failure: ${JSON.stringify(dependencyArtifacts.path)}\n`);
+  dependencyArtifacts = undefined;
 }
 
 function compilerServer(options) {
@@ -110,7 +175,7 @@ function nativeEnvironment(overrides) {
 }
 
 function nativeSdkText(argumentsList, cwd, environment) {
-  const result = childProcess.spawnSync("dotnet", argumentsList, {
+  const result = invokeDotnet(argumentsList, {
     cwd,
     env: environment,
     encoding: "utf8",

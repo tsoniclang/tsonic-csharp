@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import childProcess from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { buildDotnetProject, closeDotnetCompilerServers, executeDotnetProject } from "../helpers/dotnet-execution.mjs";
+import { buildDotnetProject, closeDotnetCompilerServers, dotnetDependencyArtifactsDirectory, executeDotnetProject } from "../helpers/dotnet-execution.mjs";
 import { createTestWorkspace } from "../../../tsonic/test/scripts/test-workspaces.mjs";
 
 function withNativeCalls(context, nativeCall, verify) {
@@ -154,4 +154,67 @@ test("native compiler servers cannot start outside their actual owned guard", co
       else process.env.TSONIC_TEST_GUARD_CGROUP = previous;
     }
   });
+});
+
+test("sequential native proofs share only their process-owned dependency outputs", context => {
+  let dependencies;
+  withNativeCalls(context, successfulNativeCall, ({ root, calls }) => {
+    dependencies = dotnetDependencyArtifactsDirectory();
+    const project = join(root, "Proof.csproj");
+    const argumentsList = ["-c", "Release", `-p:TsonicRuntimeArtifactsPath=${dependencies}/`];
+    executeDotnetProject(project, argumentsList, { cwd: root });
+    assert.equal(dotnetDependencyArtifactsDirectory(), dependencies, "the process reuses the same native dependency owner");
+    executeDotnetProject(project, argumentsList, { cwd: root });
+    const builds = calls.filter(call => call.args[0] === "build");
+    assert.equal(builds.length, 2, "every proof still performs its actual native Build target");
+    assert.equal(builds.every(call => call.args.includes(`-p:TsonicRuntimeArtifactsPath=${dependencies}/`)), true,
+      "MSBuild receives the same dependency output root");
+    assert.equal(dependencies.startsWith(`${root}/`), false, "shared dependencies are outside private proof output");
+    assert.equal(calls.filter(call => call.args[0] === join(root, "Proof.dll")).length, 2,
+      "both executions retain their native proof target");
+  });
+  assert.equal(existsSync(dependencies), false, "normal cleanup follows the final native call and owned compiler shutdown");
+});
+
+for (const failure of [
+  { name: "nonzero build", result: { status: 1, stdout: "native rejection", stderr: "" } },
+  { name: "timeout", result: { status: null, signal: "SIGTERM", error: Object.assign(new Error("timeout"), { code: "ETIMEDOUT" }) } },
+  { name: "signal", result: { status: null, signal: "SIGKILL" } },
+  { name: "spawn exception", error: new Error("native spawn failed") },
+]) {
+  test(`native ${failure.name} retires dependency outputs without deleting or reusing them`, context => {
+    withNativeCalls(context, args => {
+      if (args[0] !== "build") return successfulNativeCall(args);
+      if (failure.error !== undefined) throw failure.error;
+      return failure.result;
+    }, ({ root }) => {
+      const retired = dotnetDependencyArtifactsDirectory();
+      const invoke = () => executeDotnetProject(join(root, "Proof.csproj"), [], { cwd: root });
+      if (failure.error !== undefined) {
+        assert.throws(invoke, error => error === failure.error, "the original native exception is preserved");
+      } else {
+        assert.equal(invoke() === failure.result, true, "the original native result is preserved");
+      }
+      const replacement = dotnetDependencyArtifactsDirectory();
+      assert.equal(replacement !== retired, true, "the next invocation has a fresh owner");
+      assert.equal(existsSync(retired), true, "potentially live descendant outputs are not deleted");
+      assert.equal(existsSync(replacement), true, "the replacement directory is independently owned");
+    });
+  });
+}
+
+test("native dependency cleanup cannot interrupt an active build", context => {
+  let dependencies;
+  withNativeCalls(context, args => {
+    if (args[0] === "build") {
+      assert.throws(closeDotnetCompilerServers, /native call is in flight/u,
+        "the owner cannot remove active native output");
+      assert.equal(existsSync(dependencies), true, "active dependency outputs remain present");
+    }
+    return successfulNativeCall(args);
+  }, ({ root }) => {
+    dependencies = dotnetDependencyArtifactsDirectory();
+    executeDotnetProject(join(root, "Proof.csproj"), [], { cwd: root });
+  });
+  assert.equal(existsSync(dependencies), false, "only the completed sequence is cleaned");
 });
