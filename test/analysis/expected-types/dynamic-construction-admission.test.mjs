@@ -22,10 +22,19 @@ export function read(): unknown { const observed: any = make(); return observed.
       const issues = compiled.result.diagnostics.filter(issue => issue.category === "error");
       assert.equal(issues.length, 1,
         `one precise dynamic construction refusal: ${issues.map(issue => `${issue.code}: ${issue.message}`).join(" | ")}`);
-      assert.equal(issues[0].code, "CSHARP_UNSUPPORTED_AST", "unsupported dynamic storage is a source refusal, not an internal failure");
-      assert.equal(issues[0].message.includes(reason), true, "the actual unsupported dynamic member contract is named");
-      assert.equal(compiled.source.ast.is.IsObjectLiteralExpression(issues[0].sourceNode), true,
-        "the selected construction's original checked literal owns the refusal");
+      if (name === "effectful key") {
+        assert.equal(issues[0].code, "CSHARP_COMPUTED_FIELD_NAME_NOT_PROVEN", "the existing checked property-name owner rejects effectful keys");
+        assert.equal(issues[0].message,
+          "A computed property key call must retain its effects and cannot be replaced with a static native field name.",
+          "the complete existing effect-preservation refusal remains exact");
+        assert.equal(compiled.source.ast.is.IsComputedPropertyName(issues[0].sourceNode), true,
+          "the original checked computed property name owns the refusal");
+      } else {
+        assert.equal(issues[0].code, "CSHARP_UNSUPPORTED_AST", "unsupported dynamic storage is a source refusal, not an internal failure");
+        assert.equal(issues[0].message.includes(reason), true, "the actual unsupported dynamic member contract is named");
+        assert.equal(compiled.source.ast.is.IsObjectLiteralExpression(issues[0].sourceNode), true,
+          "the selected construction's original checked literal owns the refusal");
+      }
       assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0,
         true, "a dynamic requirement cannot publish a native-shape fallback or partial artifacts");
     });
