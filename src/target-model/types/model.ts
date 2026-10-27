@@ -419,6 +419,7 @@ export interface CsharpTargetMember extends Omit<TargetMember, "parameters" | "t
 
 export type CsharpTargetInvocation =
   | { readonly kind: "numeric-conversion" }
+  | { readonly kind: "native-task-resolution"; readonly form: "value" | "task" | "absence" }
   | {
       readonly kind: "static-factory-construction";
       readonly factoryType: TargetTypeRef;

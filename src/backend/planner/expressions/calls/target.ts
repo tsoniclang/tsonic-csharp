@@ -38,6 +38,20 @@ function buildSelectedTargetCall(node: Node, selected: CsharpTargetCallEmission,
   const generic = () => renderSelectedCsharpTargetMethodTypeArguments(selected.selection, node, sourceFile, input, diagnostics);
   const invocation = selected.invocation;
   switch (invocation.kind) {
+    case "native-task-resolution": {
+      const argument = arguments_[0]!.expression;
+      if (invocation.form === "task") return argument;
+      const owner = nativeType(invocation.owner);
+      if (invocation.form === "absence") return { kind: "SwitchExpression", expression: {
+        kind: "ParenthesizedExpression", expression: { kind: "CastExpression",
+          type: nativeType(selected.selection.targetMember.parameters[0]!.type), expression: argument },
+      },
+        arms: [{ pattern: { kind: "DiscardPattern" }, expression: {
+          kind: "SimpleMemberAccessExpression", receiver: owner, name: "CompletedTask",
+        } }] };
+      return { kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression", receiver: owner,
+        name: "FromResult", typeArguments: [nativeType(invocation.payload)] }, arguments: arguments_ };
+    }
     case "integer-truncation": return { kind: "CastExpression", type: nativeType(invocation.target), expression: {
       kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression",
         receiver: qualifiedCsharpType("Tsonic.CSharp.Js", "BigIntOps"), name: invocation.signed ? "AsIntNative" : "AsUintNative" },

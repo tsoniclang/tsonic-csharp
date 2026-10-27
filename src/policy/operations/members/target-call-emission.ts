@@ -3,6 +3,10 @@ import type { CsharpTargetCallEmission, CsharpTargetInvocationEmission } from ".
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { csharpNativeBinaryOperators, csharpNativePrefixOperators } from "../../../target-model/syntax/native-operators.js";
 import { selectCsharpTypeEmission } from "../../types/resolution/type-emission.js";
+import { getCsharpTaskResultTargetType, csharpTaskTargetType } from "../../../target-model/types/carriers/delegates.js";
+import { csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
+import { isCsharpVoidTargetType } from "../../../target-model/types/identity.js";
+import { isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 
 export function selectCsharpTargetCallEmission(input: CsharpTargetCallEmissionInput):
   | { readonly kind: "selected"; readonly value: CsharpTargetCallEmission }
@@ -23,6 +27,17 @@ export function selectCsharpTargetCallEmission(input: CsharpTargetCallEmissionIn
     if (member.returnType === undefined || !selectCsharpTypeEmission({ carrier: member.returnType }) || member.parameters.length !== 1 || count !== 1 || passing[0])
       return refuse("The selected numeric conversion requires one exact value and a renderable result type.");
     invocation = { kind: "numeric", target: member.returnType, identity: targetTypeRefEquals(member.parameters[0]!.type, member.returnType) };
+  } else if (selected?.kind === "native-task-resolution") {
+    const payload = getCsharpTaskResultTargetType(result);
+    const parameter = member.parameters[0]?.type;
+    if (!member.static || instance || payload === undefined || parameter === undefined || member.parameters.length !== 1 ||
+      count !== 1 || passing[0] || !selectCsharpTypeEmission({ carrier: result }) ||
+      (selected.form === "task" ? !targetTypeRefEquals(parameter, result)
+        : selected.form === "absence" ? !isCsharpVoidTargetType(payload) || !isCsharpAbsenceTargetType(parameter)
+        : isCsharpVoidTargetType(payload) || !targetTypeRefEquals(parameter, payload)))
+      return refuse("Native Task resolution requires one exact value, Task identity, or absent completion and its matching result carrier.");
+    invocation = { kind: "native-task-resolution", form: selected.form,
+      owner: csharpTaskTargetType(csharpVoidTargetType()), payload };
   } else if (member.kind === "constructor") {
     if (member.declaringType === undefined || !selectCsharpTypeEmission({ carrier: member.declaringType })) return refuse("Selected constructor call has no exact declaring type.");
     invocation = { kind: "constructor", owner: member.declaringType };

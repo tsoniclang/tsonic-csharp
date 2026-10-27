@@ -7,6 +7,8 @@ import type { CsharpSourceOperator } from "../../syntax/operators.js";
 
 export type CsharpTargetInvocationEmission =
   | { readonly kind: "integer-truncation"; readonly target: TargetTypeRef; readonly signed: boolean }
+  | { readonly kind: "native-task-resolution"; readonly form: "value" | "task" | "absence";
+      readonly owner: TargetTypeRef; readonly payload: TargetTypeRef }
   | { readonly kind: "numeric"; readonly target: TargetTypeRef; readonly identity: boolean }
   | { readonly kind: "constructor"; readonly owner: TargetTypeRef }
   | { readonly kind: "array" }
