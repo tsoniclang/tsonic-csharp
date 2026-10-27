@@ -39,6 +39,7 @@ export function captureCsharpPlannedLocation(
   if (planned.completion.kind !== "value") return planned.completion.kind === "never" ? planned : undefined;
   const prelude: CsharpStatement[] = [...planned.prelude];
   const temporary = (expression: CsharpExpression): CsharpExpression => {
+    if (expression.kind === "IdentifierName" && (expression.name === "this" || expression.name === "base")) return expression;
     const name = input.names.temporaryName("__tsonic_location_input");
     prelude.push({ kind: "LocalDeclarationStatement", name, type: { kind: "IdentifierName", name: "var" }, initializer: expression });
     return { kind: "IdentifierName", name };
