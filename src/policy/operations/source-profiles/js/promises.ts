@@ -60,9 +60,7 @@ function promiseContinuationMember(
 ): CsharpTargetMember | undefined {
   const receiver = resolveCsharpSelectedSourceValue(context, context.source.sourceReceiver);
   const input = getCsharpTaskResultTargetType(receiver);
-  const output = resolveResultTask(context);
-  if (receiver === undefined || input === undefined || output === undefined) return undefined;
-  if (name === "catch" && !targetTypeRefEquals(input, output.result)) return undefined;
+  if (receiver === undefined || input === undefined) return undefined;
   const callbackResults = context.source.sourceArguments.map(argument =>
     getCsharpDelegateSignature(resolveCsharpSelectedSourceValue(context, argument))?.returnType);
   const fulfilled = context.source.sourceArguments[0];
@@ -75,6 +73,8 @@ function promiseContinuationMember(
       rejectedType !== undefined && isCsharpVoidTargetType(rejectedType);
     return promiseAbsentFulfilledMember(receiver, input, absentRejected ? undefined : callbackResults[1], absentRejected);
   }
+  const output = resolveResultTask(context);
+  if (output === undefined || name === "catch" && !targetTypeRefEquals(input, output.result)) return undefined;
   const asynchronous = name === "then" && callbackResults[0] !== undefined &&
     getCsharpTaskResultTargetType(callbackResults[0]) !== undefined;
   const selected = context.source.sourceSelectedMethodTypeArguments?.[0];

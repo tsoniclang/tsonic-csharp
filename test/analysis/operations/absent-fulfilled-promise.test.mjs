@@ -14,6 +14,9 @@ const recovered = await Promise.reject<int64>(new Error("source")).then(undefine
 const unchanged = await Promise.resolve<int64>(wide).then();
 console.log(kept === wide && present === 0 && missing === undefined && recovered === wide && unchanged === wide);
 ` });
+  assert.equal(compiled.result.diagnostics.length, 0, compiled.result.diagnostics.slice(0, 8)
+    .map(issue => `${issue.code}: ${issue.message}; ${issue.sourceNode === undefined ? "no source node" :
+      compiled.source.ast.text(issue.sourceNode).slice(0, 1024)}`).join("\n"));
   assertCsharpCompilationSucceeded(compiled);
   const generated = [...compiled.artifacts.values()].join("\n");
   assert.equal(generated.includes(".ThenIdentity("), true, "missing fulfilled callbacks select native identity passthrough");

@@ -19,7 +19,9 @@ test("C# native callback ordinary matrix executes every retained entry under one
     "\n" + nativeEntryCases.map((entry, index) => `console.log(await run${index}());`).join("\n");
   const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText, files });
   assert.equal(compiled.result.diagnostics.length, 0,
-    JSON.stringify(compiled.result.diagnostics.map(({ code, message }) => ({ code, message }))));
+    compiled.result.diagnostics.slice(0, 8).map(issue => `${issue.code}: ${issue.message}; ${issue.sourceNode === undefined
+      ? "no source node" : `${compiled.source.ast.getPath(compiled.source.ast.getSourceFile(issue.sourceNode))}: ${
+        compiled.source.ast.text(issue.sourceNode).slice(0, 1024)}`}`).join("\n"));
   const output = executeCsharpConstruction(compiled, "native-callback-entry-matrix", false, false, [], "");
   assert.deepEqual(output.trim().split(/\r?\n/u), nativeEntryCases.map(() => "7"),
     "every synchronous/deferred/aliased/helper/recursive entry preserves the ordinary native payload");
