@@ -200,14 +200,14 @@ export function compareInstantiatedProviderCalls(
     if (rightConversion === undefined) {
       return "incomparable";
     }
-    const sameSource = leftMapping.kind !== "checked-source" && rightConversion.kind !== "checked-source" &&
-      targetTypeRefEquals(leftMapping.sourceType, rightConversion.sourceType);
-    const exactLeft = sameSource && leftMapping.kind !== "checked-source" &&
-      targetTypeRefEquals(leftMapping.sourceType, leftMapping.targetType);
-    const exactRight = sameSource && rightConversion.kind !== "checked-source" &&
-      targetTypeRefEquals(rightConversion.sourceType, rightConversion.targetType);
-    const preference = exactLeft !== exactRight ? exactLeft ? "left" : "right"
-      : compareCsharpImplicitConversionTargets(host, leftMapping.targetType, rightConversion.targetType);
+    let preference: "left" | "right" | "equivalent" | "incomparable" | undefined;
+    if (leftMapping.kind !== "checked-source" && rightConversion.kind !== "checked-source" &&
+      targetTypeRefEquals(leftMapping.sourceType, rightConversion.sourceType)) {
+      const exactLeft = targetTypeRefEquals(leftMapping.sourceType, leftMapping.targetType);
+      const exactRight = targetTypeRefEquals(rightConversion.sourceType, rightConversion.targetType);
+      if (exactLeft !== exactRight) preference = exactLeft ? "left" : "right";
+    }
+    preference ??= compareCsharpImplicitConversionTargets(host, leftMapping.targetType, rightConversion.targetType);
     leftBetter ||= preference === "left";
     rightBetter ||= preference === "right";
     if (preference === "incomparable" || leftBetter && rightBetter) {
