@@ -2,6 +2,7 @@ import childProcess from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
+import { performance } from "node:perf_hooks";
 import { after } from "node:test";
 import { fileURLToPath } from "node:url";
 import { guardCgroupPath } from "../../../tsonic/test/scripts/guard-cgroup.mjs";
@@ -29,7 +30,11 @@ export function dotnetDependencyArtifactsDirectory() {
 }
 
 export function buildDotnetProject(project, argumentsList = [], options = {}) {
-  const context = compilerServer(options);
+  return buildProject(project, argumentsList, options, operationDeadline(options));
+}
+
+function buildProject(project, argumentsList, options, deadline) {
+  const context = compilerServer(options, deadline);
   const childJobs = process.env.TSONIC_TEST_CHILD_JOBS;
   if (!/^[1-9][0-9]*$/u.test(childJobs ?? "")) {
     throw new Error("Native test builds require an explicit positive child-job budget.");
@@ -39,14 +44,15 @@ export function buildDotnetProject(project, argumentsList = [], options = {}) {
     `-p:SharedCompilationId=${context.pipeName}`], {
     ...options,
     env: nativeEnvironment(options.env),
-  });
+  }, deadline);
 }
 
 export function executeDotnetProject(project, argumentsList = [], options = {}) {
-  const built = buildDotnetProject(project, [...argumentsList, "-target:Build", "-getProperty:TargetPath,TargetFramework"], {
+  const deadline = operationDeadline(options);
+  const built = buildProject(project, [...argumentsList, "-target:Build", "-getProperty:TargetPath,TargetFramework"], {
     ...options,
     encoding: "utf8",
-  });
+  }, deadline);
   if (built.status !== 0) return built;
   let output;
   try {
@@ -62,7 +68,7 @@ export function executeDotnetProject(project, argumentsList = [], options = {}) 
     retireDependencyArtifacts();
     throw new Error("The successful native build did not publish its exact executable target.");
   }
-  return invokeDotnet([target], options);
+  return invokeDotnet([target], options, deadline);
 }
 
 export function closeDotnetCompilerServers() {
@@ -106,9 +112,28 @@ export function closeDotnetCompilerServers() {
   }
 }
 
-function invokeDotnet(argumentsList, options) {
+function operationDeadline(options) {
+  return Number.isFinite(options.timeout) && options.timeout > 0
+    ? performance.now() + options.timeout
+    : undefined;
+}
+
+function invokeDotnet(argumentsList, options, deadline) {
   activeNativeCalls += 1;
   try {
+    if (deadline !== undefined) {
+      const remaining = Math.floor(deadline - performance.now());
+      if (remaining <= 0) {
+        throw Object.assign(new Error("Native operation deadline expired before the next dotnet command."),
+          { code: "ETIMEDOUT" });
+      }
+      options = {
+        ...options,
+        timeout: Number.isFinite(options.timeout) && options.timeout > 0
+          ? Math.min(options.timeout, remaining)
+          : remaining,
+      };
+    }
     const result = childProcess.spawnSync("dotnet", argumentsList, options);
     if (result.status !== 0 || result.signal != null || result.error !== undefined) {
       retireDependencyArtifacts();
@@ -128,19 +153,19 @@ function retireDependencyArtifacts() {
   dependencyArtifacts = undefined;
 }
 
-function compilerServer(options) {
+function compilerServer(options, deadline) {
   const guard = process.env.TSONIC_TEST_GUARD_CGROUP;
   assertGuardContainsProcess(guard);
   const cwd = resolve(options.cwd ?? process.cwd());
   const environment = nativeEnvironment(options.env);
-  const version = nativeSdkText(["--version"], cwd, environment).trim();
+  const version = nativeSdkText(["--version"], cwd, environment, deadline).trim();
   if (!/^[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?$/u.test(version)) {
     throw new Error("The selected native SDK did not publish one exact version.");
   }
   const identity = JSON.stringify([guard, cwd, environment.PATH, environment.DOTNET_ROOT, version]);
   const existing = compilerServers.get(identity);
   if (existing !== undefined) return existing;
-  const sdks = nativeSdkText(["--list-sdks"], cwd, environment);
+  const sdks = nativeSdkText(["--list-sdks"], cwd, environment, deadline);
   const selected = sdks.split(/\r?\n/u).map(line => /^(\S+) \[(.+)\]$/u.exec(line))
     .filter(match => match?.[1] === version);
   if (selected.length !== 1) {
@@ -171,14 +196,14 @@ function nativeEnvironment(overrides) {
   };
 }
 
-function nativeSdkText(argumentsList, cwd, environment) {
+function nativeSdkText(argumentsList, cwd, environment, deadline) {
   const result = invokeDotnet(argumentsList, {
     cwd,
     env: environment,
     encoding: "utf8",
     timeout: 30_000,
     maxBuffer: 1_048_576,
-  });
+  }, deadline);
   if (result.status !== 0) {
     throw new Error(`Native SDK selection failed: ${result.error ?? ""}\n${result.stdout ?? ""}\n${result.stderr ?? ""}`);
   }

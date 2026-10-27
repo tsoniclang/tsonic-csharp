@@ -2,12 +2,13 @@ import assert from "node:assert/strict";
 import childProcess from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { buildDotnetProject, closeDotnetCompilerServers, dotnetDependencyArtifactsDirectory, executeDotnetProject } from "../helpers/dotnet-execution.mjs";
 import { createTestWorkspace } from "../../../tsonic/test/scripts/test-workspaces.mjs";
 
-function withNativeCalls(context, nativeCall, verify) {
+function withNativeCalls(context, nativeCall, verify, onCall = () => {}) {
   const scratch = fileURLToPath(new URL("../../.temp/dotnet-execution/", import.meta.url));
   const root = createTestWorkspace(scratch, "proof-");
   const sdk = join(root, "sdk");
@@ -19,6 +20,7 @@ function withNativeCalls(context, nativeCall, verify) {
   context.mock.method(childProcess, "spawnSync", (command, args, options) => {
     assert.equal(command, "dotnet", "one canonical native executable");
     calls.push({ args: [...args], options });
+    onCall(args, options);
     if (args[0] === "--version") return { status: 0, stdout: "10.0.400\n", stderr: "" };
     if (args[0] === "--list-sdks") return { status: 0, stdout: `10.0.400 [${sdk}]\n`, stderr: "" };
     return nativeCall(args, options);
@@ -38,6 +40,7 @@ function successfulNativeCall(args) {
 }
 
 test("native execution builds a fresh project before running its exact native target", context => {
+  context.mock.method(performance, "now", () => 0);
   withNativeCalls(context, successfulNativeCall, ({ root, calls }) => {
     const project = join(root, "Proof.csproj");
     const result = executeDotnetProject(project, ["-c", "Release", "--verbosity", "quiet"],
@@ -74,7 +77,9 @@ test("native application execution preserves the caller environment without comp
     assert.equal(build.options.env.UseSharedCompilation, "true", "compiler reuse is confined to the build");
     assert.equal(build.options.env.MSBUILDDISABLENODEREUSE, "1", "native build node ownership remains bounded");
     assert.equal(build.options.env.DOTNET_CLI_USE_MSBUILD_SERVER, "0", "the build cannot enable an unowned server");
-    assert.equal(run.options === options, true, "the application receives the original caller options");
+    assert.equal(run.options.cwd, options.cwd, "application working directory is preserved");
+    assert.equal(run.options.timeout > 0 && run.options.timeout <= options.timeout, true,
+      "the application receives only the remaining caller timeout");
     assert.equal(run.options.env === environment, true, "the application receives the exact caller environment");
     assert.equal(environment.UseSharedCompilation, "false", "build setup cannot mutate caller compiler settings");
     assert.equal(environment.MSBUILDDISABLENODEREUSE, "caller-node-policy", "build setup cannot mutate caller node settings");
@@ -92,6 +97,60 @@ test("native application execution inherits the process environment when the cal
     assert.equal(build.options.env.UseSharedCompilation, "true", "only compilation receives compiler overrides");
     assert.equal(run.options === options, true, "application spawn preserves the original options object");
     assert.equal(Object.hasOwn(run.options, "env"), false, "native spawn retains ordinary process-environment inheritance");
+  });
+});
+
+test("SDK selection, native build and application execution share the caller deadline", context => {
+  let elapsed = 0;
+  context.mock.method(performance, "now", () => elapsed);
+  withNativeCalls(context, successfulNativeCall, ({ root, calls }) => {
+    executeDotnetProject(join(root, "Proof.csproj"), ["-c", "Release"],
+      { cwd: root, encoding: "utf8", timeout: 240_000 });
+    const version = calls.find(call => call.args[0] === "--version");
+    const sdks = calls.find(call => call.args[0] === "--list-sdks");
+    const build = calls.find(call => call.args[0] === "build");
+    const run = calls.find(call => call.args[0] === join(root, "Proof.dll"));
+    assert.equal(version.options.timeout, 30_000, "SDK selection retains its smaller command bound");
+    assert.equal(sdks.options.timeout, 30_000, "SDK enumeration retains its smaller command bound");
+    assert.equal(build.options.timeout, 210_000, "SDK time is charged against the build allowance");
+    assert.equal(run.options.timeout, 60_000, "the program cannot receive a second full timeout");
+    assert.deepEqual(run.args, [join(root, "Proof.dll")], "deadline propagation does not change native arguments");
+  }, args => {
+    if (args[0] === "--version") elapsed += 10_000;
+    else if (args[0] === "--list-sdks") elapsed += 20_000;
+    else if (args[0] === "build") elapsed += 150_000;
+  });
+});
+
+test("an exhausted native operation deadline never starts the application", context => {
+  let elapsed = 0;
+  context.mock.method(performance, "now", () => elapsed);
+  withNativeCalls(context, successfulNativeCall, ({ root, calls }) => {
+    const dependencies = dotnetDependencyArtifactsDirectory();
+    assert.throws(() => executeDotnetProject(join(root, "Proof.csproj"), [], { cwd: root, timeout: 240_000 }),
+      error => error.code === "ETIMEDOUT", "deadline exhaustion is explicit before another native command");
+    assert.equal(calls.some(call => call.args[0] === join(root, "Proof.dll")), false,
+      "no application starts after the combined budget expires");
+    assert.equal(existsSync(dependencies), true, "expired operation outputs are retained rather than deleted");
+    assert.equal(dotnetDependencyArtifactsDirectory() !== dependencies, true,
+      "an expired operation retires its dependency outputs");
+  }, args => {
+    if (args[0] === "build") elapsed = 240_000;
+  });
+});
+
+test("application timeout preserves the exact native failure within the remaining deadline", context => {
+  let elapsed = 0;
+  context.mock.method(performance, "now", () => elapsed);
+  const timeout = { status: null, signal: "SIGTERM", error: Object.assign(new Error("native timeout"), { code: "ETIMEDOUT" }) };
+  withNativeCalls(context, args => args[0].endsWith("Proof.dll") ? timeout : successfulNativeCall(args), ({ root, calls }) => {
+    const result = executeDotnetProject(join(root, "Proof.csproj"), [], { cwd: root, timeout: 240_000 });
+    const run = calls.find(call => call.args[0] === join(root, "Proof.dll"));
+    assert.equal(run.options.timeout, 90_000, "a 150-second build leaves at most 90 seconds for the program");
+    assert.equal(result === timeout, true, "the native timeout result is not reconstructed or hidden");
+    assert.equal(result.error === timeout.error, true, "the exact native error object is preserved");
+  }, args => {
+    if (args[0] === "build") elapsed = 150_000;
   });
 });
 
