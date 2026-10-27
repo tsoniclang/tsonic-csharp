@@ -139,7 +139,7 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
         ast.is.IsBindingElement(reference.declaration) || ast.is.IsExportAssignment(reference.declaration))) return chosen([]);
   }
   if (access === "location") {
-    if (ast.is.IsPropertyAccessExpression(node)) return chosen(use(ast.as.AsPropertyAccessExpression(node)?.Expression, { kind: "receiver" }));
+    if (ast.is.IsPropertyAccessExpression(node)) return propertyUses();
     if (ast.is.IsElementAccessExpression(node)) {
       const element = ast.as.AsElementAccessExpression(node);
       return chosen([...use(element?.Expression, { kind: "receiver" }), ...use(element?.ArgumentExpression, { kind: "key" })]);
@@ -369,15 +369,7 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
       ? { kind: "update-target" } : { kind: "operand", position: "only" }, selected.operandType,
       selected.sourceOperator === "++" || selected.sourceOperator === "--" ? "location" : undefined), "sequence", undefined, selected.resultType);
   }
-  if (ast.is.IsPropertyAccessExpression(node)) {
-    const selection = operations.selectedProperty.get(node)?.selection;
-    // The receiver is evaluated unless the member is static (no receiver): an instance member reads through it and a
-    // target-parameter member (for example Error.stack through ErrorObject.stack(error)) passes it as its argument.
-    if (selection?.kind === "resolved") return chosen(selection.receiver.kind === "none" ? [] : receiverUses(selection.source.receiver));
-    if (selection?.kind === "source-owned") return chosen(receiverUses(selection.source.receiver));
-    if (selection?.kind === "rejected") return refused("operation-unresolved");
-    return selection?.kind === "union-property" ? chosen(use(ast.as.AsPropertyAccessExpression(node)?.Expression, { kind: "receiver" })) : refused("operation-unresolved");
-  }
+  if (ast.is.IsPropertyAccessExpression(node)) return propertyUses();
   if (ast.is.IsElementAccessExpression(node)) {
     const element = ast.as.AsElementAccessExpression(node);
     const selected = operations.selectedElement.get(node);
@@ -483,6 +475,14 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
         : csharpProviderArgumentSourceCarrier(mappings?.get(argument.effectiveArgumentIndex)) ?? argument.targetParameter.type));
     }
     return Object.freeze(uses);
+  }
+
+  function propertyUses(): CsharpNativeOperandSelection {
+    const selection = operations.selectedProperty.get(node)?.selection;
+    if (selection?.kind === "resolved") return chosen(selection.receiver.kind === "none" ? [] : receiverUses(selection.source.receiver));
+    if (selection?.kind === "source-owned") return chosen(receiverUses(selection.source.receiver));
+    if (selection?.kind === "rejected") return refused("operation-unresolved");
+    return selection?.kind === "union-property" ? chosen(use(ast.as.AsPropertyAccessExpression(node)?.Expression, { kind: "receiver" })) : refused("operation-unresolved");
   }
 
   function receiverUses(receiver: { readonly expression: Node; readonly valueDeclaration?: Node } | undefined): readonly CsharpNativeChildUse[] {
