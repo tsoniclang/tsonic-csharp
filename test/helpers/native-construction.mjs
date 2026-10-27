@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawnSync } from "node:child_process";
+import { dotnetDependencyArtifactsDirectory, executeDotnetProject } from "./dotnet-execution.mjs";
 import { assertCsharpCompilationSucceeded } from "./direct-csharp-session.mjs";
 import { testRepositoryRoots } from "../../../tsonic/test/scripts/workspace-layout.mjs";
 import { createTestWorkspace } from "../../../tsonic/test/scripts/test-workspaces.mjs";
@@ -38,8 +38,8 @@ export function executeCsharpConstruction(compiled, name, asynchronous = false, 
 <Nullable>enable</Nullable><TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 ${assemblyName === undefined ? "" : `<AssemblyName>${escapeXml(assemblyName)}</AssemblyName>`}
 </PropertyGroup><ItemGroup>${references.map(path => `<ProjectReference Include="${escapeXml(path)}" />`).join("")}</ItemGroup></Project>`);
-  const native = spawnSync("dotnet", ["run", "--project", join(root, "Proof.csproj"), "-c", "Release",
-    `-p:TsonicRuntimeArtifactsPath=${join(root, "runtime-artifacts")}${sep}`, "--verbosity", "quiet"], {
+  const native = executeDotnetProject(join(root, "Proof.csproj"), ["-c", "Release",
+    `-p:TsonicRuntimeArtifactsPath=${dotnetDependencyArtifactsDirectory()}${sep}`, "--verbosity", "quiet"], {
     encoding: "utf8", timeout: 240_000, maxBuffer: 4_194_304,
   });
   assert.equal(native.status, 0, `${native.error ?? ""}\n${native.stdout}\n${native.stderr}`);

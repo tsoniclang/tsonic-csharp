@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { buildDotnetProject } from "./dotnet-execution.mjs";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, join, relative, sep } from "node:path";
@@ -22,9 +22,7 @@ export function buildDotnetFixture(options) {
     ? options.intermediateDirectory
     : `${options.intermediateDirectory}${sep}`;
 
-  const result = spawnSync("dotnet", [
-    "build",
-    options.project,
+  const result = buildDotnetProject(options.project, [
     "--nologo",
     "--verbosity",
     "quiet",
