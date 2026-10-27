@@ -88,6 +88,8 @@ export function analyzeCsharpSourceCallEmission(input: { readonly source: Target
     // parameter types, never through a source callee; it has no callee to acquire.
     if (csharpCallIsConstructorBaseCall(ast, node)) continue;
     if (classification.unionCall.kind === "rejected") { refuse(node, classification.unionCall.reason); continue; }
+    const selected = classification.unionCall.kind === "resolved" ? undefined : classification.sourceCall;
+    if (selected?.kind === "rejected") { refuse(node, selected.reason); continue; }
     admitArguments(node, source, classification);
     const typeArguments = classification.sourceTypeArguments;
     if (typeArguments === undefined || typeArguments.some(carrier => !selectCsharpTypeEmission({ carrier }))) {
@@ -103,9 +105,8 @@ export function analyzeCsharpSourceCallEmission(input: { readonly source: Target
       calls.set(node, { kind: "union", union, typeArguments, parameters: Object.freeze(grouping.groups.map(group => group.type)), void: isCsharpVoidTargetType(union.resultType) });
       continue;
     }
-    const selected = classification.sourceCall;
-    if (selected === undefined || selected.kind === "rejected" || selected.kind === "union-method") {
-      refuse(node, selected?.kind === "rejected" ? selected.reason : "Source call has no exact sealed callee acquisition contract."); continue;
+    if (selected === undefined || selected.kind === "union-method") {
+      refuse(node, "Source call has no exact sealed callee acquisition contract."); continue;
     }
     const signature = input.evidence.signatureDeclaration.get(source.selectedSignature);
     if ((source.sourceCallee.selectedDeclaration === undefined || !input.source.navigation.isProjectDeclaration(source.sourceCallee.selectedDeclaration)) &&

@@ -263,13 +263,18 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
     }
     if (call.target?.kind === "rejected") return refused("operation-unresolved");
     if (call.target?.kind !== "source-owned" || call.source === undefined) return refused("operation-unresolved");
-    const arguments_ = sourceArguments(call.sourceArgumentGrouping);
-    if ("reason" in arguments_) return refused(arguments_.reason, arguments_.message);
-    if (ast.kindName(call.source.sourceCallee.expression) === "KindSuperKeyword") return argumentsFirst([], arguments_);
-    if (call.unionCall.kind === "resolved") return chosen([...use(call.unionCall.receiver, { kind: "receiver" }), ...guarded(arguments_)]);
+    if (ast.kindName(call.source.sourceCallee.expression) === "KindSuperKeyword" || call.unionCall.kind === "resolved") {
+      const arguments_ = sourceArguments(call.sourceArgumentGrouping);
+      if ("reason" in arguments_) return refused(arguments_.reason, arguments_.message);
+      return call.unionCall.kind === "resolved"
+        ? chosen([...use(call.unionCall.receiver, { kind: "receiver" }), ...guarded(arguments_)])
+        : argumentsFirst([], arguments_);
+    }
     const callee = call.sourceCall;
     if (callee?.kind === "rejected") return refused("operation-unresolved", callee.reason);
     if (callee === undefined || callee.kind === "union-method") return refused("operation-unresolved");
+    const arguments_ = sourceArguments(call.sourceArgumentGrouping);
+    if ("reason" in arguments_) return refused(arguments_.reason, arguments_.message);
     // A declared function is called by its declaration reference (a static method group), never evaluated as a value,
     // so it has no runtime callee use; only a callee value is evaluated before the arguments.
     if (callee.kind === "function") return argumentsFirst([], guarded(arguments_));

@@ -69,6 +69,18 @@ test("source method runtime order differs from planning order without a copied a
   }
 });
 
+test("a rejected source callee retains its owner refusal before unavailable argument contracts", () => {
+  const reason = "The exact selected source callee is external to the project and has no C# target relation.";
+  for (const kind of ["refused", "unresolved", "inconsistent"]) {
+    const selected = classification({ kind, reason: "Arguments have no native parameter contract." });
+    selected.sourceCall = { kind: "rejected", reason };
+    const actual = selectCsharpNativeOperandUses(input(selected), call);
+    assert.equal(actual.refusal, "operation-unresolved", `${kind}: the callee owner already refused the call`);
+    assert.equal(actual.refusalMessage, reason, `${kind}: argument availability cannot replace the callee's exact reason`);
+    assert.equal(actual.runtime.length + actual.planning.length, 0, `${kind}: no rejected call operand is admitted`);
+  }
+});
+
 test("private optional local operands consume their selected physical plan and preserve lazy writes", () => {
   const placement = Object.freeze({ declaration: call, storage: scalar, payload: scalar,
     payloadName: "payload", presenceName: "present" });

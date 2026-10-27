@@ -4,6 +4,31 @@ import { analyzeCsharpSourceCallEmission } from "../../../dist/analysis/callable
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpMethodValueType } from "../../../dist/target-model/types/method-values.js";
 
+test("a refused source callee is not replaced by missing argument or generic emission evidence", () => {
+  const call = {};
+  const expression = {};
+  const reason = "The exact selected source callee is external to the project and has no C# target relation.";
+  const source = { sourceCallee: { expression } };
+  const classification = { form: { kind: "source" }, target: { kind: "source-owned", source },
+    unionCall: { kind: "not-union" }, sourceCall: { kind: "rejected", reason },
+    sourceArgumentGrouping: { kind: "unresolved", reason: "No finalized native parameter contracts." } };
+  const none = { get: () => undefined };
+  const result = analyzeCsharpSourceCallEmission({
+    source: { ast: { parent: () => undefined, as: { AsPropertyAccessExpression: () => undefined } } },
+    nodes: [call], admitted: () => true,
+    operations: { selectedCall: { get: node => node === call ? classification : undefined },
+      selectedConstruction: none, nativeHandler: none },
+    evidence: { sourceArgument: none, sourceDefaultValue: none }, declarations: {}, conversions: {},
+    references: { identifierEmission: none }, captures: { captureClosure: none },
+  });
+  assert.equal(result.issues.length, 1, "the selected rejection has one publication path");
+  assert.equal(result.issues[0].code, "CSHARP_UNSUPPORTED_AST", "the existing source-callee diagnostic code is retained");
+  assert.equal(result.issues[0].message, reason, "the exact callee-owner reason survives unavailable later contracts");
+  assert.equal(result.issues[0].sourceNode === call, true, "the refusal retains the original call identity");
+  assert.equal(result.records.sourceCallEmission.get(call) === undefined, true, "the rejected call is not published");
+  assert.equal(result.records.sourceArgumentsEmission.get(call) === undefined, true, "arguments of a rejected callee are not published");
+});
+
 test("source calls retain the completed physical capture invocation instead of the logical self delegate", () => {
   const scalar = { kind: "source-primitive", name: "int32" };
   const signature = csharpDelegateTargetType("System.Func", [scalar], scalar);
