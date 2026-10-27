@@ -3,7 +3,7 @@ import type { Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { selectCsharpConversion, selectCsharpExpressionConversion } from "../../policy/conversions/index.js";
 import type { CsharpConversionMode, CsharpConversionSelection } from "../../target-model/conversions/selection.js";
-import { csharpTargetBindingFact, isCsharpReferenceCarrier, targetTypeRefKey, targetTypeRefEquals } from "../../policy/types/index.js";
+import { csharpTargetBindingFact, isCsharpReferenceCarrier, targetTypeRefKey, targetTypeRefEquals, getCsharpRuntimeUnionArms } from "../../policy/types/index.js";
 import { isSourceOwnedCallableRuntimeCarrierSubject, isSourceOwnedProjectReference } from "../source-evidence/types/resolution/source-ownership.js";
 
 import type { TargetTypeRef } from "../../target-model/types/model.js";
@@ -22,6 +22,7 @@ import { sealCsharpDelegateAdapterIdentities } from "./delegate-identities.js";
 import { selectCsharpIntegerTruncationConversion } from "./integer-truncation.js";
 import { selectCsharpExactIntegerConversion } from "../../policy/conversions/exact-integer.js";
 import { admitCsharpConversionSelection } from "./validation.js";
+import { selectCsharpUnionInjection } from "../../policy/conversions/union-relations.js";
 
 import { createCsharpExactLiteralRequestCollector } from "./literal-requests.js";
 import { sealCsharpConversionUses, type CsharpCallConversionRequests } from "./use-admission.js";
@@ -231,6 +232,17 @@ export function analyzeCsharpConversions(
       target,
       mode,
     );
+    const presentTarget = getCsharpNullableElementTargetType(target) ?? target;
+    if (candidate.kind === "rejected" && sourceFile !== undefined &&
+      getCsharpRuntimeUnionArms(presentTarget, policy.typeDefinitions) !== undefined) {
+      const checked = evidence.expressionType.get(expression);
+      const member = checked === undefined ? undefined : policy.types.selectSourceUnionMember(presentTarget, checked, sourceFile);
+      if (member?.kind === "resolved") {
+        candidate = selectCsharpUnionInjection(source, presentTarget, policy.typeDefinitions, mode, arm =>
+          targetTypeRefEquals(arm, member.carrier)
+            ? selectCsharpExpressionConversion(conversionPolicy, expression, source, arm, mode) : undefined) ?? candidate;
+      }
+    }
     if (exactInteger && mode === "implicit" && candidate.kind === "rejected") {
       candidate = selectCsharpExactIntegerConversion(source, target) ?? candidate;
     }

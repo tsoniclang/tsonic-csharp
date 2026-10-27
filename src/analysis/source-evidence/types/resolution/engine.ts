@@ -280,6 +280,10 @@ export function createCsharpTypeResolutionServices(
     resolveStorage: methods.resolveStorage,
     resolveReadStorage: methods.resolveReadStorage,
     resolveType: methods.resolveType,
+    selectSourceUnionMember: (carrier: TargetTypeRef, selected: Type, sourceFile: SourceFile) => {
+      const queries = host.semantics(sourceFile);
+      return scope.sourceUnions.select(carrier, queries.types.literalBaseType(selected) ?? selected, queries);
+    },
     resolveValue: methods.resolveValue,
     resolveSelectedValue: methods.resolveSelectedValue,
     resolveSelectedType: methods.resolveSelectedType,

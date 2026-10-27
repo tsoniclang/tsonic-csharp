@@ -27,6 +27,8 @@ export interface CsharpTypeQueries {
   resolveStorage(node: Node | undefined, sourceFile?: SourceFile): TargetTypeRef | undefined;
   resolveReadStorage(node: Node | undefined, sourceFile?: SourceFile): TargetTypeRef | undefined;
   resolveType(type: Type | undefined, sourceFile: SourceFile): TargetTypeRef | undefined;
+  selectSourceUnionMember(carrier: TargetTypeRef, selected: Type, sourceFile: SourceFile):
+    { readonly kind: "unavailable" | "rejected" } | { readonly kind: "resolved"; readonly carrier: TargetTypeRef };
   resolveValue(
     node: Node | undefined,
     type: Type | undefined,
