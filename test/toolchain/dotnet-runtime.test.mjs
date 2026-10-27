@@ -8,6 +8,8 @@ import { closeDotnetCompilerServers, dotnetDependencyArtifactsDirectory, execute
 import { nativeConstructionProject, nativeRuntimeLayout, nativeRuntimeReferences, prepareNativeRuntime } from "../helpers/dotnet-runtime.mjs";
 import { createTestWorkspace } from "../../../tsonic/test/scripts/test-workspaces.mjs";
 
+const nativeSpawnSync = childProcess.spawnSync;
+
 function withNativeRuntime(context, verify, customize = () => {}) {
   const scratch = fileURLToPath(new URL("../../.temp/native-runtime-controls/", import.meta.url));
   const root = createTestWorkspace(scratch, "checkout-");
@@ -26,10 +28,11 @@ function withNativeRuntime(context, verify, customize = () => {}) {
   const graph = { libraries: {}, project: {
     restore: { projectPath: layout.proofProject }, frameworks: { "net10.0": {} },
   } };
-  customize({ graph, paths, layout });
+  const jsRuntimeItems = [];
+  customize({ graph, paths, layout, jsRuntimeItems });
   writeFileSync(assets, JSON.stringify(graph));
   const calls = [];
-  context.mock.method(childProcess, "spawnSync", (command, args, options) => {
+  const mockedSpawn = context.mock.method(childProcess, "spawnSync", (command, args, options) => {
     assert.equal(command, "dotnet", "the SDK remains the actual native build entry point");
     calls.push({ args: [...args], options });
     if (args[0] === "--version") return { status: 0, stdout: "10.0.400\n", stderr: "" };
@@ -44,6 +47,7 @@ function withNativeRuntime(context, verify, customize = () => {}) {
             .map(path => ({ Identity: path, FullPath: path })),
           FrameworkReference: [{ Identity: "Microsoft.NETCore.App", IsImplicitlyDefined: "true" },
             ...(js ? [] : [{ Identity: "Microsoft.AspNetCore.App" }])],
+          RuntimeCopyLocalItems: js ? jsRuntimeItems : [],
         },
       }) };
     }
@@ -56,7 +60,11 @@ function withNativeRuntime(context, verify, customize = () => {}) {
   try {
     verify({ layout, paths, calls, assets });
   } finally {
-    closeDotnetCompilerServers();
+    try {
+      closeDotnetCompilerServers();
+    } finally {
+      mockedSpawn.mock.restore();
+    }
   }
 }
 
@@ -122,15 +130,7 @@ test("additional native fixture projects keep their own restore graph and DN05 o
 });
 
 test("runtime package requirements select their real native graph instead of borrowing framework-only assets", context => {
-  withNativeRuntime(context, ({ layout, paths }) => {
-    const nativeCall = childProcess.spawnSync;
-    context.mock.method(childProcess, "spawnSync", (command, args, options) => {
-      const result = nativeCall(command, args, options);
-      if (args[0] !== "build" || args[1] !== layout.jsProject) return result;
-      const output = JSON.parse(result.stdout);
-      output.Items.RuntimeCopyLocalItems = [{ Identity: paths["BouncyCastle.Cryptography"] }];
-      return { ...result, stdout: JSON.stringify(output) };
-    });
+  withNativeRuntime(context, ({ layout }) => {
     prepareNativeRuntime(layout);
     const selected = nativeRuntimeReferences([], layout);
     assert.equal(selected.sharedRestore, false, "actual native package assets exclude the framework-only shared graph");
@@ -138,6 +138,8 @@ test("runtime package requirements select their real native graph instead of bor
       "NuGet still evaluates the actual runtime project and all its package requirements");
     assert.equal(selected.graphReferences.includes('BuildReference="false"'), true,
       "graph preservation cannot add a runtime compilation path");
+  }, ({ paths, jsRuntimeItems }) => {
+    jsRuntimeItems.push({ Identity: paths["BouncyCastle.Cryptography"] });
   });
 });
 
@@ -185,6 +187,8 @@ test("native runtime preparation requires explicit absolute checkout ownership",
 });
 
 test("real generated proof builds use private outputs and do not rewrite the shared native restore", () => {
+  assert.equal(childProcess.spawnSync === nativeSpawnSync, true,
+    "the real generated proof cannot execute through a unit-test native spy");
   const layout = nativeRuntimeLayout();
   const prepared = JSON.parse(readFileSync(layout.manifest, "utf8"));
   const before = readFileSync(prepared.proofAssets);
@@ -211,6 +215,8 @@ test("real generated proof builds use private outputs and do not rewrite the sha
 });
 
 test("real prebuilt Node execution retains NuGet transitive crypto dependencies without rebuilding runtimes", () => {
+  assert.equal(childProcess.spawnSync === nativeSpawnSync, true,
+    "the real crypto proof cannot execute through a unit-test native spy");
   const scratch = fileURLToPath(new URL("../../.temp/native-runtime-controls/", import.meta.url));
   const root = createTestWorkspace(scratch, "node-proof-");
   const layout = nativeRuntimeLayout();
