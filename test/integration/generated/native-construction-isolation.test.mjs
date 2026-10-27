@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { Worker } from "node:worker_threads";
 import test from "node:test";
 
-test("concurrent native construction keeps transitive runtime artifacts fixture-local", { timeout: 300_000 }, async () => {
+test("concurrent native construction keeps mutable runtime artifacts execution-owner-local", { timeout: 300_000 }, async () => {
   const [first, second] = await Promise.all([
     construct("parallel-construction-first"),
     construct("parallel-construction-second"),
