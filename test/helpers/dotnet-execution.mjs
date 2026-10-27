@@ -62,10 +62,7 @@ export function executeDotnetProject(project, argumentsList = [], options = {}) 
     retireDependencyArtifacts();
     throw new Error("The successful native build did not publish its exact executable target.");
   }
-  return invokeDotnet([target], {
-    ...options,
-    env: nativeEnvironment(options.env),
-  });
+  return invokeDotnet([target], options);
 }
 
 export function closeDotnetCompilerServers() {

@@ -58,6 +58,43 @@ test("native execution builds a fresh project before running its exact native ta
   });
 });
 
+test("native application execution preserves the caller environment without compiler overrides", context => {
+  withNativeCalls(context, successfulNativeCall, ({ root, calls }) => {
+    const environment = {
+      ...process.env,
+      UseSharedCompilation: "false",
+      MSBUILDDISABLENODEREUSE: "caller-node-policy",
+      DOTNET_CLI_USE_MSBUILD_SERVER: "caller-server-policy",
+      TSONIC_APPLICATION_CONTROL: "caller-value",
+    };
+    const options = { cwd: root, env: environment, encoding: "utf8", timeout: 240_000 };
+    executeDotnetProject(join(root, "Proof.csproj"), [], options);
+    const build = calls.find(call => call.args[0] === "build");
+    const run = calls.find(call => call.args[0] === join(root, "Proof.dll"));
+    assert.equal(build.options.env.UseSharedCompilation, "true", "compiler reuse is confined to the build");
+    assert.equal(build.options.env.MSBUILDDISABLENODEREUSE, "1", "native build node ownership remains bounded");
+    assert.equal(build.options.env.DOTNET_CLI_USE_MSBUILD_SERVER, "0", "the build cannot enable an unowned server");
+    assert.equal(run.options === options, true, "the application receives the original caller options");
+    assert.equal(run.options.env === environment, true, "the application receives the exact caller environment");
+    assert.equal(environment.UseSharedCompilation, "false", "build setup cannot mutate caller compiler settings");
+    assert.equal(environment.MSBUILDDISABLENODEREUSE, "caller-node-policy", "build setup cannot mutate caller node settings");
+    assert.equal(environment.DOTNET_CLI_USE_MSBUILD_SERVER, "caller-server-policy", "build setup cannot mutate caller server settings");
+    assert.equal(run.options.env.TSONIC_APPLICATION_CONTROL, "caller-value", "application variables are preserved");
+  });
+});
+
+test("native application execution inherits the process environment when the caller supplies none", context => {
+  withNativeCalls(context, successfulNativeCall, ({ root, calls }) => {
+    const options = { cwd: root, encoding: "utf8" };
+    executeDotnetProject(join(root, "Proof.csproj"), [], options);
+    const build = calls.find(call => call.args[0] === "build");
+    const run = calls.find(call => call.args[0] === join(root, "Proof.dll"));
+    assert.equal(build.options.env.UseSharedCompilation, "true", "only compilation receives compiler overrides");
+    assert.equal(run.options === options, true, "application spawn preserves the original options object");
+    assert.equal(Object.hasOwn(run.options, "env"), false, "native spawn retains ordinary process-environment inheritance");
+  });
+});
+
 test("a failed native build never runs an unbuilt project", context => {
   const failed = { status: 1, stdout: "CS0452 native refusal", stderr: "", signal: null };
   withNativeCalls(context, args => args[0] === "build" ? failed : successfulNativeCall(args), ({ root, calls }) => {
