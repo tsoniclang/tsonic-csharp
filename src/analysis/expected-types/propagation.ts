@@ -1,12 +1,16 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetUseSiteRef } from "@tsonic/target-api/analysis";
-import { ObjectLiteralProperty_SourceName } from "@tsonic/target-api/source";
+import { ObjectLiteralProperty_SourceName, sourceExpressionValueInputs } from "@tsonic/target-api/source";
 import { selectCsharpArrayLiteralCarrier } from "../../policy/types/collections/literal-construction.js";
 import { getCsharpRuntimeUnionArms } from "../../target-model/types/carriers/runtime-carriers.js";
 import { getCsharpNullableElementTargetType, csharpNullableTargetType, getCsharpArrayLiteralElementTargetType, isCsharpJsValueTargetType, isCsharpRecordDictionaryTargetType, csharpPropertySourceMemberKey, csharpWellKnownSymbolSourceMemberKey, resolveCsharpObjectShapeMemberBySourceKey, csharpObjectTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../policy/types/index.js";
 import type { selectCsharpBinaryOperation } from "../operations/operators.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpNativeObjectMember, CsharpNativeUseSlot } from "../../target-model/records/native/native-demand.js";
+import type { CsharpNativeObjectConstruction, CsharpNativeObjectMember, CsharpNativeUseSlot } from "../../target-model/records/native/native-demand.js";
+import { csharpTargetNamedType } from "../../target-model/types/factories.js";
+import { csharpQualifiedTypeRenderShape } from "../../target-model/types/render-shapes.js";
+import { selectCsharpConversion } from "../../policy/conversions/core.js";
+import { csharpNullableReferenceTargetType } from "../../target-model/types/carriers/nullable.js";
 import type { CsharpConversionMode } from "../../target-model/conversions/selection.js";
 import type { CsharpExactLiteralRequest, CsharpNativePropertyKeyBinding } from "../../target-model/conversions/exact-literals.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
@@ -28,7 +32,7 @@ export interface CsharpExpectedTypePropagation {
     readonly arrayLiteralCarrier: (expression: Node, targetType: TargetTypeRef) => TargetTypeRef | undefined;
     readonly constructionCarrier: (expression: Node, targetType: TargetTypeRef) => TargetTypeRef | undefined;
     readonly objectShape: (expression: Node, targetType: TargetTypeRef) => CsharpObjectShapeFact | undefined;
-    readonly dynamicObject: (expression: Node, targetType: TargetTypeRef) => readonly CsharpNativeObjectMember[] | undefined;
+    readonly dynamicObject: (expression: Node, targetType: TargetTypeRef) => CsharpNativeObjectConstruction | undefined;
     /** The reason an object literal has no construction at this expected type (its shape construction was rejected). */
     readonly constructionRejection: (expression: Node, targetType: TargetTypeRef) => string | undefined;
     readonly intrinsicTarget: (expression: Node, targetType: TargetTypeRef) => boolean;
@@ -47,7 +51,7 @@ export function createCsharpExpectedTypePropagation(
   const arrayCarriers = new WeakMap<Node, Map<string, TargetTypeRef>>();
   const nonArrayCarriers = new WeakMap<Node, Map<string, TargetTypeRef>>();
   const objectConstructions = new WeakMap<Node, Map<string, CsharpObjectShapeFact>>();
-  const dynamicObjects = new WeakMap<Node, Map<string, readonly CsharpNativeObjectMember[]>>();
+  const dynamicObjects = new WeakMap<Node, Map<string, CsharpNativeObjectConstruction>>();
   const constructionRejections = new WeakMap<Node, Map<string, string>>();
   const intrinsicTargets = new WeakMap<Node, Set<string>>();
   const positionsByOwner = new WeakMap<Node, ReadonlyMap<Node, number>>();
@@ -180,6 +184,9 @@ export function createCsharpExpectedTypePropagation(
     const positions = childPositions(expression);
     const member = (property: Node) => positioned(positions, property, index => forwarded(expression, { kind: "member", index }, parent, mode));
     if (isCsharpJsValueTargetType(carrier)) {
+      const argumentType = csharpNullableReferenceTargetType(csharpObjectTargetType());
+      const backingType = csharpTargetNamedType("Tsonic.CSharp.Runtime.TsObject", undefined,
+        csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "TsObject"), { allowsRefLikeTypeArguments: [] });
       const members: CsharpNativeObjectMember[] = [];
       const properties: Node[] = [];
       let closed = true;
@@ -205,14 +212,31 @@ export function createCsharpExpectedTypePropagation(
           selectedName = selected.name;
         }
         properties.push(property);
-        members.push(Object.freeze({ name: selectedName, initializer }));
+        const pending = [initializer];
+        const visited = new Set<Node>();
+        let nested = false;
+        while (pending.length > 0) {
+          const value = pending.pop()!;
+          if (visited.has(value)) continue;
+          visited.add(value);
+          if (policy.ast.is.IsObjectLiteralExpression(value)) { nested = true; break; }
+          for (const child of sourceExpressionValueInputs(policy.ast, value) ?? []) pending.push(child.expression);
+        }
+        const inputCarrier = nested ? carrier : argumentType;
+        const conversion = selectCsharpConversion(policy, inputCarrier, argumentType, "implicit");
+        if (conversion.kind === "rejected" || conversion.kind === "ambiguous") failTargetAnalysisInvariant(
+          "tsonic-csharp", "The selected native broad-object argument requires its exact existing ABI conversion.", initializer);
+        members.push(Object.freeze({ name: selectedName, initializer, carrier: inputCarrier, conversion }));
       }
       if (closed) {
         recordObjectCarrier(expression, targetType, carrier);
-        const targets = dynamicObjects.get(expression) ?? new Map<string, readonly CsharpNativeObjectMember[]>();
-        targets.set(targetTypeRefKey(targetType), Object.freeze(members));
+        collection.addTargetType(argumentType);
+        collection.addTargetType(backingType);
+        const targets = dynamicObjects.get(expression) ?? new Map<string, CsharpNativeObjectConstruction>();
+        targets.set(targetTypeRefKey(targetType), Object.freeze({ backingType, argumentType,
+          writeMember: "WriteDynamicSlot", resultMember: "from", members: Object.freeze(members) }));
         dynamicObjects.set(expression, targets);
-        for (const [index, entry] of members.entries()) record(entry.initializer, carrier, strength, member(properties[index]!));
+        for (const [index, entry] of members.entries()) record(entry.initializer, entry.carrier, strength, member(properties[index]!));
         return;
       }
     }
