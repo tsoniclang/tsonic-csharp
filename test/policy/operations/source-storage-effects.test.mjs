@@ -105,6 +105,40 @@ test("native freeze aliases delegate exact selected operands to the one shared p
     "materialized operand rows remain immutable");
 });
 
+test("native alias effects cannot erase an externally selected freeze implementation", () => {
+  const selections = selectedEffects(`
+    const token: object = {};
+    const freeze = Object.freeze;
+    const owned = Object.freeze(token);
+    const ownedAlias = freeze(token);
+    export function foreignMember(factory: ObjectConstructor): object {
+      const local: object = {};
+      const externalMember = factory.freeze(local);
+      return externalMember;
+    }
+    export function foreignFunction(operation: typeof Object.freeze): object {
+      const local: object = {};
+      const externalFunction = operation(local);
+      return externalFunction;
+    }
+  `);
+  const control = selections.get("owned");
+  assert.equal(control !== undefined, true, "the owned alias control has its checked invocation");
+  const storage = createSourceStorageQuery(control.source, control.source.navigation.sourceFiles, undefined, control.effects);
+  const complete = new Set(["owned", "ownedAlias"]);
+  for (const [name, selection] of selections) {
+    assert.equal(selection.effect?.resultAlias === selection.selected.sourceArguments[0].expression, true,
+      `${name} selects the exact native alias operation contract`);
+    const subject = storage.subjectFor(selection.node);
+    assert.equal(subject.kind, "resolved", `${name} has its exact storage subject`);
+    const domains = storage.closedOriginsFor(subject.subject);
+    assert.equal(domains.kind, complete.has(name) ? "complete" : "open", `${name} retains the exact implementation domain`);
+    if (!complete.has(name)) assert.equal(domains.boundaries.some(boundary => boundary.kind === "external-input"), true,
+      `${name} retains its external implementation witness`);
+  }
+  assert.equal(storage.failureReason(), undefined, "alias dispatch preserves the one finite graph budget");
+});
+
 test("local same-spelled constructors and named globals cannot acquire native allocation evidence", () => {
   const selections = selectedEffects(`
     function Error(message: string): { message: string } { return { message }; }
