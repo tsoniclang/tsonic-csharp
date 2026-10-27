@@ -483,7 +483,7 @@ const nativeConstructorInverses = [
   ],
   [
     "foreign-same-named-constructor",
-    "namespace Foreign { export class PromiseConstructor<Part> { constructor(execute: (resolve: (actual: Part) => void) => void) { void execute; } } }\nfunction wrap<Value>(value: Value): number { const other = new Foreign.PromiseConstructor<Value>(resolve => { resolve(value); }); void other; return 7; }\nif (wrap(Promise.resolve(5)) !== 7) throw new Error(\"foreign constructor identity\");"
+    "class PromiseConstructor<Part> { constructor(execute: (resolve: (actual: Part) => void) => void) { void execute; } }\nexport function wrap<Value>(value: Value): number { const other = new PromiseConstructor<Value>(resolve => { resolve(value); }); void other; return 7; }\nif (wrap(Promise.resolve(5)) !== 7) throw new Error(\"foreign constructor identity\");"
   ]
 ];
 
