@@ -3,7 +3,7 @@ import type { SourceStorageQueries } from "@tsonic/target-api/analysis";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef } from "../../../target-model/types/model.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
 import { createStructuralObjectShapeTarget } from "./construction.js";
-import { csharpStructuralObjectShapeIdentity } from "../../../target-model/types/object-shape-identity.js";
+import { csharpObjectMethodValueStorageKey, csharpStructuralObjectShapeIdentity } from "../../../target-model/types/object-shape-identity.js";
 import { csharpObjectShapeMethodDeclaration, csharpObjectShapeMethodRequiresProtocol, csharpPresentObjectShapeMethod } from "../../../target-model/types/method-values.js";
 import type { CsharpTypeParameterConstraintResolver } from "../../../target-model/types/generic-references.js";
 import { selectCsharpCopiedMethodReceiver } from "../copied-methods.js";
@@ -186,5 +186,13 @@ export function retainCsharpMethodValueContracts(
     return { ...member, methodValueContract: contract, ...(storage === undefined ? {} : { methodValueStorage: storage }) };
   });
   const { implements: _implemented, ...retained } = shape;
-  return { ...retained, members, ...(implemented.size === 0 ? {} : { implements: [...implemented.values()] }) };
+  const contracts = implemented.size === 0 ? undefined : [...implemented.values()];
+  const storageChanged = members.some((member, index) => csharpObjectMethodValueStorageKey(member.methodValueStorage) !==
+    csharpObjectMethodValueStorageKey(shape.members[index]!.methodValueStorage));
+  const targetType = storageChanged && csharpStructuralObjectShapeIdentity(shape.targetType) !== undefined
+    ? createStructuralObjectShapeTarget(members, contracts, environment,
+      shape.targetType.kind === "target-named" && (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true,
+      shape.methodImplementation)
+    : shape.targetType;
+  return { ...retained, targetType, members, ...(contracts === undefined ? {} : { implements: contracts }) };
 }

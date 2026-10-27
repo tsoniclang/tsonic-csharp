@@ -17,6 +17,7 @@ import { csharpSourceProfileInputs } from "../../helpers/planning-records.mjs";
 
 const binding = Object.freeze({ sourceArgumentIndex: 0, effectiveArgumentIndex: 0,
   sourceParameterIndex: 0, sourceForm: "value" });
+const constructorPolicies = csharpPromiseSourceProfileCallPolicies.filter(policy => policy.source.kind === "construct");
 
 function contextFor(task, changes = {}) {
   const selectedType = {};
@@ -36,12 +37,13 @@ test("native and JS constructors select one exact immutable native Task completi
   assert.deepEqual(csharpPromiseSourceProfileCallPolicies.map(policy => policy.source), [
     { owner: "csharp", kind: "construct", declaringName: "PromiseConstructor" },
     { owner: "js", kind: "construct", declaringName: "PromiseConstructor" },
+    { owner: "csharp", kind: "member", declaringName: "PromiseConstructor", name: "resolve" },
   ]);
   assert.equal(csharpJsObjectCallPolicies.some(policy => policy.source.kind === "construct" &&
     policy.source.declaringName === "PromiseConstructor"), false, "old JS-only constructor policy removed");
   for (const result of [csharpVoidTargetType(), csharpSourcePrimitiveTargetType("uint64")]) {
     const task = csharpTaskTargetType(result);
-    const choices = csharpPromiseSourceProfileCallPolicies.map(policy => policy.select(contextFor(task)));
+    const choices = constructorPolicies.map(policy => policy.select(contextFor(task)));
     assert.deepEqual(choices[0], choices[1]);
     for (const choice of choices) {
       assert.equal(choice.kind, "resolved");
@@ -77,7 +79,7 @@ test("native and JS constructors select one exact immutable native Task completi
 test("generic constructor carriers retain exact binder declaration evidence", () => {
   const declaration = Object.create({ astIdentity: true });
   const parameter = { kind: "type-parameter", identity: "fixture.Value", name: "Value", csharpDeclaration: declaration };
-  for (const policy of csharpPromiseSourceProfileCallPolicies) {
+  for (const policy of constructorPolicies) {
     const selected = policy.select(contextFor(csharpTaskTargetType(parameter)));
     assert.equal(selected.kind, "resolved");
     const nativeResult = getCsharpTaskResultTargetType(selected.call.targetMember.returnType);
@@ -88,7 +90,7 @@ test("generic constructor carriers retain exact binder declaration evidence", ()
 });
 
 test("constructor selection fails closed on missing result and inconsistent callback evidence", () => {
-  for (const policy of csharpPromiseSourceProfileCallPolicies) {
+  for (const policy of constructorPolicies) {
     const task = csharpTaskTargetType(csharpSourcePrimitiveTargetType("int32"));
     const cases = [contextFor(undefined), contextFor(csharpTsValueTargetType()),
       contextFor(task, { sourceSelectedSignatureKind: "unresolved" }),

@@ -70,7 +70,7 @@ export function createCsharpExpectedTypePropagation(
     const selected = storage.subjectFor(receiver);
     if (selected.kind !== "resolved") continue;
     const origins = storage.closedOriginsFor(selected.subject);
-    if (origins.kind !== "complete") continue;
+    if (origins.kind === "unresolved") continue;
     for (const origin of origins.origins) {
       if (origin.subject.kind === "value" && origin.subject.projection.length === 0 &&
         policy.ast.is.IsObjectLiteralExpression(origin.subject.node)) dynamicObjectOrigins.add(origin.subject.node);
@@ -239,7 +239,7 @@ export function createCsharpExpectedTypePropagation(
           if (visited.has(value)) continue;
           visited.add(value);
           if (policy.ast.is.IsObjectLiteralExpression(value)) {
-            if (dynamicObjectOrigins.has(value)) nested = true;
+            nested = true;
             continue;
           }
           for (const child of sourceExpressionValueInputs(policy.ast, value) ?? []) pending.push(child.expression);
