@@ -4,8 +4,8 @@ import { createCsharpProviderRelationResolver } from "../../../dist/providers/na
 import { createCsharpProviderIdentityPublication } from "../../../dist/providers/native/projection/native-identity-publication.js";
 import { snapshotCsharpMetadata } from "../../../dist/target-model/metadata/immutable.js";
 import { csharpProviderPolicyContribution } from "../../../dist/public/provider.js";
-import { providerTypeSourceIdentity, providerMemberSourceIdentity } from "../../../dist/providers/model/provider-relations.js";
-import { providerDeclaration } from "../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
+import { providerTypeSourceIdentity } from "../../../dist/providers/model/provider-relations.js";
+import { providerDeclaration, signatureRelation } from "../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
 import { csharpTargetNamedType, csharpQualifiedTypeRenderShape, csharpDelegateTargetType, csharpVoidTargetType,
   csharpNullableTargetType, getCsharpNullableElementTargetType, getCsharpDelegateSignature,
   targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
@@ -24,7 +24,9 @@ test("native identity publication closes owned member and nested callback carrie
     const { reference, physical } = fixture();
     const error = providerDeclaration({ providerId: "fixture.graph", exportId: "Error", exportName: "Error" });
     const member = providerDeclaration({ providerId: "fixture.graph", exportId: "Holder", exportName: "Holder" });
-    const holder = { id: "Fixture.Holder", target: "csharp", kind: "class", sourceName: "Holder", targetName: "Fixture.Holder" };
+    const holder = { id: "Fixture.Holder", target: "csharp", kind: "class", sourceName: "Holder", targetName: "Fixture.Holder",
+      csharpType: csharpTargetNamedType("Fixture.Holder", undefined, csharpQualifiedTypeRenderShape("Fixture", "Holder"),
+        { allowsRefLikeTypeArguments: [] }) };
     const absent = csharpNullableTargetType(reference.csharpType);
     const callback = csharpDelegateTargetType("System.Func", [absent], reference.csharpType);
     holder.members = [{ id: "Fixture.Holder.callback", sourceName: "callback", targetName: "callback", kind: "method",
@@ -32,11 +34,11 @@ test("native identity publication closes owned member and nested callback carrie
     const policy = csharpProviderPolicyContribution({ providerId: error.providerId, providerVersion: error.providerVersion,
       targetBindings: [holder], rejections: [], relations: [
         { kind: "type", source: providerTypeSourceIdentity(error).identity, targetBinding: reference, bindingTypeParameters: [] },
-        { kind: "member", source: providerMemberSourceIdentity(member).identity, targetBinding: holder, receiver: { kind: "instance" },
-          targetMember: { id: "Fixture.Holder.forward", sourceName: "forward", targetName: "forward", kind: "method",
+        signatureRelation({ declaration: member, binding: holder,
+          member: { id: "Fixture.Holder.forward", sourceName: "forward", targetName: "forward", kind: "method",
             declaringType: holder.csharpType,
             parameters: [{ name: "error", type: absent, passingMode: "by-value" },
-              { name: "callback", type: callback, passingMode: "by-value" }], returnType: reference.csharpType } },
+              { name: "callback", type: callback, passingMode: "by-value" }], returnType: reference.csharpType } }),
       ] });
     let reads = 0;
     const resolver = createCsharpProviderRelationResolver({ providerPolicies: [policy], providers: [{
@@ -49,7 +51,7 @@ test("native identity publication closes owned member and nested callback carrie
       findTargetBindingByTargetId: () => ({ kind: "missing" }),
     }] });
     if (order === "type-first") assert.equal(resolver.resolveType(error).kind, "resolved", "the standalone source type is acquired first");
-    const selected = resolver.resolveMember(member);
+    const selected = resolver.resolveSignature(member);
     assert.equal(selected.kind, "resolved", "a genuinely owned member retains its exact source relation");
     const native = selected.relations[0].targetMember;
     assert.equal(targetTypeRefEquals(getCsharpNullableElementTargetType(native.parameters[0].type), physical.csharpType), true,
@@ -60,7 +62,7 @@ test("native identity publication closes owned member and nested callback carrie
     assert.equal(targetTypeRefEquals(signature.returnType, physical.csharpType) && targetTypeRefEquals(native.returnType, physical.csharpType), true,
       "member and callback results have the same complete native identity");
     assert.equal(resolver.resolveType(error).relations[0].targetBinding === physical, true, "the actual native owner object remains authoritative");
-    assert.equal(resolver.resolveMember(member) === selected, true, "the completed source relation is computed once");
+    assert.equal(resolver.resolveSignature(member) === selected, true, "the completed source relation is computed once");
     const acquiredHolder = resolver.findTargetBindingByTargetId(holder.id, "ordinary");
     assert.equal(acquiredHolder.kind, "resolved", "the genuinely owned physical inventory remains available");
     assert.equal(getCsharpDelegateSignature(acquiredHolder.binding.members[0].parameters[0].type).returnType.id,
@@ -171,4 +173,20 @@ test("a changed native graph snapshots untouched mutable children and retains gr
   assert.throws(() => publish([, "hole"]), TypeError, "sparse metadata arrays remain rejected");
   assert.throws(() => snapshotCsharpMetadata({ item: 1 }, undefined, { reserve() { throw new TypeError("budget"); } }, value => value),
     { name: "TypeError", message: "budget" }, "projection never bypasses the owning resource budget");
+});
+
+test("native publication preserves exact authored generic argument property presence", () => {
+  const { reference, physical } = fixture();
+  const publish = createCsharpProviderIdentityPublication([reference], () => ({ kind: "resolved", binding: physical }));
+  const absent = publish(reference.csharpType);
+  assert.equal(absent.kind, "resolved", "ordinary nongeneric native identity is published");
+  assert.equal(Object.hasOwn(absent.value, "typeArguments"), Object.hasOwn(reference.csharpType, "typeArguments"),
+    "absence does not become an extra undefined metadata field");
+  for (const typeArguments of [undefined, []]) {
+    const selected = publish({ ...reference.csharpType, typeArguments });
+    assert.equal(selected.kind === "resolved" && Object.hasOwn(selected.value, "typeArguments"), true,
+      "an explicitly supplied generic argument property is retained");
+    assert.equal(typeArguments === undefined ? selected.value.typeArguments === undefined
+      : selected.value.typeArguments.length === typeArguments.length, true, "the supplied native argument vector is unchanged");
+  }
 });

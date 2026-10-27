@@ -15,13 +15,14 @@ import { createCsharpTypeDefinitionRegistry } from "../../dist/analysis/project-
 import { analyzeCsharpProjectTypePolicy } from "../../dist/analysis/project-types/catalog/resolution.js";
 import { compileCsharpTarget } from "../../dist/backend/compile.js";
 import { compileCsharpSource, assertCsharpCheckingSucceeded, assertCsharpCompilationSucceeded } from "../helpers/direct-csharp-session.mjs";
+import { snapshotCsharpMetadata } from "../../dist/target-model/metadata/immutable.js";
 
 const root = resolve(new URL("../..", import.meta.url).pathname);
 const diagnostic = Object.freeze({ extensionId: "fixture.native-acquisition", extensionCode: "FIXTURE_NATIVE_ACQUISITION_REJECTED",
   numericCode: 9200000, category: "error", identity: "fixture-native-rejection", message: "Original native acquisition refusal." });
 const rejected = Object.freeze({ kind: "rejected", diagnostic });
 const carrier = Object.freeze({ kind: "target-named", id: "Fixture.Native", csharpAllowsRefLikeTypeArguments: [] });
-const binding = Object.freeze({ id: carrier.id, sourceName: "Native", targetName: "Fixture.Native", target: "csharp", kind: "class",
+const binding = snapshotCsharpMetadata({ id: carrier.id, sourceName: "Native", targetName: "Fixture.Native", target: "csharp", kind: "class",
   csharpType: carrier });
 
 function provider(id, result) {

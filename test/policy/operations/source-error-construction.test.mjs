@@ -2,19 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { csharpErrorSourceProfileCallPolicies, csharpErrorSourceProfilePropertyPolicies } from "../../../dist/policy/operations/source-profiles/error-source-profile.js";
 import { csharpExceptionTargetType, csharpNullableTargetType, csharpRuntimeErrorTargetType, csharpStringTargetType } from "../../../dist/policy/types/index.js";
-import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
-import { csharpSourceErrorNames } from "../../../dist/target-model/identities/source-errors.js";
+import { createSourceErrorProviderFixture } from "../../fixtures/dotnet-provider/source-error-bindings.mjs";
 
-const bindings = [csharpExceptionTargetType(), ...csharpSourceErrorNames.map(name => csharpRuntimeErrorTargetType(name))]
-  .map(type => ({ id: type.id, target: "csharp", kind: "class", sourceName: type.id, targetName: type.id, csharpType: type }));
-const host = { providers: createCsharpProviderRelationResolver({ providers: [{
-  identity: { id: "fixture.native-errors", version: "1" }, validateReferences: () => undefined,
-  findTargetBindingByMetadataName: name => {
-    const binding = bindings.find(binding => binding.targetName === name);
-    return binding === undefined ? { kind: "missing" } : { kind: "resolved", binding };
-  },
-  findTargetBindingByTargetId: () => ({ kind: "missing" }),
-}], providerPolicies: [] }) };
+const host = { providers: createSourceErrorProviderFixture() };
 
 test("source error construction and inheritance consume one exact native profile contract", () => {
   let constructors = 0;

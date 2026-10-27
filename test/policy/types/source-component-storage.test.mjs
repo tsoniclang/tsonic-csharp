@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { resolveCallableEvidence, resolveSignatureParameterEvidence, resolveSourceProfileType, resolveSourceTypeComponentEvidence } from "../../../dist/analysis/source-evidence/types/resolution/source-profiles.js";
 import { csharpSourceStorageComponentContext } from "../../../dist/analysis/source-evidence/types/resolution/source-storage-projection.js";
+import { createSourceErrorProviderFixture } from "../../fixtures/dotnet-provider/source-error-bindings.mjs";
 
 const typeOnlyPredicates = { IsTypeAliasDeclaration: () => false, IsInterfaceDeclaration: () => false,
   IsTypeParameterDeclaration: () => false };
@@ -76,7 +77,7 @@ test("recognized Error profiles reject unavailable checked storage instead of ma
   const file = {};
   const owner = subject({}, "input");
   let queries = 0;
-  const scope = { host: { ast: { getSourceFile(node) { assert.equal(node === owner.node, true); return file; }, parent: () => undefined,
+  const scope = { host: { providers: createSourceErrorProviderFixture(), ast: { getSourceFile(node) { assert.equal(node === owner.node, true); return file; }, parent: () => undefined,
     is: { IsExpressionWithTypeArguments: () => false } }, hasSemantics: () => true,
     errorStorageDemands: { storageFor(selected) { queries += 1; assert.equal(selected === owner, true);
       return { kind: "unresolved", reason: "exact storage unavailable" }; } } } };

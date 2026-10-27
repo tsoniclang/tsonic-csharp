@@ -37,8 +37,9 @@ export function createCsharpProviderIdentityPublication(
         failure ??= { kind: "missing", reason: "A source provider carrier requires its complete named C# native binding and generic parameter permissions." };
         return input;
       }
-      return Object.freeze({ ...input, ...selected.binding.csharpType,
-        typeArguments: "typeArguments" in input ? input.typeArguments : undefined });
+      const { typeArguments: _nativeArguments, ...physical } = selected.binding.csharpType;
+      return Object.freeze({ ...input, ...physical,
+        ...("typeArguments" in input ? { typeArguments: input.typeArguments } : {}) });
     });
     return failure ?? { kind: "resolved", value: published };
   };

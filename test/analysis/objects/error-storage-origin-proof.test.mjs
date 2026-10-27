@@ -10,6 +10,7 @@ import { createCsharpErrorStorageDemandQuery } from "../../../dist/analysis/obje
 import { resolveSourceProfileType } from "../../../dist/analysis/source-evidence/types/resolution/source-profiles.js";
 import { createCsharpSourceProfileStorageEffects } from "../../../dist/analysis/operations/source-profiles/source-storage-effects.js";
 import { csharpSourceProfileContributions, csharpJsSurfaceSourceProfileContributions } from "../../../dist/source/profiles/declarations.js";
+import { createSourceErrorProviderFixture } from "../../fixtures/dotnet-provider/source-error-bindings.mjs";
 
 for (const jsEnabled of [false, true]) {
   for (const called of [false, true]) {
@@ -29,7 +30,8 @@ for (const jsEnabled of [false, true]) {
     const demand = createCsharpErrorStorageDemandQuery(source, storage);
     const declaration = name => source.ast.statements(file).find(node => source.ast.is.IsFunctionDeclaration(node) &&
       source.ast.text(source.ast.name(node)) === name);
-    const host = { ast: source.ast, hasSemantics: file => source.semantics.includes(file), errorStorageDemands: demand };
+    const host = { ast: source.ast, hasSemantics: file => source.semantics.includes(file), errorStorageDemands: demand,
+      providers: createSourceErrorProviderFixture() };
     const identity = { kind: "error", sourceName: "Error", errorName: "Error", baseException: true };
     for (const [name, expectedDomain, expectedCarrier] of [
       ["inspect", "open", "System.Exception"], ["privateInspect", "complete", "Tsonic.CSharp.Runtime.Error"],
