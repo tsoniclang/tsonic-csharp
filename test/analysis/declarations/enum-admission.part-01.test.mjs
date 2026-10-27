@@ -64,7 +64,6 @@ ${body}
     });
 }
 
-if (surface === "js") {}
 
 for (const [label, body] of Array.from([
     ["same-enum mutable destination", "export function use(value: Value): Value { let result: Value = value; result = value; return result; }"],
@@ -258,5 +257,4 @@ ${body}
     });
 }
 
-if (surface === "js") {}
 }

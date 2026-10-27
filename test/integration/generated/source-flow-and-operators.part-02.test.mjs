@@ -18,7 +18,6 @@ import { classUnionUpcastSource, anonymousClassUnionUpcastSource } from "../../.
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
 for (const surface of Array.from([undefined, "js"]).slice(0, 1)) {
-if (surface === "js") {}
 
 test(`structural enumeration retains actual keys without reading getters (${surface ?? "native"})`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ ...(surface === undefined ? {} : { surface }), sourceText: structuralEnumerationSource });

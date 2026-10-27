@@ -133,7 +133,6 @@ test(`class union upcasts preserve ${name} base identity (${surface ?? "native"}
     });
 }
 
-if (surface === "js") {}
 
 test(`required nullish members retain exact storage (${surface ?? "native"})`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ ...(surface === undefined ? {} : { surface }), sourceText: nullishMemberStorageSource });
