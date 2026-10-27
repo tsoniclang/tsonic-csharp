@@ -523,8 +523,8 @@ test("requirement state stays inside its twenty-five analysis owners", () => {
     .map(path => path.slice(repositoryRoot.length + 1)).sort();
   assert.deepEqual(users, [
   "src/analysis/callables/async/generators.ts",
-  "src/analysis/callables/values/parameters.ts",
   "src/analysis/callables/calls/participation.ts",
+  "src/analysis/callables/values/parameters.ts",
   "src/analysis/control-flow/binding-patterns.ts",
   "src/analysis/control-flow/resource-scopes.ts",
   "src/analysis/control-flow/statement-completion.ts",
@@ -573,8 +573,8 @@ test("each seal name and producer is mentioned only by its owner and the composi
     "CsharpRequiredRecord",
     [
       "src/analysis/callables/async/generators.ts",
-      "src/analysis/callables/values/parameters.ts",
       "src/analysis/callables/calls/participation.ts",
+      "src/analysis/callables/values/parameters.ts",
       "src/analysis/control-flow/binding-patterns.ts",
       "src/analysis/control-flow/resource-scopes.ts",
       "src/analysis/control-flow/statement-completion.ts",
@@ -600,8 +600,8 @@ test("each seal name and producer is mentioned only by its owner and the composi
     "requireCsharpRecord",
     [
       "src/analysis/callables/async/generators.ts",
-      "src/analysis/callables/values/parameters.ts",
       "src/analysis/callables/calls/participation.ts",
+      "src/analysis/callables/values/parameters.ts",
       "src/analysis/control-flow/binding-patterns.ts",
       "src/analysis/control-flow/resource-scopes.ts",
       "src/analysis/control-flow/statement-completion.ts",

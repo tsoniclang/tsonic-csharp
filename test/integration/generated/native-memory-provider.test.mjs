@@ -19,7 +19,7 @@ function compile(options = {}, sourceText = nativeProviderProofSource, records =
 function verifyProviderSource(sourceText, records = false) {
   const compiled = compile({}, sourceText, records);
   assertCsharpCompilationSucceeded(compiled);
-  const repository = fileURLToPath(new URL("../../..", import.meta.url));
+  const repository = fileURLToPath(new URL("../../../", import.meta.url));
   const scratch = join(repository, ".temp");
   const root = createTestWorkspace(scratch, "native-provider-");
   for (const [path, text] of compiled.artifacts) if (path.endsWith(".cs")) {

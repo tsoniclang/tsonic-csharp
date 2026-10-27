@@ -6,10 +6,10 @@ import {
 
 const defaultStorage = Object.freeze({
   toolBuildRoot: fileURLToPath(
-    new URL("../../.temp/test-provider-storage/dotnet-tool", import.meta.url),
+    new URL("../../.temp/test-provider-storage/dotnet-tool/", import.meta.url),
   ),
   cacheRoot: fileURLToPath(
-    new URL("../../.temp/test-provider-storage/dotnet-cache", import.meta.url),
+    new URL("../../.temp/test-provider-storage/dotnet-cache/", import.meta.url),
   ),
 });
 

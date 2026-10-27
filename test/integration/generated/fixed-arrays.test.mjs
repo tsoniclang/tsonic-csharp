@@ -37,7 +37,7 @@ test("numeric fixed arrays execute with exact cross-file element carriers and or
     }
   ` });
   assertCsharpCompilationSucceeded(compiled);
-  const scratch = fileURLToPath(new URL("../../../.temp", import.meta.url));
+  const scratch = fileURLToPath(new URL("../../../.temp/", import.meta.url));
   const root = createTestWorkspace(scratch, "fixed-array-proof-");
   for (const [path, text] of compiled.artifacts) if (path.endsWith(".cs")) {
     const file = join(root, path);

@@ -32,7 +32,7 @@ export function classify(value: int64): boolean {
   assert.match(output, /BigIntOps\.AsIntNative/u);
   assert.match(output, /BigIntOps\.AsUintNative/u);
   assert.doesNotMatch(output, /BigIntOps\.as(?:Int|Uint)N/u);
-  const root = createTestWorkspace(fileURLToPath(new URL("../../../.temp", import.meta.url)), "native-integer-results-");
+  const root = createTestWorkspace(fileURLToPath(new URL("../../../.temp/", import.meta.url)), "native-integer-results-");
   for (const [path, text] of compiled.artifacts) if (path.endsWith(".cs")) {
     const file = join(root, path);
     mkdirSync(dirname(file), { recursive: true });

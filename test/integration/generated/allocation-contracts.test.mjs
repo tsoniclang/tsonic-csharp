@@ -42,7 +42,7 @@ test("direct module helpers and array literals execute without delegate or stagi
   assert.match(output, /Func<string, string>/u);
   assert.match(output, /JSArray<string>\.of\(\["café", "😀"\]\)/u);
   assert.doesNotMatch(output, /new string\[\]/u);
-  const root = createTestWorkspace(fileURLToPath(new URL("../../../.temp", import.meta.url)), "allocation-proof-");
+  const root = createTestWorkspace(fileURLToPath(new URL("../../../.temp/", import.meta.url)), "allocation-proof-");
   for (const [path, text] of compiled.artifacts) if (path.endsWith(".cs")) {
     const file = join(root, path);
     mkdirSync(dirname(file), { recursive: true });

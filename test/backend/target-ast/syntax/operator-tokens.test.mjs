@@ -41,7 +41,7 @@ test("prefix and postfix unary tokens are distinct closed sets", () => {
 });
 
 test("native syntax modules are syntax-only: they import no analysis, policy, planner or source owner", () => {
-  const directory = new URL("../../../../src/backend/target-ast/syntax", import.meta.url);
+  const directory = new URL("../../../../src/backend/target-ast/syntax/", import.meta.url);
   for (const name of readdirSync(directory).filter(file => file.endsWith(".ts"))) {
     const text = readFileSync(new URL(name, directory), "utf8");
     for (const match of text.matchAll(/from\s+"([^"]+)"/gu)) {

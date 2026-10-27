@@ -255,7 +255,7 @@ public static class Entry {
 }
 
 function buildNativeForwarding(name, omitModes = []) {
-  const scratch = fileURLToPath(new URL("../../../.temp/class-forwarding-native", import.meta.url));
+  const scratch = fileURLToPath(new URL("../../../.temp/class-forwarding-native/", import.meta.url));
   mkdirSync(scratch, { recursive: true });
   const root = mkdtempSync(join(scratch, `${name}-`));
   writeFileSync(join(root, "Program.cs"), nativeForwardingSource(omitModes));

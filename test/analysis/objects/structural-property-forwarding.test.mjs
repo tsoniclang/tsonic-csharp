@@ -265,7 +265,7 @@ for (const surface of ["native", "js"]) {
     assert.equal(compiled.sourceDiagnosticsText, "", "the actual source generic relations are checked");
     assert.equal(compiled.result.diagnostics.length, 0,
       compiled.result.diagnostics.map(issue => `${issue.code}: ${issue.message}`).join(" | "));
-    mkdirSync(new URL("../../../.temp/C19-structural-property-forwarding", import.meta.url), { recursive: true });
+    mkdirSync(new URL("../../../.temp/C19-structural-property-forwarding/", import.meta.url), { recursive: true });
     writeFileSync(new URL(`../../../.temp/C19-structural-property-forwarding/covariance-${surface}.json`, import.meta.url), JSON.stringify({ sourceText: covariantSource, nativeProgram: covariantObserver, artifacts: [...compiled.artifacts] }) + "\n");
     const output = executeCsharpConstruction(compiled, `C19-native-covariance-${surface}`, false, false, [], covariantObserver);
     assert.equal(output, "native covariance identity; generated=0; native=0", "the exact native reference/storage/allocation contract");
@@ -578,7 +578,7 @@ for (const surface of ["native", "js"]) {
       "the existing exact-layout native optional method publishes its real binder plus both required projection binders");
     assert.equal(/override DerivedValue read\(/u.test(generated), true,
       "the original native class covariant-override path remains separate and unchanged");
-    const captureRoot = new URL("../../../.temp/C19-structural-property-forwarding", import.meta.url);
+    const captureRoot = new URL("../../../.temp/C19-structural-property-forwarding/", import.meta.url);
     mkdirSync(captureRoot, { recursive: true });
     writeFileSync(new URL(`${surface}.json`, captureRoot), JSON.stringify({ sourceText: readonlySource, nativeProgram: nativeObserver, artifacts: [...compiled.artifacts] }) + "\n");
     const output = executeCsharpConstruction(compiled, `C19-readonly-closure-${surface}`, false, false, [], nativeObserver);

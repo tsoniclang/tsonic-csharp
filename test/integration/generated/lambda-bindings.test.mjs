@@ -31,7 +31,7 @@ test("lambda binding patterns share parameter lowering and preserve evaluation o
     }
   ` });
   assertCsharpCompilationSucceeded(compiled);
-  const root = createTestWorkspace(fileURLToPath(new URL("../../../.temp", import.meta.url)), "lambda-bindings-");
+  const root = createTestWorkspace(fileURLToPath(new URL("../../../.temp/", import.meta.url)), "lambda-bindings-");
   for (const [path, source] of compiled.artifacts) if (path.endsWith(".cs")) {
     const file = join(root, path);
     mkdirSync(dirname(file), { recursive: true });

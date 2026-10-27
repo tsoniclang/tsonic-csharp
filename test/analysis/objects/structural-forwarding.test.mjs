@@ -1301,7 +1301,7 @@ function buildNativeProof(name, omitModes = []) {
 }
 
 function buildNativeProject(name, sourceText, artifacts = new Map()) {
-  const scratch = fileURLToPath(new URL("../../../.temp/structural-forwarding-native", import.meta.url));
+  const scratch = fileURLToPath(new URL("../../../.temp/structural-forwarding-native/", import.meta.url));
   mkdirSync(scratch, { recursive: true });
   const root = mkdtempSync(join(scratch, `${name}-`));
   writeFileSync(join(root, "Program.cs"), sourceText);

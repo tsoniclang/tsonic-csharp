@@ -10,7 +10,7 @@ import { instantiateCsharpRuntimeSources } from "../../../../dist/providers/runt
 import { printCsharpRuntimeProject } from "../../../../dist/print/project/runtime.js";
 
 function fixture(invalid = false) {
-  const root = createTestWorkspace(fileURLToPath(new URL("../../../../.temp", import.meta.url)), "metadata-output-family-");
+  const root = createTestWorkspace(fileURLToPath(new URL("../../../../.temp/", import.meta.url)), "metadata-output-family-");
   const sourcesRoot = join(root, "sources");
   mkdirSync(sourcesRoot);
   const propertiesPath = join(sourcesRoot, "Directory.Build.props");
