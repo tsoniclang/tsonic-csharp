@@ -1,7 +1,7 @@
 import { nullishValueType } from "../../policy/operations/operators/rules.js";
 import { isEquality } from "../../policy/operations/operators/operator-validation.js";
 import { csharpBinaryOperationRequiresLocation } from "../../policy/operations/operators/rules.js";
-import type { CsharpOperationSelection, CsharpResolvedBinaryOperation, CsharpResolvedDestructuringAssignmentOperation, CsharpResolvedUnaryOperation } from "../../target-model/records/operator-selection.js";
+import type { CsharpOperationSelection, CsharpResolvedBinaryOperation, CsharpResolvedDestructuringAssignmentOperation, CsharpResolvedUnaryOperation } from "../../target-model/records/operations/operator-selection.js";
 
 import { selectCsharpAssignmentLocation } from "./assignment-location.js";
 

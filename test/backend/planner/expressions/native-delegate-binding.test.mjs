@@ -14,7 +14,7 @@ import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../../
 import { assertNoTargetDiagnostics } from "../../../../../tsonic/test/scripts/diagnostic-assertions.mjs";
 import { admitCsharpConversionSelection } from "../../../../dist/analysis/conversions/validation.js";
 import { admitCsharpDelegateOperand } from "../../../../dist/analysis/conversions/callable-emission.js";
-import { createCsharpDelegateContractProducer } from "../../../../dist/analysis/program/records/callable-conversions.js";
+import { createCsharpDelegateContractProducer } from "../../../../dist/analysis/program/records/callables/callable-conversions.js";
 import { admitCsharpDelegateEmission } from "../../../../dist/analysis/conversions/callable-emission.js";
 import { csharpDelegateContractRecord } from "../../../helpers/planning-records.mjs";
 

@@ -1,8 +1,8 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpReceiverCallPropertyEmission } from "../../target-model/records/receiver-call-property.js";
-import { createCsharpReceiverCallPropertyRecords } from "../program/records/receiver-call-property.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpReceiverCallPropertyEmission } from "../../target-model/records/calls/receiver-call-property.js";
+import { createCsharpReceiverCallPropertyRecords } from "../program/records/calls/receiver-call-property.js";
 
 export function analyzeCsharpReceiverCallProperties(nodes: readonly Node[], operations: CsharpTargetOperationClassifications,
   admitted: (node: Node) => boolean) {

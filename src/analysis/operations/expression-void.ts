@@ -1,8 +1,8 @@
 import type { AstReader } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
-import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
+import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
+import type { CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import { isCsharpVoidTargetType } from "../../target-model/types/index.js";
 import { getCsharpGenericOptionalParts } from "../../target-model/types/projections.js";
 import { csharpCarrierAdmitsSourceAbsence } from "../../target-model/types/carriers/runtime-carriers.js";

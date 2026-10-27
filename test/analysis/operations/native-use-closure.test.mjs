@@ -5,7 +5,7 @@ import { createSourceStorageQuery, targetUseSiteIdentity } from "@tsonic/target-
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpBindingPatterns } from "../../../dist/analysis/control-flow/binding-patterns.js";
 import { analyzeCsharpNativeDemand } from "../../../dist/analysis/operations/native-demand.js";
-import { csharpNativeUseSite } from "../../../dist/target-model/records/native-demand.js";
+import { csharpNativeUseSite } from "../../../dist/target-model/records/native/native-demand.js";
 import { csharpObjectTargetType, csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { getCsharpArrayLiteralElementTargetType } from "../../../dist/target-model/types/carriers/collections.js";
 import { getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carriers/runtime-carriers.js";

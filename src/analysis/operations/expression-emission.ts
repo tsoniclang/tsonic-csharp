@@ -1,14 +1,14 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetUseSiteRef } from "@tsonic/target-api/analysis";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
-import type { CsharpNativeExpressionRecord, CsharpNativeDiscardEmission } from "../../target-model/records/native-demand.js";
-import type { CsharpConversionClassifications } from "../../target-model/records/conversions.js";
+import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
+import type { CsharpNativeExpressionRecord, CsharpNativeDiscardEmission } from "../../target-model/records/native/native-demand.js";
+import type { CsharpConversionClassifications } from "../../target-model/records/operations/conversions.js";
 import { KindEqualsToken, type TargetSourceProgram } from "@tsonic/target-api/source";
-import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
-import type { CsharpClassFactoryIndex } from "../../target-model/records/class-factories.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import { createCsharpExpressionEmissionRecords } from "../program/records/expression-emission.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
+import type { CsharpClassFactoryIndex } from "../../target-model/records/objects/class-factories.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import { createCsharpExpressionEmissionRecords } from "../program/records/operations/expression-emission.js";
 import { directCsharpSourceYieldExpression } from "../../target-model/syntax/yield-expression.js";
 
 export function analyzeCsharpExpressionEmission(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];

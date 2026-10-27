@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { CsharpTypeParameter } from "../../target-ast/syntax/index.js";
 import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
-import type { CsharpObjectShapeEmissionRecords } from "../../../target-model/records/object-shape-emission.js";
+import type { CsharpObjectShapeEmissionRecords } from "../../../target-model/records/objects/object-shape-emission.js";
 import { csharpGenericConstraintFromTargetTypeParameterConstraint } from "../types/type-parameters.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 

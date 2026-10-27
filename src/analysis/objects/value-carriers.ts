@@ -1,20 +1,20 @@
-import { createCsharpNativeValueProducer, createCsharpObjectMethodSourceProducer } from "../program/records/native-value-carriers.js";
+import { createCsharpNativeValueProducer, createCsharpObjectMethodSourceProducer } from "../program/records/native/native-value-carriers.js";
 import { createHash } from "node:crypto";
 import type { AstReader, Node } from "@tsonic/tsts";
 import { sourceLexicalCaptures, type SourceCallOnlyAlias, type SourceFileSemantics, type SourceProgramNavigation } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { csharpNativePropertyNameIssue } from "./computed-field-names.js";
-import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
-import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
-import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
+import type { CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
 import type {
   CsharpNativeValueCarriers,
   CsharpNativeValueField,
   CsharpObjectMethodSourceCapture,
   CsharpObjectMethodSources,
-} from "../../target-model/records/native-value-carriers.js";
-import type { CsharpProjectTypeIssue } from "../../target-model/records/project-types.js";
-import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
+} from "../../target-model/records/native/native-value-carriers.js";
+import type { CsharpProjectTypeIssue } from "../../target-model/records/types/project-types.js";
+import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/objects/required-records.js";
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 import { csharpRuntimeRecordFieldTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 

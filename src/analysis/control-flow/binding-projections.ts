@@ -1,4 +1,4 @@
-import type { CsharpBindingProjection } from "../../target-model/records/binding-projection-policy.js";
+import type { CsharpBindingProjection } from "../../target-model/records/storage/binding-projection-policy.js";
 
 import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
 import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";

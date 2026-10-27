@@ -6,7 +6,7 @@ import type { LambdaTargetContext } from "./callable.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { withCsharpSafetyModifiers } from "../safety/explicit-safety.js";
-import type { CsharpLambdaCreation } from "../../../target-model/records/capture-storage.js";
+import type { CsharpLambdaCreation } from "../../../target-model/records/callables/capture-storage.js";
 
 export function planCsharpLocalLambdaCreation(
   node: Node, input: CsharpPlanningContext, _diagnostics: TargetDiagnostic[],

@@ -2,17 +2,17 @@ import type { AstReader, Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { sourceControlTransferTarget, sourceLabeledStatementTarget, sourceEnclosingCallable, type SourceLabeledStatementTarget } from "@tsonic/target-api/source";
 import { analyzeSourceStatementExits, type SourceStatementExitFacts } from "@tsonic/target-api/analysis";
-import type { CsharpControlExitCompletion, CsharpStatementCompletionRecords } from "../../target-model/records/statement-completion.js";
-import { createCsharpStatementCompletionRecords } from "../program/records/statement-completion.js";
-import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
-import type { CsharpReturnCompletion } from "../../target-model/records/returns.js";
-import type { CsharpExpectedTypeClassifications } from "../../target-model/records/expected-types.js";
-import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
-import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
+import type { CsharpControlExitCompletion, CsharpStatementCompletionRecords } from "../../target-model/records/operations/statement-completion.js";
+import { createCsharpStatementCompletionRecords } from "../program/records/operations/statement-completion.js";
+import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/objects/required-records.js";
+import type { CsharpReturnCompletion } from "../../target-model/records/calls/returns.js";
+import type { CsharpExpectedTypeClassifications } from "../../target-model/records/types/expected-types.js";
+import type { CsharpDeclarationClassifications } from "../../target-model/records/program/declarations.js";
+import type { CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
 import { csharpVoidReturnCompletion } from "../../policy/conversions/callable-completions.js";
-import type { CsharpCatchBinding } from "../../target-model/records/exception-flow.js";
-import type { CsharpNativeUseClassifications } from "../../target-model/records/native-demand.js";
-import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
+import type { CsharpCatchBinding } from "../../target-model/records/operations/exception-flow.js";
+import type { CsharpNativeUseClassifications } from "../../target-model/records/native/native-demand.js";
+import type { CsharpStorageClassifications } from "../../target-model/records/storage/storage.js";
 import { isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 
 export function analyzeCsharpStatementCompletions(input: {

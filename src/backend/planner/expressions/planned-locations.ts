@@ -1,6 +1,6 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpNativeLocationSelection } from "../../../target-model/records/native-locations.js";
+import type { CsharpNativeLocationSelection } from "../../../target-model/records/native/native-locations.js";
 import type { CsharpExpression, CsharpStatement } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import type { CsharpPlannedValue, CsharpPlannedAddressOperand, CsharpPlannedCapture, CsharpPlannedLocationCapture } from "./planned-values.js";

@@ -3,7 +3,7 @@ import { isAstNode, sourceCallableValueParameters, type TargetSourceProgram } fr
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { createTsonicAttributeApplicationFactIndex, type TsonicAttributeApplicationFactIndex } from "@tsonic/source-core/facts";
 import { admitCsharpAttributeArguments, diagnoseCsharpAttributeTypeValues, type CsharpAttributeArgumentEvidence } from "./type-validation.js";
-import type { CsharpAttributeApplication, CsharpAttributeApplicationIndex } from "../../target-model/records/attributes.js";
+import type { CsharpAttributeApplication, CsharpAttributeApplicationIndex } from "../../target-model/records/program/attributes.js";
 
 const emptyApplications: readonly CsharpAttributeApplication[] = Object.freeze([]);
 

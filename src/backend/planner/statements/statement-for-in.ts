@@ -7,7 +7,7 @@ import type {
 } from "../../target-ast/syntax/index.js";
 import { predefined } from "../types/index.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import type { CsharpAdmittedIteration } from "../../../target-model/records/selection.js";
+import type { CsharpAdmittedIteration } from "../../../target-model/records/operations/selection.js";
 import {
   allocateForInNames,
 } from "../bindings/index.js";

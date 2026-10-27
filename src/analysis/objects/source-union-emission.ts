@@ -1,9 +1,9 @@
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
-import type { CsharpSourceUnionEmission } from "../../target-model/records/source-unions.js";
+import type { CsharpSourceUnionEmission } from "../../target-model/records/types/source-unions.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpRuntimeUnionTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
-import { createCsharpSourceUnionEmissionRecords } from "../program/records/source-unions.js";
+import { createCsharpSourceUnionEmissionRecords } from "../program/records/types/source-unions.js";
 
 export function analyzeCsharpSourceUnionEmission(definitions: CsharpTypeDefinitions) {
   const selected: CsharpSourceUnionEmission[] = [];

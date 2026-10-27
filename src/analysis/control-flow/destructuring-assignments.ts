@@ -7,7 +7,7 @@ import { selectCsharpBindingPatternProjection } from "../../policy/types/objects
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/index.js";
 import type { CsharpBindingElementProjection, CsharpBindingPatternSource, CsharpBindingProjectionFact,
   CsharpDestructuringAssignmentArrayElement, CsharpDestructuringAssignmentObjectElement,
-  CsharpDestructuringAssignmentPattern, CsharpDestructuringAssignmentTarget } from "../../target-model/records/value-projections.js";
+  CsharpDestructuringAssignmentPattern, CsharpDestructuringAssignmentTarget } from "../../target-model/records/objects/value-projections.js";
 import type { CsharpBindingPatternAnalysisInput } from "./binding-patterns.js";
 
 export function createCsharpDestructuringAssignmentAnalysis(input: CsharpBindingPatternAnalysisInput, callbacks: {

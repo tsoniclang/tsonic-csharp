@@ -6,7 +6,7 @@ import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpSourceIdentityPolicy } from "../../source/extension/identities.js";
 import type { CsharpTypeSystem } from "./type-system.js";
 import { analyzeCsharpValueDomainCarriers } from "../objects/value-domain-carriers.js";
-import type { CsharpValueDomainCarrierIssue } from "../../target-model/records/value-domains.js";
+import type { CsharpValueDomainCarrierIssue } from "../../target-model/records/types/value-domains.js";
 
 export interface CsharpAnalysisPolicyContextInput {
   readonly integerRanges: CsharpPolicyContext["integerRanges"];

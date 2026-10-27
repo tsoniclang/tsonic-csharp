@@ -9,7 +9,7 @@ import type { Node, SourceFile, Type } from "@tsonic/tsts";
 
 import type { CsharpObjectShapePolicyHost, CsharpRecursiveObjectShapePolicy } from "./model.js";
 
-import type { CsharpProjectConstructibleTypeProjection } from "../../../target-model/records/object-shapes.js";
+import type { CsharpProjectConstructibleTypeProjection } from "../../../target-model/records/objects/object-shapes.js";
 
 import type { createCsharpObjectShapeMemberResolver } from "./member-evidence.js";
 

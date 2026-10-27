@@ -1,9 +1,9 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { SourceLiteralIndex } from "@tsonic/target-api/source";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { CsharpExactLiteralSelectionIndex } from "../../target-model/conversions/exact-literals.js";
-import { createCsharpUnaryEmissionProducer } from "../program/records/expression-unary.js";
+import { createCsharpUnaryEmissionProducer } from "../program/records/operations/expression-unary.js";
 
 export function analyzeCsharpUnaryEmission(input: { readonly ast: AstReader; readonly nodes: readonly Node[];
   readonly admitted: (node: Node) => boolean; readonly operations: CsharpTargetOperationClassifications;

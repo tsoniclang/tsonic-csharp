@@ -196,7 +196,7 @@ test("expected-result specializations are classified by exact target use", () =>
   );
   assert.match(analysis, /new WeakMap<Node, Map<string, CsharpExpectedBinarySelection>>/u);
   assert.match(analysis, /expectedBinaries\.get\(expression\)\?\.get\(targetTypeRefKey\(targetType\)\)/u);
-  const nativeSites = readFileSync(resolve(repositoryRoot, "src/target-model/records/native-demand.ts"), "utf8");
+  const nativeSites = readFileSync(resolve(repositoryRoot, "src/target-model/records/native/native-demand.ts"), "utf8");
   assert.match(nativeSites, /targetUseSiteRef\(owner, role, csharpTargetRepresentationContractId,/u);
   const finalizer = readFileSync(resolve(repositoryRoot, "src/analysis/expected-types/native-uses.ts"), "utf8");
   assert.match(finalizer, /targetUseSiteIdentity\(entry\.site\)/u);

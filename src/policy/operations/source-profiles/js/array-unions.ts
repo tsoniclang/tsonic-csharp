@@ -1,6 +1,6 @@
 import type { CsharpArrayLikeUnionProjection } from "../../../../target-model/conversions/selection.js";
 import type { CsharpSourceProfileElementPolicyResult } from "../../../model/source-profiles.js";
-import type { CsharpSourceProfilePropertyPolicyResult } from "../../../../target-model/records/source-profile-invocations.js";
+import type { CsharpSourceProfilePropertyPolicyResult } from "../../../../target-model/records/program/source-profile-invocations.js";
 
 import { csharpNullableValueTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { csharpSourcePrimitiveTargetType } from "../../../../target-model/types/carriers/scalar-types.js";

@@ -1,4 +1,4 @@
-import type { CsharpJsStringConversionSelection } from "../../../target-model/records/explicit-js-string.js";
+import type { CsharpJsStringConversionSelection } from "../../../target-model/records/operations/explicit-js-string.js";
 import { sourceMarkerFactKey } from "@tsonic/tsts";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";

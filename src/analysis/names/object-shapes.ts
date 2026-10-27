@@ -5,8 +5,8 @@ import {
   type CsharpObjectShapeDeclarationNaming, type CsharpObjectShapeDemandClosure,
   type CsharpPreparedObjectShapeProjection, type CsharpObjectShapeArtifact,
   type CsharpObjectShapeProjectionDeclaration, type CsharpObjectShapeDemandPublication,
-} from "../../target-model/records/object-shape-demand.js";
-import { objectShapeArtifactKey } from "../../target-model/records/object-shape-keys.js";
+} from "../../target-model/records/objects/object-shape-demand.js";
+import { objectShapeArtifactKey } from "../../target-model/records/objects/object-shape-keys.js";
 import { type CsharpNamePlan } from "../../target-model/names/model.js";
 import { type CsharpObjectShapeFact } from "../../target-model/types/model.js";
 import { authoredTypeParameterNames, generatedTypeParameterNames } from "@tsonic/target-api/source";

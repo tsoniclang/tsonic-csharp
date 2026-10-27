@@ -1,9 +1,9 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpJsCallEmission } from "../../target-model/records/js-value-calls.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpJsCallEmission } from "../../target-model/records/calls/js-value-calls.js";
 import { csharpStringTargetType } from "../../target-model/types/index.js";
-import { createCsharpJsCallRecords } from "../program/records/js-value-calls.js";
+import { createCsharpJsCallRecords } from "../program/records/calls/js-value-calls.js";
 
 export function analyzeCsharpJsCalls(ast: AstReader, nodes: readonly Node[], operations: CsharpTargetOperationClassifications,
   admitted: (node: Node) => boolean) {

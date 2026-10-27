@@ -1,8 +1,8 @@
 import type { AstReader, Node } from "@tsonic/tsts";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
-import type { CsharpTypedLocationStorage } from "../../target-model/records/typed-location-storage.js";
-import type { CsharpJsCallRecords } from "../../target-model/records/js-value-calls.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
+import type { CsharpTypedLocationStorage } from "../../target-model/records/storage/typed-location-storage.js";
+import type { CsharpJsCallRecords } from "../../target-model/records/calls/js-value-calls.js";
 
 export type CsharpCallPlanningRecords = {
   readonly operations: Pick<CsharpTargetOperationClassifications, "selectedCall" | "nativeHandler">;

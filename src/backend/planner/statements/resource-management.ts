@@ -2,7 +2,7 @@ import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
-import type { CsharpResourceDisposalArm, CsharpResourceDisposalOperation, CsharpResolvedResourceManagement } from "../../../target-model/records/management.js";
+import type { CsharpResourceDisposalArm, CsharpResourceDisposalOperation, CsharpResolvedResourceManagement } from "../../../target-model/records/storage/management.js";
 import type {
   CsharpPlanningContext,
 } from "../context.js";

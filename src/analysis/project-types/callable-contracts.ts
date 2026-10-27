@@ -1,7 +1,7 @@
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type { SourceCallableSourceContract } from "../../target-model/records/source-callable-contract.js";
+import type { SourceCallableSourceContract } from "../../target-model/records/callables/source-callable-contract.js";
 import { admitCsharpCallableValueAdapter, type CsharpCallableConversionPolicy } from "../callables/native/adapters.js";
 import { csharpCallableParametersEqual, instantiateCsharpInheritedCallable } from "../callables/generics/instantiation.js";
 

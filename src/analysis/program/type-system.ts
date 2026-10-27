@@ -2,7 +2,7 @@ import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import {
   createCsharpNativeConstructionDemandQuery,
 } from "../objects/native-construction-demand.js";
-import type { CsharpNativeConstructionDemandQueries } from "../../target-model/records/native-construction.js";
+import type { CsharpNativeConstructionDemandQueries } from "../../target-model/records/native/native-construction.js";
 import type {
   ExtensionFactSubject,
   Node,
@@ -21,7 +21,7 @@ import { resolveCsharpObjectShapeMemberReadTargetType } from "../operations/memb
 import { isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import type { CsharpPlanningRepresentationQueries, CsharpTypePolicy, CsharpTypePolicyBaseHost } from "../source-evidence/types/resolution/model.js";
 import { createCsharpTypeResolutionServices } from "../source-evidence/types/resolution/engine.js";
-import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../target-model/records/project-types.js";
+import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../target-model/records/types/project-types.js";
 import {
   analyzeCsharpProjectTypePolicy,
 } from "../project-types/catalog/resolution.js";

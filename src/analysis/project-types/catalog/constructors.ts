@@ -1,4 +1,4 @@
-import type { CsharpProjectForwardingConstructor } from "../../../target-model/records/project-types.js";
+import type { CsharpProjectForwardingConstructor } from "../../../target-model/records/types/project-types.js";
 import type { AstReader, Node, ReadonlySourceFactResolver, Signature } from "@tsonic/tsts";
 import type { SourceClassConstructorSignature, SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
 import { sourceNodeIdentity, sourceConstructorParametersMatch } from "@tsonic/target-api/source";
@@ -6,7 +6,7 @@ import { tryCsharpIdentifier } from "../../../target-model/names/identifiers.js"
 import type { CsharpProviderRelationResolver } from "../../../providers/model/relation-resolver.js";
 import type { CsharpProviderTargetRelation } from "../../../target-model/identities/provider-relations.js";
 import { resolveCsharpProviderDeclarationEvidence } from "../../../source/extension/provider-identities.js";
-import type { CsharpProjectTypeDefinition, CsharpProjectTypeHeritage, CsharpProjectTypeIssue } from "../../../target-model/records/project-types.js";
+import type { CsharpProjectTypeDefinition, CsharpProjectTypeHeritage, CsharpProjectTypeIssue } from "../../../target-model/records/types/project-types.js";
 import type { CsharpTargetMember, CsharpTargetNamedTypeRef, CsharpTargetParameter, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpTypePolicy } from "../../source-evidence/types/resolution/model.js";
 import { csharpTargetBindingSubstitutions, substituteCsharpTargetMember } from "../../../policy/types/callables/member-substitution.js";

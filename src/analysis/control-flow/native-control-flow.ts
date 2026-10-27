@@ -2,26 +2,26 @@ import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { TryStatement_FinallyBlock, sourceEnclosingCallable,
   type TargetSourceProgram } from "@tsonic/target-api/source";
-import type { CsharpNativeParticipationInput, CsharpNativeUseClassifications } from "../../target-model/records/native-demand.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
-import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
+import type { CsharpNativeParticipationInput, CsharpNativeUseClassifications } from "../../target-model/records/native/native-demand.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpStorageClassifications } from "../../target-model/records/storage/storage.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 import {
   csharpRuntimeLocationTargetType, csharpRuntimeNativeArrayTargetType, isCsharpJsValueTargetType,
 } from "../../target-model/types/carriers/runtime-carriers.js";
 import { selectCsharpForInKeyBinding, selectCsharpForOfBinding } from "../operations/iteration/bindings.js";
 import type { CsharpAdmittedIteration, CsharpForInKeyBinding, CsharpForOfBinding,
-  CsharpResolvedIteration } from "../../target-model/records/selection.js";
+  CsharpResolvedIteration } from "../../target-model/records/operations/selection.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { admitCsharpConversionSelection } from "../conversions/validation.js";
 import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
-import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
+import type { CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 import { directCsharpSourceYieldExpression } from "../../target-model/syntax/yield-expression.js";
 import { csharpDestructuringAssignmentSyntax } from "../../target-model/syntax/operators.js";
-import type { CsharpStatementCompletionRecords } from "../../target-model/records/statement-completion.js";
-import { createCsharpAdmittedIterationProducer } from "../program/records/iteration.js";
+import type { CsharpStatementCompletionRecords } from "../../target-model/records/operations/statement-completion.js";
+import { createCsharpAdmittedIterationProducer } from "../program/records/operations/iteration.js";
 
 export function admitCsharpIterationBindings(
   policy: CsharpPolicyContext,

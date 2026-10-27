@@ -2,8 +2,8 @@ import type { AstReader, Node } from "@tsonic/tsts";
 import { type TargetUseSiteRef } from "@tsonic/target-api/analysis";
 import type { CsharpExactLiteralSelection } from "../../target-model/conversions/exact-literals.js";
 import type { CsharpConversionMode } from "../../target-model/conversions/selection.js";
-import { type CsharpNativeCallableCreation } from "../../target-model/records/native-demand.js";
-import type { CsharpOperationSelection, CsharpResolvedBinaryOperation } from "../../target-model/records/operator-selection.js";
+import { type CsharpNativeCallableCreation } from "../../target-model/records/native/native-demand.js";
+import type { CsharpOperationSelection, CsharpResolvedBinaryOperation } from "../../target-model/records/operations/operator-selection.js";
 
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 

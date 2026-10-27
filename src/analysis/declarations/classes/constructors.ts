@@ -1,11 +1,11 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpConstructorArgumentEmission, CsharpConstructorEntryEmission } from "../../../target-model/records/constructor-emission.js";
-import type { CsharpDeclarationClassifications } from "../../../target-model/records/declarations.js";
-import type { CsharpStorageClassifications } from "../../../target-model/records/storage.js";
+import type { CsharpConstructorArgumentEmission, CsharpConstructorEntryEmission } from "../../../target-model/records/objects/constructor-emission.js";
+import type { CsharpDeclarationClassifications } from "../../../target-model/records/program/declarations.js";
+import type { CsharpStorageClassifications } from "../../../target-model/records/storage/storage.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpConstructorBaseCall, csharpConstructorRequiresPreparation } from "../../callables/emission/constructor-entry.js";
-import { createCsharpConstructorEmissionRecords } from "../../program/records/constructor-emission.js";
+import { createCsharpConstructorEmissionRecords } from "../../program/records/objects/constructor-emission.js";
 
 export interface CsharpConstructorArgumentEvidence {
   readonly carrier: TargetTypeRef | undefined;

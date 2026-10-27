@@ -12,7 +12,7 @@ import { resolveDotnetProviderToolPaths } from "../../../../dist/providers/nativ
 import { createCsharpTargetConfiguration } from "../../../../dist/compilation/configuration.js";
 import { classifyCsharpProjectConfiguration } from "../../../../dist/compilation/project.js";
 import { planCsharpProjectFile } from "../../../../dist/backend/planner/project/project-artifacts.js";
-import { createCsharpCompilationRecords } from "../../../../dist/analysis/program/records/compilation.js";
+import { createCsharpCompilationRecords } from "../../../../dist/analysis/program/records/program/compilation.js";
 import { materializeCsharpOutputPlan } from "../../../../dist/backend/emission/materialize.js";
 
 function csharpRuntimeProjectReference(selected, source) {

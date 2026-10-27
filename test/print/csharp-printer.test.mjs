@@ -4,7 +4,7 @@ import { createCsharpNumericLiteralToken } from "../../dist/target-model/syntax/
 import { isCsharpTargetTypeRef, snapshotCsharpTargetTypes } from "../../dist/target-model/types/snapshot.js";
 import { csharpTypeFromTargetTypeRef } from "../../dist/backend/planner/types/render.js";
 import { renderObjectShapeMembers } from "../../dist/backend/planner/objects/members.js";
-import { objectShapeArtifactKey } from "../../dist/target-model/records/object-shape-keys.js";
+import { objectShapeArtifactKey } from "../../dist/target-model/records/objects/object-shape-keys.js";
 import { analyzeCsharpObjectMemberEmission } from "../../dist/analysis/objects/member-emission.js";
 import {
   printCsharpCompilationUnit,

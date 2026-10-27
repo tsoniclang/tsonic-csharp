@@ -1,6 +1,6 @@
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
-import type { CsharpArrayLiteralSelection } from "../../../../target-model/records/array-literals.js";
+import type { CsharpArrayLiteralSelection } from "../../../../target-model/records/operations/array-literals.js";
 import type { CsharpNodeTypeResolution } from "../../../../policy/model/type-resolution.js";
 
 type NodeTargetCache<Value> = WeakMap<

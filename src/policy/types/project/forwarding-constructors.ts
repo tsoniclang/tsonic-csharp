@@ -1,7 +1,7 @@
 import type { CsharpTargetParameter } from "../../../target-model/types/model.js";
 import { tryCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 import { selectCsharpTypeEmission } from "../resolution/type-emission.js";
-import type { CsharpForwardingConstructorEmission } from "../../../target-model/records/class-emission.js";
+import type { CsharpForwardingConstructorEmission } from "../../../target-model/records/objects/class-emission.js";
 
 export function selectCsharpForwardingConstructor(parameters: readonly CsharpTargetParameter[]):
   | { readonly kind: "selected"; readonly variants: readonly CsharpForwardingConstructorEmission["parameters"][] }

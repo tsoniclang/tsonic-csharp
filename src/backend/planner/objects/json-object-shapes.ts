@@ -8,7 +8,7 @@ import type {
 import type {
   CsharpObjectShapeFact,
 } from "../../../target-model/types/index.js";
-import type { CsharpJsonObjectShapeContract, CsharpJsonObjectShapeRecords } from "../../../target-model/records/json-object-shapes.js";
+import type { CsharpJsonObjectShapeContract, CsharpJsonObjectShapeRecords } from "../../../target-model/records/objects/json-object-shapes.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import {
   csharpJsonValueWriterMethodName,
@@ -17,7 +17,7 @@ import {
 import {
   qualifiedCsharpType,
 } from "../types/index.js";
-import type { CsharpNativeMemberHidingReader } from "../../../target-model/records/native-member-names.js";
+import type { CsharpNativeMemberHidingReader } from "../../../target-model/records/native/native-member-names.js";
 import { planCsharpArtifactMemberHiding } from "../declarations/modifiers.js";
 
 export function objectShapeRequiresJsonSerialization(

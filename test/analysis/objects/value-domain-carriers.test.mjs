@@ -248,15 +248,15 @@ test("ordinary unproved value domains produce no resource failure", () => {
 });
 
 test("value-domain query types reject reassignment while retaining their call signature", () => {
-  const contract = readFileSync(new URL("../../../src/target-model/records/value-domains.ts", import.meta.url), "utf8");
+  const contract = readFileSync(new URL("../../../src/target-model/records/types/value-domains.ts", import.meta.url), "utf8");
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/src",
     compilerOptions: { strict: true, target: "es2022", module: "esnext", moduleResolution: "bundler" },
     files: {
-      "/src/target-model/records/value-domains.ts": contract,
+      "/src/target-model/records/types/value-domains.ts": contract,
       "/src/target-model/types/model.ts": "export interface TargetTypeRef { readonly kind: string; }",
       "/src/tsts.d.ts": 'declare module "@tsonic/tsts" { export interface Node { readonly source: string; } }',
       "/src/index.ts": `
-        import type { CsharpValueDomainCarrierQueries } from "./target-model/records/value-domains.js";
+        import type { CsharpValueDomainCarrierQueries } from "./target-model/records/types/value-domains.js";
         import type { TargetTypeRef } from "./target-model/types/model.js";
         declare const queries: CsharpValueDomainCarrierQueries;
         const carrier: TargetTypeRef | undefined = queries.carrierFor({ source: "node" });

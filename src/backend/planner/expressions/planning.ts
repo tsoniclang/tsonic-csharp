@@ -86,7 +86,7 @@ import { csharpPlannedValue, type CsharpPlannedArgument, type CsharpPlannedValue
 import { planCsharpExpressionCompletion } from "./planned-value-composition.js";
 import { captureCsharpPlannedValue } from "./planned-value-composition.js";
 import { qualifiedCsharpType } from "../types/index.js";
-import type { CsharpPromiseDiscard } from "../../../target-model/records/promise-results.js";
+import type { CsharpPromiseDiscard } from "../../../target-model/records/callables/promise-results.js";
 import type { CsharpStatement } from "../../target-ast/syntax/index.js";
 import { requireExpressionPlan } from "./required-plan.js";
 import { readCsharpNativeExpressionCarrier } from "./native-uses.js";

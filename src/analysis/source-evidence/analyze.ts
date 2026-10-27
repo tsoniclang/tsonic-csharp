@@ -15,7 +15,7 @@ import { csharpTargetTypeComponents } from "../../target-model/types/components.
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpSemanticTypeClassification, CsharpContextualTupleClassification, CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
+import type { CsharpSemanticTypeClassification, CsharpContextualTupleClassification, CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 import type { CsharpSourceEvidenceResult } from "./model.js";
 import type { CsharpTypeParameterConstraintResolution } from "../../policy/constraints/index.js";
 import { selectCsharpSourceArgument } from "../../source/extension/arguments.js";
@@ -24,7 +24,7 @@ import { readCsharpSourceDefaultValue, readCsharpSourceField, readCsharpSourceFi
 
 const missing = Symbol("csharp.source-evidence.missing");
 import { createTsonicMemoryMetadataIndex, createTsonicPointerBackingDemands, createTsonicClosedArrayStorageQueries } from "@tsonic/source-core/facts";
-import type { CsharpPointerReturnContract } from "../../target-model/records/pointer-return.js";
+import type { CsharpPointerReturnContract } from "../../target-model/records/calls/pointer-return.js";
 import { analyzeCsharpTypeOnlyDeclarations } from "../declarations/type-only.js";
 type Cached<Value> = Value | typeof missing;
 
@@ -49,14 +49,14 @@ export function analyzeCsharpSourceEvidence(
   const rejectedFixedArrayTypes = new Set<Type>();
   const expressionTypes = new WeakMap<Node, Cached<Type>>();
   const nodeTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
-  const bindingProjections = new WeakMap<Node, import("../../target-model/records/binding-projection-policy.js").CsharpBindingProjection>();
+  const bindingProjections = new WeakMap<Node, import("../../target-model/records/storage/binding-projection-policy.js").CsharpBindingProjection>();
   const classConstructorTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
   const storageTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
   const readStorageTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
   const contextualTypes = new WeakMap<Node, Cached<Type>>();
   const contextualTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
   const constants = new WeakMap<Node, { readonly value: unknown }>();
-  const refinements = new WeakMap<Node, import("../../target-model/records/source-evidence.js").CsharpValueRefinementClassification>();
+  const refinements = new WeakMap<Node, import("../../target-model/records/program/source-evidence.js").CsharpValueRefinementClassification>();
   const generators = new WeakMap<Node, Cached<ResolvedSourceGeneratorInfo>>();
   const generatorTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
   const yields = new WeakMap<Node, Cached<ResolvedSourceYieldInfo>>();
@@ -69,19 +69,19 @@ export function analyzeCsharpSourceEvidence(
   const pointerReturns = new WeakMap<Node, CsharpPointerReturnContract>();
   const arguments_ = new WeakMap<
     Node,
-    import("../../target-model/records/source-evidence.js").CsharpSourceArgumentClassification
+    import("../../target-model/records/program/source-evidence.js").CsharpSourceArgumentClassification
   >();
   const defaultValues = new WeakMap<
     Node,
-    import("../../target-model/records/source-markers.js").CsharpSourceDefaultValue
+    import("../../target-model/records/program/source-markers.js").CsharpSourceDefaultValue
   >();
   const sourceFields = new WeakMap<
     Node,
-    import("../../target-model/records/source-markers.js").CsharpSourceField
+    import("../../target-model/records/program/source-markers.js").CsharpSourceField
   >();
   const sourceStructs = new WeakMap<
     Node,
-    import("../../target-model/records/source-markers.js").CsharpSourceStruct
+    import("../../target-model/records/program/source-markers.js").CsharpSourceStruct
   >();
   const providerVirtualDeclarations = new WeakSet<Node>();
   const semanticTypes = new WeakMap<Type, Map<SourceFile, CsharpSemanticTypeClassification>>();

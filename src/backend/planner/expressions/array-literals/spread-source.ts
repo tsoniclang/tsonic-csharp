@@ -8,7 +8,7 @@ import type { ExpressionPlanner } from "../expression-planner-types.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import type { CsharpPlannedValue } from "../planned-values.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
-import type { CsharpSequenceEmission } from "../../../../target-model/records/array-literals.js";
+import type { CsharpSequenceEmission } from "../../../../target-model/records/operations/array-literals.js";
 
 export interface CsharpArraySpreadInput {
   readonly carrier: TargetTypeRef;

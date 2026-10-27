@@ -35,7 +35,7 @@ export function planCsharpStartupSourceFile(
     readonly sourceFile: import("@tsonic/tsts").SourceFile;
     readonly identity: string;
     readonly planned: PlannedCsharpSourceFile;
-    readonly bootstrap: import("../../../target-model/records/source-modules.js").CsharpSourceModuleBootstrap;
+    readonly bootstrap: import("../../../target-model/records/program/source-modules.js").CsharpSourceModuleBootstrap;
   }>();
   for (const construction of selection.workers) {
     const sourceFile = construction.sourceFile;
@@ -125,7 +125,7 @@ function planCsharpWorkerDispatch(
     readonly sourceFile: import("@tsonic/tsts").SourceFile;
     readonly identity: string;
     readonly planned: PlannedCsharpSourceFile;
-    readonly bootstrap: import("../../../target-model/records/source-modules.js").CsharpSourceModuleBootstrap;
+    readonly bootstrap: import("../../../target-model/records/program/source-modules.js").CsharpSourceModuleBootstrap;
   }[],
   binaryExecutionDriver: PlannedCsharpBinaryExecutionDriver | undefined,
 ): readonly CsharpStatement[] {

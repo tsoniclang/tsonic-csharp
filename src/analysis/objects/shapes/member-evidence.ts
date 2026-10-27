@@ -13,7 +13,7 @@ import { resolveObjectShapeSourceMemberKey } from "../../../source/extension/mem
 import { resolveCsharpCallableTypeParameters } from "../../source-evidence/types/resolution/callable-type-parameters.js";
 import { csharpMethodValueCoversContract, getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import { isCsharpIntegralTargetType } from "../../../target-model/types/carriers/scalar-types.js";
-import type { CsharpProjectMemberTypeInstantiation } from "../../../target-model/records/project-types.js";
+import type { CsharpProjectMemberTypeInstantiation } from "../../../target-model/records/types/project-types.js";
 
 export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePolicyHost) {
   function retainLiteralMemberEvidence(

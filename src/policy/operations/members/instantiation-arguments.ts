@@ -5,8 +5,8 @@ import { csharpTargetBindingSubstitutions } from "../../types/index.js";
 
 import { mergeCsharpTypeParameterSubstitutions } from "./binding-instantiation.js";
 
-import type { CsharpSelectedCallArgument, CsharpSelectedTargetMethodTypeArgument } from "../../../target-model/records/members.js";
-import type { ResolvedSourceCallInfo } from "../../../target-model/records/source-calls.js";
+import type { CsharpSelectedCallArgument, CsharpSelectedTargetMethodTypeArgument } from "../../../target-model/records/objects/members.js";
+import type { ResolvedSourceCallInfo } from "../../../target-model/records/calls/source-calls.js";
 
 type CsharpProviderSignatureRelation = Extract<
   CsharpProviderTargetRelation,

@@ -1,13 +1,13 @@
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import type { CsharpSourceFileRecords } from "../../target-model/records/source-files.js";
-import type { CsharpModuleInitializationIndex } from "../../target-model/records/module-initialization.js";
-import type { CsharpSourceModuleConstructionIndex } from "../../target-model/records/source-modules.js";
-import type { CsharpStartupEmission } from "../../target-model/records/startup.js";
+import type { CsharpSourceFileRecords } from "../../target-model/records/program/source-files.js";
+import type { CsharpModuleInitializationIndex } from "../../target-model/records/program/module-initialization.js";
+import type { CsharpSourceModuleConstructionIndex } from "../../target-model/records/program/source-modules.js";
+import type { CsharpStartupEmission } from "../../target-model/records/program/startup.js";
 import type { CsharpTargetBinaryExecutionDriver } from "../../target-model/metadata/provider-metadata.js";
 import type { CsharpTargetConfiguration } from "../../target-model/configuration/model.js";
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
-import { createCsharpStartupRecords } from "../program/records/startup.js";
+import { createCsharpStartupRecords } from "../program/records/program/startup.js";
 
 export function analyzeCsharpStartup(input: {
   readonly source: TargetSourceProgram;

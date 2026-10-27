@@ -1,16 +1,16 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { targetDiagnosticFromExtension, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
-import type { CsharpAdmittedElementClassification, CsharpElementEmission, CsharpElementRead } from "../../target-model/records/element-admission.js";
-import type { CsharpMemberReceiverRecords } from "../../target-model/records/member-receivers.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
+import type { CsharpAdmittedElementClassification, CsharpElementEmission, CsharpElementRead } from "../../target-model/records/objects/element-admission.js";
+import type { CsharpMemberReceiverRecords } from "../../target-model/records/objects/member-receivers.js";
 import type { SourceProgramNavigation } from "@tsonic/target-api/source";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType, getCsharpReadOnlyIndexableCollectionElementTargetType,
   isCsharpDenseMutableCollectionTargetType, targetTypeRefEquals } from "../../target-model/types/index.js";
 import { getCsharpGenericOptionalParts } from "../../target-model/types/projections.js";
 import { csharpCollectionElementRead } from "../../policy/operations/collections/element-reads.js";
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
-import { createCsharpElementAdmissionRecords } from "../program/records/element-admission.js";
+import { createCsharpElementAdmissionRecords } from "../program/records/objects/element-admission.js";
 
 export function analyzeCsharpElementAdmission(input: { readonly ast: AstReader; readonly nodes: readonly Node[];
   readonly operations: CsharpTargetOperationClassifications; readonly demand: CsharpNativeDemandAnalysis;

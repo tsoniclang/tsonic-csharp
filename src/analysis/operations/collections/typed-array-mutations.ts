@@ -1,4 +1,4 @@
-import type { CsharpTypedArrayMutation, CsharpTypedArrayUpdate } from "../../../target-model/records/typed-array-mutations.js";
+import type { CsharpTypedArrayMutation, CsharpTypedArrayUpdate } from "../../../target-model/records/storage/typed-array-mutations.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
 import { csharpSourceProfileDeclarationIdentity } from "../../../policy/identities/selected-source.js";

@@ -1,18 +1,18 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { HasSyntacticModifier, ModifierFlagsAsync, type SourceLiteralIndex } from "@tsonic/target-api/source";
 import { csharpLiteralReturnsFit } from "../calls/return-expressions.js";
-import type { CsharpCaptureStorage } from "../../../target-model/records/capture-storage.js";
-import type { CsharpExpectedTypeClassifications } from "../../../target-model/records/expected-types.js";
+import type { CsharpCaptureStorage } from "../../../target-model/records/callables/capture-storage.js";
+import type { CsharpExpectedTypeClassifications } from "../../../target-model/records/types/expected-types.js";
 
-import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/source-evidence.js";
-import type { CsharpStorageClassifications } from "../../../target-model/records/storage.js";
-import type { CsharpConversionClassifications } from "../../../target-model/records/conversions.js";
+import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";
+import type { CsharpStorageClassifications } from "../../../target-model/records/storage/storage.js";
+import type { CsharpConversionClassifications } from "../../../target-model/records/operations/conversions.js";
 import { csharpConversionIsApplicable } from "../../../policy/conversions/applicability.js";
 import { getCsharpLambdaSignature, getCsharpTaskResultTargetType } from "../../../target-model/types/carriers/delegates.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
-import type { CsharpCallableContractIndex } from "../../../target-model/records/callable-values.js";
-import type { CsharpCallableCreationIndex } from "../../../target-model/records/callable-values.js";
+import type { CsharpCallableContractIndex } from "../../../target-model/records/callables/callable-values.js";
+import type { CsharpCallableCreationIndex } from "../../../target-model/records/callables/callable-values.js";
 import { csharpCallableValueType } from "../../../policy/types/callables/value-type.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 
@@ -91,4 +91,4 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
   return producer.seal();
 }
 
-import { createCsharpCallableCreationProducer } from "../../program/records/callable-creations.js";
+import { createCsharpCallableCreationProducer } from "../../program/records/callables/callable-creations.js";

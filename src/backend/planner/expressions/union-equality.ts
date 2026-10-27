@@ -1,7 +1,7 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpResolvedBinaryOperation } from "../../../target-model/records/operator-selection.js";
-import type { CsharpUnionEqualityOperand } from "../../../target-model/records/union-equality.js";
+import type { CsharpResolvedBinaryOperation } from "../../../target-model/records/operations/operator-selection.js";
+import type { CsharpUnionEqualityOperand } from "../../../target-model/records/operations/union-equality.js";
 import type { CsharpExpression, CsharpSwitchExpressionArm } from "../../target-ast/syntax/index.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpPlanningContext } from "../context.js";

@@ -1,4 +1,4 @@
-import type { SourceCallableContract, CsharpSourceCallParameterContract } from "../../../target-model/records/source-callable-contract.js";
+import type { SourceCallableContract, CsharpSourceCallParameterContract } from "../../../target-model/records/callables/source-callable-contract.js";
 import type { AstReader, Node } from "@tsonic/tsts";
 
 export function csharpSourceCallArgumentParameter(

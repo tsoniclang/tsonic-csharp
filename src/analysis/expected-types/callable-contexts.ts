@@ -2,7 +2,7 @@ import { sourceClosedCallableArguments, sourceCallableValueParameters } from "@t
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { getCsharpDelegateSignature, getCsharpNullableElementTargetType, isCsharpSourceDelegateTargetType, targetTypeRefEquals } from "../../policy/types/index.js";
 import { csharpFreeTypeParameterIdentities } from "../../target-model/types/generic-references.js";

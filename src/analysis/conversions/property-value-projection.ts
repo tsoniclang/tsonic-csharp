@@ -1,17 +1,17 @@
-import type { CsharpConversionClassifications } from "../../target-model/records/conversions.js";
-import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
+import type { CsharpConversionClassifications } from "../../target-model/records/operations/conversions.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import type { CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
-import type { CsharpPropertyValueProjectionEmission } from "../../target-model/records/property-value-projection.js";
+import type { CsharpPropertyValueProjectionEmission } from "../../target-model/records/objects/property-value-projection.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
 import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import type { CsharpObjectLiteralRecords } from "../../target-model/records/object-literals.js";
-import type { CsharpClosedShapeMemberProjection } from "../../target-model/records/closed-object-shapes.js";
+import type { CsharpObjectLiteralRecords } from "../../target-model/records/objects/object-literals.js";
+import type { CsharpClosedShapeMemberProjection } from "../../target-model/records/objects/closed-object-shapes.js";
 import { isCsharpAbsenceTargetType, isCsharpJsValueTargetType, getCsharpNullableElementTargetType } from "../../target-model/types/index.js";
 import { csharpObjectShapeMemberContractKey } from "../../target-model/types/object-shape-identity.js";
 import { csharpUnionLeaves } from "../../target-model/types/union-relations.js";
-import { createCsharpPropertyValueProjectionProducer } from "../program/records/property-value-projection.js";
+import { createCsharpPropertyValueProjectionProducer } from "../program/records/objects/property-value-projection.js";
 
 export function analyzeCsharpPropertyValueProjection(conversions: CsharpConversionClassifications,
   shapes: Pick<CsharpObjectShapeClassifications, "resolveTarget">, definitions: CsharpTypeDefinitions,

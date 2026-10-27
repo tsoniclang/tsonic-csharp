@@ -1,13 +1,13 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
-import type { CsharpConversionClassifications, CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
-import type { CsharpExpectedTypeClassifications } from "../../target-model/records/expected-types.js";
-import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpAdmittedIteration } from "../../target-model/records/selection.js";
-import type { CsharpArrayLiteralEmission, CsharpArraySpreadEmission, CsharpBorrowedSequenceEmission } from "../../target-model/records/array-literals.js";
+import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
+import type { CsharpConversionClassifications, CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
+import type { CsharpExpectedTypeClassifications } from "../../target-model/records/types/expected-types.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpAdmittedIteration } from "../../target-model/records/operations/selection.js";
+import type { CsharpArrayLiteralEmission, CsharpArraySpreadEmission, CsharpBorrowedSequenceEmission } from "../../target-model/records/operations/array-literals.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { getCsharpNullableElementTargetType, csharpNullableTargetType } from "../../target-model/types/index.js";
@@ -16,7 +16,7 @@ import { csharpCollectionUsesJsArraySemantics, getCsharpArrayLiteralElementTarge
   getCsharpCollectionElementTargetType } from "../../target-model/types/carriers/collections.js";
 import { selectCsharpSequenceEmission } from "../../policy/conversions/sequence-emission.js";
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
-import { createCsharpArrayLiteralProducer } from "../program/records/array-literals.js";
+import { createCsharpArrayLiteralProducer } from "../program/records/operations/array-literals.js";
 
 export function analyzeCsharpArrayLiterals(input: { readonly source: TargetSourceProgram; readonly demand: CsharpNativeDemandAnalysis;
   readonly conversions: CsharpConversionClassifications; readonly values: CsharpValueReadClassifications;

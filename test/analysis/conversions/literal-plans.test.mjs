@@ -7,11 +7,11 @@ import { applyCsharpConversionSelection } from "../../../dist/backend/planner/ex
 import { selectCsharpExactLiteralConversion, selectCsharpExactPropertyKeyConversion } from "../../../dist/policy/conversions/literals.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { csharpRuntimeUnionTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/index.js";
-import { csharpNativeUseSite } from "../../../dist/target-model/records/native-demand.js";
+import { csharpNativeUseSite } from "../../../dist/target-model/records/native/native-demand.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { compileCsharpSource, checkCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { createTargetSourceProgram, analyzeSourceLiteralValues } from "@tsonic/target-api/source";
-import { assertCsharpRequiredRecords } from "../../../dist/analysis/program/records/required-records.js";
+import { assertCsharpRequiredRecords } from "../../../dist/analysis/program/records/objects/required-records.js";
 import { checkedSourceLiteralValues } from "../../helpers/source-literal-values.mjs";
 import { planCsharpExactLiteralRecipe } from "../../../dist/backend/planner/expressions/literal-conversions.js";
 import { printCsharpExpression } from "../../../dist/print/source/printer.js";

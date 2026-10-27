@@ -1,9 +1,9 @@
 import type {
   CsharpObjectShapeArtifact,
-} from "../../target-model/records/object-shape-demand.js";
+} from "../../target-model/records/objects/object-shape-demand.js";
 import type {
   CsharpObjectShapeDisplayName,
-} from "../../target-model/records/object-shape-names.js";
+} from "../../target-model/records/objects/object-shape-names.js";
 import {
   csharpRenderShapeForTargetNamedType,
   csharpStructuralObjectShapeIdentity,

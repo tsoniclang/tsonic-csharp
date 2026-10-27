@@ -1,8 +1,8 @@
 import type { Node } from "@tsonic/tsts";
 import { createSourceControlFlow, solveSourceFlow } from "@tsonic/target-api/analysis";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
-import type { CsharpNativeUse } from "../../target-model/records/native-demand.js";
+import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
+import type { CsharpNativeUse } from "../../target-model/records/native/native-demand.js";
 import { isCsharpRefLikeTargetType } from "../../target-model/types/ref-like.js";
 
 type Rejection = (node: Node, code: string, message: string) => void;

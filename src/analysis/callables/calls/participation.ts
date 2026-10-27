@@ -1,15 +1,15 @@
-import { createCsharpNativeParticipationProducer } from "../../program/records/native-participation.js";
+import { createCsharpNativeParticipationProducer } from "../../program/records/native/native-participation.js";
 import type { AstReader, Node } from "@tsonic/tsts";
 import { sourceEnclosingCallable, sourceLexicalFunctionIsUnused, sourceNodesOutsideErasedSubtrees } from "@tsonic/target-api/source";
 import { rejectedTargetStage, resolvedTargetStage, type TargetStageResult } from "@tsonic/target-api/artifacts";
 import type { SourceStorageQueries } from "@tsonic/target-api/analysis";
 import type { SourceProgramNavigation } from "@tsonic/target-api/source";
-import type { CsharpCaptureStorage } from "../../../target-model/records/capture-storage.js";
-import type { CsharpNativeParticipation, CsharpNativeParticipationInput } from "../../../target-model/records/native-demand.js";
-import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/source-evidence.js";
+import type { CsharpCaptureStorage } from "../../../target-model/records/callables/capture-storage.js";
+import type { CsharpNativeParticipation, CsharpNativeParticipationInput } from "../../../target-model/records/native/native-demand.js";
+import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target-model/types/object-shape-members.js";
-import type { CsharpObjectShapeClassifications } from "../../../target-model/records/object-shapes.js";
-import { requireCsharpRecord, type CsharpRequiredRecord } from "../../program/records/required-records.js";
+import type { CsharpObjectShapeClassifications } from "../../../target-model/records/objects/object-shapes.js";
+import { requireCsharpRecord, type CsharpRequiredRecord } from "../../program/records/objects/required-records.js";
 import { isCsharpSourceCallableArtifactDeclaration } from "../../../policy/types/callables/source-callable-contract.js";
 
 export interface CsharpNativeParticipationAnalysisInput {

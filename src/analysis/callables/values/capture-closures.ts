@@ -1,18 +1,18 @@
-import type { CsharpFrameClosure } from "../../../target-model/records/capture-storage.js";
+import type { CsharpFrameClosure } from "../../../target-model/records/callables/capture-storage.js";
 import type { Node } from "@tsonic/tsts";
 import { sourceCallableValueExpression, sourceBindingScope, sourceBindingIterationScope, sourceLexicalCaptures, sourceBindingCapturedBeforeInitialization, sourceBindingCapturedBeforeFirstWrite, type TargetSourceProgram } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/source-evidence.js";
-import type { CsharpStorageIssue } from "../../../target-model/records/storage.js";
+import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";
+import type { CsharpStorageIssue } from "../../../target-model/records/storage/storage.js";
 import { selectCsharpNamedSelfBinding } from "./named-self.js";
-import { type CsharpCaptureStorage, type CsharpNamedSelfBinding } from "../../../target-model/records/capture-storage.js";
+import { type CsharpCaptureStorage, type CsharpNamedSelfBinding } from "../../../target-model/records/callables/capture-storage.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import type { CsharpDeclarationClassifications } from "../../../target-model/records/declarations.js";
-import type { CsharpStorageClassifications } from "../../../target-model/records/storage.js";
+import type { CsharpDeclarationClassifications } from "../../../target-model/records/program/declarations.js";
+import type { CsharpStorageClassifications } from "../../../target-model/records/storage/storage.js";
 import { csharpConstructorRequiresPreparation } from "../emission/constructor-entry.js";
 import { getCsharpExpressionTreeDelegateType } from "../../../target-model/types/carriers/delegates.js";
-import type { CsharpExpectedTypeClassifications } from "../../../target-model/records/expected-types.js";
+import type { CsharpExpectedTypeClassifications } from "../../../target-model/records/types/expected-types.js";
 
 export function selectCsharpFrameClosures(
   source: TargetSourceProgram,

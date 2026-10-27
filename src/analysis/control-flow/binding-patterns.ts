@@ -1,5 +1,5 @@
 import { createCsharpDestructuringAssignmentAnalysis } from "./destructuring-assignments.js";
-import { createCsharpBindingPatternProducer } from "../program/records/binding-patterns.js";
+import { createCsharpBindingPatternProducer } from "../program/records/storage/binding-patterns.js";
 import type { AstReader, Node, SourceFile, Type } from "@tsonic/tsts";
 import { csharpNativePropertyNameIssue } from "../objects/computed-field-names.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
@@ -22,12 +22,12 @@ import {
   KindVariableDeclarationList,
   Node_Text,
 } from "@tsonic/target-api/source";
-import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
-import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
-import type { CsharpNativeParticipationInput } from "../../target-model/records/native-demand.js";
-import type { CsharpExpectedNativeUse } from "../../target-model/records/native-demand.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
+import type { CsharpNativeParticipationInput } from "../../target-model/records/native/native-demand.js";
+import type { CsharpExpectedNativeUse } from "../../target-model/records/native/native-demand.js";
 import type {
   CsharpBindingElementProjection,
   CsharpBindingPatternClassifications,
@@ -35,7 +35,7 @@ import type {
   CsharpBindingPatternSource,
   CsharpBindingProjectionFact,
   CsharpDestructuringAssignmentPattern,
-} from "../../target-model/records/value-projections.js";
+} from "../../target-model/records/objects/value-projections.js";
 import { selectCsharpBindingPatternProjection, selectCsharpDefaultValueContract } from "../../policy/types/objects/binding-projection.js";
 import { csharpBindingDefaultCarrier } from "../../policy/types/storage/binding-normalization.js";
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
@@ -44,9 +44,9 @@ import {
   isCsharpVoidTargetType,
 } from "../../target-model/types/index.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/index.js";
-import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
+import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/objects/required-records.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
+import type { CsharpStorageClassifications } from "../../target-model/records/storage/storage.js";
 import { selectCsharpConversion } from "../../policy/conversions/core.js";
 import { admitCsharpConversionSelection } from "../conversions/validation.js";
 

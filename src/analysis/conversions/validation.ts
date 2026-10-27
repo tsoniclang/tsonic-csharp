@@ -15,7 +15,7 @@ import type { CsharpConversionShapeQueries } from "../../policy/conversions/shap
 import { csharpUnsignedIntegerCounterpart } from "../../target-model/conversions/integer-refinement.js";
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 import { csharpNativeRepresentationMatches } from "../../policy/conversions/native-representation.js";
-import type { CsharpNativeCompletion } from "../../target-model/records/native-demand.js";
+import type { CsharpNativeCompletion } from "../../target-model/records/native/native-demand.js";
 import { isCsharpVoidTargetType } from "../../target-model/types/identity.js";
 
 type CsharpUnionValidationPolicy = Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers"> & CsharpConversionShapeQueries;

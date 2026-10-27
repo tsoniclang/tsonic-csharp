@@ -10,7 +10,7 @@ import type { ExpressionPlanner } from "../expressions/expression-planner-types.
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { planCsharpBindingDefaultValue } from "../bindings/optional-values.js";
-import type { CsharpDefaultValueContract } from "../../../target-model/records/value-projections.js";
+import type { CsharpDefaultValueContract } from "../../../target-model/records/objects/value-projections.js";
 import type { CsharpObjectShapeFact } from "../../../target-model/types/index.js";
 import type { CsharpPlannedValue } from "../expressions/planned-values.js";
 

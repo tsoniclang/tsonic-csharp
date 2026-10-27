@@ -3,8 +3,8 @@ import type { CsharpTargetReceiverRelation } from "../../../../target-model/iden
 import type { CsharpTargetMember, CsharpTargetParameter, TargetTypeRef } from "../../../types/index.js";
 import { csharpNullableReferenceTargetType, csharpObjectTargetType, csharpQualifiedTypeRenderShape, csharpTargetNamedType } from "../../../../target-model/types/index.js";
 import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext, CsharpSourceProfileCallPolicyResult, CsharpSourceProfileElementPolicy, CsharpSourceProfileElementPolicyContext, CsharpSourceProfileElementPolicyResult, CsharpSourceProfileIdentitySelector, CsharpSourceProfilePropertyPolicy, CsharpSourceProfilePropertyPolicyContext } from "../../../model/source-profiles.js";
-import type { CsharpSourceProfilePropertyPolicyResult, CsharpTargetPropertyInvocation } from "../../../../target-model/records/source-profile-invocations.js";
-import type { CsharpTargetElementInvocation } from "../../../../target-model/records/members.js";
+import type { CsharpSourceProfilePropertyPolicyResult, CsharpTargetPropertyInvocation } from "../../../../target-model/records/program/source-profile-invocations.js";
+import type { CsharpTargetElementInvocation } from "../../../../target-model/records/objects/members.js";
 import { csharpSourceProfileCall, csharpSourceProfileDiagnostic } from "../source-profile-policy.js";
 
 export type JsSourceProfileTargetMemberFactory = (

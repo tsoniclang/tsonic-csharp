@@ -2,7 +2,7 @@ import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 
-import type { CsharpValueDomainCarrierQueries } from "../../../target-model/records/value-domains.js";
+import type { CsharpValueDomainCarrierQueries } from "../../../target-model/records/types/value-domains.js";
 
 export interface CsharpValueDomainCarrierHost {
   readonly valueDomainCarriers?: CsharpValueDomainCarrierQueries;

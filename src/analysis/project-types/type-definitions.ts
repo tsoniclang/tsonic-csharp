@@ -4,7 +4,7 @@ import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
 import { csharpSourceUnionIdentity, snapshotCsharpSourceUnionDefinition, type CsharpSourceUnionDefinition, type CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
 import { instantiateCsharpSourceUnionArms } from "../../policy/types/objects/source-unions.js";
-import { type CsharpTypeDefinitionWriter } from "../program/records/type-definitions.js";
+import { type CsharpTypeDefinitionWriter } from "../program/records/types/type-definitions.js";
 
 export interface CsharpTypeDefinitionRegistry extends CsharpTypeDefinitionWriter {
   seal(): CsharpTypeDefinitions;

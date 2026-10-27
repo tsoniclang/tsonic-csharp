@@ -2,7 +2,7 @@ import type { ResolvedSourceElementAccessInfo, ResolvedSourcePropertyAccessInfo,
 import type { CsharpProviderCallSelectionHost } from "../../../policy/model/provider-calls.js";
 import type { CsharpArrayLikeUnionProjection } from "../../../target-model/conversions/selection.js";
 import type { CsharpSourceProfileElementPolicyResult } from "../../../policy/model/source-profiles.js";
-import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/source-profile-invocations.js";
+import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/program/source-profile-invocations.js";
 import { sourceProfilePropertyIdentities } from "../source-profiles/policy-selection.js";
 import { csharpSourceProfileDeclarationIdentity, type CsharpSourceProfileDeclarationIdentity } from "../../../policy/identities/selected-source.js";
 import { csharpArrayLikeElement, csharpArrayLikeTargetType } from "../../../target-model/types/carriers/array-like.js";

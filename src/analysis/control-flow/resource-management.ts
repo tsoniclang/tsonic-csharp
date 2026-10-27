@@ -1,9 +1,9 @@
-import type { CsharpResolvedResourceManagement, CsharpResourceDisposalOperation } from "../../target-model/records/management.js";
+import type { CsharpResolvedResourceManagement, CsharpResourceDisposalOperation } from "../../target-model/records/storage/management.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { TargetTypeRef } from "../../policy/types/index.js";
 
-import type { CsharpOperationSelection } from "../../target-model/records/operator-selection.js";
+import type { CsharpOperationSelection } from "../../target-model/records/operations/operator-selection.js";
 
 import { selectCsharpNativeResourceManagement } from "../../policy/operations/resources/management.js";
 

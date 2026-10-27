@@ -3,10 +3,10 @@ import { HasSyntacticModifier, ModifierFlagsAsync } from "@tsonic/target-api/sou
 import type { CsharpPolicyContext } from "../../model/context.js";
 import { getCsharpGeneratorProtocol } from "../../../target-model/types/carriers/generators.js";
 import { getCsharpLambdaSignature, getCsharpTaskResultTargetType } from "../../../target-model/types/carriers/delegates.js";
-import type { CsharpReturnTargetContract } from "../../../target-model/records/declarations.js";
-import type { CsharpReturnContext } from "../../../target-model/records/return-contexts.js";
-import type { SourceCallableSourceContract } from "../../../target-model/records/source-callable-contract.js";
-import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/source-evidence.js";
+import type { CsharpReturnTargetContract } from "../../../target-model/records/program/declarations.js";
+import type { CsharpReturnContext } from "../../../target-model/records/calls/return-contexts.js";
+import type { SourceCallableSourceContract } from "../../../target-model/records/callables/source-callable-contract.js";
+import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 
 export function selectCsharpCallableReturnContext(

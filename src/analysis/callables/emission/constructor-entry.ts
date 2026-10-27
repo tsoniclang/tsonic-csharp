@@ -1,7 +1,7 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { AsCallExpression, AsExpressionStatement, HasSourceKind, KindSuperKeyword } from "@tsonic/target-api/source";
-import type { CsharpDeclarationClassifications } from "../../../target-model/records/declarations.js";
-import type { CsharpStorageClassifications } from "../../../target-model/records/storage.js";
+import type { CsharpDeclarationClassifications } from "../../../target-model/records/program/declarations.js";
+import type { CsharpStorageClassifications } from "../../../target-model/records/storage/storage.js";
 
 export function csharpConstructorBaseCall(ast: AstReader, constructor: Node): Node | undefined {
   const body = ast.body(constructor);

@@ -1,4 +1,4 @@
-import type { CsharpJsStringConversionSelection } from "../../../target-model/records/explicit-js-string.js";
+import type { CsharpJsStringConversionSelection } from "../../../target-model/records/operations/explicit-js-string.js";
 
 import type { Node } from "@tsonic/tsts";
 

@@ -4,18 +4,18 @@ import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { isCsharpSourceCallableArtifactDeclaration, targetTypeRefEquals } from "../../policy/types/index.js";
 import type { CsharpTargetParameter, TargetTypeRef } from "../../policy/types/index.js";
 
-import type { SourceCallableSourceContract, SourceCallableContract } from "../../target-model/records/source-callable-contract.js";
-import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
+import type { SourceCallableSourceContract, SourceCallableContract } from "../../target-model/records/callables/source-callable-contract.js";
+import type { CsharpDeclarationClassifications } from "../../target-model/records/program/declarations.js";
 import type { CsharpSourceNameResolver } from "../names/index.js";
-import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
-import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
-import type { CsharpGenericProjectionIndex } from "../../target-model/records/type-projections.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
+import type { CsharpCallableContractIndex } from "../../target-model/records/callables/callable-values.js";
+import type { CsharpGenericProjectionIndex } from "../../target-model/records/types/type-projections.js";
 import { closeCsharpProjectCallableContracts } from "../project-types/callable-contracts.js";
 import { selectCsharpClosedCallableContext } from "../expected-types/callable-contexts.js";
 import type { CsharpClosedCallableContext } from "../expected-types/callable-contexts.js";
 import { csharpCallableValueType } from "../../policy/types/callables/value-type.js";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { CsharpCallableConversionPolicy } from "./native/adapters.js";
 
 export function analyzeCsharpCallableContracts(
@@ -253,4 +253,4 @@ function stringArraysEqual(
 }
 
 import { csharpClosedInvocationMatches } from "../../policy/types/callables/value-type.js";
-import { sealCsharpCallableContractIndex } from "../program/records/callable-values.js";
+import { sealCsharpCallableContractIndex } from "../program/records/callables/callable-values.js";

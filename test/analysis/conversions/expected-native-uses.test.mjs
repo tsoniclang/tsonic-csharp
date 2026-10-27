@@ -6,7 +6,7 @@ import { createCsharpExpectedConstructUses } from "../../../dist/analysis/expect
 import { createCsharpExpectedReturnTargets } from "../../../dist/analysis/expected-types/return-targets.js";
 import { createCsharpExpectedTypePropagation } from "../../../dist/analysis/expected-types/propagation.js";
 import { collectCsharpExpectedNativeUseSites } from "../../../dist/analysis/expected-types/native-uses.js";
-import { csharpNativeUseSite } from "../../../dist/target-model/records/native-demand.js";
+import { csharpNativeUseSite } from "../../../dist/target-model/records/native/native-demand.js";
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { createExpectedNativeUseOwner } from "../../helpers/expected-native-uses.mjs";

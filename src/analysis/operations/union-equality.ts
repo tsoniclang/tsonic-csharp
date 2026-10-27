@@ -1,11 +1,11 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpUnionEqualityOperand } from "../../target-model/records/union-equality.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpUnionEqualityOperand } from "../../target-model/records/operations/union-equality.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { getCsharpNullableElementTargetType, isCsharpAbsenceTargetType, csharpSourcePrimitiveTargetType } from "../../target-model/types/index.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
-import { createCsharpUnionEqualityProducer } from "../program/records/union-equality.js";
+import { createCsharpUnionEqualityProducer } from "../program/records/operations/union-equality.js";
 
 export function analyzeCsharpUnionEquality(nodes: readonly Node[], operations: CsharpTargetOperationClassifications) {
   const producer = createCsharpUnionEqualityProducer();

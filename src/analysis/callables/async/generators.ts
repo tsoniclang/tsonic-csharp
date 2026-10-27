@@ -1,13 +1,13 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { isSourceCallableBodyBoundary } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/source-evidence.js";
-import type { CsharpGeneratorFact, CsharpYieldFact } from "../../../target-model/records/generators.js";
+import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";
+import type { CsharpGeneratorFact, CsharpYieldFact } from "../../../target-model/records/callables/generators.js";
 import { csharpAsyncEnumerableTargetType, csharpEnumerableTargetType, csharpIteratorResultTargetType,
   getCsharpGeneratorProtocol, targetTypeRefEquals } from "../../../target-model/types/index.js";
 import { csharpTargetTypeRenderingRejection } from "../../../policy/types/model/renderability.js";
-import { createCsharpGeneratorRecords } from "../../program/records/generators.js";
-import { requireCsharpRecord, type CsharpRequiredRecord } from "../../program/records/required-records.js";
+import { createCsharpGeneratorRecords } from "../../program/records/callables/generators.js";
+import { requireCsharpRecord, type CsharpRequiredRecord } from "../../program/records/objects/required-records.js";
 
 export function analyzeCsharpGenerators(input: {
   readonly ast: AstReader; readonly nodes: readonly Node[]; readonly evidence: CsharpSourceEvidenceIndex;

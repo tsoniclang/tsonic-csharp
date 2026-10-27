@@ -1,12 +1,12 @@
 import type { CsharpObjectShapeFact, CsharpObjectShapeCapability, CsharpObjectShapeProjection, TargetTypeRef } from "../../target-model/types/index.js";
 import type { CsharpObjectShapeDemandScope } from "./native-demand-batches.js";
 import type { JsonClosureState } from "./native-demand-batches.js";
-import type { CsharpObjectShapeProjectionAdmission } from "../../target-model/records/object-shape-demand.js";
+import type { CsharpObjectShapeProjectionAdmission } from "../../target-model/records/objects/object-shape-demand.js";
 import { csharpObjectShapesEqual, csharpObjectShapeAssignmentMembers, csharpObjectShapeProjectionMembers, getCsharpJsArrayElementTargetType, getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType, isCsharpClosedJsonRuntimeLeaf, isCsharpRecordDictionaryTargetType, isCsharpStringTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/index.js";
 import { rejected } from "./native-demand-batches.js";
 import { maximumJsonClosureDepth } from "./native-demand-batches.js";
-import { objectShapeArtifactKey } from "../../target-model/records/object-shape-keys.js";
-import { objectShapeProjectionKey } from "../../target-model/records/object-shape-keys.js";
+import { objectShapeArtifactKey } from "../../target-model/records/objects/object-shape-keys.js";
+import { objectShapeProjectionKey } from "../../target-model/records/objects/object-shape-keys.js";
 import { collectCsharpReferenceClosure } from "./native-demand-references.js";
 import { resolveCsharpSourceClassStorage } from "./native-demand-storage.js";
 import { selectCsharpJsonObjectShapeContract } from "../../policy/types/objects/json-object-shapes.js";

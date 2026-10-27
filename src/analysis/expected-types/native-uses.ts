@@ -3,7 +3,7 @@ import { targetUseSiteIdentity, type TargetUseSiteRef } from "@tsonic/target-api
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { selectCsharpNativeUseRepresentation } from "../../policy/conversions/native-use-representation.js";
 import { type CsharpNativeRepresentationChild } from "../../policy/model/native-use-representation.js";
-import type { CsharpExpectedNativeUse } from "../../target-model/records/native-demand.js";
+import type { CsharpExpectedNativeUse } from "../../target-model/records/native/native-demand.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { isCsharpAbsenceTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import type { CsharpExpectedNativeUseAdmission, CsharpExpectedNativeUseFinalInput, CsharpExpectedNativeUsePendingReason,

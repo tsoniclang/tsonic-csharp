@@ -1,18 +1,18 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpResolvedBinaryOperation } from "../../target-model/records/operator-selection.js";
-import type { CsharpBinaryEmission, CsharpNativeBinaryEmission } from "../../target-model/records/binary-emission.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
-import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
-import type { CsharpNativeConstantRecords } from "../../target-model/records/native-constants.js";
+import type { CsharpResolvedBinaryOperation } from "../../target-model/records/operations/operator-selection.js";
+import type { CsharpBinaryEmission, CsharpNativeBinaryEmission } from "../../target-model/records/operations/binary-emission.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
+import type { CsharpStorageClassifications } from "../../target-model/records/storage/storage.js";
+import type { CsharpNativeConstantRecords } from "../../target-model/records/native/native-constants.js";
 import type { CsharpOptionalLocalPlan } from "../storage/optional-locals.js";
 import { csharpSourcePrimitiveTargetType } from "../../target-model/types/carriers/scalar-types.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { sourceOperatorFromKindName } from "../../target-model/syntax/operators.js";
 import { csharpNativeAssignmentTokens, csharpNativeBinaryTokens } from "../../target-model/syntax/native-binary.js";
-import { createCsharpBinaryEmissionRecords } from "../program/records/binary-emission.js";
+import { createCsharpBinaryEmissionRecords } from "../program/records/operations/binary-emission.js";
 
 export function analyzeCsharpBinaryEmission(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];
   readonly operations: CsharpTargetOperationClassifications; readonly demand: CsharpNativeDemandAnalysis;

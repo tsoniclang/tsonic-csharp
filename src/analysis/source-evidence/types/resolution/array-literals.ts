@@ -1,4 +1,4 @@
-import type { CsharpArrayLiteralSelection } from "../../../../target-model/records/array-literals.js";
+import type { CsharpArrayLiteralSelection } from "../../../../target-model/records/operations/array-literals.js";
 import type { Node, Type } from "@tsonic/tsts";
 import { sourceEnclosingCallable, sourceExpressionCallArgument, sourceSequenceInputChoice, sourceSequenceInputIsEmpty,
   type SourceClosedCallableArgument, type SourceFileSemantics } from "@tsonic/target-api/source";

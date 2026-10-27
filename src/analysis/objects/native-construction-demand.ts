@@ -11,8 +11,8 @@ import type { CsharpTypePolicyBaseHost } from "../source-evidence/types/resoluti
 import { csharpNativeConstructionMembersMatch } from "./native-construction-members.js";
 import { createCsharpObjectShapeValueStorage } from "../../policy/types/objects/shape-carriers.js";
 
-import type { CsharpNativeConstructionDemandQueries, CsharpNativeConstructionIssue, CsharpNativeConstructionSelection } from "../../target-model/records/native-construction.js";
-import { createCsharpNativeConstructionRecords } from "../program/records/native-construction.js";
+import type { CsharpNativeConstructionDemandQueries, CsharpNativeConstructionIssue, CsharpNativeConstructionSelection } from "../../target-model/records/native/native-construction.js";
+import { createCsharpNativeConstructionRecords } from "../program/records/native/native-construction.js";
 interface CsharpNativeConstructionDemandHost extends Pick<CsharpTypePolicyBaseHost,
   "ast" | "navigation" | "providers" | "sourceFacts" | "semantics" | "semanticsFor"> {
   resolveShape(type: Type, file: SourceFile, authoredTypeRoot?: Node): CsharpObjectShapeFact | undefined;

@@ -1,14 +1,14 @@
 import type { Node } from "@tsonic/tsts";
 import { targetUseSiteIdentity, type TargetUseSiteRef } from "@tsonic/target-api/analysis";
 
-import { csharpNativeUseSite, type CsharpExpectedNativeUse, type CsharpNativeUseSlot } from "../../target-model/records/native-demand.js";
+import { csharpNativeUseSite, type CsharpExpectedNativeUse, type CsharpNativeUseSlot } from "../../target-model/records/native/native-demand.js";
 
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { csharpSourcePrimitiveTargetType } from "../../target-model/types/carriers/scalar-types.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 
 import type { CsharpNativeRepresentationInput } from "../model/native-use-representation.js";
-import type { CsharpNativeRepresentationPending, CsharpNativeRepresentationSelection } from "../../target-model/records/native-representation.js";
+import type { CsharpNativeRepresentationPending, CsharpNativeRepresentationSelection } from "../../target-model/records/native/native-representation.js";
 export function selectCsharpNativeUseRepresentation(input: CsharpNativeRepresentationInput): CsharpNativeRepresentationSelection {
   const { ast, expression, target } = input;
   const none: readonly TargetUseSiteRef[] = Object.freeze([]);

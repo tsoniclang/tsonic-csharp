@@ -1,4 +1,4 @@
-import type { CsharpPointerReturnContract } from "../../../target-model/records/pointer-return.js";
+import type { CsharpPointerReturnContract } from "../../../target-model/records/calls/pointer-return.js";
 import type { Node } from "@tsonic/tsts";
 import type { CsharpTypeResolutionScope } from "../../source-evidence/types/resolution/scope.js";
 import type { CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";

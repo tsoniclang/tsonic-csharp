@@ -1,9 +1,9 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { IsTypeSyntaxNode, sourceClassFieldIsTypeOnly, sourceConstructValueInputs, type SourceValueInput } from "@tsonic/target-api/source";
-import type { CsharpAttributeApplicationIndex } from "../../../target-model/records/attributes.js";
-import type { CsharpClassInitializationIndex } from "../../../target-model/records/class-initialization.js";
-import type { CsharpNativeParticipationInput } from "../../../target-model/records/native-demand.js";
-import type { CsharpProjectTypeClassifications } from "../../../target-model/records/project-types.js";
+import type { CsharpAttributeApplicationIndex } from "../../../target-model/records/program/attributes.js";
+import type { CsharpClassInitializationIndex } from "../../../target-model/records/objects/class-initialization.js";
+import type { CsharpNativeParticipationInput } from "../../../target-model/records/native/native-demand.js";
+import type { CsharpProjectTypeClassifications } from "../../../target-model/records/types/project-types.js";
 import { csharpNativeChildUses, isCsharpNativeExpression, type CsharpNativeOperandInput, type CsharpNativeOperandStep } from "./native-operands.js";
 
 export interface CsharpNativeConstructInput extends CsharpNativeOperandInput, CsharpNativeParticipationInput {

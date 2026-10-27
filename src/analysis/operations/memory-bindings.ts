@@ -1,4 +1,4 @@
-import type { CsharpMemoryBindingSelection } from "../../target-model/records/memory-bindings.js";
+import type { CsharpMemoryBindingSelection } from "../../target-model/records/storage/memory-bindings.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { selectTsonicMemoryFieldBinding, selectTsonicMemoryRecordBinding } from "@tsonic/source-core/facts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";

@@ -35,8 +35,8 @@ export function inferCallableReturnType(
 }
 
 export function freezeSourceArgumentClassification(
-  value: import("../../target-model/records/source-evidence.js").CsharpSourceArgumentClassification,
-): import("../../target-model/records/source-evidence.js").CsharpSourceArgumentClassification {
+  value: import("../../target-model/records/program/source-evidence.js").CsharpSourceArgumentClassification,
+): import("../../target-model/records/program/source-evidence.js").CsharpSourceArgumentClassification {
   return value.kind === "resolved"
     ? Object.freeze({
         kind: "resolved",

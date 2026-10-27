@@ -1,6 +1,6 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpSafetyApplication, CsharpSafetyOperation } from "../../../target-model/records/safety.js";
+import type { CsharpSafetyApplication, CsharpSafetyOperation } from "../../../target-model/records/storage/safety.js";
 import type { CsharpPlanningContext } from "../context.js";
 import type { CsharpAccessorModifier, CsharpModifier } from "../../target-ast/syntax/index.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";

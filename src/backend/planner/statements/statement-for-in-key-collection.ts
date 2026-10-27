@@ -19,7 +19,7 @@ import { consumeCsharpPlannedValue } from "./statement-output.js";
 import type {
   NestedStatementPlanner,
 } from "./model.js";
-import type { CsharpAdmittedIteration } from "../../../target-model/records/selection.js";
+import type { CsharpAdmittedIteration } from "../../../target-model/records/operations/selection.js";
 import type {
   PlannedForInBinding,
 } from "./statement-for-in-binding.js";

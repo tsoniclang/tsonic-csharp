@@ -1,6 +1,6 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpSourceArgumentEmissionGroup } from "../../../target-model/records/source-call-emission.js";
+import type { CsharpSourceArgumentEmissionGroup } from "../../../target-model/records/calls/source-call-emission.js";
 import { csharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";

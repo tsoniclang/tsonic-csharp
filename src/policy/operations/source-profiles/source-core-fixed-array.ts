@@ -1,7 +1,7 @@
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/index.js";
 
 import type { CsharpSourceProfileElementPolicyResult } from "../../model/source-profiles.js";
-import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/source-profile-invocations.js";
+import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/program/source-profile-invocations.js";
 
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 const instanceReceiver = { kind: "instance" } as const;

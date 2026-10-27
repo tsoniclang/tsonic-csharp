@@ -3,9 +3,9 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { analyzeSourceGenericAdoption, sourceGenericAdoptionDiagnosticCode, sourceGenericAdoptionDiagnosticMessage, createSourceOwnershipQuery, createSourceStorageBudget, defaultSourceStorageLimits, type SourceOwnershipPremises, type SourceOwnershipUnresolved, type SourceStorageQueries } from "@tsonic/target-api/analysis";
 import { sourceExpressionResultDisposition, type TargetSourceProgram } from "@tsonic/target-api/source";
 import { classifyCsharpSourceProfileType } from "../../../policy/identities/source-types.js";
-import type { CsharpValueReadClassifications } from "../../../target-model/records/conversions.js";
-import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations.js";
-import type { CsharpPromiseDiscard, CsharpPromiseResult, CsharpPromiseResults } from "../../../target-model/records/promise-results.js";
+import type { CsharpValueReadClassifications } from "../../../target-model/records/operations/conversions.js";
+import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations/operations.js";
+import type { CsharpPromiseDiscard, CsharpPromiseResult, CsharpPromiseResults } from "../../../target-model/records/callables/promise-results.js";
 
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";

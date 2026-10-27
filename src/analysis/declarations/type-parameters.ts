@@ -1,8 +1,8 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
-import { createCsharpTypeParameterEmissionProducer } from "../program/records/type-parameters.js";
+import { createCsharpTypeParameterEmissionProducer } from "../program/records/types/type-parameters.js";
 
 export function analyzeCsharpTypeParameterEmission(input: { readonly ast: AstReader; readonly nodes: readonly Node[];
   readonly evidence: CsharpSourceEvidenceIndex; readonly admitted: (node: Node) => boolean }) {

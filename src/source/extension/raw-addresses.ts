@@ -1,4 +1,4 @@
-import type { CsharpSourceRawAddressOperation } from "../../target-model/records/raw-addresses.js";
+import type { CsharpSourceRawAddressOperation } from "../../target-model/records/storage/raw-addresses.js";
 import type { ExtensionFactSubject, ReadonlySourceFactResolver } from "@tsonic/tsts";
 import { readTsonicRawMemoryOperation } from "@tsonic/source-core/facts";
 

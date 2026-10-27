@@ -20,7 +20,7 @@ import { analyzeCsharpStructuralObjectEmission } from "../../../dist/analysis/ob
 import { renderObjectShapeMembers } from "../../../dist/backend/planner/objects/members.js";
 import { renderCsharpStructuralInterfaceMembers } from "../../../dist/backend/planner/objects/structural-interfaces.js";
 import { renderCsharpMethodValueContracts } from "../../../dist/backend/planner/objects/method-values.js";
-import { objectShapeArtifactKey } from "../../../dist/target-model/records/object-shape-keys.js";
+import { objectShapeArtifactKey } from "../../../dist/target-model/records/objects/object-shape-keys.js";
 import { analyzeCsharpCaptureMethods } from "../../../dist/analysis/objects/capture-methods.js";
 import { printCsharpCompilationUnit, printCsharpStatement } from "../../../dist/print/source/printer.js";
 import { objectShapeMethodInvocationName } from "../../../dist/target-model/names/object-members.js";

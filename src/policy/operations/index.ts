@@ -10,6 +10,6 @@ export * from "./flow/source-flow.js";
 export * from "./typed-locations/selection.js";
 export type {
   CsharpTypedLocationDirectIdentity, CsharpTypedLocationStorage, CsharpTypedLocationStorageSelection,
-} from "../../target-model/records/typed-location-storage.js";
+} from "../../target-model/records/storage/typed-location-storage.js";
 export * from "./syntax/typeof.js";
 

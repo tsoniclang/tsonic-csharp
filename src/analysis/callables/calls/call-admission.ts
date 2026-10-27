@@ -1,11 +1,11 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { targetDiagnosticFromExtension, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations.js";
-import type { CsharpValueReadClassifications } from "../../../target-model/records/conversions.js";
-import type { CsharpAdmittedCallClassification } from "../../../target-model/records/call-admission.js";
+import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations/operations.js";
+import type { CsharpValueReadClassifications } from "../../../target-model/records/operations/conversions.js";
+import type { CsharpAdmittedCallClassification } from "../../../target-model/records/calls/call-admission.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { selectCsharpTypeEmission } from "../../../policy/types/resolution/type-emission.js";
-import { createCsharpCallAdmissionRecords } from "../../program/records/call-admission.js";
+import { createCsharpCallAdmissionRecords } from "../../program/records/calls/call-admission.js";
 import { csharpTargetCallRefusal } from "./call-refusals.js";
 
 export function analyzeCsharpCallAdmission(ast: AstReader, nodes: readonly Node[], operations: CsharpTargetOperationClassifications,

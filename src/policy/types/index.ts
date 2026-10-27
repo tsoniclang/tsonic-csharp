@@ -14,5 +14,5 @@ export * from "./callables/source-callable-contract.js";
 export * from "../../target-model/types/carriers/js.js";
 
 export type { CsharpTypeQueries } from "../model/type-resolution.js";
-export type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../target-model/records/project-types.js";
+export type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../target-model/records/types/project-types.js";
 export * from "./objects/binding-projection.js";

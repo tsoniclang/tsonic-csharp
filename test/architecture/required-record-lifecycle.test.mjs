@@ -543,7 +543,7 @@ test("requirement state stays inside its twenty-five analysis owners", () => {
   "src/analysis/program/emission.ts",
   "src/analysis/program/iteration.ts",
   "src/analysis/program/records/create.ts",
-  "src/analysis/program/records/required-records.ts",
+  "src/analysis/program/records/objects/required-records.ts",
   "src/analysis/project-types/class-factories.ts",
   "src/analysis/storage/analyze.ts",
   "src/analysis/storage/local-bindings.ts"
@@ -590,7 +590,7 @@ test("each seal name and producer is mentioned only by its owner and the composi
       "src/analysis/operations/native-handlers.ts",
       "src/analysis/program/iteration.ts",
       "src/analysis/program/records/create.ts",
-      "src/analysis/program/records/required-records.ts",
+      "src/analysis/program/records/objects/required-records.ts",
       "src/analysis/project-types/class-factories.ts",
       "src/analysis/storage/analyze.ts",
       "src/analysis/storage/local-bindings.ts"
@@ -613,7 +613,7 @@ test("each seal name and producer is mentioned only by its owner and the composi
       "src/analysis/objects/value-carriers.ts",
       "src/analysis/operations/native-demand.ts",
       "src/analysis/operations/native-handlers.ts",
-      "src/analysis/program/records/required-records.ts",
+      "src/analysis/program/records/objects/required-records.ts",
       "src/analysis/project-types/class-factories.ts",
       "src/analysis/storage/analyze.ts",
       "src/analysis/storage/local-bindings.ts"
@@ -623,7 +623,7 @@ test("each seal name and producer is mentioned only by its owner and the composi
     "assertCsharpRequiredRecords",
     [
       "src/analysis/program/records/create.ts",
-      "src/analysis/program/records/required-records.ts"
+      "src/analysis/program/records/objects/required-records.ts"
     ]
   ],
   [

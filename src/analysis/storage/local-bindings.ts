@@ -2,10 +2,10 @@ import type { AstReader, Node } from "@tsonic/tsts";
 import type { SourceProgramNavigation } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpProgramRecords } from "../../target-model/records/program.js";
-import type { CsharpLocalBindingCompletion } from "../../target-model/records/local-bindings.js";
+import type { CsharpLocalBindingCompletion } from "../../target-model/records/storage/local-bindings.js";
 import { csharpCarrierAdmitsSourceAbsence } from "../../target-model/types/carriers/runtime-carriers.js";
-import { createCsharpLocalBindingRecords } from "../program/records/local-bindings.js";
-import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
+import { createCsharpLocalBindingRecords } from "../program/records/storage/local-bindings.js";
+import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/objects/required-records.js";
 import type { CsharpOptionalLocalPlan } from "./optional-locals.js";
 import { csharpSourcePrimitiveTargetType, csharpVoidTargetType } from "../../target-model/types/carriers/scalar-types.js";
 

@@ -1,19 +1,19 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import { targetDiagnosticFromExtension, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpAdmittedConstruction } from "../../target-model/records/construction.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
-import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
-import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
-import type { CsharpSourceModuleConstructionIndex } from "../../target-model/records/source-modules.js";
-import type { CsharpSourceFileRecords } from "../../target-model/records/source-files.js";
-import type { CsharpTargetArgumentRecords } from "../../target-model/records/target-arguments.js";
+import type { CsharpAdmittedConstruction } from "../../target-model/records/objects/construction.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
+import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
+import type { CsharpSourceModuleConstructionIndex } from "../../target-model/records/program/source-modules.js";
+import type { CsharpSourceFileRecords } from "../../target-model/records/program/source-files.js";
+import type { CsharpTargetArgumentRecords } from "../../target-model/records/calls/target-arguments.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { getCsharpClassFactory } from "../../target-model/types/carriers/class-factories.js";
 import { getCsharpDelegateSignature } from "../../target-model/types/carriers/delegates.js";
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
-import { createCsharpConstructionRecords } from "../program/records/construction.js";
+import { createCsharpConstructionRecords } from "../program/records/objects/construction.js";
 
 export function analyzeCsharpConstructionEmission(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];
   readonly admitted: (node: Node) => boolean; readonly operations: CsharpTargetOperationClassifications; readonly values: CsharpValueReadClassifications;

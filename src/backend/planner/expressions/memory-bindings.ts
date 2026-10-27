@@ -10,7 +10,7 @@ import { objectShapeBoundStorageTargetType } from "../objects/object-shape-stora
 import { csharpConstructibleTypeFromObjectShapeFact } from "../objects/index.js";
 import type { CsharpPlannedValue } from "./planned-values.js";
 import { buildCsharpPlannedValue } from "./planned-value-composition.js";
-import type { CsharpMemoryBindingSelection } from "../../../target-model/records/memory-bindings.js";
+import type { CsharpMemoryBindingSelection } from "../../../target-model/records/storage/memory-bindings.js";
 
 export function planCsharpMemoryBinding(
   node: Node, binding: CsharpMemoryBindingSelection, file: SourceFile, input: CsharpPlanningContext,

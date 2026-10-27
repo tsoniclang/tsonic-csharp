@@ -1,14 +1,14 @@
-import type { CsharpClassCapture, CsharpClassFactory, CsharpClassFactoryIndex } from "../../target-model/records/class-factories.js";
+import type { CsharpClassCapture, CsharpClassFactory, CsharpClassFactoryIndex } from "../../target-model/records/objects/class-factories.js";
 import type { Node } from "@tsonic/tsts";
 import { sourceLexicalCaptures, type TargetSourceProgram } from "@tsonic/target-api/source";
-import type { CsharpProjectTypeCatalog } from "../../target-model/records/project-types.js";
-import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
-import type { CsharpStorageClassifications, CsharpStorageIssue } from "../../target-model/records/storage.js";
+import type { CsharpProjectTypeCatalog } from "../../target-model/records/types/project-types.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
+import type { CsharpStorageClassifications, CsharpStorageIssue } from "../../target-model/records/storage/storage.js";
 
 import { getCsharpClassFactory } from "../../target-model/types/carriers/class-factories.js";
 import type { CsharpSourceNameResolver } from "../names/plan.js";
 import { csharpTargetNamedType } from "../../target-model/types/factories.js";
-import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
+import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/objects/required-records.js";
 
 export function analyzeCsharpClassFactories(
   source: TargetSourceProgram,

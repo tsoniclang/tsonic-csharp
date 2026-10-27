@@ -7,12 +7,12 @@ import type { SourceFile } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpTargetProgram } from "../../target-model/records/target-program.js";
 import type { CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
-import type { CsharpProjectTypeClassifications } from "../../target-model/records/project-types.js";
-import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
-import type { CsharpFinalStructuralInterfaceImplementation } from "../../target-model/records/heritage.js";
+import type { CsharpProjectTypeClassifications } from "../../target-model/records/types/project-types.js";
+import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
+import type { CsharpFinalStructuralInterfaceImplementation } from "../../target-model/records/objects/heritage.js";
 import type { CsharpNamePlan } from "../../target-model/names/model.js";
-import type { CsharpClassFactory } from "../../target-model/records/class-factories.js";
-import type { CsharpCaptureFrame } from "../../target-model/records/capture-storage.js";
+import type { CsharpClassFactory } from "../../target-model/records/objects/class-factories.js";
+import type { CsharpCaptureFrame } from "../../target-model/records/callables/capture-storage.js";
 
 export interface CsharpTargetAnalysisRequest {
   readonly input: TargetCompileInput;

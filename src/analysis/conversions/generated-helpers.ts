@@ -1,5 +1,5 @@
 import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
-import type { CsharpGeneratedHelper } from "../../target-model/records/generated-helpers.js";
+import type { CsharpGeneratedHelper } from "../../target-model/records/program/generated-helpers.js";
 
 export function collectCsharpGeneratedHelpers(selection: CsharpConversionSelection, helpers: Set<CsharpGeneratedHelper>): void {
   switch (selection.kind) {

@@ -1,16 +1,16 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
-import type { CsharpClassFactoryIndex } from "../../target-model/records/class-factories.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
+import type { CsharpClassFactoryIndex } from "../../target-model/records/objects/class-factories.js";
 import type { CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
-import type { CsharpTypeofOperationEmission } from "../../target-model/records/typeof-emission.js";
+import type { CsharpTypeofOperationEmission } from "../../target-model/records/operations/typeof-emission.js";
 import { getCsharpClassFactory } from "../../target-model/types/carriers/class-factories.js";
 import { sourceOperatorFromKindName } from "../../target-model/syntax/operators.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { csharpTypeofResultsEqual, getCsharpTypeofResult } from "../../target-model/types/runtime-kind.js";
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
-import { createCsharpTypeofEmissionProducer } from "../program/records/typeof-emission.js";
+import { createCsharpTypeofEmissionProducer } from "../program/records/operations/typeof-emission.js";
 
 export function analyzeCsharpTypeofEmission(input: { readonly ast: AstReader; readonly nodes: readonly Node[];
   readonly admitted: (node: Node) => boolean; readonly operations: CsharpTargetOperationClassifications;

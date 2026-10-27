@@ -1,9 +1,9 @@
 import type { Node } from "@tsonic/tsts";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
-import type { CsharpObjectMemberRecords, CsharpObjectMemberEmission, CsharpObjectMethodSignature } from "../../../target-model/records/object-members.js";
-import type { CsharpStructuralObjectEmissionRecords } from "../../../target-model/records/structural-object-emission.js";
-import type { CsharpNativeMemberHidingReader } from "../../../target-model/records/native-member-names.js";
-import type { CsharpNativeLayoutRecords } from "../../../target-model/records/native-layout-emission.js";
+import type { CsharpObjectMemberRecords, CsharpObjectMemberEmission, CsharpObjectMethodSignature } from "../../../target-model/records/objects/object-members.js";
+import type { CsharpStructuralObjectEmissionRecords } from "../../../target-model/records/objects/structural-object-emission.js";
+import type { CsharpNativeMemberHidingReader } from "../../../target-model/records/native/native-member-names.js";
+import type { CsharpNativeLayoutRecords } from "../../../target-model/records/native/native-layout-emission.js";
 import type { CsharpExpression, CsharpParameter, CsharpStatement, CsharpTypeMember, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { planCsharpArtifactMemberHiding } from "../declarations/modifiers.js";

@@ -1,7 +1,7 @@
 import type { CsharpTargetMember, CsharpTargetParameter, TargetTypeRef } from "../../types/index.js";
 import { csharpSourcePrimitiveTargetType, csharpStringTargetType, isCsharpArrayIndexTargetType, getCsharpReadOnlyIndexableCollectionElementTargetType, getCsharpIndexableLengthMemberName, targetTypeRefEquals } from "../../../target-model/types/index.js";
 import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext, CsharpSourceProfileCallPolicyResult, CsharpSourceProfileElementPolicy, CsharpSourceProfileElementPolicyContext, CsharpSourceProfileElementPolicyResult, CsharpSourceProfileIdentitySelector, CsharpSourceProfilePropertyPolicy, CsharpSourceProfilePropertyPolicyContext } from "../../model/source-profiles.js";
-import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/source-profile-invocations.js";
+import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/program/source-profile-invocations.js";
 import { csharpSourceProfileCall, csharpSourceProfileDiagnostic, resolveCsharpSelectedSourceValue } from "./source-profile-policy.js";
 import { csharpTargetId } from "../../../target-model/identities/target.js";
 

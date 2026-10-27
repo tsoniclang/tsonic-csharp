@@ -1,4 +1,4 @@
-import type { CsharpProjectTypeDefinition } from "../../../target-model/records/project-types.js";
+import type { CsharpProjectTypeDefinition } from "../../../target-model/records/types/project-types.js";
 
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 

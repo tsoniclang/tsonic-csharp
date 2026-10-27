@@ -1,4 +1,4 @@
-import type { CsharpTypedLocationStorage } from "../../../target-model/records/typed-location-storage.js";
+import type { CsharpTypedLocationStorage } from "../../../target-model/records/storage/typed-location-storage.js";
 import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 
 export function planCsharpIndexedLocation(

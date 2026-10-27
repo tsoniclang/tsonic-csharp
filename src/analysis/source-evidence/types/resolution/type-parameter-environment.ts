@@ -6,7 +6,7 @@ import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { CsharpTypeParameterConstraintResolution } from "../../../../target-model/types/generic-constraints.js";
 import { snapshotCsharpTargetTypes } from "../../../../target-model/types/snapshot.js";
 
-import type { CsharpTypeParameterEnvironment, CsharpTypeParameterSourceEvidence } from "../../../../target-model/records/type-parameter-constraints.js";
+import type { CsharpTypeParameterEnvironment, CsharpTypeParameterSourceEvidence } from "../../../../target-model/records/types/type-parameter-constraints.js";
 type TypeParameter = Extract<TargetTypeRef, { readonly kind: "type-parameter" }>;
 export function createCsharpTypeParameterEnvironment(
   ast: AstReader,

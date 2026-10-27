@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { collectShapeDependencies } from "../../../../dist/analysis/objects/native-demand-batches.js";
-import { objectShapeArtifactKey } from "../../../../dist/target-model/records/object-shape-keys.js";
+import { objectShapeArtifactKey } from "../../../../dist/target-model/records/objects/object-shape-keys.js";
 import { targetTypeRefKey } from "../../../../dist/target-model/types/equality.js";
 import { createCsharpObjectShapeDemandEngine } from "../../../../dist/analysis/objects/native-demand-requests.js";
 

@@ -1,5 +1,5 @@
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import type { CsharpNativePointerOperationSelection } from "../../../target-model/records/native-pointers.js";
+import type { CsharpNativePointerOperationSelection } from "../../../target-model/records/native/native-pointers.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 
 export function selectCsharpTypeUnsafeContext(carrier: TargetTypeRef): boolean {

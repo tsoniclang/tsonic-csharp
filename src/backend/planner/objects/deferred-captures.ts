@@ -1,6 +1,6 @@
 import type { CsharpTypeMember, CsharpTypeNode, CsharpExpression } from "../../target-ast/syntax/index.js";
 import { csharpDeferredCaptureStorageNames } from "../../../target-model/names/object-members.js";
-import type { CsharpNativeMemberHidingReader } from "../../../target-model/records/native-member-names.js";
+import type { CsharpNativeMemberHidingReader } from "../../../target-model/records/native/native-member-names.js";
 import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
 import { planCsharpArtifactMemberHiding } from "../declarations/modifiers.js";
 

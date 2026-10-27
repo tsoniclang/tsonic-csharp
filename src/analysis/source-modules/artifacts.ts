@@ -1,8 +1,8 @@
 import { analyzeSourceArtifactFiles } from "@tsonic/target-api/analysis";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpSourceModuleConstructionIndex } from "../../target-model/records/source-modules.js";
-import { createCsharpSourceArtifactRecords } from "../program/records/artifacts.js";
+import type { CsharpSourceModuleConstructionIndex } from "../../target-model/records/program/source-modules.js";
+import { createCsharpSourceArtifactRecords } from "../program/records/program/artifacts.js";
 
 export function analyzeCsharpSourceArtifacts(source: TargetSourceProgram, constructions: CsharpSourceModuleConstructionIndex) {
   const selected = analyzeSourceArtifactFiles({ ast: source.ast, sourceFiles: source.navigation.sourceFiles,

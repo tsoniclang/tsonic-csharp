@@ -1,4 +1,4 @@
-import type { CsharpBorrowedSequenceInput } from "../../target-model/records/borrowed-sequences.js";
+import type { CsharpBorrowedSequenceInput } from "../../target-model/records/storage/borrowed-sequences.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { sourceSequenceInputChoice, sourceSequenceInputIsEmpty } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";

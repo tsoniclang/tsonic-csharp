@@ -1,14 +1,14 @@
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpDelegateContractProducer } from "../program/records/callable-conversions.js";
+import type { CsharpDelegateContractProducer } from "../program/records/callables/callable-conversions.js";
 import { getCsharpCallableValueSignature, getCsharpDelegateSignature } from "../../target-model/types/carriers/delegates.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import { isCsharpVoidTargetType } from "../../target-model/types/identity.js";
 import type { AstReader, Node } from "@tsonic/tsts";
-import type { CsharpCaptureStorage } from "../../target-model/records/capture-storage.js";
-import type { CsharpConversionIssue } from "../../target-model/records/conversions.js";
+import type { CsharpCaptureStorage } from "../../target-model/records/callables/capture-storage.js";
+import type { CsharpConversionIssue } from "../../target-model/records/operations/conversions.js";
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 
 export function admitCsharpDelegateEmission(producer: CsharpDelegateContractProducer,

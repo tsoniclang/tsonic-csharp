@@ -1,18 +1,18 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations.js";
+import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations/operations.js";
 import type { CsharpTargetParameter } from "../../../target-model/types/model.js";
-import type { CsharpProviderArgumentMapping, CsharpSelectedTargetCall } from "../../../target-model/records/members.js";
-import type { ResolvedSourceCallInfo } from "../../../target-model/records/source-calls.js";
-import type { CsharpCallArgumentForm, CsharpCallArgumentEmission, CsharpTargetArgumentOperand, CsharpTargetArgumentsEmission } from "../../../target-model/records/target-arguments.js";
-import type { CsharpSourceCallEmissionRecords } from "../../../target-model/records/source-call-emission.js";
-import type { CsharpNativeDemandAnalysis } from "../../../target-model/records/native-demand.js";
+import type { CsharpProviderArgumentMapping, CsharpSelectedTargetCall } from "../../../target-model/records/objects/members.js";
+import type { ResolvedSourceCallInfo } from "../../../target-model/records/calls/source-calls.js";
+import type { CsharpCallArgumentForm, CsharpCallArgumentEmission, CsharpTargetArgumentOperand, CsharpTargetArgumentsEmission } from "../../../target-model/records/calls/target-arguments.js";
+import type { CsharpSourceCallEmissionRecords } from "../../../target-model/records/calls/source-call-emission.js";
+import type { CsharpNativeDemandAnalysis } from "../../../target-model/records/native/native-demand.js";
 import { csharpTargetParameterValueType, getCsharpDelegateSignature, getCsharpJsArrayElementTargetType } from "../../../target-model/types/index.js";
 import { csharpArgumentVectorCallbackResultMatches } from "../../../policy/conversions/callable-completions.js";
 import { selectCsharpTypeEmission } from "../../../policy/types/resolution/type-emission.js";
 import { csharpPositionalArgumentsAreRepresentable } from "../../../policy/operations/members/call-arguments.js";
-import { createCsharpTargetArgumentProducer } from "../../program/records/target-arguments.js";
-import type { CsharpNativeArgumentRequest } from "../../../target-model/records/argument-passing.js";
+import { createCsharpTargetArgumentProducer } from "../../program/records/calls/target-arguments.js";
+import type { CsharpNativeArgumentRequest } from "../../../target-model/records/calls/argument-passing.js";
 
 export function analyzeCsharpTargetArguments(input: { readonly ast: AstReader; readonly nodes: readonly Node[];
   readonly operations: CsharpTargetOperationClassifications; readonly sources: CsharpSourceCallEmissionRecords;

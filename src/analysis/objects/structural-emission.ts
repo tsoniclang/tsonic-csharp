@@ -1,18 +1,18 @@
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
-import type { CsharpObjectShapeDemand } from "../../target-model/records/object-shape-demand.js";
-import { objectShapeArtifactKey } from "../../target-model/records/object-shape-keys.js";
-import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
-import type { CsharpCaptureMethodRecords } from "../../target-model/records/capture-methods.js";
-import type { CsharpMethodValueContractEmission, CsharpStructuralInterfaceMemberEmission, CsharpStructuralMethodEmission, CsharpStructuralObjectEmission, CsharpStructuralPropertyEmission } from "../../target-model/records/structural-object-emission.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
+import type { CsharpObjectShapeDemand } from "../../target-model/records/objects/object-shape-demand.js";
+import { objectShapeArtifactKey } from "../../target-model/records/objects/object-shape-keys.js";
+import type { CsharpStorageClassifications } from "../../target-model/records/storage/storage.js";
+import type { CsharpCaptureMethodRecords } from "../../target-model/records/callables/capture-methods.js";
+import type { CsharpMethodValueContractEmission, CsharpStructuralInterfaceMemberEmission, CsharpStructuralMethodEmission, CsharpStructuralObjectEmission, CsharpStructuralPropertyEmission } from "../../target-model/records/objects/structural-object-emission.js";
 import { csharpObjectShapeMemberContractKey, targetTypeRefKey, targetTypeRefEquals } from "../../target-model/types/index.js";
 import { csharpNullableTargetType } from "../../target-model/types/carriers/nullable.js";
 import { csharpRuntimeLocationTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import { csharpObjectShapeMethodDeclaration, csharpPresentObjectShapeMethod } from "../../target-model/types/method-values.js";
 import { objectShapeMethodInvocationName, objectShapeStorageMemberName } from "../../target-model/names/object-members.js";
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
-import { createCsharpStructuralObjectEmissionRecords } from "../program/records/structural-object-emission.js";
+import { createCsharpStructuralObjectEmissionRecords } from "../program/records/objects/structural-object-emission.js";
 import { selectCsharpObjectMethodSignature } from "../../policy/types/objects/object-members.js";
 
 export function analyzeCsharpStructuralObjectEmission(input: {

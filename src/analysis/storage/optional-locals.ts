@@ -7,9 +7,9 @@ import { isCsharpAbsenceTargetType } from "../../target-model/types/index.js";
 import { getCsharpGenericOptionalParts, csharpTypeProjection } from "../../target-model/types/projections.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import type { CsharpTypeParameterConstraint } from "../../target-model/types/generic-constraints.js";
-import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpOptionalLocalOperation, CsharpOptionalLocalPlacement, CsharpOptionalLocalValue } from "../../target-model/records/local-bindings.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpOptionalLocalOperation, CsharpOptionalLocalPlacement, CsharpOptionalLocalValue } from "../../target-model/records/storage/local-bindings.js";
 import { csharpSourceTypeParameter, csharpSourceTypeParameters } from "../../source/extension/type-parameters.js";
 import type { CsharpSourceNameResolver } from "../names/index.js";
 

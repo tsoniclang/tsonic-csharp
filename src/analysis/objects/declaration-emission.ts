@@ -1,22 +1,22 @@
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpObjectShapeDemand, CsharpObjectShapeArtifact } from "../../target-model/records/object-shape-demand.js";
-import { objectShapeArtifactKey } from "../../target-model/records/object-shape-keys.js";
-import type { CsharpObjectShapeDeclarationEmission, CsharpObjectShapeEmission, CsharpObjectShapeParameter } from "../../target-model/records/object-shape-emission.js";
+import type { CsharpObjectShapeDemand, CsharpObjectShapeArtifact } from "../../target-model/records/objects/object-shape-demand.js";
+import { objectShapeArtifactKey } from "../../target-model/records/objects/object-shape-keys.js";
+import type { CsharpObjectShapeDeclarationEmission, CsharpObjectShapeEmission, CsharpObjectShapeParameter } from "../../target-model/records/objects/object-shape-emission.js";
 import type { CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
 import { csharpStructuralObjectShapeIdentity } from "../../target-model/types/index.js";
 import { isCsharpEmptyObjectTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
 import type { CsharpNamePlan } from "../../target-model/names/model.js";
 import { tryCsharpIdentifier } from "../../target-model/names/identifiers.js";
-import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import { csharpFreeTypeParameterIdentities } from "../../target-model/types/generic-references.js";
 import { csharpObjectShapeTypeParameters } from "../source-evidence/types/resolution/owner-type-parameter-environment.js";
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
-import { createCsharpObjectShapeEmissionRecords } from "../program/records/object-shape-emission.js";
+import { createCsharpObjectShapeEmissionRecords } from "../program/records/objects/object-shape-emission.js";
 import { analyzeCsharpObjectShapeNames } from "./display-names.js";
 import type { AstReader, Node } from "@tsonic/tsts";
-import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
-import type { CsharpBindingPatternClassifications } from "../../target-model/records/value-projections.js";
+import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
+import type { CsharpBindingPatternClassifications } from "../../target-model/records/objects/value-projections.js";
 
 export function analyzeCsharpObjectShapeEmission(input: {
   readonly ast: AstReader;

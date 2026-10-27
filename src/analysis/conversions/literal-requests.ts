@@ -3,7 +3,7 @@ import type { SourceLiteralIndex } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import type { CsharpExactLiteralRequest } from "../../target-model/conversions/exact-literals.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
 

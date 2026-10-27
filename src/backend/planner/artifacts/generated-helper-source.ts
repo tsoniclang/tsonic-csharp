@@ -15,7 +15,7 @@ import type {
 import {
   csharpGeneratedConversionHelperName,
   csharpGeneratedHelperNamespace,
-} from "../../../target-model/records/generated-helpers.js";
+} from "../../../target-model/records/program/generated-helpers.js";
 
 export function planCsharpGeneratedHelperSourceFile(
   input: CsharpPlanningContext,

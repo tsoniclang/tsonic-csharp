@@ -45,14 +45,14 @@ import { selectCsharpBinaryOperation, selectCsharpDestructuringAssignmentOperati
 import { selectCsharpIteration } from "./iteration/selection.js";
 import { isCsharpThrowableType } from "../project-types/throwable-types.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type { CsharpOperationIssue } from "../../target-model/records/operations.js";
+import type { CsharpOperationIssue } from "../../target-model/records/operations/operations.js";
 
-import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 import { classifyExactUnmodifiedCatchRethrow } from "./catch-rethrow.js";
 import { selectCsharpThrownOperandCarrier } from "../../policy/conversions/program-error.js";
 import { classifySourceOwnedMember, classifySourceOwnedElementMember, classifyCsharpMemberReceiver, elementSelectedTypes } from "./member-access.js";
 
-import type { CsharpOperationProducer } from "../program/records/operations.js";
+import type { CsharpOperationProducer } from "../program/records/operations/operations.js";
 
 export function analyzeCsharpOperationConstruct(
   node: Node,

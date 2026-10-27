@@ -1,7 +1,7 @@
 import { rawPointerOperationFactKey } from "@tsonic/tsts";
 import type { ExtensionFactSubject, ReadonlySourceFactResolver } from "@tsonic/tsts";
 
-import type { CsharpSourceRawPointerIdentity } from "../../target-model/records/raw-pointers.js";
+import type { CsharpSourceRawPointerIdentity } from "../../target-model/records/storage/raw-pointers.js";
 export function readCsharpSourceRawPointerIdentity(
   facts: ReadonlySourceFactResolver | undefined,
   subject: ExtensionFactSubject | undefined,

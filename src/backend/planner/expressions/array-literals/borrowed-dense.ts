@@ -1,6 +1,6 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpBorrowedSequenceInput } from "../../../../target-model/records/borrowed-sequences.js";
+import type { CsharpBorrowedSequenceInput } from "../../../../target-model/records/storage/borrowed-sequences.js";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";

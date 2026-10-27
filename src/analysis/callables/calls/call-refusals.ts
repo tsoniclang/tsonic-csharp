@@ -1,4 +1,4 @@
-import type { CsharpTargetCallSelection } from "../../../target-model/records/member-selections.js";
+import type { CsharpTargetCallSelection } from "../../../target-model/records/operations/member-selections.js";
 
 // The diagnostic a non-closed target call selection reports; undefined for a selected call.
 export function csharpTargetCallRefusal(target: CsharpTargetCallSelection):

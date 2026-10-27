@@ -20,7 +20,7 @@ import { csharpNativeSizeLiteral, planCsharpNativeMemoryCall } from "./native-me
 import { mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { buildCsharpPlannedValue, planCsharpExpressionCompletion, projectCsharpPlannedValue } from "./planned-value-composition.js";
 import { readCsharpNativeExpressionCarrier } from "./native-uses.js";
-import type { CsharpNativeHandler } from "../../../target-model/records/native-handlers.js";
+import type { CsharpNativeHandler } from "../../../target-model/records/native/native-handlers.js";
 
 export function planCsharpNativePointerOperation(node: Node, selection: Extract<CsharpNativeHandler, { readonly kind: "native-pointer" }>["selection"], sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner, state: DestructuringPlannerState | undefined
 ): CsharpPlannedValue | undefined {

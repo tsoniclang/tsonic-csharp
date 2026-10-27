@@ -4,7 +4,7 @@ import { isDeepStrictEqual } from "node:util";
 import { planClassHeritage, planInterfaceHeritage } from "../../../../dist/backend/planner/declarations/classes/heritage.js";
 import { renderCsharpStructuralInterfaceMembers } from "../../../../dist/backend/planner/objects/structural-interfaces.js";
 import { analyzeCsharpStructuralObjectEmission } from "../../../../dist/analysis/objects/structural-emission.js";
-import { objectShapeArtifactKey } from "../../../../dist/target-model/records/object-shape-keys.js";
+import { objectShapeArtifactKey } from "../../../../dist/target-model/records/objects/object-shape-keys.js";
 import { targetTypeRefKey } from "../../../../dist/target-model/types/equality.js";
 import { printCsharpCompilationUnit } from "../../../../dist/print/source/index.js";
 import { csharpDelegateTargetType } from "../../../../dist/target-model/types/carriers/delegates.js";

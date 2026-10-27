@@ -14,7 +14,7 @@ import { consumeCsharpPlannedValue } from "../../statements/statement-output.js"
 import { planCsharpParameterStorageDeclaration } from "../../bindings/typed-location-identities.js";
 import type { CsharpEntryBinding } from "../../bindings/binding-patterns.js";
 import { planCsharpParameterCapture } from "../../bindings/capture-storage.js";
-import type { CsharpParameterDefaultEmission } from "../../../../target-model/records/parameter-emission.js";
+import type { CsharpParameterDefaultEmission } from "../../../../target-model/records/calls/parameter-emission.js";
 import { planCsharpTupleParameterEntry } from "../../bindings/tuple-parameter-entry.js";
 
 export interface PlannedParameterList {

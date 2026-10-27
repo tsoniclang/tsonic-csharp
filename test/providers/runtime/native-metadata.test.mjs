@@ -14,7 +14,7 @@ import { csharpNativeInheritanceLookup, csharpNativeTargetBindingFact } from "..
 import { csharpExceptionTargetType, csharpRuntimeErrorTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { materializeCsharpOutputPlan } from "../../../dist/backend/emission/materialize.js";
 import { planCsharpProjectFile } from "../../../dist/backend/planner/project/project-artifacts.js";
-import { createCsharpCompilationRecords } from "../../../dist/analysis/program/records/compilation.js";
+import { createCsharpCompilationRecords } from "../../../dist/analysis/program/records/program/compilation.js";
 import { printCsharpProjectFile } from "../../../dist/print/project/manifest.js";
 import { printCsharpRuntimeProject } from "../../../dist/print/project/runtime.js";
 

@@ -1,13 +1,13 @@
 import type { SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type { CsharpTargetCallSelection } from "../../target-model/records/member-selections.js";
-import type { ResolvedSourceCallInfo } from "../../target-model/records/source-calls.js";
+import type { CsharpTargetCallSelection } from "../../target-model/records/operations/member-selections.js";
+import type { ResolvedSourceCallInfo } from "../../target-model/records/calls/source-calls.js";
 import { selectCsharpConversion } from "../../policy/conversions/index.js";
 import { getCsharpDelegateSignature, getCsharpNullableElementTargetType } from "../../target-model/types/index.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import { getCsharpGenericOptionalParts } from "../../target-model/types/projections.js";
 import { isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
-import type { CsharpCallClassification } from "../../target-model/records/operations.js";
+import type { CsharpCallClassification } from "../../target-model/records/operations/operations.js";
 import { admitCsharpConversionSelection } from "../conversions/validation.js";
 
 export function classifyCsharpOptionalCallCallee(

@@ -1,16 +1,16 @@
-import type { CsharpObjectShapeArtifactClosure, CsharpObjectShapeProjectionAdmission } from "../../target-model/records/object-shape-demand.js";
+import type { CsharpObjectShapeArtifactClosure, CsharpObjectShapeProjectionAdmission } from "../../target-model/records/objects/object-shape-demand.js";
 import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
-import type { CsharpJsonObjectShapeContractResult } from "../../target-model/records/json-object-shapes.js";
-import type { CsharpCaptureStorage } from "../../target-model/records/capture-storage.js";
-import type { CsharpConversionClassifications } from "../../target-model/records/conversions.js";
-import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
-import type { CsharpProjectTypeClassifications } from "../../target-model/records/project-types.js";
+import type { CsharpJsonObjectShapeContractResult } from "../../target-model/records/objects/json-object-shapes.js";
+import type { CsharpCaptureStorage } from "../../target-model/records/callables/capture-storage.js";
+import type { CsharpConversionClassifications } from "../../target-model/records/operations/conversions.js";
+import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
+import type { CsharpProjectTypeClassifications } from "../../target-model/records/types/project-types.js";
 import type { CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
 
 import type { TargetTypeRef, CsharpObjectShapeProjectionKind } from "../../target-model/types/model.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeCapability, CsharpObjectShapeProjection } from "../../target-model/types/index.js";
 import { csharpObjectShapesEqual, csharpObjectShapeMemberContractKey } from "../../target-model/types/index.js";
-import { objectShapeArtifactKey } from "../../target-model/records/object-shape-keys.js";
+import { objectShapeArtifactKey } from "../../target-model/records/objects/object-shape-keys.js";
 import { objectShapeMaterialization } from "../../policy/types/objects/object-shape-materialization.js";
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";

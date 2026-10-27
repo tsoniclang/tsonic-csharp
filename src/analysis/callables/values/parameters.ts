@@ -1,20 +1,20 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { SourceLiteralIndex } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpDeclarationClassifications } from "../../../target-model/records/declarations.js";
-import type { CsharpValueReadClassifications, CsharpConversionClassifications } from "../../../target-model/records/conversions.js";
-import type { CsharpStorageClassifications } from "../../../target-model/records/storage.js";
+import type { CsharpDeclarationClassifications } from "../../../target-model/records/program/declarations.js";
+import type { CsharpValueReadClassifications, CsharpConversionClassifications } from "../../../target-model/records/operations/conversions.js";
+import type { CsharpStorageClassifications } from "../../../target-model/records/storage/storage.js";
 import type { CsharpExactLiteralSelectionIndex } from "../../../target-model/conversions/exact-literals.js";
-import type { CsharpCallableParameterEmission, CsharpParameterDefaultEmission, CsharpLambdaParameterEntry } from "../../../target-model/records/parameter-emission.js";
+import type { CsharpCallableParameterEmission, CsharpParameterDefaultEmission, CsharpLambdaParameterEntry } from "../../../target-model/records/calls/parameter-emission.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { csharpCarrierAdmitsSourceAbsence } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpParameterDefaultIsLiteral } from "../../../policy/types/callables/parameter-default-literals.js";
 import { csharpConversionIsApplicable } from "../../../policy/conversions/applicability.js";
-import { createCsharpCallableParameterRecords } from "../../program/records/parameter-emission.js";
-import { requireCsharpRecord, type CsharpRequiredRecord } from "../../program/records/required-records.js";
+import { createCsharpCallableParameterRecords } from "../../program/records/calls/parameter-emission.js";
+import { requireCsharpRecord, type CsharpRequiredRecord } from "../../program/records/objects/required-records.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { selectCsharpTypeEmission } from "../../../policy/types/resolution/type-emission.js";
-import type { CsharpCallableContractIndex } from "../../../target-model/records/callable-values.js";
+import type { CsharpCallableContractIndex } from "../../../target-model/records/callables/callable-values.js";
 import { isCsharpSourceCallableArtifactDeclaration } from "../../../policy/types/callables/source-callable-contract.js";
 
 export function analyzeCsharpCallableParameterEmission(input: {

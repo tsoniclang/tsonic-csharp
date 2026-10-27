@@ -1,7 +1,7 @@
 import type {
   CsharpNativeRefReturnSelection, CsharpTypedLocationOperand, CsharpTypedLocationOperationKind,
   CsharpTypedLocationOperationSelection,
-} from "../../../target-model/records/typed-locations.js";
+} from "../../../target-model/records/storage/typed-locations.js";
 import type { Node } from "@tsonic/tsts";
 
 import {
@@ -17,7 +17,7 @@ export function selectCsharpNativeTypedLocationOperation(
   pointeeType: TargetTypeRef,
   carriers: ReadonlyMap<Node, TargetTypeRef>,
   nativeLocation: CsharpNativeRefReturnSelection | undefined,
-  storage: import("../../../target-model/records/typed-location-storage.js").CsharpTypedLocationStorageSelection | undefined,
+  storage: import("../../../target-model/records/storage/typed-location-storage.js").CsharpTypedLocationStorageSelection | undefined,
 ): CsharpTypedLocationOperationSelection {
   if (nativeLocation?.kind === "rejected") return rejected(source.kind, nativeLocation.reason);
   const locationType = csharpRuntimeLocationTargetType(pointeeType);

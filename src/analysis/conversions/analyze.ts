@@ -7,16 +7,16 @@ import { csharpTargetBindingFact, isCsharpReferenceCarrier, targetTypeRefKey, ta
 import { isSourceOwnedCallableRuntimeCarrierSubject, isSourceOwnedProjectReference } from "../source-evidence/types/resolution/source-ownership.js";
 
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpClosedShapeMemberProjection } from "../../target-model/records/closed-object-shapes.js";
+import type { CsharpClosedShapeMemberProjection } from "../../target-model/records/objects/closed-object-shapes.js";
 
-import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import type { CsharpStructuralInterfaceRegistration } from "../objects/structural-interfaces.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 
-import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
-import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
+import type { CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
 import type { CsharpConversionAnalysis, CsharpPreparedConversionClassifications } from "./model.js";
-import type { CsharpConversionClassifications, CsharpConversionIssue, CsharpExpressionConversionClassification } from "../../target-model/records/conversions.js";
+import type { CsharpConversionClassifications, CsharpConversionIssue, CsharpExpressionConversionClassification } from "../../target-model/records/operations/conversions.js";
 import { sealCsharpDelegateAdapterIdentities } from "./delegate-identities.js";
 
 import { selectCsharpIntegerTruncationConversion } from "./integer-truncation.js";
@@ -25,15 +25,15 @@ import { admitCsharpConversionSelection } from "./validation.js";
 
 import { createCsharpExactLiteralRequestCollector } from "./literal-requests.js";
 import { sealCsharpConversionUses, type CsharpCallConversionRequests } from "./use-admission.js";
-import type { CsharpNativeCompletion } from "../../target-model/records/native-demand.js";
+import type { CsharpNativeCompletion } from "../../target-model/records/native/native-demand.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { csharpDelegateSignatureHasSupportedPassingModes, getCsharpDelegateSignature } from "../../target-model/types/carriers/delegates.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import { isCsharpVoidTargetType } from "../../target-model/types/identity.js";
 import { collectCsharpGeneratedHelpers } from "./generated-helpers.js";
-import { createCsharpGeneratedHelperRecords } from "../program/records/generated-helpers.js";
-import type { CsharpGeneratedHelper } from "../../target-model/records/generated-helpers.js";
-import { createCsharpDelegateContractProducer } from "../program/records/callable-conversions.js";
+import { createCsharpGeneratedHelperRecords } from "../program/records/program/generated-helpers.js";
+import type { CsharpGeneratedHelper } from "../../target-model/records/program/generated-helpers.js";
+import { createCsharpDelegateContractProducer } from "../program/records/callables/callable-conversions.js";
 import { admitCsharpDelegateEmission, admitCsharpDelegateOperand } from "./callable-emission.js";
 
 const maximumConversionClassifications = 1_048_576;
@@ -330,5 +330,5 @@ export function analyzeCsharpConversions(
 }
 
 import { collectCsharpConversionRequirements } from "./requirements.js";
-import { csharpConversionKey, sealCsharpConversionClassifications } from "../program/records/conversions.js";
-import { csharpUnavailableConversion } from "../../target-model/records/conversions.js";
+import { csharpConversionKey, sealCsharpConversionClassifications } from "../program/records/operations/conversions.js";
+import { csharpUnavailableConversion } from "../../target-model/records/operations/conversions.js";

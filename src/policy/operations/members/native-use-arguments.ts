@@ -1,7 +1,7 @@
-import type { CsharpSelectedTargetCall, CsharpProviderArgumentMapping } from "../../../target-model/records/members.js";
+import type { CsharpSelectedTargetCall, CsharpProviderArgumentMapping } from "../../../target-model/records/objects/members.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import type { CsharpSourceArgumentGrouping } from "../../../target-model/records/operations.js";
-import type { CsharpNativeArgumentBinding, CsharpNativeArgumentBindings } from "../../../target-model/records/native-demand.js";
+import type { CsharpSourceArgumentGrouping } from "../../../target-model/records/operations/operations.js";
+import type { CsharpNativeArgumentBinding, CsharpNativeArgumentBindings } from "../../../target-model/records/native/native-demand.js";
 
 function argumentBinding(sourceIndex: number, effectiveIndex: number, parameterIndex: number, sequence: boolean,
   sourceParameterIndex?: number): CsharpNativeArgumentBinding {

@@ -4,13 +4,13 @@ import type { TargetSelection } from "@tsonic/target-api";
 import type { TsonicPointerReturnQueries, TsonicMemoryBindingIndex } from "@tsonic/source-core/facts";
 
 import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
-import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../../../target-model/records/project-types.js";
+import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../../../target-model/records/types/project-types.js";
 import type { CsharpProviderRelationResolver } from "../../../../providers/model/relation-resolver.js";
-import type { SourceCallableContract } from "../../../../target-model/records/source-callable-contract.js";
+import type { SourceCallableContract } from "../../../../target-model/records/callables/source-callable-contract.js";
 
 import type { TargetTypeRef, CsharpSourceTargetTypeBinding, CsharpObjectShapeFact } from "../../../../target-model/types/model.js";
-import type { CsharpObjectShapePolicy } from "../../../../target-model/records/object-shapes.js";
-import type { CsharpObjectMethodSources } from "../../../../target-model/records/native-value-carriers.js";
+import type { CsharpObjectShapePolicy } from "../../../../target-model/records/objects/object-shapes.js";
+import type { CsharpObjectMethodSources } from "../../../../target-model/records/native/native-value-carriers.js";
 
 export type ResolvedSourceCallInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["call"]>
@@ -29,13 +29,13 @@ export interface CsharpPlanningRepresentationQueries {
 }
 
 export interface CsharpTypePolicyBaseHost {
-  readonly integerRanges: import("../../../../target-model/records/integer-ranges.js").CsharpIntegerRangeIndex;
+  readonly integerRanges: import("../../../../target-model/records/operations/integer-ranges.js").CsharpIntegerRangeIndex;
   readonly objectMethodSources: CsharpObjectMethodSources;
   readonly literalValues: import("@tsonic/target-api/source").SourceLiteralIndex;
   readonly sourceStorage: import("@tsonic/target-api/analysis").SourceStorageQueries;
   readonly errorStorageDemands: import("@tsonic/target-api/analysis").SourceErrorStorageDemandQueries;
   callOnlyAlias(declaration: Node): import("@tsonic/target-api/source").SourceCallOnlyAlias | undefined;
-  readonly typeDefinitions?: import("../../../program/records/type-definitions.js").CsharpTypeDefinitionWriter;
+  readonly typeDefinitions?: import("../../../program/records/types/type-definitions.js").CsharpTypeDefinitionWriter;
   readonly ast: AstReader;
   readonly sourceFiles: readonly SourceFile[];
   readonly sourceFacts?: ReadonlySourceFactResolver;
@@ -50,9 +50,9 @@ export interface CsharpTypePolicyBaseHost {
 }
 
 export interface CsharpTypePolicyHost extends CsharpTypePolicyBaseHost {
-  readonly typeParameterConstraints: import("../../../../target-model/records/type-parameter-constraints.js").CsharpTypeParameterEnvironment;
+  readonly typeParameterConstraints: import("../../../../target-model/records/types/type-parameter-constraints.js").CsharpTypeParameterEnvironment;
   closedTypeGuard(node: Node): import("@tsonic/target-api/source").SourceNativeGuard<import("../../../../target-model/operations/type-tests.js").CsharpClosedTypePredicate> | undefined;
-  bindingProjection(node: Node, sourceFile: SourceFile): import("../../../../target-model/records/binding-projection-policy.js").CsharpBindingProjection | undefined;
+  bindingProjection(node: Node, sourceFile: SourceFile): import("../../../../target-model/records/storage/binding-projection-policy.js").CsharpBindingProjection | undefined;
   readonly representations: CsharpPlanningRepresentationQueries;
   readonly projectTypeCatalog: CsharpProjectTypeCatalog;
   readonly objectShapes: CsharpObjectShapePolicy;

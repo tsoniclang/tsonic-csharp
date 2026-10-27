@@ -5,7 +5,7 @@ import { compileCsharpRequiredRecordSource } from "../../helpers/required-record
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { transformCsharpTargetAst } from "../../../dist/backend/target-ast/normalization/transformation.js";
 import { csharpStructuralObjectShapeIdentity, csharpSourcePrimitiveTargetType, isCsharpJsValueTargetType, isCsharpRecordDictionaryTargetType, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
-import { objectShapeArtifactKey } from "../../../dist/target-model/records/object-shape-keys.js";
+import { objectShapeArtifactKey } from "../../../dist/target-model/records/objects/object-shape-keys.js";
 import { printCsharpType } from "../../../dist/print/source/printer.js";
 import { createCsharpObjectShapeValueStorage } from "../../../dist/policy/types/objects/shape-carriers.js";
 import { applyCsharpObjectShapeDisplayNames } from "../../../dist/backend/target-ast/normalization/object-shape-names.js";

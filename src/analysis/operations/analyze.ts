@@ -3,18 +3,18 @@ import { classifyCsharpClassPropertyStorage } from "./class-property-storage.js"
 import { createCsharpOperationErasure, type CsharpOperationErasureIndexes } from "./statement-erasure.js";
 
 import { analyzeCsharpNativeHandlers } from "./native-handlers.js";
-import type { CsharpRequiredRecord } from "../program/records/required-records.js";
+import type { CsharpRequiredRecord } from "../program/records/objects/required-records.js";
 
 import type { Node } from "@tsonic/tsts";
 
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type { CsharpTargetOperationClassifications, CsharpOperationIssue } from "../../target-model/records/operations.js";
+import type { CsharpTargetOperationClassifications, CsharpOperationIssue } from "../../target-model/records/operations/operations.js";
 import { composeCsharpBinaryExecutionDriver } from "../../target-model/metadata/binary-execution-drivers.js";
-import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 
 import { optionalResultType } from "../../policy/operations/members/optional-results.js";
 
-import { createCsharpOperationProducer, type CsharpOperationProducer } from "../program/records/operations.js";
+import { createCsharpOperationProducer, type CsharpOperationProducer } from "../program/records/operations/operations.js";
 import { analyzeCsharpOperationConstruct } from "./constructs.js";
 
 export function analyzeCsharpTargetOperations(

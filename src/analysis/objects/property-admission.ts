@@ -1,23 +1,23 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { sourceParameterIsProperty } from "@tsonic/target-api/source";
 import { targetDiagnosticFromExtension, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpTargetOperationClassifications, CsharpSourceOwnedMemberClassification } from "../../target-model/records/operations.js";
-import type { CsharpTargetPropertySelection, CsharpTargetElementSelection } from "../../target-model/records/member-selections.js";
-import type { CsharpAdmittedPropertyClassification, CsharpSourceMemberEmission, CsharpUnionPropertyProjection } from "../../target-model/records/property-admission.js";
+import type { CsharpTargetOperationClassifications, CsharpSourceOwnedMemberClassification } from "../../target-model/records/operations/operations.js";
+import type { CsharpTargetPropertySelection, CsharpTargetElementSelection } from "../../target-model/records/operations/member-selections.js";
+import type { CsharpAdmittedPropertyClassification, CsharpSourceMemberEmission, CsharpUnionPropertyProjection } from "../../target-model/records/objects/property-admission.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { selectCsharpMethodValueEnvironment } from "../../policy/types/objects/method-environments.js";
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
-import { createCsharpPropertyAdmissionRecords } from "../program/records/property-admission.js";
+import { createCsharpPropertyAdmissionRecords } from "../program/records/objects/property-admission.js";
 import { selectCsharpEmittedExpressions } from "../operations/emitted-expressions.js";
 
 export function analyzeCsharpPropertyAdmission(input: { readonly ast: AstReader; readonly nodes: readonly Node[];
   readonly operations: CsharpTargetOperationClassifications; readonly admitted: (node: Node) => boolean;
   readonly projectDeclaration: (node: Node) => boolean;
-  readonly jsCalls: import("../../target-model/records/js-value-calls.js").CsharpJsCallRecords;
-  readonly receivers: import("../../target-model/records/member-receivers.js").CsharpMemberReceiverRecords;
-  readonly modules: import("../../target-model/records/source-references.js").CsharpSourceReferenceRecords["sourceModuleReference"];
-  readonly evidence: Pick<import("../../target-model/records/source-evidence.js").CsharpSourceEvidenceIndex, "sourceDefaultValue" | "sourceArgument"> }) {
+  readonly jsCalls: import("../../target-model/records/calls/js-value-calls.js").CsharpJsCallRecords;
+  readonly receivers: import("../../target-model/records/objects/member-receivers.js").CsharpMemberReceiverRecords;
+  readonly modules: import("../../target-model/records/program/source-references.js").CsharpSourceReferenceRecords["sourceModuleReference"];
+  readonly evidence: Pick<import("../../target-model/records/program/source-evidence.js").CsharpSourceEvidenceIndex, "sourceDefaultValue" | "sourceArgument"> }) {
   const properties = new Map<Node, CsharpAdmittedPropertyClassification>();
   const members = new Map<Node, CsharpSourceMemberEmission>();
   const unions = new Map<Node, CsharpUnionPropertyProjection>();

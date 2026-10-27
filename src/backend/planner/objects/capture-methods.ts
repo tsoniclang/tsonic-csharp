@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpCaptureFrame } from "../../../target-model/records/capture-storage.js";
+import type { CsharpCaptureFrame } from "../../../target-model/records/callables/capture-storage.js";
 import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
 import type { CsharpExpression, CsharpMethodDeclaration, CsharpTypeMember } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
@@ -14,7 +14,7 @@ import { planSourceFunctionDeclaration } from "../declarations/callables/functio
 import { withCsharpSafetyModifiers } from "../safety/explicit-safety.js";
 import { planCsharpArtifactMemberHiding } from "../declarations/modifiers.js";
 import type { CsharpPlannedAddressOperand } from "../expressions/planned-values.js";
-import type { CsharpCaptureMethodEmission } from "../../../target-model/records/capture-methods.js";
+import type { CsharpCaptureMethodEmission } from "../../../target-model/records/callables/capture-methods.js";
 
 export function renderCsharpCaptureFrameMethods(
   shape: CsharpObjectShapeFact, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],

@@ -4,15 +4,15 @@ import { AsVariableDeclaration, sourceClassFieldIsTypeOnly, sourceObjectMemberDe
   sourceDeclarationIsModuleScoped, sourceParameterIsProperty } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant, targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
 import type { CsharpNativeMemberIdentity, CsharpNativeMemberNames } from "../../target-model/names/model.js";
-import type { CsharpProjectCallableAdapters } from "../../target-model/records/callable-adapters.js";
-import type { CsharpCaptureStorage } from "../../target-model/records/capture-storage.js";
-import type { CsharpClassFactoryIndex } from "../../target-model/records/class-factories.js";
-import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
-import type { CsharpNativeParticipationInput, CsharpNativeUseClassifications } from "../../target-model/records/native-demand.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpProjectTypeClassifications, CsharpProjectTypeDefinition } from "../../target-model/records/project-types.js";
-import type { SourceCallableSourceContract } from "../../target-model/records/source-callable-contract.js";
-import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
+import type { CsharpProjectCallableAdapters } from "../../target-model/records/callables/callable-adapters.js";
+import type { CsharpCaptureStorage } from "../../target-model/records/callables/capture-storage.js";
+import type { CsharpClassFactoryIndex } from "../../target-model/records/objects/class-factories.js";
+import type { CsharpDeclarationClassifications } from "../../target-model/records/program/declarations.js";
+import type { CsharpNativeParticipationInput, CsharpNativeUseClassifications } from "../../target-model/records/native/native-demand.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpProjectTypeClassifications, CsharpProjectTypeDefinition } from "../../target-model/records/types/project-types.js";
+import type { SourceCallableSourceContract } from "../../target-model/records/callables/source-callable-contract.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 import type { CsharpNativeInheritedMember, CsharpNativeTargetBindingFact } from "../../target-model/types/native-inheritance.js";
 import { csharpNativeInheritanceLookup } from "../../target-model/types/native-inheritance.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
@@ -24,14 +24,14 @@ import { csharpObjectShapeMethodDeclaration, csharpPresentObjectShapeMethod } fr
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 import { csharpTargetStorageIdentityEquals } from "../../policy/types/storage/storage-identity.js";
 import type { CsharpSourceNameResolver } from "./plan.js";
-import type { CsharpObjectShapeDemandClosure } from "../../target-model/records/object-shape-demand.js";
-import type { CsharpNativeValueCarriers } from "../../target-model/records/native-value-carriers.js";
-import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
-import type { CsharpModuleInitializationIndex } from "../../target-model/records/module-initialization.js";
-import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
-import type { CsharpCallableCreationIndex } from "../../target-model/records/callable-values.js";
+import type { CsharpObjectShapeDemandClosure } from "../../target-model/records/objects/object-shape-demand.js";
+import type { CsharpNativeValueCarriers } from "../../target-model/records/native/native-value-carriers.js";
+import type { CsharpStorageClassifications } from "../../target-model/records/storage/storage.js";
+import type { CsharpModuleInitializationIndex } from "../../target-model/records/program/module-initialization.js";
+import type { CsharpCallableContractIndex } from "../../target-model/records/callables/callable-values.js";
+import type { CsharpCallableCreationIndex } from "../../target-model/records/callables/callable-values.js";
 import type { CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
-import { objectShapeArtifactKey } from "../../target-model/records/object-shape-keys.js";
+import { objectShapeArtifactKey } from "../../target-model/records/objects/object-shape-keys.js";
 import { objectShapeStorageMemberName, objectShapeBoundStorageMemberName,
   objectShapeAccessorGetterStorageMemberName, objectShapeAccessorSetterStorageMemberName,
   objectShapeMethodBodyName, objectShapeMethodInvocationName, objectShapeMethodValueStorageNames,

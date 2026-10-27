@@ -1,4 +1,4 @@
-import type { CsharpPromiseDiscard } from "../../../target-model/records/promise-results.js";
+import type { CsharpPromiseDiscard } from "../../../target-model/records/callables/promise-results.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
 import { getCsharpTaskResultTargetType } from "../../../target-model/types/carriers/delegates.js";

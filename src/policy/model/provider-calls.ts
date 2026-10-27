@@ -3,9 +3,9 @@ import type { TargetSelection } from "@tsonic/target-api";
 import type { SourceFileSemantics, SourceProgramNavigation, SourceLiteralIndex } from "@tsonic/target-api/source";
 import type { SourceStorageQueries } from "@tsonic/target-api/analysis";
 import type { CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
-import type { CsharpValueDomainCarrierQueries } from "../../target-model/records/value-domains.js";
-import type { CsharpObjectShapePolicy } from "../../target-model/records/object-shapes.js";
-import type { CsharpProjectTypePolicy } from "../../target-model/records/project-types.js";
+import type { CsharpValueDomainCarrierQueries } from "../../target-model/records/types/value-domains.js";
+import type { CsharpObjectShapePolicy } from "../../target-model/records/objects/object-shapes.js";
+import type { CsharpProjectTypePolicy } from "../../target-model/records/types/project-types.js";
 import type { CsharpTypeQueries } from "./type-resolution.js";
 export interface CsharpProviderOperationHost {
   readonly sourceStorage?: SourceStorageQueries;
@@ -15,7 +15,7 @@ export interface CsharpProviderOperationHost {
   semantics(sourceFile: SourceFile): SourceFileSemantics;
 }
 export interface CsharpProviderCallInstantiationHost extends CsharpProviderOperationHost {
-  readonly integerRanges: import("../../target-model/records/integer-ranges.js").CsharpIntegerRangeIndex;
+  readonly integerRanges: import("../../target-model/records/operations/integer-ranges.js").CsharpIntegerRangeIndex;
   readonly ast: AstReader;
   readonly literalValues: SourceLiteralIndex;
   readonly navigation: SourceProgramNavigation;

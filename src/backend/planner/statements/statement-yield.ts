@@ -14,7 +14,7 @@ import type {
   DestructuringPlannerState,
 } from "../bindings/index.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import type { CsharpYieldFact } from "../../../target-model/records/generators.js";
+import type { CsharpYieldFact } from "../../../target-model/records/callables/generators.js";
 import {
   applyCsharpConversionSelection,
   readCsharpConversionClassification,

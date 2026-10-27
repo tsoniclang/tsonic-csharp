@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import type { CsharpBindingIdentity } from "../../target-model/records/binding-identities.js";
-import { createCsharpBindingIdentityRecords } from "../program/records/binding-identities.js";
+import type { CsharpBindingIdentity } from "../../target-model/records/storage/binding-identities.js";
+import { createCsharpBindingIdentityRecords } from "../program/records/storage/binding-identities.js";
 
 export function analyzeCsharpBindingIdentities(source: TargetSourceProgram, nodes: readonly Node[]) {
   const identities = new Map<Node, CsharpBindingIdentity>();

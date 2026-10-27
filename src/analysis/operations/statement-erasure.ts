@@ -2,8 +2,8 @@ import type { Node } from "@tsonic/tsts";
 import { isAstNode } from "@tsonic/target-api/source";
 import type { TsonicAttributeApplicationFactIndex } from "@tsonic/source-core/facts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type { CsharpOperationIssue } from "../../target-model/records/operations.js";
-import type { CsharpSafetyApplicationFactIndex } from "../../target-model/records/safety.js";
+import type { CsharpOperationIssue } from "../../target-model/records/operations/operations.js";
+import type { CsharpSafetyApplicationFactIndex } from "../../target-model/records/storage/safety.js";
 
 export interface CsharpOperationErasureIndexes {
   readonly attributeApplications: TsonicAttributeApplicationFactIndex;

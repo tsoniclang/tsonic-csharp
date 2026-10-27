@@ -1,5 +1,5 @@
 import type { CsharpClosedTypeTest } from "../../../target-model/operations/type-tests.js";
-import type { CsharpClosedTypeTestEmission } from "../../../target-model/records/type-tests.js";
+import type { CsharpClosedTypeTestEmission } from "../../../target-model/records/types/type-tests.js";
 import type { CsharpExpression, CsharpSwitchExpressionArm } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { allocateExpressionTemp, type DestructuringPlannerState } from "../bindings/binding-state.js";

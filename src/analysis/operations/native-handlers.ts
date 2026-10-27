@@ -1,8 +1,8 @@
 import type { Node } from "@tsonic/tsts";
-import { createCsharpNativeHandlerProducer } from "../program/records/native-handlers.js";
+import { createCsharpNativeHandlerProducer } from "../program/records/native/native-handlers.js";
 import { selectCsharpNativeHandler } from "../../policy/operations/pointers/native-handlers.js";
-import type { CsharpNativeHandler } from "../../target-model/records/native-handlers.js";
-import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
+import type { CsharpNativeHandler } from "../../target-model/records/native/native-handlers.js";
+import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/objects/required-records.js";
 
 export function analyzeCsharpNativeHandlers(
   nodes: readonly Node[],

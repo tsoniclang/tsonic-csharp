@@ -1,6 +1,6 @@
 import type { CsharpJsonObjectShapePolicyInput } from "../../model/json-object-shapes.js";
-import type { CsharpJsonObjectShapeContractResult } from "../../../target-model/records/json-object-shapes.js";
-import { csharpJsonObjectProtocol } from "../../../target-model/records/json-object-shapes.js";
+import type { CsharpJsonObjectShapeContractResult } from "../../../target-model/records/objects/json-object-shapes.js";
+import { csharpJsonObjectProtocol } from "../../../target-model/records/objects/json-object-shapes.js";
 import { objectShapeStorageMemberName } from "../../../target-model/names/object-members.js";
 import {
   getCsharpDelegateSignature,

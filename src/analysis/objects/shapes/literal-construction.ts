@@ -17,7 +17,7 @@ import { csharpObjectShapeMethodRequiresProtocol } from "../../../target-model/t
 import { selectCsharpCopiedMethodReceiver } from "../copied-methods.js";
 
 import type { CsharpObjectShapePolicyHost, CsharpRecursiveObjectShapePolicy } from "./model.js";
-import type { CsharpObjectLiteralTargetShapeResolution } from "../../../target-model/records/object-shapes.js";
+import type { CsharpObjectLiteralTargetShapeResolution } from "../../../target-model/records/objects/object-shapes.js";
 
 import type { createCsharpObjectShapeMemberResolver } from "./member-evidence.js";
 

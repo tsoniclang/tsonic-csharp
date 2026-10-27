@@ -6,7 +6,7 @@ import { analyzeCsharpConstructorArguments } from "../declarations/classes/const
 
 import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpResolvedBinaryOperation } from "../../target-model/records/operator-selection.js";
+import type { CsharpResolvedBinaryOperation } from "../../target-model/records/operations/operator-selection.js";
 
 import { analyzeCsharpNativeConstants } from "../operations/native-constants.js";
 import { analyzeCsharpBinaryEmission } from "../operations/binary-emission.js";
@@ -14,7 +14,7 @@ import { analyzeCsharpDictionaryLiterals } from "../objects/dictionary-literals.
 import { analyzeCsharpExpressionEmission } from "../operations/expression-emission.js";
 import { analyzeCsharpLambdaEmission } from "../callables/emission/lambda-emission.js";
 import { analyzeCsharpTypedLocationEmission } from "../storage/typed-location-emission.js";
-import { createCsharpPromiseResultRecords } from "./records/promise-results.js";
+import { createCsharpPromiseResultRecords } from "./records/callables/promise-results.js";
 import { admitCsharpLocationRetention } from "../storage/location-retention.js";
 
 import { analyzeCsharpProjectCallableAdapters } from "../project-types/callable-adapters.js";
@@ -80,7 +80,7 @@ import { analyzeCsharpResourceScopes } from "../control-flow/resource-scopes.js"
 import { analyzeCsharpLocalBindings } from "../storage/local-bindings.js";
 import { analyzeCsharpBindingIdentities } from "../storage/binding-identities.js";
 import { analyzeCsharpSourceOutputIdentities } from "../names/source-output-identities.js";
-import { createCsharpObjectShapeRecords } from "./records/object-shapes.js";
+import { createCsharpObjectShapeRecords } from "./records/objects/object-shapes.js";
 import { analyzeCsharpObjectShapeEmission } from "../objects/declaration-emission.js";
 import { analyzeCsharpSourceUnionEmission } from "../objects/source-union-emission.js";
 import { analyzeCsharpGenerators } from "../callables/async/generators.js";
@@ -116,7 +116,7 @@ import { analyzeCsharpFlowReadProjections } from "../conversions/flow-read-proje
 
 import { analyzeCsharpNativeArtifactDemand } from "../objects/native-demand.js";
 import { selectCsharpObjectShapePublication } from "../names/object-shapes.js";
-import { publishCsharpNativeArtifactDemand } from "./records/native-demand.js";
+import { publishCsharpNativeArtifactDemand } from "./records/native/native-demand.js";
 export function finalizeCsharpNativeEmission(
   request: CsharpTargetAnalysisRequest,
   analysis: CsharpRepresentationAnalysis,

@@ -1,10 +1,10 @@
-import type { CsharpSourceDefaultValue, CsharpSourceField, CsharpSourceStruct } from "../../target-model/records/source-markers.js";
+import type { CsharpSourceDefaultValue, CsharpSourceField, CsharpSourceStruct } from "../../target-model/records/program/source-markers.js";
 import { defaultValueFactKey, fieldFactKey, functionPointerFactKey, pointerFactKey, rawPointerFactKey, sourceMarkerFactKey, structFactKey } from "@tsonic/tsts";
 import { tsonicFixedArrayFactKey } from "@tsonic/source-core/facts";
 
 import type { ExtensionFactSubject, Node, ReadonlySourceFactResolver } from "@tsonic/tsts";
 
-import type { CsharpSourcePointerType, CsharpSourceFunctionPointerType, CsharpSourceFixedArrayType } from "../../target-model/records/source-markers.js";
+import type { CsharpSourcePointerType, CsharpSourceFunctionPointerType, CsharpSourceFixedArrayType } from "../../target-model/records/program/source-markers.js";
 export function readCsharpSourceJsStringMarker(
   sourceFacts: ReadonlySourceFactResolver | undefined,
   subject: ExtensionFactSubject | undefined,

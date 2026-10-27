@@ -3,7 +3,7 @@ import { sealInvocationOnlyCallableArguments } from "../../../policy/operations/
 import { formatSourceIdentity } from "../../../policy/operations/source-profiles/js/common.js";
 import { csharpSourceProfileDiagnostic } from "../../../policy/operations/source-profiles/source-profile-policy.js";
 import type { CsharpSourceProfileCallPolicyResult, CsharpSourceProfileElementPolicyResult, CsharpSourceProfileCallPolicy, CsharpSourceProfilePropertyPolicy, CsharpSourceProfileElementPolicy } from "../../../policy/model/source-profiles.js";
-import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/source-profile-invocations.js";
+import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/program/source-profile-invocations.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { selectedSourceIndexedDeclarations, selectedSourcePropertyDeclarations, type SourceFileSemantics } from "@tsonic/target-api/source";
 
@@ -12,7 +12,7 @@ import type { CsharpProviderCallSelectionHost } from "../../../policy/model/prov
 import { csharpSourceProfileDeclarationIdentity } from "../../../policy/identities/selected-source.js";
 import type { CsharpSourceProfileDeclarationIdentity } from "../../../policy/identities/selected-source.js";
 
-import type { ResolvedSourceCallInfo } from "../../../target-model/records/source-calls.js";
+import type { ResolvedSourceCallInfo } from "../../../target-model/records/calls/source-calls.js";
 
 type ResolvedSourcePropertyAccessInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["propertyAccess"]>
@@ -21,7 +21,7 @@ type ResolvedSourceElementAccessInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["elementAccess"]>
 >;
 
-import { createCsharpSourceProfileInputs } from "../../program/records/source-profile-inputs.js";
+import { createCsharpSourceProfileInputs } from "../../program/records/program/source-profile-inputs.js";
 import { sourceProfilePropertyIdentityMatches, sourceProfileIdentityMatches, selectExactlyOnePolicy } from "../../../policy/operations/source-profiles/source-profile-policy.js";
 export function selectCsharpSourceProfileCallPolicy(
   host: CsharpProviderCallSelectionHost,

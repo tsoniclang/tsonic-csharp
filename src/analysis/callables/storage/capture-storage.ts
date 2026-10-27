@@ -1,4 +1,4 @@
-import type { CsharpCaptureFrame, CsharpCaptureStorage, CsharpCapturedBinding, CsharpLambdaCreation } from "../../../target-model/records/capture-storage.js";
+import type { CsharpCaptureFrame, CsharpCaptureStorage, CsharpCapturedBinding, CsharpLambdaCreation } from "../../../target-model/records/callables/capture-storage.js";
 import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import { sourceCallableDefinitionIsDiscarded, sourceBindingScope, sourceBindingHasSingleCaptureOwner, sourceNodeIdentity, sourceBindingCapturedBeforeInitialization, sourceBindingCapturedBeforeFirstWrite, sourceLexicalFunctionValueCreation, sourceLexicalFunctionValueOrder } from "@tsonic/target-api/source";
@@ -6,15 +6,15 @@ import { sourceClosedCallableArguments, sourceExpressionCallArgument } from "@ts
 import type { SourceLexicalValueCreation } from "@tsonic/target-api/source";
 import { createHash } from "node:crypto";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
-import type { CsharpObjectShapeClassifications } from "../../../target-model/records/object-shapes.js";
-import type { CsharpStorageIssue } from "../../../target-model/records/storage.js";
+import type { CsharpObjectShapeClassifications } from "../../../target-model/records/objects/object-shapes.js";
+import type { CsharpStorageIssue } from "../../../target-model/records/storage/storage.js";
 import type { CsharpCaptureStorageQueries } from "../../storage/index.js";
 import { createStructuralObjectShapeTarget } from "../../objects/shapes/construction.js";
 import { csharpRuntimeLocationTargetType, csharpRuntimeNativeArrayTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
-import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/source-evidence.js";
+import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";
 import { selectCsharpFrameClosures } from "../values/capture-closures.js";
-import { type CsharpFrameClosure } from "../../../target-model/records/capture-storage.js";
+import { type CsharpFrameClosure } from "../../../target-model/records/callables/capture-storage.js";
 import { csharpTargetNamedType } from "../../../target-model/types/factories.js";
 import { selectCsharpGenericFrameClosures } from "../generics/generic-closures.js";
 import { getCsharpMethodValue, csharpObjectShapeMethodDeclaration } from "../../../target-model/types/method-values.js";
@@ -22,9 +22,9 @@ import type { CsharpSourceNameResolver } from "../../names/plan.js";
 import { createCsharpTypeParameterEnvironment } from "../../source-evidence/types/resolution/type-parameter-environment.js";
 
 import { csharpCapturedMemberAccess } from "../values/captured-member-access.js";
-import type { CsharpDeclarationClassifications } from "../../../target-model/records/declarations.js";
-import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations.js";
-import type { CsharpExpectedTypeClassifications } from "../../../target-model/records/expected-types.js";
+import type { CsharpDeclarationClassifications } from "../../../target-model/records/program/declarations.js";
+import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations/operations.js";
+import type { CsharpExpectedTypeClassifications } from "../../../target-model/records/types/expected-types.js";
 import { getCsharpExpressionTreeDelegateType } from "../../../target-model/types/carriers/delegates.js";
 import { HasSyntacticModifier, ModifierFlagsAsync } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
@@ -34,7 +34,7 @@ export function analyzeCsharpCaptureStorage(
   shapes: CsharpObjectShapeClassifications,
   storage: CsharpCaptureStorageQueries,
   evidence: CsharpSourceEvidenceIndex,
-  classCaptures: readonly import("../../../target-model/records/class-factories.js").CsharpClassCapture[],
+  classCaptures: readonly import("../../../target-model/records/objects/class-factories.js").CsharpClassCapture[],
   names: CsharpSourceNameResolver,
   declarations: CsharpDeclarationClassifications,
   operations: CsharpTargetOperationClassifications,
@@ -118,7 +118,7 @@ export function analyzeCsharpCaptureStorage(
     ...genericClosures.filter(closure => closure.scope !== closure.declaration)];
   const byScope = new Map<Node, CsharpCaptureFrame>();
   const byBinding = new Map<Node, CsharpCapturedBinding>();
-  const byClosure = new Map<Node, import("../../../target-model/records/capture-storage.js").CsharpCaptureClosure>();
+  const byClosure = new Map<Node, import("../../../target-model/records/callables/capture-storage.js").CsharpCaptureClosure>();
   const retainClosure = (frame: CsharpCaptureFrame, method: CsharpFrameClosure): void => {
     byClosure.set(method.declaration, Object.freeze({ frame, method,
       reference: frame.ownership === "value" || getCsharpMethodValue(method.type) !== undefined ? "frame"
@@ -331,4 +331,4 @@ function hasSingleCaptureOwner(source: TargetSourceProgram, declaration: Node, s
     methods, source.ast, source.navigation, use => use.role !== "value");
 }
 
-import { sealCsharpCaptureStorage } from "../../program/records/capture-storage.js";
+import { sealCsharpCaptureStorage } from "../../program/records/callables/capture-storage.js";

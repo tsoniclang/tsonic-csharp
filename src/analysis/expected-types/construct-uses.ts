@@ -5,10 +5,10 @@ import { csharpSourceArgumentExpectedType, csharpTargetParameterValueType, getCs
   resolveCsharpObjectShapeMemberBySelectedSubject } from "../../policy/types/index.js";
 import { csharpSelectedTargetArgumentBindings, csharpSourceOwnedArgumentBindings, csharpProviderArgumentSourceCarrier } from "../../policy/operations/members/native-use-arguments.js";
 import { isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
-import type { CsharpNativeUseSlot } from "../../target-model/records/native-demand.js";
-import type { CsharpTargetCallSelection } from "../../target-model/records/member-selections.js";
-import type { ResolvedSourceCallInfo } from "../../target-model/records/source-calls.js";
-import type { CsharpSourceArgumentGrouping } from "../../target-model/records/operations.js";
+import type { CsharpNativeUseSlot } from "../../target-model/records/native/native-demand.js";
+import type { CsharpTargetCallSelection } from "../../target-model/records/operations/member-selections.js";
+import type { ResolvedSourceCallInfo } from "../../target-model/records/calls/source-calls.js";
+import type { CsharpSourceArgumentGrouping } from "../../target-model/records/operations/operations.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpExpectedUseCollection } from "./collection.js";
 import type { CsharpExpectedTypeAnalysisInput, CsharpExpectedUseSiteDemand, CsharpExpectedUseWithholding } from "./model.js";

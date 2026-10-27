@@ -1,7 +1,7 @@
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 
 import type { CsharpObjectShapeMemberFact, CsharpStructuralInterfaceImplementation } from "../../../target-model/types/model.js";
-import type { CsharpStructuralInterfaceEvidence } from "../../../target-model/records/heritage.js";
+import type { CsharpStructuralInterfaceEvidence } from "../../../target-model/records/objects/heritage.js";
 import { isCsharpValueTypeTargetType } from "../../../target-model/types/identity.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { inferCsharpTargetTypeParameterBindings, substituteObjectShapeMemberTargetTypeParameters, substituteTargetTypeParameters } from "../resolution/substitution.js";

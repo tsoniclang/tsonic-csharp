@@ -1,12 +1,12 @@
 import { selectCsharpFieldInitialization } from "../../policy/types/project/field-initialization.js";
-import type { CsharpClassInitializationIndex, CsharpClassFieldInitialization } from "../../target-model/records/class-initialization.js";
+import type { CsharpClassInitializationIndex, CsharpClassFieldInitialization } from "../../target-model/records/objects/class-initialization.js";
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import { sourceExpressionUsesLexicalThis } from "@tsonic/target-api/source";
-import type { CsharpClassFactoryIndex } from "../../target-model/records/class-factories.js";
-import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
+import type { CsharpClassFactoryIndex } from "../../target-model/records/objects/class-factories.js";
+import type { CsharpStorageClassifications } from "../../target-model/records/storage/storage.js";
 
-import { createCsharpClassFieldInitializationRecords } from "../program/records/class-initialization.js";
+import { createCsharpClassFieldInitializationRecords } from "../program/records/objects/class-initialization.js";
 
 export function analyzeCsharpClassFieldInitialization(input: {
   readonly ast: AstReader;

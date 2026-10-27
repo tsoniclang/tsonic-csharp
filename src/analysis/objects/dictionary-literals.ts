@@ -1,11 +1,11 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
-import type { CsharpDictionaryLiteral } from "../../target-model/records/dictionary-literals.js";
+import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
+import type { CsharpDictionaryLiteral } from "../../target-model/records/objects/dictionary-literals.js";
 import { isCsharpRecordDictionaryTargetType } from "../../target-model/types/carriers/collections.js";
 import { targetTypeRefKey, targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
-import { createCsharpDictionaryLiteralRecords } from "../program/records/dictionary-literals.js";
+import { createCsharpDictionaryLiteralRecords } from "../program/records/objects/dictionary-literals.js";
 
 export function analyzeCsharpDictionaryLiterals(ast: AstReader, demand: CsharpNativeDemandAnalysis) {
   const values = new Map<Node, Map<string, CsharpDictionaryLiteral>>();

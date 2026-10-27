@@ -1,12 +1,12 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations.js";
-import type { CsharpValueReadClassifications } from "../../../target-model/records/conversions.js";
-import type { CsharpRestSequence, CsharpRestSequenceEmission } from "../../../target-model/records/rest-sequences.js";
+import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations/operations.js";
+import type { CsharpValueReadClassifications } from "../../../target-model/records/operations/conversions.js";
+import type { CsharpRestSequence, CsharpRestSequenceEmission } from "../../../target-model/records/objects/rest-sequences.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { selectCsharpSequenceEmission } from "../../../policy/conversions/sequence-emission.js";
-import { createCsharpRestSequenceRecords } from "../../program/records/rest-sequences.js";
+import { createCsharpRestSequenceRecords } from "../../program/records/objects/rest-sequences.js";
 
 export function analyzeCsharpRestSequences(nodes: readonly Node[], operations: CsharpTargetOperationClassifications,
   reads: CsharpValueReadClassifications, admitted: (node: Node) => boolean) {

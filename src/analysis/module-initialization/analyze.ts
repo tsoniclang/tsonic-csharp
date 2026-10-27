@@ -23,13 +23,13 @@ import {
   SourceFile_FileName,
   sourceMayReadBeforeInitialization,
 } from "@tsonic/target-api/source";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpModuleInitializationAnalysis, CsharpModuleInitializationIssue } from "../../target-model/records/module-initialization.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpModuleInitializationAnalysis, CsharpModuleInitializationIssue } from "../../target-model/records/program/module-initialization.js";
 
-import { createCsharpModuleInitializationProducer } from "../program/records/module-initialization.js";
+import { createCsharpModuleInitializationProducer } from "../program/records/program/module-initialization.js";
 
 interface CsharpModuleInitializationAnalysisInput {
-  readonly sourceEvidence: import("../../target-model/records/source-evidence.js").CsharpSourceEvidenceIndex;
+  readonly sourceEvidence: import("../../target-model/records/program/source-evidence.js").CsharpSourceEvidenceIndex;
   readonly source: TargetSourceProgram;
   readonly sourceFiles: readonly SourceFile[];
   readonly projectRoot: string;

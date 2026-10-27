@@ -1,7 +1,7 @@
 import type { CsharpJsValueOperationSelection } from "../../../target-model/operations/js-values.js";
 import type { CsharpClosedTypeTest } from "../../../target-model/operations/type-tests.js";
-import type { CsharpCallForm } from "../../../target-model/records/operations.js";
-import type { CsharpSourceFlowCallSelection } from "../../../target-model/records/source-flow.js";
+import type { CsharpCallForm } from "../../../target-model/records/operations/operations.js";
+import type { CsharpSourceFlowCallSelection } from "../../../target-model/records/operations/source-flow.js";
 
 export function selectCsharpCallForm(
   typeTest: CsharpClosedTypeTest | undefined,

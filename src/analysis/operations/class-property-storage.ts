@@ -1,10 +1,10 @@
-import { sealCsharpClassPropertyStorage } from "../program/records/class-property-storage.js";
+import { sealCsharpClassPropertyStorage } from "../program/records/storage/class-property-storage.js";
 import { csharpReadonlyFieldPreservesStorage } from "../../policy/ownership/class-properties.js";
-import type { CsharpClassPropertyStorage } from "../../target-model/records/class-property-storage.js";
+import type { CsharpClassPropertyStorage } from "../../target-model/records/storage/class-property-storage.js";
 import type { Node } from "@tsonic/tsts";
 import { sourceObjectMemberDeclarations, sourceParameterIsProperty } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 
 export function classifyCsharpClassPropertyStorage(
   policy: CsharpPolicyContext,

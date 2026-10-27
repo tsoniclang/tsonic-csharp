@@ -22,7 +22,7 @@ import { planArrayDefaultProjection } from "./array-defaults.js";
 import { planCsharpBindingDefaultValue } from "./optional-values.js";
 import { runtimeArrayHelperCall } from "../expressions/array-helpers.js";
 import { qualifiedCsharpType } from "../types/index.js";
-import type { CsharpDestructuringAssignmentPattern, CsharpDestructuringAssignmentTarget } from "../../../target-model/records/value-projections.js";
+import type { CsharpDestructuringAssignmentPattern, CsharpDestructuringAssignmentTarget } from "../../../target-model/records/objects/value-projections.js";
 import { planCsharpAbsentValue } from "../expressions/optional-storage.js";
 
 export function isDestructuringAssignmentExpression(

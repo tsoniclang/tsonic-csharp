@@ -2,8 +2,8 @@
 // with the analysis's own producers, so a fixture never hand-writes a decision the analysis owns.
 import { analyzeCsharpTypeEmission } from "../../dist/analysis/source-evidence/types/emission.js";
 import { admitCsharpDelegateEmission } from "../../dist/analysis/conversions/callable-emission.js";
-import { createCsharpDelegateContractProducer } from "../../dist/analysis/program/records/callable-conversions.js";
-import { createCsharpSourceProfileInputs } from "../../dist/analysis/program/records/source-profile-inputs.js";
+import { createCsharpDelegateContractProducer } from "../../dist/analysis/program/records/callables/callable-conversions.js";
+import { createCsharpSourceProfileInputs } from "../../dist/analysis/program/records/program/source-profile-inputs.js";
 
 // records.typeEmission for any queried carrier, computed by analyzeCsharpTypeEmission over that carrier alone.
 // targetShapes: the object-shape facts by targetTypeRefKey that the carrier may reach.

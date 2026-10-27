@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression, CsharpObjectInitializerAssignment, CsharpStatement } from "../../target-ast/syntax/index.js";
-import type { CsharpNamedSelfBinding } from "../../../target-model/records/capture-storage.js";
+import type { CsharpNamedSelfBinding } from "../../../target-model/records/callables/capture-storage.js";
 import type { CsharpPlanningContext } from "../context.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import { csharpCaptureFrameExpression, csharpCapturedBindingExpression } from "./capture-storage.js";

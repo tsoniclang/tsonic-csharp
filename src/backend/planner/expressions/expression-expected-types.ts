@@ -1,7 +1,7 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { TargetUseSiteRef } from "@tsonic/target-api/analysis";
-import type { CsharpNativeUse, CsharpNativeDiscardedPresence, CsharpNativeDiscardedGuard } from "../../../target-model/records/native-demand.js";
+import type { CsharpNativeUse, CsharpNativeDiscardedPresence, CsharpNativeDiscardedGuard } from "../../../target-model/records/native/native-demand.js";
 import type { CsharpPlanningContext } from "../context.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";
 import type { CsharpStatement } from "../../target-ast/syntax/index.js";

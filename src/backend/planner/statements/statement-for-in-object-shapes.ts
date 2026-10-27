@@ -21,7 +21,7 @@ import {
 } from "../expressions/index.js";
 import { consumeCsharpPlannedValue } from "./statement-output.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
-import type { CsharpAdmittedIteration } from "../../../target-model/records/selection.js";
+import type { CsharpAdmittedIteration } from "../../../target-model/records/operations/selection.js";
 import type {
   NestedStatementPlanner,
 } from "./model.js";

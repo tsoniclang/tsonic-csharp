@@ -7,7 +7,7 @@ import { planExpression } from "../../expressions/index.js";
 import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../../types/target-type-object-shapes.js";
 import type { CsharpPlannedValue } from "../../expressions/planned-values.js";
 import { planCsharpBindingDefaultValue } from "../../bindings/optional-values.js";
-import type { CsharpDefaultParameterContract } from "../../../../target-model/records/declarations.js";
+import type { CsharpDefaultParameterContract } from "../../../../target-model/records/program/declarations.js";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 

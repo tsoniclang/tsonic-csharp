@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { TsonicClosedArrayStorage } from "@tsonic/source-core/facts";
-import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 
 export interface CsharpSourceEvidenceResult {
   readonly index: CsharpSourceEvidenceIndex;

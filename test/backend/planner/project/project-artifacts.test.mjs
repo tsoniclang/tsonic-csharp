@@ -4,7 +4,7 @@ import { mkdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } fro
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { planCsharpProject, planCsharpProjectFile } from "../../../../dist/backend/planner/project/project-artifacts.js";
-import { createCsharpCompilationRecords } from "../../../../dist/analysis/program/records/compilation.js";
+import { createCsharpCompilationRecords } from "../../../../dist/analysis/program/records/program/compilation.js";
 import { materializeCsharpOutputPlan } from "../../../../dist/backend/emission/materialize.js";
 import { createCsharpTargetPack } from "../../../../dist/descriptor/target-pack.js";
 import { printCsharpProjectFile } from "../../../../dist/print/project/manifest.js";

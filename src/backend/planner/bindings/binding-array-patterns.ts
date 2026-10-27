@@ -7,7 +7,7 @@ import {
 import type { Node,
   SourceFile,
 } from "@tsonic/tsts";
-import type { CsharpBindingProjectionFact } from "../../../target-model/records/value-projections.js";
+import type { CsharpBindingProjectionFact } from "../../../target-model/records/objects/value-projections.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,

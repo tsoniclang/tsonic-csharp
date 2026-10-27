@@ -3,7 +3,7 @@ import { jsSourceCallableRefusal } from "@tsonic/js-source-profile";
 import { combineCsharpTargetUnionMembers, csharpIteratorResultTargetType, csharpSourcePrimitiveTargetType, csharpTaskTargetType, getCsharpGeneratorProtocol, getCsharpIteratorResultProtocol } from "../../../target-model/types/index.js";
 
 import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext, CsharpSourceProfileCallPolicyResult, CsharpSourceProfileIdentitySelector, CsharpSourceProfilePropertyPolicy, CsharpSourceProfilePropertyPolicyContext } from "../../model/source-profiles.js";
-import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/source-profile-invocations.js";
+import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/program/source-profile-invocations.js";
 import { csharpSourceProfileCall, csharpSourceProfileDiagnostic, resolveCsharpSelectedSourceValue } from "./source-profile-policy.js";
 import type { CsharpSourceProfileOwner } from "../../identities/selected-source.js";
 import { csharpTargetId } from "../../../target-model/identities/target.js";

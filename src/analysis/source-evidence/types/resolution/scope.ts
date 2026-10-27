@@ -1,21 +1,21 @@
 import type { ExtensionFactSubject, Node, SourceFile, Symbol, Type } from "@tsonic/tsts";
 import type { SourceCallableTypeEvidence, SourceFileSemantics, SourceTypeComponentEvidence } from "@tsonic/target-api/source";
 
-import type { SourceCallableContract } from "../../../../target-model/records/source-callable-contract.js";
+import type { SourceCallableContract } from "../../../../target-model/records/callables/source-callable-contract.js";
 
 import type { CsharpSourceCallContractSelection } from "./call-contracts.js";
 
-import type { CsharpPointerReturnContract } from "../../../../target-model/records/pointer-return.js";
+import type { CsharpPointerReturnContract } from "../../../../target-model/records/calls/pointer-return.js";
 import type { CsharpSourceTypedLocationOperation } from "../../../../source/extension/typed-locations.js";
 import type { CsharpTypePolicyHost, CsharpScopedTypePolicyResult, CsharpTypePolicy, CsharpTypeResolutionState } from "./model.js";
-import type { ResolvedSourceCallInfo } from "../../../../target-model/records/source-calls.js";
+import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
 import type { CsharpSourceTargetTypeBinding } from "../../../../target-model/types/model.js";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { classifyCsharpSourceProfileType } from "../../../../policy/identities/source-types.js";
 import { type CsharpSourceUnionIndex } from "./source-unions.js";
 import { createCsharpSourceUnionDefinitions } from "./union-definitions.js";
 
-import { type CsharpArrayLiteralSelection } from "../../../../target-model/records/array-literals.js";
+import { type CsharpArrayLiteralSelection } from "../../../../target-model/records/operations/array-literals.js";
 
 import type { createCsharpTypePolicy } from "./engine.js";
 import type { CsharpNodeTypeResolution } from "../../../../policy/model/type-resolution.js";

@@ -5,19 +5,19 @@ import type { CsharpConversionMode, CsharpConversionSelection } from "../../targ
 import { csharpAbsenceTargetType, csharpTsValueTargetType, getCsharpGeneratorProtocol, getCsharpArrayLiteralElementTargetType, getCsharpCollectionElementTargetType, targetTypeRefKey } from "../../policy/types/index.js";
 import { directCsharpSourceYieldExpression } from "../../target-model/syntax/yield-expression.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpClosedShapeMemberProjection } from "../../target-model/records/closed-object-shapes.js";
+import type { CsharpClosedShapeMemberProjection } from "../../target-model/records/objects/closed-object-shapes.js";
 import { selectCsharpClosedShapeConversion } from "../../policy/types/objects/closed-object-shapes.js";
 import { resolveCsharpObjectShapeMemberBySourceContract } from "../../target-model/types/index.js";
-import type { CsharpExpectedTypeClassifications } from "../../target-model/records/expected-types.js";
-import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
+import type { CsharpExpectedTypeClassifications } from "../../target-model/records/types/expected-types.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import type { CsharpStructuralInterfaceRegistration } from "../objects/structural-interfaces.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpTargetCallSelection } from "../../target-model/records/member-selections.js";
-import type { CsharpBorrowedSequenceInput } from "../../target-model/records/borrowed-sequences.js";
-import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
-import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpTargetCallSelection } from "../../target-model/records/operations/member-selections.js";
+import type { CsharpBorrowedSequenceInput } from "../../target-model/records/storage/borrowed-sequences.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
+import type { CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
 
-import type { CsharpConversionIssue } from "../../target-model/records/conversions.js";
+import type { CsharpConversionIssue } from "../../target-model/records/operations/conversions.js";
 
 import { substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
@@ -28,7 +28,7 @@ import { csharpSourceTypeParameter } from "../../source/extension/type-parameter
 import { selectCsharpPropertyProjections } from "./property-projections.js";
 
 import { type CsharpCallConversionRequests } from "./use-admission.js";
-import type { CsharpNativeCompletion } from "../../target-model/records/native-demand.js";
+import type { CsharpNativeCompletion } from "../../target-model/records/native/native-demand.js";
 
 import type { CsharpExactLiteralRequestCollector } from "./literal-requests.js";
 

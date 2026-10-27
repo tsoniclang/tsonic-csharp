@@ -1,5 +1,5 @@
 import type { CsharpObjectMemberPolicyInput } from "../../model/object-members.js";
-import type { CsharpObjectMemberDeclaration, CsharpObjectMemberEmission, CsharpObjectMethodSignature } from "../../../target-model/records/object-members.js";
+import type { CsharpObjectMemberDeclaration, CsharpObjectMemberEmission, CsharpObjectMethodSignature } from "../../../target-model/records/objects/object-members.js";
 import { csharpDelegateTargetType, getCsharpDelegateSignature, getCsharpNullableElementTargetType, isCsharpVoidTargetType } from "../../../target-model/types/index.js";
 import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { csharpRuntimeLocationTargetType, csharpRuntimeRecordFieldTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";

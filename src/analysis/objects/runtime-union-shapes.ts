@@ -1,6 +1,6 @@
-import type { CsharpRuntimeUnionObjectShapeMember, CsharpRuntimeUnionObjectShapePropertyResolution } from "../../target-model/records/runtime-union-object-shapes.js";
+import type { CsharpRuntimeUnionObjectShapeMember, CsharpRuntimeUnionObjectShapePropertyResolution } from "../../target-model/records/objects/runtime-union-object-shapes.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpObjectShapePolicy } from "../../target-model/records/object-shapes.js";
+import type { CsharpObjectShapePolicy } from "../../target-model/records/objects/object-shapes.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/object-shape-members.js";
 import { getCsharpRuntimeUnionArms } from "../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";

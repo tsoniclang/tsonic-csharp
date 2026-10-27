@@ -1,6 +1,6 @@
 import { csharpProviderBindingFromResolution } from "../../providers/model/relation-resolver.js";
 import type { CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
-import type { CsharpProjectTypePolicy } from "../../target-model/records/project-types.js";
+import type { CsharpProjectTypePolicy } from "../../target-model/records/types/project-types.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpTargetBindingFact } from "../../target-model/types/model.js";
 import { csharpBaseTargetTypeFromBinding } from "../../policy/types/storage/bindings.js";

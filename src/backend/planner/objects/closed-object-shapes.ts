@@ -1,8 +1,8 @@
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpPlanningContext } from "../context.js";
-import type { CsharpClosedShapeConversion } from "../../../target-model/records/closed-object-shapes.js";
-import type { CsharpObjectShapeProjectionDeclaration } from "../../../target-model/records/object-shape-demand.js";
-import type { CsharpNativeMemberHidingReader } from "../../../target-model/records/native-member-names.js";
+import type { CsharpClosedShapeConversion } from "../../../target-model/records/objects/closed-object-shapes.js";
+import type { CsharpObjectShapeProjectionDeclaration } from "../../../target-model/records/objects/object-shape-demand.js";
+import type { CsharpNativeMemberHidingReader } from "../../../target-model/records/native/native-member-names.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpExpression, CsharpMethodDeclaration, CsharpStatement, CsharpTypeNode, CsharpTypeParameter } from "../../target-ast/syntax/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";

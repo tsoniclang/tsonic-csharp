@@ -1,6 +1,6 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type { CsharpOperationIssue } from "../../target-model/records/operations.js";
+import type { CsharpOperationIssue } from "../../target-model/records/operations/operations.js";
 import { readCsharpSourceTypedLocationOperation } from "../../source/extension/typed-locations.js";
 import { selectCsharpTargetCall } from "./members/selected-members.js";
 import { csharpTargetCallRefusal } from "../callables/calls/call-refusals.js";

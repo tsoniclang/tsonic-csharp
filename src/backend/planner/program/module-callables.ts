@@ -2,7 +2,7 @@ import type { SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpPlanningContext } from "../context.js";
 import type { CsharpMethodDeclaration } from "../../target-ast/syntax/index.js";
-import type { CsharpModuleCallableEmission } from "../../../target-model/records/source-file-emission.js";
+import type { CsharpModuleCallableEmission } from "../../../target-model/records/program/source-file-emission.js";
 import { createDestructuringPlannerState } from "../bindings/index.js";
 import { planCsharpArrowLambdaSyntax, planCsharpCapturedFunctionLambdaSyntax } from "../expressions/callable.js";
 import { planExpression } from "../expressions/index.js";

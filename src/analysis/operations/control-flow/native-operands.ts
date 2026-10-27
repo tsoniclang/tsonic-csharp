@@ -1,14 +1,14 @@
 import type { AstReader, ExtensionDiagnostic, Node } from "@tsonic/tsts";
 import type { TargetPlanningSourceNavigation } from "@tsonic/target-api/analysis";
 import { sourceDeclarationIsModuleScoped, sourceNodesEqual, sourceExpressionResultDisposition, sourceExpressionValueInputs } from "@tsonic/target-api/source";
-import type { CsharpNativeCallableCreation, CsharpNativeChildUse, CsharpNativeUseSlot, CsharpNativeDiscardedGuard } from "../../../target-model/records/native-demand.js";
-import type { CsharpTargetOperationClassifications, CsharpSourceArgumentGrouping } from "../../../target-model/records/operations.js";
-import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/source-evidence.js";
-import type { CsharpValueReadClassifications } from "../../../target-model/records/conversions.js";
-import type { CsharpClassFactoryIndex } from "../../../target-model/records/class-factories.js";
-import type { CsharpSelectedTargetCall } from "../../../target-model/records/members.js";
-import type { ResolvedSourceCallInfo } from "../../../target-model/records/source-calls.js";
-import type { CsharpBindingPatternClassifications, CsharpDestructuringAssignmentPattern } from "../../../target-model/records/value-projections.js";
+import type { CsharpNativeCallableCreation, CsharpNativeChildUse, CsharpNativeUseSlot, CsharpNativeDiscardedGuard } from "../../../target-model/records/native/native-demand.js";
+import type { CsharpTargetOperationClassifications, CsharpSourceArgumentGrouping } from "../../../target-model/records/operations/operations.js";
+import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";
+import type { CsharpValueReadClassifications } from "../../../target-model/records/operations/conversions.js";
+import type { CsharpClassFactoryIndex } from "../../../target-model/records/objects/class-factories.js";
+import type { CsharpSelectedTargetCall } from "../../../target-model/records/objects/members.js";
+import type { ResolvedSourceCallInfo } from "../../../target-model/records/calls/source-calls.js";
+import type { CsharpBindingPatternClassifications, CsharpDestructuringAssignmentPattern } from "../../../target-model/records/objects/value-projections.js";
 import { getCsharpClassFactory } from "../../../target-model/types/carriers/class-factories.js";
 import { getCsharpDelegateSignature } from "../../../target-model/types/carriers/delegates.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
@@ -17,7 +17,7 @@ import { csharpSelectedTargetArgumentBindings, csharpSourceOwnedArgumentBindings
 import { sourceOperatorFromKindName } from "../../../target-model/syntax/operators.js";
 import { csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpRuntimeLocationTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
-import type { CsharpOptionalLocalOperation } from "../../../target-model/records/local-bindings.js";
+import type { CsharpOptionalLocalOperation } from "../../../target-model/records/storage/local-bindings.js";
 
 export interface CsharpNativeOperandInput {
   readonly ast: AstReader;

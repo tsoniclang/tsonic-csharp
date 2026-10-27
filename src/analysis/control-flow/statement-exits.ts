@@ -1,13 +1,13 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { analyzeSourceStatementExits } from "@tsonic/target-api/analysis";
-import type { CsharpStatementExitRecords } from "../../target-model/records/statement-exits.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
-import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
-import type { CsharpNativeParticipationInput } from "../../target-model/records/native-demand.js";
+import type { CsharpStatementExitRecords } from "../../target-model/records/operations/statement-exits.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
+import type { CsharpNativeParticipationInput } from "../../target-model/records/native/native-demand.js";
 import { isCsharpNeverTargetType } from "../../target-model/types/carriers/scalar-types.js";
-import { createCsharpStatementExitRecords } from "../program/records/statement-exits.js";
-import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
+import { createCsharpStatementExitRecords } from "../program/records/operations/statement-exits.js";
+import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/objects/required-records.js";
 
 export function analyzeCsharpStatementExits(input: {
   readonly ast: AstReader;

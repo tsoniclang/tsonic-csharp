@@ -1,8 +1,8 @@
-import type { CsharpResolvedResourceManagement, CsharpResourceDisposalOperation } from "../../../target-model/records/management.js";
+import type { CsharpResolvedResourceManagement, CsharpResourceDisposalOperation } from "../../../target-model/records/storage/management.js";
 
 import type { TargetTypeRef } from "../../types/index.js";
 import { getCsharpRuntimeUnionArms, getCsharpNullableElementTargetType, isCsharpAbsenceTargetType, targetTypeRefEquals } from "../../types/index.js";
-import type { CsharpOperationSelection } from "../../../target-model/records/operator-selection.js";
+import type { CsharpOperationSelection } from "../../../target-model/records/operations/operator-selection.js";
 
 import type { ResolvedSourceResourceManagementInfo } from "@tsonic/tsts";
 import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";

@@ -1,15 +1,15 @@
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
-import type { CsharpObjectShapeDemand } from "../../target-model/records/object-shape-demand.js";
-import { objectShapeArtifactKey } from "../../target-model/records/object-shape-keys.js";
-import type { CsharpObjectMemberEmission } from "../../target-model/records/object-members.js";
-import type { CsharpCaptureStorage } from "../../target-model/records/capture-storage.js";
-import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
+import type { CsharpObjectShapeDemand } from "../../target-model/records/objects/object-shape-demand.js";
+import { objectShapeArtifactKey } from "../../target-model/records/objects/object-shape-keys.js";
+import type { CsharpObjectMemberEmission } from "../../target-model/records/objects/object-members.js";
+import type { CsharpCaptureStorage } from "../../target-model/records/callables/capture-storage.js";
+import type { CsharpStorageClassifications } from "../../target-model/records/storage/storage.js";
 import type { CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
 import { canonicalCsharpObjectShapeMembers, csharpObjectShapeMemberContractKey } from "../../target-model/types/object-shape-identity.js";
 import { csharpObjectShapeMethodDeclaration } from "../../target-model/types/method-values.js";
 import { selectCsharpObjectMemberEmission } from "../../policy/types/objects/object-members.js";
-import { createCsharpObjectMemberRecords } from "../program/records/object-members.js";
+import { createCsharpObjectMemberRecords } from "../program/records/objects/object-members.js";
 
 export function analyzeCsharpObjectMemberEmission(input: {
   readonly shapes: CsharpObjectShapeClassifications;

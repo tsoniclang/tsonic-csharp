@@ -1,5 +1,5 @@
-export type { CsharpProviderArgumentMapping, CsharpSelectedCallArgument, CsharpSelectedTargetCall, CsharpSelectedTargetMethodTypeArgument, CsharpTargetElementInvocation } from "../../../target-model/records/members.js";
-export type { ResolvedSourceCallInfo } from "../../../target-model/records/source-calls.js";
+export type { CsharpProviderArgumentMapping, CsharpSelectedCallArgument, CsharpSelectedTargetCall, CsharpSelectedTargetMethodTypeArgument, CsharpTargetElementInvocation } from "../../../target-model/records/objects/members.js";
+export type { ResolvedSourceCallInfo } from "../../../target-model/records/calls/source-calls.js";
 export * from "./binding-instantiation.js";
 export * from "./instantiation-arguments.js";
 export * from "./source-argument-groups.js";

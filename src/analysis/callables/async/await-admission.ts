@@ -1,8 +1,8 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpNativeDemandAnalysis } from "../../../target-model/records/native-demand.js";
-import type { CsharpValueReadClassifications } from "../../../target-model/records/conversions.js";
-import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations.js";
+import type { CsharpNativeDemandAnalysis } from "../../../target-model/records/native/native-demand.js";
+import type { CsharpValueReadClassifications } from "../../../target-model/records/operations/conversions.js";
+import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations/operations.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 
 export function analyzeCsharpAwaitAdmission(input: { readonly ast: AstReader; readonly demand: CsharpNativeDemandAnalysis;

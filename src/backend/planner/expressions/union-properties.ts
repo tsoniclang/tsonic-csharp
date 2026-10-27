@@ -1,6 +1,6 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpPropertyClassification } from "../../../target-model/records/operations.js";
+import type { CsharpPropertyClassification } from "../../../target-model/records/operations/operations.js";
 import type { CsharpPlanningContext } from "../context.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
 import { planCsharpNativeUnionPropertyProjection } from "./union-projections.js";

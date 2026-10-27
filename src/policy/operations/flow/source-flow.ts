@@ -1,4 +1,4 @@
-import type { CsharpSourceFlowCallSelection } from "../../../target-model/records/source-flow.js";
+import type { CsharpSourceFlowCallSelection } from "../../../target-model/records/operations/source-flow.js";
 import { flowStateFactKey } from "@tsonic/tsts";
 import type { FlowStateFact, Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../model/context.js";

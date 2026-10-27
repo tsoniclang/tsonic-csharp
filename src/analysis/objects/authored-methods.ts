@@ -1,14 +1,14 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpCaptureStorage } from "../../target-model/records/capture-storage.js";
-import type { CsharpObjectShapeDemand } from "../../target-model/records/object-shape-demand.js";
-import { objectShapeArtifactKey } from "../../target-model/records/object-shape-keys.js";
-import type { CsharpObjectCaptureField, CsharpAuthoredObjectMethod } from "../../target-model/records/object-methods.js";
-import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
-import type { CsharpObjectMemberRecords } from "../../target-model/records/object-members.js";
+import type { CsharpCaptureStorage } from "../../target-model/records/callables/capture-storage.js";
+import type { CsharpObjectShapeDemand } from "../../target-model/records/objects/object-shape-demand.js";
+import { objectShapeArtifactKey } from "../../target-model/records/objects/object-shape-keys.js";
+import type { CsharpObjectCaptureField, CsharpAuthoredObjectMethod } from "../../target-model/records/objects/object-methods.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
+import type { CsharpObjectMemberRecords } from "../../target-model/records/objects/object-members.js";
 import { csharpObjectShapeMethodDeclaration } from "../../target-model/types/method-values.js";
 import { objectShapeMethodInvocationName, objectShapeStorageMemberName } from "../../target-model/names/object-members.js";
-import { createCsharpObjectMethodRecords } from "../program/records/object-methods.js";
+import { createCsharpObjectMethodRecords } from "../program/records/objects/object-methods.js";
 import { selectCsharpExplicitImplementationConstraints } from "../../policy/constraints/type-parameter-constraints.js";
 
 export function analyzeCsharpAuthoredObjectMethods(input: {

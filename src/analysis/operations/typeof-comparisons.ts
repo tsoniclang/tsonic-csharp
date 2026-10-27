@@ -3,7 +3,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import { selectCsharpTypeofComparison } from "../../policy/operations/index.js";
 import type { CsharpTypeofRuntimeKind } from "../../policy/types/index.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type { CsharpBinaryClassification } from "../../target-model/records/operations.js";
+import type { CsharpBinaryClassification } from "../../target-model/records/operations/operations.js";
 
 export function classifyTypeofComparison(
   policy: CsharpPolicyContext,

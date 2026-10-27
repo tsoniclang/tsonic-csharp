@@ -3,8 +3,8 @@ import { providerVirtualDeclarationFactKey, type AstReader, type Node, type Sour
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { TargetCompilationPaths } from "@tsonic/target-api";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpSourceFileOutputIdentity } from "../../target-model/records/source-files.js";
-import { createCsharpSourceFileRecords } from "../program/records/source-files.js";
+import type { CsharpSourceFileOutputIdentity } from "../../target-model/records/program/source-files.js";
+import { createCsharpSourceFileRecords } from "../program/records/program/source-files.js";
 
 export type CsharpSourceOutputIdentityPlan =
   | { readonly kind: "accepted"; readonly identities: ReadonlyMap<string, CsharpSourceFileOutputIdentity> }

@@ -1,9 +1,9 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import type { CsharpProjectTypeClassifications, CsharpProjectTypeHeritage } from "../../target-model/records/project-types.js";
-import type { CsharpNativeDeclarationForm } from "../../target-model/records/native-declaration-forms.js";
-import { createCsharpNativeDeclarationRecords } from "../program/records/native-declarations.js";
-import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
+import type { CsharpProjectTypeClassifications, CsharpProjectTypeHeritage } from "../../target-model/records/types/project-types.js";
+import type { CsharpNativeDeclarationForm } from "../../target-model/records/native/native-declaration-forms.js";
+import { createCsharpNativeDeclarationRecords } from "../program/records/native/native-declarations.js";
+import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/objects/required-records.js";
 
 export function analyzeCsharpNativeDeclarationForms(input: {
   readonly ast: AstReader;

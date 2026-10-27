@@ -1,5 +1,5 @@
 import type { CsharpIndexedRecordReadPolicyInput } from "../../model/indexed-records.js";
-import type { CsharpIndexedRecordRead } from "../../../target-model/records/indexed-records.js";
+import type { CsharpIndexedRecordRead } from "../../../target-model/records/objects/indexed-records.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/index.js";
 import { csharpTargetTypeRenderingRejection } from "../model/renderability.js";
 

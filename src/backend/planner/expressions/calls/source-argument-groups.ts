@@ -1,4 +1,4 @@
-import type { CsharpSourceArgumentGroup, CsharpSourceCallArgumentClassification } from "../../../../target-model/records/operations.js";
+import type { CsharpSourceArgumentGroup, CsharpSourceCallArgumentClassification } from "../../../../target-model/records/operations/operations.js";
 
 export function csharpSourceArgumentGroups(
   classification: CsharpSourceCallArgumentClassification,

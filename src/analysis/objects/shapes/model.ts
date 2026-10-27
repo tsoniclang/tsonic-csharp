@@ -1,8 +1,8 @@
-import type { CsharpObjectShapePolicy } from "../../../target-model/records/object-shapes.js";
+import type { CsharpObjectShapePolicy } from "../../../target-model/records/objects/object-shapes.js";
 
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../../target-model/types/model.js";
-import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../../target-model/records/project-types.js";
+import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../../target-model/records/types/project-types.js";
 import type { CsharpPlanningRepresentationQueries, CsharpRecursiveTypeResolver, CsharpTypePolicyBaseHost, CsharpTypeResolutionState } from "../../source-evidence/types/resolution/model.js";
 
 export type CsharpStructuralUnionResolution =

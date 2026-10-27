@@ -1,5 +1,5 @@
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
-import type { CsharpObjectMemberRecords } from "../../../target-model/records/object-members.js";
+import type { CsharpObjectMemberRecords } from "../../../target-model/records/objects/object-members.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function objectShapeMethodStorageTargetType(

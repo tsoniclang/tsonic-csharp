@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { targetUseSiteIdentity, createTargetClassificationKey, createTargetUseClassificationBuilder } from "@tsonic/target-api/analysis";
-import { csharpNativeUseSite } from "../../dist/target-model/records/native-demand.js";
+import { csharpNativeUseSite } from "../../dist/target-model/records/native/native-demand.js";
 import { csharpSourcePrimitiveTargetType } from "../../dist/target-model/types/carriers/scalar-types.js";
 
 const integer = csharpSourcePrimitiveTargetType("int32");

@@ -1,9 +1,9 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpIndexedRecordRead } from "../../target-model/records/indexed-records.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpIndexedRecordRead } from "../../target-model/records/objects/indexed-records.js";
 import { selectCsharpIndexedRecordRead } from "../../policy/types/objects/indexed-records.js";
-import { createCsharpIndexedRecordRecords } from "../program/records/indexed-records.js";
+import { createCsharpIndexedRecordRecords } from "../program/records/objects/indexed-records.js";
 
 export function analyzeCsharpIndexedRecords(nodes: readonly Node[], operations: Pick<CsharpTargetOperationClassifications, "selectedProperty" | "selectedElement">) {
   const values = new Map<Node, CsharpIndexedRecordRead>();

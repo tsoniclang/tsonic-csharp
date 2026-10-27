@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 import { analyzeCsharpNativeParticipation } from "../../../../dist/analysis/callables/calls/participation.js";
-import { assertCsharpRequiredRecords } from "../../../../dist/analysis/program/records/required-records.js";
+import { assertCsharpRequiredRecords } from "../../../../dist/analysis/program/records/objects/required-records.js";
 import { createCsharpProjectTypeCatalog } from "../../../../dist/analysis/project-types/catalog.js";
 import { analyzeCsharpClassFactories } from "../../../../dist/analysis/project-types/class-factories.js";
 import { analyzeCsharpStorage } from "../../../../dist/analysis/storage/analyze.js";

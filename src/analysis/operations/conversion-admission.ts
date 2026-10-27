@@ -1,7 +1,7 @@
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
-import type { CsharpTargetCallSelection } from "../../target-model/records/member-selections.js";
-import type { CsharpOperationIssue } from "../../target-model/records/operations.js";
+import type { CsharpTargetCallSelection } from "../../target-model/records/operations/member-selections.js";
+import type { CsharpOperationIssue } from "../../target-model/records/operations/operations.js";
 import type { Node } from "@tsonic/tsts";
 import { admitCsharpConversionSelection } from "../conversions/validation.js";
 

@@ -1,5 +1,5 @@
 import { csharpProviderBindingFromResolution } from "../../../providers/model/relation-resolver.js";
-import type { CsharpRawLocationSelection } from "../../../target-model/records/native-memory.js";
+import type { CsharpRawLocationSelection } from "../../../target-model/records/native/native-memory.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { countTsonicMemoryLayoutValues } from "@tsonic/source-core/facts";
 import type { TsonicMemoryLayoutFact } from "@tsonic/source-core/facts";

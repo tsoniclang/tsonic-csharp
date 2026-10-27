@@ -1,16 +1,16 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpClassFactoryIndex } from "../../../target-model/records/class-factories.js";
-import type { CsharpCaptureStorage } from "../../../target-model/records/capture-storage.js";
-import type { CsharpProjectTypeClassifications } from "../../../target-model/records/project-types.js";
-import type { CsharpStorageClassifications } from "../../../target-model/records/storage.js";
-import type { CsharpClassCaptureEmission, CsharpNativeClassEmission, CsharpForwardingConstructorEmission } from "../../../target-model/records/class-emission.js";
+import type { CsharpClassFactoryIndex } from "../../../target-model/records/objects/class-factories.js";
+import type { CsharpCaptureStorage } from "../../../target-model/records/callables/capture-storage.js";
+import type { CsharpProjectTypeClassifications } from "../../../target-model/records/types/project-types.js";
+import type { CsharpStorageClassifications } from "../../../target-model/records/storage/storage.js";
+import type { CsharpClassCaptureEmission, CsharpNativeClassEmission, CsharpForwardingConstructorEmission } from "../../../target-model/records/objects/class-emission.js";
 import { selectCsharpForwardingConstructor } from "../../../policy/types/project/forwarding-constructors.js";
 import type { CsharpNamePlan } from "../../../target-model/names/model.js";
-import { createCsharpClassEmissionRecords } from "../../program/records/class-emission.js";
+import { createCsharpClassEmissionRecords } from "../../program/records/objects/class-emission.js";
 import { sourceObjectMemberDeclarations } from "@tsonic/target-api/source";
-import type { CsharpCallableContractIndex } from "../../../target-model/records/callable-values.js";
-import type { SourceCallableContract } from "../../../target-model/records/source-callable-contract.js";
+import type { CsharpCallableContractIndex } from "../../../target-model/records/callables/callable-values.js";
+import type { SourceCallableContract } from "../../../target-model/records/callables/source-callable-contract.js";
 
 export function analyzeCsharpClassEmission(input: {
   readonly ast: AstReader;

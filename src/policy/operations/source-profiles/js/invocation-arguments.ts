@@ -3,7 +3,7 @@ import { jsSourceInvocationOnlyCallableParameters } from "@tsonic/js-source-prof
 import { getCsharpDelegateSignature } from "../../../../target-model/types/index.js";
 import type { CsharpSourceProfileCallPolicyContext } from "../../../model/source-profiles.js";
 
-import type { CsharpSelectedTargetCall, CsharpSelectedCallArgument } from "../../../../target-model/records/members.js";
+import type { CsharpSelectedTargetCall, CsharpSelectedCallArgument } from "../../../../target-model/records/objects/members.js";
 
 export function sealInvocationOnlyCallableArguments(
   context: Pick<CsharpSourceProfileCallPolicyContext, "source" | "identity">,

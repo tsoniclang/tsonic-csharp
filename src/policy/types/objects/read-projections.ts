@@ -1,5 +1,5 @@
 import { selectCsharpFlowReadConversion } from "../../conversions/expression.js";
-import type { CsharpFlowReadProjection, CsharpValueRefinementClassification } from "../../../target-model/records/source-evidence.js";
+import type { CsharpFlowReadProjection, CsharpValueRefinementClassification } from "../../../target-model/records/program/source-evidence.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 

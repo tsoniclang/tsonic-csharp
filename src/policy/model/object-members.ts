@@ -1,5 +1,5 @@
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../target-model/types/model.js";
-import type { CsharpNativeObjectField } from "../../target-model/records/storage.js";
+import type { CsharpNativeObjectField } from "../../target-model/records/storage/storage.js";
 
 export interface CsharpObjectMemberPolicyInput {
   readonly shape: CsharpObjectShapeFact;

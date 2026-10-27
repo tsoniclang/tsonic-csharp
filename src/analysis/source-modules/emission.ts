@@ -1,19 +1,19 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpClassFactory, CsharpClassFactoryIndex } from "../../target-model/records/class-factories.js";
-import type { CsharpSourceFileRecords } from "../../target-model/records/source-files.js";
-import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpAdmittedIteration } from "../../target-model/records/selection.js";
-import { createCsharpSourceFileEmissionRecords } from "../program/records/source-file-emission.js";
+import type { CsharpClassFactory, CsharpClassFactoryIndex } from "../../target-model/records/objects/class-factories.js";
+import type { CsharpSourceFileRecords } from "../../target-model/records/program/source-files.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpAdmittedIteration } from "../../target-model/records/operations/selection.js";
+import { createCsharpSourceFileEmissionRecords } from "../program/records/program/source-file-emission.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import type { CsharpModuleCallableEmission } from "../../target-model/records/source-file-emission.js";
-import type { CsharpModuleInitializationIndex } from "../../target-model/records/module-initialization.js";
-import type { CsharpExpectedTypeClassifications } from "../../target-model/records/expected-types.js";
-import type { CsharpCallableDeclarationRecords } from "../../target-model/records/callable-emission.js";
+import type { CsharpModuleCallableEmission } from "../../target-model/records/program/source-file-emission.js";
+import type { CsharpModuleInitializationIndex } from "../../target-model/records/program/module-initialization.js";
+import type { CsharpExpectedTypeClassifications } from "../../target-model/records/types/expected-types.js";
+import type { CsharpCallableDeclarationRecords } from "../../target-model/records/callables/callable-emission.js";
 import type { CsharpNamePlan } from "../../target-model/names/model.js";
-import type { CsharpStorageRepresentationClassifications } from "../../target-model/records/storage.js";
+import type { CsharpStorageRepresentationClassifications } from "../../target-model/records/storage/storage.js";
 import {
   getCsharpLambdaSignature, getCsharpTaskResultTargetType, isCsharpVoidTargetType, targetTypeRefEquals,
 } from "../../target-model/types/index.js";

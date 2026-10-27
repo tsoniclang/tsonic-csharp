@@ -1,4 +1,4 @@
-import type { CsharpSourceRawAddressOperation } from "../../../target-model/records/raw-addresses.js";
+import type { CsharpSourceRawAddressOperation } from "../../../target-model/records/storage/raw-addresses.js";
 
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";

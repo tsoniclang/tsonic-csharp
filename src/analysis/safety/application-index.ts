@@ -1,4 +1,4 @@
-import type { CsharpSafetyApplication, CsharpSafetyApplicationFactIndex } from "../../target-model/records/safety.js";
+import type { CsharpSafetyApplication, CsharpSafetyApplicationFactIndex } from "../../target-model/records/storage/safety.js";
 import type {
   AstReader,
   ReadonlySourceFactResolver,

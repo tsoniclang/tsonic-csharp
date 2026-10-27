@@ -1,15 +1,15 @@
 import type { AstReader, Node } from "@tsonic/tsts";
-import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
+import type { CsharpDeclarationClassifications } from "../../target-model/records/program/declarations.js";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpObjectShapeDemand } from "../../target-model/records/object-shape-demand.js";
-import type { CsharpObjectMemberRecords } from "../../target-model/records/object-members.js";
-import type { CsharpFrozenDataProperty } from "../../target-model/records/frozen-data-properties.js";
-import type { CsharpAttributeApplicationIndex } from "../../target-model/records/attributes.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
-import { objectShapeArtifactKey } from "../../target-model/records/object-shape-keys.js";
+import type { CsharpObjectShapeDemand } from "../../target-model/records/objects/object-shape-demand.js";
+import type { CsharpObjectMemberRecords } from "../../target-model/records/objects/object-members.js";
+import type { CsharpFrozenDataProperty } from "../../target-model/records/storage/frozen-data-properties.js";
+import type { CsharpAttributeApplicationIndex } from "../../target-model/records/program/attributes.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpStorageClassifications } from "../../target-model/records/storage/storage.js";
+import { objectShapeArtifactKey } from "../../target-model/records/objects/object-shape-keys.js";
 import { csharpFrozenStorageName, objectShapeStorageMemberName } from "../../target-model/names/object-members.js";
-import { createCsharpFrozenDataPropertyRecords } from "../program/records/frozen-data-properties.js";
+import { createCsharpFrozenDataPropertyRecords } from "../program/records/storage/frozen-data-properties.js";
 
 export function analyzeCsharpFrozenDataProperties(input: {
   readonly ast: AstReader;

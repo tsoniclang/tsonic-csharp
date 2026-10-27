@@ -1,11 +1,11 @@
 import type { SourceFile } from "@tsonic/tsts";
-import type { SourceCallableContract } from "../../../../target-model/records/source-callable-contract.js";
+import type { SourceCallableContract } from "../../../../target-model/records/callables/source-callable-contract.js";
 import { classifyCsharpSourceCallee } from "../../../callables/calls/source-callees.js";
 import { selectCsharpSourceCallableValueAbi } from "../../../callables/calls/source-callable-abi.js";
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
-import type { ResolvedSourceCallInfo } from "../../../../target-model/records/source-calls.js";
+import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
 import { nextState } from "./state.js";
 import type { CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../../target-model/types/model.js";
 import { csharpMethodValueContractsEqual, csharpMethodValueType, csharpPresentObjectShapeMethod, getCsharpMethodValue } from "../../../../target-model/types/method-values.js";

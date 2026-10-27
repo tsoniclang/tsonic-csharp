@@ -8,17 +8,17 @@ import { analyzeCsharpNativeParticipation } from "../callables/calls/participati
 import { analyzeCsharpClassFactories } from "../project-types/class-factories.js";
 import { analyzeCsharpClassInitialization } from "../project-types/class-initialization.js";
 
-import type { CsharpRequiredRecord } from "./records/required-records.js";
+import type { CsharpRequiredRecord } from "./records/objects/required-records.js";
 import { sourceDeclarationHasOnlyTypeUses, sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
 import { analyzeCsharpExactLiteralSelections } from "../conversions/literal-plans.js";
 
 import { analyzeCsharpTypeProjections, csharpTypeProjectionIndexesEqual } from "../declarations/type-projections.js";
-import { type CsharpGenericProjectionIndex } from "../../target-model/records/type-projections.js";
+import { type CsharpGenericProjectionIndex } from "../../target-model/records/types/type-projections.js";
 import { csharpCallableValueType } from "../../policy/types/callables/value-type.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { isCsharpStringTargetType } from "../../target-model/types/identity.js";
 
-import type { CsharpExpectedNativeUse } from "../../target-model/records/native-demand.js";
+import type { CsharpExpectedNativeUse } from "../../target-model/records/native/native-demand.js";
 
 import { createCsharpProjectTypeCatalog } from "../project-types/catalog.js";
 import { createCsharpTypeDefinitionRegistry } from "../project-types/type-definitions.js";
@@ -28,7 +28,7 @@ import { resolvedTargetStage } from "@tsonic/target-api/artifacts";
 import { createCsharpTypeAnalysis } from "./type-system.js";
 import type { CsharpTypeAnalysis } from "./type-system.js";
 import type { CsharpPlanningRepresentationQueries } from "../source-evidence/types/resolution/model.js";
-import type { ResolvedSourceCallInfo } from "../../target-model/records/source-calls.js";
+import type { ResolvedSourceCallInfo } from "../../target-model/records/calls/source-calls.js";
 import { analyzeCsharpAttributeApplications } from "../attributes/application-index.js";
 
 import type { CsharpTargetAnalysisRequest } from "./model.js";
@@ -39,14 +39,14 @@ import { analyzeCsharpSourceEvidence } from "../source-evidence/index.js";
 import { analyzeCsharpDeclarations } from "../declarations/index.js";
 import { createCsharpSourceNameBuilder } from "../names/index.js";
 import { analyzeCsharpCallableContracts, csharpCallableContractIndexesEqual } from "../callables/index.js";
-import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
+import type { CsharpCallableContractIndex } from "../../target-model/records/callables/callable-values.js";
 import { analyzeCsharpObjectShapes } from "../objects/index.js";
 import { analyzeCsharpConversions } from "../conversions/index.js";
 
 import { analyzeCsharpExpectedTypes } from "../expected-types/index.js";
 import { analyzeCsharpStorage, prepareCsharpStorage, sealCsharpStorage } from "../storage/index.js";
 import { csharpStorageClassificationsEqual } from "../storage/contracts.js";
-import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
+import type { CsharpStorageClassifications } from "../../target-model/records/storage/storage.js";
 
 import { type SourceStorageQueries } from "@tsonic/target-api/analysis";
 

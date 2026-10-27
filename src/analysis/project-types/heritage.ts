@@ -1,4 +1,4 @@
-import type { CsharpProjectTypeHeritage } from "../../target-model/records/project-types.js";
+import type { CsharpProjectTypeHeritage } from "../../target-model/records/types/project-types.js";
 import type { CsharpObjectShapeFact } from "../../target-model/types/model.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
 

@@ -2,13 +2,13 @@ import type { Node } from "@tsonic/tsts";
 import { sourceBindingScope, sourceBindingCapturedBeforeInitialization, sourceLexicalCaptures,
   type TargetSourceProgram } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/source-evidence.js";
-import type { CsharpStorageIssue } from "../../../target-model/records/storage.js";
+import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";
+import type { CsharpStorageIssue } from "../../../target-model/records/storage/storage.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
-import type { CsharpFrameClosure } from "../../../target-model/records/capture-storage.js";
+import type { CsharpFrameClosure } from "../../../target-model/records/callables/capture-storage.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import type { CsharpExpectedTypeClassifications } from "../../../target-model/records/expected-types.js";
+import type { CsharpExpectedTypeClassifications } from "../../../target-model/records/types/expected-types.js";
 
 const maximumGenericClosureCaptures = 131_072;
 

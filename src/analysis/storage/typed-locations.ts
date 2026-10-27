@@ -1,4 +1,4 @@
-import type { CsharpTypedLocationStorageSelection } from "../../target-model/records/typed-location-storage.js";
+import type { CsharpTypedLocationStorageSelection } from "../../target-model/records/storage/typed-location-storage.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { AsVariableDeclaration } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";

@@ -12,8 +12,8 @@ import { csharpRuntimeLocationTargetType } from "../../../../target-model/types/
 
 import { validateCsharpProviderConstraints } from "./constraint-satisfaction.js";
 
-import type { CsharpProviderArgumentMapping, CsharpSelectedTargetCall } from "../../../../target-model/records/members.js";
-import type { ResolvedSourceCallInfo } from "../../../../target-model/records/source-calls.js";
+import type { CsharpProviderArgumentMapping, CsharpSelectedTargetCall } from "../../../../target-model/records/objects/members.js";
+import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
 
 type CsharpProviderSignatureRelation = Extract<
   CsharpProviderTargetRelation,

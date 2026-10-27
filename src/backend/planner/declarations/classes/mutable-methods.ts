@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpDeclarationClassifications } from "../../../../target-model/records/declarations.js";
+import type { CsharpDeclarationClassifications } from "../../../../target-model/records/program/declarations.js";
 import type { CsharpMethodDeclaration, CsharpTypeMember } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/render.js";

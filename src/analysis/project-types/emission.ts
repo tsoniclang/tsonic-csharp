@@ -1,13 +1,13 @@
 import type { Node } from "@tsonic/tsts";
 import { referenceQueryNode, type TargetSourceProgram, authoredTypeParameterNames, generatedTypeParameterNames } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpProjectTypeClassifications } from "../../target-model/records/project-types.js";
-import type { CsharpClassFactoryIndex } from "../../target-model/records/class-factories.js";
-import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
-import { createCsharpProjectEmissionProducer } from "../program/records/project-emission.js";
+import type { CsharpProjectTypeClassifications } from "../../target-model/records/types/project-types.js";
+import type { CsharpClassFactoryIndex } from "../../target-model/records/objects/class-factories.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
+import { createCsharpProjectEmissionProducer } from "../program/records/program/project-emission.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpNamePlan } from "../../target-model/names/model.js";
-import type { CsharpGenericProjectionIndex } from "../../target-model/records/type-projections.js";
+import type { CsharpGenericProjectionIndex } from "../../target-model/records/types/type-projections.js";
 import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
 
 export function analyzeCsharpProjectEmission(input: {

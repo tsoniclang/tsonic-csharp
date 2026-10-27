@@ -1,6 +1,6 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import type { CsharpNativeUse } from "../../../target-model/records/native-demand.js";
+import type { CsharpNativeUse } from "../../../target-model/records/native/native-demand.js";
 import type { CsharpProgramRecordInput } from "../../program/records/create.js";
 import type { CsharpConstructorArgumentEvidence } from "./constructors.js";
 import { csharpConstructorBaseCall } from "../../callables/emission/constructor-entry.js";

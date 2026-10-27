@@ -21,7 +21,7 @@ import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import { rebindCsharpMethodValueTypeParameters } from "../../policy/types/callables/method-values.js";
 import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
-import type { CsharpReturnContext } from "../../target-model/records/return-contexts.js";
+import type { CsharpReturnContext } from "../../target-model/records/calls/return-contexts.js";
 import { selectCsharpAccessorReturnContext, selectCsharpCallableReturnContext } from "../../policy/types/callables/return-contexts.js";
 import type { CsharpExpectedUseCollection } from "./collection.js";
 import type { CsharpExpectedTypeAnalysisInput } from "./model.js";

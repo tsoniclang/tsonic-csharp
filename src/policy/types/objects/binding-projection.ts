@@ -1,6 +1,6 @@
 import type {
   CsharpBindingElementProjection, CsharpBindingPatternSource, CsharpTupleDefaultUse, CsharpDefaultValueContract,
-} from "../../../target-model/records/value-projections.js";
+} from "../../../target-model/records/objects/value-projections.js";
 
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 

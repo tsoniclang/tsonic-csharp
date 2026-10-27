@@ -1,5 +1,5 @@
 import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext, CsharpSourceProfileCallPolicyResult, CsharpSourceProfileIdentitySelector, CsharpSourceProfilePropertyPolicy, CsharpSourceProfilePropertyPolicyContext } from "../../model/source-profiles.js";
-import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/source-profile-invocations.js";
+import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/program/source-profile-invocations.js";
 import { csharpSourceProfileCall, csharpSourceProfileDiagnostic } from "./source-profile-policy.js";
 import type { CsharpSourceProfileOwner } from "../../identities/selected-source.js";
 import { csharpRuntimeErrorTargetType, csharpExceptionTargetType, csharpStringTargetType, csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";

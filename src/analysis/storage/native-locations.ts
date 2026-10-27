@@ -1,4 +1,4 @@
-import type { CsharpNativeCellIdentity, CsharpNativeLocationReceiver, CsharpNativeLocationSelection, CsharpNativeManagedAddress } from "../../target-model/records/native-locations.js";
+import type { CsharpNativeCellIdentity, CsharpNativeLocationReceiver, CsharpNativeLocationSelection, CsharpNativeManagedAddress } from "../../target-model/records/native/native-locations.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { readCsharpSourceField } from "../../source/extension/markers.js";
 import { sourceDeclarationIsModuleScoped, sourceParameterIsProperty } from "@tsonic/target-api/source";
@@ -11,8 +11,8 @@ import { selectCsharpNativeRefReturn } from "../operations/typed-locations.js";
 import { selectCsharpTargetProperty } from "../operations/members/selected-members.js";
 import { selectCsharpTargetElement } from "../operations/members/selected-members.js";
 import { isCsharpValueTypeTargetType } from "../../policy/types/index.js";
-import type { CsharpClassPropertyStorage } from "../../target-model/records/class-property-storage.js";
-import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
+import type { CsharpClassPropertyStorage } from "../../target-model/records/storage/class-property-storage.js";
+import type { CsharpStorageClassifications } from "../../target-model/records/storage/storage.js";
 
 export function classifyCsharpNativeLocation(
   policy: CsharpPolicyContext,

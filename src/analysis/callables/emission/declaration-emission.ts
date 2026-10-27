@@ -1,11 +1,11 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import type { CsharpCallableDeclarationEmission } from "../../../target-model/records/callable-emission.js";
-import type { CsharpDeclarationClassifications } from "../../../target-model/records/declarations.js";
-import type { CsharpGeneratorRecords } from "../../../target-model/records/generators.js";
-import { createCsharpCallableDeclarationRecords } from "../../program/records/callable-emission.js";
-import type { CsharpCallableContractIndex } from "../../../target-model/records/callable-values.js";
+import type { CsharpCallableDeclarationEmission } from "../../../target-model/records/callables/callable-emission.js";
+import type { CsharpDeclarationClassifications } from "../../../target-model/records/program/declarations.js";
+import type { CsharpGeneratorRecords } from "../../../target-model/records/callables/generators.js";
+import { createCsharpCallableDeclarationRecords } from "../../program/records/callables/callable-emission.js";
+import type { CsharpCallableContractIndex } from "../../../target-model/records/callables/callable-values.js";
 
 export function analyzeCsharpCallableDeclarationEmission(input: {
   readonly ast: AstReader;

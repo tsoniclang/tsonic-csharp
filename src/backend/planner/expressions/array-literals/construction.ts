@@ -21,7 +21,7 @@ interface Contribution {
 export function planCsharpArrayConstruction(
   node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
   elementType: CsharpTypeNode, elementTarget: TargetTypeRef, planner: ArrayLiteralPlanner,
-  selected: import("../../../../target-model/records/array-literals.js").CsharpArrayLiteralEmission,
+  selected: import("../../../../target-model/records/operations/array-literals.js").CsharpArrayLiteralEmission,
   construction?: { readonly carrier: TargetTypeRef; readonly type: CsharpTypeNode;
     readonly builder: { readonly capacityConstructor: boolean; readonly appendElementMethod: string } },
 ): CsharpPlannedValue | undefined {

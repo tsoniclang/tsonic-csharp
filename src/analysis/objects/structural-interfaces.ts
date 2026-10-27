@@ -1,7 +1,7 @@
 import type { Node, Type } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpStructuralInterfaceImplementation, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpStructuralInterfaceMemberEvidence } from "../../target-model/records/heritage.js";
+import type { CsharpStructuralInterfaceMemberEvidence } from "../../target-model/records/objects/heritage.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/object-shape-members.js";
 import { selectCsharpStructuralInterfaceImplementation } from "../../policy/types/objects/structural-implementation.js";
 import { targetTypeRefKey, targetTypeRefEquals } from "../../target-model/types/equality.js";

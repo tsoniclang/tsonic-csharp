@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { resolvedTargetStage, runTargetCompilationStages } from "@tsonic/target-api/artifacts";
 import { createCsharpProgramRecords } from "../../../../dist/analysis/program/records/create.js";
-import { assertCsharpRequiredRecords, requireCsharpRecord } from "../../../../dist/analysis/program/records/required-records.js";
+import { assertCsharpRequiredRecords, requireCsharpRecord } from "../../../../dist/analysis/program/records/objects/required-records.js";
 import { targetUseSiteRef } from "@tsonic/target-api/analysis";
 import {
   compileCsharpRequiredRecordSource,

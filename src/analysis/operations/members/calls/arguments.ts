@@ -8,8 +8,8 @@ import { selectCsharpProviderArgumentConversion } from "../../../../policy/conve
 import { csharpConversionIsApplicable } from "../../../../policy/conversions/applicability.js";
 
 import { selectCsharpSourceArgument } from "../../../../source/extension/arguments.js";
-import type { CsharpSelectedCallArgument, CsharpProviderArgumentMapping } from "../../../../target-model/records/members.js";
-import type { ResolvedSourceCallInfo } from "../../../../target-model/records/source-calls.js";
+import type { CsharpSelectedCallArgument, CsharpProviderArgumentMapping } from "../../../../target-model/records/objects/members.js";
+import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
 
 type CsharpProviderSignatureRelation = Extract<
   CsharpProviderTargetRelation,

@@ -1,8 +1,8 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpOutputType } from "../../target-model/configuration/model.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpSourceModuleAnalysis, CsharpSourceModuleAnalysisIssue, CsharpSourceModuleConstruction, CsharpSourceModuleConstructionIndex } from "../../target-model/records/source-modules.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpSourceModuleAnalysis, CsharpSourceModuleAnalysisIssue, CsharpSourceModuleConstruction, CsharpSourceModuleConstructionIndex } from "../../target-model/records/program/source-modules.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 
 export function analyzeCsharpSourceModuleConstructions(input: {

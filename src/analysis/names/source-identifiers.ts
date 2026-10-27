@@ -1,11 +1,11 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpNamePlan } from "../../target-model/names/model.js";
-import type { CsharpClassFactoryIndex } from "../../target-model/records/class-factories.js";
-import type { CsharpProjectEmissionRecords } from "../../target-model/records/project-emission.js";
-import type { CsharpTypeParameterEmissionRecords } from "../../target-model/records/type-parameters.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpAdmittedIteration } from "../../target-model/records/selection.js";
+import type { CsharpClassFactoryIndex } from "../../target-model/records/objects/class-factories.js";
+import type { CsharpProjectEmissionRecords } from "../../target-model/records/program/project-emission.js";
+import type { CsharpTypeParameterEmissionRecords } from "../../target-model/records/types/type-parameters.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpAdmittedIteration } from "../../target-model/records/operations/selection.js";
 
 export function analyzeCsharpIdentifierEmission(input: {
   readonly ast: AstReader;

@@ -1,4 +1,4 @@
-import type { CsharpRegularExpressionLiteralSelection } from "../../../target-model/records/regexp-literal.js";
+import type { CsharpRegularExpressionLiteralSelection } from "../../../target-model/records/operations/regexp-literal.js";
 import type { AstRegularExpressionLiteralSyntax, Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpTypeQueries } from "../../../policy/model/type-resolution.js";
 

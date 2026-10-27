@@ -1,7 +1,7 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import type { CsharpTypedLocationStorage } from "../../../target-model/records/typed-location-storage.js";
+import type { CsharpTypedLocationStorage } from "../../../target-model/records/storage/typed-location-storage.js";
 import type { CsharpArgument, CsharpExpression, CsharpLambdaParameter, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";

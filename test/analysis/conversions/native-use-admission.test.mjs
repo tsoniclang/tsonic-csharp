@@ -5,7 +5,7 @@ import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpExpectedTypes } from "../../../dist/analysis/expected-types/analyze.js";
 import { admitCsharpExpectedNativeUses, collectCsharpExpectedNativeUseSites } from "../../../dist/analysis/expected-types/native-uses.js";
 import { analyzeCsharpExactLiteralSelections } from "../../../dist/analysis/conversions/literal-plans.js";
-import { csharpNativeUseSite } from "../../../dist/target-model/records/native-demand.js";
+import { csharpNativeUseSite } from "../../../dist/target-model/records/native/native-demand.js";
 import { analyzeCsharpCallableCreations } from "../../../dist/analysis/callables/values/creation.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpObjectTargetType, csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";

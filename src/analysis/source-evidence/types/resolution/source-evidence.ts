@@ -49,7 +49,7 @@ export function resolveTypeParameter(
   type: Type,
   queries: SourceFileSemantics,
   ast: AstReader,
-  constraints: import("../../../../target-model/records/type-parameter-constraints.js").CsharpTypeParameterEnvironment,
+  constraints: import("../../../../target-model/records/types/type-parameter-constraints.js").CsharpTypeParameterEnvironment,
 ): TargetTypeRef | undefined {
   const symbol = queries.declarations.typeSymbol(type);
   if (symbol === undefined) {

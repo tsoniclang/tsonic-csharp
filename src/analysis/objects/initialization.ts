@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpObjectInitialization, CsharpObjectLiteralMemberEmission } from "../../target-model/records/object-literals.js";
-import type { CsharpObjectCaptureField } from "../../target-model/records/object-methods.js";
+import type { CsharpObjectInitialization, CsharpObjectLiteralMemberEmission } from "../../target-model/records/objects/object-literals.js";
+import type { CsharpObjectCaptureField } from "../../target-model/records/objects/object-methods.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { getCsharpGenericOptionalParts } from "../../target-model/types/projections.js";

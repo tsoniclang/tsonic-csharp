@@ -1,5 +1,5 @@
-import type { CsharpForInKeyBinding, CsharpForOfBinding } from "../../../target-model/records/selection.js";
-import type { CsharpStorageClassifications } from "../../../target-model/records/storage.js";
+import type { CsharpForInKeyBinding, CsharpForOfBinding } from "../../../target-model/records/operations/selection.js";
+import type { CsharpStorageClassifications } from "../../../target-model/records/storage/storage.js";
 import { selectCsharpConversion } from "../../../policy/conversions/index.js";
 import { csharpConversionIsApplicable } from "../../../policy/conversions/applicability.js";
 import { csharpTargetTypeRenderingRejection } from "../../../policy/types/model/renderability.js";

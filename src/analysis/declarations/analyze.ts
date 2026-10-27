@@ -33,11 +33,11 @@ import {
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpRuntimeParameterDefault } from "../../policy/types/storage/parameter-defaults.js";
 import { selectCsharpDefaultValueContract } from "../../policy/types/objects/binding-projection.js";
-import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpValueReadStageIndex } from "../../target-model/records/conversions.js";
-import type { CsharpDeclarationClassifications, CsharpReturnTargetContract } from "../../target-model/records/declarations.js";
-import { createCsharpDeclarationProducer } from "../program/records/declarations.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpValueReadStageIndex } from "../../target-model/records/operations/conversions.js";
+import type { CsharpDeclarationClassifications, CsharpReturnTargetContract } from "../../target-model/records/program/declarations.js";
+import { createCsharpDeclarationProducer } from "../program/records/program/declarations.js";
 
 export function analyzeCsharpDeclarations(
   policy: CsharpPolicyContext,

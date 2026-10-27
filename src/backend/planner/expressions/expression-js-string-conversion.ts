@@ -8,7 +8,7 @@ import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
 import type { CsharpPlannedValue } from "./planned-values.js";
 import { mapCsharpPlannedValue } from "./planned-values.js";
-import type { CsharpNativeHandler } from "../../../target-model/records/native-handlers.js";
+import type { CsharpNativeHandler } from "../../../target-model/records/native/native-handlers.js";
 
 export function planCsharpJsStringConversion(
   node: Node,

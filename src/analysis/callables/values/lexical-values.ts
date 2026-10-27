@@ -1,12 +1,12 @@
 import type { Node } from "@tsonic/tsts";
 import type { SourceProgramNavigation } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpCaptureStorage } from "../../../target-model/records/capture-storage.js";
-import type { CsharpValueReadClassifications } from "../../../target-model/records/conversions.js";
-import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/source-evidence.js";
-import type { CsharpLexicalValueDeclaration } from "../../../target-model/records/lexical-values.js";
+import type { CsharpCaptureStorage } from "../../../target-model/records/callables/capture-storage.js";
+import type { CsharpValueReadClassifications } from "../../../target-model/records/operations/conversions.js";
+import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";
+import type { CsharpLexicalValueDeclaration } from "../../../target-model/records/storage/lexical-values.js";
 import { getCsharpDelegateSignature } from "../../../target-model/types/carriers/delegates.js";
-import { createCsharpLexicalValueRecords } from "../../program/records/lexical-values.js";
+import { createCsharpLexicalValueRecords } from "../../program/records/storage/lexical-values.js";
 
 export function analyzeCsharpLexicalValues(input: {
   readonly nodes: readonly Node[];

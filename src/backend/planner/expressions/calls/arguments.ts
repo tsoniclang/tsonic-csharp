@@ -2,7 +2,7 @@ import { applyCsharpConversionSelection } from "../conversions.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import { planCsharpRestSequence } from "./rest-sequences.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
-import type { CsharpSelectedCallArgument, CsharpProviderArgumentMapping } from "../../../../target-model/records/members.js";
+import type { CsharpSelectedCallArgument, CsharpProviderArgumentMapping } from "../../../../target-model/records/objects/members.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../expression-planner-types.js";
 import type { CsharpArgument, CsharpExpression } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";

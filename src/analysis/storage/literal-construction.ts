@@ -5,9 +5,9 @@ import { selectCsharpArrayLiteralCarrier } from "../../policy/types/collections/
 import { getCsharpArrayLiteralElementTargetType } from "../../target-model/types/carriers/collections.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpConversionClassifications } from "../../target-model/records/conversions.js";
-import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
-import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
+import type { CsharpConversionClassifications } from "../../target-model/records/operations/conversions.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 
 export function canConstructCsharpStorageLiteral(
   expression: Node,

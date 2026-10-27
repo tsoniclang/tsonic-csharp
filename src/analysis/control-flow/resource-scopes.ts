@@ -1,8 +1,8 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { analyzeSourceResourceScopes } from "@tsonic/target-api/analysis";
-import type { CsharpResourceScopeRecords } from "../../target-model/records/resource-scopes.js";
-import { createCsharpResourceScopeRecords } from "../program/records/resource-scopes.js";
-import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
+import type { CsharpResourceScopeRecords } from "../../target-model/records/storage/resource-scopes.js";
+import { createCsharpResourceScopeRecords } from "../program/records/storage/resource-scopes.js";
+import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/objects/required-records.js";
 
 export function analyzeCsharpResourceScopes(input: {
   readonly ast: AstReader; readonly nodes: readonly Node[]; readonly erased: (node: Node) => boolean;

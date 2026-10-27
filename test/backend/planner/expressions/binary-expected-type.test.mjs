@@ -7,7 +7,7 @@ import { createCsharpExpectedTypePropagation } from "../../../../dist/analysis/e
 import { admitCsharpExpectedBinarySelection } from "../../../../dist/policy/operations/operators/expected-binary.js";
 import { planCsharpNativeExpression } from "../../../../dist/backend/planner/expressions/expression-expected-types.js";
 import { selectCsharpNativeUseRepresentation } from "../../../../dist/policy/conversions/native-use-representation.js";
-import { csharpNativeUseSite } from "../../../../dist/target-model/records/native-demand.js";
+import { csharpNativeUseSite } from "../../../../dist/target-model/records/native/native-demand.js";
 import { csharpPlannedValue } from "../../../../dist/backend/planner/expressions/planned-values.js";
 import { csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/index.js";
 import { printCsharpExpression } from "../../../../dist/print/source/printer.js";

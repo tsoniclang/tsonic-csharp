@@ -4,24 +4,24 @@ import { AsGetAccessorDeclaration, AsSetAccessorDeclaration, AsParameterDeclarat
   KindMethodDeclaration, KindGetAccessor, KindSetAccessor, KindSpreadAssignment, KindPropertyAssignment, KindShorthandPropertyAssignment } from "@tsonic/target-api/source";
 import type { TargetSourceSyntaxProgram } from "@tsonic/target-api/analysis";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
-import type { CsharpNativeUse } from "../../target-model/records/native-demand.js";
-import type { CsharpObjectLiteralEmission, CsharpObjectLiteralMemberEmission } from "../../target-model/records/object-literals.js";
+import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
+import type { CsharpNativeUse } from "../../target-model/records/native/native-demand.js";
+import type { CsharpObjectLiteralEmission, CsharpObjectLiteralMemberEmission } from "../../target-model/records/objects/object-literals.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
-import type { CsharpObjectMethodRecords } from "../../target-model/records/object-methods.js";
-import type { CsharpObjectMemberRecords } from "../../target-model/records/object-members.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
+import type { CsharpObjectMethodRecords } from "../../target-model/records/objects/object-methods.js";
+import type { CsharpObjectMemberRecords } from "../../target-model/records/objects/object-members.js";
 import { csharpPropertySourceMemberKey, csharpWellKnownSymbolSourceMemberKey, resolveCsharpObjectShapeMemberBySourceKey, csharpObjectShapeMemberLookupFailureMessage, csharpDelegateTargetType, getCsharpNullableElementTargetType, targetTypeRefEquals } from "../../target-model/types/index.js";
 import { getCsharpGenericOptionalParts } from "../../target-model/types/projections.js";
 import { csharpObjectShapeMethodDeclaration } from "../../target-model/types/method-values.js";
 import { objectShapeStorageMemberName, objectShapeAccessorGetterStorageMemberName, objectShapeAccessorSetterStorageMemberName } from "../../target-model/names/object-members.js";
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
-import { createCsharpObjectLiteralRecords } from "../program/records/object-literals.js";
+import { createCsharpObjectLiteralRecords } from "../program/records/objects/object-literals.js";
 import type { CsharpSourceMemberKey } from "../../target-model/types/model.js";
 import { selectCsharpObjectLiteralCallable } from "../../policy/types/objects/object-literals.js";
-import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
+import type { CsharpStorageClassifications } from "../../target-model/records/storage/storage.js";
 import { analyzeCsharpObjectInitialization } from "./initialization.js";
-import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
+import type { CsharpCallableContractIndex } from "../../target-model/records/callables/callable-values.js";
 
 export function analyzeCsharpObjectLiterals(input: {
   readonly source: TargetSourceSyntaxProgram;

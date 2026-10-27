@@ -10,12 +10,12 @@ import { csharpGeneratorSourceProfileCallPolicies, csharpGeneratorSourceProfileP
 import { csharpErrorSourceProfileCallPolicies, csharpErrorSourceProfilePropertyPolicies } from "../../../policy/operations/source-profiles/error-source-profile.js";
 import { csharpPromiseSourceProfileCallPolicies } from "../../../policy/operations/source-profiles/promise-source-profile.js";
 import type { CsharpSourceProfileCallPolicyResult, CsharpSourceProfileElementPolicyResult } from "../../../policy/model/source-profiles.js";
-import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/source-profile-invocations.js";
+import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/program/source-profile-invocations.js";
 import { csharpSourceProfileDeclarationIdentity } from "../../../policy/identities/selected-source.js";
 import type { CsharpTargetMember } from "../../../target-model/types/model.js";
 import { sourceProfileIdentityMatches } from "../../../policy/operations/source-profiles/source-profile-policy.js";
 import { selectCsharpSourceProfileCallPolicy, selectCsharpSourceProfileElementPolicy, selectCsharpSourceProfilePropertyPolicy } from "./policy-selection.js";
-import type { ResolvedSourceCallInfo } from "../../../target-model/records/source-calls.js";
+import type { ResolvedSourceCallInfo } from "../../../target-model/records/calls/source-calls.js";
 type ResolvedSourcePropertyAccessInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["propertyAccess"]>
 >;

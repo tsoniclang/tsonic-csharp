@@ -1,15 +1,15 @@
 import type { Node, Signature } from "@tsonic/tsts";
-import type { ResolvedSourceCallInfo } from "../../../target-model/records/source-calls.js";
+import type { ResolvedSourceCallInfo } from "../../../target-model/records/calls/source-calls.js";
 import type {
   CsharpProjectForwardingConstructor,
   CsharpProjectTypeHeritage,
   CsharpProjectTypeIssue,
-} from "../../../target-model/records/project-types.js";
+} from "../../../target-model/records/types/project-types.js";
 import { projectDefinitionTargetType } from "../../../policy/types/project/declaration-carriers.js";
-import { type CsharpProjectTypeCatalog, type CsharpProjectTypePolicy } from "../../../target-model/records/project-types.js";
+import { type CsharpProjectTypeCatalog, type CsharpProjectTypePolicy } from "../../../target-model/records/types/project-types.js";
 import { createCsharpProjectTypePolicy, selectCsharpProjectTypeHeritage, type CsharpProjectTypePolicyHost } from "../type-policy.js";
 import { csharpForwardingConstructorSignatureKey, selectCsharpProjectConstructorSignature, selectCsharpProjectForwardingConstructor, type CsharpProjectConstructorPolicyHost } from "./constructors.js";
-import { type CsharpProjectConstructorPolicy } from "../../../target-model/records/project-types.js";
+import { type CsharpProjectConstructorPolicy } from "../../../target-model/records/types/project-types.js";
 
 export function analyzeCsharpProjectTypePolicy(
   host: CsharpProjectTypePolicyHost,

@@ -1,4 +1,4 @@
-import type { CsharpSourceProfilePropertyPolicyResult } from "../../target-model/records/source-profile-invocations.js";
+import type { CsharpSourceProfilePropertyPolicyResult } from "../../target-model/records/program/source-profile-invocations.js";
 import type { ExtensionDiagnostic, SourceFile } from "@tsonic/tsts";
 import { type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpTargetReceiverRelation } from "../../target-model/identities/provider-relations.js";
@@ -6,8 +6,8 @@ import type { CsharpTargetMember, TargetTypeRef } from "../types/index.js";
 import type { CsharpProviderCallSelectionHost } from "./provider-calls.js";
 
 import type { CsharpSourceProfileDeclarationIdentity, CsharpSourceProfileOwner } from "../identities/selected-source.js";
-import type { CsharpSelectedTargetCall, CsharpTargetElementInvocation } from "../../target-model/records/members.js";
-import type { ResolvedSourceCallInfo } from "../../target-model/records/source-calls.js";
+import type { CsharpSelectedTargetCall, CsharpTargetElementInvocation } from "../../target-model/records/objects/members.js";
+import type { ResolvedSourceCallInfo } from "../../target-model/records/calls/source-calls.js";
 
 type ResolvedSourcePropertyAccessInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["propertyAccess"]>
@@ -27,7 +27,7 @@ export interface CsharpSourceProfileIdentitySelector {
 
 export interface CsharpSourceProfileCallPolicyContext {
   readonly host: Omit<CsharpProviderCallSelectionHost, "types" | "objectShapes" | "semantics" | "navigation">;
-  readonly inputs: import("../../target-model/records/source-profile-inputs.js").CsharpSourceProfileInputFacts;
+  readonly inputs: import("../../target-model/records/program/source-profile-inputs.js").CsharpSourceProfileInputFacts;
   readonly source: ResolvedSourceCallInfo;
   readonly sourceFile: SourceFile;
   readonly identity: CsharpSourceProfileDeclarationIdentity;
@@ -35,7 +35,7 @@ export interface CsharpSourceProfileCallPolicyContext {
 
 export interface CsharpSourceProfilePropertyPolicyContext {
   readonly host: Omit<CsharpProviderCallSelectionHost, "types" | "objectShapes" | "semantics" | "navigation">;
-  readonly inputs: import("../../target-model/records/source-profile-inputs.js").CsharpSourceProfileInputFacts;
+  readonly inputs: import("../../target-model/records/program/source-profile-inputs.js").CsharpSourceProfileInputFacts;
   readonly source: ResolvedSourcePropertyAccessInfo;
   readonly sourceFile: SourceFile;
   readonly identity: CsharpSourceProfileDeclarationIdentity;
@@ -45,7 +45,7 @@ export interface CsharpSourceProfilePropertyPolicyContext {
 
 export interface CsharpSourceProfileElementPolicyContext {
   readonly host: Omit<CsharpProviderCallSelectionHost, "types" | "objectShapes" | "semantics" | "navigation">;
-  readonly inputs: import("../../target-model/records/source-profile-inputs.js").CsharpSourceProfileInputFacts;
+  readonly inputs: import("../../target-model/records/program/source-profile-inputs.js").CsharpSourceProfileInputFacts;
   readonly source: ResolvedSourceElementAccessInfo;
   readonly sourceFile: SourceFile;
   readonly identity: CsharpSourceProfileDeclarationIdentity;
@@ -76,7 +76,7 @@ export type CsharpSourceProfileElementPolicyResult =
     };
 
 export interface CsharpSourceProfileCallPolicy {
-  readonly inputRequirements?: import("../../target-model/records/source-profile-inputs.js").CsharpSourceProfileInputRequirements;
+  readonly inputRequirements?: import("../../target-model/records/program/source-profile-inputs.js").CsharpSourceProfileInputRequirements;
   readonly finalizeArguments?: true;
   readonly source: CsharpSourceProfileIdentitySelector;
   readonly inheritableConstructor?: CsharpTargetMember;

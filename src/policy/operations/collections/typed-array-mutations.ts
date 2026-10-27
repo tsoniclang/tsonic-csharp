@@ -1,4 +1,4 @@
-import type { CsharpTypedArrayUpdate } from "../../../target-model/records/typed-array-mutations.js";
+import type { CsharpTypedArrayUpdate } from "../../../target-model/records/storage/typed-array-mutations.js";
 import type { Node } from "@tsonic/tsts";
 
 import { csharpUnaryNumericPromotion } from "../numeric/promotion.js";

@@ -1,14 +1,14 @@
 import { isCsharpThrowableType } from "../../project-types/throwable-types.js";
-import type { CsharpCallableParameterAdapter, CsharpCallableValueAdapter } from "../../../target-model/records/callable-adapters.js";
+import type { CsharpCallableParameterAdapter, CsharpCallableValueAdapter } from "../../../target-model/records/callables/callable-adapters.js";
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
 import { selectCsharpConversion } from "../../../policy/conversions/core.js";
 import { csharpConversionIsApplicable } from "../../../policy/conversions/applicability.js";
 import type { CsharpTargetParameter, TargetTypeRef } from "../../../target-model/types/model.js";
 import { selectCsharpFlowReadConversion } from "../../../policy/conversions/expression.js";
-import type { SourceCallableSourceContract } from "../../../target-model/records/source-callable-contract.js";
+import type { SourceCallableSourceContract } from "../../../target-model/records/callables/source-callable-contract.js";
 import { admitCsharpConversionSelection } from "../../conversions/validation.js";
 import { csharpCallableParameterConversionRequests, selectCsharpCallableParameterAdapters } from "../../../policy/conversions/callable-parameters.js";
-import type { CsharpObjectShapeClassifications } from "../../../target-model/records/object-shapes.js";
+import type { CsharpObjectShapeClassifications } from "../../../target-model/records/objects/object-shapes.js";
 
 export type CsharpCallableConversionPolicy = Pick<CsharpPolicyContext,
   "typeDefinitions" | "projectTypes" | "providers" | "target"> & {

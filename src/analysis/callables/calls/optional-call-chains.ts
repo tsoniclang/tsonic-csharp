@@ -1,10 +1,10 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations.js";
-import type { CsharpNativeDemandAnalysis } from "../../../target-model/records/native-demand.js";
-import type { CsharpOptionalCallChain, CsharpOptionalCallStep } from "../../../target-model/records/optional-call-chains.js";
+import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations/operations.js";
+import type { CsharpNativeDemandAnalysis } from "../../../target-model/records/native/native-demand.js";
+import type { CsharpOptionalCallChain, CsharpOptionalCallStep } from "../../../target-model/records/calls/optional-call-chains.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { createCsharpOptionalCallChainRecords } from "../../program/records/optional-call-chains.js";
+import { createCsharpOptionalCallChainRecords } from "../../program/records/calls/optional-call-chains.js";
 
 export function analyzeCsharpOptionalCallChains(ast: AstReader, nodes: readonly Node[], operations: CsharpTargetOperationClassifications,
   demand: CsharpNativeDemandAnalysis, admitted: (node: Node) => boolean) {

@@ -13,8 +13,8 @@ import { inferCsharpTargetTypeParameterBindings } from "../../../../policy/types
 
 import { resolveCsharpTargetBindingArguments } from "./binding-instantiation.js";
 
-import type { CsharpSelectedTargetMethodTypeArgument } from "../../../../target-model/records/members.js";
-import type { ResolvedSourceCallInfo } from "../../../../target-model/records/source-calls.js";
+import type { CsharpSelectedTargetMethodTypeArgument } from "../../../../target-model/records/objects/members.js";
+import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
 
 type CsharpProviderSignatureRelation = Extract<
   CsharpProviderTargetRelation,

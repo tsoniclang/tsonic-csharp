@@ -1,15 +1,15 @@
 import type { Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations.js";
-import type { CsharpTargetArgumentRecords } from "../../../target-model/records/target-arguments.js";
-import type { CsharpSourceCallEmissionRecords } from "../../../target-model/records/source-call-emission.js";
-import type { CsharpOptionalCallChainRecords } from "../../../target-model/records/optional-call-chains.js";
-import type { CsharpObjectShapeDemand } from "../../../target-model/records/object-shape-demand.js";
-import type { CsharpNativeDemandAnalysis } from "../../../target-model/records/native-demand.js";
-import type { CsharpTargetCallEmission } from "../../../target-model/records/target-call-emission.js";
+import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations/operations.js";
+import type { CsharpTargetArgumentRecords } from "../../../target-model/records/calls/target-arguments.js";
+import type { CsharpSourceCallEmissionRecords } from "../../../target-model/records/calls/source-call-emission.js";
+import type { CsharpOptionalCallChainRecords } from "../../../target-model/records/calls/optional-call-chains.js";
+import type { CsharpObjectShapeDemand } from "../../../target-model/records/objects/object-shape-demand.js";
+import type { CsharpNativeDemandAnalysis } from "../../../target-model/records/native/native-demand.js";
+import type { CsharpTargetCallEmission } from "../../../target-model/records/calls/target-call-emission.js";
 import { selectCsharpTargetCallEmission } from "../../../policy/operations/members/target-call-emission.js";
-import { createCsharpTargetCallEmissionRecords } from "../../program/records/target-call-emission.js";
-import type { CsharpNativeUseRecords } from "../../../target-model/records/native-demand.js";
+import { createCsharpTargetCallEmissionRecords } from "../../program/records/calls/target-call-emission.js";
+import type { CsharpNativeUseRecords } from "../../../target-model/records/native/native-demand.js";
 
 export function analyzeCsharpTargetCallEmission(input: { readonly nodes: readonly Node[]; readonly admitted: (node: Node) => boolean;
   readonly operations: CsharpTargetOperationClassifications; readonly arguments: CsharpTargetArgumentRecords;

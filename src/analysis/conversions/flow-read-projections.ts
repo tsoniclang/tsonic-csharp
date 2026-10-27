@@ -1,12 +1,12 @@
 import { isCsharpThrowableType } from "../project-types/throwable-types.js";
-import { createCsharpFlowReadProjectionProducer } from "../program/records/flow-read-projections.js";
+import { createCsharpFlowReadProjectionProducer } from "../program/records/operations/flow-read-projections.js";
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { selectCsharpFlowReadProjection } from "../../policy/types/objects/read-projections.js";
-import type { CsharpFlowReadClassifications, CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
-import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
+import type { CsharpFlowReadClassifications, CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import { admitCsharpConversionSelection } from "./validation.js";
 
 export function analyzeCsharpFlowReadProjections(

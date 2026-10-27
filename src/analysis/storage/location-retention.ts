@@ -1,10 +1,10 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpElementAdmissionRecords } from "../../target-model/records/element-admission.js";
-import type { CsharpArgumentPassingRecords } from "../../target-model/records/argument-passing.js";
+import type { CsharpStorageClassifications } from "../../target-model/records/storage/storage.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpElementAdmissionRecords } from "../../target-model/records/objects/element-admission.js";
+import type { CsharpArgumentPassingRecords } from "../../target-model/records/calls/argument-passing.js";
 import { isCsharpValueTypeTargetType } from "../../policy/types/index.js";
 
 export function admitCsharpLocationRetention(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];

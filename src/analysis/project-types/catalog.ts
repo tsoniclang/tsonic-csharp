@@ -2,15 +2,15 @@ import { analyzeCsharpProjectNames } from "../names/project-types.js";
 import type { AstReader, Node } from "@tsonic/tsts";
 
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpProjectTypeCatalog } from "../../target-model/records/project-types.js";
+import type { CsharpProjectTypeCatalog } from "../../target-model/records/types/project-types.js";
 import type { CsharpProjectTypeCatalogHost } from "./type-policy.js";
-import type { CsharpProjectTypeDefinition, CsharpProjectTypeIssue } from "../../target-model/records/project-types.js";
+import type { CsharpProjectTypeDefinition, CsharpProjectTypeIssue } from "../../target-model/records/types/project-types.js";
 import { projectDefinitionTargetType } from "../../policy/types/project/declaration-carriers.js";
 import { projectTypeDefinition } from "./type-policy.js";
 
 export function createCsharpProjectTypeCatalog(
   host: CsharpProjectTypeCatalogHost,
-  projections?: import("../../target-model/records/type-projections.js").CsharpGenericProjectionIndex,
+  projections?: import("../../target-model/records/types/type-projections.js").CsharpGenericProjectionIndex,
 ): CsharpProjectTypeCatalog {
   const definitions: CsharpProjectTypeDefinition[] = [];
   const issues: CsharpProjectTypeIssue[] = [];

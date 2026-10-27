@@ -5,18 +5,18 @@ import { conversionIsImplicitlyApplicable } from "../../policy/conversions/core.
 import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
 import { getCsharpCallableValueSignature, getCsharpLambdaSignature, getCsharpNullableElementTargetType, csharpNullableReferenceTargetType, csharpNullableTargetType, csharpTargetStorageIdentityEquals, csharpDelegateSignaturesMatchNativeBinding, targetTypeRefEquals, targetTypeRefKey } from "../../policy/types/index.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
-import type { CsharpCallableContractIndex } from "../../target-model/records/callable-values.js";
+import type { CsharpDeclarationClassifications } from "../../target-model/records/program/declarations.js";
+import type { CsharpCallableContractIndex } from "../../target-model/records/callables/callable-values.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { selectCsharpSourceArgument } from "../../source/extension/arguments.js";
-import type { CsharpConversionClassifications } from "../../target-model/records/conversions.js";
-import type { CsharpExpectedTypeClassifications } from "../../target-model/records/expected-types.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
-import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
-import type { CsharpStorageClassifications, CsharpStorageRepresentationClassifications, CsharpStorageIssue } from "../../target-model/records/storage.js";
+import type { CsharpConversionClassifications } from "../../target-model/records/operations/conversions.js";
+import type { CsharpExpectedTypeClassifications } from "../../target-model/records/types/expected-types.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
+import type { CsharpStorageClassifications, CsharpStorageRepresentationClassifications, CsharpStorageIssue } from "../../target-model/records/storage/storage.js";
 import { canConstructCsharpStorageLiteral } from "./literal-construction.js";
-import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
+import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/objects/required-records.js";
 
 interface MutableStorageContract {
   readonly declaration: Node;
@@ -440,7 +440,7 @@ export function analyzeCsharpStorage(
   }
 
   function recordTypedLocationStorageIdentities(
-    storage: import("../../target-model/records/typed-location-storage.js")
+    storage: import("../../target-model/records/storage/typed-location-storage.js")
       .CsharpTypedLocationStorage,
   ): void {
     if (

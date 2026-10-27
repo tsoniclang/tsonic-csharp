@@ -12,7 +12,7 @@ import {
   expressionStatement,
 } from "./statement-output.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
-import type { CsharpAdmittedIteration, CsharpForInKeyBinding } from "../../../target-model/records/selection.js";
+import type { CsharpAdmittedIteration, CsharpForInKeyBinding } from "../../../target-model/records/operations/selection.js";
 import type { CsharpConversionSelection } from "../../../target-model/conversions/selection.js";
 import { applyCsharpConversionSelection } from "../expressions/conversions.js";
 import { planIdentifierName } from "../names/source-identifiers.js";

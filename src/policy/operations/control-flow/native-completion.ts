@@ -1,4 +1,4 @@
-import type { CsharpNativeCompletion } from "../../../target-model/records/native-demand.js";
+import type { CsharpNativeCompletion } from "../../../target-model/records/native/native-demand.js";
 import { isCsharpNeverTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { isCsharpVoidTargetType } from "../../../target-model/types/identity.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";

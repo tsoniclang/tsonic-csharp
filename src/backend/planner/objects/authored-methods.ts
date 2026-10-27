@@ -9,12 +9,12 @@ import { planMethodDeclaration } from "../declarations/classes/methods.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { csharpTypeFromObjectShapeFact } from "./planning.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import type { CsharpObjectCaptureField } from "../../../target-model/records/object-methods.js";
+import type { CsharpObjectCaptureField } from "../../../target-model/records/objects/object-methods.js";
 import type { DestructuringPlannerState } from "../bindings/binding-state.js";
 import { getCsharpLocalBindingName } from "../bindings/binding-state.js";
 import { renderCsharpExplicitImplementationTypeParameters } from "../types/type-parameters.js";
 import { csharpCapturedBindingExpression, csharpCaptureFrameExpression } from "../bindings/capture-storage.js";
-import { objectShapeArtifactKey } from "../../../target-model/records/object-shape-keys.js";
+import { objectShapeArtifactKey } from "../../../target-model/records/objects/object-shape-keys.js";
 import { planCsharpArtifactMemberHiding } from "../declarations/modifiers.js";
 import type { CsharpPlannedAddressOperand } from "../expressions/planned-values.js";
 

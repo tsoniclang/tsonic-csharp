@@ -1,12 +1,12 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import { HasSourceKind, HasSyntacticModifier, KindPrivateIdentifier, ModifierFlagsStatic, ModifierFlagsAsync, sourceParameterIsProperty, sourceClassFieldIsTypeOnly } from "@tsonic/target-api/source";
-import type { CsharpProjectCallableAdapters, CsharpProjectCallableDispatch } from "../../../target-model/records/callable-adapters.js";
-import type { CsharpCaptureStorage } from "../../../target-model/records/capture-storage.js";
-import type { CsharpMemberVisibility, CsharpMemberModifier, CsharpCallableModifier, CsharpDispatchModifier, CsharpMemberModifierSelection } from "../../../target-model/records/declaration-modifiers.js";
-import { createCsharpDeclarationModifierRecords } from "../../program/records/declaration-modifiers.js";
-import { requireCsharpRecord, type CsharpRequiredRecord } from "../../program/records/required-records.js";
-import type { CsharpGeneratorRecords } from "../../../target-model/records/generators.js";
-import type { CsharpClassFactoryIndex } from "../../../target-model/records/class-factories.js";
+import type { CsharpProjectCallableAdapters, CsharpProjectCallableDispatch } from "../../../target-model/records/callables/callable-adapters.js";
+import type { CsharpCaptureStorage } from "../../../target-model/records/callables/capture-storage.js";
+import type { CsharpMemberVisibility, CsharpMemberModifier, CsharpCallableModifier, CsharpDispatchModifier, CsharpMemberModifierSelection } from "../../../target-model/records/program/declaration-modifiers.js";
+import { createCsharpDeclarationModifierRecords } from "../../program/records/program/declaration-modifiers.js";
+import { requireCsharpRecord, type CsharpRequiredRecord } from "../../program/records/objects/required-records.js";
+import type { CsharpGeneratorRecords } from "../../../target-model/records/callables/generators.js";
+import type { CsharpClassFactoryIndex } from "../../../target-model/records/objects/class-factories.js";
 
 export function analyzeCsharpDeclarationModifiers(input: {
   readonly ast: AstReader;

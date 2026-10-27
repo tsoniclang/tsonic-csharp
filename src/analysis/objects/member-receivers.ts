@@ -1,12 +1,12 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpMemberReceiverEmission, CsharpNativeMethodCallee, CsharpSelectedReceiverEvidence } from "../../target-model/records/member-receivers.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpSourceReferenceRecords } from "../../target-model/records/source-references.js";
-import type { CsharpProjectEmissionRecords } from "../../target-model/records/project-emission.js";
-import type { CsharpClassFactoryIndex } from "../../target-model/records/class-factories.js";
-import { createCsharpMemberReceiverRecords } from "../program/records/member-receivers.js";
+import type { CsharpMemberReceiverEmission, CsharpNativeMethodCallee, CsharpSelectedReceiverEvidence } from "../../target-model/records/objects/member-receivers.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpSourceReferenceRecords } from "../../target-model/records/program/source-references.js";
+import type { CsharpProjectEmissionRecords } from "../../target-model/records/program/project-emission.js";
+import type { CsharpClassFactoryIndex } from "../../target-model/records/objects/class-factories.js";
+import { createCsharpMemberReceiverRecords } from "../program/records/objects/member-receivers.js";
 
 export function analyzeCsharpMemberReceivers(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];
   readonly operations: CsharpTargetOperationClassifications; readonly references: CsharpSourceReferenceRecords;

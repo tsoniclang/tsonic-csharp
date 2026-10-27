@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpNativeHandlers } from "../../../dist/analysis/operations/native-handlers.js";
-import { assertCsharpRequiredRecords } from "../../../dist/analysis/program/records/required-records.js";
+import { assertCsharpRequiredRecords } from "../../../dist/analysis/program/records/objects/required-records.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 function handlersByCallee(program) {

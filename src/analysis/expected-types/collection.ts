@@ -4,9 +4,9 @@ import { targetUseSiteIdentity, type TargetUseSiteRef } from "@tsonic/target-api
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
-import { csharpNativeUseSite } from "../../target-model/records/native-demand.js";
+import { csharpNativeUseSite } from "../../target-model/records/native/native-demand.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpExpectedTypeIssue } from "../../target-model/records/expected-types.js";
+import type { CsharpExpectedTypeIssue } from "../../target-model/records/types/expected-types.js";
 import type { CsharpExpectedTypePending, CsharpExpectedTypeRecord, CsharpExpectedTypeUse, CsharpExpectedUseRequest } from "./model.js";
 
 const maximumExpectedTargetUses = 1_048_576;

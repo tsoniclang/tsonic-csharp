@@ -1,8 +1,8 @@
-import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy, CsharpProjectMemberTypeInstantiation, CsharpProjectTypeDefinitionSelection } from "../../target-model/records/project-types.js";
+import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy, CsharpProjectMemberTypeInstantiation, CsharpProjectTypeDefinitionSelection } from "../../target-model/records/types/project-types.js";
 
 import { csharpProjectHeritageKindIssue } from "../../policy/types/project/relationships.js";
 import { csharpProviderBindingFromResolution } from "../../providers/model/relation-resolver.js";
-import type { CsharpProjectTypeDefinition, CsharpProjectTypeHeritage, CsharpProjectTypeIssue } from "../../target-model/records/project-types.js";
+import type { CsharpProjectTypeDefinition, CsharpProjectTypeHeritage, CsharpProjectTypeIssue } from "../../target-model/records/types/project-types.js";
 import type { AstReader, Node, ReadonlySourceFactResolver } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { sourceNodeIdentity, sourceCallableInterface, sourceInterfaceRepresentationBase } from "@tsonic/target-api/source";
@@ -18,7 +18,7 @@ import { readCsharpSourceStruct } from "../../source/extension/markers.js";
 import { resolveCsharpSourceProfileBaseType } from "../source-evidence/types/resolution/source-profiles.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
 
-import type { CsharpProjectConstructorPolicy } from "../../target-model/records/project-types.js";
+import type { CsharpProjectConstructorPolicy } from "../../target-model/records/types/project-types.js";
 
 export interface CsharpProjectTypeCatalogHost {
   readonly ast: AstReader;

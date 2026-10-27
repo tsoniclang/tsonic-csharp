@@ -1,10 +1,10 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { CsharpNamePlan } from "../../target-model/names/model.js";
-import type { CsharpSourceMemberName } from "../../target-model/records/source-member-names.js";
+import type { CsharpSourceMemberName } from "../../target-model/records/program/source-member-names.js";
 import { objectShapeStorageMemberName } from "../../target-model/names/object-members.js";
-import { createCsharpSourceMemberNameRecords } from "../program/records/source-member-names.js";
+import { createCsharpSourceMemberNameRecords } from "../program/records/program/source-member-names.js";
 
 export function analyzeCsharpSourceMemberNames(input: { readonly ast: AstReader; readonly nodes: readonly Node[];
   readonly operations: CsharpTargetOperationClassifications; readonly names: CsharpNamePlan; readonly rendered: (node: Node) => boolean }) {

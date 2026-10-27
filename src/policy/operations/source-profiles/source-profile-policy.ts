@@ -5,8 +5,8 @@ import type { CsharpTargetReceiverRelation } from "../../../target-model/identit
 import type { CsharpTargetMember, TargetTypeRef } from "../../types/index.js";
 
 import type { CsharpSourceProfileDeclarationIdentity } from "../../identities/selected-source.js";
-import type { CsharpSelectedCallArgument, CsharpSelectedTargetCall } from "../../../target-model/records/members.js";
-import type { ResolvedSourceCallInfo } from "../../../target-model/records/source-calls.js";
+import type { CsharpSelectedCallArgument, CsharpSelectedTargetCall } from "../../../target-model/records/objects/members.js";
+import type { ResolvedSourceCallInfo } from "../../../target-model/records/calls/source-calls.js";
 
 export function resolveCsharpSelectedSourceValue(
   context: Pick<

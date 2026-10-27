@@ -2,14 +2,14 @@ import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpClosedTypeTest, CsharpClosedTypeTestPlan } from "../../target-model/operations/type-tests.js";
-import type { CsharpClosedTypeTestEmission } from "../../target-model/records/type-tests.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
+import type { CsharpClosedTypeTestEmission } from "../../target-model/records/types/type-tests.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { CsharpTypeDefinitions } from "../../target-model/types/source-union-definitions.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import { csharpClosedTypeTestMatches } from "./type-tests.js";
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
-import { createCsharpClosedTypeTestProducer } from "../program/records/type-tests.js";
+import { createCsharpClosedTypeTestProducer } from "../program/records/types/type-tests.js";
 
 export function analyzeCsharpClosedTypeTests(nodes: readonly Node[], operations: CsharpTargetOperationClassifications, definitions: CsharpTypeDefinitions) {
   const producer = createCsharpClosedTypeTestProducer();

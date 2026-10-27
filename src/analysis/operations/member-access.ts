@@ -4,7 +4,7 @@ import { optionalResultType } from "../../policy/operations/members/optional-res
 import type { ResolvedSourceElementAccessInfo, SourceFile } from "@tsonic/tsts";
 import { readCsharpSourceField } from "../../source/extension/markers.js";
 import { sourceParameterIsProperty } from "@tsonic/target-api/source";
-import type { CsharpTargetElementSelection } from "../../target-model/records/member-selections.js";
+import type { CsharpTargetElementSelection } from "../../target-model/records/operations/member-selections.js";
 import { validateCsharpJsValueOperationSelection } from "../../policy/operations/js-values/selection.js";
 import { selectCsharpTargetProperty } from "./members/selected-members.js";
 import { selectCsharpJsValueReceiverExpressionOperation } from "./js-values.js";
@@ -12,7 +12,7 @@ import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../policy/ty
 import { resolveCsharpObjectShapeMemberReadTargetType } from "./members/object-shape-members.js";
 import { selectCsharpFlowReadConversion } from "../../policy/conversions/index.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type { CsharpElementClassification, CsharpPropertyClassification, CsharpMemberReceiverProjection } from "../../target-model/records/operations.js";
+import type { CsharpElementClassification, CsharpPropertyClassification, CsharpMemberReceiverProjection } from "../../target-model/records/operations/operations.js";
 
 import { classifyCsharpBoundFieldWrite } from "./bound-field-writes.js";
 import { getCsharpMethodValue } from "../../target-model/types/method-values.js";

@@ -1,4 +1,4 @@
-import type { CsharpJsArrayMutationSelection } from "../../../target-model/records/js-array-mutations.js";
+import type { CsharpJsArrayMutationSelection } from "../../../target-model/records/storage/js-array-mutations.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { selectCsharpTypedArrayMutation } from "./typed-array-mutations.js";
 

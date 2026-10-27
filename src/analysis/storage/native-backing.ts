@@ -6,9 +6,9 @@ import { csharpNativeMemoryLayoutsEqual } from "../../target-model/operations/na
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { csharpStructuralObjectShapeIdentity } from "../../target-model/types/object-shape-identity.js";
 import type { CsharpSourceEvidenceAnalysis } from "../source-evidence/model.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpNativeArrayStorage, CsharpStorageIssue } from "../../target-model/records/storage.js";
-import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpNativeArrayStorage, CsharpStorageIssue } from "../../target-model/records/storage/storage.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import { createCsharpNativeFieldBacking } from "./native-field-backing.js";
 import { createCsharpTypeParameterEnvironment } from "../source-evidence/types/resolution/type-parameter-environment.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";

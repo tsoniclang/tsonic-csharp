@@ -1,6 +1,6 @@
 import type { CsharpCompilationUnit } from "../syntax/index.js";
 import { transformCsharpTargetAst } from "./transformation.js";
-import type { CsharpObjectShapeDisplayName } from "../../../target-model/records/object-shape-names.js";
+import type { CsharpObjectShapeDisplayName } from "../../../target-model/records/objects/object-shape-names.js";
 
 export function applyCsharpObjectShapeDisplayNames(
   units: readonly CsharpCompilationUnit[],

@@ -1,9 +1,9 @@
-import type { CsharpResolvedIteration } from "../../../target-model/records/selection.js";
+import type { CsharpResolvedIteration } from "../../../target-model/records/operations/selection.js";
 
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
 
-import type { CsharpOperationSelection } from "../../../target-model/records/operator-selection.js";
+import type { CsharpOperationSelection } from "../../../target-model/records/operations/operator-selection.js";
 
 import { selectCsharpNativeIteration, rejectCsharpIteration } from "../../../policy/operations/iteration/selection.js";
 export function selectCsharpIteration(

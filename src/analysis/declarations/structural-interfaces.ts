@@ -1,14 +1,14 @@
 import type { AstReader } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
-import type { CsharpFinalStructuralInterfaceImplementation } from "../../target-model/records/heritage.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
+import type { CsharpFinalStructuralInterfaceImplementation } from "../../target-model/records/objects/heritage.js";
 import type { CsharpNamePlan } from "../../target-model/names/model.js";
-import type { CsharpProjectTypeClassifications } from "../../target-model/records/project-types.js";
-import type { CsharpGenericProjectionIndex } from "../../target-model/records/type-projections.js";
+import type { CsharpProjectTypeClassifications } from "../../target-model/records/types/project-types.js";
+import type { CsharpGenericProjectionIndex } from "../../target-model/records/types/type-projections.js";
 import { authoredTypeParameterNames, generatedTypeParameterNames } from "@tsonic/target-api/source";
 import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
-import { createCsharpStructuralInterfaceRecords } from "../program/records/structural-interfaces.js";
-import type { CsharpDeclarationClassifications } from "../../target-model/records/declarations.js";
+import { createCsharpStructuralInterfaceRecords } from "../program/records/objects/structural-interfaces.js";
+import type { CsharpDeclarationClassifications } from "../../target-model/records/program/declarations.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { objectShapeMethodInvocationName } from "../../target-model/names/object-members.js";
 

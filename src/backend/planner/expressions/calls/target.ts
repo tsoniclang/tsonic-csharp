@@ -8,7 +8,7 @@ import type { CallArgumentPlanner, ExpressionPlanner } from "../expression-plann
 import type { CsharpArgument, CsharpExpression, CsharpTypeNode } from "../../../target-ast/syntax/index.js";
 import { csharpBinaryOperatorTokenFromText, csharpPrefixUnaryOperatorTokenFromText } from "../../../target-ast/syntax/operator-tokens.js";
 import type { CsharpPlanningContext } from "../../context.js";
-import type { CsharpTargetCallEmission, CsharpTargetInvocationEmission } from "../../../../target-model/records/target-call-emission.js";
+import type { CsharpTargetCallEmission, CsharpTargetInvocationEmission } from "../../../../target-model/records/calls/target-call-emission.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpPlannedValue } from "../planned-values.js";

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createCsharpExpectedUseCollection } from "../../../dist/analysis/expected-types/collection.js";
 import { collectCsharpExpectedNativeUseSites } from "../../../dist/analysis/expected-types/native-uses.js";
-import { csharpNativeUseSite } from "../../../dist/target-model/records/native-demand.js";
+import { csharpNativeUseSite } from "../../../dist/target-model/records/native/native-demand.js";
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 

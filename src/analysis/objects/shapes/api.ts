@@ -36,7 +36,7 @@ import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { createCsharpLiteralShapeResolver } from "./literal-construction.js";
 import { createCsharpProjectShapeProjection } from "./project-construction.js";
-import type { CsharpNativeSourceCarrierSelection } from "../../../target-model/records/object-shapes.js";
+import type { CsharpNativeSourceCarrierSelection } from "../../../target-model/records/objects/object-shapes.js";
 export function createCsharpObjectShapePolicy(
   host: CsharpObjectShapePolicyHost,
 ): CsharpRecursiveObjectShapePolicy {

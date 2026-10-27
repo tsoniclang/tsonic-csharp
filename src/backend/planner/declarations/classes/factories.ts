@@ -1,7 +1,7 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpClassFactory } from "../../../../target-model/records/class-factories.js";
-import type { CsharpCaptureFrame } from "../../../../target-model/records/capture-storage.js";
+import type { CsharpClassFactory } from "../../../../target-model/records/objects/class-factories.js";
+import type { CsharpCaptureFrame } from "../../../../target-model/records/callables/capture-storage.js";
 import type {
   CsharpClassDeclaration, CsharpConstructorDeclaration, CsharpExpression, CsharpInterfaceDeclaration, CsharpParameter,
   CsharpStatement, CsharpTypeMember, CsharpTypeNode,

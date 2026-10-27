@@ -4,8 +4,8 @@ import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { isSourceOwnedProjectReference } from "../source-evidence/types/resolution/source-ownership.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { getCsharpNullableElementTargetType, isCsharpNullableReferenceTargetType } from "../../target-model/types/carriers/nullable.js";
-import type { CsharpConversionIssue, CsharpDelegateAdapterIdentity, CsharpExpressionConversionClassification } from "../../target-model/records/conversions.js";
-import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
+import type { CsharpConversionIssue, CsharpDelegateAdapterIdentity, CsharpExpressionConversionClassification } from "../../target-model/records/operations/conversions.js";
+import type { CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
 
 export function sealCsharpDelegateAdapterIdentities(
   policy: CsharpPolicyContext,

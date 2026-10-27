@@ -4,7 +4,7 @@ import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpTsValueTargetType } from "../../../target-model/types/index.js";
 import type { CsharpExpression, CsharpStatement, CsharpSwitchExpressionArm } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
-import type { CsharpClosedShapeMemberProjection } from "../../../target-model/records/closed-object-shapes.js";
+import type { CsharpClosedShapeMemberProjection } from "../../../target-model/records/objects/closed-object-shapes.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";
 import { csharpPlannedValue, mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";

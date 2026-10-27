@@ -1,4 +1,4 @@
-import { createCsharpValueReadProducer } from "../program/records/value-reads.js";
+import { createCsharpValueReadProducer } from "../program/records/storage/value-reads.js";
 import type { Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type {
@@ -6,10 +6,10 @@ import type {
   CsharpValueReadClassifications,
   CsharpValueReadStageIndex,
   CsharpValueReadStages,
-} from "../../target-model/records/conversions.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
-import type { CsharpStorageRepresentationClassifications } from "../../target-model/records/storage.js";
+} from "../../target-model/records/operations/conversions.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
+import type { CsharpStorageRepresentationClassifications } from "../../target-model/records/storage/storage.js";
 import type { TargetTypeRef } from "../../target-model/types/index.js";
 import { getCsharpGeneratorProtocol } from "../../target-model/types/carriers/generators.js";
 

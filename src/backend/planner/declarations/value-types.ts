@@ -6,7 +6,7 @@ import {
   type Node,
   type SourceFile,
 } from "@tsonic/tsts";
-import type { CsharpSourceField } from "../../../target-model/records/source-markers.js";
+import type { CsharpSourceField } from "../../../target-model/records/program/source-markers.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpTypeMember, CsharpStructDeclaration, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import { renderBoundRecordMember } from "../objects/members.js";

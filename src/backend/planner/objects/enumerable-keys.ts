@@ -2,7 +2,7 @@ import type { CsharpPlanningContext } from "../context.js";
 import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
 import type { CsharpInterfaceMember, CsharpTypeMember, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import { csharpEnumerableKeysMethodName, csharpEnumerableKeysStorageName } from "../../../target-model/names/object-members.js";
-import type { CsharpNativeMemberHidingReader } from "../../../target-model/records/native-member-names.js";
+import type { CsharpNativeMemberHidingReader } from "../../../target-model/records/native/native-member-names.js";
 import { planCsharpArtifactMemberHiding } from "../declarations/modifiers.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 

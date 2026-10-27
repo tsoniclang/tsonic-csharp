@@ -2,14 +2,14 @@ import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { HasSyntacticModifier, ModifierFlagsStatic } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpCaptureStorage } from "../../target-model/records/capture-storage.js";
-import type { CsharpClassInitializationIndex } from "../../target-model/records/class-initialization.js";
-import type { CsharpClassFactoryIndex } from "../../target-model/records/class-factories.js";
-import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
-import type { CsharpObjectMethodRecords } from "../../target-model/records/object-methods.js";
-import type { CsharpObjectLiteralRecords } from "../../target-model/records/object-literals.js";
-import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
-import { createCsharpThisEmissionProducer } from "../program/records/expression-this.js";
+import type { CsharpCaptureStorage } from "../../target-model/records/callables/capture-storage.js";
+import type { CsharpClassInitializationIndex } from "../../target-model/records/objects/class-initialization.js";
+import type { CsharpClassFactoryIndex } from "../../target-model/records/objects/class-factories.js";
+import type { CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
+import type { CsharpObjectMethodRecords } from "../../target-model/records/objects/object-methods.js";
+import type { CsharpObjectLiteralRecords } from "../../target-model/records/objects/object-literals.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
+import { createCsharpThisEmissionProducer } from "../program/records/operations/expression-this.js";
 
 export function analyzeCsharpThisEmission(input: {
   readonly ast: AstReader; readonly nodes: readonly Node[]; readonly admitted: (node: Node) => boolean;

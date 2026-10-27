@@ -1,11 +1,11 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { SourceLiteralIndex } from "@tsonic/target-api/source";
-import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
+import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
 import type { CsharpExactLiteralSelectionIndex } from "../../target-model/conversions/exact-literals.js";
-import type { CsharpValueReadClassifications } from "../../target-model/records/conversions.js";
+import type { CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
 import { csharpStringTargetType, csharpBigIntegerTargetType, targetTypeRefEquals } from "../../target-model/types/index.js";
-import { createCsharpLiteralEmissionProducer } from "../program/records/literal-emission.js";
+import { createCsharpLiteralEmissionProducer } from "../program/records/operations/literal-emission.js";
 
 export function analyzeCsharpLiteralAdmission(input: { readonly ast: AstReader; readonly demand: CsharpNativeDemandAnalysis;
   readonly literals: SourceLiteralIndex; readonly exact: CsharpExactLiteralSelectionIndex; readonly values: CsharpValueReadClassifications }) {

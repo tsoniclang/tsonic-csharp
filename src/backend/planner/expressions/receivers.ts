@@ -1,9 +1,9 @@
 import type { SourceFile } from "@tsonic/tsts";
-import type { CsharpSelectedReceiverEvidence } from "../../../target-model/records/member-receivers.js";
+import type { CsharpSelectedReceiverEvidence } from "../../../target-model/records/objects/member-receivers.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
 import type { CsharpPlanningContext } from "../context.js";
-import type { CsharpMemberReceiverProjection } from "../../../target-model/records/operations.js";
+import type { CsharpMemberReceiverProjection } from "../../../target-model/records/operations/operations.js";
 import { applyCsharpConversionSelection } from "./conversions.js";
 import { mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";

@@ -7,7 +7,7 @@ import { jsRuntimeTargetType, receiverHelperMethod, targetParameter } from "./co
 
 import type { Node } from "@tsonic/tsts";
 import type { CsharpObjectShapeMemberFact, CsharpDelegateSignatureShape } from "../../../../target-model/types/model.js";
-import type { CsharpCustomRegExpProtocol, CustomRegExpProtocolKind } from "../../../../target-model/records/source-profile-inputs.js";
+import type { CsharpCustomRegExpProtocol, CustomRegExpProtocolKind } from "../../../../target-model/records/program/source-profile-inputs.js";
 const stringType = csharpStringTargetType();
 const doubleType = csharpSourcePrimitiveTargetType("float64");
 const regexpProtocolDispatchType = jsRuntimeTargetType("RegExpProtocolDispatch");

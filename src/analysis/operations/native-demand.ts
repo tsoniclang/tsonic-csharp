@@ -1,4 +1,4 @@
-import { sealCsharpNativeUseClassifications } from "../program/records/native-uses.js";
+import { sealCsharpNativeUseClassifications } from "../program/records/native/native-uses.js";
 import type { Node } from "@tsonic/tsts";
 import type { CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
 import { targetUseSiteIdentity, type SourceStorageSubject, type TargetUseSiteRef } from "@tsonic/target-api/analysis";
@@ -7,7 +7,7 @@ import { sourceExpressionResultDisposition, sourceExpressionValueInputs, sourceT
 import { csharpNativeConstructIsErased, selectCsharpNativeConstructSteps } from "./control-flow/native-constructs.js";
 import { selectCsharpNativeOperandUses, selectCsharpNativeSourceRefusal, type CsharpNativeOperandSelection, type CsharpNativeOperandStep } from "./control-flow/native-operands.js";
 import { selectCsharpNativeCompletion, type CsharpNativeCompletionFlow } from "../../policy/operations/control-flow/native-completion.js";
-import { csharpNativeUseSite, type CsharpExpectedNativeUse, type CsharpNativeChildUse, type CsharpNativeCompletion, type CsharpNativeEvaluation, type CsharpNativeOrderStep, type CsharpNativeUse, type CsharpNativeDiscardedPresence } from "../../target-model/records/native-demand.js";
+import { csharpNativeUseSite, type CsharpExpectedNativeUse, type CsharpNativeChildUse, type CsharpNativeCompletion, type CsharpNativeEvaluation, type CsharpNativeOrderStep, type CsharpNativeUse, type CsharpNativeDiscardedPresence } from "../../target-model/records/native/native-demand.js";
 import { csharpConstructorBaseCall } from "../callables/emission/constructor-entry.js";
 import { isCsharpUnusedTupleDefault } from "../control-flow/binding-patterns.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
@@ -18,8 +18,8 @@ import { csharpCarrierAdmitsSourceAbsence, isCsharpAbsenceTargetType } from "../
 import { isCsharpVoidTargetType } from "../../target-model/types/identity.js";
 import type { CsharpNativePropertyKey } from "../../target-model/conversions/exact-literals.js";
 import type { CsharpNativeDemandAnalysisInput } from "./native-demand-model.js";
-import type { CsharpNativeDemandAnalysis, CsharpNativeUnadmitted, CsharpNativeUnadmittedReason } from "../../target-model/records/native-demand.js";
-import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
+import type { CsharpNativeDemandAnalysis, CsharpNativeUnadmitted, CsharpNativeUnadmittedReason } from "../../target-model/records/native/native-demand.js";
+import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/objects/required-records.js";
 
 interface VisitedUse {
   readonly site: TargetUseSiteRef;

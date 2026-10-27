@@ -3,7 +3,7 @@ import type { CsharpPlannedValue } from "../planned-values.js";
 import { projectCsharpPlannedValue } from "../planned-value-composition.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import type { ExpressionPlanner } from "../expression-planner-types.js";
-import type { CsharpRestSequence } from "../../../../target-model/records/rest-sequences.js";
+import type { CsharpRestSequence } from "../../../../target-model/records/objects/rest-sequences.js";
 import type { SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { planCsharpSequenceValue } from "../sequence-conversions.js";

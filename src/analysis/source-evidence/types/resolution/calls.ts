@@ -1,10 +1,10 @@
-import type { SourceCallableContract } from "../../../../target-model/records/source-callable-contract.js";
+import type { SourceCallableContract } from "../../../../target-model/records/callables/source-callable-contract.js";
 import { resolveProjectConstructingReceiverTargetType } from "./expressions.js";
 import { csharpSourceCallArgumentParameter } from "../../../../policy/types/callables/source-callable-contract.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { CsharpTypeResolutionState } from "./model.js";
-import type { ResolvedSourceCallInfo } from "../../../../target-model/records/source-calls.js";
+import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 
 import { csharpTargetParameterValueType } from "../../../../target-model/types/member-facts.js";

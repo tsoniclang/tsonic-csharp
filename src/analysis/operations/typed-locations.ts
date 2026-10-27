@@ -1,4 +1,4 @@
-import type { CsharpNativeRefReturnSelection, CsharpTypedLocationOperationSelection } from "../../target-model/records/typed-locations.js";
+import type { CsharpNativeRefReturnSelection, CsharpTypedLocationOperationSelection } from "../../target-model/records/storage/typed-locations.js";
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import { AsVariableDeclaration } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
@@ -36,7 +36,7 @@ export function selectCsharpTypedLocationOperation(
   };
   const selected = (expression: Node, type: Type): void =>
     retain(expression, input.types.resolveSelectedValue(expression, type, sourceFile));
-  let storage: import("../../target-model/records/typed-location-storage.js").CsharpTypedLocationStorageSelection | undefined;
+  let storage: import("../../target-model/records/storage/typed-location-storage.js").CsharpTypedLocationStorageSelection | undefined;
   switch (source.kind) {
     case "location-view": {
       const arguments_ = input.ast.arguments(node);

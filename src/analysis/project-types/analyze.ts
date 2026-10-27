@@ -3,12 +3,12 @@ import type {
   Node,
 } from "@tsonic/tsts";
 import { createSourceDeclarationMembership } from "@tsonic/target-api/analysis";
-import type { CsharpProjectTypePolicy } from "../../target-model/records/project-types.js";
-import type { CsharpProjectTypeClassifications } from "../../target-model/records/project-types.js";
+import type { CsharpProjectTypePolicy } from "../../target-model/records/types/project-types.js";
+import type { CsharpProjectTypeClassifications } from "../../target-model/records/types/project-types.js";
 import { substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
 import { snapshotCsharpTargetTypes } from "../../target-model/types/snapshot.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import { completeCsharpDeclarationHeritage } from "./heritage.js";
 
 export function sealCsharpProjectTypeClassifications(
@@ -28,7 +28,7 @@ export function sealCsharpProjectTypeClassifications(
   >>();
   const constructorsByDeclaration = new WeakMap<
     Node,
-    readonly import("../../target-model/records/project-types.js").CsharpProjectForwardingConstructor[]
+    readonly import("../../target-model/records/types/project-types.js").CsharpProjectForwardingConstructor[]
   >();
 
   for (const definition of policy.catalog.definitions) {

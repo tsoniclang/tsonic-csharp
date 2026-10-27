@@ -1,11 +1,11 @@
 import type { Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpNativeMemoryLayout } from "../../target-model/operations/native-memory.js";
-import type { CsharpStorageClassifications } from "../../target-model/records/storage.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
+import type { CsharpStorageClassifications } from "../../target-model/records/storage/storage.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpRuntimeNativeLayoutTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
-import { createCsharpNativeLayoutProducer } from "../program/records/native-layout-emission.js";
+import { createCsharpNativeLayoutProducer } from "../program/records/native/native-layout-emission.js";
 
 export function analyzeCsharpNativeMemoryEmission(input: { readonly nodes: readonly Node[];
   readonly storage: CsharpStorageClassifications; readonly operations: Pick<CsharpTargetOperationClassifications, "nativePointer"> }) {

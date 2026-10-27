@@ -1,11 +1,11 @@
-import type { CsharpNumericRepresentations } from "../../target-model/records/numeric.js";
+import type { CsharpNumericRepresentations } from "../../target-model/records/operations/numeric.js";
 import type { SourceFile } from "@tsonic/tsts";
 import { analyzeSourceIntegerRanges } from "@tsonic/target-api/source";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import { createCsharpNumericRepresentationRecords } from "../program/records/numeric.js";
+import { createCsharpNumericRepresentationRecords } from "../program/records/operations/numeric.js";
 
 export function analyzeCsharpNumericRepresentations(input: {
   readonly source: TargetSourceProgram;

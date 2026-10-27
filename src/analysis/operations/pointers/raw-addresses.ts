@@ -1,4 +1,4 @@
-import type { CsharpRawAddressSelection } from "../../../target-model/records/raw-addresses.js";
+import type { CsharpRawAddressSelection } from "../../../target-model/records/storage/raw-addresses.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { readTsonicDataLayout } from "@tsonic/source-core/facts";
 

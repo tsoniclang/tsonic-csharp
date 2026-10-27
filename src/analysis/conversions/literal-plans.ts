@@ -2,7 +2,7 @@ import type { Node } from "@tsonic/tsts";
 import type { SourceLiteralIndex } from "@tsonic/target-api/source";
 import { selectCsharpExactLiteralConversion, selectCsharpExactPropertyKeyConversion } from "../../policy/conversions/literals.js";
 import type { CsharpExactLiteralRequest, CsharpExactLiteralSelectionIndex } from "../../target-model/conversions/exact-literals.js";
-import { createCsharpExactLiteralProducer } from "../program/records/exact-literals.js";
+import { createCsharpExactLiteralProducer } from "../program/records/operations/exact-literals.js";
 
 export function analyzeCsharpExactLiteralSelections(
   literalValues: SourceLiteralIndex,

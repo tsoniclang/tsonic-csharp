@@ -1,4 +1,4 @@
-import type { CsharpElementDeletionSelection } from "../../../target-model/records/element-deletion.js";
+import type { CsharpElementDeletionSelection } from "../../../target-model/records/storage/element-deletion.js";
 import type { Node } from "@tsonic/tsts";
 
 import { csharpSourcePrimitiveTargetType, isCsharpRecordDictionaryTargetType } from "../../../target-model/types/index.js";

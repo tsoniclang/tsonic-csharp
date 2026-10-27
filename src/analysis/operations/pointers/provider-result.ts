@@ -1,6 +1,6 @@
 import { selectTsonicProviderPointerResult } from "@tsonic/source-core/facts";
 import type { SourceProviderTypeParameterSelection } from "@tsonic/target-api/source";
-import type { ResolvedSourceCallInfo } from "../../../target-model/records/source-calls.js";
+import type { ResolvedSourceCallInfo } from "../../../target-model/records/calls/source-calls.js";
 import type { SourceFile } from "@tsonic/tsts";
 import type { CsharpProviderCallInstantiationHost } from "../../../policy/model/provider-calls.js";
 import { csharpRuntimeLocationTargetType, csharpRuntimeRawPointerTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";

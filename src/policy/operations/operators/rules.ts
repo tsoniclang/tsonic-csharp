@@ -1,6 +1,6 @@
 import type {
   CsharpOperationSelection, CsharpResolvedBinaryOperation, CsharpResolvedUnaryOperation, CsharpTargetBinaryOperation,
-} from "../../../target-model/records/operator-selection.js";
+} from "../../../target-model/records/operations/operator-selection.js";
 import {
   validateBinaryTargetSemantics, validateUnaryTargetSemantics, isEquality, isRelational, isShift, isBitwise,
   isArithmetic,

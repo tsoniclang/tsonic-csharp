@@ -1,4 +1,4 @@
-import type { CsharpObjectShapePropertyOrders, CsharpObjectShapeAuthoredOrder } from "../../target-model/records/object-shapes.js";
+import type { CsharpObjectShapePropertyOrders, CsharpObjectShapeAuthoredOrder } from "../../target-model/records/objects/object-shapes.js";
 import type { AstReader, Node } from "@tsonic/tsts";
 import { orderEnumerableOwnStringProperties } from "@tsonic/target-api/source";
 
@@ -7,7 +7,7 @@ import { isSourceDeclaredNominalShape } from "../../target-model/types/object-sh
 
 import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
 import { csharpFreeTypeParameterIdentities } from "../../target-model/types/generic-references.js";
-import type { CsharpObjectShapePropertyOrderSelection } from "../../target-model/records/object-shapes.js";
+import type { CsharpObjectShapePropertyOrderSelection } from "../../target-model/records/objects/object-shapes.js";
 
 const emptyOccurrence = Object.freeze({ kind: "empty" as const });
 const rejected = (reason: string): CsharpObjectShapePropertyOrderSelection => Object.freeze({ kind: "rejected", reason });
@@ -132,7 +132,7 @@ function classifyCsharpObjectShapeAuthoredOrder(fact: CsharpObjectShapeFact, ast
   return resolved(orderEnumerableOwnStringProperties(authored, member => member.sourceName).map(member => member.sourceName));
 }
 
-import { createCsharpObjectShapePropertyOrderProducer } from "../program/records/property-order.js";
+import { createCsharpObjectShapePropertyOrderProducer } from "../program/records/objects/property-order.js";
 
 export function createCsharpObjectShapePropertyOrderIndex(
   ast: AstReader,

@@ -67,7 +67,7 @@ test("value carrier admission preserves selected bound storage without guessing 
 
 test("the canonical seal requires each native value plan at its exact declaration rather than a present sibling", async () => {
   const { analyzeCsharpNativeValueCarriers } = await import("../../../dist/analysis/objects/value-carriers.js");
-  const { assertCsharpRequiredRecords } = await import("../../../dist/analysis/program/records/required-records.js");
+  const { assertCsharpRequiredRecords } = await import("../../../dist/analysis/program/records/objects/required-records.js");
   const value = fixture();
   const requirements = [];
   const selected = analyzeCsharpNativeValueCarriers(value.ast, [value.declaration], value.evidence, value.values, value.shapes, value.semanticsFor, requirements);

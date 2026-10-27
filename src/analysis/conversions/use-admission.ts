@@ -1,15 +1,15 @@
 import type { Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpConversionMode, CsharpConversionSelection } from "../../target-model/conversions/selection.js";
-import type { CsharpConversionIssue, CsharpExpressionConversionClassification } from "../../target-model/records/conversions.js";
-import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native-demand.js";
+import type { CsharpConversionIssue, CsharpExpressionConversionClassification } from "../../target-model/records/operations/conversions.js";
+import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpTargetCallSelection } from "../../target-model/records/member-selections.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpTargetCallSelection } from "../../target-model/records/operations/member-selections.js";
 import { csharpSelectedTargetArgumentBindings } from "../../policy/operations/members/native-use-arguments.js";
-import { csharpNativeUseSite } from "../../target-model/records/native-demand.js";
-import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/required-records.js";
-import type { CsharpNativeCompletion } from "../../target-model/records/native-demand.js";
+import { csharpNativeUseSite } from "../../target-model/records/native/native-demand.js";
+import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/objects/required-records.js";
+import type { CsharpNativeCompletion } from "../../target-model/records/native/native-demand.js";
 
 export interface CsharpCallConversionRequests {
   readonly completion?: { readonly source: TargetTypeRef; readonly target: TargetTypeRef };

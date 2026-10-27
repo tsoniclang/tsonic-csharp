@@ -1,8 +1,8 @@
-import { sealCsharpObjectShapeClassifications } from "../program/records/object-shapes.js";
+import { sealCsharpObjectShapeClassifications } from "../program/records/objects/object-shapes.js";
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type {CsharpObjectShapeFact, TargetTypeRef} from "../../policy/types/index.js";
-import type { CsharpObjectLiteralTargetShapeResolution } from "../../target-model/records/object-shapes.js";
+import type { CsharpObjectLiteralTargetShapeResolution } from "../../target-model/records/objects/object-shapes.js";
 import {
   csharpObjectShapeContractKey,
   csharpObjectShapesEqual,
@@ -12,9 +12,9 @@ import {
   getCsharpRuntimeUnionArms,
 } from "../../policy/types/index.js";
 import { selectCsharpObjectLiteralUnionCarrier, csharpObjectLiteralDestinationDeclarations } from "./shapes/union-construction.js";
-import type { CsharpSourceEvidenceIndex } from "../../target-model/records/source-evidence.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations.js";
-import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from "../../target-model/records/object-shapes.js";
+import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import { collectCsharpInheritedInterfaces, selectCsharpStructuralInterface, type CsharpStructuralInterfaceRegistration } from "./structural-interfaces.js";
 import { mergeCsharpObjectShapeSubjects } from "./shapes/construction.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
@@ -23,7 +23,7 @@ import type { CsharpStructuralInterfaceImplementation, CsharpTargetNamedTypeRef 
 import { inferCsharpTargetTypeParameterBindings, substituteObjectShapeMemberTargetTypeParameters, substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
 import { createCsharpObjectShapePropertyOrderIndex } from "./property-order.js";
 import { instantiateCsharpObjectShape } from "../../policy/types/objects/instantiation.js";
-import type { CsharpProjectTypeIssue } from "../../target-model/records/project-types.js";
+import type { CsharpProjectTypeIssue } from "../../target-model/records/types/project-types.js";
 import { namedTargetTypeImplicitlyAccepts } from "../../policy/conversions/carriers.js";
 
 const noExpectedShape = "<none>";

@@ -22,7 +22,7 @@ import { planExpression } from "../expressions/index.js";
 import { planIdentifierExpression } from "../expressions/expression-source-references.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { planStringCodePointForOfStatement } from "./statement-string-iteration.js";
-import type { CsharpAdmittedIteration } from "../../../target-model/records/selection.js";
+import type { CsharpAdmittedIteration } from "../../../target-model/records/operations/selection.js";
 import { applyCsharpConversionSelection } from "../expressions/conversions.js";
 import {
   planCsharpTypedLocationIdentityDeclaration,

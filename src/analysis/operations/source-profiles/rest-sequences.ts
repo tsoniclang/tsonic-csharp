@@ -1,6 +1,6 @@
 import { csharpSourcePrimitiveTargetType, getCsharpJsArrayElementTargetType, targetTypeRefEquals } from "../../../target-model/types/index.js";
 import { selectCsharpConversion } from "../../../policy/conversions/index.js";
-import type { CsharpSelectedTargetCall } from "../../../target-model/records/members.js";
+import type { CsharpSelectedTargetCall } from "../../../target-model/records/objects/members.js";
 import type { CsharpSourceProfileCallPolicyContext } from "../../../policy/model/source-profiles.js";
 
 export function finalizeCsharpRestSequences(

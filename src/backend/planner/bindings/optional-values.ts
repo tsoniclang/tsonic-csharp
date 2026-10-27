@@ -1,4 +1,4 @@
-import type { CsharpDefaultValueContract } from "../../../target-model/records/value-projections.js";
+import type { CsharpDefaultValueContract } from "../../../target-model/records/objects/value-projections.js";
 import type { CsharpExpression } from "../../target-ast/syntax/index.js";
 import { allocateExpressionTemp, type DestructuringPlannerState } from "./binding-state.js";
 import { planCsharpPresentValueGuard } from "../expressions/optional-storage.js";

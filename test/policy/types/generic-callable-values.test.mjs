@@ -9,7 +9,7 @@ import { csharpTypeFromTargetTypeRef } from "../../../dist/backend/planner/types
 import { substituteTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
 import { csharpFreeTypeParameterIdentities } from "../../../dist/target-model/types/generic-references.js";
 import { csharpProjectedType } from "../../../dist/target-model/types/projections.js";
-import { csharpTypeEmissionKey } from "../../../dist/target-model/records/type-emission.js";
+import { csharpTypeEmissionKey } from "../../../dist/target-model/records/types/type-emission.js";
 
 const unconstrainedEnvironment = () => ({ kind: "resolved", constraints: [] });
 

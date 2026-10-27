@@ -6,7 +6,7 @@ import { csharpFixedArrayRepresentationRejection } from "../../../policy/types/c
 import { csharpSourcePrimitiveTargetType, isCsharpArrayIndexTargetType, targetTypeRefKey } from "../../../target-model/types/index.js";
 import type { CsharpProviderCallSelectionHost } from "../../../policy/model/provider-calls.js";
 import type { CsharpSourceProfileElementPolicyResult } from "../../../policy/model/source-profiles.js";
-import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/source-profile-invocations.js";
+import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/program/source-profile-invocations.js";
 import { csharpSourceProfileDiagnostic } from "../../../policy/operations/source-profiles/source-profile-policy.js";
 import { csharpLiteralIsRepresentableAs } from "../../../policy/conversions/literals.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
