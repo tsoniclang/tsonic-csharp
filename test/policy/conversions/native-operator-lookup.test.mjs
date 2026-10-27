@@ -4,8 +4,9 @@ import { selectProviderConversionOperator } from "../../../dist/policy/conversio
 import { csharpBigIntegerTargetType, csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
 import { csharpQualifiedTypeRenderShape } from "../../../dist/target-model/types/render-shapes.js";
-import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
+import { compileCsharpSource, compileCsharpAnalysisTarget, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 
 test("native operator lookup uses the existing canonical metadata identity rather than an unbound target id", () => {
   const source = csharpBigIntegerTargetType();
@@ -108,10 +109,35 @@ test("metadata operands substitute the acquired generic owner on either side of 
 
 for (const surface of ["native", "js"]) {
   test(`native arbitrary-precision explicit conversion uses exact operator metadata and native overflow on ${surface}`, () => {
-    const compiled = compileCsharpSource({ surface, sourceText: `
+    const nativeEvidence = [];
+    const compiled = compileCsharpSource({ surface, compileTarget(request, observer) {
+      const capture = method => (identity, purpose) => {
+        const resolution = request.providers[method](identity, purpose);
+        if (identity.includes("BigInteger") && nativeEvidence.length < 8) {
+          const binding = resolution.kind === "resolved" ? resolution.binding : undefined;
+          const operators = binding?.conversionOperators ?? [];
+          nativeEvidence.push({ method, identity, purpose, kind: resolution.kind, bindingId: binding?.id,
+            physical: binding?.csharpType === undefined ? undefined : targetTypeRefKey(binding.csharpType),
+            operatorCount: operators.length,
+            operators: operators.filter(operator => /int64|Int64/u.test(targetTypeRefKey(operator.sourceType)) ||
+              /int64|Int64/u.test(targetTypeRefKey(operator.targetType))).slice(0, 8).map(operator => ({
+                id: operator.id, kind: operator.conversionKind,
+                source: targetTypeRefKey(operator.sourceType), target: targetTypeRefKey(operator.targetType),
+              })),
+          });
+        }
+        return resolution;
+      };
+      return compileCsharpAnalysisTarget({ ...request, providers: { ...request.providers,
+        findTargetBindingByMetadataName: capture("findTargetBindingByMetadataName"),
+        findTargetBindingByTargetId: capture("findTargetBindingByTargetId"),
+      } }, observer);
+    }, sourceText: `
 import type { int64 } from "@tsonic/core/types.js";
 export function convert(value: bigint): int64 { return value as int64; }
 ` });
+    assert.equal(compiled.result.diagnostics.length, 0, `${compiled.result.diagnostics.slice(0, 8)
+      .map(issue => `${issue.code}: ${issue.message}`).join(" | ")}; actual native operator evidence: ${JSON.stringify(nativeEvidence)}`);
     assertCsharpCompilationSucceeded(compiled);
     const generated = [...compiled.artifacts.values()].join("\n");
     assert.equal(/\(double\)|Convert\.ToDouble|TsValue|BigIntOps/u.test(generated), false,
