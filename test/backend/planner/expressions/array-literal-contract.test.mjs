@@ -87,7 +87,7 @@ static List<double> Handwritten(byte[] source) {
 `);
   const missing = { ...carrier, csharpArrayLiteralConstructionType: { ...carrier, csharpArrayLiteralBuilder: undefined } };
   const invalid = admit(missing);
-  assert.equal(invalid.records.arrayLiteral.get(node, missing), undefined,
+  assert.equal(invalid.records.arrayLiteral.get(node, missing) === undefined, true,
     "malformed native construction metadata is rejected before an admitted record is published");
   assert.ok(invalid.issues.some(diagnostic => /construction metadata/.test(diagnostic.message)));
 });
