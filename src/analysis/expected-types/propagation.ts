@@ -57,6 +57,25 @@ export function createCsharpExpectedTypePropagation(
   const positionsByOwner = new WeakMap<Node, ReadonlyMap<Node, number>>();
   const propertyKeys = new WeakMap<Node, Map<string, readonly CsharpNativePropertyKeyBinding[]>>();
   const propertyKeyRequests: CsharpExactLiteralRequest[] = [];
+  const dynamicObjectOrigins = new Set<Node>();
+  const storage = policy.sourceStorage;
+  if (storage !== undefined) for (const node of storage.nodes) {
+    const selection = operations.sourceMember.get(node)?.jsValueOperation ?? operations.selectedElement.get(node)?.jsValue;
+    if (selection?.kind !== "resolved" || !["ReadDynamicSlot", "ReadDynamicSlotOptional", "WriteDynamicSlot",
+      "ReadDynamicElement", "ReadDynamicElementOptional", "WriteDynamicElement"].includes(selection.runtimeMember)) continue;
+    const receiver = policy.ast.is.IsPropertyAccessExpression(node)
+      ? policy.ast.as.AsPropertyAccessExpression(node)?.Expression
+      : policy.ast.is.IsElementAccessExpression(node) ? policy.ast.as.AsElementAccessExpression(node)?.Expression : undefined;
+    if (receiver === undefined) continue;
+    const selected = storage.subjectFor(receiver);
+    if (selected.kind !== "resolved") continue;
+    const origins = storage.closedOriginsFor(selected.subject);
+    if (origins.kind !== "complete") continue;
+    for (const origin of origins.origins) {
+      if (origin.subject.kind === "value" && origin.subject.projection.length === 0 &&
+        policy.ast.is.IsObjectLiteralExpression(origin.subject.node)) dynamicObjectOrigins.add(origin.subject.node);
+    }
+  }
 
   return Object.freeze({
     propagate,
@@ -183,7 +202,7 @@ export function createCsharpExpectedTypePropagation(
       ? carrier.typeArguments?.[1] : undefined;
     const positions = childPositions(expression);
     const member = (property: Node) => positioned(positions, property, index => forwarded(expression, { kind: "member", index }, parent, mode));
-    if (isCsharpJsValueTargetType(carrier)) {
+    if (isCsharpJsValueTargetType(carrier) && dynamicObjectOrigins.has(expression)) {
       const argumentType = csharpNullableReferenceTargetType(csharpObjectTargetType());
       const backingType = csharpTargetNamedType("Tsonic.CSharp.Runtime.TsObject", undefined,
         csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "TsObject"), { allowsRefLikeTypeArguments: [] });
@@ -219,7 +238,11 @@ export function createCsharpExpectedTypePropagation(
           const value = pending.pop()!;
           if (visited.has(value)) continue;
           visited.add(value);
-          if (policy.ast.is.IsObjectLiteralExpression(value)) { nested = true; break; }
+          if (policy.ast.is.IsObjectLiteralExpression(value)) {
+            dynamicObjectOrigins.add(value);
+            nested = true;
+            continue;
+          }
           for (const child of sourceExpressionValueInputs(policy.ast, value) ?? []) pending.push(child.expression);
         }
         const inputCarrier = nested ? carrier : argumentType;

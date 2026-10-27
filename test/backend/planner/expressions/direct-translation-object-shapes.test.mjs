@@ -232,7 +232,7 @@ for (const surface of [undefined, "js"]) {
       const compiled = compileCsharpSource({
         surface,
         sourceText: `
-          ${opaque ? 'import { Console } from "@tsonic/csharp/System.js";' : ""}
+          ${opaque ? 'import { Console } from "@tsonic/dotnet/System.js";' : ""}
           type Box = { value: number; read(): number };
           ${external ? `
             export function accept(input: Box): number { return input.read(); }

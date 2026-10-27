@@ -31,6 +31,12 @@ export function selectCsharpMethodValueEnvironment(
 
 export function csharpCopiedObjectShapeMembers(shape: CsharpObjectShapeFact): readonly CsharpObjectShapeMemberFact[] {
   return shape.members.map(member => {
+    if (shape.methodImplementation === undefined && member.memberKind === "method" &&
+      member.methodValueContract !== undefined && member.methodValueStorage === undefined) return {
+        ...member, methodValueStorage: Object.freeze({ kind: "protocol" as const,
+          type: member.optional === true ? csharpNullableTargetType(member.methodValueContract) : member.methodValueContract,
+          invocationName: objectShapeMethodInvocationName(member) }),
+      };
     const storage = selectCsharpMethodValueEnvironment(shape, member)?.storage;
     return storage === undefined ? member : { ...member, methodValueStorage: storage };
   });

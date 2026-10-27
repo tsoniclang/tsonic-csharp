@@ -17,6 +17,9 @@ export function aliased(): unknown {
   const box = new Box();
   return { first: box, second: box };
 }
+export function readNested(): string { const value: any = nested(); return value.child.label; }
+export function readOrdered(): number { const value: any = ordered(); return value.child.second; }
+export function readAliased(): unknown { const value: any = aliased(); return value.first; }
 `;
 
 for (const surface of ["native", "js"]) {
@@ -86,6 +89,9 @@ for (const surface of ["native", "js"]) {
 export function scalar(value: number): unknown { return { value }; }
 export function reference(value: string): unknown { return { value }; }
 export function nested(value: number): unknown { return { child: { value } }; }
+export function readScalar(): number { const value: any = scalar(0); return value.value; }
+export function readReference(): string { const value: any = reference(""); return value.value; }
+export function readNested(): number { const value: any = nested(0); return value.child.value; }
 ` });
     assertCsharpCompilationSucceeded(compiled);
     const output = [...compiled.artifacts.values()].join("\n");
