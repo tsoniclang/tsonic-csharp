@@ -1,5 +1,5 @@
 import type { CsharpTargetMember, TargetTypeRef } from "../../../types/index.js";
-import { csharpDelegateTargetType, csharpEnumerableTargetType, csharpObjectTargetType, csharpNullableTargetType, csharpTaskTargetType, getCsharpCollectionElementTargetType, getCsharpTaskResultTargetType, getCsharpDelegateSignature, isCsharpAbsenceTargetType, isCsharpVoidTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/index.js";
+import { csharpDelegateTargetType, csharpEnumerableTargetType, csharpObjectTargetType, csharpNullableTargetType, csharpTaskTargetType, getCsharpCollectionElementTargetType, getCsharpNullableElementTargetType, getCsharpTaskResultTargetType, getCsharpDelegateSignature, isCsharpAbsenceTargetType, isCsharpVoidTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/index.js";
 import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext } from "../../../model/source-profiles.js";
 import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
 import { jsCallPolicy, jsMemberIdentity, receiverHelperMethod, staticMethod, targetParameter } from "./common.js";
@@ -163,7 +163,8 @@ function promiseContinuationTypeArguments(member: CsharpTargetMember | undefined
   if (count === 0) return [];
   if (count === 1) return [result];
   const owner = member.declaringType;
-  const callback = getCsharpDelegateSignature(member.parameters?.[2]?.type)?.returnType;
+  const rejected = member.parameters?.[2]?.type;
+  const callback = getCsharpDelegateSignature(getCsharpNullableElementTargetType(rejected) ?? rejected)?.returnType;
   const element = count === 2 && owner?.kind === "target-named" ? owner.typeArguments?.[0]
     : getCsharpTaskResultTargetType(callback) ?? callback;
   if (element === undefined) return undefined;
