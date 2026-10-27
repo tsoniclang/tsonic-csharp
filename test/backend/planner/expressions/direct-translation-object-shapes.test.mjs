@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 
 import {
   compileCsharpSource,
@@ -222,6 +223,66 @@ test("object-literal method receiver requirements replan every implementation of
     'if (Tsonic.Generated.Index.total() != 10D) throw new System.Exception("Native method behavior"); System.Console.WriteLine("10");'),
   "10\n", "both original native method bodies execute with their own receiver");
 });
+
+for (const surface of [undefined, "js"]) {
+  for (const exposure of ["closed", "external-input", "unrelated-opaque-invocation"]) {
+    test(`method value selection reads exact member domains (${surface ?? "native"}, ${exposure})`, () => {
+      const external = exposure === "external-input";
+      const opaque = exposure === "unrelated-opaque-invocation";
+      const compiled = compileCsharpSource({
+        surface,
+        sourceText: `
+          ${opaque ? 'import { Console } from "@tsonic/csharp/System.js";' : ""}
+          type Box = { value: number; read(): number };
+          ${external ? `
+            export function accept(input: Box): number { return input.read(); }
+          ` : `
+            export function run(): boolean {
+              const box: Box = { value: 7, read(): number { return this.value; } };
+              const alias = box;
+              ${opaque ? "Console.WriteLine(0);" : ""}
+              alias.value = 9;
+              return alias === box && box.read() === 9;
+            }
+          `}
+        `,
+      });
+      assert.equal(compiled.sourceDiagnosticsText, "", "checked source stays valid");
+      assert.equal(compiled.extensionDiagnostics.length, 0, "no extension rejection");
+      assert.equal(compiled.targetDiagnostics.length, 0, "exact native receivers stay admitted");
+      assert.equal(compiled.program !== undefined, true, "analysis program is published");
+      const { source, sourceFiles } = compiled.program;
+      const storage = createSourceStorageQuery(source, sourceFiles);
+      const method = storage.nodes.find(node => source.navigation.isProjectDeclaration(node) &&
+        (external ? source.ast.is.IsMethodSignatureDeclaration(node) : source.ast.is.IsMethodDeclaration(node)));
+      assert.equal(method !== undefined, true, "the original checked method declaration exists");
+      const subject = storage.memberSubjectFor(method);
+      assert.equal(subject.kind, "resolved", "the canonical method subject is available");
+      const domain = storage.closedOriginsFor(subject.subject);
+      assert.equal(domain.kind, external ? "open" : "complete", "domain belongs to this exact method slot");
+      if (external) {
+        assert.equal(domain.boundaries.some(boundary => boundary.kind === "external-input"), true,
+          "the exported formal publishes an actual external-input domain boundary");
+      }
+      if (opaque) {
+        assert.equal(storage.boundaries.some(boundary => boundary.kind === "opaque-invocation"), true,
+          "an unrelated raw invocation boundary does not open the native method domain");
+      }
+      const members = compiled.program.objectShapes.knownShapes().flatMap(shape => shape.members)
+        .filter(member => member.memberKind === "method" && member.sourceDeclarations?.includes(method));
+      assert.equal(members.length > 0, true, "selected shapes retain the exact original method identity");
+      assert.equal(members.every(member => (member.methodValueStorage?.kind === "delegate") === external), true,
+        "only the externally supplied method needs value storage");
+      if (!external) {
+        const shapes = compiled.artifacts.get("generated/TsonicObjectShapes.cs") ?? "";
+        assert.match(shapes, /public double read\(\)/u);
+        assert.doesNotMatch(shapes, /Func</u);
+        assert.equal(executeCsharpConstruction(compiled, `method-domain-${surface ?? "native"}-${exposure}`),
+          opaque ? "0\n" : "", "native receiver and alias identity are preserved without delegate storage");
+      }
+    });
+  }
+}
 
 test("object-literal callable properties remain ordinary delegates and reject unproven receiver binding", () => {
   const accepted = compileCsharpSource({

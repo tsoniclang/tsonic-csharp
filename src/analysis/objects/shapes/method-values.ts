@@ -31,6 +31,12 @@ function selectMethodValueUses(storage: SourceStorageQueries): ReadonlySet<Node>
     if (ast.is.IsMethodDeclaration(node) || ast.is.IsMethodSignatureDeclaration(node)) {
       const uses = source.navigation.declarationUseSummary(node);
       if (uses.firstClassUseCount > 0 || uses.exported || uses.memberWritten) add(node);
+      else {
+        const subject = storage.memberSubjectFor(node);
+        const domain = subject.kind === "resolved" ? storage.closedOriginsFor(subject.subject) : undefined;
+        if (domain?.kind === "open" && domain.boundaries.some(boundary => boundary.kind === "external-input" ||
+          boundary.kind === "external-write" || boundary.kind === "unclassified-exposure")) add(node);
+      }
     }
     const binding = ast.is.IsBindingElement(node) ? ast.as.AsBindingElement(node) : undefined;
     const pattern = binding?.DotDotDotToken === undefined ? undefined : ast.parent(node);
@@ -43,15 +49,6 @@ function selectMethodValueUses(storage: SourceStorageQueries): ReadonlySet<Node>
     const type = semantics.types.expressionType(expression) ?? semantics.types.authoredType(expression);
     if (type === undefined) continue;
     for (const property of semantics.types.propertyInfos(type)) {
-      for (const declaration of semantics.declarations.symbolDeclarations(property.symbol)) add(declaration);
-    }
-  }
-  for (const boundary of storage.boundaries) {
-    if (boundary.kind !== "external-input" && boundary.kind !== "external-write" && boundary.kind !== "unclassified-exposure") continue;
-    const selected = storage.typeFor(boundary.subject);
-    if (selected.kind !== "resolved") continue;
-    const semantics = source.semantics.forFile(selected.sourceFile);
-    for (const property of semantics.types.propertyInfos(selected.type)) {
       for (const declaration of semantics.declarations.symbolDeclarations(property.symbol)) add(declaration);
     }
   }
