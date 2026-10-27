@@ -8,11 +8,12 @@ for (const surface of ["native", "js"]) {
   test(`homogeneous native floating arrays preserve nonintegral, special and large values on ${surface}`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
 import type { float64 } from "@tsonic/core/types.js";
+${surface === "native" ? 'import { Double } from "@tsonic/dotnet/System.js";' : ""}
 export function run(): boolean {
   const first: float64 = 0.5;
-  const values = [first, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, 1e100];
-  return values[0] === 0.5 && Number.isNaN(values[1]) && values[2] === Number.POSITIVE_INFINITY &&
-    values[3] === Number.NEGATIVE_INFINITY && values[4] === 1e100;
+  const values = [first, ${surface === "native" ? "Double.NaN, Double.PositiveInfinity, Double.NegativeInfinity" : "Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY"}, 1e100];
+  return values[0] === 0.5 && ${surface === "native" ? "Double.IsNaN" : "Number.isNaN"}(values[1]) && values[2] === ${surface === "native" ? "Double.PositiveInfinity" : "Number.POSITIVE_INFINITY"} &&
+    values[3] === ${surface === "native" ? "Double.NegativeInfinity" : "Number.NEGATIVE_INFINITY"} && values[4] === 1e100;
 }` });
     assert.equal(compiled.result.diagnostics.length, 0, compiled.result.diagnostics.slice(0, 8)
       .map(issue => csharpSourceDiagnosticLabel(compiled.source, issue)).join("\n"));
