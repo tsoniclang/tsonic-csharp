@@ -65,7 +65,8 @@ function providerConversionCandidates(
   source: TargetTypeRef,
   target: TargetTypeRef,
 ): readonly CsharpTargetConversionOperatorFact[] {
-  return uniqueProviderBindingCandidates(input, source, target)
+  const selected = providerConversionInputs(input, source, target);
+  return selected.bindings
     .flatMap(({ binding, typeArguments }) =>
       (binding.conversionOperators ?? [])
         .map((operator) =>
@@ -75,22 +76,28 @@ function providerConversionCandidates(
             typeArguments,
           ))
         .filter((operator) =>
-          targetTypeRefEquals(operator.sourceType, source) &&
-          targetTypeRefEquals(operator.targetType, target)));
+          targetTypeRefEquals(operator.sourceType, selected.source) &&
+          targetTypeRefEquals(operator.targetType, selected.target)));
 }
 
-function uniqueProviderBindingCandidates(
+function providerConversionInputs(
   input: Pick<CsharpPolicyContext, "providers">,
   source: TargetTypeRef,
   target: TargetTypeRef,
-): readonly {
-  readonly binding: CsharpTargetBindingFact;
-  readonly typeArguments: readonly TargetTypeRef[];
-}[] {
+): {
+  readonly source: TargetTypeRef;
+  readonly target: TargetTypeRef;
+  readonly bindings: readonly {
+    readonly binding: CsharpTargetBindingFact;
+    readonly typeArguments: readonly TargetTypeRef[];
+  }[];
+} {
   const byId = new Map<string, {
     readonly binding: CsharpTargetBindingFact;
     readonly typeArguments: readonly TargetTypeRef[];
   }>();
+  let selectedSource = source;
+  let selectedTarget = target;
   for (const type of [source, target]) {
     if (type.kind !== "target-named") {
       continue;
@@ -102,6 +109,13 @@ function uniqueProviderBindingCandidates(
     if (binding === undefined) {
       continue;
     }
+    if (lookup.kind === "metadata-name") {
+      if (binding.csharpType === undefined) continue;
+      const physical = substituteTargetTypeParameters(binding.csharpType,
+        targetBindingSubstitutions(binding, type.typeArguments ?? []));
+      if (type === source) selectedSource = physical;
+      if (type === target) selectedTarget = physical;
+    }
     const key = `${binding.id}\u0000${(type.typeArguments ?? [])
       .map(targetTypeRefKey)
       .join("\u0000")}`;
@@ -110,7 +124,7 @@ function uniqueProviderBindingCandidates(
       typeArguments: type.typeArguments ?? [],
     });
   }
-  return [...byId.values()];
+  return { source: selectedSource, target: selectedTarget, bindings: [...byId.values()] };
 }
 
 function substituteConversionOperatorTypes(

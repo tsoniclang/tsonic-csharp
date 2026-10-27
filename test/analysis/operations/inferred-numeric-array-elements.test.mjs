@@ -15,8 +15,10 @@ import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carrie
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { csharpNumericReturnBaselineCovered } from "../../../dist/policy/conversions/union-relations.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
+import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 
 const header = 'import type { float32, float64, int16, uint16, int32, uint32, int64 } from "@tsonic/core/types.js";';
+const emptyProviders = createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] });
 const compile = (surface, body) => compileCsharpNativeUseSource({ surface, sourceText: `${header}\n${body}` });
 const diagnosticLabel = compiled => `count=${compiled.targetDiagnostics.length}; ${compiled.targetDiagnostics.slice(0, 4)
   .map(issue => `${issue.code}: ${issue.message.slice(0, 512)}`).join(" | ")}`;
@@ -36,7 +38,7 @@ test("inferred numeric return coverage preserves complete native union layouts w
   const native = element => Object.freeze({ kind: "array", element });
   const tuple = elements => Object.freeze({ kind: "tuple", elements: Object.freeze(elements) });
   const policy = { projectTypes: { directSupertypes: () => [] },
-    providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) }, target: {} };
+    providers: emptyProviders, target: {} };
   const controls = [
     ["native array", native(union), native(floating)],
     ["JS array", csharpJsArrayTargetType(union), csharpJsArrayTargetType(floating)],
@@ -67,7 +69,7 @@ test("numeric return coverage refuses missing arms, unrelated carriers and contr
   const text = csharpStringTargetType();
   const native = element => Object.freeze({ kind: "array", element });
   const policy = { projectTypes: { directSupertypes: () => [] },
-    providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) }, target: {} };
+    providers: emptyProviders, target: {} };
   const controls = [
     ["unrelated actual arm", native(csharpRuntimeUnionTargetType([integer, text])), native(floating)],
     ["missing checked alternative", native(integer), native(csharpRuntimeUnionTargetType([floating, text]))],

@@ -10,10 +10,12 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 test("native operator lookup uses the existing canonical metadata identity rather than an unbound target id", () => {
   const source = csharpBigIntegerTargetType();
   const target = csharpSourcePrimitiveTargetType("int64");
+  const physical = csharpTargetNamedType("Native::System.Numerics.BigInteger", undefined,
+    csharpQualifiedTypeRenderShape("System.Numerics", "BigInteger"), { allowsRefLikeTypeArguments: [], valueType: true });
   const operator = { id: "Native.BigInteger.op_Explicit.Int64", conversionKind: "explicit",
-    declaringType: source, sourceType: source, targetType: target };
+    declaringType: physical, sourceType: physical, targetType: target };
   const binding = { id: "Native::System.Numerics.BigInteger", sourceName: "BigInteger",
-    targetName: "System.Numerics.BigInteger", target: "csharp", kind: "struct", csharpType: source,
+    targetName: "System.Numerics.BigInteger", target: "csharp", kind: "struct", csharpType: physical,
     conversionOperators: [operator] };
   let reads = 0;
   const input = { providers: {
@@ -49,6 +51,28 @@ test("assembly-bound native operators retain their target identity and never fal
   } }, source, target, "explicit");
   assert.equal(selected.kind, "none", "missing real evidence never fabricates an operator");
   assert.equal(reads, 1, "the exact native identity is queried once");
+});
+
+test("metadata-name conversion requires the resolved physical owner and exact operator operand identity", () => {
+  const source = csharpBigIntegerTargetType();
+  const target = csharpSourcePrimitiveTargetType("int64");
+  const named = id => csharpTargetNamedType(id, undefined,
+    csharpQualifiedTypeRenderShape("System.Numerics", "BigInteger"), { allowsRefLikeTypeArguments: [], valueType: true });
+  const physical = named("Native::System.Numerics.BigInteger");
+  for (const [label, csharpType, operatorSource] of [
+    ["missing physical owner", undefined, source],
+    ["same spelling from a different native owner", physical, named("Foreign::System.Numerics.BigInteger")],
+  ]) {
+    const binding = { id: "Native::System.Numerics.BigInteger", sourceName: "BigInteger",
+      targetName: "System.Numerics.BigInteger", target: "csharp", kind: "struct", csharpType,
+      conversionOperators: [{ id: "exact-operator", conversionKind: "explicit", declaringType: physical,
+        sourceType: operatorSource, targetType: target }] };
+    const selected = selectProviderConversionOperator({ providers: {
+      findTargetBindingByMetadataName: () => ({ kind: "resolved", binding }),
+      findTargetBindingByTargetId: () => assert.fail("the exact metadata identity never retries a native target id"),
+    } }, source, target, "explicit");
+    assert.equal(selected.kind, "none", `${label}: a spelling cannot fabricate exact native operand correspondence`);
+  }
 });
 
 for (const surface of ["native", "js"]) {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
 test("closed native optional calls skip the complete region and evaluate once", { timeout: 300_000 }, () => {
@@ -10,6 +10,7 @@ export function chain(value: any, argument: () => any): any { return value?.crea
 export function indexed(value: any, key: () => string, argument: () => any): any { return value?.[key()](argument()).finish(argument()); }
 export function invoke(value: any, argument: () => any): any { return value?.(argument()).finish(argument()); }
 ` });
+  assertCsharpCompilationSucceeded(compiled);
   const output = [...compiled.artifacts.values()].join("\n");
   assert.doesNotMatch(output, /is Tsonic\.CSharp\.Runtime\.TsValue/);
   assert.equal(/!__tsonic_present_\w+\.isUndefined\(\)/u.test(output), true,
