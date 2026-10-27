@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import test from "node:test";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/index.js";
 import { csharpNullableTargetType, csharpRuntimeUnionTargetType, csharpTargetNamedType } from "../../../dist/policy/types/index.js";
@@ -10,7 +11,7 @@ const second = reference("Second");
 const unrelated = reference("Unrelated");
 const host = {
   projectTypes: { directSupertypes: type => type === first || type === second ? [base] : [] },
-  providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) },
+  providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
   target: {},
 };
 

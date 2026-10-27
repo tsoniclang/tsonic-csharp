@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import test from "node:test";
 
 import { selectCsharpCommonImplicitTarget } from "../../../dist/analysis/conversions/common-target.js";
@@ -22,7 +23,7 @@ import {
 
 const host = {
   projectTypes: { directSupertypes() { return []; } },
-  providers: { findTargetBindingByTargetId() { return { kind: "missing" }; } },
+  providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
   target: {},
 };
 const int32 = csharpSourcePrimitiveTargetType("int32");

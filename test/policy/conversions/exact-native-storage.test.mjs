@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import test from "node:test";
 import { selectCsharpExactIntegerConversion } from "../../../dist/policy/conversions/exact-integer.js";
 import { csharpNullableTargetType, csharpNullableValueTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
@@ -11,7 +12,7 @@ const primitive = name => ({ kind: "source-primitive", name });
 const integers = ["int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64", "native-int", "native-uint", "int128", "uint128"];
 const conversionContext = {
   projectTypes: { typeFromTarget: () => undefined, directSupertypes: () => [] },
-  providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) },
+  providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
 };
 
 test("native Object ancestry supports exact checked reads without implicit downcasts", () => {

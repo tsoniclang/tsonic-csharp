@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import test from "node:test";
 import {
   csharpAbsenceTargetType, csharpNullableTargetType, csharpRuntimeUnionTargetType,
@@ -11,7 +12,7 @@ import { selectCsharpRuntimeUnionProjection } from "../../../dist/policy/convers
 
 const policy = {
   projectTypes: { directSupertypes: () => [] },
-  providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) }, target: {},
+  providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }), target: {},
 };
 const integer = csharpSourcePrimitiveTargetType("int32");
 const string = csharpStringTargetType();

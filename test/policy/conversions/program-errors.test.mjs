@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import test from "node:test";
 import { selectCsharpProgramErrorCarrier, selectCsharpThrownOperandCarrier } from "../../../dist/policy/conversions/program-error.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/index.js";
@@ -13,7 +14,7 @@ const derived = csharpTargetNamedType("Project.Failure", undefined, { kind: "nam
 const unrelated = csharpTargetNamedType("Project.Value", undefined, { kind: "named", name: "Value" }, { allowsRefLikeTypeArguments: [],});
 const host = {
   projectTypes: { directSupertypes: carrier => carrier === derived ? [source] : [] },
-  providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) },
+  providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
   target: {},
 };
 

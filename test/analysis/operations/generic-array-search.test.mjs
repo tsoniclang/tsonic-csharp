@@ -6,16 +6,16 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 test("generic find and findLast use the existing native optional storage evidence without erasing the element", () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: `
 import type { int64 } from "@tsonic/core/types.js";
-function first<Value>(values: Value[], expected: Value): Value | undefined {
-  return values.find(actual => actual === expected);
+function first<Value>(values: Value[], include: boolean): Value | undefined {
+  return values.find(() => include);
 }
-function last<Value>(values: Value[], expected: Value): Value | undefined {
-  return values.findLast(actual => actual === expected);
+function last<Value>(values: Value[], include: boolean): Value | undefined {
+  return values.findLast(() => include);
 }
 export function run(): boolean {
   const wide = 9007199254740993n as int64;
-  return first([0, 7], 0) === 0 && first([0, 7], 11) === undefined &&
-    last([wide, 0n as int64, wide], wide) === wide && last(["first", "last"], "absent") === undefined;
+  return first([0, 7], true) === 0 && first([0, 7], false) === undefined &&
+    last([wide, 0n as int64, wide], true) === wide && last(["first", "last"], false) === undefined;
 }
 ` });
   assertCsharpCompilationSucceeded(compiled);

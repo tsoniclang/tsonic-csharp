@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import test from "node:test";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
@@ -11,7 +12,8 @@ import { csharpAbsenceTargetType, csharpDelegateTargetType, csharpExceptionTarge
   csharpNeverTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpVoidTargetType,
   csharpTsValueTargetType, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 
-const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) }, target: {} };
+const policy = { projectTypes: { directSupertypes: () => [] },
+  providers: createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }), target: {} };
 const stringType = csharpStringTargetType();
 const integerType = csharpSourcePrimitiveTargetType("int32");
 const booleanType = csharpSourcePrimitiveTargetType("bool");

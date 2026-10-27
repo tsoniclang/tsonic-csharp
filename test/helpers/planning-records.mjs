@@ -4,6 +4,7 @@ import { analyzeCsharpTypeEmission } from "../../dist/analysis/source-evidence/t
 import { admitCsharpDelegateEmission } from "../../dist/analysis/conversions/callable-emission.js";
 import { createCsharpDelegateContractProducer } from "../../dist/analysis/program/records/callables/callable-conversions.js";
 import { createCsharpSourceProfileInputs } from "../../dist/analysis/program/records/program/source-profile-inputs.js";
+import { createCsharpProviderRelationResolver } from "../../dist/providers/native/projection/relation-resolution.js";
 
 // records.typeEmission for any queried carrier, computed by analyzeCsharpTypeEmission over that carrier alone.
 // targetShapes: the object-shape facts by targetTypeRefKey that the carrier may reach.
@@ -35,7 +36,7 @@ export function csharpSourceProfileInputs(host, sourceFile, { values = [], resul
     semantics: host.semantics ?? (() => ({ types: { isNumberLike: () => false, relationship: () => undefined } })),
     ast: host.ast ?? { is: { IsSpreadElement: () => false } },
     projectTypes: host.projectTypes ?? { directSupertypes: () => [] },
-    providers: host.providers ?? { findTargetBindingByTargetId: () => ({ kind: "missing", reason: "The fixture has no providers." }) },
+    providers: host.providers ?? createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] }),
     types: { resolveType: () => undefined, resolveNode: () => undefined, resolveSelectedValue: () => undefined,
       resolveSelectedType: () => undefined, ...host.types },
   };
