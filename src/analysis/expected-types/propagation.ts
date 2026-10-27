@@ -12,6 +12,7 @@ import { csharpQualifiedTypeRenderShape } from "../../target-model/types/render-
 import { selectCsharpConversion } from "../../policy/conversions/core.js";
 import { csharpNullableReferenceTargetType } from "../../target-model/types/carriers/nullable.js";
 import type { CsharpConversionMode } from "../../target-model/conversions/selection.js";
+import type { CsharpExpectedTypeIssue } from "../../target-model/records/types/expected-types.js";
 import type { CsharpExactLiteralRequest, CsharpNativePropertyKeyBinding } from "../../target-model/conversions/exact-literals.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpExpectedUseCollection } from "./collection.js";
@@ -29,6 +30,7 @@ export interface CsharpExpectedTypePropagation {
   readonly recordIntrinsicArrayLiteralElements: (node: Node) => void;
   readonly recordIntrinsicObjectLiteralMembers: (node: Node) => void;
   readonly seal: () => {
+    readonly issues: readonly CsharpExpectedTypeIssue[];
     readonly arrayLiteralCarrier: (expression: Node, targetType: TargetTypeRef) => TargetTypeRef | undefined;
     readonly constructionCarrier: (expression: Node, targetType: TargetTypeRef) => TargetTypeRef | undefined;
     readonly objectShape: (expression: Node, targetType: TargetTypeRef) => CsharpObjectShapeFact | undefined;
@@ -53,6 +55,7 @@ export function createCsharpExpectedTypePropagation(
   const objectConstructions = new WeakMap<Node, Map<string, CsharpObjectShapeFact>>();
   const dynamicObjects = new WeakMap<Node, Map<string, CsharpNativeObjectConstruction>>();
   const constructionRejections = new WeakMap<Node, Map<string, string>>();
+  const dynamicConstructionIssues = new Map<Node, CsharpExpectedTypeIssue>();
   const intrinsicTargets = new WeakMap<Node, Set<string>>();
   const positionsByOwner = new WeakMap<Node, ReadonlyMap<Node, number>>();
   const propertyKeys = new WeakMap<Node, Map<string, readonly CsharpNativePropertyKeyBinding[]>>();
@@ -82,6 +85,7 @@ export function createCsharpExpectedTypePropagation(
     recordIntrinsicArrayLiteralElements,
     recordIntrinsicObjectLiteralMembers,
     seal: () => Object.freeze({
+      issues: Object.freeze([...dynamicConstructionIssues.values()]),
       arrayLiteralCarrier: (expression: Node, targetType: TargetTypeRef) =>
         arrayCarriers.get(expression)?.get(targetTypeRefKey(targetType)),
       constructionCarrier: (expression: Node, targetType: TargetTypeRef) =>
@@ -208,14 +212,22 @@ export function createCsharpExpectedTypePropagation(
         csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "TsObject"), { allowsRefLikeTypeArguments: [] });
       const members: CsharpNativeObjectMember[] = [];
       const properties: Node[] = [];
-      let closed = true;
+      const refuse = (message: string): void => {
+        const reasons = constructionRejections.get(expression) ?? new Map<string, string>();
+        reasons.set(targetTypeRefKey(targetType), message);
+        constructionRejections.set(expression, reasons);
+        dynamicConstructionIssues.set(expression, Object.freeze({ node: expression,
+          code: "CSHARP_UNSUPPORTED_AST", message }));
+      };
       for (const property of policy.ast.properties(expression)) {
         if (property === undefined || !policy.ast.is.IsPropertyAssignment(property) &&
-          !policy.ast.is.IsShorthandPropertyAssignment(property)) { closed = false; break; }
+          !policy.ast.is.IsShorthandPropertyAssignment(property)) return refuse(
+          "Dynamic object construction requires named data properties; accessor, method and spread members have no supported dynamic storage contract.");
         const initializer = policy.ast.is.IsPropertyAssignment(property)
           ? policy.ast.as.AsPropertyAssignment(property)?.Initializer : policy.ast.name(property);
         if (initializer === undefined || policy.ast.is.IsShorthandPropertyAssignment(property) &&
-          policy.ast.as.AsShorthandPropertyAssignment(property)?.ObjectAssignmentInitializer !== undefined) { closed = false; break; }
+          policy.ast.as.AsShorthandPropertyAssignment(property)?.ObjectAssignmentInitializer !== undefined) return refuse(
+          "Dynamic object construction requires an exact checked value initializer for each data property.");
         const name = policy.ast.name(property);
         let selectedName: string;
         if (name !== undefined && policy.ast.is.IsComputedPropertyName(name)) {
@@ -223,11 +235,13 @@ export function createCsharpExpectedTypePropagation(
           const key = policy.ast.as.AsComputedPropertyName(name)?.Expression;
           const effects = key === undefined ? undefined : policy.navigation.expressionEffects(key);
           if (selected?.kind !== "resolved" || effects === undefined ||
-            effects.invokes || effects.mutates || effects.suspends || effects.mayThrow) { closed = false; break; }
+            effects.invokes || effects.mutates || effects.suspends || effects.mayThrow) return refuse(
+            "Dynamic object construction requires checked effect-free constant member names.");
           selectedName = selected.name;
         } else {
           const selected = ObjectLiteralProperty_SourceName(policy.ast, property);
-          if (selected.kind !== "resolved") { closed = false; break; }
+          if (selected.kind !== "resolved") return refuse(
+            "Dynamic object construction requires checked constant member names.");
           selectedName = selected.name;
         }
         properties.push(property);
@@ -250,17 +264,15 @@ export function createCsharpExpectedTypePropagation(
           "tsonic-csharp", "The selected native broad-object argument requires its exact existing ABI conversion.", initializer);
         members.push(Object.freeze({ name: selectedName, initializer, carrier: inputCarrier, conversion }));
       }
-      if (closed) {
-        recordObjectCarrier(expression, targetType, carrier);
-        collection.addTargetType(argumentType);
-        collection.addTargetType(backingType);
-        const targets = dynamicObjects.get(expression) ?? new Map<string, CsharpNativeObjectConstruction>();
-        targets.set(targetTypeRefKey(targetType), Object.freeze({ backingType, argumentType,
-          writeMember: "WriteDynamicSlot", resultMember: "from", members: Object.freeze(members) }));
-        dynamicObjects.set(expression, targets);
-        for (const [index, entry] of members.entries()) record(entry.initializer, entry.carrier, strength, member(properties[index]!));
-        return;
-      }
+      recordObjectCarrier(expression, targetType, carrier);
+      collection.addTargetType(argumentType);
+      collection.addTargetType(backingType);
+      const targets = dynamicObjects.get(expression) ?? new Map<string, CsharpNativeObjectConstruction>();
+      targets.set(targetTypeRefKey(targetType), Object.freeze({ backingType, argumentType,
+        writeMember: "WriteDynamicSlot", resultMember: "from", members: Object.freeze(members) }));
+      dynamicObjects.set(expression, targets);
+      for (const [index, entry] of members.entries()) record(entry.initializer, entry.carrier, strength, member(properties[index]!));
+      return;
     }
     if (indexedValueType !== undefined) {
       recordObjectCarrier(expression, targetType, carrier);

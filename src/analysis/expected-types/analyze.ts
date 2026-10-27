@@ -49,7 +49,7 @@ export function analyzeCsharpExpectedTypes(
   return Object.freeze({
     nativeUseSites: collectCsharpExpectedNativeUseSites(projection.requests),
     constructions,
-    issues: collection.issues,
+    issues: Object.freeze([...collection.issues, ...constructions.issues]),
     targetTypes: projection.targetTypes,
     expectedType: Object.freeze({ get: projection.expectedType }),
     requiredExpectedType: Object.freeze({ get: projection.requiredExpectedType }),
