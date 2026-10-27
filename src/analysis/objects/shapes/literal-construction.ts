@@ -73,14 +73,20 @@ export function createCsharpLiteralShapeResolver(
           (expectedShape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true)
       ? [expectedShape.targetType]
       : expectedShape.implements;
-    const members = [...retainLiteralMemberEvidence(expectedShape.members, objectLiteral, host.semantics(sourceFile))];
+    const actualShape = expectedShape.targetType.kind === "target-named" &&
+      (expectedShape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true
+      ? resolveNode(objectLiteral, sourceFile) : undefined;
+    const additionalMembers = actualShape?.members.filter(actual =>
+      !expectedShape.members.some(expected => csharpSourceMemberKeysEqual(expected.sourceKey, actual.sourceKey))) ?? [];
+    const members = [...retainLiteralMemberEvidence([...expectedShape.members, ...additionalMembers],
+      objectLiteral, host.semantics(sourceFile))];
     const nativeMethodLiteral = members.some(member => member.memberKind === "method" &&
       member.sourceDeclarations?.some(declaration => host.ast.is.IsMethodDeclaration(declaration) &&
         host.ast.body(declaration) !== undefined && host.ast.parent(declaration) === objectLiteral) === true);
     const copiedMethods = host.ast.properties(objectLiteral).some(property => property !== undefined &&
       host.ast.is.IsSpreadAssignment(property)) && expectedShape.members.some(csharpObjectShapeMethodRequiresProtocol);
     const ownsImplementation = expectedShape.methodImplementation?.declaration === objectLiteral;
-    if (accessors.kind === "none" && implemented === expectedShape.implements &&
+    if (additionalMembers.length === 0 && accessors.kind === "none" && implemented === expectedShape.implements &&
       (!nativeMethodLiteral || ownsImplementation) && !copiedMethods) {
       return { kind: "resolved", shape: expectedShape };
     }
@@ -194,6 +200,7 @@ export function createCsharpLiteralShapeResolver(
       kind: "rejected", subject: objectLiteral,
       reason: "Native object methods require one exact authored implementation and closed lexical capture types.",
     };
+    const sourceType = actualShape?.sourceType ?? expectedShape.sourceType;
     const shape = rememberTargetShape({
       targetType: createStructuralObjectShapeTarget(
         members,
@@ -203,6 +210,7 @@ export function createCsharpLiteralShapeResolver(
         methodImplementation,
       ),
       members,
+      ...(sourceType === undefined ? {} : { sourceType }),
       ...(methodImplementation === undefined ? {} : { methodImplementation }),
       ...(implemented === undefined ? {} : { implements: implemented }),
     });
