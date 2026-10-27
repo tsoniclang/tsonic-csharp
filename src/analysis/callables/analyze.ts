@@ -17,6 +17,7 @@ import { csharpCallableValueType } from "../../policy/types/callables/value-type
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { CsharpCallableConversionPolicy } from "./native/adapters.js";
+import { closeCsharpContextualRestInputs } from "./calls/contextual-rest-inputs.js";
 
 export function analyzeCsharpCallableContracts(
   policy: CsharpPolicyContext,
@@ -48,7 +49,8 @@ export function analyzeCsharpCallableContracts(
     contracts[index] = contract;
   }
   for (const { declaration, sourceFile } of checkedDeclarations) {
-    const contract = selectCsharpSourceCallableAbi(policy, evidence, declarations, names, declaration, sourceFile, projections, undefined);
+    const selected = selectCsharpSourceCallableAbi(policy, evidence, declarations, names, declaration, sourceFile, projections, undefined);
+    const contract = selected === undefined ? undefined : closeCsharpContextualRestInputs(policy, evidence, conversions, selected);
     if (contract !== undefined) {
       byDeclaration.set(declaration, contract);
       contracts.push(contract);
@@ -73,13 +75,11 @@ export function analyzeCsharpCallableContracts(
   for (const [declaration, contract] of byDeclaration) {
     const nativeType = csharpCallableValueType(contract);
     if (nativeType === undefined) continue;
-    if (policy.ast.is.IsFunctionExpression(declaration) && policy.ast.name(declaration) !== undefined &&
+    if (contract.bodyInputs !== undefined || policy.ast.is.IsFunctionExpression(declaration) && policy.ast.name(declaration) !== undefined &&
       contract.parameters.some(parameter => declarations.runtimeDefault.get(parameter)?.acceptsOmission === true)) {
       closedInputs.set(declaration, nativeType);
       invocationInputs.set(declaration, nativeType);
-      for (const alias of source.navigation.expressionValueFlow(declaration).aliasDeclarations) {
-        if (!source.navigation.declarationUseSummary(alias).bindingWritten) closedAliases.set(alias, declaration);
-      }
+      publishClosedAliases(declaration);
       continue;
     }
     const context = closedContexts.get(declaration);
@@ -96,12 +96,22 @@ export function analyzeCsharpCallableContracts(
   return sealCsharpCallableContractIndex({ contracts, declarationContracts: nativeDeclarations, byDeclaration,
     byProjectConstructor, closedInputs });
 
+  function publishClosedAliases(declaration: Node): void {
+    for (const alias of source.navigation.expressionValueFlow(declaration).aliasDeclarations) {
+      if (source.navigation.declarationUseSummary(alias).bindingWritten) continue;
+      const subject = policy.sourceStorage?.storageSubjectFor(alias);
+      const origins = subject?.kind === "resolved" ? policy.sourceStorage?.closedOriginsFor(subject.subject) : undefined;
+      if (origins?.kind === "complete" && origins.origins.length > 0 && origins.origins.every(origin =>
+        origin.subject.node === declaration && origin.subject.projection.length === 0)) closedAliases.set(alias, declaration);
+    }
+  }
+
   function visit(node: Node, sourceFile: SourceFile): void {
     if (evidence.compileTimeMetadata.get(node)) return;
     const accessor = policy.ast.is.IsGetAccessorDeclaration(node) || policy.ast.is.IsSetAccessorDeclaration(node);
     if (isCsharpSourceCallableArtifactDeclaration(policy.ast, node) || accessor) {
       const context = accessor ? undefined : selectCsharpClosedCallableContext(source, policy, operations, node);
-      const contract = selectCsharpSourceCallableAbi(
+      const selected = selectCsharpSourceCallableAbi(
         policy,
         evidence,
         declarations,
@@ -111,6 +121,7 @@ export function analyzeCsharpCallableContracts(
         projections,
         context?.inputTypes,
       );
+      const contract = selected === undefined ? undefined : closeCsharpContextualRestInputs(policy, evidence, conversions, selected);
       if (contract !== undefined) {
         byDeclaration.set(node, contract);
         contracts.push(contract);
@@ -118,9 +129,7 @@ export function analyzeCsharpCallableContracts(
         if (context !== undefined) {
           closedContexts.set(node, context);
           if (context.invocationType !== undefined) {
-            for (const alias of source.navigation.expressionValueFlow(node).aliasDeclarations) {
-              closedAliases.set(alias, node);
-            }
+            publishClosedAliases(node);
           }
         }
       }
@@ -170,7 +179,7 @@ function callableContractEquals(
     targetTypeRefEquals(left.returnType, right.returnType) &&
     (left.nativeSignature.sourceReturnType === undefined ? right.nativeSignature.sourceReturnType === undefined
       : right.nativeSignature.sourceReturnType !== undefined && targetTypeRefEquals(left.nativeSignature.sourceReturnType, right.nativeSignature.sourceReturnType)) &&
-    left.nativeParameters.length === right.nativeParameters.length &&
+    bodyInputsEqual(left, right) && left.nativeParameters.length === right.nativeParameters.length &&
     left.nativeParameters.every((parameter, index) => {
       const other = right.nativeParameters[index];
       return other !== undefined &&
@@ -179,6 +188,24 @@ function callableContractEquals(
           parameter.targetParameter,
           other.targetParameter,
         );
+    });
+}
+
+function bodyInputsEqual(left: SourceCallableContract, right: SourceCallableContract): boolean {
+  const source = left.kind === "source" ? left.bodyInputs : undefined;
+  const target = right.kind === "source" ? right.bodyInputs : undefined;
+  if (source === undefined || target === undefined) return source === target;
+  return source.parameters.length === target.parameters.length && source.adapters.length === target.adapters.length &&
+    source.parameters.every((parameter, index) => parameter.missing === target.parameters[index]!.missing &&
+      parameter.sourceParameter === target.parameters[index]!.sourceParameter &&
+      targetParameterEquals(parameter.targetParameter, target.parameters[index]!.targetParameter)) &&
+    source.adapters.every((adapter, index) => {
+      const other = target.adapters[index]!;
+      return adapter.kind === other.kind && adapter.parameterIndex === other.parameterIndex &&
+        targetTypeRefEquals(adapter.adapter.source, other.adapter.source) && targetTypeRefEquals(adapter.adapter.target, other.adapter.target) &&
+        adapter.adapter.conversion.kind === other.adapter.conversion.kind &&
+        (adapter.kind !== "rest-element" || other.kind === "rest-element" && adapter.offset === other.offset &&
+          adapter.optional === other.optional && adapter.lengthMember === other.lengthMember);
     });
 }
 

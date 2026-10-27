@@ -44,7 +44,7 @@ export function analyzeCsharpLambdaEmission(input: { readonly source: TargetSour
         "The source lambda declares more parameters than its exact selected C# delegate representation."); continue;
     }
     let nativeIndex = 0;
-    for (const parameter of parameters) {
+    for (const [parameterIndex, parameter] of parameters.entries()) {
       if (parameter === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted lambda requires its complete checked parameter vector.", node);
       const entry = input.parameters.callableParameter.get(parameter);
       if (entry === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted lambda requires its sealed native parameter layout.", parameter);
@@ -55,13 +55,14 @@ export function analyzeCsharpLambdaEmission(input: { readonly source: TargetSour
         refuse(name ?? parameter, "Lambda parameter binding is outside the current C# planning surface.");
       const selected = input.storage.lambdaParameterType.get(parameter);
       const width = entry.incoming.kind === "tuple" ? entry.incoming.parameters.length : 1;
-      const expected = entry.incoming.kind === "tuple"
+      const expected = contract.bodyInputs !== undefined ? contract.bodyInputs.parameters[parameterIndex]?.targetParameter.type
+        : entry.incoming.kind === "tuple"
         ? { kind: "tuple" as const, elements: signature.parameters.slice(nativeIndex, nativeIndex + width) }
         : signature.parameters[nativeIndex]!;
       nativeIndex += width;
       if (selected === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted lambda parameter requires its exact sealed delegate representation.", parameter);
-      if (!targetTypeRefEquals(selected, expected)) refuse(parameter,
-        `The sealed lambda parameter representation '${targetTypeRefKey(selected)}' conflicts with its exact selected C# delegate parameter representation '${targetTypeRefKey(expected)}'.`);
+      if (expected === undefined || !targetTypeRefEquals(selected, expected)) refuse(parameter,
+        `The sealed lambda parameter representation '${targetTypeRefKey(selected)}' conflicts with its exact selected C# delegate parameter representation '${expected === undefined ? "<unresolved>" : targetTypeRefKey(expected)}'.`);
     }
     const result = input.types.typeEmission.get(signature.returnType);
     const asynchronous = HasSyntacticModifier(ast, node, ModifierFlagsAsync);

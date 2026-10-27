@@ -56,6 +56,13 @@ function resolveSelectedSourceCallParameter(
   }
   if (selected.kind === "rejected") return undefined;
   const callable = selected.contract;
+  const bodyParameter = callable?.kind === "source" ? callable.bodyInputs?.parameters.find(slot =>
+    slot.sourceParameter === parameter.parameterDeclaration) : undefined;
+  if (callable !== undefined && bodyParameter !== undefined) {
+    return sourceCallableTypeParametersMatch(source, callable, selected.kind)
+      ? resolveSourceCallableContractType(source, callable, bodyParameter.targetParameter.type, sourceFile, { depth: 0 })
+      : undefined;
+  }
   if (callable?.kind === "source" && parameter.rest && host.semantics(sourceFile).types.isTuple(parameter.selectedType)) {
     const declaration = parameter.parameterDeclaration;
     if (declaration === undefined || !callable.parameters.includes(declaration) ||
@@ -142,7 +149,8 @@ export function resolveSourceCallArgumentParameter(
   const contractedParameter = callable === undefined ? undefined : csharpSourceCallArgumentParameter(callable, binding.effectiveArgumentIndex);
   if (callable !== undefined && contractedParameter !== undefined) {
     if (
-      selected.kind === "value" && contractedParameter.sourceParameter !== parameter.parameterDeclaration ||
+      selected.kind === "value" && contractedParameter.sourceParameter !== parameter.parameterDeclaration &&
+        !(callable.kind === "source" && callable.bodyInputs?.parameters.some(slot => slot.sourceParameter === parameter.parameterDeclaration)) ||
       !sourceCallableTypeParametersMatch(source, callable, selected.kind)
     ) {
       return undefined;

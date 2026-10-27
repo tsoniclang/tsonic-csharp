@@ -76,4 +76,32 @@ export function run(): boolean {
       "dependent defaults and observed self use ordinary native calls without new adapters");
     executeCsharpConstruction(compiled, `named-self-dependent-default-abi-${surface}`);
   });
+
+  test(`immutable conditional callable aliases retain every actual producer on ${surface}`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+let events = "";
+function fallback(): number { events += "D"; return 5; }
+function choose(flag: boolean): number {
+  const chosen: (x: number) => number = flag
+    ? function inner(x: number = fallback()): number { return x === 0 ? inner() : x; }
+    : (x: number): number => x + 1;
+  const alias = chosen;
+  return alias(0);
+}
+function chooseMutable(flag: boolean): number {
+  let chosen: (x: number) => number = (x: number): number => x + 2;
+  if (flag) chosen = function inner(x: number = fallback()): number { return x === 0 ? inner() : x; };
+  return chosen(0);
+}
+export function run(): boolean {
+  events = "";
+  if (choose(false) !== 1 || events !== "") return false;
+  if (choose(true) !== 5 || events !== "D") return false;
+  if (choose(false) !== 1 || events !== "D") return false;
+  if (chooseMutable(false) !== 2 || events !== "D") return false;
+  return chooseMutable(true) === 5 && events === "DD";
+}` });
+    assertCsharpCompilationSucceeded(compiled);
+    executeCsharpConstruction(compiled, `named-self-conditional-producers-${surface}`);
+  });
 }

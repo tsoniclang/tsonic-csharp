@@ -47,7 +47,7 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
     const closed = input.contracts.closedInputType(node);
     const native = contract === undefined ? undefined : closed ?? csharpCallableValueType(contract);
     const carrier = closure !== undefined ? closure.method.type
-      : closed !== undefined && contract?.nativeParameters.some(parameter => parameter.targetParameter.optional === true) ? closed
+      : closed !== undefined && (contract?.bodyInputs !== undefined || contract?.nativeParameters.some(parameter => parameter.targetParameter.optional === true)) ? closed
       : observedSelf || getCsharpMethodValue(sourceCarrier) !== undefined ? sourceCarrier
       : contextualCarrier !== undefined && matches(contextualCarrier) ? contextualCarrier : native;
     if (carrier === undefined) {
@@ -73,7 +73,8 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
           const tuple = input.ast.as.AsParameterDeclaration(node)?.DotDotDotToken !== undefined && incoming?.kind === "tuple";
           const tupleIndex = tupleIndexes.get(node) ?? 0;
           if (tuple) tupleIndexes.set(node, tupleIndex + 1);
-          const nativeParameter = tuple && incoming?.kind === "tuple" ? incoming.elements[tupleIndex] : incoming;
+          const nativeParameter = contract.bodyInputs !== undefined ? native.type
+            : tuple && incoming?.kind === "tuple" ? incoming.elements[tupleIndex] : incoming;
           return native !== undefined && nativeParameter !== undefined && targetTypeRefEquals(nativeParameter, signature.parameters[index]!) &&
             native.passingMode === signature.parameterPassingModes[index] &&
             (native.paramsArray === true) === (signature.restParameterIndex === index);

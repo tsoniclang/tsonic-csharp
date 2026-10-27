@@ -164,8 +164,8 @@ export function createCsharpExpectedReturnTargets(
     if (signature !== undefined) {
       const callable = callables.get({ kind: "declaration", declaration });
       const closed = callables.closedInputType(declaration);
-      if (closed !== undefined && callable?.parameters.some(parameter =>
-        declarations.runtimeDefault.get(parameter)?.acceptsOmission === true)) return closed;
+      if (closed !== undefined && (callable?.bodyInputs !== undefined || callable?.parameters.some(parameter =>
+        declarations.runtimeDefault.get(parameter)?.acceptsOmission === true))) return closed;
       if (getCsharpDelegateSignature(value) !== undefined && callable !== undefined &&
         (HasSyntacticModifier(policy.ast, declaration, ModifierFlagsAsync) &&
           getCsharpTaskResultTargetType(callable.returnType) !== undefined &&

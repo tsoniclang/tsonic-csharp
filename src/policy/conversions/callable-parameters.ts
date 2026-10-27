@@ -36,6 +36,7 @@ export function csharpCallableParameterConversionRequests(
     }
     if (origin === undefined) continue;
     if (origin.paramsArray === true) {
+      request(restElement(origin.type)!, destination.type);
       request(restElement(origin.type)!, destination.optional === true
         ? getCsharpNullableElementTargetType(destination.type) ?? destination.type : destination.type);
       offset++;
@@ -106,7 +107,7 @@ export function selectCsharpCallableParameterAdapters(
     if (lengthMember === undefined) return undefined;
     const element = restElement(origin.type)!;
     const value = destination.optional === true ? getCsharpNullableElementTargetType(destination.type) ?? destination.type : destination.type;
-    const adapter = conversion(element, value);
+    const adapter = conversion(element, destination.type) ?? conversion(element, value);
     if (adapter === undefined) return undefined;
     adapters.push(Object.freeze({ kind: "rest-element", parameterIndex: sourceIndex, offset: offset++,
       optional: destination.optional === true, lengthMember, adapter }));

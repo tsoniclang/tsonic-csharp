@@ -8,7 +8,6 @@ import type { CsharpExactLiteralSelectionIndex } from "../../../target-model/con
 import type { CsharpCallableParameterEmission, CsharpParameterDefaultEmission, CsharpLambdaParameterEntry } from "../../../target-model/records/calls/parameter-emission.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { csharpParameterDefaultIsLiteral } from "../../../policy/types/callables/parameter-default-literals.js";
-import { csharpConversionIsApplicable } from "../../../policy/conversions/applicability.js";
 import { createCsharpCallableParameterRecords } from "../../program/records/calls/parameter-emission.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../../program/records/objects/required-records.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";

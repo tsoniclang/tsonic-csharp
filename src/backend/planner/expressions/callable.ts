@@ -405,6 +405,10 @@ export function planLambdaParameters(
   expectedContext: LambdaTargetContext,
 ): readonly CsharpLambdaParameter[] {
   const expectedParameterTypes = expectedContext.signature.parameters;
+  const owner = parameterNodes[0] === undefined ? undefined : input.program.source.ast.parent(parameterNodes[0]);
+  if (owner !== undefined && input.program.records.callableDeclaration.get(owner)?.contract.bodyInputs !== undefined) {
+    return expectedParameterTypes.map(type => ({ kind: "Parameter", name: allocateSyntheticParameter(state), type }));
+  }
   const sourceParameters: CsharpLambdaParameter[] = [];
   let nativeIndex = 0;
   for (const parameterNode of parameterNodes) {

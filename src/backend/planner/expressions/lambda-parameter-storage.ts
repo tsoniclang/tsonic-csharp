@@ -11,8 +11,20 @@ import { planCsharpParameterStorageDeclaration } from "../bindings/typed-locatio
 import { planCsharpParameterCapture } from "../bindings/capture-storage.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planCsharpTupleParameterEntry } from "../bindings/tuple-parameter-entry.js";
+import { planCsharpLambdaBodyInputs } from "./lambda-body-inputs.js";
 
 export function planLambdaParameterStorage(nodes: readonly (Node | undefined)[], parameters: readonly CsharpLambdaParameter[], sourceFile: SourceFile,
+  input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], state: DestructuringPlannerState):
+  { readonly parameters: readonly CsharpLambdaParameter[]; readonly prelude: readonly CsharpStatement[] } | undefined {
+  const owner = nodes[0] === undefined ? undefined : input.program.source.ast.parent(nodes[0]);
+  const contract = owner === undefined ? undefined : input.program.records.callableDeclaration.get(owner)?.contract;
+  return contract?.bodyInputs === undefined
+    ? planLambdaParameterEntries(nodes, parameters, sourceFile, input, diagnostics, state)
+    : planCsharpLambdaBodyInputs(contract, parameters, sourceFile, input, diagnostics, state,
+      (node, parameter) => planLambdaParameterEntries([node], [parameter], sourceFile, input, diagnostics, state));
+}
+
+function planLambdaParameterEntries(nodes: readonly (Node | undefined)[], parameters: readonly CsharpLambdaParameter[], sourceFile: SourceFile,
   input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], state: DestructuringPlannerState):
   { readonly parameters: readonly CsharpLambdaParameter[]; readonly prelude: readonly CsharpStatement[] } | undefined {
   const nativeParameters = [...parameters];

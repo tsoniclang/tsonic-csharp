@@ -179,10 +179,12 @@ export function analyzeCsharpStorage(
     const selectedSignature = callableTarget === undefined
       ? undefined
       : getCsharpLambdaSignature(callableTarget);
+    const declarationContract = contextual && !objectLiteralMethod ? callables.get({ kind: "declaration", declaration: node }) : undefined;
     const nativeContract = contextual && !objectLiteralMethod && callableTarget === undefined
       ? callables.get({ kind: "declaration", declaration: node })
       : undefined;
-    const parameterTypes = selectedSignature === undefined
+    const parameterTypes = declarationContract?.bodyInputs !== undefined
+      ? declarationContract.bodyInputs.parameters.map(parameter => parameter.targetParameter.type) : selectedSignature === undefined
       ? nativeContract?.nativeParameters.map(parameter => parameter.targetParameter.type)
       : selectedSignature.parameters;
     if (parameterTypes !== undefined) {
