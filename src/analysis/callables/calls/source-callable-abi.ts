@@ -15,6 +15,7 @@ import type { CsharpGenericProjectionIndex } from "../../../target-model/records
 import type { CsharpSourceNameResolver } from "../../names/index.js";
 import { csharpSourceTypeParameter } from "../../../source/extension/type-parameters.js";
 import { csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
+import { selectCsharpSourceParameterVector } from "../../../policy/types/callables/parameter-vector.js";
 
 export function selectCsharpSourceCallableAbi(
   policy: CsharpPolicyContext,
@@ -130,18 +131,6 @@ function sourceParameterContracts(
   const name = resolvedName?.kind === "resolved"
     ? resolvedName.name
     : `__tsonic_param${parameterIndex}`;
-  if (parameter.DotDotDotToken !== undefined && targetType.kind === "tuple") {
-    const types = policy.semanticsFor(parameterNode).types;
-    const sourceType = types.expressionType(parameterNode);
-    const elements = sourceType === undefined ? undefined : types.tupleElementInfos(sourceType);
-    if (elements === undefined || elements.length !== targetType.elements.length) return undefined;
-    return Object.freeze(targetType.elements.map((type, index) => Object.freeze({ sourceParameter: parameterNode,
-      targetParameter: Object.freeze({ name: `${name}${index}`, type, passingMode: "by-value" as const,
-        ...(elements[index]!.elementKind === "optional" ? { optional: true } : {}),
-        ...(elements[index]!.elementKind === "rest" || elements[index]!.elementKind === "variadic" ? { paramsArray: true } : {}),
-      }),
-    })));
-  }
   const targetParameter: CsharpTargetParameter = Object.freeze({
     name,
     type: targetType,
@@ -153,7 +142,13 @@ function sourceParameterContracts(
       ? {}
       : { paramsArray: true }),
   });
-  return Object.freeze([Object.freeze({ sourceParameter: parameterNode, targetParameter })]);
+  const types = policy.semanticsFor(parameterNode).types;
+  const sourceType = parameter.DotDotDotToken !== undefined && targetType.kind === "tuple"
+    ? types.expressionType(parameterNode) : undefined;
+  const vector = selectCsharpSourceParameterVector(targetParameter,
+    sourceType === undefined ? undefined : types.tupleElementInfos(sourceType));
+  return vector === undefined ? undefined : Object.freeze(vector.map(targetParameter =>
+    Object.freeze({ sourceParameter: parameterNode, targetParameter })));
 }
 
 function constructorReturnType(

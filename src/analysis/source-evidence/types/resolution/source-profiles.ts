@@ -1,5 +1,5 @@
 import { csharpProviderBindingFromResolution } from "../../../../providers/model/relation-resolver.js";
-import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { CsharpTargetNamedTypeRef, CsharpTargetParameter, TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import { retainCsharpUnionObjectShapes } from "./source-union-refinement.js";
@@ -23,6 +23,7 @@ import { resolveCsharpNativeParameterCarrier } from "./source-references.js";
 
 import { selectCsharpSourceProfileCarrier } from "../../../../policy/operations/source-profiles/type-carriers.js";
 import type { CsharpProviderRelationResolver } from "../../../../providers/model/relation-resolver.js";
+import { selectCsharpSourceParameterVector } from "../../../../policy/types/callables/parameter-vector.js";
 export function resolveCsharpSourceProfileBaseType(
   type: Type,
   queries: SourceFileSemantics,
@@ -107,12 +108,19 @@ export function resolveCallableEvidence(
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
-  const parameterTypes = callable.parameters.map((parameter) =>
-    resolveSignatureParameterEvidence(parameter, queries, state, "callable")
-  );
-  if (parameterTypes.some((parameter) => parameter === undefined)) {
-    return undefined;
+  const parameters: CsharpTargetParameter[] = [];
+  for (const [index, parameter] of callable.parameters.entries()) {
+    const type = resolveSignatureParameterEvidence(parameter, queries, state, "callable");
+    if (type === undefined) return undefined;
+    const rest = parameter.parameterKind === "rest";
+    const vector = selectCsharpSourceParameterVector({ name: `parameter${index}`, type, passingMode: "by-value",
+      ...(parameter.acceptsOmission && !rest ? { optional: true } : {}),
+      ...(rest ? { paramsArray: true } : {}),
+    }, rest && type.kind === "tuple" ? queries.types.tupleElementInfos(parameter.type) : undefined);
+    if (vector === undefined) return undefined;
+    parameters.push(...vector);
   }
+  const parameterTypes = parameters.map(parameter => parameter.type);
   const returned = callable.result.declaration === undefined ? undefined
     : host.sourceStorage.subject(callable.result.declaration, "return");
   const returnType = resolveSourceTypeComponentEvidence(
@@ -123,19 +131,19 @@ export function resolveCallableEvidence(
   if (returnType === undefined) {
     return undefined;
   }
-  const optionalParameterIndexes = callable.parameters.flatMap(
+  const optionalParameterIndexes = parameters.flatMap(
     (parameter, index) =>
-      parameter.acceptsOmission && parameter.parameterKind !== "rest"
+      parameter.optional === true && parameter.paramsArray !== true
         ? [index]
         : [],
   );
-  const restParameterIndexes = callable.parameters.flatMap(
-    (parameter, index) => parameter.parameterKind === "rest" ? [index] : [],
+  const restParameterIndexes = parameters.flatMap(
+    (parameter, index) => parameter.paramsArray === true ? [index] : [],
   );
   if (
     restParameterIndexes.length > 1 ||
     restParameterIndexes[0] !== undefined &&
-      restParameterIndexes[0] !== callable.parameters.length - 1
+      restParameterIndexes[0] !== parameters.length - 1
   ) {
     return undefined;
   }
@@ -151,13 +159,13 @@ export function resolveCallableEvidence(
       (returnType as CsharpTargetNamedTypeRef).csharpSpecialType === "void"
     ? csharpDelegateTargetType(
         "System.Action",
-        parameterTypes as readonly TargetTypeRef[],
+        parameterTypes,
         undefined,
         delegateOptions,
       )
     : csharpDelegateTargetType(
         "System.Func",
-        parameterTypes as readonly TargetTypeRef[],
+        parameterTypes,
         returnType,
         delegateOptions,
       );
