@@ -151,7 +151,8 @@ test("the pre-seal analysis boundary preserves acquisition rejection and publish
     } }, observer);
   } });
   assertCsharpCheckingSucceeded(compiled);
-  assert.equal(reads > 0, true, "the actual policy pipeline reached the rejected native query");
+  assert.equal(reads > 0, true, `the actual policy pipeline reached the rejected native query: ${compiled.result.diagnostics
+    .map(issue => `${issue.code}: ${issue.message}`).join(" | ").slice(0, 3000)}`);
   assert.equal(compiled.result.diagnostics.length, 1, "one original acquisition diagnostic");
   assert.equal(compiled.result.diagnostics[0].message, diagnostic.message, "no generic wrapper diagnostic");
   assert.equal(compiled.result.diagnostics[0].source, diagnostic.extensionId, "original diagnostic owner preserved");

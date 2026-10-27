@@ -239,8 +239,7 @@ export function createCsharpExpectedTypePropagation(
           if (visited.has(value)) continue;
           visited.add(value);
           if (policy.ast.is.IsObjectLiteralExpression(value)) {
-            dynamicObjectOrigins.add(value);
-            nested = true;
+            if (dynamicObjectOrigins.has(value)) nested = true;
             continue;
           }
           for (const child of sourceExpressionValueInputs(policy.ast, value) ?? []) pending.push(child.expression);
