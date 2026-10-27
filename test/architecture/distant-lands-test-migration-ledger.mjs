@@ -6,7 +6,8 @@ export const replacementContracts = Object.freeze({
       "test/integration/provider-selection/direct-provider-member-selection.test.mjs",
       "test/providers/native/direct-provider-relations.test.mjs",
       "test/providers/native/projection/dotnet-provider-members-and-cross-module-bindings.test.mjs",
-      "../tsonic/test/cli-build/providers/dotnet/core.test.mjs",
+      "../tsonic/test/cli-build/providers/dotnet/core-part-1.test.mjs",
+      "../tsonic/test/cli-build/providers/dotnet/core-part-2.test.mjs",
     ],
   ),
   "contextual-translation": contract(
@@ -14,7 +15,8 @@ export const replacementContracts = Object.freeze({
     [
       "test/backend/planner/expressions/direct-translation-core.test.mjs",
       "test/backend/planner/artifacts/direct-translation-artifacts.test.mjs",
-      "../tsonic/test/cli-build/providers/tsts-type-forms/core.test.mjs",
+      "../tsonic/test/cli-build/providers/tsts-type-forms/core-part-1.test.mjs",
+      "../tsonic/test/cli-build/providers/tsts-type-forms/core-part-2.test.mjs",
     ],
   ),
   bindings: contract(
@@ -58,7 +60,8 @@ export const replacementContracts = Object.freeze({
     `interface User { name: string; }\nconst user: User = { name: "Ada" };\nconst copy = { ...user };`,
     [
       "test/backend/planner/expressions/direct-translation-core.test.mjs",
-      "../tsonic/test/cli-build/core/object-shapes/basic.test.mjs",
+      "../tsonic/test/cli-build/core/object-shapes/basic-part-1.test.mjs",
+      "../tsonic/test/cli-build/core/object-shapes/basic-part-2.test.mjs",
       "../tsonic/test/cli-build/core/object-shapes/generated-carriers.test.mjs",
       "../tsonic/test/cli-build/core/object-shapes/spread-record.test.mjs",
       "../tsonic/test/cli-build/core/object-shapes/rejections.test.mjs",
