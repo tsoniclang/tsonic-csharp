@@ -104,7 +104,8 @@ test("object rest never binds a copied method to its original receiver", () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: receiverBoundMethodRestSource });
   assert.equal(compiled.artifacts.size, 0);
   assert.ok(compiled.result.diagnostics.some(({ code, message }) =>
-    code === "CSHARP_UNSUPPORTED_AST" && message.includes("copied method-value contract")));
+    code === "CSHARP_UNSUPPORTED_AST" && message.includes("copied method-value contract")),
+  compiled.result.diagnostics.map(issue => `${issue.code}: ${issue.message}`).join(" | ").slice(0, 3000));
 });
 
 test("object rest projects the actual nested producer before checking its receiver", { timeout: 300_000 }, () => {
@@ -141,5 +142,6 @@ test("object rest rejects a receiver-dependent nested producer", () => {
   assert.equal(compiled.artifacts.size, 0, "an incompatible projected receiver emits no artifacts");
   assert.equal(compiled.result.diagnostics.some(({ code, message }) =>
     code === "CSHARP_UNSUPPORTED_AST" && message.includes("copied method-value contract")), true,
-  "the copied producer retains its actual receiver-dependent method provenance");
+  `the copied producer retains its actual receiver-dependent method provenance: ${compiled.result.diagnostics
+    .map(issue => `${issue.code}: ${issue.message}`).join(" | ").slice(0, 3000)}`);
 });

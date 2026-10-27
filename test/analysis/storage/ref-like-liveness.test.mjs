@@ -17,7 +17,8 @@ export function read(): number { return foreign<number>(1); }`,
   });
   assert.equal(compiled.sourceDiagnosticsText, "", "the external generic signature is actual checked source");
   assert.equal(compiled.result.diagnostics.some(issue => issue.message.includes("external to the project")), true,
-    "a declaration-only callee needs its actual native target relation");
+    `a declaration-only callee needs its actual native target relation: ${compiled.result.diagnostics
+      .map(issue => `${issue.code}: ${issue.message}`).join(" | ").slice(0, 3000)}`);
   assert.equal(compiled.result.diagnostics.some(issue => issue.code === "CSHARP_REFLIKE_METADATA_NOT_PROVEN"), false,
     "a non-native source artifact has no fabricated anti-constraint contract");
   assert.equal(compiled.result.program === undefined, true, "external source calls are never admitted as native methods");
