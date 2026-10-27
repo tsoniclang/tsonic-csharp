@@ -28,13 +28,16 @@ export function selectCsharpClosedCallableContext(
     const type = syntax === undefined ? types.expressionType(parameter) : types.authoredType(syntax);
     return type !== undefined && (types.isUnknown(type) || types.isAny(type));
   });
+  const inferred = parameters.map(parameter => policy.ast.typeNode(parameter) === undefined);
   const arguments_ = sourceClosedCallableArguments(expression, source);
   if (arguments_ === undefined) return undefined;
   let inputs: readonly TargetTypeRef[] | undefined;
   let invocationType: TargetTypeRef | undefined;
   let invocationOnly = true;
   for (const argument of arguments_) {
-    const selected = operations.selectedCall.get(argument.call)?.target;
+    const selected = policy.ast.is.IsNewExpression(argument.call)
+      ? operations.selectedConstruction.get(argument.call)?.target
+      : operations.selectedCall.get(argument.call)?.target;
     if (selected?.kind !== "resolved") return undefined;
     const bindings = selected.call.arguments.filter(binding => binding.sourceArgumentIndex === argument.argumentIndex);
     const binding = bindings[0];
@@ -57,9 +60,9 @@ export function selectCsharpClosedCallableContext(
     }
     invocationType = type;
   }
-  if (inputs === undefined || !broad.some(Boolean) && !invocationOnly) return undefined;
+  if (inputs === undefined || !broad.some(Boolean) && !inferred.some(Boolean) && !invocationOnly) return undefined;
   return Object.freeze({
-    inputTypes: Object.freeze(inputs.map((type, index) => broad[index] ? type : undefined)),
+    inputTypes: Object.freeze(inputs.map((type, index) => broad[index] || inferred[index] ? type : undefined)),
     ...(invocationOnly && invocationType !== undefined ? { invocationType } : {}),
   });
 }
