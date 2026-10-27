@@ -3,8 +3,8 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { dotnetDependencyArtifactsDirectory, executeDotnetProject } from "./dotnet-execution.mjs";
+import { nativeConstructionProject, nativeRuntimeReferences } from "./dotnet-runtime.mjs";
 import { assertCsharpCompilationSucceeded } from "./direct-csharp-session.mjs";
-import { testRepositoryRoots } from "../../../tsonic/test/scripts/workspace-layout.mjs";
 import { createTestWorkspace } from "../../../tsonic/test/scripts/test-workspaces.mjs";
 
 export function executeCsharpConstruction(compiled, name, asynchronous = false, allowUnsafe = false, additionalReferences = [], nativeProgram, assemblyName) {
@@ -27,17 +27,23 @@ export function executeCsharpConstruction(compiled, name, asynchronous = false, 
       ? `Tsonic.CSharp.Js.JsEventLoop.Run(async () => { ${invocation} });` : invocation;
     writeFileSync(join(root, "Program.cs"), nativeProgram ?? entrypoint);
   }
-  const references = [
-    join(testRepositoryRoots.csharpRuntime, "src/Tsonic.CSharp.Runtime/Tsonic.CSharp.Runtime.csproj"),
-    join(testRepositoryRoots.csharpJs, "src/Tsonic.CSharp.Js/Tsonic.CSharp.Js.csproj"),
-    ...additionalReferences,
-  ];
+  const runtime = nativeRuntimeReferences(additionalReferences);
+  if (runtime.sharedRestore) {
+    writeFileSync(join(root, "NativeReferences.props"), `<Project><ItemGroup>${runtime.references}</ItemGroup></Project>`);
+    const native = executeDotnetProject(nativeConstructionProject(), ["-c", "Release", "--no-restore",
+      `-p:TsonicProofSourceRoot=${root}${sep}`, `-p:AllowUnsafeBlocks=${allowUnsafe}`,
+      `-p:AssemblyName=${assemblyName ?? "Proof"}`, "--verbosity", "quiet"], {
+      encoding: "utf8", timeout: 240_000, maxBuffer: 4_194_304,
+    });
+    assert.equal(native.status, 0, `${native.error ?? ""}\n${native.stdout}\n${native.stderr}`);
+    return native.stdout;
+  }
   writeFileSync(join(root, "Proof.csproj"), `<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup>
 <OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework>
 <AllowUnsafeBlocks>${allowUnsafe}</AllowUnsafeBlocks>
 <Nullable>enable</Nullable><TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 ${assemblyName === undefined ? "" : `<AssemblyName>${escapeXml(assemblyName)}</AssemblyName>`}
-</PropertyGroup><ItemGroup>${references.map(path => `<ProjectReference Include="${escapeXml(path)}" />`).join("")}</ItemGroup></Project>`);
+</PropertyGroup><ItemGroup>${runtime.references}${runtime.graphReferences}${runtime.projects.map(path => `<ProjectReference Include="${escapeXml(path)}" />`).join("")}</ItemGroup></Project>`);
   const native = executeDotnetProject(join(root, "Proof.csproj"), ["-c", "Release",
     `-p:TsonicRuntimeArtifactsPath=${dotnetDependencyArtifactsDirectory()}${sep}`, "--verbosity", "quiet"], {
     encoding: "utf8", timeout: 240_000, maxBuffer: 4_194_304,

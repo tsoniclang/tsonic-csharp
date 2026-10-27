@@ -33,14 +33,25 @@ export function buildDotnetProject(project, argumentsList = [], options = {}) {
   return buildProject(project, argumentsList, options, operationDeadline(options));
 }
 
-function buildProject(project, argumentsList, options, deadline) {
-  const context = compilerServer(options, deadline);
+export function restoreDotnetProject(project, argumentsList = [], options = {}) {
+  const deadline = operationDeadline(options);
+  assertGuardContainsProcess(process.env.TSONIC_TEST_GUARD_CGROUP);
+  return invokeDotnet(["msbuild", project, "-target:Restore", ...argumentsList,
+    ...nativeBuildParallelism()], { ...options, env: nativeEnvironment(options.env) }, deadline);
+}
+
+function nativeBuildParallelism() {
   const childJobs = process.env.TSONIC_TEST_CHILD_JOBS;
   if (!/^[1-9][0-9]*$/u.test(childJobs ?? "")) {
     throw new Error("Native test builds require an explicit positive child-job budget.");
   }
+  return [`--maxcpucount:${childJobs}`, "-nr:false"];
+}
+
+function buildProject(project, argumentsList, options, deadline) {
+  const context = compilerServer(options, deadline);
   return invokeDotnet(["build", project, ...argumentsList,
-    `--maxcpucount:${childJobs}`, "-nr:false", "-p:UseSharedCompilation=true",
+    ...nativeBuildParallelism(), "-p:UseSharedCompilation=true",
     `-p:SharedCompilationId=${context.pipeName}`], {
     ...options,
     env: nativeEnvironment(options.env),

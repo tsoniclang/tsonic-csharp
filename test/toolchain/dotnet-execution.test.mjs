@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { buildDotnetProject, closeDotnetCompilerServers, dotnetDependencyArtifactsDirectory, executeDotnetProject } from "../helpers/dotnet-execution.mjs";
+import { buildDotnetProject, closeDotnetCompilerServers, dotnetDependencyArtifactsDirectory, executeDotnetProject, restoreDotnetProject } from "../helpers/dotnet-execution.mjs";
 import { createTestWorkspace } from "../../../tsonic/test/scripts/test-workspaces.mjs";
 
 function withNativeCalls(context, nativeCall, verify, onCall = () => {}) {
@@ -38,6 +38,29 @@ function successfulNativeCall(args) {
     : args[0].endsWith("Proof.dll") ? "native output\n" : "";
   return { status: 0, stdout, stderr: "", signal: null };
 }
+
+test("shared native restore uses the real project graph without starting a compiler server", context => {
+  withNativeCalls(context, successfulNativeCall, ({ root, calls }) => {
+    const project = join(root, "Proof.csproj");
+    restoreDotnetProject(project, ["-p:Configuration=Release"], { cwd: root, timeout: 240_000 });
+    assert.equal(calls.length, 1, "restore has no compiler selection or compilation side channel");
+    assert.deepEqual(calls[0].args.slice(0, 4),
+      ["msbuild", project, "-target:Restore", "-p:Configuration=Release"],
+      "the actual native Restore target owns package graph freshness");
+    assert.equal(calls[0].options.timeout > 0 && calls[0].options.timeout <= 240_000, true,
+      "restore retains its finite caller deadline");
+    assert.equal(calls[0].args.includes("-nr:false"), true, "restore cannot leave unowned MSBuild nodes");
+  });
+});
+
+test("shared native restore preserves the exact failed native result", context => {
+  const rejected = { status: 1, stdout: "NU1101 native package refusal", stderr: "native restore failure" };
+  withNativeCalls(context, () => rejected, ({ root, calls }) => {
+    const result = restoreDotnetProject(join(root, "Proof.csproj"), [], { cwd: root, timeout: 240_000 });
+    assert.equal(result === rejected, true, "native NuGet failures are not synthesized, hidden or retried");
+    assert.equal(calls.length, 1, "a rejected graph is not followed by a competing restore");
+  });
+});
 
 test("native execution builds a fresh project before running its exact native target", context => {
   context.mock.method(performance, "now", () => 0);
