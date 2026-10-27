@@ -23,7 +23,7 @@ export function analyzeCsharpStructuralObjectEmission(input: {
 }) {
   const values = new Map<string, CsharpStructuralObjectEmission>();
   const issues: TargetDiagnostic[] = [];
-  const shapes = new Map([...input.shapes.knownShapes(), ...input.demand.artifacts.map(artifact => artifact.fact)]
+  const shapes = new Map(input.demand.artifacts.map(artifact => artifact.fact)
     .map(shape => [objectShapeArtifactKey(shape), shape]));
   const hasMethodValues = (shape: CsharpObjectShapeFact): boolean => input.demand.get(objectShapeArtifactKey(shape))?.capabilities.includes("method-values") === true;
   const inherited = (shape: CsharpObjectShapeFact): readonly CsharpObjectShapeFact[] => (shape.implements ?? [])

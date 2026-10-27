@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   compileCsharpSource,
 } from "../../../helpers/direct-csharp-session.mjs";
+import { executeCsharpConstruction } from "../../../helpers/native-construction.mjs";
 
 test("nullable structural returns preserve exact authored member carriers", () => {
   const compiled = compileCsharpSource({
@@ -209,14 +210,17 @@ test("object-literal method receiver requirements replan every implementation of
   assert.deepEqual(compiled.targetDiagnostics, []);
   const source = compiled.artifacts.get("src/Index.cs") ?? "";
   const shapes = compiled.artifacts.get("generated/TsonicObjectShapes.cs") ?? "";
-  // Object-literal methods are delegate fields; the implementation whose body reads the receiver stores a delegate that
-  // takes it and its method passes this (RULINGS 2026-10-23, delegate-field method values).
-  assert.equal((source.match(/__tsonic_shape_method_\w+ =/gu) ?? []).length, 2);
-  assert.match(
-    shapes,
-    /public required Func<ObjectShape_[a-f0-9]{12,64}, double> __tsonic_shape_method_/u,
-  );
-  assert.match(shapes, /return __tsonic_shape_method_\w+\(this\);/u);
+  // C-0745/C-0746: checked fixed method bodies use their native receivers, not eager delegate fields.
+  assert.equal((source.match(/\bnew ObjectShape_[a-f0-9]+/gu) ?? []).length, 2,
+    "the two authored objects retain their native constructions");
+  assert.equal((shapes.match(/public double read\(\)/gu) ?? []).length, 2,
+    "both authored implementations remain native methods");
+  assert.match(shapes, /return 3;/u);
+  assert.match(shapes, /return this\.value;/u);
+  assert.doesNotMatch(source, /__tsonic_shape_method_\w+\s*=/u);
+  assert.equal(executeCsharpConstruction(compiled, "native-object-method-receivers", false, false, [],
+    'if (Tsonic.Generated.Index.total() != 10D) throw new System.Exception("Native method behavior"); System.Console.WriteLine("10");'),
+  "10\n", "both original native method bodies execute with their own receiver");
 });
 
 test("object-literal callable properties remain ordinary delegates and reject unproven receiver binding", () => {

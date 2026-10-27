@@ -217,6 +217,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
   );
   if (callableAdapterResult.kind === "rejected") return callableAdapterResult;
   const callableAdapters = callableAdapterResult.value;
+  if (analysis.objectShapes.issues.length > 0) return rejectCsharpAnalysisIssues(analysis.objectShapes.issues);
   const analysisIssues = [
     ...callableAdapters.issues,
     ...memoryBindings.issues.map(issue => ({ node: issue.node, message: issue.reason, code: "CSHARP_MEMORY_BINDING_NOT_PROVEN" })),

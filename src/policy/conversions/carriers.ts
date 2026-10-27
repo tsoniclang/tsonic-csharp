@@ -66,7 +66,7 @@ export function selectRuntimeUnionConversion(
   const narrowing = mode === "explicit" ? selectCsharpUnionArmMapping(source, target, "target", input.typeDefinitions) : undefined;
   if (narrowing !== undefined) return { kind: "union-map", coverage: "target", arms: narrowing };
   if (sourceArms !== undefined && targetArms !== undefined) return {
-    kind: "rejected", reason: "C# runtime-union conversion requires unambiguous exact or native-reference payload correspondence.",
+    kind: "rejected", reason: "C# runtime-union conversion requires the source representation to match one exact union arm. Every source arm requires unambiguous exact or native-reference payload correspondence.",
   };
   const referenceTarget = getCsharpNullableElementTargetType(target) ?? target;
   if (sourceArms !== undefined && referenceTarget.kind === "target-named" &&

@@ -107,7 +107,13 @@ export function createCsharpObjectShapePolicy(
           const selected = csharpPresentObjectShapeMethod(candidate);
           return selected !== undefined && csharpObjectShapeMemberContractKey(selected) === csharpObjectShapeMemberContractKey(signature);
         });
-        return candidates.length === 1 && candidates[0]!.methodValueStorage !== undefined;
+        return candidates.length === 1 && candidates[0]!.methodValueStorage !== undefined &&
+          candidates[0]!.sourceDeclarations?.some(declaration => {
+            const subject = host.sourceStorage.memberSubjectFor(declaration);
+            if (subject.kind !== "resolved") return false;
+            const writes = host.sourceStorage.memberWritesFor(subject.subject);
+            return writes.kind !== "unresolved" && writes.writes.length > 0;
+          }) === true;
       });
     });
     if (written.length === 0) return unchanged;

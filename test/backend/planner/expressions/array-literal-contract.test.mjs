@@ -7,6 +7,7 @@ import { freshArraySpreadCostSource } from "../../../../../tsonic/test/fixtures/
 import { createCsharpPlanningContext, createCsharpMemberPlanningContext } from "../../../../dist/backend/planner/context.js";
 import { planExpression } from "../../../../dist/backend/planner/expressions/index.js";
 import { planNativeCollectionArrayLiteralExpression } from "../../../../dist/backend/planner/expressions/array-literals/native-collection.js";
+import { analyzeCsharpArrayLiterals } from "../../../../dist/analysis/operations/array-literals.js";
 import { csharpListTargetType, csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/index.js";
 import { csharpTypeFromTargetTypeRef } from "../../../../dist/backend/planner/types/render.js";
 import { printCsharpCompilationUnit } from "../../../../dist/print/source/printer.js";
@@ -27,9 +28,19 @@ test("native collection construction fills only its declared native builder", { 
   for (const file of analysis.value.sourceFiles) visit(file);
   const node = arrays[0];
   assert.ok(node);
-  const context = createCsharpMemberPlanningContext(createCsharpPlanningContext(analysis.value));
   const element = csharpSourcePrimitiveTargetType("float64");
   const carrier = csharpListTargetType(element);
+  const admit = selectedCarrier => analyzeCsharpArrayLiterals({ source,
+    demand: { entries: [{ use: { kind: "constructed", expression: node, carrier: selectedCarrier } }] },
+    conversions: analysis.value.records, values: analysis.value.records,
+    expected: {}, evidence: { contextualTuple: { get: () => undefined } },
+    operations: { borrowedSequence: { get: () => undefined } } });
+  const admitted = admit(carrier);
+  assertNoTargetDiagnostics(admitted.issues);
+  assert.equal(admitted.records.arrayLiteral.get(node, carrier)?.kind, "collection",
+    "the existing admission owner seals the exact provider-backed native List construction");
+  const program = { ...analysis.value, records: { ...analysis.value.records, ...admitted.records } };
+  const context = createCsharpMemberPlanningContext(createCsharpPlanningContext(program));
   const diagnostics = [];
   const planner = { planExpression };
   const planned = planNativeCollectionArrayLiteralExpression(node, source.ast.getSourceFile(node), context,
@@ -75,8 +86,8 @@ static List<double> Handwritten(byte[] source) {
 }
 `);
   const missing = { ...carrier, csharpArrayLiteralConstructionType: { ...carrier, csharpArrayLiteralBuilder: undefined } };
-  const invalid = [];
-  assert.equal(planNativeCollectionArrayLiteralExpression(node, source.ast.getSourceFile(node), context,
-    invalid, missing, element, planner), undefined);
-  assert.ok(invalid.some(diagnostic => /construction metadata/.test(diagnostic.message)));
+  const invalid = admit(missing);
+  assert.equal(invalid.records.arrayLiteral.get(node, missing), undefined,
+    "malformed native construction metadata is rejected before an admitted record is published");
+  assert.ok(invalid.issues.some(diagnostic => /construction metadata/.test(diagnostic.message)));
 });

@@ -59,12 +59,14 @@ for (const [name, destination, expected, parenthesized] of Array.from([
   ["authored floating result", "AsyncCallback<int32, number>", "float64", false],
 ]).slice(0, 4)) {
 test(`authored async contextual completion retains ${name} on ${surface}`, { timeout: 240_000 }, () => {
-  const body = 'async value => { if (value < 0) throw new Error("negative"); return value; }';
+  const body = name === "explicit wider native result"
+    ? 'async value => { if (value < 0) throw new Error("negative"); return BigInt(value) as int64; }'
+    : 'async value => { if (value < 0) throw new Error("negative"); return value; }';
   const compiled = compileCsharpSource({ surface, sourceText: `
     import type { int32, int64 } from "@tsonic/core/types.js";
     interface AsyncCallback<Input, Output = Input> { (value: Input): Promise<Output>; }
     export const checked: ${destination} = ${parenthesized ? `((${body}))` : body};
-    export async function run(): Promise<boolean> { return await checked(7) === 7; }
+    export async function run(): Promise<boolean> { return await checked(7) === ${name === "explicit wider native result" ? "(7n as int64)" : "7"}; }
   ` });
   assertCsharpCompilationSucceeded(compiled);
   const program = compiled.result.program;

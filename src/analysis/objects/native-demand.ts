@@ -3,7 +3,7 @@ import { asSourceNode, ObjectLiteralProperty_SourceName, sourceCallableUsesLexic
 import type { SourcePropertyNameIndex } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant, rejectedTargetStage, resolvedTargetStage } from "@tsonic/target-api/artifacts";
 import type { TargetDiagnostic, TargetStageResult } from "@tsonic/target-api/artifacts";
-import type { SourceStorageBindings, SourceStorageQueries, SourceStorageSubject, TargetUseSiteRef } from "@tsonic/target-api/analysis";
+import type { SourceStorageBindings, SourceStorageProjection, SourceStorageQueries, SourceStorageSubject, TargetUseSiteRef } from "@tsonic/target-api/analysis";
 import { targetUseSiteIdentity } from "@tsonic/target-api/analysis";
 import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
 import type { CsharpCallableContractIndex } from "../../target-model/records/callables/callable-values.js";
@@ -49,6 +49,7 @@ import type { CsharpObjectShapeClassifications } from "../../target-model/record
 import { createCsharpMetadataBudget } from "../../target-model/metadata/immutable.js";
 import { projectCsharpNativeSourceStorageCarrier } from "./value-domain-carriers.js";
 import { objectShapeStorageMemberName } from "../../target-model/names/object-members.js";
+import { selectCsharpCopiedMethodReceiver } from "./copied-methods.js";
 
 export interface CsharpNativeArtifactDemandInput extends CsharpObjectShapeDemandHost, CsharpNativeParticipationInput {
   readonly ast: AstReader;
@@ -56,6 +57,7 @@ export interface CsharpNativeArtifactDemandInput extends CsharpObjectShapeDemand
   readonly propertyNames: Pick<SourcePropertyNameIndex, "get">;
   readonly nativeDemand: CsharpNativeDemandAnalysis;
   readonly sourceStorage: Pick<SourceStorageQueries, "subjectFor" | "subject" | "storageProducersFor" | "emptyBindings">;
+  readonly projectIndexedCarrier: (component: Extract<SourceStorageProjection, { readonly kind: "indexed-value" }>, owner: TargetTypeRef) => TargetTypeRef | undefined;
   readonly valueReads: CsharpValueReadClassifications;
   readonly operations: CsharpTargetOperationClassifications<CsharpAdmittedIteration>;
   readonly storage: CsharpStorageClassifications;
@@ -187,7 +189,7 @@ export function analyzeCsharpNativeArtifactDemand(
           const source = use.kind === "converted" && isCsharpJsValueTargetType(use.completion.type) && use.input.kind === "value"
             ? use.input.type : use.completion.type;
           const carrier = projectCsharpNativeSourceStorageCarrier(source, origin.subject, input.objectShapes,
-            amount => jsonBudget.reserve(amount));
+            amount => jsonBudget.reserve(amount), input.projectIndexedCarrier);
           if (carrier === undefined || !capability(origin.subject.node, carrier, "json-serialization", "value")) continue;
           const present = getCsharpNullableElementTargetType(carrier) ?? carrier;
           const leaves = csharpUnionLeaves(present, input.typeDefinitions)?.map(leaf => leaf.carrier) ?? [present];
@@ -384,6 +386,23 @@ export function analyzeCsharpNativeArtifactDemand(
       const parent = input.ast.parent(node);
       const source = parent === undefined ? undefined : input.bindingPatterns.bindingPatternProjection.get(parent)?.source;
       if (source?.kind === "object-shape-source" && binding.element.members.some(member => member.source.memberKind === "method")) {
+        const declaration = parent === undefined ? undefined : input.ast.parent(parent);
+        const initializer = declaration === undefined ? undefined
+          : input.ast.as.AsVariableDeclaration(declaration)?.Initializer ?? declaration;
+        const subject = initializer === undefined ? undefined : input.sourceStorage.subjectFor(initializer);
+        const producers = subject?.kind === "resolved" ? input.sourceStorage.storageProducersFor(subject.subject) : undefined;
+        const budget = createCsharpMetadataBudget();
+        const sources = producers === undefined || producers.kind === "unresolved" ? []
+          : producers.producers.flatMap(producer => {
+            const carrier = projectCsharpNativeSourceStorageCarrier(input.valueReads.valueRead.get(producer.subject.node)?.value,
+              producer.subject, input.objectShapes, amount => budget.reserve(amount), input.projectIndexedCarrier);
+            const shape = carrier === undefined ? undefined : input.objectShapes.resolveTarget(carrier);
+            return shape === undefined ? [] : [shape];
+          });
+        if (selectCsharpCopiedMethodReceiver(binding.element.restShape.members, sources, input.ast).kind === "rejected") {
+          refuse(node, "A copied method-value contract cannot silently acquire a different receiver ABI.");
+          return;
+        }
         capability(node, source.shape.targetType, "method-values");
       }
     }
