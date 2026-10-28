@@ -85,9 +85,9 @@ export function run(): boolean {
       const call = program.records.sourceCallEmission.get(node);
       if (call?.kind === "source" && !targetTypeRefEquals(call.result.nativeType, call.result.selectedType)) {
         physicalCalls++;
-        assert.equal(program.records.typeEmission.get(call.result.nativeType)?.completion.kind, "value",
+        assert.equal(program.records.typeEmission.get(call.result.nativeType)?.completion, "value",
           "the actual native invocation result owns its completion before the selected view conversion");
-        assert.equal(program.records.typeEmission.get(call.result.selectedType)?.completion.kind, "value",
+        assert.equal(program.records.typeEmission.get(call.result.selectedType)?.completion, "value",
           "the distinct source-visible selected result also owns its completion");
       }
       source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });

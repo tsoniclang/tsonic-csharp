@@ -64,7 +64,8 @@ export function planCsharpDelegateAdaptationBody(node: Node, sourceFile: SourceF
   if (selection.strategy !== "adaptation") failCsharpPlannerInvariant("An admitted retained delegate method requires its selected adaptation strategy.", node);
   const contract = requiredContract(node, input, sourceType, targetType);
   const method = getCsharpMethodValue(contract.sourceType)?.method;
-  return buildAdaptation(node, sourceFile, input, diagnostics, selection, contract, method === undefined ? callee
+  return buildAdaptation(node, sourceFile, input, diagnostics, selection, contract,
+    method === undefined || input.program.records.directCallableReference.get(node) !== undefined ? callee
     : { kind: "SimpleMemberAccessExpression", receiver: callee, name: method }, convert);
 }
 

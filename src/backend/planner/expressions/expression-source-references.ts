@@ -31,7 +31,7 @@ export function planCsharpIdentifierValue(identifier: Node, sourceFile: SourceFi
   if (planned === undefined || planned.completion.kind !== "value") return planned;
   if (getCsharpExpressionOverride(identifier, state) !== undefined) return { ...planned, address: { kind: "root" } };
   const selected = input.program.records.identifierEmission.get(identifier);
-  if (selected?.kind === "module" && input.program.records.directCallableReference.get(identifier) !== undefined)
+  if ((selected?.kind === "module" || selected?.kind === "local") && input.program.records.directCallableReference.get(identifier) !== undefined)
     return { ...planned, address: { kind: "root" }, callable: { kind: "method" } };
   if (selected?.kind !== "local") return { ...planned, address: { kind: "root" } };
   const captured = selected.declaration === undefined ? undefined : input.program.records.capturedBinding.get(selected.declaration);
@@ -82,7 +82,8 @@ export function planIdentifierExpression(identifier: Node, sourceFile: SourceFil
       const expression = (selected.declaration === undefined ? undefined : csharpCapturedBindingExpression(selected.declaration, input, state)) ??
         { kind: "IdentifierName" as const, name: getCsharpLocalBindingName(identifier, input, state) ?? requireSealedSourceReferenceName(identifier, input) };
       const value: CsharpExpression = selected.backing ? { kind: "SimpleMemberAccessExpression", receiver: expression, name: "Value" } : expression;
-      return planFlowReadUseSiteProjection(identifier, value, sourceFile, input, diagnostics);
+      return input.program.records.directCallableReference.get(identifier) === undefined
+        ? planFlowReadUseSiteProjection(identifier, value, sourceFile, input, diagnostics) : value;
     }
   }
 }

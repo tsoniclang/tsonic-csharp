@@ -63,9 +63,10 @@ for (const surface of ["native", "js"]) {
     const compiled = compileCsharpSource({ surface, sourceText: `
 import type { int32, int64 } from "@tsonic/core/types.js";
 function same<Value extends number>(value: Value): Value { return value; }
+function sameWide<Value extends bigint>(value: Value): Value { return value; }
 export function run(): boolean {
   const callback: (value: int32) => int32 = same;
-  const wideCallback: (value: int64) => int64 = same;
+  const wideCallback: (value: int64) => int64 = sameWide;
   const wide: int64 = 9007199254740993n;
   return callback(7) === 7 && wideCallback(wide) === wide;
 }` });
@@ -96,12 +97,15 @@ export function run(): boolean {
     const output = [...compiled.artifacts.values()].join("\n");
     assert.equal(/DynamicInvoke|TsValue|Convert\.ToDouble/u.test(output), false,
       "native generic callbacks retain their exact physical carrier without erased transport");
+    assert.equal(/\)same\b|same\.__tsonic_/u.test(output), false,
+      "the original generic method is not cast to a callable object or accessed as a protocol instance");
     executeCsharpConstruction(compiled, `generic-callable-instantiation-${surface}`);
   });
   test(`closed native bindings retain one captured generic method across distinct callbacks on ${surface}`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
-import type { int64 } from "@tsonic/core/types.js";
+import type { int32, int64 } from "@tsonic/core/types.js";
 function apply<Value>(callback: (value: Value) => Value, value: Value): Value { return callback(value); }
+function applyIndexed<Value>(callback: (value: Value, index: int32) => Value, value: Value): Value { return callback(value, 3); }
 function identity<Value>(value: Value): Value { return value; }
 export function run(): boolean {
   let calls = 0;
@@ -109,12 +113,17 @@ export function run(): boolean {
   const wide: int64 = 9007199254740993n;
   const first: int64 = apply<int64>(captured, wide);
   const second: string = apply<string>(captured, "retained");
-  return first === wide && second === "retained" && calls === 2 && apply<int64>(identity, wide) === wide;
+  const third: int64 = applyIndexed<int64>(captured, wide);
+  const fourth: int64 = applyIndexed<int64>(captured, wide);
+  return first === wide && second === "retained" && third === wide && fourth === wide &&
+    calls === 4 && apply<int64>(identity, wide) === wide;
 }` });
     assertCsharpCompilationSucceeded(compiled);
     const output = [...compiled.artifacts.values()].join("\n");
     assert.equal(/DynamicInvoke|TsValue|Convert\.ToDouble/u.test(output), false,
       "each closed binding targets the original native generic method and shared capture, not a polymorphic value wrapper");
+    assert.equal(/captured\.__tsonic_/u.test(output), false,
+      "a native captured local method is never read as a generic protocol object");
     executeCsharpConstruction(compiled, `captured-generic-native-bindings-${surface}`);
   });
 }

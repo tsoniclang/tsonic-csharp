@@ -261,6 +261,14 @@ export function analyzeCsharpConversions(
             "C# delegate adaptation requires a source-owned callable; provider-owned delegate conversion requires provider conversion metadata.",
         })
       : candidate, sourceCompletion);
+    if (selected.kind === "delegate-adapter" && selected.instantiation !== undefined && reference !== undefined &&
+      isSourceOwnedProjectReference(reference, policy) && policy.ast.is.IsFunctionDeclaration(reference.declaration) &&
+      !policy.navigation.declarationUseSummary(reference.declaration).bindingWritten) {
+      const direct = Object.freeze({ ...reference });
+      directCallables.set(expression, direct);
+      const name = policy.ast.name(reference.declaration);
+      if (name !== undefined) directCallables.set(name, direct);
+    }
     literalRequests.requestConversion(expression, source, target, selected);
     if (selections === undefined) {
       selections = new Map();
