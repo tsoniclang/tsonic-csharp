@@ -53,6 +53,7 @@ export function run(): boolean {
     const compiled = compileCsharpSource({ surface, sourceText: `
 let events = "";
 function fallback(): number { events += "D"; return 7; }
+function observedEvents(): string { return events; }
 export function run(): boolean {
   events = "";
   const dependent: (left: number, value: number) => number = function inner(
@@ -60,13 +61,13 @@ export function run(): boolean {
   ): number {
     return value === 0 ? inner(3) : value;
   };
-  if (dependent(1, 0) !== 10 || events !== "D") return false;
+  if (dependent(1, 0) !== 10 || observedEvents() !== "D") return false;
   const observed: (value: number) => number = function original(value: number = fallback()): number {
     const alias: (value?: number) => number = original;
     if (alias !== original) return -1;
     return value === 0 ? alias() : value;
   };
-  return observed(0) === 7 && events === "DD" && observed(3) === 3 && events === "DD";
+  return observed(0) === 7 && observedEvents() === "DD" && observed(3) === 3 && observedEvents() === "DD";
 }` });
     assertCsharpCompilationSucceeded(compiled);
     const output = [...compiled.artifacts.values()].join("\n");
@@ -81,6 +82,7 @@ export function run(): boolean {
     const compiled = compileCsharpSource({ surface, sourceText: `
 let events = "";
 function fallback(): number { events += "D"; return 5; }
+function observedEvents(): string { return events; }
 function choose(flag: boolean): number {
   const chosen: (x: number) => number = flag
     ? function inner(x: number = fallback()): number { return x === 0 ? inner() : x; }
@@ -95,11 +97,11 @@ function chooseMutable(flag: boolean): number {
 }
 export function run(): boolean {
   events = "";
-  if (choose(false) !== 1 || events !== "") return false;
-  if (choose(true) !== 5 || events !== "D") return false;
-  if (choose(false) !== 1 || events !== "D") return false;
-  if (chooseMutable(false) !== 2 || events !== "D") return false;
-  return chooseMutable(true) === 5 && events === "DD";
+  if (choose(false) !== 1 || observedEvents() !== "") return false;
+  if (choose(true) !== 5 || observedEvents() !== "D") return false;
+  if (choose(false) !== 1 || observedEvents() !== "D") return false;
+  if (chooseMutable(false) !== 2 || observedEvents() !== "D") return false;
+  return chooseMutable(true) === 5 && observedEvents() === "DD";
 }` });
     assertCsharpCompilationSucceeded(compiled);
     executeCsharpConstruction(compiled, `named-self-conditional-producers-${surface}`);

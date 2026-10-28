@@ -10,14 +10,15 @@ for (const surface of ["native", "js"]) {
     const compiled = compileCsharpSource({ surface, sourceText: `
 let events = "";
 function fallback(): number { events += "D"; return 5; }
+function observedEvents(): string { return events; }
 export function run(): boolean {
   const required: { m(value: number): number } = { m(value: number = fallback()): number { return value; } };
   const optional: { m(value?: number): number } = { m(value: number = fallback()): number { return value; } };
   events = "";
-  if (required.m(3) !== 3 || events !== "") return false;
-  if (optional.m(0) !== 0 || events !== "") return false;
-  if (optional.m() !== 5 || events !== "D") return false;
-  return optional.m() === 5 && events === "DD";
+  if (required.m(3) !== 3 || observedEvents() !== "") return false;
+  if (optional.m(0) !== 0 || observedEvents() !== "") return false;
+  if (optional.m() !== 5 || observedEvents() !== "D") return false;
+  return optional.m() === 5 && observedEvents() === "DD";
 }` });
     assertCsharpCompilationSucceeded(compiled);
     const program = compiled.result.program;

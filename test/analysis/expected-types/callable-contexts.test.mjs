@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 import { analyzeCsharpCallableContracts } from "../../../dist/analysis/callables/analyze.js";
 import { selectCsharpClosedCallableContext } from "../../../dist/analysis/expected-types/callable-contexts.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
@@ -78,6 +79,7 @@ function fixture(body, overrides = {}) {
     resolveTarget: () => undefined,
   });
   const policy = { ast: source.ast, sourceFiles: [file], navigation: source.navigation, objectShapes,
+    sourceStorage: createSourceStorageQuery(source, [file]),
     semantics: sourceFile => source.semantics.forFile(sourceFile),
     semanticsFor: node => source.semantics.forNode(node),
     projectTypes: { catalog: { definitions: [] } },

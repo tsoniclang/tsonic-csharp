@@ -18,6 +18,7 @@ function fixture(modes, slots) {
     ast: { is: { IsNewExpression: () => false, IsFunctionDeclaration: () => false, IsMethodDeclaration: () => false,
       IsClassDeclaration: () => false }, parent: () => undefined, kindName: () => "KindVariableDeclaration" },
     navigation: { sourceReferenceFor: () => ({ declaration }), isProjectDeclaration: () => false }, projectTypes: () => ({ catalog: {} }),
+    representations: { closedInputContract: () => undefined },
     semantics: () => ({ declarations: { signatureDeclaration: () => selectedDeclaration },
       operations: { callParameterSlots: () => slots } }),
   }, resolveSelectedValueWithState: () => carrier, sourceCallableTypeParametersMatch: () => true };
