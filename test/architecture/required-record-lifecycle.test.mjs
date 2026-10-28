@@ -236,6 +236,31 @@ test("the fixed-point attempt returns only its representation contract", () => {
     "fixed-point attempt: the contract holds typeProjections, callables and storage only");
 });
 
+test("final source refusals retain their exact diagnostics before dependent conversion failures", () => {
+  assert.equal(identifiers(evaluate, "sourceRefusals").length, 0,
+    "an intermediate attempt cannot refuse a contract before its representation dependencies converge");
+  const declarations = ast.statements(ast.body(program)).map(statement => ownDeclaration(statement, "sourceRefusals"))
+    .filter(node => node !== undefined);
+  assert.equal(declarations.length, 1, "one final source-refusal transport owns the exact diagnostic values");
+  const initializer = ast.as.AsVariableDeclaration(declarations[0]).Initializer;
+  assert.equal(callsTo(initializer, "analysis.nativeDemand.unadmitted.flatMap").length, 1,
+    "source refusals come from the completed native-demand authority");
+  const returned = descendants(program).filter(node => ast.is.IsIfStatement(node) &&
+    text(ast.as.AsIfStatement(node).Expression) === "sourceRefusals.length > 0");
+  assert.equal(returned.length, 1, "one final refusal branch returns before dependent native consumers");
+  const rejected = callsTo(returned[0], "rejectedTargetStage");
+  assert.equal(rejected.length === 1 && text(ast.arguments(rejected[0])[0]) === "sourceRefusals", true,
+    "the original diagnostic objects and multiplicity are transported without reconstruction");
+  const comparison = callsTo(program, "representationContractsEqual");
+  const adapters = callsTo(program, "analyzeCsharpProjectCallableAdapters");
+  const issues = ast.statements(ast.body(program)).map(statement => ownDeclaration(statement, "analysisIssues"))
+    .filter(node => node !== undefined);
+  assert.equal(comparison.length === 1 && adapters.length === 1 && issues.length === 1 &&
+    position(comparison[0]) < position(returned[0]) && position(returned[0]) < position(adapters[0]) &&
+    position(returned[0]) < position(issues[0]), true,
+    "stable representation equality precedes source refusal; adapters and derivative conversion issues follow it");
+});
+
 test("the late producers and the assembly receive the stable attempt's list", () => {
   const initializer = name => {
     const declarations = programStatements.map(statement => ownDeclaration(statement, name)).filter(node => node !== undefined);

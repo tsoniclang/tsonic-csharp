@@ -199,6 +199,9 @@ function analyzeCsharpTargetProgramBeforeSeal(
       ]),
     }]);
   }
+  const sourceRefusals = analysis.nativeDemand.unadmitted.flatMap<TargetDiagnostic>(use =>
+    use.kind === "source-refusal" ? [use.diagnostic] : []);
+  if (sourceRefusals.length > 0) return rejectedTargetStage(sourceRefusals);
   const callablePolicy = Object.freeze({
     ast: analysis.policy.ast, navigation: analysis.policy.navigation,
     typeDefinitions: analysis.policy.typeDefinitions, projectTypes: analysis.policy.projectTypes,
@@ -279,7 +282,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
   })));
   if (flowReads.issues.length > 0) return rejectCsharpAnalysisIssues(flowReads.issues);
   const refusals = nativeDemand.unadmitted.flatMap<TargetDiagnostic>(use => {
-    if (use.kind === "source-refusal") return [use.diagnostic];
+    if (use.kind === "source-refusal") return [];
     if (use.reason === "construction-unresolved") {
       const construction = analysis.operations.selectedConstruction.get(use.expression);
       if (construction?.jsValue.kind === "rejected") return [{ sourceNode: use.expression,
