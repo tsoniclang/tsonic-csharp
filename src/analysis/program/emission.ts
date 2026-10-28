@@ -357,7 +357,11 @@ export function finalizeCsharpNativeEmission(
     const mutation = admittedOperations.jsArrayMutation.get(node);
     const selectedSwitch = admittedOperations.switchStatement.get(node);
     const call = admittedOperations.selectedCall.get(node);
+    const propertyReceiver = admittedOperations.selectedProperty.get(node)?.receiverProjection;
+    const elementReceiver = admittedOperations.selectedElement.get(node)?.receiverProjection;
     return [
+      ...propertyReceiver === undefined ? [] : [propertyReceiver.source, propertyReceiver.target],
+      ...elementReceiver === undefined ? [] : [elementReceiver.source, elementReceiver.target],
       ...call?.sourceResult === undefined ? [] : [call.sourceResult.nativeType, call.sourceResult.selectedType],
       ...call?.sourceTypeArguments ?? [],
       ...call?.target?.kind !== "resolved" || call.target.call.targetMember.returnType === undefined ? []
