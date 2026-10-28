@@ -4,7 +4,7 @@ import { validateDotnetConstraints, validateDotnetSignatureList, validateDotnetT
 import { validateDotnetTypeRef, validateOptionalDotnetTypeRef } from "./dotnet-types.js";
 import type { DotnetExportDeclaration, DotnetMemberDeclaration, DotnetTypeDeclaration } from "../index.js";
 import type { ContractCollector } from "./support.js";
-import { validateDotnetInheritance } from "./dotnet-inheritance.js";
+import { supportedDotnetAccessibilities, validateDotnetInheritance } from "./dotnet-inheritance.js";
 
 export function validateExportList(
   declarations: readonly DotnetExportDeclaration[],
@@ -203,6 +203,12 @@ function validateDotnetMemberList(
     requireNonEmptyString(member.sourceName, `${memberPath}.sourceName`, collector);
     requireNonEmptyString(member.targetName, `${memberPath}.targetName`, collector);
     validateDotnetTargetIdentity(member.targetId, member.metadataName, `${memberPath}.targetId`, `${memberPath}.metadataName`, collector);
+    if (member.kind === "constructor") {
+      requireSupportedDiscriminant(member.accessibility, `${memberPath}.accessibility`, collector,
+        ".NET constructor accessibility", supportedDotnetAccessibilities);
+    } else if (member.accessibility !== undefined) {
+      collector.add(`${memberPath}.accessibility`, "Only constructors carry constructor accessibility.", member.accessibility);
+    }
     if (member.sourceReceiverParameterIndex !== undefined && (!Number.isSafeInteger(member.sourceReceiverParameterIndex) || member.sourceReceiverParameterIndex < 0)) {
       collector.add(`${memberPath}.sourceReceiverParameterIndex`, "Source receiver parameter index must be a non-negative safe integer.", member.sourceReceiverParameterIndex);
     }

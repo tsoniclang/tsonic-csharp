@@ -141,6 +141,7 @@ export function providerConstructor(options = {}) {
     sourceName: options.sourceName ?? "FixtureType",
     targetName: options.targetName ?? ".ctor",
     kind: "constructor",
+    csharpConstructorAccessibility: options.accessibility ?? "public",
     static: false,
     parameters: options.parameters ?? [],
     declaringType,

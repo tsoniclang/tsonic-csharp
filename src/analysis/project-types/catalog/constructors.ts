@@ -174,6 +174,7 @@ function createProviderForwardingConstructor(
       relation.kind === "signature" &&
       relation.targetBinding.id === baseType.id &&
       relation.targetMember.kind === "constructor" &&
+      relation.targetMember.csharpConstructorAccessibility !== undefined &&
       relation.receiver.kind === "none" &&
       relation.methodTypeParameters.length === 0 &&
       (relation.targetMember.typeParameters?.length ?? 0) === 0,

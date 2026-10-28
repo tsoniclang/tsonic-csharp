@@ -48,6 +48,7 @@ for (const surface of ["native", "js"]) {
         constructors.length === selected.length && constructors.every((node, index) => node === selected[index]), true,
       "every exact selected native constructor survives in checker order");
       assert.equal(Object.isFrozen(constructors), true, "the selected native constructor set is immutable");
+      const accessibilities = [];
       for (const constructor of constructors) {
         const fact = source.sourceFacts.getFact(constructor, providerVirtualDeclarationFactKey);
         const resolved = request.providers.resolveSignature(fact);
@@ -57,7 +58,13 @@ for (const surface of ["native", "js"]) {
           resolved.relations[0].receiver.kind === "none" &&
           resolved.relations[0].targetBinding.id === nativeType.relations[0].targetBinding.id, true,
         "each native signature retains the exact owning physical constructor relation");
+        accessibilities.push(resolved.relations[0].targetMember.csharpConstructorAccessibility);
       }
+      assert.equal(accessibilities.filter(accessibility => accessibility === "public").length, 3,
+        "the three public native Exception constructors remain available");
+      assert.equal(accessibilities.filter(accessibility => accessibility === "protected").length, 1,
+        "the inheritable protected native Exception constructor is also retained");
+      assert.equal(accessibilities.length, 4, "no other Exception constructor is exposed");
 
       const foreignClass = source.ast.statements(file).find(node => node !== undefined &&
         source.ast.is.IsClassDeclaration(node) && source.ast.text(source.ast.name(node)) === "ForeignDerived");
@@ -163,5 +170,39 @@ for (const surface of ["native", "js"]) {
     });
     assert.equal(observed.compiled.sourceDiagnosticsText, "", "the exact native source is accepted by the checker");
     assert.equal(observed.value > 0, true, "the native provider constructor control ran");
+  });
+
+  test(`${surface} native Attribute publishes its protected inheritable constructor`, () => {
+    const observed = withCsharpSessionRequest({ surface, sourceText: `
+      import { Attribute } from "@tsonic/dotnet/System.js";
+      export class NativeAttribute extends Attribute { constructor() { super(); } }
+    ` }, request => {
+      const source = request.input.source;
+      const file = source.sourceFiles.find(candidate => source.ast.getFileName(candidate) === "/project/index.ts");
+      assert.equal(file !== undefined, true, "the checked project file exists");
+      const derived = source.ast.statements(file).find(node => node !== undefined &&
+        source.ast.is.IsClassDeclaration(node) && source.ast.text(source.ast.name(node)) === "NativeAttribute");
+      assert.equal(derived !== undefined, true, "the native Attribute subclass is checked");
+      const heritage = source.navigation.declaredHeritage(derived);
+      assert.equal(heritage.kind, "resolved", "the native Attribute base is selected");
+      const edge = heritage.edges.find(candidate => candidate.kind === "extends");
+      assert.equal(edge !== undefined, true, "the checked extends edge exists");
+      const expression = source.ast.as.AsExpressionWithTypeArguments(edge.heritage)?.Expression;
+      const binding = expression === undefined ? undefined :
+        createSourceCallableValueQuery(source)(expression)?.selectedDeclaration;
+      assert.equal(binding !== undefined && source.ast.is.IsClassDeclaration(binding), true,
+        "the base resolves to its provider-owned class");
+      const semantics = source.semantics.forNode(expression);
+      const constructors = createCsharpSourceProfileStorageEffects(source, request.providers)
+        .nativeConstructorsFor(binding, semantics);
+      assert.equal(constructors?.length, 1, "the protected native constructor is retained exactly once");
+      const fact = source.sourceFacts.getFact(constructors[0], providerVirtualDeclarationFactKey);
+      const resolved = request.providers.resolveSignature(fact);
+      assert.equal(resolved.kind === "resolved" && resolved.relations.length === 1 &&
+        resolved.relations[0].kind === "signature" &&
+        resolved.relations[0].targetMember.csharpConstructorAccessibility === "protected", true,
+      "the selected constructor retains its actual protected physical access");
+    });
+    assert.equal(observed.compiled.sourceDiagnosticsText, "", "the derived super call is checked");
   });
 }

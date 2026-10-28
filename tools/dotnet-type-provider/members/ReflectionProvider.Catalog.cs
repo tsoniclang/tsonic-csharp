@@ -105,7 +105,7 @@ sealed partial class ReflectionProvider
 
     IEnumerable<object> Constructors(Type type)
     {
-        foreach (var constructor in type.GetConstructors(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly).OrderBy(ConstructorId, StringComparer.Ordinal))
+        foreach (var constructor in InheritableConstructors(type).OrderBy(ConstructorId, StringComparer.Ordinal))
         {
             var signature = ConstructorSignature(type, constructor);
             if (signature is null)
@@ -119,6 +119,7 @@ sealed partial class ReflectionProvider
                 targetName = ".ctor",
                 targetId = ConstructorId(constructor),
                 metadataName = ConstructorMetadataName(constructor),
+                accessibility = InheritedAccessibility(constructor),
                 signatures = new[] { signature },
             };
         }
@@ -126,7 +127,7 @@ sealed partial class ReflectionProvider
 
     IEnumerable<object> UnsupportedConstructors(Type type)
     {
-        foreach (var constructor in type.GetConstructors(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly).OrderBy(ConstructorId, StringComparer.Ordinal))
+        foreach (var constructor in InheritableConstructors(type).OrderBy(ConstructorId, StringComparer.Ordinal))
         {
             var reason = UnsupportedConstructorReason(constructor);
             if (reason is null)
@@ -142,6 +143,12 @@ sealed partial class ReflectionProvider
                 false,
                 reason);
         }
+    }
+
+    static IEnumerable<ConstructorInfo> InheritableConstructors(Type type)
+    {
+        return type.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+            .Where(constructor => InheritedAccessibility(constructor) is not null);
     }
 
     string? UnsupportedConstructorReason(ConstructorInfo constructor)

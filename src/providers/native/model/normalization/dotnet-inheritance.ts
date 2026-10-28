@@ -3,7 +3,7 @@ import { validateDotnetTypeRef } from "./dotnet-types.js";
 import { requireNonEmptyString, requireSupportedDiscriminant, requireUnique, supportedPassingModes, type ContractCollector } from "./support.js";
 
 const memberKinds = new Set(["method", "property", "field", "event", "type"]);
-const accessibilities = new Set(["public", "protected", "protected-internal"]);
+export const supportedDotnetAccessibilities = new Set(["public", "protected", "protected-internal"]);
 const dispatchKinds = new Set(["method", "get", "set", "add", "remove"]);
 const returnPassingModes = new Set(["by-value", "byref-readwrite", "byref-readonly"]);
 
@@ -60,7 +60,7 @@ export function validateDotnetInheritance(
     }
     requireNonEmptyString(member.targetName, `${memberPath}.targetName`, collector);
     requireSupportedDiscriminant(member.kind, `${memberPath}.kind`, collector, "Native inheritable member kind", memberKinds);
-    requireSupportedDiscriminant(member.accessibility, `${memberPath}.accessibility`, collector, "Native derived-assembly accessibility", accessibilities);
+    requireSupportedDiscriminant(member.accessibility, `${memberPath}.accessibility`, collector, "Native derived-assembly accessibility", supportedDotnetAccessibilities);
     if (typeof member.static !== "boolean") {
       collector.add(`${memberPath}.static`, "An inheritable member requires its exact native staticness.");
     }
@@ -127,7 +127,7 @@ function validateDispatchSlots(member: DotnetInheritedMemberDeclaration, path: s
     for (const flag of ["virtual", "abstract", "final"] as const) {
       if (typeof slot[flag] !== "boolean") collector.add(`${slotPath}.${flag}`, "A native dispatch slot requires its exact method flags.");
     }
-    requireSupportedDiscriminant(slot.accessibility, `${slotPath}.accessibility`, collector, "Native dispatch accessibility", accessibilities);
+    requireSupportedDiscriminant(slot.accessibility, `${slotPath}.accessibility`, collector, "Native dispatch accessibility", supportedDotnetAccessibilities);
     if (!Array.isArray(slot.genericParameterIds)) {
       collector.add(`${slotPath}.genericParameterIds`, "A native dispatch slot requires ordered generic parameter identities.");
     } else {

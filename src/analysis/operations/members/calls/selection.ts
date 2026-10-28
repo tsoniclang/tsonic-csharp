@@ -83,6 +83,18 @@ export function selectCsharpProviderCall(
   if (selected.kind !== "resolved") {
     return selected;
   }
+  const member = selected.call.targetMember;
+  const declaration = source.sourceCallee.selectedDeclaration;
+  if (member.kind === "constructor" && member.csharpInvocation === undefined) {
+    if (member.csharpConstructorAccessibility === undefined) {
+      return { kind: "missing", reason: "The selected native constructor has no exact accessibility evidence." };
+    }
+    if (host.ast.is.IsNewExpression(call) &&
+      (declaration === undefined || !host.navigation.isProjectDeclaration(declaration)) &&
+      (member.csharpConstructorAccessibility !== "public" || selected.call.relation.targetBinding.csharpAbstract === true)) {
+      return { kind: "missing", reason: "The selected native constructor is not accessible for direct construction." };
+    }
+  }
   const forwarding = selectCsharpInheritedConstructorTarget(host, source, selected.call.targetMember);
   if (forwarding.kind === "missing") return forwarding;
   return {

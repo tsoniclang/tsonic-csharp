@@ -278,6 +278,37 @@ test(".NET reflection provider preserves exact constructor facts including point
   assert.ok(targetPointerConstructor);
   assert.deepEqual(targetPointerConstructor.parameters[0].type, pointerConstructor.parameters[0].type);
 });
+test(".NET constructor accessibility survives physical, source and target projections", () => {
+  const reference = buildConstructorFixture();
+  const provider = createDotnetReflectionTypeDataProvider({ references: [reference] });
+  const moduleSpecifier = "@tsonic/dotnet/ProviderConstructorFixtures.js";
+  const module = getCompleteDotnetModule(provider, moduleSpecifier, {});
+  assert.equal("exports" in module, true);
+  const declaration = module.exports.find(candidate => candidate.sourceName === "MixedAccessibilityTarget");
+  assert.ok(declaration);
+  const expected = [
+    ["ProviderConstructorFixtures.MixedAccessibilityTarget..ctor(System.Boolean)", "protected-internal"],
+    ["ProviderConstructorFixtures.MixedAccessibilityTarget..ctor(System.Int32)", "public"],
+    ["ProviderConstructorFixtures.MixedAccessibilityTarget..ctor(System.String)", "protected"],
+  ];
+  const raw = declaration.members.filter(member => member.kind === "constructor")
+    .map(member => [stripAssemblyQualifiers(member.targetId), member.accessibility]).sort();
+  assert.deepEqual(raw, expected, "only native-accessible derived-assembly constructors are retained");
+
+  const model = dotnetModuleToProviderDeclarationModel(module);
+  const source = model.exports.find(candidate => candidate.name === "MixedAccessibilityTarget");
+  assert.ok(source);
+  const sourceConstructors = source.members.filter(member => member.kind === "constructor")
+    .flatMap(member => member.signatures.map(signature => [stripAssemblyQualifiers(signature.id), signature.accessibility])).sort();
+  assert.deepEqual(sourceConstructors, expected, "each source signature keeps its own native access");
+
+  const binding = getDotnetBinding(provider, moduleSpecifier, "ProviderConstructorFixtures.MixedAccessibilityTarget");
+  const targetConstructors = binding.members.filter(member => member.kind === "constructor")
+    .map(member => [stripAssemblyQualifiers(member.id), member.csharpConstructorAccessibility]).sort();
+  assert.deepEqual(targetConstructors, expected, "each target relation keeps the same native access");
+  const abstractBinding = getDotnetBinding(provider, moduleSpecifier, "ProviderConstructorFixtures.AbstractPublicTarget");
+  assert.equal(abstractBinding.csharpAbstract, true, "public constructors do not make an abstract class constructible");
+});
 test(".NET reflection provider rejects unsupported target frameworks instead of drifting", () => {
   assert.throws(
     () => createDotnetReflectionTypeDataProvider({ targetFramework: "net9.0" }),

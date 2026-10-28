@@ -152,7 +152,7 @@ sealed partial class ReflectionProvider
         {
             yield break;
         }
-        foreach (var constructor in type.GetConstructors(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
+        foreach (var constructor in InheritableConstructors(type))
         {
             foreach (var parameter in constructor.GetParameters())
             {

@@ -187,6 +187,7 @@ export interface DotnetMemberDeclaration {
   readonly targetName: string;
   readonly targetId: string;
   readonly metadataName: string;
+  readonly accessibility?: "public" | "protected" | "protected-internal";
   readonly static?: boolean;
   readonly sourceStatic?: boolean;
   readonly sourceProjection?: "extension-method" | "operator-adapter";

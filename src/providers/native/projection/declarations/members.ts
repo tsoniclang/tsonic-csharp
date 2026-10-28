@@ -104,6 +104,8 @@ export function dotnetMemberToProviderMember(
   const sourceParameterOptions = {
     sourceReceiverParameterIndex: member.sourceReceiverParameterIndex,
     parentTypeParameterNames: declaringType.typeParameters?.map((parameter) => parameter.name) ?? [],
+    ...(member.kind === "constructor" && member.accessibility !== undefined
+      ? { constructorAccessibility: member.accessibility } : {}),
   };
   const providerSignatureIds = dotnetProviderSignatureIdsForMember(
     member,
