@@ -84,7 +84,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const statementErasure = Object.freeze({ attributeApplications: sourceAttributeApplications, safetyApplications });
   const sourceFiles = Object.freeze([...source.navigation.sourceFiles]);
   const literalValues = analyzeSourceLiteralValues(source.ast, sourceFiles);
-  const sourceStorage = createSourceStorageQuery(source, sourceFiles, undefined, createCsharpSourceProfileStorageEffects(source));
+  const sourceStorage = createSourceStorageQuery(source, sourceFiles, undefined, createCsharpSourceProfileStorageEffects(source, providers));
   const sourceStorageFailure = sourceStorage.failureReason();
   if (sourceStorageFailure !== undefined) return rejectedTargetStage([{
     code: "CSHARP_SOURCE_STORAGE_NOT_PROVEN", category: "error", source: "tsonic-csharp", message: sourceStorageFailure,
