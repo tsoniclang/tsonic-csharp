@@ -1,16 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { checkedSource, requiredNode } from "../../../../tsonic/test/fixtures/source-navigation.mjs";
+import { requiredNode } from "../../../../tsonic/test/fixtures/source-navigation.mjs";
 import { analyzeCsharpObjectLiterals } from "../../../dist/analysis/objects/object-literals.js";
 import { createStructuralObjectShapeTarget } from "../../../dist/analysis/objects/shapes/construction.js";
 import { csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpNativeUseSite } from "../../../dist/target-model/records/native/native-demand.js";
 
-test("object spread admission rejects an actually missing finalized member carrier", async () => {
-  const checked = await checkedSource("object-spread-missing-finalized-carrier", { "src/index.ts":
-    "export function shrink(input: { value: number; label: string }): { value: number } { return { ...input }; }" });
-  assert.equal(checked.diagnostics.length, 0, "the original spread source is valid TypeScript");
+test("object spread admission rejects an actually missing finalized member carrier", () => {
+  const checked = createCompilerSessionFromFiles({ currentDirectory: "/project", files: { "/project/src/index.ts":
+    "export function shrink(input: { value: number; label: string }): { value: number } { return { ...input }; }" },
+    compilerOptions: { strict: true, target: "es2022", module: "esnext" } }).checkSource();
+  assert.equal(checked.diagnostics.length, 0,
+    `the original spread source is valid TypeScript: ${formatDiagnostics(checked.diagnostics).slice(0, 2048)}`);
   const source = createTargetSourceProgram(checked);
   const file = source.sourceFiles.find(candidate => source.ast.getFileName(candidate).endsWith("/src/index.ts"));
   assert.equal(file !== undefined, true, "exact checked source file");

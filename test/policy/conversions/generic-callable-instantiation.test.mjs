@@ -81,4 +81,23 @@ export function run(): boolean {
       "native generic callbacks retain their exact physical carrier without erased transport");
     executeCsharpConstruction(compiled, `generic-callable-instantiation-${surface}`);
   });
+  test(`closed native bindings retain one captured generic method across distinct callbacks on ${surface}`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+import type { int64 } from "@tsonic/core/types.js";
+function apply<Value>(callback: (value: Value) => Value, value: Value): Value { return callback(value); }
+function identity<Value>(value: Value): Value { return value; }
+export function run(): boolean {
+  let calls = 0;
+  function captured<Value>(value: Value): Value { calls++; return value; }
+  const wide: int64 = 9007199254740993n;
+  const first: int64 = apply<int64>(captured, wide);
+  const second: string = apply<string>(captured, "retained");
+  return first === wide && second === "retained" && calls === 2 && apply<int64>(identity, wide) === wide;
+}` });
+    assertCsharpCompilationSucceeded(compiled);
+    const output = [...compiled.artifacts.values()].join("\n");
+    assert.equal(/DynamicInvoke|TsValue|Convert\.ToDouble/u.test(output), false,
+      "each closed binding targets the original native generic method and shared capture, not a polymorphic value wrapper");
+    executeCsharpConstruction(compiled, `captured-generic-native-bindings-${surface}`);
+  });
 }

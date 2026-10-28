@@ -74,7 +74,8 @@ export function run(): boolean {
     const source = createTargetSourceProgram(compiled.source);
     assert.equal(compiled.result.diagnostics.length === 0, true, JSON.stringify(compiled.result.diagnostics.map(issue => ({
       code: issue.code, message: issue.message,
-      expression: issue.sourceNode === undefined ? undefined : source.ast.text(issue.sourceNode).slice(0, 256),
+      node: issue.sourceNode === undefined ? undefined : { kind: source.ast.kindName(issue.sourceNode),
+        start: source.ast.pos(issue.sourceNode), end: source.ast.end(issue.sourceNode) },
       span: issue.sourceSpan,
     }))));
     assertCsharpCompilationSucceeded(compiled);

@@ -28,6 +28,7 @@ import type { CsharpExpectedTypeClassifications } from "../../../target-model/re
 import { getCsharpExpressionTreeDelegateType } from "../../../target-model/types/carriers/delegates.js";
 import { HasSyntacticModifier, ModifierFlagsAsync } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import type { CsharpPreparedConversionClassifications } from "../../conversions/model.js";
 
 export function analyzeCsharpCaptureStorage(
   source: TargetSourceProgram,
@@ -38,7 +39,8 @@ export function analyzeCsharpCaptureStorage(
   names: CsharpSourceNameResolver,
   declarations: CsharpDeclarationClassifications,
   operations: CsharpTargetOperationClassifications,
-  expectedTypes: Pick<CsharpExpectedTypeClassifications, "callableTarget">,
+  expectedTypes: Pick<CsharpExpectedTypeClassifications, "callableTarget" | "expectedType">,
+  conversions: Pick<CsharpPreparedConversionClassifications, "expressionConversion">,
 ): CsharpCaptureStorage {
   const environment = createCsharpTypeParameterEnvironment(source.ast, declaration => evidence.typeParameterConstraints.get(declaration));
   const groups = new Map<Node, Map<Node, TargetTypeRef>>();
@@ -121,7 +123,8 @@ export function analyzeCsharpCaptureStorage(
   const byClosure = new Map<Node, import("../../../target-model/records/callables/capture-storage.js").CsharpCaptureClosure>();
   const retainClosure = (frame: CsharpCaptureFrame, method: CsharpFrameClosure): void => {
     byClosure.set(method.declaration, Object.freeze({ frame, method,
-      reference: frame.ownership === "value" || getCsharpMethodValue(method.type) !== undefined ? "frame"
+      reference: frame.ownership === "value" || getCsharpMethodValue(method.type) !== undefined &&
+        !source.ast.is.IsFunctionDeclaration(method.declaration) ? "frame"
         : getCsharpExpressionTreeDelegateType(method.type) === undefined ? "method" : "quotation" }));
   };
   const byShape = new Map<string, CsharpCaptureFrame>();
@@ -253,9 +256,23 @@ export function analyzeCsharpCaptureStorage(
     }
     if (source.ast.is.IsFunctionDeclaration(node) && source.ast.body(node) !== undefined &&
       !evidence.compileTimeMetadata.get(node)) {
+      const nativeBindings = new Set<Node>();
+      if (source.ast.typeParameters(node).length > 0) {
+        for (const use of source.navigation.declarationUseSummary(node).uses) {
+          if (use.kind !== "first-class" || evidence.compileTimeMetadata.get(use.reference)) continue;
+          const type = evidence.nodeTargetType.get(use.reference);
+          const targets = expectedTypes.expectedType.get(use.reference);
+          if (type === undefined || targets.length === 0) continue;
+          if (targets.every(target => {
+            const selected = conversions.expressionConversion.get(use.reference, type, target, "implicit");
+            return selected?.kind === "delegate-adapter" && selected.instantiation !== undefined;
+          })) nativeBindings.add(use.reference);
+        }
+      }
       const quantifiedUse = source.ast.typeParameters(node).length === 0 ? undefined
         : source.navigation.declarationUseSummary(node).uses.find(use => use.kind === "first-class" &&
           !evidence.compileTimeMetadata.get(use.reference) &&
+          !nativeBindings.has(use.reference) &&
           (getCsharpMethodValue(evidence.nodeTargetType.get(use.reference))?.typeParameters.length ?? 0) > 0);
       if (quantifiedUse !== undefined) {
         issues.push({ node: quantifiedUse.reference, code: "CSHARP_QUANTIFIED_NAMED_CALLABLE_NOT_SUPPORTED",
@@ -266,7 +283,7 @@ export function analyzeCsharpCaptureStorage(
         return;
       }
       const creation = sourceLexicalFunctionValueCreation(node, source.ast, source.navigation,
-        use => !evidence.compileTimeMetadata.get(use.reference));
+        use => !evidence.compileTimeMetadata.get(use.reference) && !nativeBindings.has(use.reference));
       valueCreations.set(node, creation);
       if (creation.kind === "unresolved") issues.push({ node, code: "CSHARP_LEXICAL_VALUE_ACTIVATION_NOT_CLOSED", message: creation.reason });
       if (creation.kind === "resolved") {

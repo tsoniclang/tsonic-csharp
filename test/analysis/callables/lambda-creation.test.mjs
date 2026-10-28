@@ -53,7 +53,9 @@ function fixture(body, quotation = false) {
   const names = { resolve: () => ({ kind: "resolved", name: "selected" }), temporaryName: name => name };
   const target = quotation ? { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Fixture::Quotation", csharpExpressionTreeDelegateType: callable } : undefined;
   const selected = analyzeCsharpCaptureStorage(source, { knownShapes: () => [] }, storage, evidence,
-    [], names, { runtimeDefault: Object.freeze({ get: () => undefined }) }, { selectedCall: Object.freeze({ get: node => operations.get(node) }) }, { callableTarget: Object.freeze({ get: () => target }) });
+    [], names, { runtimeDefault: Object.freeze({ get: () => undefined }) }, { selectedCall: Object.freeze({ get: node => operations.get(node) }) },
+    { callableTarget: Object.freeze({ get: () => target }), expectedType: Object.freeze({ get: () => [] }) },
+    { expressionConversion: Object.freeze({ get: () => undefined }) });
   assert.equal(selected.issues.length === 0, true, "closed capture storage");
   assert.equal(lambdas.length, 1, "one exact authored callable");
   return { selected, lambda: lambdas[0], operations, source };

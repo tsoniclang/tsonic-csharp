@@ -203,7 +203,7 @@ export function analyzeCsharpRepresentationIteration(
   const classFactories = analyzeCsharpClassFactories(source, typeSystem.projectTypes.catalog, sourceEvidence,
     storagePreparation.captures, names, requiredRecords);
   const captureStorage = analyzeCsharpCaptureStorage(source, objectShapes, storagePreparation.captures, sourceEvidence,
-    classFactories.factories.flatMap(factory => factory.captures), names, declarations, operations, expectedTypes);
+    classFactories.factories.flatMap(factory => factory.captures), names, declarations, operations, expectedTypes, preparedConversions);
   const callableCreations = analyzeCsharpCallableCreations({
     ast: source.ast, nodes: sourceStorage.nodes, captures: captureStorage, contracts: callables,
     expectedTypes, storage: storageRepresentations, evidence: sourceEvidence, conversions: preparedConversions,
