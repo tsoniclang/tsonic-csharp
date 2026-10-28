@@ -7,7 +7,8 @@ import { getCsharpNullableElementTargetType } from "../../../dist/target-model/t
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 
 for (const surface of ["native", "js"]) {
-  test(`array-rest named-self entry retains the authored omittable prefix on ${surface}`, { timeout: 300_000 }, () => {
+  for (const transparent of [false, true]) test(transparent ? `transparent array-rest callees retain the same authored self input on ${surface}`
+    : `array-rest named-self entry retains the authored omittable prefix on ${surface}`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
 let hits = 0;
 function fallback(): number { hits += 1; return 7; }
@@ -19,7 +20,9 @@ export function run(): boolean {
     return prefix === 0 ? inner() : prefix + first;
   };
   const alias = f;
-  return f(0, 1) === 7 && hits === 1 && alias(2, 3) === 5 && hits === 1;
+  return ${transparent
+    ? "(f)(0, 1) === 7 && hits === 1 && (alias)(2, 3) === 5 && hits === 1 && (f satisfies typeof f)(2, 3) === 5 && f!(2, 3) === 5"
+    : "f(0, 1) === 7 && hits === 1 && alias(2, 3) === 5 && hits === 1"};
 }` });
     assertCsharpCompilationSucceeded(compiled);
     const program = compiled.result.program;
@@ -48,7 +51,7 @@ export function run(): boolean {
       "external present and internal omitted inputs use the same original body");
     assert.equal(/DynamicInvoke|System\.Reflection|__tsonic_callable_adapter/u.test(output), false,
       "omission and native rest inputs introduce no forwarding callable or reflective repair");
-    executeCsharpConstruction(compiled, `contextual-array-rest-self-default-${surface}`);
+    executeCsharpConstruction(compiled, `contextual-array-rest-self-default-${surface}-${transparent ? "transparent" : "direct"}`);
   });
 
   test(`a native array-rest delegate binds named scalar formals in its original body on ${surface}`, { timeout: 300_000 }, () => {

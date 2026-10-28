@@ -1,5 +1,5 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { SourceStorageQueries, SourceStorageSubject, SourceStorageProjection } from "@tsonic/target-api/analysis";
+import type { SourceStorageQueries, SourceStorageSubject } from "@tsonic/target-api/analysis";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpTypePolicy } from "../source-evidence/types/resolution/model.js";
 import type { CsharpObjectShapePolicy } from "../../target-model/records/objects/object-shapes.js";
@@ -10,14 +10,11 @@ import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { getCsharpCollectionElementTargetType } from "../../target-model/types/carriers/collections.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/object-shape-members.js";
 import { createCsharpMetadataBudget } from "../../target-model/metadata/immutable.js";
-import type { CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
-import { projectCsharpProviderIndexedStorageCarrier } from "../source-evidence/types/resolution/indexed-access.js";
 
 export interface CsharpValueDomainAnalysisHost {
   readonly sourceStorage: SourceStorageQueries;
   readonly objectShapes?: Pick<CsharpObjectShapePolicy, "resolveTarget">;
   readonly types: Pick<CsharpTypePolicy, "resolveNode">;
-  readonly providers: Pick<CsharpProviderRelationResolver, "resolveSignature" | "resolveMember">;
   semantics(sourceFile: SourceFile): SourceFileSemantics;
 }
 
@@ -77,9 +74,7 @@ export function analyzeCsharpValueDomainCarriers(
       let selectedCarrier = originCarriers.get(origin.subject);
       if (!originCarriers.has(origin.subject)) {
         selectedCarrier = projectCsharpNativeSourceStorageCarrier(host.types.resolveNode(origin.subject.node, origin.sourceFile)?.type,
-          origin.subject, host.objectShapes, amount => budget.reserve(amount),
-          (component, owner) => projectCsharpProviderIndexedStorageCarrier(component, owner, host.providers,
-            storage.source.sourceFacts, host.semantics(origin.sourceFile)));
+          origin.subject, host.objectShapes, amount => budget.reserve(amount));
         originCarriers.set(origin.subject, selectedCarrier);
       }
       if (selectedCarrier === undefined || carrier !== undefined && !targetTypeRefEquals(carrier, selectedCarrier)) return undefined;
@@ -92,13 +87,11 @@ export function analyzeCsharpValueDomainCarriers(
 
 export function projectCsharpNativeSourceStorageCarrier(carrier: TargetTypeRef | undefined, subject: SourceStorageSubject,
   shapes: Pick<CsharpObjectShapePolicy, "resolveTarget"> | undefined, reserve: (amount: number) => void,
-  projectIndex: (component: Extract<SourceStorageProjection, { readonly kind: "indexed-value" }>, owner: TargetTypeRef) => TargetTypeRef | undefined,
 ): TargetTypeRef | undefined {
   for (const component of subject.projection) {
     reserve(1);
     if (component.kind === "array-element") carrier = getCsharpCollectionElementTargetType(carrier);
     else if (component.kind === "tuple-element") carrier = carrier?.kind === "tuple" ? carrier.elements[component.index] : undefined;
-    else if (component.kind === "indexed-value") carrier = carrier === undefined ? undefined : projectIndex(component, carrier);
     else {
       const shape = carrier === undefined ? undefined : shapes?.resolveTarget(carrier);
       if (shape === undefined) return undefined;

@@ -1,6 +1,5 @@
 import { providerVirtualDeclarationFactKey, type Node, type ExtensionFactSubject, type TypeIndexedAccessMember, type ReadonlySourceFactResolver } from "@tsonic/tsts";
 import { sourceIndexedTypeEvidence, type SourceFileSemantics } from "@tsonic/target-api/source";
-import type { SourceStorageProjection } from "@tsonic/target-api/analysis";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
@@ -20,20 +19,6 @@ export function resolveCsharpProviderIndexedAccess(
   if (evidence === undefined) return undefined;
   const owner = scope.resolveNodeWithState(evidence.owner, queries.sourceFile, nextState(state));
   return projectCsharpProviderIndexedMembers(owner, evidence.members, scope.host.providers, scope.host.sourceFacts);
-}
-
-export function projectCsharpProviderIndexedStorageCarrier(
-  component: Extract<SourceStorageProjection, { readonly kind: "indexed-value" }>,
-  owner: TargetTypeRef,
-  providers: Pick<CsharpProviderRelationResolver, "resolveSignature" | "resolveMember">,
-  facts: ReadonlySourceFactResolver | undefined,
-  queries: SourceFileSemantics,
-): TargetTypeRef | undefined {
-  const index = component.index;
-  const subjects = [...new Set([index.declaration, ...index.components,
-    ...queries.facts.selectedSubjects(index.symbol, index.declaration)]
-    .filter((subject): subject is ExtensionFactSubject => subject !== undefined))];
-  return projectCsharpProviderIndexedMembers(owner, [{ selection: { kind: "index", index }, subjects }], providers, facts);
 }
 
 function projectCsharpProviderIndexedMembers(

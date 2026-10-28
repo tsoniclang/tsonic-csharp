@@ -9,7 +9,7 @@ import { analyzeCsharpClassFactories } from "../project-types/class-factories.js
 import { analyzeCsharpClassInitialization } from "../project-types/class-initialization.js";
 
 import type { CsharpRequiredRecord } from "./records/objects/required-records.js";
-import { sourceDeclarationHasOnlyTypeUses, sourceDeclarationIsModuleScoped } from "@tsonic/target-api/source";
+import { sourceDeclarationHasOnlyTypeUses, sourceDeclarationIsModuleScoped, sourceCallableValueExpression } from "@tsonic/target-api/source";
 import { analyzeCsharpExactLiteralSelections } from "../conversions/literal-plans.js";
 
 import { analyzeCsharpTypeProjections, csharpTypeProjectionIndexesEqual } from "../declarations/type-projections.js";
@@ -95,7 +95,9 @@ export function analyzeCsharpRepresentationIteration(
       return callable === undefined ? undefined : csharpCallableValueType(callable);
     },
     closedInputContract(node) {
-      const declaration = source.navigation.sourceReferenceFor(node)?.declaration ?? node;
+      const value = sourceCallableValueExpression(source.ast, node, { typeAssertions: "transparent" });
+      if (value === undefined) return undefined;
+      const declaration = source.navigation.sourceReferenceFor(value)?.declaration ?? value;
       return previous?.callables.closedInputContract(declaration);
     },
     sourceCallable(source, sourceFile, selection) {

@@ -115,7 +115,6 @@ import { csharpJsEventLoopBinaryExecutionDriver } from "../../target-model/proje
 import { analyzeCsharpFlowReadProjections } from "../conversions/flow-read-projections.js";
 
 import { analyzeCsharpNativeArtifactDemand } from "../objects/native-demand.js";
-import { projectCsharpProviderIndexedStorageCarrier } from "../source-evidence/types/resolution/indexed-access.js";
 import { selectCsharpObjectShapePublication } from "../names/object-shapes.js";
 import { publishCsharpNativeArtifactDemand } from "./records/native/native-demand.js";
 export function finalizeCsharpNativeEmission(
@@ -220,11 +219,6 @@ export function finalizeCsharpNativeEmission(
     ast: source.ast, sourceFiles, propertyNames: sourceSyntax.propertyNames,
     nativeDemand, participation: nativeParticipation.participation,
     sourceStorage,
-    projectIndexedCarrier: (component, owner) => {
-      const declaration = component.index.declaration ?? component.index.components.find(node => node !== undefined);
-      return declaration === undefined ? undefined : projectCsharpProviderIndexedStorageCarrier(component, owner,
-        analysis.policy.providers, source.sourceFacts, analysis.policy.semanticsFor(declaration));
-    },
     objectShapes: callableAdapters.objectShapes, projectTypes, typeDefinitions,
     valueReads: analysis.valueReads, operations: admittedOperations, storage: analysis.storage, parameterEntries: callableParameters.records.lambdaParameterEntry,
     callables: analysis.callables, captureStorage, callableAdapters, flowReads, declarations: analysis.declarations,
