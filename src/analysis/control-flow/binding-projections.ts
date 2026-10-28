@@ -139,7 +139,7 @@ function resolveBindingOwnerType(
   }
   if (host.ast.is.IsParameterDeclaration(owner)) {
     return host.typeResolver.resolveNode(
-      host.ast.as.AsParameterDeclaration(owner)?.Type,
+      owner,
       sourceFile,
       nextState(state),
     );
