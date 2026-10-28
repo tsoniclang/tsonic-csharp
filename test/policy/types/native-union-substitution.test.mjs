@@ -19,7 +19,7 @@ test("checked native Promise results join source payloads before selecting the T
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.targetDiagnostics.map(diagnostic => [diagnostic.code, diagnostic.message]), [[
     "CSHARP_UNSUPPORTED_AST",
-    "Declaration/provider identifier 'Promise' requires a selected target operation or type-position usage before C# emission.",
+    "The exact selected property is neither provider-owned, source-profile-owned, nor declared by this project.",
   ]], "the unsupported native continuation retains its actual declaration refusal, not an invented invariant Task<Union<double,double>> result");
   assert.equal(compiled.artifacts.size, 0, "unsupported native continuation calls publish no target artifacts");
 });

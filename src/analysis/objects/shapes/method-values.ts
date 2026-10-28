@@ -151,9 +151,14 @@ export function retainCsharpMethodValueContracts(
     const declaration = csharpObjectShapeMethodDeclaration(shape, member);
     const subject = declaration === undefined ? undefined : sourceStorage.memberSubjectFor(declaration);
     const writes = subject?.kind === "resolved" ? sourceStorage.memberWritesFor(subject.subject) : undefined;
-    const nativeMethod = csharpObjectMethodHasFixedNativeExposure(writes);
     const requiresProtocol = (member.typeParameters?.length ?? 0) > 0 || member.optional === true ||
       member.methodValueContract !== undefined;
+    const signatures = declaration !== undefined || requiresProtocol ? [] : member.sourceDeclarations?.filter(source =>
+      sourceStorage.source.ast.is.IsMethodSignatureDeclaration(source)) ?? [];
+    const nativeMethod = csharpObjectMethodHasFixedNativeExposure(writes) || signatures.length > 0 && signatures.every(signature => {
+      const selected = sourceStorage.memberSubjectFor(signature);
+      return selected.kind === "resolved" && csharpObjectMethodHasFixedNativeExposure(sourceStorage.memberWritesFor(selected.subject));
+    });
     const valueUses = !nativeInterface && !requiresProtocol && !nativeMethod && (member.sourceDeclarations?.length ?? 0) > 0
       ? selectMethodValueUses(sourceStorage) : undefined;
     const needsValue = member.methodValueStorage?.kind === "delegate" ||

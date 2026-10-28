@@ -53,3 +53,42 @@ export function run(): boolean { return invoke({ read(value: number) { return va
     executeCsharpConstruction(compiled, `method-storage-identity-${surface}`);
   });
 }
+
+test("a closed readonly method signature retains the same native invocation contract as its actual producers", () => {
+  const declaration = {};
+  const subject = { node: declaration, projection: [] };
+  const number = csharpSourcePrimitiveTargetType("float64");
+  const member = { sourceKey: { kind: "property", name: "run" }, sourceName: "run", targetName: "run",
+    memberKind: "method", type: csharpDelegateTargetType("System.Func", [number], number), sourceDeclarations: [declaration] };
+  const removed = { sourceKey: { kind: "property", name: "removed" }, sourceName: "removed", targetName: "removed",
+    memberKind: "property", type: number };
+  const environment = () => assert.fail("the closed monomorphic view needs no invented generic constraints");
+  const shape = { targetType: createStructuralObjectShapeTarget([removed, member], undefined, environment, true), members: [removed, member] };
+  for (const replacement of [false, true]) {
+    const storage = {
+      source: { ast: { is: { IsMethodDeclaration: () => false, IsMethodSignatureDeclaration: node => node === declaration,
+        IsBindingElement: () => false, IsSpreadAssignment: () => false } }, navigation: { declarationUseSummary: () => ({
+        firstClassUseCount: 1, exported: false, memberWritten: replacement,
+      }) } },
+      nodes: [declaration],
+      memberSubjectFor: node => {
+        assert.equal(node === declaration, true, "exposure belongs to the exact checked method signature");
+        return { kind: "resolved", subject };
+      },
+      memberWritesFor: selected => {
+        assert.equal(selected === subject, true, "the signature uses its genuine source storage proof");
+        return { kind: "complete", writes: replacement ? [{}] : [] };
+      },
+      originSubjectsFor: () => ({ kind: "resolved", subjects: [subject] }),
+    };
+    const selected = retainCsharpMethodValueContracts(shape, value => value, environment, storage);
+    const method = selected.members.find(value => value.sourceName === "run");
+    assert.equal(method.methodValueStorage === undefined, !replacement,
+      "first-class copying cannot manufacture a writable delegate slot for a proven readonly native method view");
+    assert.equal(method.methodValueContract !== undefined, !replacement,
+      "the checked readonly signature retains its exact existing native protocol; actual replacement retains delegate storage");
+    assert.equal(selected.methodImplementation, undefined, "a source signature never fabricates a native method body");
+    if (replacement) assert.equal(targetTypeRefEquals(method.methodValueStorage.type, member.type), true,
+      "a real writable method keeps its exact selected delegate representation");
+  }
+});

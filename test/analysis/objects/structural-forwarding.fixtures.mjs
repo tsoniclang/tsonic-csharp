@@ -43,7 +43,7 @@ const emptyNativeDispatch = Object.freeze({
 const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
 
 const noAuthoredNativeMethod = Object.freeze({
-  source: Object.freeze({ ast: Object.freeze({ is: Object.freeze({}) }) }),
+  source: Object.freeze({ ast: Object.freeze({ is: Object.freeze({ IsMethodSignatureDeclaration: () => false }) }) }),
   nodes: Object.freeze([]),
   memberSubjectFor: () => assert.fail("an abstract protocol has no authored native slot"),
   memberWritesFor: () => assert.fail("an abstract protocol has no authored native writes"),
