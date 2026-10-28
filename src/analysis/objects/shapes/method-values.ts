@@ -183,12 +183,7 @@ export function retainCsharpMethodValueContracts(
     const writes = subject?.kind === "resolved" ? sourceStorage.memberWritesFor(subject.subject) : undefined;
     const requiresProtocol = (member.typeParameters?.length ?? 0) > 0 || member.optional === true ||
       member.methodValueContract !== undefined;
-    const signatures = declaration !== undefined || requiresProtocol ? [] : member.sourceDeclarations?.filter(source =>
-      sourceStorage.source.ast.is.IsMethodSignatureDeclaration(source)) ?? [];
-    const nativeMethod = csharpObjectMethodHasFixedNativeExposure(writes) || signatures.length > 0 && signatures.every(signature => {
-      const selected = sourceStorage.memberSubjectFor(signature);
-      return selected.kind === "resolved" && csharpObjectMethodHasFixedNativeExposure(sourceStorage.memberWritesFor(selected.subject));
-    });
+    const nativeMethod = csharpObjectMethodHasFixedNativeExposure(writes);
     const valueUses = !nativeInterface && !requiresProtocol && !nativeMethod && (member.sourceDeclarations?.length ?? 0) > 0
       ? selectMethodValueUses(sourceStorage).retained : undefined;
     const needsValue = member.methodValueStorage?.kind === "delegate" ||
@@ -210,8 +205,7 @@ export function retainCsharpMethodValueContracts(
       if (!required && !nativeMethod && !ownProtocol) return declaration === undefined ? member : {
         ...member, methodValueStorage: Object.freeze({ kind: "delegate", type: member.type }) };
       contract = protocol;
-      if (!ownProtocol)
-        remember({ targetType: contract, members: [{ ...signature, methodValueContract: contract }] });
+      if (!ownProtocol) remember({ targetType: contract, members: [{ ...signature, methodValueContract: contract }] });
     }
     if (!targetTypeRefEquals(shape.targetType, contract) &&
       (member.optional !== true || csharpObjectShapeMethodDeclaration(shape, member) !== undefined)) {
