@@ -169,7 +169,7 @@ export function retainCsharpMethodValueContracts(
     }
     const selfContract = shape.members.length === 1 && shape.targetType.kind === "target-named" &&
       (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true;
-    if (!requiresProtocol && declaration === undefined && !selfContract) return member;
+    if (!requiresProtocol && !nativeMethod && declaration === undefined && !selfContract) return member;
     let contract = member.methodValueContract;
     if (contract === undefined) {
       const required = csharpObjectShapeMethodRequiresProtocol(member);

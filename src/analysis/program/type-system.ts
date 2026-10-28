@@ -60,7 +60,7 @@ function createCsharpTypeSystem(
     if (sourceFile === undefined || !host.hasSemantics(sourceFile)) return undefined;
     const sourceType = source?.sourceType ?? host.semantics(sourceFile).declarations.declaredType(declaration);
     if (sourceType === undefined) return undefined;
-    const resolution = resolveCsharpTypeParameterConstraints(declaration, parameter, sourceFile, {
+    return resolveCsharpTypeParameterConstraints(declaration, parameter, sourceFile, {
       ast: host.ast,
       types: { resolveNode: (node, file) => {
         let rejected: Extract<import("../../policy/model/type-resolution.js").CsharpNodeTypeResolution, { readonly kind: "rejected" }> | undefined;
@@ -71,10 +71,6 @@ function createCsharpTypeSystem(
         return rejected ?? (type === undefined ? undefined : Object.freeze({ kind: "resolved" as const, type }));
       } },
     });
-    if (resolution.kind !== "resolved") return resolution;
-    const published = host.providers.publishNativeIdentities(resolution);
-    return published.kind === "resolved" ? published.value : Object.freeze({ kind: "unsupported" as const,
-      reason: published.kind === "missing" ? published.reason : published.diagnostic.message });
   });
   const createTypeResolution = (
     representations: CsharpPlanningRepresentationQueries,
