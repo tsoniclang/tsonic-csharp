@@ -8,7 +8,7 @@ import type {
 } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import type { DestructuringPlannerState } from "../../bindings/index.js";
-import { csharpCaptureFrameExpression } from "../../bindings/capture-storage.js";
+import { csharpCapturedBindingExpression, csharpCaptureFrameExpression } from "../../bindings/capture-storage.js";
 import { getCsharpLocalBindingName } from "../../bindings/binding-state.js";
 import { csharpTypeFromObjectShapeFact } from "../../objects/planning.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
@@ -85,6 +85,8 @@ export function planClassFactoryExpression(
       return value === undefined ? undefined : csharpPlannedValue(slot.carrier, value);
     }
     if (slot.kind === "binding") {
+      const captured = csharpCapturedBindingExpression(slot.declaration!, input, state);
+      if (captured !== undefined) return csharpPlannedValue(slot.carrier, captured);
       const name = getCsharpLocalBindingName(slot.reference!, input, state);
       if (name === undefined) failCsharpPlannerInvariant("An admitted class environment requires its native captured binding name.", slot.declaration);
       return csharpPlannedValue(slot.carrier, { kind: "IdentifierName", name });

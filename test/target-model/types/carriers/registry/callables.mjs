@@ -1,6 +1,13 @@
 // Carrier registry rows (callables): test and audit data for this compiler only; product code never reads it.
 export const callablesCarrierRegistry = Object.freeze([
   {
+    id: "src/policy/conversions/generic-callables.ts#instantiateCsharpCallableContract",
+    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
+    declaration: { module: "src/policy/conversions/generic-callables.ts", symbol: "instantiateCsharpCallableContract" },
+    responsibility: "callables/callable-value",
+    frozen: false,
+  },
+  {
     id: "src/target-model/types/carriers/class-factories.ts#csharpClassFactoryTargetType",
     kinds: ["target-named"],
     declaration: { module: "src/target-model/types/carriers/class-factories.ts", symbol: "csharpClassFactoryTargetType" },

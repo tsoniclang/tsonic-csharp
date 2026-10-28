@@ -87,7 +87,9 @@ export function analyzeCsharpClassEmission(input: {
         if (frames.has(shared.frame.scope)) continue;
         frames.add(shared.frame.scope);
         slots.push(Object.freeze({ kind: "frame", name: capture.fieldName, carrier: shared.frame.shape.targetType, frame: shared.frame }));
-      } else slots.push(Object.freeze({ kind: input.storage.nativeBacking.get(capture.declaration) === undefined ? "expression" : "binding",
+      } else slots.push(Object.freeze({ kind: input.storage.nativeBacking.get(capture.declaration) !== undefined ||
+        input.ast.is.IsVariableDeclaration(capture.declaration) || input.ast.is.IsParameterDeclaration(capture.declaration) ||
+        input.ast.is.IsBindingElement(capture.declaration) ? "binding" : "expression",
         name: capture.fieldName, carrier: input.captures.physicalStorageType.get(capture.declaration, capture.type),
         declaration: capture.declaration, reference: capture.reference }));
     }
