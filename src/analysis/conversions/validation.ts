@@ -17,7 +17,7 @@ import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/ren
 import { csharpNativeRepresentationMatches } from "../../policy/conversions/native-representation.js";
 import type { CsharpNativeCompletion } from "../../target-model/records/native/native-demand.js";
 import { isCsharpVoidTargetType } from "../../target-model/types/identity.js";
-import { instantiateCsharpCallableContract } from "../../policy/conversions/generic-callables.js";
+import { instantiateCsharpCallableContract } from "../../policy/conversions/generic-callable.js";
 
 type CsharpUnionValidationPolicy = Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers"> & CsharpConversionShapeQueries;
 

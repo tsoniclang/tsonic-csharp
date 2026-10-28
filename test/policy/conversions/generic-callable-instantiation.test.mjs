@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { selectCsharpCallableInstantiation } from "../../../dist/policy/conversions/generic-callables.js";
+import { selectCsharpCallableInstantiation } from "../../../dist/policy/conversions/generic-callable.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
 import { admitCsharpConversionSelection } from "../../../dist/analysis/conversions/validation.js";
 import { createStructuralObjectShapeTarget } from "../../../dist/analysis/objects/shapes/construction.js";
