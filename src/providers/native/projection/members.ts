@@ -136,6 +136,8 @@ function dotnetSignatureToTargetMember(
     targetName: signature.targetName ?? member.targetName,
     kind: member.kind,
     declaringType,
+    ...(member.kind === "constructor" && member.accessibility !== undefined
+      ? { csharpConstructorAccessibility: member.accessibility } : {}),
     ...(member.static === true ? { static: true } : {}),
     ...(dotnetMemberIsReadonly(member) ? { readonly: true } : {}),
     ...(member.receiverPassing !== undefined ? { receiverPassing: member.receiverPassing } : {}),

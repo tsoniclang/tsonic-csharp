@@ -19,6 +19,7 @@ export function createCsharpSourceProfileStorageEffects(
     const relation = selection.relations[0]!;
     return relation.kind !== "signature" || relation.targetBinding.kind !== "class" ||
       relation.receiver.kind !== "none" || relation.targetMember.kind !== "constructor" ||
+      relation.targetMember.csharpConstructorAccessibility === undefined ||
       relation.targetMember.csharpInvocation !== undefined || relation.methodTypeParameters.length !== 0 ||
       (relation.targetMember.typeParameters?.length ?? 0) !== 0 ? undefined : relation;
   };

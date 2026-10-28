@@ -11,6 +11,7 @@ export function dotnetSignatureToProviderSignature(
   options: {
     readonly sourceReceiverParameterIndex?: number;
     readonly parentTypeParameterNames?: readonly string[];
+    readonly constructorAccessibility?: DotnetMemberDeclaration["accessibility"];
   } = {},
 ): ProviderSignatureDeclaration | undefined {
   const sourceParameters = signature.parameters.filter((_, index) =>
@@ -26,6 +27,7 @@ export function dotnetSignatureToProviderSignature(
   return normalizeProviderSignatureTypeParameterScope({
     id: signatureId,
     ...(signature.targetName !== undefined || memberTargetName !== undefined ? { name: signature.targetName ?? memberTargetName } : {}),
+    ...(options.constructorAccessibility === undefined ? {} : { accessibility: options.constructorAccessibility }),
     parameters: parameters as ProviderParameterDeclaration[],
     ...(returnType !== undefined ? { returnType } : {}),
     ...((signature.sourceTypeParameters ?? signature.typeParameters) !== undefined
@@ -44,6 +46,7 @@ export function dotnetProviderSignatureIdsForMember(
   options: {
     readonly sourceReceiverParameterIndex?: number;
     readonly parentTypeParameterNames?: readonly string[];
+    readonly constructorAccessibility?: DotnetMemberDeclaration["accessibility"];
   } = {},
 ): ReadonlyMap<string, string> {
   const shapeEntries = (member.signatures ?? [])
@@ -85,6 +88,7 @@ export function dotnetProviderSignatureSelectionKey(
   options: {
     readonly sourceReceiverParameterIndex?: number;
     readonly parentTypeParameterNames?: readonly string[];
+    readonly constructorAccessibility?: DotnetMemberDeclaration["accessibility"];
   } = {},
 ): string | undefined {
   const providerSignature = dotnetSignatureToProviderSignature(signature, memberTargetName, signature.sourceId, options);
@@ -164,6 +168,7 @@ function providerSignatureStructureMatches(
   right: ProviderSignatureDeclaration,
 ): boolean {
   if (
+    left.accessibility !== right.accessibility ||
     left.parameters.length !== right.parameters.length ||
     (left.typeParameters?.length ?? 0) !== (right.typeParameters?.length ?? 0) ||
     (left.returnType === undefined) !== (right.returnType === undefined)
@@ -429,6 +434,7 @@ function providerSignatureKey(
   includeReturnType: boolean = true,
 ): string {
   const callShape = {
+    accessibility: mode === "exact" ? signature.accessibility : undefined,
     typeParameters: signature.typeParameters?.map((parameter) => ({
       variance: parameter.variance,
       constraints: parameter.constraints?.map((constraint) => providerTypeExpressionSourceShapeKey(constraint, mode)),
