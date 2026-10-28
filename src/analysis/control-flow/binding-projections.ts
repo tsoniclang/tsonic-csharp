@@ -167,7 +167,9 @@ function resolveObjectBindingProjection(
       : sourceFile === undefined ? undefined : host.objectShapes.resolveTypeWithState(
       host.semantics(sourceFile).declarations.declaredValueType(binding), sourceFile, undefined, nextState(state),
     );
-    return shape === undefined ? undefined : host.objectShapes.resolveCopyShape(shape)?.targetType;
+    return shape === undefined ? undefined : host.objectShapes.resolveCopyShape(
+      shape, host.objectShapes.resolveTarget(ownerType),
+    )?.targetType;
   }
   const property = declaration?.PropertyName ?? declaration?.name;
   if (property === undefined) return undefined;

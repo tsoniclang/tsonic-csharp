@@ -67,7 +67,7 @@ export interface CsharpObjectShapePolicy {
   resolveNativeReturn(declaration: Node, type: TargetTypeRef, observed: readonly TargetTypeRef[]): CsharpNativeSourceCarrierSelection;
   resolveCallableValue(signature: TargetTypeRef,
     typeParameters: NonNullable<CsharpObjectShapeMemberFact["typeParameters"]>): TargetTypeRef | undefined;
-  resolveCopyShape(shape: CsharpObjectShapeFact): CsharpObjectShapeFact | undefined;
+  resolveCopyShape(shape: CsharpObjectShapeFact, source?: CsharpObjectShapeFact): CsharpObjectShapeFact | undefined;
   resolveNode(
     node: Node | undefined,
     sourceFile?: SourceFile,
