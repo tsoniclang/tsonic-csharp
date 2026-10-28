@@ -268,7 +268,7 @@ export function resolveMemberAccessTargetType(
     invocationType(structuralMemberType ?? selectedSymbolType ??
       resolveSelectedDeclarationResult(
         selection.source.selectedDeclaration,
-        selectedSourceType,
+        selectedSourceType ?? declaredMemberType,
         queries,
         state,
         receiverType,
