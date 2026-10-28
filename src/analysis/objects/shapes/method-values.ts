@@ -128,6 +128,7 @@ export function resolveCsharpCopiedObjectShape(
     targetType: createStructuralObjectShapeTarget(members, implemented, environment),
     members,
     ...(implemented === undefined ? {} : { implements: implemented }),
+    ...(shape.sourceType === undefined ? {} : { sourceType: shape.sourceType }),
   });
 }
 

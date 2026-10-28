@@ -85,13 +85,14 @@ export function run(): boolean {
 
 test("a native rest-copy layout stores the required invocation protocol without inventing a body", () => {
   const integer = { kind: "source-primitive", name: "int32" };
+  const sourceType = Object.freeze({});
   const signature = Object.freeze({ sourceKey: Object.freeze({ kind: "property", name: "run" }),
     sourceName: "run", targetName: "run", memberKind: "method", type: csharpDelegateTargetType("System.Func", [integer], integer) });
   const selectedContract = createStructuralObjectShapeTarget([signature], undefined,
     () => assert.fail("the selected monomorphic protocol has no free native binder"), true);
   const schema = Object.freeze({ targetType: Object.freeze({ kind: "target-named", id: "tsonic.shape:rest-schema",
     csharpGeneratedStructuralStorage: true, csharpAllowsRefLikeTypeArguments: Object.freeze([]) }),
-    members: Object.freeze([Object.freeze({ ...signature, methodValueContract: selectedContract })]) });
+    sourceType, members: Object.freeze([Object.freeze({ ...signature, methodValueContract: selectedContract })]) });
   const policy = createCsharpObjectShapePolicy({
     typeParameterConstraints: () => assert.fail("the monomorphic rest layout has no free native binder"),
     ast: { is: {} }, sourceStorage: noAuthoredNativeMethod,
@@ -104,6 +105,8 @@ test("a native rest-copy layout stores the required invocation protocol without 
   "the rest field stores the original input's exact selected native invocation contract, never a CLR delegate adaptation");
   assert.equal(member.methodValueContract === selectedContract, true, "copying retains the actual published input contract identity");
   assert.equal(copy.methodImplementation === undefined, true, "copying an abstract field never manufactures an authored source body");
+  assert.equal(copy.sourceType === sourceType, true,
+    "the copied physical layout retains its exact checked source type for pre-seal structural view publication");
   const unselected = policy.resolveCopyShape({ ...schema, members: [signature] });
   assert.equal(unselected.members[0].methodValueContract === undefined, true,
     "an absent body alone cannot invent a native protocol for an ordinary monomorphic callable field");
