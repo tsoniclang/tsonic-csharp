@@ -25,13 +25,14 @@ for (const jsEnabled of [false, true]) {
     assert.equal(checked.diagnostics.length === 0, true);
     const source = createTargetSourceProgram(checked);
     const file = source.sourceFiles.find(file => source.ast.getFileName(file) === "/src/index.ts");
+    const providers = createSourceErrorProviderFixture();
     const storage = createSourceStorageQuery(source, [file], defaultSourceStorageLimits,
-      createCsharpSourceProfileStorageEffects(source));
+      createCsharpSourceProfileStorageEffects(source, providers));
     const demand = createCsharpErrorStorageDemandQuery(source, storage);
     const declaration = name => source.ast.statements(file).find(node => source.ast.is.IsFunctionDeclaration(node) &&
       source.ast.text(source.ast.name(node)) === name);
     const host = { ast: source.ast, hasSemantics: file => source.semantics.includes(file), errorStorageDemands: demand,
-      providers: createSourceErrorProviderFixture() };
+      providers };
     const identity = { kind: "error", sourceName: "Error", errorName: "Error", baseException: true };
     for (const [name, expectedDomain, expectedCarrier] of [
       ["inspect", "open", "System.Exception"], ["privateInspect", "complete", "Tsonic.CSharp.Runtime.Error"],
@@ -78,7 +79,7 @@ for (const jsEnabled of [false, true]) {
       const source = createTargetSourceProgram(checked);
       const file = source.sourceFiles.find(file => source.ast.getFileName(file) === "/src/index.ts");
       const storage = createSourceStorageQuery(source, [file], defaultSourceStorageLimits,
-        createCsharpSourceProfileStorageEffects(source));
+        createCsharpSourceProfileStorageEffects(source, createSourceErrorProviderFixture()));
       const demand = createCsharpErrorStorageDemandQuery(source, storage);
       const declarations = new Map();
       const visit = node => {

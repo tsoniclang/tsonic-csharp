@@ -3,6 +3,7 @@ import test from "node:test";
 import { createTargetSourceProgram, Node_Initializer } from "@tsonic/target-api/source";
 import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 import { createCsharpSourceProfileStorageEffects } from "../../../dist/analysis/operations/source-profiles/source-storage-effects.js";
+import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { nativeStorageOperationAuthoritySource, nativeStorageOperationFactSource, nativeStorageVirtualOperationSource } from "../../../../tsonic/test/fixtures/native-storage-operation-authority.mjs";
 import { jsSourceSemanticsIdentity } from "@tsonic/js-source-profile";
@@ -13,7 +14,8 @@ function selectedEffects(sourceText, surface = "js") {
   assert.equal(checked.sourceDiagnosticsText, "", "the source fixture remains checked");
   assert.equal(checked.extensionDiagnostics.length, 0, "the source fixture preserves extension validation");
   const source = createTargetSourceProgram(checked.source);
-  const effects = createCsharpSourceProfileStorageEffects(source);
+  const providers = createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] });
+  const effects = createCsharpSourceProfileStorageEffects(source, providers);
   const selections = new Map();
   const visit = node => {
     if (source.ast.is.IsVariableDeclaration(node)) {
@@ -22,7 +24,7 @@ function selectedEffects(sourceText, surface = "js") {
         const selected = source.semantics.forNode(initializer).operations.call(initializer);
         const name = source.ast.text(source.ast.name(node));
         assert.equal(selected?.sourceSelectedSignatureKind, "resolved", `${name} has an exact selected source call`);
-        selections.set(name, { node: initializer, selected, effect: effects.call(initializer, selected), effects, source });
+        selections.set(name, { node: initializer, selected, effect: effects.call(initializer, selected), effects, source, providers });
       }
     }
     for (const child of source.ast.children(node)) if (child !== undefined) visit(child);
@@ -208,14 +210,14 @@ test("virtual native operation authority requires its matching provider-owned ru
   for (const operation of [identity, { ...identity, memberName: undefined }, { ...identity, memberKey: undefined },
     { ...identity, memberName: "assign" }]) {
     const source = nativeStorageOperationFactSource(selection.source, selection.selected, operation, global);
-    const effect = createCsharpSourceProfileStorageEffects(source).call(selection.node, selection.selected);
+    const effect = createCsharpSourceProfileStorageEffects(source, selection.providers).call(selection.node, selection.selected);
     assert.equal(effect?.resultAlias === selection.selected.sourceArguments[0].expression, true,
       "exact selected provider member and actual binding jointly supply native authority");
   }
   for (const binding of [undefined, { ...global, exportName: "Other" }, { ...global, providerId: "foreign-provider" },
     { ...global, providerModuleId: "other-module" }, { ...global, signatureId: "not-a-global" }]) {
     const source = nativeStorageOperationFactSource(selection.source, selection.selected, identity, binding);
-    assert.equal(createCsharpSourceProfileStorageEffects(source).call(selection.node, selection.selected) === undefined, true,
+    assert.equal(createCsharpSourceProfileStorageEffects(source, selection.providers).call(selection.node, selection.selected) === undefined, true,
       "a selected virtual signature cannot certify a foreign binding");
   }
 });

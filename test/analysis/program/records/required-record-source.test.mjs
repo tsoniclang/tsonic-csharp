@@ -53,7 +53,7 @@ function classFactoryInputs(source, program) {
 }
 
 for (const surface of ["native", "js"]) {
-  const { compiled, source, program, nodes } = compileCsharpRequiredRecordSource(sourceText, surface);
+  const { compiled, request, source, program, nodes } = compileCsharpRequiredRecordSource(sourceText, surface);
   const { ast } = source;
   const records = program.records;
 
@@ -87,7 +87,7 @@ for (const surface of ["native", "js"]) {
   });
 
   test(`${surface}: the participation owner registers each native participation decision`, () => {
-    const storage = createSourceStorageQuery(source, csharpProgramSourceFiles(program), undefined, createCsharpSourceProfileStorageEffects(source));
+    const storage = createSourceStorageQuery(source, csharpProgramSourceFiles(program), undefined, createCsharpSourceProfileStorageEffects(source, request.providers));
     assert.equal(storage.failureReason() === undefined, true, "bounded owned source domain");
     const rows = [];
     const admitted = analyzeCsharpNativeParticipation({
