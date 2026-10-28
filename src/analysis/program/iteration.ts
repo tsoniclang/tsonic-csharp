@@ -23,7 +23,8 @@ import type { CsharpExpectedNativeUse } from "../../target-model/records/native/
 import { createCsharpProjectTypeCatalog } from "../project-types/catalog.js";
 import { createCsharpTypeDefinitionRegistry } from "../project-types/type-definitions.js";
 
-import { resolvedTargetStage } from "@tsonic/target-api/artifacts";
+import { rejectedTargetStage, resolvedTargetStage } from "@tsonic/target-api/artifacts";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 
 import { createCsharpTypeAnalysis } from "./type-system.js";
 import type { CsharpTypeAnalysis } from "./type-system.js";
@@ -279,6 +280,10 @@ export function analyzeCsharpRepresentationIteration(
     classInitialization, projectTypes: typeSystem.projectTypes.catalog, classFactories, expected: expectedUse,
     nativeExpressionIssues: evidence.nativeExpressionIssues, sourceStorage,
   }, requiredRecords);
+  const sourceResolutionIssues = new Set<TargetDiagnostic>(evidence.nativeExpressionIssues);
+  const requiredSourceRefusals = nativeDemand.unadmitted.flatMap(use =>
+    use.kind === "source-refusal" && sourceResolutionIssues.has(use.diagnostic) ? [use.diagnostic] : []);
+  if (requiredSourceRefusals.length !== 0) return rejectedTargetStage(requiredSourceRefusals);
   const bindingPatterns = admitCsharpBindingPatterns(bindingCandidates, nativeDemand.requiredBindingRoots, requiredRecords);
   conversionAnalysis.close(nativeDemand, requiredRecords, captureStorage);
   const conversions = conversionAnalysis.seal();
