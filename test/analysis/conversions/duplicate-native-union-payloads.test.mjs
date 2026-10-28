@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { selectCsharpUnionArmMapping } from "../../../dist/policy/conversions/union-relations.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/index.js";
 import { admitCsharpConversionSelection } from "../../../dist/analysis/conversions/validation.js";
@@ -70,6 +71,12 @@ export function run(): boolean {
   const second: number = choose<number>(13, observed(17), false);
   return first === 7 && second === 17 && reads === 2;
 }` });
+    const source = createTargetSourceProgram(compiled.source);
+    assert.equal(compiled.result.diagnostics.length === 0, true, JSON.stringify(compiled.result.diagnostics.map(issue => ({
+      code: issue.code, message: issue.message,
+      expression: issue.sourceNode === undefined ? undefined : source.ast.text(issue.sourceNode).slice(0, 256),
+      span: issue.sourceSpan,
+    }))));
     assertCsharpCompilationSucceeded(compiled);
     const output = [...compiled.artifacts.values()].join("\n");
     assert.equal(/DynamicInvoke|\.Match\(|\.ToObject\(|Convert\.ToDouble|Runtime\.TsValue/u.test(output), false,

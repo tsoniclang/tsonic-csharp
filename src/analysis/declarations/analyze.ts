@@ -89,7 +89,8 @@ export function analyzeCsharpDeclarations(
         const signature = owner === undefined ? undefined : selectCsharpParameterDefaultContext(policy, evidence, owner);
         const parameters = owner === undefined ? undefined : sourceCallableValueParameters(policy.ast, owner, policy.semanticsFor(owner));
         const index = parameters?.indexOf(node) ?? -1;
-        const incoming = index < 0 ? undefined : signature?.parameters[index];
+        const incoming = index < 0 || signature?.restParameterIndex !== undefined && index >= signature.restParameterIndex
+          ? undefined : signature?.parameters[index];
         const value = incoming === undefined ? undefined : getCsharpNullableElementTargetType(incoming);
         const source = evidence.expressionType.get(parameter.Initializer);
         const queries = policy.semanticsFor(node);

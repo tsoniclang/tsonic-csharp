@@ -28,7 +28,10 @@ import { Span } from "@tsonic/dotnet/System.js";
 interface Reader { readonly Length: int32; }
 export function fail(values: int32[]): ${target} { return new Span<int32>(values); }` });
     assert.equal(compiled.sourceDiagnosticsText, "", `${target}: source reaches native conversion admission`);
-    assert.equal(compiled.result.diagnostics.some(issue => issue.code === "CSHARP_REFLIKE_BOXING"), true,
+    assert.equal(compiled.result.diagnostics.some(issue => target === "Span<int32> | int32"
+      ? issue.code === "CSHARP_REFLIKE_GENERIC_ARGUMENT" &&
+        issue.message === "The selected native generic parameter does not allow ref struct arguments."
+      : issue.code === "CSHARP_REFLIKE_BOXING"), true,
       JSON.stringify(compiled.result.diagnostics.map(({ code, message }) => ({ code, message }))));
     assert.equal(compiled.result.program === undefined, true, `${target}: no boxed native program`);
     assert.equal(compiled.result.artifacts.length, 0, `${target}: no invalid native artifacts`);
