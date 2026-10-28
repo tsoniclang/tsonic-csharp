@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { createTargetSourceProgram, Node_Initializer } from "@tsonic/target-api/source";
 import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 import { createCsharpSourceProfileStorageEffects } from "../../../dist/analysis/operations/source-profiles/source-storage-effects.js";
 import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { nativeStorageOperationAuthoritySource, nativeStorageOperationFactSource, nativeStorageVirtualOperationSource } from "../../../../tsonic/test/fixtures/native-storage-operation-authority.mjs";
 import { jsSourceSemanticsIdentity } from "@tsonic/js-source-profile";
+import { namedVariable } from "../../../../tsonic/test/fixtures/source-navigation.mjs";
 
 function selectedEffects(sourceText, surface = "js") {
   const checked = checkCsharpSource({ surface, sourceText: `export {};\n${sourceText}` });
@@ -108,10 +109,58 @@ test("native freeze aliases delegate exact selected operands to the one shared p
   const subject = storage.subjectFor(observed.selected.sourceArguments[0].expression);
   assert.equal(subject.kind, "resolved", "inspection uses its exact checked operand");
   const domain = storage.closedOriginsFor(subject.subject);
-  assert.equal(domain.kind, "open", "a native inspection signature alone cannot prove the input unmodified");
-  assert.equal(domain.boundaries.some(boundary => boundary.kind === "opaque-write"), true,
-    "the unproved native invocation retains its actual exposure witness");
+  const file = frozen.source.ast.getSourceFile(frozen.node);
+  assert.equal(file !== undefined, true, "the original allocation belongs to this checked source file");
+  const token = Node_Initializer(frozen.source.ast, namedVariable(frozen.source.ast, file, "token"));
+  assert.equal(token !== undefined, true, "the original empty allocation is present");
+  assert.equal(domain.kind, "complete", "a by-value opaque call cannot replace the original container identity");
+  assert.equal(domain.origins.length === 1 && domain.origins[0].subject.node === token &&
+    domain.origins[0].subject.projection.length === 0, true,
+  "freeze and inspection retain exactly the original allocation, not a replacement or a content guarantee");
   assert.equal(storage.failureReason(), undefined, "the native alias query stays within its complete bounded graph");
+
+  const members = selectedEffects(`
+    const freeze = Object.freeze;
+    const inspect = Object.isFrozen;
+    const payload = {};
+    const token = { payload };
+    const frozen = freeze(token);
+    const observed = inspect(frozen);
+    const selected = frozen.payload;
+  `);
+  const memberFrozen = members.get("frozen");
+  const memberObserved = members.get("observed");
+  assert.equal(memberFrozen !== undefined && memberObserved !== undefined, true,
+    "both mutable-backing alias calls have actual checked invocations");
+  assert.equal(memberFrozen.effect?.resultAlias === memberFrozen.selected.sourceArguments[0].expression, true,
+    "the member fixture retains the exact original freeze operand");
+  assert.equal(memberObserved.effect === undefined, true,
+    "the member fixture receives no invented native nonmutation guarantee");
+  const memberStorage = createSourceStorageQuery(memberFrozen.source,
+    memberFrozen.source.navigation.sourceFiles, undefined, memberFrozen.effects);
+  const memberFile = memberFrozen.source.ast.getSourceFile(memberFrozen.node);
+  assert.equal(memberFile !== undefined, true, "the member fixture has its actual checked source file");
+  const initializer = name => Node_Initializer(memberFrozen.source.ast,
+    namedVariable(memberFrozen.source.ast, memberFile, name));
+  const container = memberStorage.subjectFor(memberObserved.selected.sourceArguments[0].expression);
+  const payloadRead = memberStorage.subjectFor(initializer("selected"));
+  assert.equal(container.kind === "resolved" && payloadRead.kind === "resolved", true,
+    "container and contained read are distinct actual checked subjects");
+  const containerDomain = memberStorage.closedOriginsFor(container.subject);
+  const payloadDomain = memberStorage.closedOriginsFor(payloadRead.subject);
+  assert.equal(containerDomain.kind === "complete" && containerDomain.origins.length === 1 &&
+    containerDomain.origins[0].subject.node === initializer("token") &&
+    containerDomain.origins[0].subject.projection.length === 0, true,
+  "the opaque inspection cannot replace the mutable backing container identity");
+  assert.equal(payloadDomain.kind, "open", "no native inspection signature proves the physical payload member unmodified");
+  assert.equal(payloadDomain.boundaries.some(boundary => boundary.kind === "opaque-write" &&
+    boundary.exposure === memberObserved.node), true,
+  "the actual selected inspect invocation owns the contained mutation uncertainty");
+  assert.equal(payloadDomain.origins.some(origin => origin.subject.node === initializer("payload") &&
+    origin.subject.projection.length === 0), true,
+  "the opaque member writer cannot erase its original payload producer");
+  assert.equal(memberStorage.failureReason(), undefined,
+    "identity and member uncertainty share the same complete bounded source graph");
 });
 
 test("native alias and preservation effects require actual owned operation identity", () => {
