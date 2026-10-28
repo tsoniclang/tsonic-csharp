@@ -17,6 +17,7 @@ export type CsharpCallPlanningRecords = {
  * receiver and operands itself; its callee is never planned as a property or identifier value, so it is not admitted as one.
  */
 export function selectCsharpEmittedExpressions(input: CsharpCallPlanningRecords & { readonly ast: AstReader;
+  readonly operations: Pick<CsharpTargetOperationClassifications, "selectedProperty" | "selectedElement">;
   readonly nodes: readonly Node[]; readonly admitted: (node: Node) => boolean; readonly jsCalls: CsharpJsCallRecords }): ReadonlySet<Node> {
   const emitted = new Set<Node>();
   const unplannedCallees = new Set<Node>();
@@ -39,6 +40,12 @@ export function selectCsharpEmittedExpressions(input: CsharpCallPlanningRecords 
     else unplannedCallees.add(callee);
   }
   for (const callee of unplannedCallees) emitted.delete(callee);
+  for (const node of emitted) {
+    const property = input.operations.selectedProperty.get(node)?.selection;
+    if (property?.kind === "source-owned") emitted.add(property.source.receiver.expression);
+    const element = input.operations.selectedElement.get(node)?.target;
+    if (element?.kind === "source-owned") emitted.add(element.source.receiver.expression);
+  }
   return emitted;
 }
 
