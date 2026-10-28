@@ -56,9 +56,12 @@ export function createCsharpSourceUnionIndex(definitions?: CsharpTypeDefinitions
       const present = getCsharpNullableElementTargetType(carrier) ?? carrier;
       const entries = membersByCarrier.get(targetTypeRefKey(present));
       if (entries === undefined) return { kind: "unavailable" };
-      const candidates = entries.filter(entry => sourceBoundTypeRelationship(
+      const exact = entries.filter(entry => sourceBoundTypeRelationship(
         entry.source, selected, queries, declaration => entry.bindings.get(declaration),
       ) !== undefined);
+      const candidates = exact.length > 0 ? exact : entries.filter(entry =>
+        queries.types.isNumberLike(selected) && queries.types.isNumberLike(entry.source) ||
+        queries.types.isBigIntLike(selected) && queries.types.isBigIntLike(entry.source));
       const first = candidates[0];
       return first === undefined || candidates.some(candidate => !targetTypeRefEquals(candidate.carrier, first.carrier))
         ? { kind: "rejected" } : { kind: "resolved", carrier: first.carrier };
