@@ -61,6 +61,8 @@ export function nativeMemoryProvider({ missingRelation = false, wrongCarrier = f
   const genericTarget = name => ({ kind: "type-parameter", identity: `${providerId}:${name}:0`, name: "Value" });
   const genericCarrier = csharpRuntimeLocationTargetType(genericTarget("relay"));
   const owner = csharpTargetNamedType("NativeMemoryProof.Provider", undefined, csharpQualifiedTypeRenderShape("NativeMemoryProof", "Provider"), { allowsRefLikeTypeArguments: [],});
+  const ownerBinding = { id: owner.id, sourceName: "Provider", targetName: owner.id,
+    target: "csharp", kind: "class", csharpType: owner };
   const definitions = [
     ["acquire", "Acquire", [{ name: "value", type: wordSource }], rawSource, csharpRuntimeRawPointerTargetType()],
     ["readOriginal", "ReadOriginal", [], wordSource, wordTarget],
@@ -97,8 +99,7 @@ export function nativeMemoryProvider({ missingRelation = false, wrongCarrier = f
       kind: "signature",
       source: { kind: "signature", providerId, providerVersion: "1", providerModuleId: moduleSpecifier,
         moduleSpecifier, exportId: `source.export.${name}`, exportName: name, signatureId: `source.signature.${name}` },
-      targetBinding: { id: owner.id, sourceName: "Provider", targetName: owner.id,
-        target: "csharp", kind: "class", csharpType: owner },
+      targetBinding: ownerBinding,
       targetMember: { id: `native.method.${targetName}`, sourceName: name, targetName,
         kind: "method", static: true, declaringType: owner,
         ...(typeParameters === undefined ? {} : { typeParameters: typeParameters.map((parameter, index) => ({
@@ -124,7 +125,7 @@ export function nativeMemoryProvider({ missingRelation = false, wrongCarrier = f
       return { extensions: [{ identity: { id: providerId, version: "1" },
         initialize(context) { context.registerSourceDeclarationProvider(provider); } }] };
     },
-    createTargetContributions() { return [csharpProviderPolicyContribution({ providerId, providerVersion: "1", targetBindings: [], relations, rejections: [] })]; },
+    createTargetContributions() { return [csharpProviderPolicyContribution({ providerId, providerVersion: "1", targetBindings: [ownerBinding], relations, rejections: [] })]; },
   };
 }
 

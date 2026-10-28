@@ -65,6 +65,8 @@ export function nativeRecordProvider({ missingField = false, wrongField = false,
       .map(([, targetName]) => `native.${name}.${targetName}`) }),
   }));
   const owner = csharpTargetNamedType("NativeMemoryProof.Provider", undefined, csharpQualifiedTypeRenderShape("NativeMemoryProof", "Provider"), { allowsRefLikeTypeArguments: [],});
+  const ownerBinding = { id: owner.id, sourceName: "Provider", targetName: owner.id,
+    target: "csharp", kind: "class", csharpType: owner };
   const parameters = [{ name: "prefix", type: byte }, { name: "tag", type: byte }, { name: "count", type: word }];
   const relations = records.flatMap(([name, , fields], index) => [
     { kind: "type", source: { kind: "type", ...source(name) }, targetBinding: bindings[index], bindingTypeParameters: [] },
@@ -73,7 +75,7 @@ export function nativeRecordProvider({ missingField = false, wrongField = false,
       targetMember: bindings[index].members[fieldIndex], receiver: { kind: "instance" }, bindingTypeParameters: [], bindingTypeArgumentSource: "receiver" })),
   ]);
   relations.push({ kind: "signature", source: { kind: "signature", ...source("create"), signatureId: "source.create.signature" },
-    targetBinding: { id: owner.id, sourceName: "Provider", targetName: owner.id, target: "csharp", kind: "class", csharpType: owner },
+    targetBinding: ownerBinding,
     targetMember: { id: "native.CreateEnvelope", sourceName: "create", targetName: "CreateEnvelope", kind: "method", static: true,
       declaringType: owner, parameters: parameters.map(parameter => ({ ...parameter, passingMode: "by-value" })), returnType: envelope },
     receiver: { kind: "none" }, parameters: parameters.map((_parameter, index) => ({ sourceParameterIndex: index, targetParameterIndex: index,
@@ -87,7 +89,7 @@ export function nativeRecordProvider({ missingField = false, wrongField = false,
   return { kind: "target-capability", id: providerId, targetId: "csharp", displayName: "Native record proof",
     moduleOwnership: [{ specifierPrefix: moduleSpecifier, providerId }],
     sourceCompilerContributions: () => ({ extensions: [{ identity: { id: providerId, version: "1" }, initialize(context) { context.registerSourceDeclarationProvider(provider); } }] }),
-    createTargetContributions: () => [csharpProviderPolicyContribution({ providerId, providerVersion: "1", targetBindings: [], relations, rejections: [] })],
+    createTargetContributions: () => [csharpProviderPolicyContribution({ providerId, providerVersion: "1", targetBindings: [...bindings, ownerBinding], relations, rejections: [] })],
   };
 }
 
