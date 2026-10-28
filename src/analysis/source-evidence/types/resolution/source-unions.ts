@@ -1,4 +1,4 @@
-import type { Node, Type } from "@tsonic/tsts";
+import { sourcePrimitiveFactKey, type Node, type ReadonlySourceFactResolver, type Type } from "@tsonic/tsts";
 import { sourceBoundTypeRelationship, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/equality.js";
@@ -24,7 +24,8 @@ export interface CsharpSourceUnionIndex {
     { readonly kind: "unavailable" | "rejected" } | { readonly kind: "resolved"; readonly carrier: TargetTypeRef };
 }
 
-export function createCsharpSourceUnionIndex(definitions?: CsharpTypeDefinitions): CsharpSourceUnionIndex {
+export function createCsharpSourceUnionIndex(definitions?: CsharpTypeDefinitions,
+  sourceFacts?: ReadonlySourceFactResolver): CsharpSourceUnionIndex {
   const membersByCarrier = new Map<string, readonly CsharpSourceUnionMember[]>();
   return {
     retain(carrier, members, queries, state) {
@@ -59,12 +60,23 @@ export function createCsharpSourceUnionIndex(definitions?: CsharpTypeDefinitions
       const exact = entries.filter(entry => sourceBoundTypeRelationship(
         entry.source, selected, queries, declaration => entry.bindings.get(declaration),
       ) !== undefined);
-      const candidates = exact.length > 0 ? exact : entries.filter(entry =>
-        queries.types.isNumberLike(selected) && queries.types.isNumberLike(entry.source) ||
-        queries.types.isBigIntLike(selected) && queries.types.isBigIntLike(entry.source));
+      const selectedDomain = numericSourceDomain(selected, queries);
+      const candidates = exact.length > 0 ? exact : selectedDomain === undefined ? []
+        : entries.filter(entry => numericSourceDomain(entry.source, queries) === selectedDomain);
       const first = candidates[0];
       return first === undefined || candidates.some(candidate => !targetTypeRefEquals(candidate.carrier, first.carrier))
         ? { kind: "rejected" } : { kind: "resolved", carrier: first.carrier };
     },
   };
+
+  function numericSourceDomain(type: Type, queries: SourceFileSemantics): "number" | "bigint" | undefined {
+    if (sourceFacts !== undefined) {
+      for (const subject of queries.facts.typeSubjects(type)) {
+        const primitive = sourceFacts.getFact(subject, sourcePrimitiveFactKey);
+        if (primitive !== undefined) return primitive.runtimeBase === "number" || primitive.runtimeBase === "bigint"
+          ? primitive.runtimeBase : undefined;
+      }
+    }
+    return queries.types.isNumberLike(type) ? "number" : queries.types.isBigIntLike(type) ? "bigint" : undefined;
+  }
 }

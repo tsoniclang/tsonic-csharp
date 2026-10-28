@@ -299,7 +299,7 @@ export function createCsharpTypeResolutionServices(
   } satisfies CsharpTypePolicy);
   scope = Object.freeze({
     host,
-    sourceUnions: createCsharpSourceUnionIndex(host.typeDefinitions),
+    sourceUnions: createCsharpSourceUnionIndex(host.typeDefinitions, host.sourceFacts),
     sourceUnionDefinitions: createCsharpSourceUnionDefinitions(host, methods.resolveTypeWithState),
     activeNodes: new WeakSet<Node>(),
     policy,
