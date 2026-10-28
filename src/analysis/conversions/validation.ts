@@ -17,6 +17,7 @@ import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/ren
 import { csharpNativeRepresentationMatches } from "../../policy/conversions/native-representation.js";
 import type { CsharpNativeCompletion } from "../../target-model/records/native/native-demand.js";
 import { isCsharpVoidTargetType } from "../../target-model/types/identity.js";
+import { instantiateCsharpCallableContract } from "../../policy/conversions/generic-callables.js";
 
 type CsharpUnionValidationPolicy = Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers"> & CsharpConversionShapeQueries;
 
@@ -128,8 +129,15 @@ export function admitCsharpConversionSelection(
       }
       case "delegate-adapter": {
         const sourceMethod = getCsharpMethodValue(current.source);
+        if (selected.instantiation !== undefined) {
+          const contract = current.source === undefined ? undefined
+            : instantiateCsharpCallableContract(policy, current.source, selected.instantiation.typeArguments);
+          if (contract === undefined || !targetTypeRefEquals(contract, selected.instantiation.contract)) return {
+            kind: "rejected", reason: "A quantified native callable requires its exact complete instantiated method contract.",
+          };
+        }
         const sourceSignature = sourceMethod !== undefined && sourceMethod.typeParameters.length !== 0
-          ? undefined : getCsharpCallableValueSignature(current.source);
+          ? getCsharpDelegateSignature(selected.instantiation?.contract) : getCsharpCallableValueSignature(current.source);
         const targetSignature = getCsharpDelegateSignature(current.target);
         if (sourceSignature === undefined || targetSignature === undefined ||
           !csharpDelegateSignatureHasSupportedPassingModes(sourceSignature) ||

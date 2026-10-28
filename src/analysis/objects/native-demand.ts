@@ -250,7 +250,8 @@ export function analyzeCsharpNativeArtifactDemand(
       demandType(selection.armType, node);
       demandConversion(node, source, selection.armType, selection.sourceToArm);
     } else if (selection.kind === "delegate-adapter") {
-      const sourceSignature = getCsharpDelegateSignature(source);
+      for (const argument of selection.instantiation?.typeArguments ?? []) demandType(argument, node);
+      const sourceSignature = getCsharpDelegateSignature(selection.instantiation?.contract ?? source);
       const targetSignature = getCsharpDelegateSignature(target);
       if (sourceSignature !== undefined && targetSignature !== undefined) {
         for (const [index, conversion] of selection.parameterConversions.entries()) {

@@ -84,6 +84,10 @@ export type CsharpConversionSelection =
   | {
       readonly kind: "delegate-adapter";
       readonly strategy: "native-binding" | "adaptation";
+      readonly instantiation?: {
+        readonly contract: TargetTypeRef;
+        readonly typeArguments: readonly TargetTypeRef[];
+      };
       readonly parameterConversions: readonly CsharpConversionSelection[];
       readonly returnConversion: CsharpConversionSelection | { readonly kind: "void-return" };
     }

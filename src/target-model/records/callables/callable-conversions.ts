@@ -6,6 +6,7 @@ export interface CsharpDelegateContract {
   readonly targetCarrier: TargetTypeRef;
   readonly sourceVoid: boolean;
   readonly targetVoid: boolean;
+  readonly methodTypeArguments?: readonly TargetTypeRef[];
 }
 
 export interface CsharpDelegateContractRecords {

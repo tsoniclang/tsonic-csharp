@@ -22,11 +22,12 @@ export function admitCsharpDelegateEmission(producer: CsharpDelegateContractProd
   if (selected.kind !== "delegate-adapter" || producer.records.delegateContract.get(source, target) !== undefined) return;
   const sourceMethod = getCsharpMethodValue(source);
   const sourceSignature = sourceMethod !== undefined && sourceMethod.typeParameters.length !== 0
-    ? undefined : getCsharpCallableValueSignature(source);
+    ? getCsharpDelegateSignature(selected.instantiation?.contract) : getCsharpCallableValueSignature(source);
   const targetSignature = getCsharpDelegateSignature(target);
   if (sourceSignature === undefined || targetSignature === undefined)
     failTargetAnalysisInvariant("tsonic-csharp", "An admitted delegate conversion requires its exact native source and destination signatures.");
   producer.publish(source, target, { sourceSignature, targetSignature, targetCarrier: getCsharpNullableElementTargetType(target) ?? target,
+    ...(selected.instantiation === undefined ? {} : { methodTypeArguments: selected.instantiation.typeArguments }),
     sourceVoid: isCsharpVoidTargetType(sourceSignature.returnType), targetVoid: isCsharpVoidTargetType(targetSignature.returnType) });
   for (const [index, conversion] of selected.parameterConversions.entries()) {
     const input = targetSignature.parameters[index];

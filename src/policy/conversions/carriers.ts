@@ -1,4 +1,5 @@
 import { csharpProviderBindingFromResolution } from "../../providers/model/relation-resolver.js";
+import { selectCsharpCallableInstantiation } from "./generic-callables.js";
 import { csharpBaseTargetTypeFromBinding, csharpTargetTypeFromBinding } from "../types/storage/bindings.js";
 import { csharpDelegateSignatureHasSupportedPassingModes, csharpDelegateSignaturesMatchNativeBinding, csharpObjectTargetType, csharpTargetBindingFact, getCsharpDelegateSignature, getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms, isCsharpJsValueTargetType, isCsharpAbsenceTargetType, isCsharpNullableReferenceTargetType, isCsharpReferenceCarrier, isCsharpSourceDelegateTargetType, isCsharpValueTypeTargetType, isCsharpVoidTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/index.js";
 import { csharpVoidReturnCompletion } from "./callable-completions.js";
@@ -201,9 +202,11 @@ export function selectDelegateConversion(
   target: TargetTypeRef,
 ): CsharpConversionSelection | undefined {
   const sourceMethod = getCsharpMethodValue(source);
-  const sourceSignature = sourceMethod !== undefined && sourceMethod.typeParameters.length !== 0
-    ? undefined : getCsharpCallableValueSignature(source);
   const targetSignature = getCsharpDelegateSignature(target);
+  const instantiation = sourceMethod !== undefined && sourceMethod.typeParameters.length !== 0 && targetSignature !== undefined
+    ? selectCsharpCallableInstantiation(input, source, targetSignature) : undefined;
+  const sourceSignature = sourceMethod !== undefined && sourceMethod.typeParameters.length !== 0
+    ? getCsharpDelegateSignature(instantiation?.contract) : getCsharpCallableValueSignature(source);
   if (sourceSignature === undefined || targetSignature === undefined) {
     return undefined;
   }
@@ -250,6 +253,7 @@ export function selectDelegateConversion(
   return {
     kind: "delegate-adapter",
     strategy: nativeBinding ? "native-binding" : "adaptation",
+    ...(instantiation === undefined ? {} : { instantiation }),
     parameterConversions: Object.freeze(parameterConversions),
     returnConversion,
   };

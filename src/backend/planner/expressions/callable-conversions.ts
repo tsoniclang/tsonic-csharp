@@ -31,8 +31,8 @@ export function planCsharpDelegateAdapter(node: Node, sourceFile: SourceFile, in
   if (selection.strategy === "native-binding") {
     if (operand?.kind === "lambda") return operand.expression;
     return { kind: "ObjectCreationExpression", type: contract.targetDelegateType, arguments: [{ kind: "Argument",
-      expression: operand?.kind === "method" || operand?.kind === "captured-method" ? expression
-        : { kind: "SimpleMemberAccessExpression", receiver: expression, name: method ?? "Invoke" },
+      expression: instantiatedCallee(operand?.kind === "method" || operand?.kind === "captured-method" ? expression
+        : { kind: "SimpleMemberAccessExpression", receiver: expression, name: method ?? "Invoke" }, contract, input, node),
     }] };
   }
   const identity = input.scope.delegateAdapters === undefined ? undefined : input.program.records.delegateAdapter.get(node, contract.sourceType, targetType!);
@@ -92,7 +92,8 @@ function buildAdaptation(node: Node, sourceFile: SourceFile, input: CsharpPlanni
     if (converted === undefined) return undefined;
     arguments_.push({ kind: "Argument", expression: converted });
   }
-  const invocation: CsharpExpression = { kind: "InvocationExpression", callee, arguments: arguments_ };
+  const invocation: CsharpExpression = { kind: "InvocationExpression",
+    callee: instantiatedCallee(callee, contract, input, node), arguments: arguments_ };
   if (selection.returnConversion.kind === "void-return") {
     const completion = planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, invocation, sourceSignature.returnType);
     if (completion === undefined) return undefined;
@@ -114,4 +115,14 @@ function requiredContract(node: Node, input: CsharpPlanningContext, source: Targ
   if (sourceDelegateType === undefined || targetDelegateType === undefined)
     failCsharpPlannerInvariant("An admitted delegate conversion requires its exact rendered native carriers.", node);
   return { ...contract, sourceType: source, sourceDelegateType, targetDelegateType };
+}
+
+function instantiatedCallee(expression: CsharpExpression, contract: CsharpDelegateContract,
+  input: CsharpPlanningContext, node: Node): CsharpExpression {
+  if (contract.methodTypeArguments === undefined) return expression;
+  const typeArguments = contract.methodTypeArguments.map(argument => csharpTypeFromTargetTypeRef(argument, input.scope.typeParameterNames)
+    ?? failCsharpPlannerInvariant("An admitted quantified callable requires its exact native type arguments.", node));
+  if (expression.kind !== "IdentifierName" && expression.kind !== "QualifiedName" && expression.kind !== "SimpleMemberAccessExpression")
+    failCsharpPlannerInvariant("An admitted quantified callable requires its original native method group.", node);
+  return { ...expression, typeArguments };
 }
