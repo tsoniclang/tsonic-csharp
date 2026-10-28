@@ -78,8 +78,8 @@ function resolveSelectedSourceCallParameter(
   const contractedParameter = callable?.nativeParameters[parameterIndex];
   if (callable !== undefined && contractedParameter !== undefined) {
     if (
-      contractedParameter.sourceParameter !==
-        parameter.parameterDeclaration ||
+      (selected.kind !== "declaration" || selected.closedInput !== true) &&
+        contractedParameter.sourceParameter !== parameter.parameterDeclaration ||
       !sourceCallableTypeParametersMatch(source, callable, selected.kind)
     ) {
       return undefined;

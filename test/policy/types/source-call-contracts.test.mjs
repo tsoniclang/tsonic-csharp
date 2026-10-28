@@ -92,7 +92,8 @@ function fixture(carrier = csharpDelegateTargetType("System.Func", [integer], in
     projectTypes: () => ({ catalog: { definitionForTarget: () => undefined } }),
     projectTypeCatalog: { definitionForTarget: () => undefined },
     typeDefinitions: { sourceUnionArms: () => undefined },
-    representations: { genericProjections: () => [], sourceCallable: () => { assert.equal(direct, true, "stored invocation must never select the creation ABI"); return openContract; } },
+    representations: { genericProjections: () => [], closedInputContract: () => undefined,
+      sourceCallable: () => { assert.equal(direct, true, "stored invocation must never select the creation ABI"); return openContract; } },
   }, resolveSelectedValueWithState: () => carrier,
     sourceCallableTypeParametersMatch: () => true,
     resolveSourceCallSelectedType: () => assert.fail("the closed stored contract must not fall back to source templates"),
@@ -155,6 +156,41 @@ test("stored quantified protocols retain closed outer bindings and exact invocat
     };
     assert.deepEqual(resolveSourceCallTypeArguments(scope, source, {}), [integer]);
   }
+});
+
+test("published closed source inputs retain authored omission across a required external signature", () => {
+  const optional = csharpNullableTargetType(integer);
+  const current = fixture(csharpDelegateTargetType("System.Func", [optional], integer, { optionalParameterIndexes: [0] }));
+  const authoredParameter = {};
+  const closed = { ...current.openContract, parameters: [authoredParameter],
+    nativeParameters: [{ sourceParameter: authoredParameter,
+      targetParameter: { name: "value", type: optional, passingMode: "by-value", optional: true } }], returnType: integer };
+  current.scope.host.representations.closedInputContract = expression => {
+    assert.equal(expression === current.source.sourceCallee.expression, true, "lookup follows the actual stored operand");
+    return closed;
+  };
+  for (const selection of ["checked", "implementation"]) {
+    const selected = current.scope.resolveSourceCallContract(current.source, {}, { depth: 0 }, selection);
+    assert.equal(selected.kind === "declaration" && selected.closedInput === true && selected.contract === closed, true,
+      "one published native implementation, not the external required input or a creation template");
+  }
+  assert.equal(resolveSourceCallParameter(current.scope, current.source, 0, {}) === optional, true,
+    "the checked external parameter maps to its proven physical input without a declaration-identity guess");
+  const parameters = resolveSourceCallParameters(current.scope, current.source, {});
+  assert.equal(parameters.length === 1 && parameters[0].optional === true && parameters[0].type === optional, true,
+    "self omission and external present calls share the exact optional native slot");
+  current.source.sourceSelectedMethodTypeArguments = [{ typeParameter: {} }];
+  assert.equal(current.scope.resolveSourceCallContract(current.source, {}, { depth: 0 }, "checked").kind, "rejected",
+    "a nongeneric closed input cannot discard a checked invocation binder");
+});
+
+test("a published source contract cannot authorize a different native stored input", () => {
+  const current = fixture();
+  current.scope.host.representations.closedInputContract = () => current.openContract;
+  assert.equal(current.scope.resolveSourceCallContract(current.source, {}, { depth: 0 }, "checked").kind, "rejected",
+    "an open creation binder does not match the closed physical stored operand");
+  assert.equal(resolveSourceCallParameters(current.scope, current.source, {}) === undefined, true,
+    "a known contradictory publication never falls back to another input representation");
 });
 
 test("missing or inconsistent stored evidence rejects without a declaration fallback", () => {

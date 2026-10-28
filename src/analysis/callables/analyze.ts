@@ -8,7 +8,7 @@ import type { SourceCallableSourceContract, SourceCallableContract } from "../..
 import type { CsharpDeclarationClassifications } from "../../target-model/records/program/declarations.js";
 import type { CsharpSourceNameResolver } from "../names/index.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
-import type { CsharpCallableContractIndex } from "../../target-model/records/callables/callable-values.js";
+import type { CsharpCallableContractIndex, CsharpClosedCallableInput } from "../../target-model/records/callables/callable-values.js";
 import type { CsharpGenericProjectionIndex } from "../../target-model/records/types/type-projections.js";
 import { closeCsharpProjectCallableContracts } from "../project-types/callable-contracts.js";
 import { selectCsharpClosedCallableContext } from "../expected-types/callable-contexts.js";
@@ -70,14 +70,14 @@ export function analyzeCsharpCallableContracts(
       }
     }
   }
-  const closedInputs = new Map<Node, TargetTypeRef>();
+  const closedInputs = new Map<Node, CsharpClosedCallableInput>();
   const invocationInputs = new Map<Node, TargetTypeRef>();
   for (const [declaration, contract] of byDeclaration) {
     const nativeType = csharpCallableValueType(contract);
     if (nativeType === undefined) continue;
     if (contract.bodyInputs !== undefined || policy.ast.is.IsFunctionExpression(declaration) && policy.ast.name(declaration) !== undefined &&
       contract.parameters.some(parameter => declarations.runtimeDefault.get(parameter)?.acceptsOmission === true)) {
-      closedInputs.set(declaration, nativeType);
+      closedInputs.set(declaration, Object.freeze({ type: nativeType, source: contract }));
       invocationInputs.set(declaration, nativeType);
       publishClosedAliases(declaration);
       continue;
@@ -85,13 +85,18 @@ export function analyzeCsharpCallableContracts(
     const context = closedContexts.get(declaration);
     if (context === undefined) continue;
     if (context.invocationType !== undefined && csharpClosedInvocationMatches(nativeType, context.invocationType)) {
-      closedInputs.set(declaration, context.invocationType);
+      closedInputs.set(declaration, Object.freeze({ type: context.invocationType,
+        ...(targetTypeRefEquals(nativeType, context.invocationType) ? { source: contract } : {}),
+      }));
       invocationInputs.set(declaration, context.invocationType);
-    } else if (context.inputTypes.some(type => type !== undefined)) closedInputs.set(declaration, nativeType);
+    } else if (context.inputTypes.some(type => type !== undefined)) closedInputs.set(declaration, Object.freeze({ type: nativeType }));
   }
   for (const [alias, origin] of closedAliases) {
     const invocationType = invocationInputs.get(origin);
-    if (invocationType !== undefined) closedInputs.set(alias, invocationType);
+    const source = closedInputs.get(origin)?.source;
+    if (invocationType !== undefined) closedInputs.set(alias, Object.freeze({ type: invocationType,
+      ...(source === undefined ? {} : { source }),
+    }));
   }
   return sealCsharpCallableContractIndex({ contracts, declarationContracts: nativeDeclarations, byDeclaration,
     byProjectConstructor, closedInputs });
@@ -155,7 +160,12 @@ export function csharpCallableContractIndexesEqual(
   left: CsharpCallableContractIndex,
   right: CsharpCallableContractIndex,
 ): boolean {
-  return left.contracts.length === right.contracts.length &&
+  return left.closedInputs.length === right.closedInputs.length && left.closedInputs.every((entry, index) => {
+    const other = right.closedInputs[index];
+    return other !== undefined && entry.declaration === other.declaration &&
+      targetTypeRefEquals(entry.input.type, other.input.type) &&
+      entry.input.source?.sourceDeclaration === other.input.source?.sourceDeclaration;
+  }) && left.contracts.length === right.contracts.length &&
     left.contracts.every((candidate, index) => {
       const other = right.contracts[index];
       return other !== undefined && callableContractEquals(candidate, other);

@@ -15,7 +15,9 @@ export function sealCsharpCallableContractIndex(input: CsharpCallableContractPub
   return Object.freeze({
     contracts: Object.freeze([...input.contracts]),
     declarationContracts: Object.freeze([...input.declarationContracts]),
-    closedInputType: (declaration: Node) => closedInputs.get(declaration),
+    closedInputs: Object.freeze([...input.closedInputs].map(([declaration, input]) => Object.freeze({ declaration, input }))),
+    closedInputType: (declaration: Node) => closedInputs.get(declaration)?.type,
+    closedInputContract: (declaration: Node) => closedInputs.get(declaration)?.source,
     get,
   });
 }

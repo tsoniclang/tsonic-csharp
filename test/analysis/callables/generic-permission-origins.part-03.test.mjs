@@ -33,8 +33,9 @@ test("callable contract equality includes every required generic permission with
     nativeSignature: Object.freeze({ methodTypeParameterIdentities: Object.freeze(["source:identity:0"]),
     methodAllowsRefLikeTypeArguments: Object.freeze([false]) }), parameters: Object.freeze([]), nativeParameters: Object.freeze([]),
     returnType: Object.freeze({ kind: "source-primitive", name: "int32" }) });
-  const index = selected => Object.freeze({ contracts: Object.freeze([selected]), declarationContracts: Object.freeze([selected]),
-    closedInputType: () => undefined, get: identity => identity.declaration === declaration ? selected : undefined });
+  const index = (selected, closedInputs = []) => Object.freeze({ contracts: Object.freeze([selected]), declarationContracts: Object.freeze([selected]),
+    closedInputs: Object.freeze(closedInputs), closedInputType: () => undefined, closedInputContract: () => undefined,
+    get: identity => identity.declaration === declaration ? selected : undefined });
   assert.equal(csharpCallableContractIndexesEqual(index(contract), index({ ...contract })), true,
     "identical required permission metadata is stable");
   assert.equal(csharpCallableContractIndexesEqual(index(contract),
@@ -43,4 +44,13 @@ test("callable contract equality includes every required generic permission with
   assert.equal(csharpCallableContractIndexesEqual(index(contract),
     index({ ...contract, nativeSignature: { ...contract.nativeSignature, methodAllowsRefLikeTypeArguments: Object.freeze([]) } })), false,
   "a missing slot is not silently normalized to native false");
+  const alias = Object.freeze({});
+  const closed = { declaration: alias, input: { type: contract.returnType, source: contract } };
+  assert.equal(csharpCallableContractIndexesEqual(index(contract, [closed]), index(contract, [closed])), true,
+    "an unchanged published input remains stable");
+  assert.equal(csharpCallableContractIndexesEqual(index(contract), index(contract, [closed])), false,
+    "the iteration cannot settle before an actual closed alias is published");
+  assert.equal(csharpCallableContractIndexesEqual(index(contract, [closed]),
+    index(contract, [{ ...closed, input: { type: contract.returnType } }])), false,
+    "physical input equality does not hide a change in the actual source implementation authority");
 });

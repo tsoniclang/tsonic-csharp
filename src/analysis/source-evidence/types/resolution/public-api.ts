@@ -417,6 +417,9 @@ export function withSourceTargetBindings(
           targetTypes.get(node) ??
           host.representations.scopedTargetType(node);
         },
+        closedInputContract(node) {
+          return host.representations.closedInputContract(node);
+        },
         sourceCallable(source, sourceFile, selection) {
           return host.representations.sourceCallable(source, sourceFile, selection);
         },

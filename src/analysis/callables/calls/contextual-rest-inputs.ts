@@ -29,7 +29,9 @@ export function closeCsharpContextualRestInputs(
     signature.parameterPassingModes.some(mode => mode !== "by-value") ||
     contract.nativeParameters.some((parameter, index) => parameter.sourceParameter !== contract.parameters[index] ||
       parameter.targetParameter.paramsArray === true || parameter.targetParameter.passingMode !== "by-value")) return undefined;
-  const nativeParameters = Object.freeze(signature.parameters.map((type, index) => Object.freeze({
+  const nativeParameters = Object.freeze(signature.parameters.map((type, index) =>
+    index < restIndex && contract.nativeParameters[index]!.targetParameter.optional === true
+      ? contract.nativeParameters[index]! : Object.freeze({
     sourceParameter: contract.parameters[index]!,
     targetParameter: Object.freeze({ name: contract.nativeParameters[index]!.targetParameter.name, type, passingMode: "by-value" as const,
       ...(signature.optionalParameterIndexes?.includes(index) ? { optional: true } : {}),

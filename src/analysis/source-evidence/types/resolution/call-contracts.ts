@@ -11,13 +11,14 @@ import type { CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../../tar
 import { csharpMethodValueContractsEqual, csharpMethodValueType, csharpPresentObjectShapeMethod, getCsharpMethodValue } from "../../../../target-model/types/method-values.js";
 import { objectShapeMethodInvocationName } from "../../../../target-model/names/object-members.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
+import { csharpCallableValueType } from "../../../../policy/types/callables/value-type.js";
 import { rebindCsharpMethodValueTypeParameters, selectCsharpNativeQuantifierArguments } from "../../../../policy/types/callables/method-values.js";
 import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
 import { csharpTypeProjection } from "../../../../target-model/types/projections.js";
 import { resolveTypeParameter } from "./source-evidence.js";
 
 export type CsharpSourceCallContractSelection =
-  | { readonly kind: "declaration"; readonly contract: SourceCallableContract | undefined }
+  | { readonly kind: "declaration"; readonly contract: SourceCallableContract | undefined; readonly closedInput?: true }
   | { readonly kind: "value"; readonly contract: SourceCallableContract }
   | { readonly kind: "rejected" };
 
@@ -44,6 +45,14 @@ export function resolveSourceCallContract(
   const type = checkedValueInvocationCarrier(scope, source, sourceFile,
     getCsharpNullableElementTargetType(callee.type) ?? callee.type);
   if (type === undefined) return reject();
+  const closed = host.representations.closedInputContract(source.sourceCallee.expression);
+  if (closed !== undefined) {
+    const closedType = csharpCallableValueType(closed);
+    return closedType !== undefined && targetTypeRefEquals(closedType, type) &&
+      (source.sourceSelectedMethodTypeArguments?.length ?? 0) === 0 &&
+      sourceCallableTypeParametersMatch(source, closed, "declaration")
+      ? Object.freeze({ kind: "declaration", contract: closed, closedInput: true }) : reject();
+  }
   const contract = selectCsharpSourceCallableValueAbi({ ast: host.ast, navigation: host.navigation,
     semantics: host.semantics(sourceFile), source, carrier: type });
   if (contract === undefined) return reject();

@@ -94,6 +94,10 @@ export function analyzeCsharpRepresentationIteration(
       const callable = previous?.callables.get({ kind: "declaration", declaration: node });
       return callable === undefined ? undefined : csharpCallableValueType(callable);
     },
+    closedInputContract(node) {
+      const declaration = source.navigation.sourceReferenceFor(node)?.declaration ?? node;
+      return previous?.callables.closedInputContract(declaration);
+    },
     sourceCallable(source, sourceFile, selection) {
       return sourceCallableContract(
         input,
