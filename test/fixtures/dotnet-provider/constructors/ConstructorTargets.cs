@@ -57,3 +57,29 @@ public unsafe sealed class UnsupportedConstructorTarget
 
     public int Value { get; }
 }
+
+public class MixedAccessibilityTarget
+{
+    public MixedAccessibilityTarget(int value) => Value = value;
+    protected MixedAccessibilityTarget(string value) => Value = value.Length;
+    protected internal MixedAccessibilityTarget(bool value) => Value = value ? 1 : 0;
+    internal MixedAccessibilityTarget(long value) => Value = (int)value;
+    private protected MixedAccessibilityTarget(short value) => Value = value;
+    private MixedAccessibilityTarget(byte value) => Value = value;
+
+    public int Value { get; }
+}
+
+public class ProtectedOnlyTarget
+{
+    protected ProtectedOnlyTarget(int value) => Value = value;
+
+    public int Value { get; }
+}
+
+public abstract class AbstractPublicTarget
+{
+    public AbstractPublicTarget(int value) => Value = value;
+
+    public int Value { get; }
+}
