@@ -21,6 +21,7 @@ export function analyzeCsharpSourceReferences(input: { readonly source: TargetSo
   readonly admitted: (node: Node) => boolean; readonly evidence: CsharpSourceEvidenceIndex;
   readonly factories: CsharpClassFactoryIndex; readonly captures: CsharpCaptureStorage;
   readonly demand: CsharpNativeDemandAnalysis; readonly operations: CsharpTargetOperationClassifications;
+  readonly receivers: import("../../target-model/records/objects/member-receivers.js").CsharpMemberReceiverRecords["memberReceiver"];
   readonly files: CsharpSourceFileRecords; readonly backing: CsharpStorageClassifications["nativeBacking"];
   readonly delegateAdapters: CsharpConversionClassifications["delegateAdapters"]; readonly jsCalls: CsharpJsCallRecords }) {
   const { ast } = input.source;

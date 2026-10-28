@@ -2,12 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { selectCsharpEmittedExpressions } from "../../../dist/analysis/operations/emitted-expressions.js";
 
-function select(nodes, admitted, properties, elements = new Map(), calls = new Map(), modules = new Map()) {
+function select(nodes, admitted, properties, elements = new Map(), calls = new Map(), modules = new Map(), receivers = new Map()) {
   return selectCsharpEmittedExpressions({
     ast: { is: { IsForOfStatement: () => false } },
     nodes,
     admitted: node => admitted.has(node),
     modules: { get: node => modules.get(node) },
+    receivers: { get: node => receivers.get(node) },
     operations: {
       nativeHandler: { get: () => undefined },
       selectedCall: { get: node => calls.get(node) },
@@ -75,6 +76,29 @@ test("selected source module members do not emit a namespace object as a runtime
   assert.equal(selected.has(member), true, "the checked member remains an emitted exact module reference");
   assert.equal(selected.has(namespace), false, "its sealed module owner is rendered directly, not evaluated as a runtime object");
   assert.equal(selected.size, 1, "module-static dispatch adds no invented receiver dependency");
+});
+
+test("sealed native type receivers do not acquire their namespace as a runtime property or element operand", () => {
+  const property = {};
+  const element = {};
+  const qualifier = {};
+  const namespace = {};
+  const declarations = new Map([[qualifier, { kind: "type", reference: qualifier }]]);
+  const properties = new Map([
+    [property, { selection: { kind: "source-owned", source: { receiver: { expression: qualifier } } } }],
+    [qualifier, { selection: { kind: "source-owned", source: { receiver: { expression: namespace } } } }],
+  ]);
+  const elements = new Map([[element, { target: { kind: "source-owned", source: { receiver: { expression: qualifier } } } }]]);
+  const selected = select([property, element, qualifier, namespace], new Set([property, element]), properties, elements,
+    new Map(), new Map(), declarations);
+  assert.equal(selected.has(property) && selected.has(element), true, "both original static member operations remain demanded");
+  assert.equal(selected.has(qualifier) || selected.has(namespace), false, "type qualification evaluates neither a type value nor its namespace");
+  assert.equal(selected.size, 2, "one canonical type classification closes both native member forms");
+  declarations.set(qualifier, { kind: "value" });
+  const runtime = select([property, element, qualifier, namespace], new Set([property, element]), properties, elements,
+    new Map(), new Map(), declarations);
+  assert.equal(runtime.has(qualifier) && runtime.has(namespace), true, "actual runtime receivers retain their complete dependency chain");
+  assert.equal(runtime.size, 4, "no runtime effect is dropped because its source also names a type");
 });
 
 test("a member's discovered call receiver closes its source callee and original receiver dependencies", () => {

@@ -26,7 +26,7 @@ import { analyzeCsharpPropertyAdmission } from "../objects/property-admission.js
 import { analyzeCsharpOptionalCallChains } from "../callables/calls/optional-call-chains.js";
 import { analyzeCsharpElementAdmission } from "../objects/element-admission.js";
 import { analyzeCsharpSourceReferences } from "../operations/source-references.js";
-import { analyzeCsharpMemberReceivers } from "../objects/member-receivers.js";
+import { analyzeCsharpMemberReceivers, analyzeCsharpMemberReceiverTypes } from "../objects/member-receivers.js";
 import { analyzeCsharpSourceCallEmission } from "../callables/emission/source-call-emission.js";
 import { analyzeCsharpTargetArguments } from "../callables/native/target-arguments.js";
 import { analyzeCsharpArgumentPassing } from "../callables/values/argument-passing.js";
@@ -309,13 +309,15 @@ export function finalizeCsharpNativeEmission(
   const projectEmission = analyzeCsharpProjectEmission({ source, nodes: sourceStorage.nodes, projectTypes,
     factories: classFactories, evidence: analysis.sourceEvidence, names, projections: analysis.typeProjections });
   if (projectEmission.issues.length !== 0) return rejectedTargetStage(projectEmission.issues);
+  const receiverTypes = analyzeCsharpMemberReceiverTypes({ source, nodes: sourceStorage.nodes,
+    operations: admittedOperations, projects: projectEmission.records, factories: classFactories });
   const sourceReferences = analyzeCsharpSourceReferences({ source, nodes: sourceStorage.nodes, admitted: admittedControlNode,
     evidence: analysis.sourceEvidence, factories: classFactories, captures: captureStorage, demand: nativeDemand,
     operations: admittedOperations, files: sourceOutputIdentities.records, backing: analysis.storage.nativeBacking,
-    delegateAdapters: conversions.delegateAdapters, jsCalls: jsCalls.records });
+    delegateAdapters: conversions.delegateAdapters, jsCalls: jsCalls.records, receivers: receiverTypes });
   if (sourceReferences.issues.length !== 0) return rejectedTargetStage(sourceReferences.issues);
   const memberReceivers = analyzeCsharpMemberReceivers({ source, nodes: sourceStorage.nodes, operations: admittedOperations,
-    references: sourceReferences.records, projects: projectEmission.records, factories: classFactories, admitted: admittedControlNode });
+    references: sourceReferences.records, receivers: receiverTypes, admitted: admittedControlNode });
   if (memberReceivers.issues.length !== 0) return rejectedTargetStage(memberReceivers.issues);
   const propertyAdmission = analyzeCsharpPropertyAdmission({ ast: source.ast, nodes: sourceStorage.nodes,
     operations: admittedOperations, admitted: admittedControlNode, projectDeclaration: node => source.navigation.isProjectDeclaration(node), receivers: memberReceivers.records, jsCalls: jsCalls.records,

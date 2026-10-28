@@ -4,19 +4,19 @@ import { translateCsharpSelectedReceiver } from "../../../../dist/backend/planne
 import { csharpPlannedValue } from "../../../../dist/backend/planner/expressions/planned-values.js";
 import { csharpStringTargetType, csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpNullableReferenceTargetType } from "../../../../dist/target-model/types/carriers/nullable.js";
-import { analyzeCsharpMemberReceivers } from "../../../../dist/analysis/objects/member-receivers.js";
+import { analyzeCsharpMemberReceiverTypes } from "../../../../dist/analysis/objects/member-receivers.js";
 import { csharpTypeEmissionRecord } from "../../../helpers/planning-records.mjs";
 
-// The type-or-value decision for a selected receiver is made by analyzeCsharpMemberReceivers from the project
+// The type-or-value decision for a selected receiver is made by analyzeCsharpMemberReceiverTypes from the project
 // reference, project type and class-factory records; the planner renders the published decision. receive() runs that
 // analysis for the receiver a test selects and plans it.
 function receive(evidence, input, diagnostics, planExpression, projection) {
   const access = {};
-  const analysis = analyzeCsharpMemberReceivers({ source: { ast: input.program.source.ast }, nodes: [access],
+  const memberReceiver = analyzeCsharpMemberReceiverTypes({ source: { ast: input.program.source.ast }, nodes: [access],
     operations: { selectedProperty: { get: node => node === access ? { selection: { kind: "resolved", source: { receiver: evidence } } } : undefined },
       selectedElement: { get: () => undefined }, selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined } },
-    references: {}, projects: input.program.records, factories: input.program.records, admitted: () => false });
-  const records = { ...input.program.records, memberReceiver: analysis.records.memberReceiver };
+    projects: input.program.records, factories: input.program.records });
+  const records = { ...input.program.records, memberReceiver };
   return translateCsharpSelectedReceiver(evidence, {}, { ...input, program: { ...input.program, records } }, diagnostics, planExpression, projection);
 }
 

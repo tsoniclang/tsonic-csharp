@@ -1,20 +1,17 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpMemberReceiverEmission, CsharpNativeMethodCallee, CsharpSelectedReceiverEvidence } from "../../target-model/records/objects/member-receivers.js";
+import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import type { CsharpMemberReceiverEmission, CsharpMemberReceiverRecords, CsharpNativeMethodCallee, CsharpSelectedReceiverEvidence } from "../../target-model/records/objects/member-receivers.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { CsharpSourceReferenceRecords } from "../../target-model/records/program/source-references.js";
 import type { CsharpProjectEmissionRecords } from "../../target-model/records/program/project-emission.js";
 import type { CsharpClassFactoryIndex } from "../../target-model/records/objects/class-factories.js";
-import { createCsharpMemberReceiverRecords } from "../program/records/objects/member-receivers.js";
+import { createCsharpMemberReceiverRecords, createCsharpMemberReceiverTypeRecords } from "../program/records/objects/member-receivers.js";
 
-export function analyzeCsharpMemberReceivers(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];
-  readonly operations: CsharpTargetOperationClassifications; readonly references: CsharpSourceReferenceRecords;
-  readonly projects: CsharpProjectEmissionRecords; readonly factories: CsharpClassFactoryIndex; readonly admitted: (node: Node) => boolean }) {
+export function analyzeCsharpMemberReceiverTypes(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];
+  readonly operations: CsharpTargetOperationClassifications; readonly projects: CsharpProjectEmissionRecords;
+  readonly factories: CsharpClassFactoryIndex }): CsharpMemberReceiverRecords["memberReceiver"] {
   const receivers = new Map<Node, Map<Node | undefined, CsharpMemberReceiverEmission>>();
-  const functions = new Map<Node, "identifier" | "module">();
-  const methods = new Map<Node, CsharpNativeMethodCallee>();
-  const issues: TargetDiagnostic[] = [];
   const { ast } = input.source;
   const receiver = (selected: CsharpSelectedReceiverEvidence): CsharpMemberReceiverEmission => {
     const entries = receivers.get(selected.expression) ?? new Map<Node | undefined, CsharpMemberReceiverEmission>();
@@ -40,6 +37,16 @@ export function analyzeCsharpMemberReceivers(input: { readonly source: TargetSou
     if ((construction?.target?.kind === "resolved" || construction?.target?.kind === "source-owned") && construction.target.source.sourceReceiver !== undefined)
       receiver(construction.target.source.sourceReceiver);
   }
+  return createCsharpMemberReceiverTypeRecords(receivers);
+}
+
+export function analyzeCsharpMemberReceivers(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];
+  readonly operations: CsharpTargetOperationClassifications; readonly references: CsharpSourceReferenceRecords;
+  readonly receivers: CsharpMemberReceiverRecords["memberReceiver"]; readonly admitted: (node: Node) => boolean }) {
+  const functions = new Map<Node, "identifier" | "module">();
+  const methods = new Map<Node, CsharpNativeMethodCallee>();
+  const issues: TargetDiagnostic[] = [];
+  const { ast } = input.source;
   for (const node of input.nodes) {
     if (!input.admitted(node)) continue;
     const call = input.operations.selectedCall.get(node);
@@ -66,10 +73,12 @@ export function analyzeCsharpMemberReceivers(input: { readonly source: TargetSou
       refuse("A direct source method requires its exact sealed native member selection."); continue;
     }
     const projection = element?.receiverProjection ?? property?.receiverProjection;
-    if (receiver(selection.source.receiver).kind === "type" && projection?.conversion.kind === "rejected") { refuse(projection.conversion.reason); continue; }
+    const receiver = input.receivers.get(selection.source.receiver.expression, selection.source.receiver.valueDeclaration)
+      ?? failTargetAnalysisInvariant("tsonic-csharp", "A selected native method requires its completed receiver type-or-value classification.", selected.expression);
+    if (receiver.kind === "type" && projection?.conversion.kind === "rejected") { refuse(projection.conversion.reason); continue; }
     const key = element?.target?.kind === "source-owned" ? element.target.source.argument.expression : undefined;
     methods.set(selected.expression, { receiver: selection.source.receiver, projection, key,
       suspends: key !== undefined && input.source.navigation.expressionEffects(key).suspends });
   }
-  return Object.freeze({ records: createCsharpMemberReceiverRecords({ receivers, functions, methods }), issues: Object.freeze(issues) });
+  return Object.freeze({ records: createCsharpMemberReceiverRecords({ receivers: input.receivers, functions, methods }), issues: Object.freeze(issues) });
 }

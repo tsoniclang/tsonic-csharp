@@ -7,7 +7,7 @@ import { createDestructuringPlannerState } from "../../../../dist/backend/planne
 import { csharpPlannedValue } from "../../../../dist/backend/planner/expressions/planned-values.js";
 import { csharpSourcePrimitiveTargetType, csharpVoidTargetType, getCsharpNullableElementTargetType, targetTypeRefEquals } from "../../../../dist/target-model/types/index.js";
 import { optionalAccessTargetType } from "../../../../dist/policy/types/storage/optional-access.js";
-import { analyzeCsharpMemberReceivers } from "../../../../dist/analysis/objects/member-receivers.js";
+import { analyzeCsharpMemberReceivers, analyzeCsharpMemberReceiverTypes } from "../../../../dist/analysis/objects/member-receivers.js";
 import { analyzeCsharpSourceMemberNames } from "../../../../dist/analysis/objects/source-member-names.js";
 
 const plannerInvariant = message => error => error instanceof Error && error.phase === "planning" && error.message === message;
@@ -22,12 +22,13 @@ function sealedCallees({ selected, property, member, projects = {}, identifier =
     selectedConstruction: { get: () => undefined },
     sourceMember: { get: node => node === selected.expression ? member : undefined },
   };
-  const analysis = analyzeCsharpMemberReceivers({
-    source: { ast: { name: () => undefined, is: { IsIdentifier: node => identifier && node === selected.expression } },
-      navigation: { expressionEffects: () => ({ suspends: false }) } },
-    nodes: [call], operations, references,
+  const source = { ast: { name: () => undefined, is: { IsIdentifier: node => identifier && node === selected.expression } },
+    navigation: { expressionEffects: () => ({ suspends: false }) } };
+  const nodes = [call, selected.expression];
+  const receivers = analyzeCsharpMemberReceiverTypes({ source, nodes, operations,
     projects: { projectSourceReference: { get: () => undefined }, projectSourceType: { get: () => undefined }, ...projects },
-    factories: { classFactory: { get: () => undefined } }, admitted: () => true });
+    factories: { classFactory: { get: () => undefined } } });
+  const analysis = analyzeCsharpMemberReceivers({ source, nodes, operations, references, receivers, admitted: () => true });
   const names = analyzeCsharpSourceMemberNames({ ast: { name: () => undefined, as: { AsPropertyAccessExpression: () => undefined } },
     nodes: [selected.expression], operations,
     names: { resolve: () => undefined }, rendered: () => true });

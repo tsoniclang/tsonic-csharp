@@ -20,6 +20,7 @@ export type CsharpCallPlanningRecords = {
 export function selectCsharpEmittedExpressions(input: CsharpCallPlanningRecords & { readonly ast: AstReader;
   readonly operations: Pick<CsharpTargetOperationClassifications, "selectedProperty" | "selectedElement">;
   readonly modules: CsharpSourceReferenceRecords["sourceModuleReference"];
+  readonly receivers: import("../../target-model/records/objects/member-receivers.js").CsharpMemberReceiverRecords["memberReceiver"];
   readonly nodes: readonly Node[]; readonly admitted: (node: Node) => boolean; readonly jsCalls: CsharpJsCallRecords }): ReadonlySet<Node> {
   const emitted = new Set<Node>();
   const unplannedCallees = new Set<Node>();
@@ -46,9 +47,11 @@ export function selectCsharpEmittedExpressions(input: CsharpCallPlanningRecords 
       retain(callee);
     }
     const property = input.operations.selectedProperty.get(node)?.selection;
-    if (property?.kind === "source-owned" && input.modules.get(node) === undefined) retain(property.source.receiver.expression);
+    if (property?.kind === "source-owned" && input.modules.get(node) === undefined &&
+      input.receivers.get(property.source.receiver.expression, property.source.receiver.valueDeclaration)?.kind !== "type") retain(property.source.receiver.expression);
     const element = input.operations.selectedElement.get(node)?.target;
-    if (element?.kind === "source-owned") retain(element.source.receiver.expression);
+    if (element?.kind === "source-owned" &&
+      input.receivers.get(element.source.receiver.expression, element.source.receiver.valueDeclaration)?.kind !== "type") retain(element.source.receiver.expression);
   }
   return emitted;
 }

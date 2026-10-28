@@ -90,7 +90,7 @@ export function analyzeCsharpPropertyAdmission(input: { readonly ast: AstReader;
     } else members.set(node, { kind: "member", methodValue, flow,
       static: input.receivers.memberReceiver.get(selection.source.receiver.expression, selection.source.receiver.valueDeclaration)?.kind === "type" });
   };
-  const required = selectCsharpEmittedExpressions(input);
+  const required = selectCsharpEmittedExpressions({ ...input, receivers: input.receivers.memberReceiver });
   for (const node of required) {
     const element = input.operations.selectedElement.get(node);
     if (element?.target?.kind === "source-owned" && element.sourceOwned !== undefined) admitMember(node, element.target, element.sourceOwned);
