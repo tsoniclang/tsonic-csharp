@@ -98,12 +98,14 @@ export function analyzeCsharpDeclarations(
         const presentInitializer = members.length > 0 && members.every(member =>
           member !== undefined && !queries.types.isNullish(member) && !queries.types.isAny(member) && !queries.types.isUnknown(member));
         const presentOnly = incoming !== undefined && !csharpCarrierAdmitsSourceAbsence(incoming) &&
-          signature?.optionalParameterIndexes?.includes(index) !== true && targetTypeRefEquals(incoming, selected);
-        const runtimeDefault = presentOnly
-          ? Object.freeze({ kind: "present" as const, valueType: selected, parameterType: incoming })
-          : incoming !== undefined && value !== undefined && presentInitializer
-            ? csharpRuntimeParameterDefault(parameter.Type === undefined ? value : selected, incoming)
-            : csharpRuntimeParameterDefault(selected);
+          signature?.optionalParameterIndexes?.includes(index) !== true;
+        const contextualDefault = incoming === undefined ? undefined : presentOnly
+          ? Object.freeze({ kind: "present" as const, valueType: incoming, parameterType: incoming })
+          : csharpRuntimeParameterDefault(incoming, incoming);
+        const runtimeDefault = incoming === undefined ? csharpRuntimeParameterDefault(selected)
+          : contextualDefault === undefined ? undefined : Object.freeze({ ...contextualDefault,
+            valueType: parameter.Type === undefined && value !== undefined && presentInitializer ? value : selected,
+          });
         if (runtimeDefault !== undefined) {
           const slot = owner === undefined ? undefined : queries.types.declarationSignatureInfo(owner)
             ?.parameters.find(parameter => parameter.declaration === node);
@@ -113,7 +115,7 @@ export function analyzeCsharpDeclarations(
             (policy.ast.kindName(parameter.Initializer) === "KindNullKeyword" ||
               policy.ast.is.IsIdentifier(parameter.Initializer) && policy.navigation.sourceReferenceFor(parameter.Initializer) === undefined);
           declarations.runtimeDefault(node, Object.freeze({ ...runtimeDefault, acceptsOmission: presentOnly ? false : slot.acceptsOmission, native,
-            passthrough: (native.kind === "value" || absentInitializer) && !native.normalize &&
+            passthrough: (presentOnly || (native.kind === "value" || absentInitializer) && !native.normalize) &&
               targetTypeRefEquals(native.source, native.target) }));
         }
       }

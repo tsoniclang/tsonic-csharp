@@ -42,14 +42,15 @@ export function resolveSourceCallContract(
   if (callee.kind === "function" || callee.kind === "method" || callee.kind === "union-method") return direct();
   const reject = (): CsharpSourceCallContractSelection => Object.freeze({ kind: "rejected" });
   if (callee.kind === "rejected") return reject();
+  const selectedArguments = source.sourceSelectedMethodTypeArguments ?? [];
   const type = checkedValueInvocationCarrier(scope, source, sourceFile,
-    getCsharpNullableElementTargetType(callee.type) ?? callee.type);
+    getCsharpNullableElementTargetType(callee.type) ?? callee.type, selectedArguments);
   if (type === undefined) return reject();
   const closed = host.representations.closedInputContract(source.sourceCallee.expression);
   if (closed !== undefined) {
     const closedType = csharpCallableValueType(closed);
     return closedType !== undefined && targetTypeRefEquals(closedType, type) &&
-      (source.sourceSelectedMethodTypeArguments?.length ?? 0) === 0 &&
+      selectedArguments.length === 0 &&
       sourceCallableTypeParametersMatch(source, closed, "declaration")
       ? Object.freeze({ kind: "declaration", contract: closed, closedInput: true }) : reject();
   }
@@ -67,6 +68,7 @@ function checkedValueInvocationCarrier(
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
   type: TargetTypeRef,
+  selected: NonNullable<ResolvedSourceCallInfo["sourceSelectedMethodTypeArguments"]>,
 ): TargetTypeRef | undefined {
   const value = getCsharpMethodValue(type);
   if (value === undefined || value.typeParameters.length === 0) return type;
@@ -87,7 +89,6 @@ function checkedValueInvocationCarrier(
   const declaration = queries.declarations.signatureDeclaration(source.selectedSignature);
   if (declaration === undefined) return undefined;
   const declarations = host.ast.typeParameters(declaration);
-  const selected = source.sourceSelectedMethodTypeArguments ?? [];
   if (declarations.length !== selected.length) return undefined;
   const authored = selected.map((argument, index): NativeQuantifier | undefined => {
     const sourceParameter = declarations[index] === undefined ? undefined

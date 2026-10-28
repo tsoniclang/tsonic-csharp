@@ -11,6 +11,7 @@ import type { CsharpDefaultParameterContract } from "../../../../target-model/re
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { csharpPlannedValue } from "../../expressions/planned-values.js";
+import { convertCsharpPlannedValue } from "../../expressions/planned-value-conversions.js";
 
 type CsharpRuntimeParameterDefaultPlan = {
   readonly valueType: CsharpTypeNode;
@@ -56,10 +57,12 @@ function planRuntimeParameterDefault(
     failCsharpPlannerInvariant("An admitted runtime parameter default requires renderable native value and incoming carriers.", node);
   }
   const incoming: CsharpExpression = { kind: "IdentifierName", name: incomingName };
-  if (contract.kind === "present") return {
-    valueType, parameterType, passthrough: true,
-    value: csharpPlannedValue(contract.valueType, incoming),
-  };
+  if (contract.kind === "present") {
+    const value = convertCsharpPlannedValue(node, sourceFile, input, diagnostics,
+      csharpPlannedValue(incomingType, incoming), contract.valueType, "implicit");
+    if (value === undefined) failCsharpPlannerInvariant("An admitted present parameter requires its exact native body conversion.", node);
+    return { valueType, parameterType, passthrough: contract.passthrough, value };
+  }
   const initializer = planExpression(declaration.Initializer, sourceFile, input, diagnostics, state);
   if (initializer === undefined) failCsharpPlannerInvariant("An admitted runtime parameter default requires its native initializer plan.", declaration.Initializer);
   const value = planCsharpBindingDefaultValue(node, sourceFile, input, diagnostics,
