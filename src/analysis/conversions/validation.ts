@@ -92,6 +92,7 @@ export function admitCsharpConversionSelection(
       }
       case "union-map":
         if (!csharpRuntimeUnionMappingMatches(policy, sourceElement ?? current.source, targetElement ?? current.target, selected) ||
+          selected.coverage === "source" && sourceElement !== undefined && targetElement === undefined ||
           selected.coverage === "target" && targetElement !== undefined && sourceElement === undefined) return unionMappingRejected;
         break;
       case "runtime-union-projection": {

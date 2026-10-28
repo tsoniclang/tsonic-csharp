@@ -267,7 +267,12 @@ export function selectCsharpUnionArmMapping(
   if (coverage !== "source" && coverage !== "target") return undefined;
   const sourceArms = csharpUnionLeaves(source, definitions);
   const targetArms = csharpUnionLeaves(target, definitions);
-  if (sourceArms === undefined || targetArms === undefined) return undefined;
+  if (sourceArms === undefined) return undefined;
+  if (targetArms === undefined) {
+    if (coverage !== "source" || !sourceArms.every(arm => targetTypeRefEquals(arm.carrier, target))) return undefined;
+    const targetPath: readonly CsharpUnionPathStep[] = Object.freeze([]);
+    return Object.freeze(sourceArms.map(arm => Object.freeze({ carrier: arm.carrier, source: arm.path, target: targetPath })));
+  }
   const mappings: CsharpUnionArmMapping[] = [];
   const selectedTargets = new Map<readonly CsharpUnionPathStep[], TargetTypeRef[]>();
   for (const arm of sourceArms) {
