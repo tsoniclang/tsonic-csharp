@@ -2,11 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { selectCsharpEmittedExpressions } from "../../../dist/analysis/operations/emitted-expressions.js";
 
-function select(nodes, admitted, properties, elements = new Map(), calls = new Map()) {
+function select(nodes, admitted, properties, elements = new Map(), calls = new Map(), modules = new Map()) {
   return selectCsharpEmittedExpressions({
     ast: { is: { IsForOfStatement: () => false } },
     nodes,
     admitted: node => admitted.has(node),
+    modules: { get: node => modules.get(node) },
     operations: {
       nativeHandler: { get: () => undefined },
       selectedCall: { get: node => calls.get(node) },
@@ -63,6 +64,17 @@ test("resolved native members do not invent a runtime provider receiver", () => 
   ]));
   assert.equal(selected.has(receiver), false, "a native type owner is not an emitted source value");
   assert.equal(selected.size, 1, "the selected native member contract alone determines its operands");
+});
+
+test("selected source module members do not emit a namespace object as a runtime receiver", () => {
+  const member = {};
+  const namespace = {};
+  const selected = select([member, namespace], new Set([member]), new Map([
+    [member, { selection: { kind: "source-owned", source: { receiver: { expression: namespace } } } }],
+  ]), new Map(), new Map(), new Map([[member, { declaration: {} }]]));
+  assert.equal(selected.has(member), true, "the checked member remains an emitted exact module reference");
+  assert.equal(selected.has(namespace), false, "its sealed module owner is rendered directly, not evaluated as a runtime object");
+  assert.equal(selected.size, 1, "module-static dispatch adds no invented receiver dependency");
 });
 
 test("a member's discovered call receiver closes its source callee and original receiver dependencies", () => {

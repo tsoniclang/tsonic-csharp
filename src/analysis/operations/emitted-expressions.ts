@@ -3,6 +3,7 @@ import type { CsharpTargetOperationClassifications } from "../../target-model/re
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 import type { CsharpTypedLocationStorage } from "../../target-model/records/storage/typed-location-storage.js";
 import type { CsharpJsCallRecords } from "../../target-model/records/calls/js-value-calls.js";
+import type { CsharpSourceReferenceRecords } from "../../target-model/records/program/source-references.js";
 
 export type CsharpCallPlanningRecords = {
   readonly operations: Pick<CsharpTargetOperationClassifications, "selectedCall" | "nativeHandler">;
@@ -18,6 +19,7 @@ export type CsharpCallPlanningRecords = {
  */
 export function selectCsharpEmittedExpressions(input: CsharpCallPlanningRecords & { readonly ast: AstReader;
   readonly operations: Pick<CsharpTargetOperationClassifications, "selectedProperty" | "selectedElement">;
+  readonly modules: CsharpSourceReferenceRecords["sourceModuleReference"];
   readonly nodes: readonly Node[]; readonly admitted: (node: Node) => boolean; readonly jsCalls: CsharpJsCallRecords }): ReadonlySet<Node> {
   const emitted = new Set<Node>();
   const unplannedCallees = new Set<Node>();
@@ -44,7 +46,7 @@ export function selectCsharpEmittedExpressions(input: CsharpCallPlanningRecords 
       retain(callee);
     }
     const property = input.operations.selectedProperty.get(node)?.selection;
-    if (property?.kind === "source-owned") retain(property.source.receiver.expression);
+    if (property?.kind === "source-owned" && input.modules.get(node) === undefined) retain(property.source.receiver.expression);
     const element = input.operations.selectedElement.get(node)?.target;
     if (element?.kind === "source-owned") retain(element.source.receiver.expression);
   }

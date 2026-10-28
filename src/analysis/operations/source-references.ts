@@ -28,7 +28,6 @@ export function analyzeCsharpSourceReferences(input: { readonly source: TargetSo
   const modules = new Map<Node, SourceProjectReference>();
   const references = new Map<Node, { readonly value: SourceProjectReference | undefined; readonly declaration: SourceDeclarationReference | undefined }>();
   const issues: TargetDiagnostic[] = [];
-  const required = selectCsharpEmittedExpressions({ ...input, ast });
   const moduleStatic = (node: Node): boolean => (ast.is.IsFunctionDeclaration(node) || ast.is.IsExportAssignment(node) ||
     ast.is.IsVariableDeclaration(node) || ast.is.IsBindingElement(node)) && sourceDeclarationIsModuleScoped(node, ast);
   for (const node of input.nodes) {
@@ -42,7 +41,18 @@ export function analyzeCsharpSourceReferences(input: { readonly source: TargetSo
     const external = (reference: SourceProjectReference | SourceDeclarationReference | undefined): boolean => reference !== undefined && reference.sourceFile !== sourceFile &&
       (reference.sourceFile.IsDeclarationFile || input.files.providerSourceFile.get(reference.sourceFile) === true);
     if (memberReference !== undefined && !external(memberReference) && moduleStatic(memberReference.declaration)) modules.set(node, memberReference);
+  }
+  const required = selectCsharpEmittedExpressions({ ...input, ast, modules: { get: node => modules.get(node) } });
+  for (const node of input.nodes) {
     if (!required.has(node) || !ast.is.IsIdentifier(node)) continue;
+    const reference = references.get(node);
+    if (reference === undefined) failTargetAnalysisInvariant("tsonic-csharp", "Identifier admission requires its collected checked source reference.", node);
+    const { value, declaration: declarationReference } = reference;
+    const sourceFile = ast.getSourceFile(node);
+    if (sourceFile === undefined) failTargetAnalysisInvariant("tsonic-csharp", "Identifier admission requires its original source module.", node);
+    const memberReference = value;
+    const external = (selected: SourceProjectReference | SourceDeclarationReference | undefined): boolean => selected !== undefined && selected.sourceFile !== sourceFile &&
+      (selected.sourceFile.IsDeclarationFile || input.files.providerSourceFile.get(selected.sourceFile) === true);
     const parent = ast.parent(node);
     if (parent !== undefined && ast.is.IsNewExpression(parent) && ast.as.AsNewExpression(parent)?.Expression === node &&
       input.operations.selectedConstruction.get(parent)?.target?.kind === "resolved") continue;
