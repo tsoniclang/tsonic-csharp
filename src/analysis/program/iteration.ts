@@ -283,7 +283,7 @@ export function analyzeCsharpRepresentationIteration(
   const sourceResolutionIssues = new Set<TargetDiagnostic>(evidence.nativeExpressionIssues);
   const requiredSourceRefusals = nativeDemand.unadmitted.flatMap(use =>
     use.kind === "source-refusal" && sourceResolutionIssues.has(use.diagnostic) ? [use.diagnostic] : []);
-  if (requiredSourceRefusals.length !== 0) return rejectedTargetStage(requiredSourceRefusals);
+  if (requiredSourceRefusals.length !== 0) return rejectedTargetStage<never>(requiredSourceRefusals);
   const bindingPatterns = admitCsharpBindingPatterns(bindingCandidates, nativeDemand.requiredBindingRoots, requiredRecords);
   conversionAnalysis.close(nativeDemand, requiredRecords, captureStorage);
   const conversions = conversionAnalysis.seal();
