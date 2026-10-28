@@ -58,7 +58,7 @@ const nativeEntryCases = [
   ],
   [
     "finite-callback-alternatives",
-    "function wrap<Value>(value: Value): Promise<Value> {\n  return new Promise<Value>(resolve => {\n    const first = (): void => { resolve(value); };\n    const second = (): void => { resolve(value); };\n    const callback = value === value ? first : second;\n    [0].forEach(callback);\n  });\n}"
+    "function wrap<Value>(value: Value, selectFirst: boolean): Promise<Value> {\n  return new Promise<Value>(resolve => {\n    const first = (): void => { resolve(value); };\n    const second = (): void => { resolve(value); };\n    const callback = selectFirst ? first : second;\n    [0].forEach(callback);\n  });\n}"
   ],
   [
     "both-native-then-ports",
