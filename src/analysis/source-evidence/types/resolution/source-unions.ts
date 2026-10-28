@@ -1,4 +1,4 @@
-import { sourcePrimitiveFactKey, type Node, type ReadonlySourceFactResolver, type Type } from "@tsonic/tsts";
+import type { Node, Type } from "@tsonic/tsts";
 import { sourceBoundTypeRelationship, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/equality.js";
@@ -6,6 +6,7 @@ import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/carrie
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { CsharpTypeDefinitions } from "../../../../target-model/types/source-union-definitions.js";
+import { csharpUnionLeaves } from "../../../../target-model/types/union-relations.js";
 
 interface CsharpSourceUnionMember {
   readonly source: Type;
@@ -24,14 +25,14 @@ export interface CsharpSourceUnionIndex {
     { readonly kind: "unavailable" | "rejected" } | { readonly kind: "resolved"; readonly carrier: TargetTypeRef };
 }
 
-export function createCsharpSourceUnionIndex(definitions?: CsharpTypeDefinitions,
-  sourceFacts?: ReadonlySourceFactResolver): CsharpSourceUnionIndex {
+export function createCsharpSourceUnionIndex(definitions?: CsharpTypeDefinitions): CsharpSourceUnionIndex {
   const membersByCarrier = new Map<string, readonly CsharpSourceUnionMember[]>();
   return {
     retain(carrier, members, queries, state) {
       if (carrier === undefined) return undefined;
       const present = getCsharpNullableElementTargetType(carrier) ?? carrier;
-      if (getCsharpRuntimeUnionArms(present, definitions) === undefined) return carrier;
+      const leaves = csharpUnionLeaves(present, definitions);
+      if (leaves === undefined) return carrier;
       const key = targetTypeRefKey(present);
       const entries = [...membersByCarrier.get(key) ?? []];
       const bindings = new Map([...state.sourceBindings ?? []].map(([node, binding]) => [node, binding.sourceType]));
@@ -44,6 +45,7 @@ export function createCsharpSourceUnionIndex(definitions?: CsharpTypeDefinitions
         const candidates = nested ?? sources.filter(source => !queries.types.isNullish(source))
           .map(source => Object.freeze({ source, carrier: inner, bindings }));
         for (const candidate of candidates) {
+          if (!leaves.some(leaf => targetTypeRefEquals(leaf.carrier, candidate.carrier))) continue;
           if (!entries.some(entry => entry.source === candidate.source &&
             targetTypeRefEquals(entry.carrier, candidate.carrier) &&
             entry.bindings.size === candidate.bindings.size &&
@@ -60,23 +62,12 @@ export function createCsharpSourceUnionIndex(definitions?: CsharpTypeDefinitions
       const exact = entries.filter(entry => sourceBoundTypeRelationship(
         entry.source, selected, queries, declaration => entry.bindings.get(declaration),
       ) !== undefined);
-      const selectedDomain = numericSourceDomain(selected, queries);
-      const candidates = exact.length > 0 ? exact : selectedDomain === undefined ? []
-        : entries.filter(entry => numericSourceDomain(entry.source, queries) === selectedDomain);
+      const candidates = exact.length > 0 ? exact : entries.filter(entry =>
+        queries.types.isNumberLike(selected) && queries.types.isNumberLike(entry.source) ||
+        queries.types.isBigIntLike(selected) && queries.types.isBigIntLike(entry.source));
       const first = candidates[0];
       return first === undefined || candidates.some(candidate => !targetTypeRefEquals(candidate.carrier, first.carrier))
         ? { kind: "rejected" } : { kind: "resolved", carrier: first.carrier };
     },
   };
-
-  function numericSourceDomain(type: Type, queries: SourceFileSemantics): "number" | "bigint" | undefined {
-    if (sourceFacts !== undefined) {
-      for (const subject of queries.facts.typeSubjects(type)) {
-        const primitive = sourceFacts.getFact(subject, sourcePrimitiveFactKey);
-        if (primitive !== undefined) return primitive.runtimeBase === "number" || primitive.runtimeBase === "bigint"
-          ? primitive.runtimeBase : undefined;
-      }
-    }
-    return queries.types.isNumberLike(type) ? "number" : queries.types.isBigIntLike(type) ? "bigint" : undefined;
-  }
 }
