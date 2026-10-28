@@ -19,7 +19,7 @@ import { csharpRuntimeParameterDefault } from "../../../../policy/types/storage/
 import { resolveCsharpCallableTypeParameters } from "./callable-type-parameters.js";
 import type { SourceStorageSubject } from "@tsonic/target-api/analysis";
 import { csharpSourceStorageContext } from "./source-storage-projection.js";
-import { resolveCsharpNativeParameterCarrier } from "./source-references.js";
+import { resolveCsharpNativeParameterCarrier, selectCsharpContextualParameterCarrier } from "./source-references.js";
 
 import { selectCsharpSourceProfileCarrier } from "../../../../policy/operations/source-profiles/type-carriers.js";
 import type { CsharpProviderRelationResolver } from "../../../../providers/model/relation-resolver.js";
@@ -189,7 +189,10 @@ export function resolveSignatureParameterEvidence(
 ): TargetTypeRef | undefined {
   const { host, resolveSourceTypeComponentEvidence } = scope;
   const entry = parameter.declaration === undefined ? undefined : host.sourceStorage.subject(parameter.declaration, "input");
-  const resolved = resolveSourceTypeComponentEvidence(
+  const contextual = parameter.declaration === undefined || use !== "callable" || host.ast.typeNode(parameter.declaration) !== undefined
+    ? undefined : selectCsharpContextualParameterCarrier(scope, parameter.declaration, queries, state);
+  const resolved = contextual?.kind === "unresolved" ? undefined : contextual?.kind === "resolved" ? contextual.type
+    : resolveSourceTypeComponentEvidence(
     {
       selectedType: parameter.type,
       ...(parameter.declaration === undefined

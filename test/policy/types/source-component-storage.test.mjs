@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createCompilerSessionFromFiles } from "@tsonic/tsts";
+import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 import { resolveCallableEvidence, resolveSignatureParameterEvidence, resolveSourceProfileType, resolveSourceTypeComponentEvidence } from "../../../dist/analysis/source-evidence/types/resolution/source-profiles.js";
 import { csharpSourceStorageComponentContext } from "../../../dist/analysis/source-evidence/types/resolution/source-storage-projection.js";
 import { createSourceErrorProviderFixture } from "../../fixtures/dotnet-provider/source-error-bindings.mjs";
@@ -7,6 +10,52 @@ import { createSourceErrorProviderFixture } from "../../fixtures/dotnet-provider
 const typeOnlyPredicates = { IsTypeAliasDeclaration: () => false, IsInterfaceDeclaration: () => false,
   IsTypeParameterDeclaration: () => false };
 const subject = (node, kind = "value", projection = []) => Object.freeze({ node, kind, projection: Object.freeze(projection) });
+
+test("implementation signature evidence uses the original contextual tuple parameter before erased semantic storage", () => {
+  const checked = createCompilerSessionFromFiles({ currentDirectory: "/project", files: {
+    "/project/index.ts": "const consume: (...values: [number, bigint, string]) => boolean = (...values) => values[0] > 0;",
+  }, compilerOptions: { strict: true, target: "es2022", module: "esnext" } }).checkSource();
+  assert.equal(checked.diagnostics.length, 0, "the source supplies one checked contextual tuple");
+  const source = createTargetSourceProgram(checked);
+  const file = checked.getSourceFile("/project/index.ts");
+  const storage = createSourceStorageQuery(source, [file]);
+  let implementation;
+  const visit = node => {
+    if (source.ast.is.IsArrowFunction(node)) implementation = node;
+    source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  visit(file);
+  assert.equal(implementation !== undefined, true, "one actual implementation owns the parameter");
+  const queries = source.semantics.forFile(file);
+  const incoming = queries.types.callable(queries.types.expressionType(implementation)).parameters[0];
+  const native = Object.freeze({ kind: "tuple", elements: Object.freeze([
+    Object.freeze({ kind: "source-primitive", name: "int32" }),
+    Object.freeze({ kind: "source-primitive", name: "int64" }),
+    Object.freeze({ kind: "source-primitive", name: "string" }),
+  ]) });
+  let formalSelections = 0;
+  const scope = {
+    host: { ast: source.ast, sourceStorage: storage, objectShapes: {
+      resolveNativeParameter(owner, parameter, type) {
+        assert.equal(owner === implementation && parameter === incoming.declaration && type === native, true,
+          "physical input selection consumes the same complete contextual tuple");
+        return { kind: "resolved", type };
+      },
+    } },
+    sourceValueDeclarationSyntax: node => ({ type: source.ast.typeNode(node),
+      initializer: source.ast.as.AsParameterDeclaration(node).Initializer }),
+    resolveSourceTypeComponentEvidence(component) {
+      assert.equal(component.declaration !== incoming.declaration && component.authoredTypeNode !== undefined, true,
+        "only the original contextual formal owns native tuple metadata, not the erased implementation tuple");
+      formalSelections += 1;
+      return native;
+    },
+  };
+  scope.resolveSignatureParameterEvidence = (...arguments_) => resolveSignatureParameterEvidence(scope, ...arguments_);
+  const selected = resolveSignatureParameterEvidence(scope, incoming, queries, { depth: 0 }, "callable");
+  assert.equal(selected === native && formalSelections === 1, true,
+    "callable ABI evidence retains the one contextual native tuple without semantic reselection");
+});
 
 test("type transformations retain the selected value owner independently of metadata declarations", () => {
   for (const mode of ["parameter", "result", "unavailable"]) {
