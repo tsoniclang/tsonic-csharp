@@ -8,7 +8,9 @@ import { csharpMethodValueType } from "../../../dist/target-model/types/method-v
 import { csharpDelegateTargetType, getCsharpDelegateSignature } from "../../../dist/target-model/types/carriers/delegates.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { csharpVoidTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
-import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { assertCsharpCompilationSucceeded, compileCsharpSource, withCsharpSessionRequest } from "../../helpers/direct-csharp-session.mjs";
+import { csharpProviderBindingFromResolution } from "../../../dist/providers/model/relation-resolver.js";
+import { csharpTargetTypeFromBinding } from "../../../dist/policy/types/storage/bindings.js";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
 const policy = { projectTypes: { directSupertypes: () => [] }, providers: {
@@ -60,7 +62,7 @@ test("one native method instantiation owns exact callback signatures, constraint
 
 for (const surface of ["native", "js"]) {
   test(`closed generic callback constraints use actual native numeric implementation metadata on ${surface}`, { timeout: 300_000 }, () => {
-    const compiled = compileCsharpSource({ surface, sourceText: `
+    const { compiled, value: numericBinding } = withCsharpSessionRequest({ surface, sourceText: `
 import type { int32, int64 } from "@tsonic/core/types.js";
 function same<Value extends number>(value: Value): Value { return value; }
 function sameWide<Value extends bigint>(value: Value): Value { return value; }
@@ -69,8 +71,27 @@ export function run(): boolean {
   const wideCallback: (value: int64) => int64 = sameWide;
   const wide: int64 = 9007199254740993n;
   return callback(7) === 7 && wideCallback(wide) === wide;
-}` });
+}` }, request => csharpProviderBindingFromResolution(request.providers.findTargetBindingByMetadataName("System.Numerics.INumber`1", "ordinary")));
     assertCsharpCompilationSucceeded(compiled);
+    assert.equal(numericBinding !== undefined, true, "the exact native numeric interface binding owns generic constraint identity");
+    const program = compiled.result.program;
+    const constraints = [];
+    const visit = node => {
+      if (program.source.ast.is.IsTypeParameterDeclaration(node)) {
+        const selected = program.records.typeParameterConstraints.get(node);
+        assert.equal(selected?.kind, "resolved", "the authored numeric binder retains one completed native constraint");
+        constraints.push(...selected.constraints.filter(constraint => constraint.kind === "type"));
+      }
+      program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    };
+    for (const file of program.source.sourceFiles) if (program.source.ast.getFileName(file) === "/project/index.ts") visit(file);
+    assert.equal(constraints.length, 2, "both source numeric domains retain their original native INumber constraint");
+    for (const constraint of constraints) {
+      const argument = constraint.type.typeArguments?.[0];
+      assert.equal(argument?.kind, "type-parameter", "constraint publication preserves the original exact generic binder");
+      assert.equal(targetTypeRefEquals(constraint.type, csharpTargetTypeFromBinding(numericBinding, [argument])), true,
+        "the constraint uses the actual provider-qualified interface, never a competing metadata-name identity");
+    }
     const output = [...compiled.artifacts.values()].join("\n");
     assert.equal(/INumber<Value>/u.test(output), true, "the original numeric native constraint remains on the one method body");
     assert.equal(/DynamicInvoke|TsValue|Convert\.ToDouble/u.test(output), false,
