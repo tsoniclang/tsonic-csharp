@@ -35,6 +35,9 @@ import type {
 } from "../../target-model/types/model.js";
 import { createCsharpTypeParameterEnvironment } from "../source-evidence/types/resolution/type-parameter-environment.js";
 import { resolveCsharpTypeParameterConstraints } from "../source-evidence/types/resolution/type-parameter-constraints.js";
+import { csharpNativeInheritanceLookup } from "../../target-model/types/native-inheritance.js";
+import { csharpTargetTypeFromBinding } from "../../policy/types/storage/bindings.js";
+import type { CsharpTypeParameterConstraint } from "../../target-model/types/generic-constraints.js";
 
 export interface CsharpTypeSystem {
   readonly typeDefinitions: import("../../target-model/types/source-union-definitions.js").CsharpTypeDefinitions;
@@ -60,7 +63,7 @@ function createCsharpTypeSystem(
     if (sourceFile === undefined || !host.hasSemantics(sourceFile)) return undefined;
     const sourceType = source?.sourceType ?? host.semantics(sourceFile).declarations.declaredType(declaration);
     if (sourceType === undefined) return undefined;
-    return resolveCsharpTypeParameterConstraints(declaration, parameter, sourceFile, {
+    const resolution = resolveCsharpTypeParameterConstraints(declaration, parameter, sourceFile, {
       ast: host.ast,
       types: { resolveNode: (node, file) => {
         let rejected: Extract<import("../../policy/model/type-resolution.js").CsharpNodeTypeResolution, { readonly kind: "rejected" }> | undefined;
@@ -71,6 +74,24 @@ function createCsharpTypeSystem(
         return rejected ?? (type === undefined ? undefined : Object.freeze({ kind: "resolved" as const, type }));
       } },
     });
+    if (resolution.kind !== "resolved") return resolution;
+    const constraints: CsharpTypeParameterConstraint[] = [];
+    for (const constraint of resolution.constraints) {
+      const selected = constraint.kind === "type" && constraint.type.kind === "target-named"
+        ? csharpNativeInheritanceLookup(constraint.type) : undefined;
+      if (selected?.kind !== "metadata-name" || constraint.kind !== "type" || constraint.type.kind !== "target-named") {
+        constraints.push(constraint);
+        continue;
+      }
+      const binding = host.providers.findTargetBindingByMetadataName(selected.metadataName, "ordinary");
+      if (binding.kind !== "resolved") return Object.freeze({ kind: "unsupported" as const,
+        reason: binding.kind === "missing" ? binding.reason : binding.diagnostic.message });
+      const type = csharpTargetTypeFromBinding(binding.binding, constraint.type.typeArguments);
+      if (type === undefined) return Object.freeze({ kind: "unsupported" as const,
+        reason: "The selected native generic constraint has no exact C# binding carrier." });
+      constraints.push(Object.freeze({ kind: "type", type }));
+    }
+    return Object.freeze({ kind: "resolved" as const, constraints: Object.freeze(constraints) });
   });
   const createTypeResolution = (
     representations: CsharpPlanningRepresentationQueries,
