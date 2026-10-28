@@ -1,5 +1,6 @@
 import type { AstReader, Node } from "@tsonic/tsts";
-import type { SourceStorageQueries } from "@tsonic/target-api/analysis";
+import type { SourceStorageDomainBoundary, SourceStorageQueries } from "@tsonic/target-api/analysis";
+import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef } from "../../../target-model/types/model.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
 import { createStructuralObjectShapeTarget } from "./construction.js";
@@ -18,6 +19,14 @@ const methodValueUses = new WeakMap<SourceStorageQueries, {
   readonly retained: ReadonlySet<Node>;
   readonly extracted: ReadonlySet<Node>;
 }>();
+
+function structuralBoundariesAreExportOnly(source: TargetSourceProgram,
+  boundaries: readonly Pick<SourceStorageDomainBoundary, "kind" | "exposure">[] | undefined): boolean {
+  const { ast } = source;
+  return boundaries !== undefined && boundaries.length !== 0 && boundaries.every(boundary => boundary.kind === "external-write" &&
+    (ast.is.IsVariableDeclaration(boundary.exposure) || ast.is.IsFunctionDeclaration(boundary.exposure) ||
+      ast.is.IsClassDeclaration(boundary.exposure)) && source.navigation.declarationUseSummary(boundary.exposure).exported);
+}
 
 function selectMethodValueUses(storage: SourceStorageQueries) {
   const cached = methodValueUses.get(storage);
@@ -41,8 +50,9 @@ function selectMethodValueUses(storage: SourceStorageQueries) {
       else {
         const subject = storage.memberSubjectFor(node);
         const domain = subject.kind === "resolved" ? storage.closedOriginsFor(subject.subject) : undefined;
-        if (domain?.kind === "open" && domain.boundaries.some(boundary => boundary.kind === "external-input" ||
-          boundary.kind === "external-write" || boundary.kind === "unclassified-exposure")) add(node, true);
+        if (domain?.kind === "open" && !structuralBoundariesAreExportOnly(source, domain.boundaries) &&
+          domain.boundaries.some(boundary => boundary.kind === "external-input" || boundary.kind === "external-write" ||
+            boundary.kind === "unclassified-exposure")) add(node, true);
       }
     }
     const binding = ast.is.IsBindingElement(node) ? ast.as.AsBindingElement(node) : undefined;
