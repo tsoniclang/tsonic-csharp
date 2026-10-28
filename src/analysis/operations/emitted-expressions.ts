@@ -21,30 +21,32 @@ export function selectCsharpEmittedExpressions(input: CsharpCallPlanningRecords 
   readonly nodes: readonly Node[]; readonly admitted: (node: Node) => boolean; readonly jsCalls: CsharpJsCallRecords }): ReadonlySet<Node> {
   const emitted = new Set<Node>();
   const unplannedCallees = new Set<Node>();
-  for (const node of input.nodes) if (input.admitted(node)) {
-    emitted.add(node);
+  for (const node of input.nodes) {
+    const call = input.operations.selectedCall.get(node);
+    const callee = call?.source?.sourceCallee.expression;
+    if (callee !== undefined && !(csharpCallIsPlannedAsSourceCall(node, input) && call?.unionCall.kind !== "resolved") &&
+      callee !== input.jsCalls.jsCall.get(node)?.receiver) unplannedCallees.add(callee);
+  }
+  const retain = (node: Node): void => { if (!unplannedCallees.has(node)) emitted.add(node); };
+  for (const node of input.nodes) if (input.admitted(node)) retain(node);
+  for (const node of emitted) {
     const assigned = input.ast.is.IsForOfStatement(node) ? input.ast.as.AsForInOrOfStatement(node)?.Initializer : undefined;
-    if (assigned !== undefined && input.ast.is.IsIdentifier(assigned)) emitted.add(assigned);
+    if (assigned !== undefined && input.ast.is.IsIdentifier(assigned)) retain(assigned);
     const handler = input.operations.nativeHandler.get(node);
     if (handler?.kind === "typed-location" && handler.selection.kind === "location-address") {
       for (let storage: CsharpTypedLocationStorage | undefined = handler.selection.storage; storage !== undefined;
-        storage = storage.kind === "value-property-storage" ? storage.receiverStorage : undefined) emitted.add(storage.expression);
+        storage = storage.kind === "value-property-storage" ? storage.receiverStorage : undefined) retain(storage.expression);
     }
     const callee = input.operations.selectedCall.get(node)?.source?.sourceCallee.expression;
-    if (callee === undefined) continue;
-    const jsReceiver = input.jsCalls.jsCall.get(node)?.receiver;
-    if (jsReceiver !== undefined) emitted.add(jsReceiver);
-    // A runtime-union call plans its receiver and a per-arm dispatcher; its callee is not planned as a property.
-    const unionCall = input.operations.selectedCall.get(node)?.unionCall.kind === "resolved";
-    if (csharpCallIsPlannedAsSourceCall(node, input) && !unionCall || callee === jsReceiver) emitted.add(callee);
-    else unplannedCallees.add(callee);
-  }
-  for (const callee of unplannedCallees) emitted.delete(callee);
-  for (const node of emitted) {
+    if (callee !== undefined) {
+      const jsReceiver = input.jsCalls.jsCall.get(node)?.receiver;
+      if (jsReceiver !== undefined) retain(jsReceiver);
+      retain(callee);
+    }
     const property = input.operations.selectedProperty.get(node)?.selection;
-    if (property?.kind === "source-owned") emitted.add(property.source.receiver.expression);
+    if (property?.kind === "source-owned") retain(property.source.receiver.expression);
     const element = input.operations.selectedElement.get(node)?.target;
-    if (element?.kind === "source-owned") emitted.add(element.source.receiver.expression);
+    if (element?.kind === "source-owned") retain(element.source.receiver.expression);
   }
   return emitted;
 }

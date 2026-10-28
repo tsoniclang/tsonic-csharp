@@ -2,14 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { selectCsharpEmittedExpressions } from "../../../dist/analysis/operations/emitted-expressions.js";
 
-function select(nodes, admitted, properties, elements = new Map()) {
+function select(nodes, admitted, properties, elements = new Map(), calls = new Map()) {
   return selectCsharpEmittedExpressions({
     ast: { is: { IsForOfStatement: () => false } },
     nodes,
     admitted: node => admitted.has(node),
     operations: {
       nativeHandler: { get: () => undefined },
-      selectedCall: { get: () => undefined },
+      selectedCall: { get: node => calls.get(node) },
       selectedProperty: { get: node => properties.get(node) },
       selectedElement: { get: node => elements.get(node) },
     },
@@ -63,4 +63,25 @@ test("resolved native members do not invent a runtime provider receiver", () => 
   ]));
   assert.equal(selected.has(receiver), false, "a native type owner is not an emitted source value");
   assert.equal(selected.size, 1, "the selected native member contract alone determines its operands");
+});
+
+test("a member's discovered call receiver closes its source callee and original receiver dependencies", () => {
+  const member = {};
+  const call = {};
+  const callee = {};
+  const receiver = {};
+  const properties = new Map([
+    [member, { selection: { kind: "source-owned", source: { receiver: { expression: call } } } }],
+    [callee, { selection: { kind: "source-owned", source: { receiver: { expression: receiver } } } }],
+  ]);
+  const calls = new Map([[call, { source: { sourceCallee: { expression: callee } },
+    target: { kind: "source-owned" }, unionCall: { kind: "not-union" }, form: { kind: "target" } }]]);
+  const selected = select([member, call, callee, receiver], new Set([member]), properties, new Map(), calls);
+  assert.equal(selected.has(call) && selected.has(callee) && selected.has(receiver), true,
+    "a late discovered receiver call uses the same complete native dependency authority");
+  assert.equal(selected.size, 4, "each actual runtime dependency participates exactly once");
+  calls.set(call, { ...calls.get(call), target: { kind: "resolved" } });
+  const native = select([member, call, callee, receiver], new Set([member]), properties, new Map(), calls);
+  assert.equal(native.has(call) && !native.has(callee) && !native.has(receiver), true,
+    "a native-dispatched call still does not publish its unplanned source callee or guessed receiver");
 });
