@@ -85,7 +85,9 @@ function createCsharpTypeSystem(
       }
       const binding = host.providers.findTargetBindingByMetadataName(selected.metadataName, "ordinary");
       if (binding.kind !== "resolved") return Object.freeze({ kind: "unsupported" as const,
-        reason: binding.kind === "missing" ? binding.reason : binding.diagnostic.message });
+        reason: binding.kind === "missing"
+          ? "The selected native generic constraint has no exact C# provider binding."
+          : binding.diagnostic.message });
       const type = csharpTargetTypeFromBinding(binding.binding, constraint.type.typeArguments);
       if (type === undefined) return Object.freeze({ kind: "unsupported" as const,
         reason: "The selected native generic constraint has no exact C# binding carrier." });
