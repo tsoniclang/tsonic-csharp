@@ -142,6 +142,7 @@ export function providerConstructor(options = {}) {
     targetName: options.targetName ?? ".ctor",
     kind: "constructor",
     csharpConstructorAccessibility: options.accessibility ?? "public",
+    csharpConstructorObsolete: false,
     static: false,
     parameters: options.parameters ?? [],
     declaringType,

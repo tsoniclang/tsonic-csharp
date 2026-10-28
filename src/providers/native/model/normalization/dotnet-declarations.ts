@@ -206,6 +206,12 @@ function validateDotnetMemberList(
     if (member.kind === "constructor") {
       requireSupportedDiscriminant(member.accessibility, `${memberPath}.accessibility`, collector,
         ".NET constructor accessibility", supportedDotnetAccessibilities);
+      for (const [signatureIndex, signature] of (member.signatures ?? []).entries()) {
+        if (typeof signature.obsolete !== "boolean") {
+          collector.add(`${memberPath}.signatures[${signatureIndex}].obsolete`,
+            "A native constructor signature requires exact obsolescence evidence.", signature.obsolete);
+        }
+      }
     } else if (member.accessibility !== undefined) {
       collector.add(`${memberPath}.accessibility`, "Only constructors carry constructor accessibility.", member.accessibility);
     }

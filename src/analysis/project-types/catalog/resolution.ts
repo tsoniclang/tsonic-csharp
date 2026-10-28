@@ -69,6 +69,7 @@ export function analyzeCsharpProjectTypePolicy(
       continue;
     }
     const constructors: CsharpProjectForwardingConstructor[] = [];
+    let excludedConstructor = false;
     const signatures = new Map<Signature, CsharpProjectForwardingConstructor>();
     const constructorsByTargetSignature = new Map<
       string,
@@ -85,6 +86,10 @@ export function analyzeCsharpProjectTypePolicy(
       );
       if (selected.kind === "unresolved") {
         constructorIssues.push(selected.issue);
+        continue;
+      }
+      if (selected.kind === "excluded") {
+        excludedConstructor = true;
         continue;
       }
       const key = csharpForwardingConstructorSignatureKey(
@@ -106,6 +111,10 @@ export function analyzeCsharpProjectTypePolicy(
       constructors.push(selected.constructor);
       constructorsByTargetSignature.set(key, selected.constructor);
       signatures.set(sourceSignature.signature, selected.constructor);
+    }
+    if (excludedConstructor && constructors.length === 0) {
+      constructorIssues.push({ node: definition.declaration, code: "CSHARP_PROJECT_CONSTRUCTOR_TARGET_UNRESOLVED",
+        message: "Implicit constructor forwarding requires an accessible nonobsolete native base constructor." });
     }
     constructorsByDeclaration.set(
       definition.declaration,

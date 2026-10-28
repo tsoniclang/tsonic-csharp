@@ -219,6 +219,7 @@ export interface DotnetUnsupportedMemberDeclaration {
 export interface DotnetSignatureDeclaration {
   readonly id: string;
   readonly sourceId: string;
+  readonly obsolete?: boolean;
   readonly targetName?: string;
   readonly attributes?: readonly DotnetAttributeDeclaration[];
   readonly unsupportedAttributes?: readonly DotnetUnsupportedAttributeDeclaration[];

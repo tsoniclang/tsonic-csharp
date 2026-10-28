@@ -402,6 +402,7 @@ export interface CsharpTargetMember extends Omit<TargetMember, "parameters" | "t
   readonly parameters: readonly CsharpTargetParameter[];
   readonly typeParameters?: readonly CsharpTargetTypeParameter[];
   readonly csharpConstructorAccessibility?: "public" | "protected" | "protected-internal";
+  readonly csharpConstructorObsolete?: boolean;
   readonly csharpInvocationAllowsRefLikeTypeArguments?: readonly boolean[];
   readonly declaringType?: TargetTypeRef;
   readonly receiverPassing?: "instance" | "target-parameter";

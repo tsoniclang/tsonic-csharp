@@ -89,6 +89,12 @@ export function selectCsharpProviderCall(
     if (member.csharpConstructorAccessibility === undefined) {
       return { kind: "missing", reason: "The selected native constructor has no exact accessibility evidence." };
     }
+    if (member.csharpConstructorObsolete === undefined) {
+      return { kind: "missing", reason: "The selected native constructor has no exact obsolescence evidence." };
+    }
+    if (member.csharpConstructorObsolete) {
+      return { kind: "missing", reason: "The selected native constructor is obsolete and cannot be called from source." };
+    }
     if (host.ast.is.IsNewExpression(call) &&
       (declaration === undefined || !host.navigation.isProjectDeclaration(declaration)) &&
       (member.csharpConstructorAccessibility !== "public" || selected.call.relation.targetBinding.csharpAbstract === true)) {

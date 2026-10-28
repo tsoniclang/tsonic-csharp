@@ -83,3 +83,17 @@ public abstract class AbstractPublicTarget
 
     public int Value { get; }
 }
+
+public class ObsoleteConstructorTarget
+{
+    public ObsoleteConstructorTarget() { }
+
+    [System.Obsolete("Native constructor fixture is obsolete.")]
+    protected ObsoleteConstructorTarget(string value) { }
+}
+
+public class OnlyObsoleteConstructorTarget
+{
+    [System.Obsolete("Native constructor fixture has no nonobsolete constructor.")]
+    protected OnlyObsoleteConstructorTarget() { }
+}

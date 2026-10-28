@@ -246,6 +246,7 @@ sealed partial class ReflectionProvider
         {
             id,
             sourceId = id,
+            obsolete = HasRuntimeAttribute(constructor, typeof(ObsoleteAttribute)),
             attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
             unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
             parameters,

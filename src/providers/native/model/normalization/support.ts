@@ -124,6 +124,7 @@ export const dotnetTypeRefFieldsByKind = new Map<string, ReadonlySet<string>>([
 export const dotnetSignatureFields = new Set([
   "id",
   "sourceId",
+  "obsolete",
   "targetName",
   "attributes",
   "unsupportedAttributes",

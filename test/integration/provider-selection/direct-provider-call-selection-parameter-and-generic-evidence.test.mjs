@@ -477,6 +477,19 @@ test("constructor selection retains the exact provider signature", () => {
   assert.equal(selected.call.targetMember.id, constructor.id);
 });
 
+for (const [obsolete, reason] of [
+  [undefined, "The selected native constructor has no exact obsolescence evidence."],
+  [true, "The selected native constructor is obsolete and cannot be called from source."],
+]) {
+  test(`native constructor admission refuses ${obsolete === undefined ? "missing" : "positive"} obsolescence evidence`, () => {
+    const constructor = { ...providerConstructor(), csharpConstructorObsolete: obsolete };
+    const fixture = createCallFixture({ member: constructor, receiver: false, targetParameters: [] });
+    const selected = selectCsharpProviderCall(fixture.host, fixture.call, fixture.sourceFile);
+    assert.equal(selected.kind, "missing", "only exact nonobsolete constructor evidence is admitted");
+    assert.equal(selected.reason, reason, "native admission preserves the precise refusal");
+  });
+}
+
 test("generic constructor families close from selected operation type arguments", () => {
   const stringType = csharpStringTargetType();
   const explicitTypeNode = {};

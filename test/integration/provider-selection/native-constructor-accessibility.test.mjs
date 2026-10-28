@@ -82,6 +82,62 @@ for (const [name, sourceText] of [
   });
 }
 
+test("implicit Exception forwarding excludes its obsolete serialization constructor and compiles natively", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ sourceText: `
+    import { Exception } from "@tsonic/dotnet/System.js";
+    export class NativeError extends Exception {}
+    export function run(): boolean { return new NativeError("native").Message === "native"; }
+  ` });
+  assertCsharpCompilationSucceeded(compiled);
+  const generated = compiled.artifacts.get("src/Index.cs");
+  assert.doesNotMatch(generated, /SerializationInfo|StreamingContext/u,
+    "no unused obsolete native constructor is forwarded");
+  assert.equal((generated.match(/public NativeError\(/gu) ?? []).length, 3,
+    "the three exact nonobsolete native constructors remain");
+  executeCsharpConstruction(compiled, "nonobsolete-exception-forwarding");
+});
+
+test("implicit forwarding preserves an accessible nonobsolete protected native constructor", { timeout: 300_000 }, () => {
+  const reference = buildConstructorFixture();
+  const compiled = compileCsharpSource({ capabilities: [fixtureCapability(dirname(reference))], sourceText: `
+    import { ProtectedOnlyTarget } from "${moduleSpecifier}";
+    export class Forwarded extends ProtectedOnlyTarget {}
+  ` });
+  assertCsharpCompilationSucceeded(compiled);
+  assert.match(compiled.artifacts.get("src/Index.cs"), /public Forwarded\(int value\) : base\(value\)/u,
+    "protected is not confused with obsolete");
+  executeCsharpConstruction(compiled, "nonobsolete-protected-forwarding", false, false, [fixtureProject],
+    "if (new Tsonic.Generated.Forwarded(7).Value != 7) throw new System.Exception(\"native protected forwarding\");");
+});
+
+test("an explicit super call to an obsolete native constructor is refused before publication", () => {
+  const reference = buildConstructorFixture();
+  const compiled = compileCsharpSource({ capabilities: [fixtureCapability(dirname(reference))], sourceText: `
+    import { ObsoleteConstructorTarget } from "${moduleSpecifier}";
+    export class Refused extends ObsoleteConstructorTarget {
+      constructor() { super("obsolete"); }
+    }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText, "", "the protected native overload is accessible to super");
+  assert.equal(compiled.targetDiagnostics.some(diagnostic => diagnostic.category === "error" &&
+    diagnostic.message === "The selected native constructor is obsolete and cannot be called from source."), true,
+  "the native constructor admission owner refuses the exact obsolete signature");
+  assert.equal(compiled.artifacts.size, 0, "an obsolete super call publishes no target code");
+});
+
+test("implicit forwarding refuses a native base with only obsolete constructors", () => {
+  const reference = buildConstructorFixture();
+  const compiled = compileCsharpSource({ capabilities: [fixtureCapability(dirname(reference))], sourceText: `
+    import { OnlyObsoleteConstructorTarget } from "${moduleSpecifier}";
+    export class Refused extends OnlyObsoleteConstructorTarget {}
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText, "", "the checked native base is available for inheritance");
+  assert.equal(compiled.targetDiagnostics.some(diagnostic => diagnostic.code === "CSHARP_PROJECT_CONSTRUCTOR_TARGET_UNRESOLVED" &&
+    diagnostic.message === "Implicit constructor forwarding requires an accessible nonobsolete native base constructor."), true,
+  "the implicit owner rejects before an implicit native default can call the obsolete base");
+  assert.equal(compiled.artifacts.size, 0, "no invalid native default constructor is emitted");
+});
+
 for (const [name, sourceText] of [
   ["protected from a derived method", `
     import { ProtectedOnlyTarget } from "${moduleSpecifier}";

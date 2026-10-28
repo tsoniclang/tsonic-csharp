@@ -60,7 +60,8 @@ export function selectCsharpProjectForwardingConstructor(
       readonly kind: "resolved";
       readonly constructor: CsharpProjectForwardingConstructor;
     }
-  | { readonly kind: "unresolved"; readonly issue: CsharpProjectTypeIssue } {
+  | { readonly kind: "unresolved"; readonly issue: CsharpProjectTypeIssue }
+  | { readonly kind: "excluded" } {
   if (source.declaration === undefined) {
     if (source.parameters.length !== 0) {
       return constructorIssue(
@@ -149,7 +150,8 @@ function createProviderForwardingConstructor(
       readonly kind: "resolved";
       readonly constructor: CsharpProjectForwardingConstructor;
     }
-  | { readonly kind: "unresolved"; readonly issue: CsharpProjectTypeIssue } {
+  | { readonly kind: "unresolved"; readonly issue: CsharpProjectTypeIssue }
+  | { readonly kind: "excluded" } {
   if (baseType.kind !== "target-named") {
     return constructorIssue(
       definition,
@@ -175,6 +177,7 @@ function createProviderForwardingConstructor(
       relation.targetBinding.id === baseType.id &&
       relation.targetMember.kind === "constructor" &&
       relation.targetMember.csharpConstructorAccessibility !== undefined &&
+      relation.targetMember.csharpConstructorObsolete !== undefined &&
       relation.receiver.kind === "none" &&
       relation.methodTypeParameters.length === 0 &&
       (relation.targetMember.typeParameters?.length ?? 0) === 0,
@@ -192,6 +195,7 @@ function createProviderForwardingConstructor(
     );
   }
   const relation = candidates[0]!;
+  if (relation.targetMember.csharpConstructorObsolete) return { kind: "excluded" };
   const substitutions = csharpTargetBindingSubstitutions(
     relation.targetBinding,
     baseType.typeArguments ?? [],
