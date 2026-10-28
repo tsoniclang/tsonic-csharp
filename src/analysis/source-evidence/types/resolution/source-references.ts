@@ -24,6 +24,7 @@ import { csharpConditionalDeclaration, resolveCsharpConditionalApplication } fro
 import { csharpSourceStorageContext, csharpSourceStorageComponentContext } from "./source-storage-projection.js";
 import { bindCsharpSourceTypeArguments } from "./generic-arguments.js";
 import { csharpTargetParameterValueType } from "../../../../target-model/types/member-facts.js";
+import { getCsharpCallableValueSignature } from "../../../../target-model/types/carriers/delegates.js";
 
 export function resolveTypeReferenceNode(
   { host, resolveCheckerTransformedSourceType, resolveCompositionalSourceTypeAlias, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceType, resolveProviderType, resolveSourceProfileType, resolveStandardSourceTypeTransformation, resolveTypeWithState, targetPreservesAuthoredSourcePrimitiveFacts }: CsharpTypeResolutionScope,
@@ -490,10 +491,8 @@ export function selectCsharpContextualParameterCarrier(
   if (contextual.kind === "ambiguous") return { kind: "unresolved" };
   if (contextual.kind !== "selected") return { kind: "not-applicable" };
   const callable = queries.types.callable(contextual.component.selectedType);
-  const restIndex = callable?.parameters.findIndex(parameter => parameter.parameterKind === "rest") ?? -1;
-  const parameter = index < 0 ? undefined : callable?.parameters[restIndex >= 0 && index >= restIndex ? restIndex : index];
   const restBinding = host.ast.as.AsParameterDeclaration(declaration)?.DotDotDotToken !== undefined;
-  if (parameter === undefined || restBinding && parameter.parameterKind !== "rest") return { kind: "not-applicable" };
+  if (index < 0 || callable === undefined) return { kind: "not-applicable" };
   let parameterState = bindCsharpSourceTypeArguments(scope, contextual.component.selectedType, queries, nextState(state));
   const ownParameters = host.ast.typeParameters(owner);
   if (ownParameters.length !== 0) {
@@ -509,12 +508,16 @@ export function selectCsharpContextualParameterCarrier(
     parameterState = csharpSourceBindings(contextualParameters as readonly Node[], ownSources as readonly Type[],
       ownTargets as readonly TargetTypeRef[], parameterState);
   }
-  const nativeParameter = parameterState === undefined ? undefined
-    : scope.resolveSignatureParameterEvidence(parameter, queries, parameterState, "callable");
-  const native = nativeParameter === undefined ? undefined : parameter.parameterKind === "rest" && !restBinding
-    ? nativeParameter.kind === "tuple" ? nativeParameter.elements[index - restIndex]
-      : csharpTargetParameterValueType({ name: "", type: nativeParameter, passingMode: "by-value", paramsArray: true }, "value")
-    : nativeParameter;
+  const nativeContract = parameterState === undefined ? undefined : scope.resolveCallableEvidence(callable, queries, parameterState);
+  const signature = getCsharpCallableValueSignature(nativeContract);
+  const restIndex = signature?.restParameterIndex;
+  const nativeParameter = signature?.parameters[restIndex !== undefined && index >= restIndex ? restIndex : index];
+  const native = signature === undefined ? undefined : restBinding
+    ? restIndex === undefined ? Object.freeze({ kind: "tuple" as const, elements: Object.freeze(signature.parameters.slice(index)) })
+      : index === restIndex ? nativeParameter : undefined
+    : restIndex !== undefined && index >= restIndex && nativeParameter !== undefined
+      ? csharpTargetParameterValueType({ name: "", type: nativeParameter, passingMode: "by-value", paramsArray: true }, "value")
+      : nativeParameter;
   return native === undefined ? { kind: "unresolved" } : { kind: "resolved", type: native };
 }
 

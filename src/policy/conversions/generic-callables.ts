@@ -11,6 +11,7 @@ import { csharpFreeTypeParameterIdentities, visitCsharpTargetTypeParameters } fr
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../types/resolution/substitution.js";
 import { csharpTypeParameterConstraintsImply } from "../constraints/type-parameter-constraints.js";
+import { csharpTargetTypeSatisfiesNativeConstraint } from "./carriers.js";
 
 type Policy = Pick<CsharpPolicyContext, "typeDefinitions" | "projectTypes" | "providers"> & CsharpConversionShapeQueries;
 type Parameter = Extract<TargetTypeRef, { readonly kind: "type-parameter" }>;
@@ -71,7 +72,11 @@ export function instantiateCsharpCallableContract(
     const required = parameter.csharpConstraints.constraints.map(constraint => constraint.kind === "type"
       ? { ...constraint, type: substituteTargetTypeParameters(constraint.type, bindings) } : constraint);
     const evidence = nativeArgumentConstraints(argument);
-    if (evidence === undefined || !csharpTypeParameterConstraintsImply(policy, evidence, required, new Map())) return undefined;
+    if (evidence === undefined) return undefined;
+    const implied = argument.kind === "type-parameter" ? required : required.filter(constraint => constraint.kind !== "type");
+    if (!csharpTypeParameterConstraintsImply(policy, evidence, implied, new Map()) ||
+      argument.kind !== "type-parameter" && required.some(constraint => constraint.kind === "type" &&
+        !csharpTargetTypeSatisfiesNativeConstraint(policy, argument, constraint.type))) return undefined;
   }
   return substituteTargetTypeParameters(method.contract, bindings);
 }

@@ -59,6 +59,23 @@ test("one native method instantiation owns exact callback signatures, constraint
 });
 
 for (const surface of ["native", "js"]) {
+  test(`closed generic callback constraints use actual native numeric implementation metadata on ${surface}`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+import type { int32, int64 } from "@tsonic/core/types.js";
+function same<Value extends number>(value: Value): Value { return value; }
+export function run(): boolean {
+  const callback: (value: int32) => int32 = same;
+  const wideCallback: (value: int64) => int64 = same;
+  const wide: int64 = 9007199254740993n;
+  return callback(7) === 7 && wideCallback(wide) === wide;
+}` });
+    assertCsharpCompilationSucceeded(compiled);
+    const output = [...compiled.artifacts.values()].join("\n");
+    assert.equal(/INumber<Value>/u.test(output), true, "the original numeric native constraint remains on the one method body");
+    assert.equal(/DynamicInvoke|TsValue|Convert\.ToDouble/u.test(output), false,
+      "numeric constraint admission cannot erase the exact native callback argument");
+    executeCsharpConstruction(compiled, `generic-callback-numeric-constraint-${surface}`);
+  });
   test(`generic method callback instantiation preserves exact native width and one body on ${surface}`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
 import type { int32, int64 } from "@tsonic/core/types.js";

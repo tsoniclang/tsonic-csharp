@@ -109,7 +109,25 @@ export function resolveCallableEvidence(
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
   const parameters: CsharpTargetParameter[] = [];
-  for (const [index, parameter] of callable.parameters.entries()) {
+  const expanded = new Set<SourceCallableTypeEvidence["parameters"][number]["sourceSymbol"]>();
+  for (const [index, selectedParameter] of callable.parameters.entries()) {
+    if (expanded.has(selectedParameter.sourceSymbol)) continue;
+    let parameter = selectedParameter;
+    const group = parameter.sourceSymbol === undefined ? []
+      : callable.parameters.filter(candidate => candidate.sourceSymbol === parameter.sourceSymbol);
+    if (group.length > 0) {
+      const declaration = queries.declarations.primarySymbolDeclaration(parameter.sourceSymbol);
+      const rest = declaration !== undefined && host.ast.is.IsParameterDeclaration(declaration) &&
+        host.ast.as.AsParameterDeclaration(declaration)?.DotDotDotToken !== undefined;
+      const syntax = declaration === undefined ? undefined : host.ast.typeNode(declaration);
+      const sourceType = !rest || declaration === undefined ? undefined : syntax === undefined
+        ? queries.declarations.declaredValueType(declaration) : queries.types.authoredType(syntax);
+      if (sourceType !== undefined && queries.types.isTuple(sourceType) &&
+        queries.types.tupleElementInfos(sourceType).length === group.length) {
+        expanded.add(parameter.sourceSymbol);
+        parameter = { ...parameter, declaration: declaration!, type: sourceType, parameterKind: "rest", omissionKind: "rest" };
+      }
+    }
     const type = resolveSignatureParameterEvidence(parameter, queries, state, "callable");
     if (type === undefined) return undefined;
     const rest = parameter.parameterKind === "rest";

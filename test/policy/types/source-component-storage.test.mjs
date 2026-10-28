@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles } from "@tsonic/tsts";
-import { createTargetSourceProgram } from "@tsonic/target-api/source";
+import { createTargetSourceProgram, sourceCallableValueParameters } from "@tsonic/target-api/source";
 import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 import { resolveCallableEvidence, resolveSignatureParameterEvidence, resolveSourceProfileType, resolveSourceTypeComponentEvidence } from "../../../dist/analysis/source-evidence/types/resolution/source-profiles.js";
 import { csharpSourceStorageComponentContext } from "../../../dist/analysis/source-evidence/types/resolution/source-storage-projection.js";
 import { createSourceErrorProviderFixture } from "../../fixtures/dotnet-provider/source-error-bindings.mjs";
+import { getCsharpDelegateSignature, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 
 const typeOnlyPredicates = { IsTypeAliasDeclaration: () => false, IsInterfaceDeclaration: () => false,
   IsTypeParameterDeclaration: () => false };
@@ -27,33 +28,44 @@ test("implementation signature evidence uses the original contextual tuple param
   visit(file);
   assert.equal(implementation !== undefined, true, "one actual implementation owns the parameter");
   const queries = source.semantics.forFile(file);
-  const incoming = queries.types.callable(queries.types.expressionType(implementation)).parameters[0];
+  const incoming = sourceCallableValueParameters(source.ast, implementation, queries)[0];
+  const callable = queries.types.callable(queries.types.expressionType(implementation));
+  assert.equal(callable.parameters.length, 3, "the checked metadata expands the one original rest parameter into three effective slots");
   const native = Object.freeze({ kind: "tuple", elements: Object.freeze([
     Object.freeze({ kind: "source-primitive", name: "int32" }),
     Object.freeze({ kind: "source-primitive", name: "int64" }),
     Object.freeze({ kind: "source-primitive", name: "string" }),
   ]) });
   let formalSelections = 0;
+  let physicalSelections = 0;
   const scope = {
     host: { ast: source.ast, sourceStorage: storage, objectShapes: {
       resolveNativeParameter(owner, parameter, type) {
-        assert.equal(owner === implementation && parameter === incoming.declaration && type === native, true,
+        assert.equal(owner === implementation && parameter === incoming && targetTypeRefEquals(type, native), true,
           "physical input selection consumes the same complete contextual tuple");
+        physicalSelections += 1;
         return { kind: "resolved", type };
       },
     } },
     sourceValueDeclarationSyntax: node => ({ type: source.ast.typeNode(node),
       initializer: source.ast.as.AsParameterDeclaration(node).Initializer }),
     resolveSourceTypeComponentEvidence(component) {
-      assert.equal(component.declaration !== incoming.declaration && component.authoredTypeNode !== undefined, true,
+      if (component.declaration === implementation || component.authoredTypeNode !== undefined &&
+        source.ast.kindName(component.authoredTypeNode) === "KindBooleanKeyword") return { kind: "source-primitive", name: "bool" };
+      assert.equal(component.declaration !== incoming && component.authoredTypeNode !== undefined &&
+        source.ast.is.IsTupleTypeNode(component.authoredTypeNode), true,
         "only the original contextual formal owns native tuple metadata, not the erased implementation tuple");
       formalSelections += 1;
       return native;
     },
   };
+  scope.host.representations = { genericProjections: () => [] };
   scope.resolveSignatureParameterEvidence = (...arguments_) => resolveSignatureParameterEvidence(scope, ...arguments_);
-  const selected = resolveSignatureParameterEvidence(scope, incoming, queries, { depth: 0 }, "callable");
-  assert.equal(selected === native && formalSelections === 1, true,
+  scope.resolveCallableEvidence = (...arguments_) => resolveCallableEvidence(scope, ...arguments_);
+  const selected = resolveCallableEvidence(scope, callable, queries, { depth: 0 });
+  const signature = getCsharpDelegateSignature(selected);
+  assert.equal(signature?.parameters.length === 3 && signature.parameters.every((type, index) =>
+    targetTypeRefEquals(type, native.elements[index])) && formalSelections === 1 && physicalSelections === 1, true,
     "callable ABI evidence retains the one contextual native tuple without semantic reselection");
 });
 
