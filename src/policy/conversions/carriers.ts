@@ -313,6 +313,17 @@ export function namedTargetTypeImplicitlyAccepts(
   if (getCsharpNullableElementTargetType(source) !== undefined && getCsharpNullableElementTargetType(target) === undefined) {
     return false;
   }
+  if (source.kind === "type-parameter") {
+    const key = `${targetTypeRefKey(source)}=>${targetTypeRefKey(target)}`;
+    if (visited.has(key) || source.csharpConstraints?.kind !== "resolved") return false;
+    visited.add(key);
+    try {
+      return source.csharpConstraints.constraints.some(constraint => constraint.kind === "type" &&
+        namedTargetTypeImplicitlyAccepts(input, constraint.type, target, visited));
+    } finally {
+      visited.delete(key);
+    }
+  }
   if (targetTypeRefEquals(target, csharpObjectTargetType())) {
     return targetTypeImplicitlyConvertsToObject(source);
   }
