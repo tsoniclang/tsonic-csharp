@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { selectCsharpSourceCallResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
+import { selectCsharpUnionArmMapping } from "../../../dist/policy/conversions/union-relations.js";
 import {
   csharpNullableTargetType, csharpRuntimeUnionTargetType,
   csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTaskTargetType,
@@ -80,9 +81,29 @@ test("native scalar results remain authoritative without evaluating selected sou
   }
 });
 
-test("ambiguous and cyclic closed results cannot invent an exact selected payload", () => {
+test("complete equal native payload coverage preserves the physical call ABI", () => {
   const duplicate = csharpRuntimeUnionTargetType([integer, integer]);
-  expectSelection(duplicate, integer, duplicate);
+  const result = selectCsharpSourceCallResult(host, duplicate, () => integer);
+  assert.equal(result.nativeType === duplicate, true, "the original native union ABI is retained");
+  assert.equal(result.selectedType === integer, true, "complete coverage selects the exact native uint64");
+  const mapping = selectCsharpUnionArmMapping(duplicate, integer, "source");
+  assert.equal(mapping?.length, 2, "both physical source slots are covered");
+  assert.equal(mapping.every(arm => arm.carrier === integer && arm.target.length === 0 &&
+    arm.source.length === 1 && arm.source[0].union === duplicate), true,
+  "each exact source payload maps to the scalar without a destination tag");
+  assert.equal(mapping.map(arm => arm.source[0].index).join(","), "0,1", "source paths remain distinct and ordered");
+  assert.equal(selectCsharpUnionArmMapping(duplicate, floating, "source") === undefined, true,
+    "complete source coverage cannot reinterpret the native integer width");
+  assert.equal(selectCsharpUnionArmMapping(csharpRuntimeUnionTargetType([integer, string]), integer, "source") === undefined, true,
+    "a heterogeneous source cannot be collapsed to one selected payload");
+  expectSelection(duplicate, integer);
+  expectSelection(duplicate, floating, duplicate);
+});
+
+test("ambiguous and cyclic closed results cannot invent an exact selected payload", () => {
+  const native = csharpRuntimeUnionTargetType([integer, string]);
+  const ambiguous = csharpRuntimeUnionTargetType([integer, integer]);
+  expectSelection(native, ambiguous, native);
   const cycle = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "fixture.Cycle" };
   const cyclic = { ...host, typeDefinitions: { sourceUnionArms: type => type.id === cycle.id ? [cycle] : undefined } };
   expectSelection(cycle, integer, cycle, cyclic);

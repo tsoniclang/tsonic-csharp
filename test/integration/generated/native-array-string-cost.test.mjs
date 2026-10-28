@@ -37,6 +37,7 @@ Tsonic.CSharp.Js.Tests.TypedArrayStringChecks.CheckCosts();
 </PropertyGroup><ItemGroup>
 <ProjectReference Include="${join(testRepositoryRoots.csharpJs, "src/Tsonic.CSharp.Js/Tsonic.CSharp.Js.csproj")}" />
 <Compile Include="${join(testRepositoryRoots.csharpJs, "tests/Tsonic.CSharp.Js.Tests/Globals/TypedArrayStringChecks.cs")}" Link="TypedArrayStringChecks.cs" />
+<Compile Include="${join(testRepositoryRoots.csharpJs, "tests/Tsonic.CSharp.Js.Tests/AllocationMeasurement.cs")}" Link="AllocationMeasurement.cs" />
 </ItemGroup></Project>`);
   for (const [command, args] of [
     ["dotnet", ["publish", project, "-c", "Release", "-r", "linux-x64", "--output", native, "--nologo", "--verbosity", "quiet", "-m:1"]],
