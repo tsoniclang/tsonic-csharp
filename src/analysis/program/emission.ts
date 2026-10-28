@@ -354,7 +354,14 @@ export function finalizeCsharpNativeEmission(
     const unary = admittedOperations.unaryOperation.get(node)?.target;
     const mutation = admittedOperations.jsArrayMutation.get(node);
     const selectedSwitch = admittedOperations.switchStatement.get(node);
+    const call = admittedOperations.selectedCall.get(node);
     return [
+      ...call?.sourceResult === undefined ? [] : [call.sourceResult.nativeType, call.sourceResult.selectedType],
+      ...call?.sourceTypeArguments ?? [],
+      ...call?.target?.kind !== "resolved" || call.target.call.targetMember.returnType === undefined ? []
+        : [call.target.call.targetMember.returnType],
+      ...call?.unionCall.kind !== "resolved" ? []
+        : [call.unionCall.receiverType, call.unionCall.resultType, ...call.unionCall.parameterTypes],
       ...binary?.target.kind === "resolved" ? binaryCarriers(binary.target) : [],
       ...binary?.destructuring.kind === "resolved" ? [binary.destructuring.sourceType, binary.destructuring.resultType] : [],
       ...unary?.kind === "resolved" ? [unary.operandType, unary.resultType] : [],

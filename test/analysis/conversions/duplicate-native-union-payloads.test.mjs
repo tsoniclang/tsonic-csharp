@@ -78,6 +78,21 @@ export function run(): boolean {
       span: issue.sourceSpan,
     }))));
     assertCsharpCompilationSucceeded(compiled);
+    const program = compiled.result.program;
+    let physicalCalls = 0;
+    const visit = node => {
+      const call = program.records.sourceCallEmission.get(node);
+      if (call?.kind === "source" && !targetTypeRefEquals(call.result.nativeType, call.result.selectedType)) {
+        physicalCalls++;
+        assert.equal(program.records.typeEmission.get(call.result.nativeType)?.completion.kind, "value",
+          "the actual native invocation result owns its completion before the selected view conversion");
+        assert.equal(program.records.typeEmission.get(call.result.selectedType)?.completion.kind, "value",
+          "the distinct source-visible selected result also owns its completion");
+      }
+      source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    };
+    for (const file of source.sourceFiles) visit(file);
+    assert.equal(physicalCalls > 0, true, "the retained program really exercises a distinct native ABI result");
     const output = [...compiled.artifacts.values()].join("\n");
     assert.equal(/DynamicInvoke|\.Match\(|\.ToObject\(|Convert\.ToDouble|Runtime\.TsValue/u.test(output), false,
       "native payload extraction adds no boxing, dynamic dispatch, callback or numeric repair");
