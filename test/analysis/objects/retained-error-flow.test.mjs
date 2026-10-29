@@ -1,8 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { Node_Expression } from "@tsonic/target-api/source";
-import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
-import { requiredStorageSubject } from "../../../../tsonic/test/fixtures/source-navigation.mjs";
 import { nativeRetainedErrorFlowSource } from "../../../../tsonic/test/fixtures/native-retained-errors.mjs";
 import { createTsonicPlugin } from "../../../../csharp-nodejs/dist/index.js";
 import {
@@ -10,7 +8,7 @@ import {
   analyzeCsharpSource,
   compileCsharpSource,
 } from "../../helpers/direct-csharp-session.mjs";
-import { createCsharpErrorStorageDemandQuery } from "../../../dist/analysis/objects/error-storage-demands.js";
+import { createCsharpErrorDeclarationQuery } from "../../../dist/analysis/objects/error-storage-demands.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 
 test("retained-provider catch reads select exact readonly C# Error flow and observation facts", () => {
@@ -20,8 +18,7 @@ test("retained-provider catch reads select exact readonly C# Error flow and obse
   assert.equal(analysis.kind, "resolved", "C# retained Error source has one closed target analysis");
   assert.equal(analysis.diagnostics.length, 0, "C# retained Error analysis has no diagnostics");
   const program = analysis.value;
-  const storage = createSourceStorageQuery(source, source.navigation.sourceFiles);
-  const demands = createCsharpErrorStorageDemandQuery(source, storage);
+  const demands = createCsharpErrorDeclarationQuery(source);
   const { ast } = source;
   const nativeException = providers.findTargetBindingByMetadataName("System.Exception", "ordinary");
   assert.equal(nativeException.kind, "resolved", "the same session's native metadata supplies the exact Exception owner");
@@ -48,10 +45,18 @@ test("retained-provider catch reads select exact readonly C# Error flow and obse
   for (const file of source.navigation.sourceFiles) visit(file);
   assert.equal(catchDeclaration !== undefined, true, "exact catch declaration exists");
   assert.equal(originalDeclaration !== undefined, true, "exact original Error declaration exists");
-  assert.equal(demands.fieldWrites.length, 0, "readonly observations do not demand mutable Error storage");
-  assert.equal(demands.nativeConstructors.length, 1, "one authored original Error constructor");
-  assert.equal(demands.storageFor(requiredStorageSubject(storage, originalDeclaration)).kind, "immutable", "original Error has no field-write demand");
-  assert.equal(demands.storageFor(requiredStorageSubject(storage, catchDeclaration)).kind, "immutable", "caught Error has no field-write demand");
+  const mutations = source.navigation.nodes.map(node => demands.mutationFor(node))
+    .filter(selection => selection.kind === "resolved").flatMap(selection => selection.value);
+  const constructors = source.navigation.nodes.filter(ast.is.IsNewExpression)
+    .map(node => demands.constructorFor(node)).filter(selection => selection.kind === "resolved");
+  assert.equal(mutations.length, 0, "the exact checked readonly observations contain no Error field write");
+  assert.equal(constructors.length, 1, "one authored original Error constructor");
+  assert.equal(constructors[0].value.node === ast.as.AsVariableDeclaration(originalDeclaration).Initializer, true,
+    "the constructor result preserves the exact original Error declaration");
+  for (const node of source.navigation.nodes) {
+    const field = demands.fieldFor(node);
+    if (field.kind === "resolved") assert.equal(field.value.accessMode, "read", "all admitted Error fields remain readonly observations");
+  }
   assert.equal(projections.length, 4, "identity and three Error observations retain exact native flow");
   for (const projection of projections) {
     assert.equal(projection.source.kind, "resolved", "caught Error flow has finalized source evidence");
@@ -77,7 +82,7 @@ test("retained-provider catch reads select exact readonly C# Error flow and obse
     "native equality reads the exact caught Error owner");
   assert.equal(source.navigation.referenceFor(equalities[0].right)?.declaration === originalDeclaration, true,
     "native equality reads the exact original Error owner");
-  assert.equal(ast.text(Node_Expression(ast, demands.nativeConstructors[0].node)), "Error");
+  assert.equal(ast.text(Node_Expression(ast, constructors[0].value.node)), "Error");
 });
 
 test("retained-provider readonly Error identity and member observations lower through exact C# flow", () => {

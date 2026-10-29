@@ -72,6 +72,18 @@ test("source-profile peers and foreign provider relations publish one physical n
         "the property contract uses that same physical native owner");
       assert.equal(policy.select({ host, source: { accessMode: "write" }, receiverType: selected.value.exception }).kind,
         "rejected", "native readonly Error storage still rejects source mutation");
+      const writable = policy.select({ host, source: { accessMode: "write" }, receiverType: selected.value.source });
+      assert.equal(writable.kind, "resolved", "the actual writable native Error hierarchy retains its setter");
+      assert.equal(targetTypeRefEquals(writable.targetMember.declaringType, selected.value.source), true,
+        "the setter keeps the exact metadata-published writable Error identity");
+      const immutable = { ...physicalException, id: "PhysicalOwner::InvalidOperationException", csharpBaseType: physicalException };
+      assert.equal(policy.select({ host, source: { accessMode: "read" }, receiverType: immutable }).kind, "resolved",
+        "a genuine native Exception subtype retains its readonly observation contract");
+      assert.equal(policy.select({ host, source: { accessMode: "write" }, receiverType: immutable }).kind, "rejected",
+        "not-exactly-Exception is never proof of writable source Error storage");
+      assert.equal(policy.select({ host, source: { accessMode: "write" },
+        receiverType: { ...physicalException, id: "PhysicalOwner::Unrelated", csharpBaseType: undefined } }).kind, "rejected",
+      "a foreign same-shaped native identity cannot acquire source Error setters");
     }
     const constructor = csharpErrorSourceProfileCallPolicies.find(policy => policy.source.kind === "construct" &&
       policy.source.owner === "csharp" && policy.source.declaringName === "ErrorConstructor").inheritableConstructor;

@@ -134,20 +134,19 @@ test("callable parameters establish their exact entry input while tuple transfor
   }
 });
 
-test("recognized Error profiles reject unavailable checked storage instead of manufacturing an object shape", () => {
-  const file = {};
-  const owner = subject({}, "input");
-  let queries = 0;
-  const scope = { host: { providers: createSourceErrorProviderFixture(), ast: { getSourceFile(node) { assert.equal(node === owner.node, true); return file; }, parent: () => undefined,
-    is: { IsExpressionWithTypeArguments: () => false } }, hasSemantics: () => true,
-    errorStorageDemands: { storageFor(selected) { queries += 1; assert.equal(selected === owner, true);
-      return { kind: "unresolved", reason: "exact storage unavailable" }; } } } };
+test("recognized Error profiles require exact native ownership instead of manufacturing an object shape", () => {
+  const scope = { host: { providers: createSourceErrorProviderFixture() } };
   const identity = { kind: "error", sourceName: "Error", errorName: "Error", baseException: true };
-  assert.equal(resolveSourceProfileType(scope, identity, [], owner) === undefined, true);
-  assert.equal(queries, 1);
-  scope.host.hasSemantics = () => false;
-  assert.equal(resolveSourceProfileType(scope, identity, [], owner)?.id, "System.Exception");
-  assert.equal(queries, 1, "provider signature evidence is not a checked runtime storage subject");
+  assert.equal(resolveSourceProfileType(scope, identity, [])?.id, "Tsonic.CSharp.Runtime.Error",
+    "a source Error declaration has one native writable identity without storage histories");
+  let publications = 0;
+  scope.host.providers = { publishNativeIdentities() {
+    publications += 1;
+    return { kind: "rejected", reason: "The selected native Error owner is unavailable." };
+  } };
+  assert.equal(resolveSourceProfileType(scope, identity, []) === undefined, true,
+    "missing recognized native metadata never manufactures a structural-object substitute");
+  assert.equal(publications, 1, "the selected native declaration owns its required metadata boundary");
 });
 
 test("callable results establish their own storage owner rather than retaining the enclosing delegate owner", () => {
