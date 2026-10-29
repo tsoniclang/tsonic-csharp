@@ -33,7 +33,7 @@ export function createCsharpLiteralShapeResolver(
     readonly instantiateMemberEvidence: ReturnType<typeof createCsharpObjectShapeMemberResolver>["instantiateMemberEvidence"];
     readonly rememberTargetShape: (shape: CsharpObjectShapeFact) => CsharpObjectShapeFact;
   },
-): CsharpRecursiveObjectShapePolicy["resolveObjectLiteralTargetShape"] {
+) {
   const { resolveNode, resolveType, literalSourceType, retainLiteralMemberEvidence, instantiateMemberEvidence, rememberTargetShape } = dependencies;
   const environment = host.typeParameterConstraints;
   function resolveObjectLiteralTargetShape(
