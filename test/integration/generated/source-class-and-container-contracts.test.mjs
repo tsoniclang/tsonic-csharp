@@ -264,8 +264,52 @@ test("generic object aliases retain exact pointer and byte arguments across null
   ` }), "generic-pointer-region");
 });
 
-test("structural utilities do not materialize opaque marker declarations", () => {
-  for (const type of ["Readonly<RawPointer>", "Pick<RawPointer, keyof RawPointer>"]) {
+test("structural utilities do not materialize opaque marker declarations", { timeout: 300_000 }, (context) => {
+  const readonly = compileCsharpSource({ sourceText: `
+      import type { RawPointer } from "@tsonic/core/types.js";
+      export function pass(value: Readonly<RawPointer>): Readonly<RawPointer> { return value; }
+    ` });
+  assert.equal(readonly.sourceDiagnosticsText, "", "the original readonly source checks cleanly");
+  assert.equal(readonly.extensionDiagnostics.length, 0, "native readonly needs no extension refusal");
+  assert.equal(readonly.targetDiagnostics.length, 0, "the existing native readonly carrier is admitted");
+  assert.equal(readonly.result.program !== undefined, true, "a real analysis program is published");
+  assert.equal(readonly.result.plan !== undefined, true, "the admitted native signature is planned");
+  const generated = readonly.artifacts.get("src/Index.cs");
+  assert.equal(typeof generated, "string", "the original pass function is emitted");
+  assert.match(generated,
+    /public static Tsonic\.CSharp\.Runtime\.RawPointer\?? pass\(Tsonic\.CSharp\.Runtime\.RawPointer\?? value\)/u,
+    "parameter and result retain the actual native pointer class");
+  assert.doesNotMatch([...readonly.artifacts.values()].join("\n"), /ObjectShape_/u,
+    "readonly never reconstructs the foreign marker's fields");
+  const output = executeCsharpConstruction(readonly, "readonly-native-raw-pointer", false, false, [], `
+using RawPointer = Tsonic.CSharp.Runtime.RawPointer;
+var width = System.IntPtr.Size * 8;
+const ulong address = 0x1234UL;
+var pointer = RawPointer.FromAddress(address, width) ?? throw new System.Exception("nonzero native pointer");
+var method = typeof(Tsonic.Generated.Index).GetMethod("pass") ?? throw new System.Exception("original pass metadata");
+var parameters = method.GetParameters();
+if (parameters.Length != 1 || parameters[0].ParameterType != typeof(RawPointer) || method.ReturnType != typeof(RawPointer))
+    throw new System.Exception("exact native parameter and result metadata");
+var result = Tsonic.Generated.Index.pass(pointer);
+if (!System.Object.ReferenceEquals(result, pointer) || RawPointer.Address(result, width) != address)
+    throw new System.Exception("native readonly pointer identity and address");
+for (var iteration = 0; iteration < 10000; iteration++) {
+    var retained = Tsonic.Generated.Index.pass(pointer);
+    if (!System.Object.ReferenceEquals(retained, pointer) || RawPointer.Address(retained, width) != address)
+        throw new System.Exception("warm native pointer identity");
+}
+var before = System.GC.GetAllocatedBytesForCurrentThread();
+for (var iteration = 0; iteration < 10000; iteration++) {
+    var retained = Tsonic.Generated.Index.pass(pointer);
+    if (!System.Object.ReferenceEquals(retained, pointer) || RawPointer.Address(retained, width) != address)
+        throw new System.Exception("measured native pointer identity");
+}
+var allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
+if (allocated != 0) throw new System.Exception("readonly must not allocate or copy a pointer wrapper");
+System.Console.WriteLine($"native RawPointer input={parameters[0].ParameterType.FullName} output={method.ReturnType.FullName} address={RawPointer.Address(result, width)} identity={System.Object.ReferenceEquals(result, pointer)} allocatedBytes={allocated}");
+`);
+  context.diagnostic(output.trim());
+  for (const type of ["Pick<RawPointer, keyof RawPointer>"]) {
     const result = compileCsharpSource({ sourceText: `
       import type { RawPointer } from "@tsonic/core/types.js";
       export function pass(value: ${type}): ${type} { return value; }
