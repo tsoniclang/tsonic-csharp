@@ -80,6 +80,7 @@ export function analyzeCsharpRepresentationIteration(
 ) {
   const requiredRecords: CsharpRequiredRecord[] = [];
   const source = input.source;
+  const sourceNodes = source.navigation.nodesForFiles(sourceFiles);
   const names = createCsharpSourceNameBuilder(nameHost);
   let typeSystem: CsharpTypeAnalysis | undefined;
   const planningRepresentations: CsharpPlanningRepresentationQueries = {
@@ -140,9 +141,9 @@ export function analyzeCsharpRepresentationIteration(
   );
   const sourceEvidence = evidence.index;
   if (sourceEvidence.fixedArrayIssues.length > 0) return rejectCsharpAnalysisIssues(sourceEvidence.fixedArrayIssues);
-  const operations = analyzeCsharpTargetOperations(policy, sourceEvidence, statementErasure, sourceStorage.nodes, requiredRecords);
+  const operations = analyzeCsharpTargetOperations(policy, sourceEvidence, statementErasure, sourceNodes, requiredRecords);
   const valueReadStages = analyzeCsharpValueReadStages(policy, sourceEvidence, operations);
-  const optionalLocals = analyzeCsharpOptionalLocals(policy, sourceEvidence, sourceStorage.nodes, names, operations);
+  const optionalLocals = analyzeCsharpOptionalLocals(policy, sourceEvidence, sourceNodes, names, operations);
   const typeProjections = analyzeCsharpTypeProjections(input.source, sourceEvidence, operations, optionalLocals);
   const declarations = analyzeCsharpDeclarations(
     policy,
@@ -205,12 +206,12 @@ export function analyzeCsharpRepresentationIteration(
   const captureStorage = analyzeCsharpCaptureStorage(source, objectShapes, storagePreparation.captures, sourceEvidence,
     classFactories.factories.flatMap(factory => factory.captures), names, declarations, operations, expectedTypes, preparedConversions);
   const callableCreations = analyzeCsharpCallableCreations({
-    ast: source.ast, nodes: sourceStorage.nodes, captures: captureStorage, contracts: callables,
+    ast: source.ast, nodes: sourceNodes, captures: captureStorage, contracts: callables,
     expectedTypes, storage: storageRepresentations, evidence: sourceEvidence, conversions: preparedConversions,
     literals: typeHost.literalValues,
   });
   const participation = analyzeCsharpNativeParticipation({
-    ast: source.ast, storage: sourceStorage, navigation: source.navigation,
+    ast: source.ast, nodes: sourceNodes, navigation: source.navigation,
     captureClosure: captureStorage.captureClosure, lambdaCreation: captureStorage.lambdaCreation,
     objectShapes, compileTimeMetadata: sourceEvidence.compileTimeMetadata, requiredRecords,
   });
@@ -222,7 +223,7 @@ export function analyzeCsharpRepresentationIteration(
     ...expectedTypes.constructions.propertyKeyRequests,
     ...expectedTypes.nativeUseSites.requests.flatMap(request => request.kind === "requested"
       ? [{ expression: request.expression, target: request.targetType }] : []),
-  ], sourceStorage.nodes);
+  ], sourceNodes);
   const expectedUse = admitCsharpExpectedNativeUses(expectedTypes, {
     ast: source.ast, exactLiteral: exactLiterals.exactLiteral, callableCreation: callableCreations.callableCreation,
     valueRead: valueReads.valueRead, operations,
@@ -237,7 +238,7 @@ export function analyzeCsharpRepresentationIteration(
   });
   const pendingInitializers = new Set(expectedUse.pending.filter(entry => entry.site.role === "initializer")
     .map(entry => entry.site.subject));
-  for (const declaration of sourceStorage.nodes) {
+  for (const declaration of sourceNodes) {
     if (!source.ast.is.IsVariableDeclaration(declaration) || source.ast.variableDeclarationKind(declaration) !== "const" ||
       !sourceDeclarationIsModuleScoped(declaration, source.ast) || pendingInitializers.has(declaration) ||
       !sourceDeclarationHasOnlyTypeUses(source.navigation.declarationUseSummary(declaration))) continue;
@@ -288,7 +289,7 @@ export function analyzeCsharpRepresentationIteration(
   conversionAnalysis.close(nativeDemand, requiredRecords, captureStorage);
   const conversions = conversionAnalysis.seal();
   const refLikeDiagnostics = analyzeCsharpRefLikePlacements({
-    source, nodes: sourceStorage.nodes, callables, captureStorage,
+    source, nodes: sourceNodes, callables, captureStorage,
     classFactories: classFactories.factories, nativeParticipation,
     nativeDemand, operations, objectShapes, definitions: typeDefinitions,
     classPropertyStorage: operations.classPropertyStorage,

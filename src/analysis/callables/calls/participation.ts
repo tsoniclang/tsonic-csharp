@@ -2,7 +2,6 @@ import { createCsharpNativeParticipationProducer } from "../../program/records/n
 import type { AstReader, Node } from "@tsonic/tsts";
 import { sourceEnclosingCallable, sourceLexicalFunctionIsUnused, sourceNodesOutsideErasedSubtrees } from "@tsonic/target-api/source";
 import { rejectedTargetStage, resolvedTargetStage, type TargetStageResult } from "@tsonic/target-api/artifacts";
-import type { SourceStorageQueries } from "@tsonic/target-api/analysis";
 import type { SourceProgramNavigation } from "@tsonic/target-api/source";
 import type { CsharpCaptureStorage } from "../../../target-model/records/callables/capture-storage.js";
 import type { CsharpNativeParticipation, CsharpNativeParticipationInput } from "../../../target-model/records/native/native-demand.js";
@@ -14,7 +13,7 @@ import { isCsharpSourceCallableArtifactDeclaration } from "../../../policy/types
 
 export interface CsharpNativeParticipationAnalysisInput {
   readonly ast: AstReader;
-  readonly storage: Pick<SourceStorageQueries, "nodes" | "failureReason">;
+  readonly nodes: readonly Node[];
   readonly navigation: Pick<SourceProgramNavigation, "declarationUseSummary" | "declarationSymbol" |
     "sourceReferenceFor" | "callableImplementation" | "referencesWithin">;
   readonly captureClosure: CsharpCaptureStorage["captureClosure"];
@@ -27,9 +26,7 @@ export interface CsharpNativeParticipationAnalysisInput {
 export function analyzeCsharpNativeParticipation(input: CsharpNativeParticipationAnalysisInput): TargetStageResult<CsharpNativeParticipationInput> {
   const { ast } = input;
   const producer = createCsharpNativeParticipationProducer();
-  const failure = input.storage.failureReason();
-  const admitted = failure !== undefined ? { kind: "unresolved" as const, reason: failure }
-    : sourceNodesOutsideErasedSubtrees(ast, input.storage.nodes, node => {
+  const admitted = sourceNodesOutsideErasedSubtrees(ast, input.nodes, node => {
       if (input.compileTimeMetadata.get(node)) return true;
       const selected = select(node);
       if (selected === undefined) return false;

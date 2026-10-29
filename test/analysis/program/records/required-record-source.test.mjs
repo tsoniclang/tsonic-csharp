@@ -91,7 +91,7 @@ for (const surface of ["native", "js"]) {
     assert.equal(storage.failureReason() === undefined, true, "bounded owned source domain");
     const rows = [];
     const admitted = analyzeCsharpNativeParticipation({
-      ast, storage, navigation: source.navigation,
+      ast, nodes: source.navigation.nodesForFiles(csharpProgramSourceFiles(program)), navigation: source.navigation,
       captureClosure: records.captureClosure, lambdaCreation: records.lambdaCreation,
       objectShapes: program.objectShapes, compileTimeMetadata: records.compileTimeMetadata, requiredRecords: rows,
     });
