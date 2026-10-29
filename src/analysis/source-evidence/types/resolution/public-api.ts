@@ -177,7 +177,7 @@ function resolveSelectedValueCarrierWithState(
   const declaredType = declaration === undefined ? undefined : queries.declarations.declaredValueType(declaration);
   if (scopedTarget !== undefined && getCsharpNullableElementTargetType(scopedTarget) !== undefined &&
     sourceAbsenceUse(node, host) !== undefined) return scopedTarget;
-  if (declaredType !== undefined && queries.types.isUnion(declaredType)) {
+  if (declaredType !== undefined && declaration !== undefined && host.ast.is.IsIdentifier(node)) {
     const storage = scopedTarget ?? resolveNodeWithState(declaration, sourceFile, nextState(state));
     const guarded = storage === undefined ? undefined : selectCsharpNativeFlowMembers(host, node, storage,
       guard => {
@@ -185,9 +185,14 @@ function resolveSelectedValueCarrierWithState(
         return resolveCsharpInstanceType(semantics, guard.sourceConstructor,
           type => resolveTypeWithState(type, semantics.sourceFile, nextState(state)));
       });
-    if (guarded !== undefined && guarded.length > 0) {
+    if (guarded?.kind === "resource-exhausted") {
+      state.rejectNativeResolution?.({ kind: "rejected", subject: node, code: "TSONIC_COMPILER_RESOURCE_LIMIT",
+        reason: "Checked native read-view selection exhausted its analysis-work budget." });
+      return undefined;
+    }
+    if (guarded?.kind === "resolved" && guarded.members.length > 0) {
       const symbol = queries.declarations.typeSymbol(selectedType);
-      if (symbol !== undefined && queries.declarations.symbolDeclarations(symbol).some(candidate =>
+      if (queries.types.isUnion(declaredType) && symbol !== undefined && queries.declarations.symbolDeclarations(symbol).some(candidate =>
         host.navigation.isProjectDeclaration(candidate) && (host.ast.is.IsClassDeclaration(candidate) || host.ast.is.IsClassExpression(candidate)))) {
         const nominal = resolveTypeWithState(selectedType, sourceFile, nextState(state));
         if (host.projectTypeCatalog.definitionForTarget(nominal)?.kind === "class") return nominal;
@@ -202,11 +207,12 @@ function resolveSelectedValueCarrierWithState(
           const present = getCsharpNullableElementTargetType(refinement.type) ?? refinement.type;
           const checkedMembers = csharpUnionLeaves(present, host.typeDefinitions)?.map(member => member.carrier) ?? [present];
           if (present !== refinement.type) checkedMembers.push(csharpAbsenceTargetType());
-          const selected = guarded.filter(member => checkedMembers.some(checked => targetTypeRefEquals(member, checked)));
+          const selected = guarded.members.filter(member => checkedMembers.some(checked =>
+            targetTypeRefEquals(member.storage, checked) || targetTypeRefEquals(member.view, checked))).map(member => member.view);
           return retainCsharpUnionObjectShapes(combineCsharpTargetUnionMembers(selected), host.structuralTypes.resolveTarget);
         }
       }
-      return retainCsharpUnionObjectShapes(combineCsharpTargetUnionMembers(guarded), host.structuralTypes.resolveTarget);
+      return retainCsharpUnionObjectShapes(combineCsharpTargetUnionMembers(guarded.members.map(member => member.view)), host.structuralTypes.resolveTarget);
     }
   }
   if (declaredType !== undefined && declaredType !== selectedType &&

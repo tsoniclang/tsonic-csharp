@@ -17,9 +17,9 @@ export function selectCsharpUnionProperty(
   const variants = getCsharpRuntimeUnionArms(carrier, host.typeDefinitions);
   if (carrier === undefined || variants === undefined) return undefined;
   const guarded = host.types.nativeFlowMembers(source.receiver.expression, carrier);
-  if (guarded?.length === 1) return undefined;
+  if (guarded?.kind === "resource-exhausted" || guarded?.kind === "resolved" && guarded.members.length === 1) return undefined;
   const indexes = variants.flatMap((variant, index) => guarded === undefined ||
-    guarded.some(member => targetTypeRefEquals(member, variant)) ? [index] : []);
+    guarded.members.some(member => targetTypeRefEquals(member.storage, variant)) ? [index] : []);
   if (indexes.length === 0) return undefined;
   const operations = new Map<number, Extract<CsharpSourceProfilePropertyPolicyResult, { readonly kind: "resolved" }>>();
   for (const index of indexes) {

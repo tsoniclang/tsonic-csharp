@@ -14,11 +14,16 @@ import type { CsharpNativeSourceCarrierSelection } from "../../target-model/reco
 
 export type CsharpNodeTypeResolution = CsharpNativeSourceCarrierSelection;
 
+export type CsharpNativeFlowSelection =
+  | { readonly kind: "resolved"; readonly storage: TargetTypeRef;
+      readonly members: readonly { readonly storage: TargetTypeRef; readonly view: TargetTypeRef }[] }
+  | { readonly kind: "resource-exhausted" };
+
 export interface CsharpTypeQueries {
   resolveArrayLiteral(node: Node, sourceFile: SourceFile): CsharpArrayLiteralSelection;
   nativeGuardResult(expression: Node): boolean | undefined;
   nativeUnreachable(node: Node): boolean;
-  nativeFlowMembers(reference: Node, sourceCarrier: TargetTypeRef): readonly TargetTypeRef[] | undefined;
+  nativeFlowMembers(reference: Node, sourceCarrier: TargetTypeRef): CsharpNativeFlowSelection | undefined;
   nativeFlowTypes(reference: Node, sourceType: Type): readonly Type[] | undefined;
   resolveBindingProjection(node: Node, sourceFile: SourceFile): import("../../target-model/records/storage/binding-projection-policy.js").CsharpBindingProjection | undefined;
   selectFixedArray(type: Type, sourceFile: SourceFile): TsonicFixedArraySelection | undefined;

@@ -14,12 +14,82 @@ import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "..
 import { targetTypeRefEquals } from "../../../../dist/target-model/types/equality.js";
 import { createCsharpSourceUnionIndex } from "../../../../dist/analysis/source-evidence/types/resolution/source-unions.js";
 import { createCsharpSourceUnionDefinitions } from "../../../../dist/analysis/source-evidence/types/resolution/union-definitions.js";
+import { csharpExceptionTargetType, csharpRuntimeErrorTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
+import { createSourceErrorProviderFixture } from "../../../fixtures/dotnet-provider/source-error-bindings.mjs";
 
 const physicalArm = createCsharpSourceUnionDefinitions({
   projectTypes: () => ({ directSupertypes: () => [] }),
   providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) },
   structuralTypes: { resolveTarget: () => undefined },
 }, () => assert.fail("the correspondence fixture must not reconstruct source types")).physicalArm;
+
+test("a checked native nominal view preserves nonunion storage when the checked Type does not change", () => {
+  for (const [body, writable] of [
+    ["if (value instanceof Writable) observe(value);", true],
+    ["if (!(value instanceof Writable)) return; observe(value);", true],
+    ["if (value instanceof Writable && flag) observe(value);", true],
+    ["if (value instanceof Writable || value instanceof Writable) observe(value);", true],
+    ["if (value instanceof Writable || flag) observe(value);", false],
+    ["if (!(value instanceof Writable)) observe(value);", false],
+    ["if (other instanceof Writable) observe(value);", false],
+    ["if (value instanceof Writable) { value = other; observe(value); }", false],
+  ]) {
+    const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: { "/src/index.ts": `
+      declare class Payload { message: string; }
+      declare const Writable: { new(): Payload };
+      declare function observe(value: unknown): void;
+      function run(value: Payload, other: Payload, flag: boolean): void { ${body} }
+    ` }, compilerOptions: { strict: true, target: "es2022", module: "esnext" } }).checkSource();
+    assertNoTargetDiagnostics(checked.diagnostics);
+    const source = createTargetSourceProgram(checked);
+    const file = checked.getSourceFile("/src/index.ts");
+    let read;
+    const visit = node => {
+      const call = source.semantics.forNode(node).operations.call(node);
+      if (source.ast.text(call?.sourceCallee.expression) === "observe") read = call.sourceArguments[0].expression;
+      source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    };
+    visit(file);
+    assert.equal(read !== undefined, true, "the original checked reference exists");
+    const declaration = source.navigation.referenceFor(read).declaration;
+    const queries = source.semantics.forNode(read);
+    const declared = queries.declarations.declaredValueType(declaration);
+    const selected = queries.types.expressionType(read);
+    assert.equal(declared === selected && !queries.types.isUnion(declared), true,
+      "native evidence must not depend on a changed or union-shaped checked Type");
+    const storage = csharpExceptionTargetType();
+    const view = csharpRuntimeErrorTargetType();
+    const host = {
+      ast: source.ast, navigation: source.navigation, sourceFacts: source.sourceFacts,
+      semantics: selectedFile => source.semantics.forFile(selectedFile), semanticsFor: node => source.semantics.forNode(node),
+      representations: { scopedTargetType: node => node === declaration ? storage : undefined },
+      sourceStorage: createSourceStorageQuery(source, [file]),
+      projectTypes: () => ({ directSupertypes: () => [] }), providers: createSourceErrorProviderFixture(),
+      objectShapes: { resolveTarget: () => undefined }, structuralTypes: { resolveTarget: () => undefined },
+      closedTypeGuard: () => undefined,
+    };
+    const flow = selectCsharpNativeFlowMembers(host, read, storage, guard => {
+      assert.equal(source.navigation.sourceReferenceFor(guard.sourceConstructor)?.declaration === guard.declaration, true,
+        "the nominal constructor keeps its original checked declaration");
+      return view;
+    });
+    if (writable) {
+      assert.equal(flow?.kind === "resolved" && flow.storage === storage && flow.members.length === 1 &&
+        flow.members[0].storage === storage && targetTypeRefEquals(flow.members[0].view, view), true,
+      "one proved subtype read view retains the unchanged physical native base");
+    } else assert.equal(flow?.kind !== "resolved" || flow.members.every(member => targetTypeRefEquals(member.view, storage)), true,
+      "negative, foreign, unknown-path and invalidated proofs never grant a writable view");
+    const scope = { host, sourceValueDeclaration: (_node, referenced) => referenced,
+      resolveNodeWithState: () => assert.fail("the scoped native base is already known"), resolveTypeWithState: () => view };
+    const resolved = resolveSelectedValueWithState(scope, read, selected, file, { depth: 0 });
+    assert.equal(targetTypeRefEquals(resolved, writable ? view : storage), true,
+      "selected-value resolution consumes the same completed view before its generic scoped-storage return");
+    const foreign = { ...view, id: "ForeignOwner::Writable" };
+    const rejected = selectCsharpNativeFlowMembers(host, read, storage, () => foreign);
+    assert.equal(rejected?.kind !== "resolved" || rejected.members.every(member => targetTypeRefEquals(member.view, storage)), true,
+      "a foreign constructor carrier cannot establish the native hierarchy relation");
+  }
+});
 
 test("native nominal guard selection completes partial typeof evidence through the exact constructor owner", () => {
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: { "/src/index.ts": `
@@ -56,9 +126,10 @@ function run(value: string | Pattern | string[]): void {
     return regexp;
   });
   assert.equal(queries, 1);
-  assert.deepEqual(selected, [regexp]);
+  assert.equal(selected?.kind === "resolved" && selected.storage === carrier && selected.members.length === 1 &&
+    selected.members[0].view === regexp, true, "the exact selected native view retains its physical storage owner");
   const unknown = selectCsharpNativeFlowMembers(context, reads[0], carrier, () => undefined);
-  assert.equal(unknown.length, 2);
+  assert.equal(unknown?.kind === "resolved" ? unknown.members.length : undefined, 2);
 });
 
 test("nominal constructor policy requires every selected construct signature to have one exact native result", () => {
@@ -103,7 +174,7 @@ test("literal guards retain exact native integer widths and broad unknown payloa
   const carriers = [{ kind: "source-primitive", name: "int32" }, { kind: "source-primitive", name: "int64" },
     csharpObjectTargetType(), csharpStringTargetType()];
   const carrier = csharpRuntimeUnionTargetType(carriers);
-  const selected = reads.map(reference => selectCsharpNativeFlowMembers(context, reference, carrier, () => undefined));
+  const selected = reads.map(reference => selectCsharpNativeFlowMembers(context, reference, carrier, () => undefined)?.members.map(member => member.view));
   assert.deepEqual(selected, [carriers.slice(0, 3), carriers.slice(0, 3), carriers.slice(2)]);
 });
 
@@ -292,6 +363,9 @@ test("exact nominal subclass evidence remains authoritative inside a native guar
       semanticsFor: node => source.semantics.forNode(node),
       representations: { genericProjections: () => [], scopedTargetType: node => node === declaration ? storage : undefined },
       projectTypeCatalog: { definitionForTarget: carrier => targetTypeRefEquals(carrier, child) ? { kind: "class" } : undefined },
+      projectTypes: () => ({ directSupertypes: carrier => targetTypeRefEquals(carrier, child) ? [base] : [] }),
+      providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) },
+      objectShapes: { resolveTarget: () => undefined },
       structuralTypes: { resolveTarget: () => undefined },
       sourceStorage: createSourceStorageQuery(source, [file]),
       closedTypeGuard: () => undefined,

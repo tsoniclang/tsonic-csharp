@@ -1,5 +1,5 @@
 import type { Node, Type } from "@tsonic/tsts";
-import { selectSourceGuardedValueMembers, selectSourceGuardedTypeMembers, selectSourceNativeGuardResult, selectSourceNativeValueGuard, type SourceNativeGuard, type SourceNativeValueGuard } from "@tsonic/target-api/source";
+import { selectSourceGuardedValueMembers, selectSourceGuardedTypeMembers, selectSourceNativeGuardResult, selectSourceNativeValueGuard, type SourceNativeGuard, type SourceNativeValueGuard, type SourceGuardedValueProof } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { csharpUnionLeaves } from "../../../../target-model/types/union-relations.js";
 
@@ -8,20 +8,44 @@ import { getCsharpNullableElementTargetType } from "../../../../target-model/typ
 import { csharpAbsenceTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
 
 import { selectCsharpNativeCarrierPredicate, type CsharpNativeFlowPredicate } from "../../../../policy/operations/flow/native-predicates.js";
+import { csharpUnionReferenceImplicitlyAccepts } from "../../../../policy/conversions/carriers.js";
+import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
+import type { CsharpNativeFlowSelection } from "../../../../policy/model/type-resolution.js";
 export function selectCsharpNativeFlowMembers(
   host: CsharpTypePolicyHost,
   reference: Node,
   sourceCarrier: TargetTypeRef,
   resolveNominal: (guard: Extract<SourceNativeValueGuard, { readonly kind: "nominal" }>) => TargetTypeRef | undefined,
-): readonly TargetTypeRef[] | undefined {
+): CsharpNativeFlowSelection | undefined {
   const present = getCsharpNullableElementTargetType(sourceCarrier) ?? sourceCarrier;
   const payloads = csharpUnionLeaves(present, host.typeDefinitions)?.map(member => member.carrier) ??
     [present];
   const members = present === sourceCarrier ? payloads
     : [...payloads, csharpAbsenceTargetType()];
-  return selectSourceGuardedValueMembers(host, reference, members,
+  const selected = selectSourceGuardedValueMembers(host, reference, members,
     expression => selectNativeGuard(host, expression, resolveNominal),
     (member, predicate) => selectCsharpNativeCarrierPredicate(host.typeDefinitions, member, predicate));
+  if (selected === undefined || selected.kind === "resource-exhausted") return selected;
+  type Member = Extract<CsharpNativeFlowSelection, { readonly kind: "resolved" }>["members"][number];
+  const distinct = (values: readonly Member[]): readonly Member[] => values.filter((value, index) =>
+    values.findIndex(other => targetTypeRefEquals(value.storage, other.storage) && targetTypeRefEquals(value.view, other.view)) === index);
+  const refine = (proof: SourceGuardedValueProof<CsharpNativeFlowPredicate>, values: readonly Member[]): readonly Member[] => {
+    if (proof.kind === "all") return refine(proof.right, refine(proof.left, values));
+    if (proof.kind === "any") return distinct([...refine(proof.left, values), ...refine(proof.right, values)]);
+    const predicate = proof.guard.predicate;
+    return values.flatMap(member => {
+      const result = selectCsharpNativeCarrierPredicate(host.typeDefinitions, member.view, predicate);
+      if (result !== undefined && result !== proof.assumed) return [];
+      if (result === undefined && proof.assumed && predicate.kind === "nominal" &&
+        csharpUnionReferenceImplicitlyAccepts({ providers: host.providers, projectTypes: host.projectTypes(),
+          typeDefinitions: host.typeDefinitions, objectShapes: host.objectShapes }, predicate.targetCarrier, member.view)) {
+        return [Object.freeze({ storage: member.storage, view: predicate.targetCarrier })];
+      }
+      return [member];
+    });
+  };
+  const refined = refine(selected.proof, members.map(storage => Object.freeze({ storage, view: storage })));
+  return Object.freeze({ kind: "resolved", storage: sourceCarrier, members: Object.freeze(distinct(refined)) });
 }
 
 export function selectCsharpNativeGuardResult(
