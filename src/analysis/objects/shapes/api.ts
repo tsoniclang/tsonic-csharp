@@ -361,7 +361,7 @@ export function createCsharpObjectShapePolicy(
       host.semantics(sourceFile),
       state,
       undefined,
-      authoredTypeRoot,
+      authoredLiteral === undefined ? authoredTypeRoot : undefined,
     );
     return shape === undefined ? undefined : rememberTargetShape(shape);
   }

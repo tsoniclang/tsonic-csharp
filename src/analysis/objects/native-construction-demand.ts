@@ -33,11 +33,25 @@ export function selectCsharpLiteralDeclarationContext(
   const declaration = ast.parent(current);
   const variable = declaration !== undefined && ast.is.IsVariableDeclaration(declaration)
     ? ast.as.AsVariableDeclaration(declaration) : undefined;
-  if (variable?.Initializer === current && variable.Type !== undefined &&
-    ast.is.IsObjectLiteralExpression(expression) && ast.is.IsObjectBindingPattern(ast.name(declaration!))) {
-    const selectedType = queries.types.expressionType(expression);
-    return selectedType === undefined ? undefined : { component: { selectedType, declaration },
-      declarations: [], source: expression };
+  if (ast.is.IsObjectLiteralExpression(expression)) {
+    let initializer = current;
+    let owner = declaration;
+    while (owner !== undefined && !ast.is.IsVariableDeclaration(owner)) {
+      if (!ast.is.IsPropertyAssignment(owner) || ast.as.AsPropertyAssignment(owner)?.Initializer !== initializer) break;
+      const literal = ast.parent(owner);
+      if (literal === undefined || !ast.is.IsObjectLiteralExpression(literal)) break;
+      initializer = literal;
+      while (ast.is.IsParenthesizedExpression(ast.parent(initializer))) initializer = ast.parent(initializer)!;
+      owner = ast.parent(initializer);
+    }
+    const binding = owner !== undefined && ast.is.IsVariableDeclaration(owner)
+      ? ast.as.AsVariableDeclaration(owner) : undefined;
+    if (binding?.Initializer === initializer && binding.Type !== undefined &&
+      ast.is.IsObjectBindingPattern(ast.name(owner!))) {
+      const selectedType = queries.types.expressionType(expression);
+      return selectedType === undefined ? undefined : { component: { selectedType, declaration: owner },
+        declarations: [], source: expression };
+    }
   }
   const declarations = variable?.Initializer === current ? [declaration!] : [];
   const returnContext = (callable: Node, locals: readonly Node[]): CsharpLiteralContext | undefined => {

@@ -78,8 +78,8 @@ export function createCsharpLiteralShapeResolver(
       (expectedShape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true
       ? resolveNode(objectLiteral, sourceFile) : undefined;
     const queries = host.semantics(sourceFile);
-    const sourceType = queries.types.expressionType(objectLiteral);
-    const expectedMembers = sourceType === undefined ? undefined
+    const sourceType = actualShape?.sourceType ?? expectedShape.sourceType;
+    const expectedMembers = actualShape === undefined ? expectedShape.members : sourceType === undefined ? undefined
       : instantiateMemberEvidence(expectedShape.members, sourceType, queries, expectedShape.sourceType);
     if (sourceType === undefined || expectedMembers === undefined) return {
       kind: "rejected", subject: objectLiteral,
