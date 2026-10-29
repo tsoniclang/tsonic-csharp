@@ -42,6 +42,7 @@ export function createCsharpSourceParameterProducer(
   const active = new Set<Node>();
   let closed = false;
   for (const declaration of source.navigation.nodes) {
+    if (!source.navigation.isProjectDeclaration(declaration)) continue;
     if (!isSourceCallableBodyBoundary(policy.ast, declaration) && !policy.ast.is.IsMethodSignatureDeclaration(declaration) &&
         !policy.ast.is.IsCallSignatureDeclaration(declaration) && !policy.ast.is.IsConstructSignatureDeclaration(declaration) &&
         !policy.ast.is.IsFunctionTypeNode(declaration) && !policy.ast.is.IsConstructorTypeNode(declaration)) continue;
