@@ -525,14 +525,13 @@ export function selectCsharpContextualParameterCarrier(
   return native === undefined ? { kind: "unresolved" } : { kind: "resolved", type: native };
 }
 
-export function resolveSourceValueDeclaration(
+export function selectCsharpErrorObservationView(
   scope: CsharpTypeResolutionScope,
   node: Node,
   queries: SourceFileSemantics,
-  state: CsharpTypeResolutionState,
+  carrier: TargetTypeRef | undefined,
   selectedType?: Type,
 ): TargetTypeRef | undefined {
-  const carrier = resolveSourceValueDeclarationCarrier(scope, node, queries, state, selectedType);
   if (carrier === undefined || !scope.host.ast.is.IsIdentifier(node)) return carrier;
   const selected = selectedType ?? queries.types.expressionType(node);
   const identity = selected === undefined ? undefined : classifyCsharpSourceProfileType(
@@ -571,7 +570,7 @@ export function resolveSourceValueDeclaration(
   return getCsharpNullableElementTargetType(carrier) === undefined ? exception.value : csharpNullableTargetType(exception.value);
 }
 
-function resolveSourceValueDeclarationCarrier(
+export function resolveSourceValueDeclaration(
   scope: CsharpTypeResolutionScope,
   node: Node,
   queries: SourceFileSemantics,

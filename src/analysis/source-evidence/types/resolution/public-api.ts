@@ -19,6 +19,7 @@ import { selectCsharpNativeFlowMembers } from "./native-flow-refinement.js";
 import { csharpUnionLeaves } from "../../../../target-model/types/union-relations.js";
 import { resolveCsharpInstanceType } from "./instance-tests.js";
 import type { CsharpNodeTypeResolution } from "../../../../policy/model/type-resolution.js";
+import { selectCsharpErrorObservationView } from "./source-references.js";
 
 export function resolveNode(
   { resolveNodeWithState }: CsharpTypeResolutionScope,
@@ -145,6 +146,17 @@ export function resolveSelectedValue(
 }
 
 export function resolveSelectedValueWithState(
+  scope: CsharpTypeResolutionScope,
+  node: Node,
+  selectedType: Type,
+  sourceFile: SourceFile,
+  state: CsharpTypeResolutionState,
+): TargetTypeRef | undefined {
+  const carrier = resolveSelectedValueCarrierWithState(scope, node, selectedType, sourceFile, state);
+  return selectCsharpErrorObservationView(scope, node, scope.host.semantics(sourceFile), carrier, selectedType);
+}
+
+function resolveSelectedValueCarrierWithState(
   scope: CsharpTypeResolutionScope,
   node: Node,
   selectedType: Type,
