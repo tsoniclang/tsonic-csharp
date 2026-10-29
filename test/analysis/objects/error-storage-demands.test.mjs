@@ -82,7 +82,7 @@ for (const jsEnabled of [false, true]) {
 }
 
 for (const surface of ["native", "js"]) {
-  test(`C# ${surface} Error formals share one declaration-owned native input across bodies, defaults and dispatch`, () => {
+  test(`C# ${surface} Error formals share one declaration-owned native input across bodies, defaults and emission`, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
       export function read(error: Error): string { return error.message; }
       export function write(error: Error): string { error.message = "changed"; return error.message; }
@@ -105,14 +105,14 @@ for (const surface of ["native", "js"]) {
       assert.equal(value.kind, "target-named", `${name}: actual native reference carrier`);
       const expected = name === "write" ? "Tsonic.CSharp.Runtime.Error" : "System.Exception";
       assert.equal(value.id === expected || value.id.endsWith(`::${expected}`), true, `${name}: exact native capability, not a stored-value guess`);
-      assert.equal(program.records.callableDispatch.get(declaration)?.implementation === contract, true,
-        `${name}: dispatch consumes the identical sealed source callable contract`);
       const runtimeDefault = program.records.runtimeDefault.get(parameter);
       if (name === "defaulted") {
         assert.equal(runtimeDefault !== undefined && targetTypeRefEquals(runtimeDefault.parameterType, native), true,
           "the initializer uses the same published incoming native contract");
       }
       const body = runtimeDefault?.valueType ?? native;
+      assert.equal(targetTypeRefEquals(program.records.callableParameter.get(parameter)?.carrier, body), true,
+        `${name}: native parameter emission reads the same body/default contract`);
       for (const use of source.navigation.declarationUses(parameter)) {
         const parent = source.ast.parent(use.reference);
         if (parent === undefined || !source.ast.is.IsPropertyAccessExpression(parent) ||
