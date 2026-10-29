@@ -34,7 +34,7 @@ export function selectCsharpSourceCallableAbi(
   const returnContract = declarations.returnContract.get(declaration);
   const returnType = policy.ast.is.IsSetAccessorDeclaration(declaration) ? csharpVoidTargetType() : evidence.generatorTargetType.get(declaration) ??
     (returnContract?.kind === "resolved" ? returnContract.type : undefined) ??
-    getCsharpCallableValueSignature(evidence.contextualTargetType.get(declaration))
+    getCsharpCallableValueSignature(evidence.contextualType.get(declaration)?.targetType)
       ?.returnType ??
     constructorReturnType(policy, declaration, sourceFile) ??
     (accessor || policy.ast.body(declaration) === undefined ? policy.types.resolveType(checked.returnType, sourceFile) : undefined);

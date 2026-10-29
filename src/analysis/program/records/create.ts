@@ -317,7 +317,6 @@ export function createCsharpProgramRecords(
     readStorageTargetType: input.sourceEvidence.readStorageTargetType,
     expressionType: input.sourceEvidence.expressionType,
     contextualType: input.sourceEvidence.contextualType,
-    contextualTargetType: input.sourceEvidence.contextualTargetType,
     semanticTargetType: input.sourceEvidence.semanticTargetType,
     semanticType: input.sourceEvidence.semanticType,
     signatureDeclaration: input.sourceEvidence.signatureDeclaration,

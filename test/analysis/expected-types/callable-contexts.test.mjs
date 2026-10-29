@@ -86,7 +86,7 @@ function fixture(body, overrides = {}) {
   };
   const evidence = { compileTimeMetadata: { get: () => false },
     generatorTargetType: { get: () => undefined },
-    contextualTargetType: { get: () => undefined },
+    contextualType: { get: () => undefined },
     nodeTargetType: { get: () => overrides.sourceParameter ?? scopedBinder ?? scalar } };
   const declarations = { runtimeDefault: { get: () => undefined },
     returnContract: { get: node => ({ kind: "resolved", type: node === lambda ? overrides.sourceReturn ?? scopedBinder ?? scalar : scalar }) } };

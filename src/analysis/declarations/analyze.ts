@@ -1,4 +1,4 @@
-import type { Node } from "@tsonic/tsts";
+import type { Node, Type } from "@tsonic/tsts";
 import { selectCsharpContextualAsyncReturn } from "../../policy/conversions/contextual-async-return.js";
 import { getCsharpAwaitResultTargetType } from "../../policy/operations/control-flow/await-completions.js";
 import { csharpTaskTargetType } from "../../target-model/types/carriers/delegates.js";
@@ -7,7 +7,9 @@ import {
   HasSyntacticModifier,
   ModifierFlagsAsync,
   Node_Type,
+  sourceBoundTypeRelationship,
   sourceCallableValueParameters,
+  sourceTransparentExpressionOperand,
 } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { selectCsharpConversion } from "../../policy/conversions/index.js";
@@ -143,10 +145,55 @@ function withAbsenceCompletion(
 ): CsharpReturnTargetContract {
   if (contract.kind !== "resolved") return contract;
   const asynchronous = HasSyntacticModifier(policy.ast, declaration, ModifierFlagsAsync);
-  const contextual = getCsharpDelegateSignature(evidence.contextualTargetType.get(declaration))?.returnType;
+  const context = evidence.contextualType.get(declaration);
+  let contextual = getCsharpDelegateSignature(context?.targetType)?.returnType;
   const inferred = Node_Type(policy.ast, declaration) === undefined;
+  let authority: "authored" | "inferred" = "inferred";
+  if (asynchronous && inferred && context !== undefined) {
+    const semantics = policy.semanticsFor(declaration);
+    const selectedType = semantics.types.nonNullableType(context.selectedType);
+    const signature = selectedType === undefined ? undefined : semantics.types.callable(selectedType);
+    const authoredReturn = signature?.result.authoredTypeNode;
+    const authored = authoredReturn === undefined ? undefined : policy.semanticsFor(authoredReturn).types.authoredType(authoredReturn);
+    const call = context.contextualCall;
+    const bindings = new Map<Node, Type>();
+    if (call?.sourceReceiver !== undefined) {
+      for (const binding of semantics.types.typeArgumentBindings(call.sourceReceiver.type) ?? []) {
+        bindings.set(binding.declaration, binding.argumentType);
+      }
+    }
+    for (const argument of call?.sourceSelectedMethodTypeArguments ?? []) {
+      if (argument.explicitTypeNode === undefined) continue;
+      const symbol = semantics.declarations.typeSymbol(argument.typeParameter);
+      const parameter = symbol === undefined ? undefined : semantics.declarations.primarySymbolDeclaration(symbol);
+      if (parameter !== undefined && policy.ast.is.IsTypeParameterDeclaration(parameter)) bindings.set(parameter, argument.selectedType);
+    }
+    let contextualExpression = declaration;
+    for (let parent = policy.ast.parent(contextualExpression); parent !== undefined &&
+      sourceTransparentExpressionOperand(policy.ast, parent) === contextualExpression;
+      parent = policy.ast.parent(contextualExpression)) contextualExpression = parent;
+    const parent = policy.ast.parent(contextualExpression);
+    const missingCall = call === undefined && parent !== undefined &&
+      (policy.ast.is.IsCallExpression(parent) || policy.ast.is.IsNewExpression(parent));
+    authority = context.authoredTypeNode !== undefined || !missingCall && authored !== undefined && signature !== undefined &&
+      sourceBoundTypeRelationship(authored, signature.result.selectedType, policy.semanticsFor(authoredReturn!), parameter => bindings.get(parameter)) !== undefined
+      ? "authored" : "inferred";
+    if (authority === "authored" && call !== undefined) {
+      const associations = call.sourceArgumentBindings.filter(binding => {
+        let expression = call.sourceArguments[binding.sourceArgumentIndex]?.expression;
+        if (expression === undefined) return false;
+        for (let inner = sourceTransparentExpressionOperand(policy.ast, expression); inner !== undefined;
+          inner = sourceTransparentExpressionOperand(policy.ast, expression)) expression = inner;
+        return expression === declaration;
+      });
+      const binding = associations.length === 1 ? associations[0] : undefined;
+      const native = binding === undefined ? undefined : policy.types.resolveSourceCallArgumentParameter(call, binding,
+        semantics.sourceFile, new Set([binding.sourceArgumentIndex]));
+      contextual = getCsharpDelegateSignature(native)?.returnType;
+    }
+  }
   const type = asynchronous && inferred
-    ? selectCsharpContextualAsyncReturn(policy, contract.type, contextual) ?? contract.type
+    ? selectCsharpContextualAsyncReturn(policy, contract.type, contextual, authority) ?? contract.type
     : !asynchronous && inferred && isCsharpVoidTargetType(contract.type) && csharpCarrierAdmitsSourceAbsence(contextual)
       ? contextual! : contract.type;
   const value = asynchronous ? getCsharpTaskResultTargetType(type) : type;
@@ -229,7 +276,7 @@ function classifyReturnContract(
   );
   const contract = asynchronous && observedContract.kind === "resolved"
     ? { ...observedContract, type: csharpTaskTargetType(observedContract.type) } : observedContract;
-  const contextualReturn = getCsharpDelegateSignature(evidence.contextualTargetType.get(declaration))?.returnType;
+  const contextualReturn = getCsharpDelegateSignature(evidence.contextualType.get(declaration)?.targetType)?.returnType;
   if (contract.kind === "resolved" && isCsharpJsValueTargetType(contract.type) && contextualReturn !== undefined &&
     csharpConversionIsApplicable(selectCsharpConversion(policy, contract.type, contextualReturn, "implicit"), "implicit")) {
     return { kind: "resolved", type: contextualReturn };

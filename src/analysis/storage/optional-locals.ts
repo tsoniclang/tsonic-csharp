@@ -171,7 +171,7 @@ export function analyzeCsharpOptionalLocals(policy: CsharpPolicyContext, evidenc
       }
       if (binary?.Left === reference && binary.Right !== undefined && operator === "KindQuestionQuestionToken") {
         const value = sourceValue(binary.Right, placement);
-        const contextual = evidence.contextualTargetType.get(parent!);
+        const contextual = evidence.contextualType.get(parent!)?.targetType;
         if (value?.kind !== "present" || contextual === undefined || !targetTypeRefEquals(contextual, placement.payload)) { valid = false; break; }
         selected.set(parent!, Object.freeze({ kind: "coalesce", placement, right: binary.Right, assignment: false }));
         privateUses.add(parent!);
@@ -192,7 +192,7 @@ export function analyzeCsharpOptionalLocals(policy: CsharpPolicyContext, evidenc
       if (passing?.kind === "resolved" && passing.argument.passingMode !== "by-value") { valid = false; break; }
       const asserted = parent === undefined ? undefined : evidence.nodeTargetType.get(parent);
       if (parent !== undefined && ast.is.IsNonNullExpression(parent)) {
-        const contextual = evidence.contextualTargetType.get(parent);
+        const contextual = evidence.contextualType.get(parent)?.targetType;
         if (asserted === undefined || !targetTypeRefEquals(asserted, placement.payload) ||
           contextual === undefined || !targetTypeRefEquals(contextual, placement.payload)) { valid = false; break; }
         selected.set(parent, Object.freeze({ kind: "read", placement, guarded: true }));
@@ -200,7 +200,7 @@ export function analyzeCsharpOptionalLocals(policy: CsharpPolicyContext, evidenc
         continue;
       }
       const carrier = evidence.valueRefinement.get(use.reference)?.flowReadTargetType ?? evidence.nodeTargetType.get(use.reference);
-      const contextual = evidence.contextualTargetType.get(use.reference);
+      const contextual = evidence.contextualType.get(use.reference)?.targetType;
       if (carrier !== undefined && targetTypeRefEquals(carrier, placement.payload) &&
         contextual !== undefined && targetTypeRefEquals(contextual, placement.payload)) {
         selected.set(reference, Object.freeze({ kind: "read", placement, guarded: false }));

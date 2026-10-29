@@ -37,7 +37,7 @@ function fixture(acceptsOmission, foreign = false) {
   const policy = { ast, sourceFiles: [parameter], semanticsFor: () => queries };
   const evidence = { compileTimeMetadata: { get: () => false },
     nodeTargetType: { get: () => valueType },
-    contextualTargetType: { get: () => undefined },
+    contextualType: { get: () => undefined },
     expressionType: { get: () => ({}) } };
   return { parameter, selected: () => analyzeCsharpDeclarations(policy, evidence,
     { selectedProperty: { get: () => undefined } }).runtimeDefault.get(parameter) };

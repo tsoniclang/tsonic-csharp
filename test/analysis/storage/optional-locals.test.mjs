@@ -77,7 +77,7 @@ test("selected native address and reference storage cannot be split by a narrowe
       compileTimeMetadata: { get: () => false },
       sourceArgument: { get: node => node !== call || nativeAddress ? undefined
         : { kind: "resolved", argument: { storageExpression: reference, passingMode: kind } } },
-      nodeTargetType: { get: () => payload }, contextualTargetType: { get: () => payload },
+      nodeTargetType: { get: () => payload }, contextualType: { get: () => ({ targetType: payload }) },
       storageTargetType: { get: () => storage },
     }, [call, declaration], {
       resolve() { assert.fail(`${kind}: an addressed declaration must be excluded before private names are allocated`); },

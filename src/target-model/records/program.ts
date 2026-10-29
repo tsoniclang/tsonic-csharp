@@ -236,7 +236,6 @@ export interface CsharpProgramRecords extends CsharpSourceNameRecords, CsharpSta
   readonly readStorageTargetType: CsharpSourceEvidenceIndex["readStorageTargetType"];
   readonly expressionType: CsharpSourceEvidenceIndex["expressionType"];
   readonly contextualType: CsharpSourceEvidenceIndex["contextualType"];
-  readonly contextualTargetType: CsharpSourceEvidenceIndex["contextualTargetType"];
   readonly semanticTargetType: CsharpSourceEvidenceIndex["semanticTargetType"];
   readonly semanticType: CsharpSourceEvidenceIndex["semanticType"];
   readonly signatureDeclaration: CsharpSourceEvidenceIndex["signatureDeclaration"];

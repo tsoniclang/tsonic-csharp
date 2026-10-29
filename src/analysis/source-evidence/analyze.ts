@@ -15,7 +15,7 @@ import { csharpTargetTypeComponents } from "../../target-model/types/components.
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpSemanticTypeClassification, CsharpContextualTupleClassification, CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
+import type { CsharpSemanticTypeClassification, CsharpContextualTupleClassification, CsharpContextualTypeEvidence, CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 import type { CsharpSourceEvidenceResult } from "./model.js";
 import type { CsharpTypeParameterConstraintResolution } from "../../policy/constraints/index.js";
 import { selectCsharpSourceArgument } from "../../source/extension/arguments.js";
@@ -53,8 +53,7 @@ export function analyzeCsharpSourceEvidence(
   const classConstructorTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
   const storageTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
   const readStorageTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
-  const contextualTypes = new WeakMap<Node, Cached<Type>>();
-  const contextualTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
+  const contextualTypes = new WeakMap<Node, Cached<CsharpContextualTypeEvidence>>();
   const constants = new WeakMap<Node, { readonly value: unknown }>();
   const refinements = new WeakMap<Node, import("../../target-model/records/program/source-evidence.js").CsharpValueRefinementClassification>();
   const generators = new WeakMap<Node, Cached<ResolvedSourceGeneratorInfo>>();
@@ -303,13 +302,10 @@ export function analyzeCsharpSourceEvidence(
     const contextualType = semantics.types.contextualType(node);
     if (contextualType !== undefined) classifyType(contextualType.selectedType, sourceFile);
     if (!typeOnly && contextualType !== undefined) recordSelectedFixedArrayIssues(node, contextualType.selectedType, sourceFile);
-    contextualTypes.set(node, contextualType?.selectedType ?? missing);
-    contextualTargetTypes.set(
-      node,
-      contextualType === undefined
-        ? missing
-        : recordTargetType(types.resolveSelectedType(contextualType.authoredTypeNode, contextualType.selectedType, sourceFile)) ?? missing,
-    );
+    contextualTypes.set(node, contextualType === undefined ? missing : Object.freeze({
+      ...contextualType,
+      targetType: recordTargetType(types.resolveSelectedType(contextualType.authoredTypeNode, contextualType.selectedType, sourceFile)),
+    }));
     if (source.ast.is.IsEnumMember(node)) {
       const constant = source.semantics.enumConstants.get(node);
       if (constant === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A checked enum member requires its exact completed source constant selection.", node);
@@ -510,9 +506,6 @@ export function analyzeCsharpSourceEvidence(
     } }),
     contextualType: Object.freeze({ get(node) {
       return cachedValue(contextualTypes.get(node));
-    } }),
-    contextualTargetType: Object.freeze({ get(node) {
-      return cachedValue(contextualTargetTypes.get(node));
     } }),
     semanticTargetType: Object.freeze({ get(type, sourceFile) {
       return semanticTypes.get(type)?.get(sourceFile)?.targetType;

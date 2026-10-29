@@ -2,7 +2,7 @@ import type { CsharpConversionSelection } from "../../conversions/selection.js";
 import type { CsharpTypeParameterConstraintResolution } from "../../types/generic-constraints.js";
 import type { TargetTypeRef } from "../../types/model.js";
 import type { CsharpSourceDefaultValue, CsharpSourceField, CsharpSourceStruct } from "./source-markers.js";
-import type { SourceValueTypeRefinementSelection } from "@tsonic/target-api/source";
+import type { SourceTypeComponentEvidence, SourceValueTypeRefinementSelection } from "@tsonic/target-api/source";
 import type { Node, ResolvedSourceGeneratorInfo, ResolvedSourceWellKnownSymbolInfo, ResolvedSourceYieldInfo, Signature, SourceFile, Type } from "@tsonic/tsts";
 
 export type CsharpSourceArgumentClassification =
@@ -64,6 +64,10 @@ export interface CsharpFlowReadClassifications {
   readonly issues: readonly { readonly node: Node; readonly code: string; readonly message: string }[];
 }
 
+export interface CsharpContextualTypeEvidence extends SourceTypeComponentEvidence {
+  readonly targetType: TargetTypeRef | undefined;
+}
+
 export interface CsharpSourceEvidenceIndex {
   readonly bindingProjection: { readonly get: (node: Node) => import("../storage/binding-projection-policy.js").CsharpBindingProjection | undefined };
   readonly memoryMetadataIssues: readonly { readonly node: Node; readonly code: string; readonly message: string }[];
@@ -76,8 +80,7 @@ export interface CsharpSourceEvidenceIndex {
   readonly storageTargetType: { readonly get: (node: Node) => TargetTypeRef | undefined };
   readonly readStorageTargetType: { readonly get: (node: Node) => TargetTypeRef | undefined };
   readonly expressionType: { readonly get: (node: Node) => Type | undefined };
-  readonly contextualType: { readonly get: (node: Node) => Type | undefined };
-  readonly contextualTargetType: { readonly get: (node: Node) => TargetTypeRef | undefined };
+  readonly contextualType: { readonly get: (node: Node) => CsharpContextualTypeEvidence | undefined };
   readonly semanticTargetType: { readonly get: (type: Type, sourceFile: SourceFile) => TargetTypeRef | undefined };
   readonly semanticType: { readonly get: (type: Type, sourceFile: SourceFile) => CsharpSemanticTypeClassification | undefined };
   readonly signatureDeclaration: { readonly get: (signature: Signature) => Node | undefined };

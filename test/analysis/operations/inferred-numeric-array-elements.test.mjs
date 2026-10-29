@@ -161,7 +161,7 @@ test("authored native generic return ABIs are not rewritten by a nested logical 
   };
   visit(file);
   const absent = Object.freeze({ get: () => undefined });
-  const evidence = { compileTimeMetadata: absent, pointerReturn: absent, contextualTargetType: absent,
+  const evidence = { compileTimeMetadata: absent, pointerReturn: absent, contextualType: absent,
     inferredCallableReturnType: absent, nodeTargetType: { get: node => authored.get(node) } };
   const policy = { ast, sourceFiles: [file], semanticsFor: source.semantics.forNode,
     types: { resolveType: (type, sourceFile) => {

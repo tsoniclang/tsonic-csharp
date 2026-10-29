@@ -313,7 +313,7 @@ export function analyzeCsharpObjectShapes(
     const results = new Map<string, CsharpObjectLiteralTargetShapeResolution>();
     literalResults.set(literal, results);
     const contextualShape = policy.objectShapes.resolveType(
-      evidence.contextualType.get(literal),
+      evidence.contextualType.get(literal)?.selectedType,
       sourceFile,
     );
     const expectedShapes = new Set<CsharpObjectShapeFact | undefined>([

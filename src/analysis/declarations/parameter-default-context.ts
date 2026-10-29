@@ -13,7 +13,7 @@ export function selectCsharpParameterDefaultContext(
   if (policy.ast.is.IsFunctionExpression(owner) && policy.ast.name(owner) !== undefined &&
     policy.navigation.declarationUses(owner).some(use =>
       use.kind !== "type-only" && !evidence.compileTimeMetadata.get(use.reference))) return undefined;
-  const direct = evidence.contextualTargetType.get(owner);
+  const direct = evidence.contextualType.get(owner)?.targetType;
   const signature = getCsharpDelegateSignature(getCsharpNullableElementTargetType(direct) ?? direct);
   if (signature !== undefined) return signature;
   if (!policy.ast.is.IsMethodDeclaration(owner)) return undefined;
@@ -21,7 +21,7 @@ export function selectCsharpParameterDefaultContext(
   if (literal === undefined || !policy.ast.is.IsObjectLiteralExpression(literal)) return undefined;
   const element = policy.semanticsFor(owner).operations.objectLiteralElement(owner);
   if (element === undefined || element.objectLiteral !== literal || element.element !== owner) return undefined;
-  const target = evidence.contextualTargetType.get(literal);
+  const target = evidence.contextualType.get(literal)?.targetType;
   const present = getCsharpNullableElementTargetType(target) ?? target;
   const shape = present === undefined ? undefined : policy.objectShapes.resolveTarget(present);
   if (shape === undefined) return undefined;

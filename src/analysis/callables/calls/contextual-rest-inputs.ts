@@ -10,13 +10,13 @@ import { admitCsharpCallableParameterAdapters, type CsharpCallableConversionPoli
 
 export function closeCsharpContextualRestInputs(
   policy: Pick<CsharpPolicyContext, "ast">,
-  evidence: Pick<CsharpSourceEvidenceIndex, "contextualTargetType">,
+  evidence: Pick<CsharpSourceEvidenceIndex, "contextualType">,
   conversions: CsharpCallableConversionPolicy,
   contract: SourceCallableSourceContract,
 ): SourceCallableSourceContract | undefined {
   const declaration = contract.sourceDeclaration;
   if (!policy.ast.is.IsArrowFunction(declaration) && !policy.ast.is.IsFunctionExpression(declaration)) return contract;
-  const signature = getCsharpDelegateSignature(evidence.contextualTargetType.get(declaration));
+  const signature = getCsharpDelegateSignature(evidence.contextualType.get(declaration)?.targetType);
   const restIndex = signature?.restParameterIndex;
   if (signature === undefined || restIndex === undefined) return contract;
   const sequence = signature.parameters[restIndex];
