@@ -52,6 +52,7 @@ for (const surface of [undefined, "js"]) {
     ["one immutable alias", "const selected = (value: int32): int32 => value + 3; const alias = selected; return ExpressionHost.Add(alias, 4);"],
     ["one alias with transparent syntax", "const selected = ((value: int32): int32 => value + 3); const alias = (selected); return ExpressionHost.Add(alias, 4);"],
     ["shared mutable capture", "let step: int32 = 3; const selected = (value: int32): int32 => value + step; const alias = selected; step += 2; return ExpressionHost.Add(alias, 4);"],
+    ["repeated identical carrier demands", "const selected = (value: int32): int32 => value + 3; const first = ExpressionHost.Add(selected, 1); return first + ExpressionHost.Add(selected, 4);"],
   ]) {
     test(`native quotation creation retains ${name} on ${surface ?? "native"}`, () => {
       const compiled = compile(body, surface);
@@ -75,6 +76,19 @@ for (const surface of [undefined, "js"]) {
     });
   }
 }
+
+for (const surface of [undefined, "js"]) test(`contradictory native quotation carriers are not first-wins on ${surface ?? "native"}`, () => {
+  const compiled = compile(`
+    const selected = (value: int32): int32 => value + 3;
+    ExpressionHost.Observe(selected, 1);
+    return ExpressionHost.Add(selected, 4);
+  `, surface);
+  assert.equal(compiled.sourceDiagnosticsText === "" && compiled.extensionDiagnostics.length === 0, true,
+    "both native quotation contexts have valid checked source");
+  assert.equal(compiled.result.diagnostics.some(diagnostic => diagnostic.code === "CSHARP_QUOTATION_BINDING_CONFLICT"), true,
+    "contradictory carriers remain an explicit binding conflict");
+  assert.equal(compiled.artifacts.size, 0, "conflicting quotation storage publishes no partial artifact");
+});
 
 for (const [name, body, parameters = ""] of [
   ["mutable initializer", "let selected = (value: int32): int32 => value + 3; return ExpressionHost.Add(selected, 4);"],

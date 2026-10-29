@@ -32,14 +32,19 @@ export function analyzeCsharpExpectedTypes(
   const collection = createCsharpExpectedUseCollection(policy);
   const returnTargets = createCsharpExpectedReturnTargets(input, collection);
   const constructUses = createCsharpExpectedConstructUses(input, collection);
+  const initializers = new Set<Node>();
   const expectedBinaries = new WeakMap<Node, Map<string, CsharpExpectedBinarySelection>>();
   const propagation = createCsharpExpectedTypePropagation(input, collection, classifyExpectedBinary);
   for (const sourceFile of policy.sourceFiles) visit(sourceFile, sourceFile);
+  recordInitializers();
   let changed = true;
   while (changed) {
     drainPending();
     changed = returnTargets.refreshCallableTargets();
-    if (changed) for (const sourceFile of policy.sourceFiles) visit(sourceFile, sourceFile);
+    if (changed) {
+      for (const sourceFile of policy.sourceFiles) visit(sourceFile, sourceFile);
+      recordInitializers();
+    }
   }
   returnTargets.recordReturnDemands();
   drainPending();
@@ -56,6 +61,7 @@ export function analyzeCsharpExpectedTypes(
     returnContext: Object.freeze({ get: returns.returnContext }),
     exactIntegerConversion: Object.freeze({ get: projection.exactIntegerConversion }),
     storageExpectedType: Object.freeze({ get: projection.storageExpectedType }),
+    quotationBinding: Object.freeze({ get: projection.quotationBinding }),
     callableTarget: Object.freeze({ get: returns.callableTarget }),
     arrayLiteralCarrier: Object.freeze({ get: constructions.arrayLiteralCarrier }),
     expectedBinary: Object.freeze({ get: (expression: Node, targetType: TargetTypeRef) =>
@@ -66,11 +72,16 @@ export function analyzeCsharpExpectedTypes(
     for (let pending = collection.takePending(); pending !== undefined; pending = collection.takePending()) propagation.propagate(pending);
   }
 
+  function recordInitializers(): void {
+    for (const node of initializers) constructUses.recordInitializer(node);
+  }
+
   function visit(node: Node, sourceFile: SourceFile): void {
     if (evidence.compileTimeMetadata.get(node) || operations.nativeUnreachable.get(node)) return;
     returnTargets.recordTypeParameter(node);
     returnTargets.recordAccessorReturnContext(node);
-    constructUses.recordInitializer(node);
+    if (policy.ast.is.IsVariableDeclaration(node) || policy.ast.is.IsParameterDeclaration(node) ||
+      policy.ast.is.IsPropertyDeclaration(node) || policy.ast.is.IsBindingElement(node) || policy.ast.is.IsEnumMember(node)) initializers.add(node);
     returnTargets.recordReturnExpression(node);
     returnTargets.recordExpressionBodyReturn(node);
     constructUses.recordThrownValue(node);

@@ -36,6 +36,12 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
     const slot: CsharpNativeUseSlot | undefined = policy.ast.is.IsVariableDeclaration(node) || policy.ast.is.IsPropertyDeclaration(node)
       ? { kind: "initializer" } : policy.ast.is.IsParameterDeclaration(node) || policy.ast.is.IsBindingElement(node) ? { kind: "default" } : undefined;
     if (initializer === undefined) return;
+    const quotation = collection.quotationBinding(node);
+    if (quotation !== undefined) {
+      record(initializer, quotation.kind === "selected" ? quotation.targetType : undefined, "required",
+        { owner: node, slot: { kind: "initializer" }, ...(quotation.kind === "conflicting" ? { withheld: "argument-inconsistent" as const } : {}) });
+      return;
+    }
     const name = policy.ast.name(node);
     if (policy.ast.is.IsVariableDeclaration(node) && name !== undefined &&
       (policy.ast.is.IsObjectBindingPattern(name) || policy.ast.is.IsArrayBindingPattern(name))) {
@@ -219,12 +225,9 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
     const second = policy.ast.is.IsIdentifier(first.value) ? quotationInitializer(first.value, scope) : undefined;
     const original = second?.value ?? first.value;
     if (!policy.ast.is.IsArrowFunction(original) || HasSyntacticModifier(policy.ast, original, ModifierFlagsAsync)) return;
-    const slot = { kind: "initializer" } as const;
-    const parent = csharpNativeUseSite(demand.owner, demand.slot, { target });
-    record(first.initializer, target, "required", { owner: first.declaration, slot, forwardedFrom: parent });
-    if (second !== undefined) record(second.initializer, target, "required", {
-      owner: second.declaration, slot, forwardedFrom: csharpNativeUseSite(first.declaration, slot, { target }),
-    });
+    const argumentSite = csharpNativeUseSite(demand.owner, demand.slot, { target });
+    collection.recordQuotationBinding(first.declaration, first.initializer, original, target, argumentSite);
+    if (second !== undefined) collection.recordQuotationBinding(second.declaration, second.initializer, original, target, argumentSite);
   }
 
   function quotationInitializer(expression: Node, scope: Node):
