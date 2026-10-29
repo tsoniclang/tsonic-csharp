@@ -42,10 +42,12 @@ export function createCsharpSourceParameterProducer(
   const active = new Set<Node>();
   let closed = false;
   for (const declaration of source.navigation.nodes) {
+    if (policy.ast.parameters(declaration).length === 0) continue;
     const queries = source.semantics.forNode(declaration);
-    const parameters = sourceCallableValueParameters(policy.ast, declaration, queries);
     const signature = queries.types.declarationSignatureInfo(declaration);
-    if (parameters === undefined || signature === undefined) continue;
+    if (signature === undefined) continue;
+    const parameters = sourceCallableValueParameters(policy.ast, declaration, queries, { kind: "declaration" });
+    if (parameters === undefined) continue;
     for (const [index, parameter] of parameters.entries()) {
       const checked = signature.parameters.find(slot => slot.declaration === parameter);
       const type = queries.declarations.declaredValueType(parameter);
