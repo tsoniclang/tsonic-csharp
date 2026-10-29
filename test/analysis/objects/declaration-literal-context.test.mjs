@@ -156,3 +156,21 @@ test("already-typed local aliases have no spelling-distance limit", () => {
   assert.equal([...output.matchAll(/new Tsonic\.CSharp\.Node\.MakeDirectoryOptions\b/gu)].length, 1,
     "arbitrarily spelled checked aliases keep the original allocation");
 });
+
+for (const [label, body, literal] of [
+  ["untyped intermediate alias", "const base = {}; const alias = base; const options: MakeDirectoryOptions = alias; return options;", "{}"],
+  ["mutable context alias", "const base = {}; let options: MakeDirectoryOptions = base; return options;", "{}"],
+  ["settled item12 chain", "const base = { recursive: true }; const tuned = base; const final = tuned; const options: MakeDirectoryOptions = final; return options;", "{ recursive: true }"],
+]) test(`C1202 requests the original literal annotation for ${label}`, () => {
+  const compiled = compile(`import type { MakeDirectoryOptions } from "node:fs";
+    export function make(): MakeDirectoryOptions { ${body} }`);
+  const issue = compiled.targetDiagnostics.find(diagnostic => diagnostic.code === "TSONIC_UNTYPED_OBJECT_LITERAL");
+  const ast = compiled.nativeStage.source.ast;
+  const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
+  const text = range?.kind !== "authored" ? undefined
+    : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end);
+  assert.equal(issue?.message === "This object literal has no target type. Declare one, e.g. 'function baseOptions(): MakeDirectoryOptions'." &&
+    text === literal, true, `${label}: exact annotation diagnostic at the original literal, not the final conversion`);
+  assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
+    `${label}: no unproved native construction is published`);
+});
