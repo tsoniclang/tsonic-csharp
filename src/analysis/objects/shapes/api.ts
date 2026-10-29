@@ -602,11 +602,13 @@ export function createCsharpObjectShapePolicy(
           contextualProjectType,
           state,
         );
-        return declared === undefined ? {
+        if (declared === undefined) return {
           targetType: contextualProjectType,
           sourceType: type,
           members,
-        } : { ...declared, sourceType: type, members };
+        };
+        const instantiatedMembers = instantiateMemberEvidence(declared.members, type, queries, declared.sourceType);
+        return instantiatedMembers === undefined ? undefined : { ...declared, sourceType: type, members: instantiatedMembers };
       }
       const implemented = contextualProjectType !== undefined &&
           declaredKind === "interface"
