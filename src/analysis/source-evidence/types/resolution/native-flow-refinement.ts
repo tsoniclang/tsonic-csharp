@@ -30,8 +30,8 @@ export function selectCsharpNativeFlowMembers(
   const distinct = (values: readonly Member[]): readonly Member[] => values.filter((value, index) =>
     values.findIndex(other => targetTypeRefEquals(value.storage, other.storage) && targetTypeRefEquals(value.view, other.view)) === index);
   const refine = (proof: SourceGuardedValueProof<CsharpNativeFlowPredicate>, values: readonly Member[]): readonly Member[] => {
-    if (proof.kind === "all") return refine(proof.right, refine(proof.left, values));
-    if (proof.kind === "any") return distinct([...refine(proof.left, values), ...refine(proof.right, values)]);
+    if (proof.kind !== "guard") return proof.kind === "all" ? refine(proof.right, refine(proof.left, values))
+      : distinct([...refine(proof.left, values), ...refine(proof.right, values)]);
     const predicate = proof.guard.predicate;
     return values.flatMap(member => {
       const result = selectCsharpNativeCarrierPredicate(host.typeDefinitions, member.view, predicate);
