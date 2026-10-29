@@ -2,19 +2,17 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { createSourceStorageQuery, defaultSourceStorageLimits } from "@tsonic/target-api/analysis";
-import { requiredStorageSubject } from "../../../../tsonic/test/fixtures/source-navigation.mjs";
 import { collectTargetSourceProfileContributions } from "../../../../tsonic/packages/host/dist/target/source-profile.js";
 import { errorConstructorFootprintSource, errorOriginDomainSource } from "../../../../tsonic/test/fixtures/error-origin-domains.mjs";
-import { createCsharpErrorStorageDemandQuery } from "../../../dist/analysis/objects/error-storage-demands.js";
+import { createCsharpErrorDeclarationQuery } from "../../../dist/analysis/objects/error-storage-demands.js";
 import { resolveSourceProfileType } from "../../../dist/analysis/source-evidence/types/resolution/source-profiles.js";
-import { createCsharpSourceProfileStorageEffects } from "../../../dist/analysis/operations/source-profiles/source-storage-effects.js";
 import { csharpSourceProfileContributions, csharpJsSurfaceSourceProfileContributions } from "../../../dist/source/profiles/declarations.js";
 import { createSourceErrorProviderFixture } from "../../fixtures/dotnet-provider/source-error-bindings.mjs";
+import { analyzeCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 
 for (const jsEnabled of [false, true]) {
   for (const called of [false, true]) {
-  test(`C# ${jsEnabled ? "JS" : "native"} ${called ? "call" : "new"} Error inference requires complete admitted origins`, () => {
+  test(`C# ${jsEnabled ? "JS" : "native"} ${called ? "call" : "new"} Error declarations retain one carrier independently of callers and exports`, () => {
     const profile = collectTargetSourceProfileContributions({ project: {}, projectRoot: "/src", projectDirectory: "/src",
       target: { id: "csharp", options: {} }, targetPackId: jsEnabled ? "js" : "csharp", selectedCapabilities: [], selectedSurfaces: [],
       targetContributions: jsEnabled ? csharpJsSurfaceSourceProfileContributions() : csharpSourceProfileContributions({ selectedSurfaceIds: [] }) });
@@ -26,25 +24,21 @@ for (const jsEnabled of [false, true]) {
     const source = createTargetSourceProgram(checked);
     const file = source.sourceFiles.find(file => source.ast.getFileName(file) === "/src/index.ts");
     const providers = createSourceErrorProviderFixture();
-    const storage = createSourceStorageQuery(source, [file], defaultSourceStorageLimits,
-      createCsharpSourceProfileStorageEffects(source, providers));
-    const demand = createCsharpErrorStorageDemandQuery(source, storage);
+    const demand = createCsharpErrorDeclarationQuery(source);
     const declaration = name => source.ast.statements(file).find(node => source.ast.is.IsFunctionDeclaration(node) &&
       source.ast.text(source.ast.name(node)) === name);
-    const host = { ast: source.ast, hasSemantics: file => source.semantics.includes(file), errorStorageDemands: demand,
-      providers };
+    const host = { providers };
     const identity = { kind: "error", sourceName: "Error", errorName: "Error", baseException: true };
-    for (const [name, expectedDomain, expectedCarrier] of [
-      ["inspect", "open", "System.Exception"], ["privateInspect", "complete", "Tsonic.CSharp.Runtime.Error"],
-    ]) {
+    for (const name of ["inspect", "privateInspect"]) {
       const formal = source.ast.parameters(declaration(name))[0];
-      const observed = demand.storageOriginsFor(requiredStorageSubject(storage, formal));
-      assert.equal(observed.kind === "resolved" && observed.origins.length > 0 &&
-        observed.origins.every(origin => demand.isNativeConstructor(origin.node)), true, `${name}: same observed native roots`);
-      const domain = demand.closedStorageOriginsFor(requiredStorageSubject(storage, formal));
-      assert.equal(domain.kind === expectedDomain, true, `${name}: exact admission proof`);
-      const carrier = resolveSourceProfileType({ host }, identity, [], requiredStorageSubject(storage, formal));
-      assert.equal(carrier?.id === expectedCarrier, true, `${name}: canonical physical Error carrier`);
+      const selected = demand.parameterFor(formal);
+      assert.equal(selected.kind, "resolved", `${name}: exact checked declaration component`);
+      assert.equal(selected.value.parameter.component.declaration === formal, true, `${name}: original parameter identity`);
+      assert.equal(selected.value.parameter.component.selectedType === source.semantics.forNode(formal).declarations.declaredValueType(formal),
+        true, `${name}: exact checked declaration Type`);
+      assert.equal(selected.value.access, "read-only", `${name}: the same readonly body requirement, regardless of export or caller`);
+      const carrier = resolveSourceProfileType({ host }, identity, []);
+      assert.equal(carrier?.id, "Tsonic.CSharp.Runtime.Error", `${name}: logical source Error resolution is context-independent`);
     }
     let aliased;
     let unowned;
@@ -58,41 +52,61 @@ for (const jsEnabled of [false, true]) {
     };
     visit(file);
     assert.equal(aliased !== undefined && external !== undefined && unowned !== undefined, true);
-    assert.equal(demand.closedStorageOriginsFor(requiredStorageSubject(storage, aliased)).kind === "complete", true, "immutable owned global constructor alias");
-    assert.equal(demand.closedStorageOriginsFor(requiredStorageSubject(storage, external)).kind === "open", true, "signature identity does not own an external constructor value");
-    assert.equal(demand.invalidationFor(source.ast.parameters(declaration("construct"))[1], external, new Set()).kind === "unproven", true,
-      "a valid external constructor is not evidence that a guarded Error read is preserved");
-    assert.equal(demand.closedStorageOriginsFor(requiredStorageSubject(storage, unowned)).kind === "open", true, "ambient external values are not owned global constructors");
+    for (const expression of [source.ast.as.AsVariableDeclaration(aliased).Initializer, external,
+      source.ast.as.AsVariableDeclaration(unowned).Initializer]) {
+      const selected = demand.constructorFor(expression);
+      assert.equal(selected.kind, "resolved", "a declared constructor retains its checked signature without claiming allocation origins or purity");
+      assert.equal(selected.value.selection === source.semantics.forNode(expression).operations.call(expression), true,
+        "the actual selected constructor contract is not reconstructed from a name or caller");
+      assert.equal(selected.value.result.component.selectedType === source.semantics.forNode(expression).types.expressionType(expression), true,
+        "the exact checked constructor result remains selected");
+    }
+    assert.equal(demand.constructorFor({}).kind, "unresolved", "a foreign constructor node never manufactures native evidence");
+    assert.equal("closedStorageOriginsFor" in demand || "storageFor" in demand, false,
+      "the C# owner cannot fall back to removed history queries");
   });
   }
-  for (const [footprint, expected] of [["mutating", "invalidated"], ["readonly", "preserved"], ["deferred", "preserved"],
-    ["receiver", "preserved"], ["bound", "invalidated"]]) {
-    test(`C# ${jsEnabled ? "JS" : "native"} native Error allocation preserves exact ${footprint} inherited initialization`, () => {
-      const profile = collectTargetSourceProfileContributions({ project: {}, projectRoot: "/src", projectDirectory: "/src",
-        target: { id: "csharp", options: {} }, targetPackId: jsEnabled ? "js" : "csharp", selectedCapabilities: [], selectedSurfaces: [],
-        targetContributions: jsEnabled ? csharpJsSurfaceSourceProfileContributions() : csharpSourceProfileContributions({ selectedSurfaceIds: [] }) });
-      assert.equal(profile.diagnostics.length === 0, true);
-      const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: new Map([
-        ["/src/index.ts", errorConstructorFootprintSource(footprint)], ...profile.files.map(file => [file.path, file.text]),
-      ]), compilerOptions: { strict: true, noLib: true, skipLibCheck: true, module: "esnext", moduleResolution: "bundler" } }).checkSource();
-      assert.equal(checked.diagnostics.length === 0, true);
-      const source = createTargetSourceProgram(checked);
-      const file = source.sourceFiles.find(file => source.ast.getFileName(file) === "/src/index.ts");
-      const storage = createSourceStorageQuery(source, [file], defaultSourceStorageLimits,
-        createCsharpSourceProfileStorageEffects(source, createSourceErrorProviderFixture()));
-      const demand = createCsharpErrorStorageDemandQuery(source, storage);
+  for (const footprint of ["mutating", "readonly", "deferred", "receiver", "bound"]) {
+    test(`C# ${jsEnabled ? "JS" : "native"} Error ${footprint} initialization retains the checked Derived constructor and native ancestry`, () => {
+      const { source, analysis } = analyzeCsharpSource({ surface: jsEnabled ? "js" : "native",
+        sourceText: errorConstructorFootprintSource(footprint) });
+      assert.equal(analysis.kind, "resolved", `${footprint}: the unchanged source has complete native declaration evidence`);
       const declarations = new Map();
       const visit = node => {
-        if (source.ast.is.IsVariableDeclaration(node)) declarations.set(source.ast.text(source.ast.name(node)), node);
+        if (source.ast.is.IsVariableDeclaration(node) || source.ast.is.IsClassDeclaration(node))
+          declarations.set(source.ast.text(source.ast.name(node)), node);
         source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
       };
-      visit(file);
+      for (const file of source.navigation.sourceFiles) visit(file);
       const owner = declarations.get("original");
       const expression = source.ast.as.AsVariableDeclaration(declarations.get("created"))?.Initializer;
       assert.equal(owner !== undefined && expression !== undefined, true);
-      assert.equal(demand.isNativeConstructor(expression), true, "the inherited constructor selects the owned native Error protocol");
-      assert.equal(demand.closedStorageOriginsFor(requiredStorageSubject(storage, expression)).kind === "complete", true, "fresh result ownership is complete but is not a purity proof");
-      assert.equal(demand.invalidationFor(owner, expression, new Set()).kind, expected);
+      const queries = source.semantics.forNode(expression);
+      const selection = queries.operations.call(expression);
+      assert.equal(selection !== undefined, true, "the original Derived expression retains its selected checked constructor");
+      const result = queries.operations.callResult(selection);
+      assert.equal(result !== undefined, true, "the selected constructor has its actual checked result component");
+      const derived = declarations.get("Derived");
+      const base = declarations.get("Base");
+      assert.equal(derived !== undefined && base !== undefined, true, "both original class declarations remain present");
+      const derivedType = queries.declarations.declaredType(derived);
+      assert.equal(queries.types.isIdentical(result.resultType, derivedType), true,
+        "the instantiated result is the checked Derived Type, not a fabricated allocation origin");
+      assert.equal(queries.types.isIdentical(result.resultType, queries.types.expressionType(expression)), true,
+        "the exact checked constructor expression and result component agree");
+      const heritage = analysis.value.projectTypes.heritageForDeclaration(derived);
+      const baseHeritage = analysis.value.projectTypes.heritageForDeclaration(base);
+      assert.equal(heritage !== undefined && baseHeritage !== undefined, true, "native inheritance is published by its actual owner");
+      const target = analysis.value.records.nodeTargetType.get(expression);
+      const targetHeritage = target === undefined ? undefined : analysis.value.projectTypes.heritageForTarget(target);
+      assert.equal(targetHeritage?.definition.declaration === derived, true, "the constructor retains the original native Derived identity");
+      assert.equal(heritage.baseType?.kind === "target-named" && heritage.baseType.id === baseHeritage.definition.id,
+        true, "Derived retains its exact Base identity");
+      assert.equal(baseHeritage.baseType?.id, "Tsonic.CSharp.Runtime.Error", "the actual native ancestry retains writable Error storage");
+      const original = source.ast.as.AsVariableDeclaration(owner).Initializer;
+      const construction = createCsharpErrorDeclarationQuery(source).constructorFor(original);
+      assert.equal(construction.kind, "resolved", "the original Error allocation retains its checked native protocol");
+      assert.equal(construction.value.node === original, true, "the selected construction retains the original expression identity");
     });
   }
 }

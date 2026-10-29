@@ -40,6 +40,8 @@ import { analyzeCsharpSourceEvidence } from "../source-evidence/index.js";
 import { analyzeCsharpDeclarations } from "../declarations/index.js";
 import { createCsharpSourceNameBuilder } from "../names/index.js";
 import { analyzeCsharpCallableContracts, csharpCallableContractIndexesEqual } from "../callables/index.js";
+import { createCsharpSourceParameterProducer } from "../callables/calls/source-callable-abi.js";
+import type { CsharpSourceParameterClassifications } from "../../target-model/records/callables/source-callable-contract.js";
 import type { CsharpCallableContractIndex } from "../../target-model/records/callables/callable-values.js";
 import { analyzeCsharpObjectShapes } from "../objects/index.js";
 import { analyzeCsharpConversions } from "../conversions/index.js";
@@ -83,12 +85,16 @@ export function analyzeCsharpRepresentationIteration(
   const sourceNodes = source.navigation.nodesForFiles(sourceFiles);
   const names = createCsharpSourceNameBuilder(nameHost);
   let typeSystem: CsharpTypeAnalysis | undefined;
+  let sourceParameters: CsharpSourceParameterClassifications | undefined;
   const planningRepresentations: CsharpPlanningRepresentationQueries = {
+    sourceParameter(parameter) { return sourceParameters?.get(parameter); },
     genericProjections(declaration) { return previous?.typeProjections.genericProjection.get(declaration) ?? []; },
     requiresClosedStructuralContract(type) {
       return previous?.storage.closedNativeContracts.some(contract => targetTypeRefEquals(contract, type)) === true;
     },
     scopedTargetType(node) {
+      const formal = sourceParameters?.get(node);
+      if (formal !== undefined) return formal.bodyType;
       const storage = previous?.storage.requiredStorageType.get(node);
       if (storage !== undefined) return storage;
       if (!input.source.ast.is.IsArrowFunction(node) && !input.source.ast.is.IsFunctionExpression(node) &&
@@ -138,6 +144,12 @@ export function analyzeCsharpRepresentationIteration(
     sourceFiles,
     typeSystem.analysisTypes,
     policy,
+    declarations => {
+      const producer = createCsharpSourceParameterProducer(source, policy, names, declarations, typeHost.errorDeclarations);
+      sourceParameters = producer.records;
+      producer.seal();
+      return producer.records;
+    },
   );
   const sourceEvidence = evidence.index;
   if (sourceEvidence.fixedArrayIssues.length > 0) return rejectCsharpAnalysisIssues(sourceEvidence.fixedArrayIssues);

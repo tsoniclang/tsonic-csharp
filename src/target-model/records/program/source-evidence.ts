@@ -69,6 +69,7 @@ export interface CsharpContextualTypeEvidence extends SourceTypeComponentEvidenc
 }
 
 export interface CsharpSourceEvidenceIndex {
+  readonly sourceParameters: import("../callables/source-callable-contract.js").CsharpSourceParameterClassifications;
   readonly bindingProjection: { readonly get: (node: Node) => import("../storage/binding-projection-policy.js").CsharpBindingProjection | undefined };
   readonly memoryMetadataIssues: readonly { readonly node: Node; readonly code: string; readonly message: string }[];
   readonly fixedArrayIssues: readonly { readonly node: Node; readonly code: string; readonly message: string }[];

@@ -7,7 +7,7 @@ import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-mo
 
 export function selectCsharpParameterDefaultContext(
   policy: CsharpPolicyContext,
-  evidence: CsharpSourceEvidenceIndex,
+  evidence: Pick<CsharpSourceEvidenceIndex, "contextualType" | "compileTimeMetadata">,
   owner: Node,
 ) {
   if (policy.ast.is.IsFunctionExpression(owner) && policy.ast.name(owner) !== undefined &&

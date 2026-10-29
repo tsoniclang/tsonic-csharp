@@ -85,6 +85,7 @@ function fixture(body, overrides = {}) {
     projectTypes: { catalog: { definitions: [] } },
   };
   const evidence = { compileTimeMetadata: { get: () => false },
+    sourceParameters: Object.freeze({ get: () => undefined }),
     generatorTargetType: { get: () => undefined },
     contextualType: { get: () => undefined },
     nodeTargetType: { get: () => overrides.sourceParameter ?? scopedBinder ?? scalar } };

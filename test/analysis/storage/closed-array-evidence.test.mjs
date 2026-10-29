@@ -13,7 +13,8 @@ function evidenceFor(sourceText) {
   const source = createTargetSourceProgram(checked.source);
   const sourceFiles = Object.freeze([...source.navigation.sourceFiles]);
   return { source, sourceFiles, result: analyzeCsharpSourceEvidence(source, sourceFiles, unknownTypes,
-    { types: unknownTypes, callOnlyAlias: createCsharpSourceProfileCallableAliasQuery(source) }) };
+    { types: unknownTypes, callOnlyAlias: createCsharpSourceProfileCallableAliasQuery(source) },
+    () => Object.freeze({ get: () => undefined })) };
 }
 
 test("storage evidence publishes an index without the closed-array inspector", () => {

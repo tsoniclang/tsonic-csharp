@@ -8,7 +8,6 @@ import {
   ModifierFlagsAsync,
   Node_Type,
   sourceBoundTypeRelationship,
-  sourceCallableValueParameters,
   sourceTransparentExpressionOperand,
 } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
@@ -33,14 +32,12 @@ import {
   getCsharpTaskResultTargetType,
 } from "../../policy/types/index.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
-import { csharpRuntimeParameterDefault } from "../../policy/types/storage/parameter-defaults.js";
-import { selectCsharpDefaultValueContract } from "../../policy/types/objects/binding-projection.js";
+import { selectCsharpSourceParameterDefault } from "../callables/calls/source-callable-abi.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { CsharpValueReadStageIndex } from "../../target-model/records/operations/conversions.js";
 import type { CsharpDeclarationClassifications, CsharpReturnTargetContract } from "../../target-model/records/program/declarations.js";
 import { createCsharpDeclarationProducer } from "../program/records/program/declarations.js";
-import { selectCsharpParameterDefaultContext } from "./parameter-default-context.js";
 
 export function analyzeCsharpDeclarations(
   policy: CsharpPolicyContext,
@@ -83,45 +80,13 @@ export function analyzeCsharpDeclarations(
       }
     }
     if (policy.ast.is.IsParameterDeclaration(node)) {
+      const published = evidence.sourceParameters.get(node);
       const parameter = policy.ast.as.AsParameterDeclaration(node);
-      const selected = parameter === undefined ? undefined
+      const selected = published !== undefined || parameter === undefined ? undefined
         : evidence.nodeTargetType.get(parameter.Type ?? parameter.name!);
-      if (parameter?.Initializer !== undefined && selected !== undefined) {
-        const owner = policy.ast.parent(node);
-        const signature = owner === undefined ? undefined : selectCsharpParameterDefaultContext(policy, evidence, owner);
-        const parameters = owner === undefined ? undefined : sourceCallableValueParameters(policy.ast, owner, policy.semanticsFor(owner));
-        const index = parameters?.indexOf(node) ?? -1;
-        const incoming = index < 0 || signature?.restParameterIndex !== undefined && index >= signature.restParameterIndex
-          ? undefined : signature?.parameters[index];
-        const value = incoming === undefined ? undefined : getCsharpNullableElementTargetType(incoming);
-        const source = evidence.expressionType.get(parameter.Initializer);
-        const queries = policy.semanticsFor(node);
-        const members = source === undefined ? [] : queries.types.isUnion(source)
-          ? queries.types.unionOrIntersectionTypes(source) : [source];
-        const presentInitializer = members.length > 0 && members.every(member =>
-          member !== undefined && !queries.types.isNullish(member) && !queries.types.isAny(member) && !queries.types.isUnknown(member));
-        const presentOnly = incoming !== undefined && !csharpCarrierAdmitsSourceAbsence(incoming) &&
-          signature?.optionalParameterIndexes?.includes(index) !== true;
-        const contextualDefault = incoming === undefined ? undefined : presentOnly
-          ? Object.freeze({ kind: "present" as const, valueType: incoming, parameterType: incoming })
-          : csharpRuntimeParameterDefault(incoming, incoming);
-        const runtimeDefault = incoming === undefined ? csharpRuntimeParameterDefault(selected)
-          : contextualDefault === undefined ? undefined : Object.freeze({ ...contextualDefault,
-            valueType: parameter.Type === undefined && value !== undefined && presentInitializer ? value : selected,
-          });
-        if (runtimeDefault !== undefined) {
-          const slot = owner === undefined ? undefined : queries.types.declarationSignatureInfo(owner)
-            ?.parameters.find(parameter => parameter.declaration === node);
-          if (slot === undefined) throw new Error("A native parameter default requires its exact checked declaration slot.");
-          const native = selectCsharpDefaultValueContract(runtimeDefault.parameterType, runtimeDefault.valueType, false);
-          const absentInitializer = source !== undefined && queries.types.isNullish(source) &&
-            (policy.ast.kindName(parameter.Initializer) === "KindNullKeyword" ||
-              policy.ast.is.IsIdentifier(parameter.Initializer) && policy.navigation.sourceReferenceFor(parameter.Initializer) === undefined);
-          declarations.runtimeDefault(node, Object.freeze({ ...runtimeDefault, acceptsOmission: presentOnly ? false : slot.acceptsOmission, native,
-            passthrough: (presentOnly || (native.kind === "value" || absentInitializer) && !native.normalize) &&
-              targetTypeRefEquals(native.source, native.target) }));
-        }
-      }
+      const runtimeDefault = published !== undefined ? published.runtimeDefault
+        : selected === undefined ? undefined : selectCsharpSourceParameterDefault(policy, evidence, node, selected);
+      if (runtimeDefault !== undefined) declarations.runtimeDefault(node, runtimeDefault);
     }
     if (isCallableDeclaration(policy, node)) {
       declarations.returnContract(

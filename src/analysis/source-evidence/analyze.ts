@@ -26,13 +26,18 @@ const missing = Symbol("csharp.source-evidence.missing");
 import { createTsonicMemoryMetadataIndex, createTsonicPointerBackingDemands, createTsonicClosedArrayStorageQueries } from "@tsonic/source-core/facts";
 import type { CsharpPointerReturnContract } from "../../target-model/records/calls/pointer-return.js";
 import { analyzeCsharpTypeOnlyDeclarations } from "../declarations/type-only.js";
+import type { CsharpSourceParameterClassifications } from "../../target-model/records/callables/source-callable-contract.js";
 type Cached<Value> = Value | typeof missing;
+
+export type CsharpSourceParameterDeclarationEvidence = Pick<CsharpSourceEvidenceIndex,
+  "contextualType" | "expressionType" | "compileTimeMetadata">;
 
 export function analyzeCsharpSourceEvidence(
   source: TargetSourceProgram,
   sourceFiles: readonly SourceFile[],
   types: CsharpTypePolicy,
   policy: CsharpPolicyContext,
+  publishParameters: (declarations: CsharpSourceParameterDeclarationEvidence) => CsharpSourceParameterClassifications,
 ): CsharpSourceEvidenceResult {
   const memoryMetadata = createTsonicMemoryMetadataIndex(source);
   const pointerBacking = createTsonicPointerBackingDemands(source);
@@ -155,6 +160,29 @@ export function analyzeCsharpSourceEvidence(
     return classification;
   };
 
+  const declarationExpressionType = (node: Node): Type | undefined => {
+    const cached = expressionTypes.get(node);
+    if (cached !== undefined) return cachedValue(cached);
+    const selected = source.semantics.forNode(node).types.expressionType(node);
+    expressionTypes.set(node, selected ?? missing);
+    return selected;
+  };
+  const declarationContext = (node: Node): CsharpContextualTypeEvidence | undefined => {
+    const cached = contextualTypes.get(node);
+    if (cached !== undefined) return cachedValue(cached);
+    const sourceFile = source.ast.getSourceFile(node);
+    const component = source.semantics.forNode(node).types.contextualType(node);
+    const selected = component === undefined || sourceFile === undefined ? undefined : Object.freeze({ ...component,
+      targetType: recordTargetType(types.resolveSelectedType(component.authoredTypeNode, component.selectedType, sourceFile)) });
+    contextualTypes.set(node, selected ?? missing);
+    return selected;
+  };
+  const sourceParameters = publishParameters(Object.freeze({
+    contextualType: Object.freeze({ get: declarationContext }),
+    expressionType: Object.freeze({ get: declarationExpressionType }),
+    compileTimeMetadata: Object.freeze({ get: (node: Node) => compileTimeMetadata.has(node) ||
+      memoryMetadata.declaration(node) !== undefined || memoryMetadata.isCompileTimeExpression(node) }),
+  }));
   for (const sourceFile of sourceFiles) {
     visit(sourceFile, sourceFile);
   }
@@ -293,19 +321,14 @@ export function analyzeCsharpSourceEvidence(
       node,
       recordTargetType(types.resolveReadStorage(node, sourceFile)) ?? missing,
     );
-    const expressionType = semantics.types.expressionType(node);
-    expressionTypes.set(node, expressionType ?? missing);
+    const expressionType = declarationExpressionType(node);
     if (expressionType !== undefined) {
       if (!typeOnly) recordSelectedFixedArrayIssues(node, expressionType, sourceFile);
       classifyType(expressionType, sourceFile);
     }
-    const contextualType = semantics.types.contextualType(node);
+    const contextualType = declarationContext(node);
     if (contextualType !== undefined) classifyType(contextualType.selectedType, sourceFile);
     if (!typeOnly && contextualType !== undefined) recordSelectedFixedArrayIssues(node, contextualType.selectedType, sourceFile);
-    contextualTypes.set(node, contextualType === undefined ? missing : Object.freeze({
-      ...contextualType,
-      targetType: recordTargetType(types.resolveSelectedType(contextualType.authoredTypeNode, contextualType.selectedType, sourceFile)),
-    }));
     if (source.ast.is.IsEnumMember(node)) {
       const constant = source.semantics.enumConstants.get(node);
       if (constant === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A checked enum member requires its exact completed source constant selection.", node);
@@ -483,6 +506,7 @@ export function analyzeCsharpSourceEvidence(
   }
 
   const index: CsharpSourceEvidenceIndex = {
+    sourceParameters,
     bindingProjection: Object.freeze({ get: node => bindingProjections.get(node) }),
     pointerBackingDemands: pointerBacking.entries(),
     memoryMetadataIssues: Object.freeze([...memoryMetadataIssues, ...pointerBacking.issues().map(issue => ({

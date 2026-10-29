@@ -535,6 +535,22 @@ export function resolveSourceValueDeclaration(
   }
   const sourceFile = host.ast.getSourceFile(declaration) ?? queries.sourceFile;
   const syntax = sourceValueDeclarationSyntax(declaration);
+  const formal = host.ast.is.IsParameterDeclaration(declaration)
+    ? host.representations.sourceParameter?.(declaration) : undefined;
+  if (formal !== undefined) {
+    const source = host.semantics(sourceFile).declarations.declaredValueType(declaration);
+    const selected = selectedType ?? queries.types.expressionType(node);
+    if (source === undefined || selected === undefined) return formal.bodyType;
+    if (queries.types.isIdentical(source, selected)) return formal.bodyType;
+    if (queries.types.isIdentical(queries.types.nonNullableType(source), selected))
+      return getCsharpNullableElementTargetType(formal.bodyType) ?? formal.bodyType;
+    const refined = selectCsharpAuthoredUnionRefinement(formal.bodyType, source, selected, queries,
+      type => resolveCsharpUnionMemberCarrier(scope, formal.bodyType, type, queries, state),
+      host.structuralTypes.resolveTarget, host.typeDefinitions);
+    if (refined.kind !== "not-applicable") return refined.kind === "resolved" ? refined.type : undefined;
+    return reconcileCsharpSelectedTargetType(formal.bodyType, resolveTypeWithState(selected, queries.sourceFile, nextState(state)),
+      queries.types.relationship(source, selected), queries.types.isNonPrimitive(selected));
+  }
   if (syntax.type !== undefined) {
     const resolved = resolveAuthoredAndSelectedSourceType(
       syntax.type,

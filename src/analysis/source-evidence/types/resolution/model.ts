@@ -6,7 +6,7 @@ import type { TsonicPointerReturnQueries, TsonicMemoryBindingIndex } from "@tson
 import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
 import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../../../target-model/records/types/project-types.js";
 import type { CsharpProviderRelationResolver } from "../../../../providers/model/relation-resolver.js";
-import type { SourceCallableContract, SourceCallableSourceContract } from "../../../../target-model/records/callables/source-callable-contract.js";
+import type { CsharpSourceParameterPublication, SourceCallableContract, SourceCallableSourceContract } from "../../../../target-model/records/callables/source-callable-contract.js";
 
 import type { TargetTypeRef, CsharpSourceTargetTypeBinding, CsharpObjectShapeFact } from "../../../../target-model/types/model.js";
 import type { CsharpObjectShapePolicy } from "../../../../target-model/records/objects/object-shapes.js";
@@ -18,6 +18,7 @@ export type ResolvedSourceCallInfo = NonNullable<
 
 
 export interface CsharpPlanningRepresentationQueries {
+  sourceParameter(parameter: Node): CsharpSourceParameterPublication | undefined;
   genericProjections(declaration: Node): readonly import("../../../../target-model/types/projections.js").CsharpProjectedType[];
   requiresClosedStructuralContract(type: TargetTypeRef): boolean;
   scopedTargetType(node: Node): TargetTypeRef | undefined;

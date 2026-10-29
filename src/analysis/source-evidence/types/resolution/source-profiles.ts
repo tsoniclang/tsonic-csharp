@@ -190,6 +190,11 @@ export function resolveSignatureParameterEvidence(
   use: "callable" | "parameter-list",
 ): TargetTypeRef | undefined {
   const { host, resolveSourceTypeComponentEvidence } = scope;
+  const published = parameter.declaration === undefined ? undefined : host.representations.sourceParameter?.(parameter.declaration);
+  if (published !== undefined) {
+    const selected = published.nativeParameters[0];
+    return published.nativeParameters.length === 1 ? selected?.targetParameter.type : undefined;
+  }
   const entry = parameter.declaration === undefined ? undefined : host.sourceStorage.subject(parameter.declaration, "input");
   const contextual = parameter.declaration === undefined || use !== "callable" || host.ast.typeNode(parameter.declaration) !== undefined
     ? undefined : selectCsharpContextualParameterCarrier(scope, parameter.declaration, queries, state);

@@ -1,6 +1,17 @@
 import type { CsharpTargetParameter, TargetTypeRef } from "../../types/model.js";
 import type { Node } from "@tsonic/tsts";
 import type { CsharpCallableParameterAdapter } from "./callable-adapters.js";
+import type { CsharpDefaultParameterContract } from "../program/declarations.js";
+
+export interface CsharpSourceParameterPublication {
+  readonly nativeParameters: readonly CsharpSourceCallableParameterContract[];
+  readonly bodyType: TargetTypeRef;
+  readonly runtimeDefault?: CsharpDefaultParameterContract;
+}
+
+export interface CsharpSourceParameterClassifications {
+  get(parameter: Node): CsharpSourceParameterPublication | undefined;
+}
 
 export interface SourceCallableSourceContract extends CsharpCallContract {
   readonly kind: "source";

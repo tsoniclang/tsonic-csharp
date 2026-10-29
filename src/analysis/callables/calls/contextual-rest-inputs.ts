@@ -7,10 +7,11 @@ import { getCsharpJsArrayElementTargetType } from "../../../target-model/types/c
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { admitCsharpCallableParameterAdapters, type CsharpCallableConversionPolicy } from "../native/adapters.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
 export function closeCsharpContextualRestInputs(
   policy: Pick<CsharpPolicyContext, "ast">,
-  evidence: Pick<CsharpSourceEvidenceIndex, "contextualType">,
+  evidence: Pick<CsharpSourceEvidenceIndex, "contextualType" | "sourceParameters">,
   conversions: CsharpCallableConversionPolicy,
   contract: SourceCallableSourceContract,
 ): SourceCallableSourceContract | undefined {
@@ -29,7 +30,16 @@ export function closeCsharpContextualRestInputs(
     signature.parameterPassingModes.some(mode => mode !== "by-value") ||
     contract.nativeParameters.some((parameter, index) => parameter.sourceParameter !== contract.parameters[index] ||
       parameter.targetParameter.paramsArray === true || parameter.targetParameter.passingMode !== "by-value")) return undefined;
-  const nativeParameters = Object.freeze(signature.parameters.map((type, index) =>
+  const nativeParameters = Object.freeze(signature.parameters.map((type, index) => {
+    const published = evidence.sourceParameters.get(contract.parameters[index]!);
+    if (published !== undefined) {
+      const parameter = published.nativeParameters[0];
+      if (published.nativeParameters.length !== 1 || parameter !== contract.nativeParameters[index] ||
+          !targetTypeRefEquals(parameter.targetParameter.type, type)) return failTargetAnalysisInvariant("tsonic-csharp",
+        "A contextual rest contract cannot reselect its already published native Error formal.", contract.parameters[index]);
+      return parameter;
+    }
+    return (
     index < restIndex && contract.nativeParameters[index]!.targetParameter.optional === true
       ? contract.nativeParameters[index]! : Object.freeze({
     sourceParameter: contract.parameters[index]!,
@@ -37,7 +47,8 @@ export function closeCsharpContextualRestInputs(
       ...(signature.optionalParameterIndexes?.includes(index) ? { optional: true } : {}),
       ...(index === restIndex ? { paramsArray: true } : {}),
     }),
-  })));
+  }));
+  }));
   const adapters = admitCsharpCallableParameterAdapters(conversions,
     nativeParameters.map(parameter => parameter.targetParameter), contract.nativeParameters.map(parameter => parameter.targetParameter));
   const scalar = (adapter: CsharpCallableParameterAdapter): adapter is Extract<CsharpCallableParameterAdapter,
