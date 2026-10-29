@@ -22,7 +22,7 @@ for (const [name, body] of [
   ["variable", "const value: MakeDirectoryOptions = {}; return value;"],
   ["return", "return {};"],
   ["immediate local use", "const value = {}; const typed: MakeDirectoryOptions = value; return typed;"],
-  ["one local alias", "const value = {}; const alias = value; const typed: MakeDirectoryOptions = alias; return typed;"],
+  ["already typed local aliases", "const value: MakeDirectoryOptions = {}; const alias = value; const typed: MakeDirectoryOptions = alias; return typed;"],
   ["parameter", "function accept(value: MakeDirectoryOptions): MakeDirectoryOptions { return value; } return accept({});"],
   ["property", "const value: { options: MakeDirectoryOptions } = { options: {} }; return value.options;"],
 ]) test(`object literal uses only its checked ${name} context`, () => {

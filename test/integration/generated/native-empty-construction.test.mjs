@@ -10,7 +10,7 @@ test("fresh empty native construction retains allocation and alias identity thro
   const compiled = compileCsharpSource({ surface: "js", capabilities: [nodejsCapability()], sourceText: `
     import type { MakeDirectoryOptions } from "node:fs";
     function make(): MakeDirectoryOptions {
-      const value = {};
+      const value: MakeDirectoryOptions = {};
       const alias = value;
       const selected: MakeDirectoryOptions = alias;
       selected.mode = 11;
@@ -35,7 +35,7 @@ test("fresh native indexed construction retains one environment and its exact al
   const compiled = compileCsharpSource({ surface: "js", capabilities: [nodejsCapability()], sourceText: `
     import type { ProcessEnv } from "node:process";
     export function make(value: string): ProcessEnv {
-      const original = {};
+      const original: ProcessEnv = {};
       const alias = original;
       const environment: ProcessEnv = alias;
       environment["TSONIC_ENVIRONMENT_PROOF"] = value;

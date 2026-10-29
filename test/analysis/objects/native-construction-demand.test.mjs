@@ -321,11 +321,28 @@ test("a native literal selection never replaces its enclosing container", () => 
 test("native member metadata retains its finite resource guard", () => {
   const value = fixture();
   const expected = value.row([{ identity: "user" }], native, { provider: true });
+  const valid = value.node(value.row([{ identity: "user" }]), expected);
   const source = value.row([{ identity: "user" }]);
   const member = value.rows.get(source).shape.members[0];
   value.rows.get(source).shape.members = Array(maximumCsharpMetadataEntries).fill(member);
-  value.node(source, expected);
-  assert.throws(() => value.freeze(), /C# immutable metadata exceeds its finite resource budget/u);
+  const invalid = value.node(source, expected);
+  const selected = value.freeze();
+  assert.equal(selected.issues.length, 1, "one local resource failure");
+  const issue = selected.issues[0];
+  assert.equal(issue.code === "TSONIC_COMPILER_RESOURCE_LIMIT" && issue.node === invalid &&
+    issue.message === `Native construction of this object literal exceeded the finite metadata limit of ${maximumCsharpMetadataEntries} entries.`,
+    true, "resource exhaustion names the affected literal and actual limit, not unsupported source");
+  assert.equal(selected.constructionFor(invalid) === undefined, true, "no unproved failed-node selection");
+  assert.equal(selected.constructionFor(valid)?.targetType === native, true, "unrelated valid construction remains published");
+});
+
+test("native construction does not reclassify unrelated malformed metadata as resource exhaustion", () => {
+  const value = fixture();
+  const expected = value.row([{ identity: "user" }], native, { provider: true });
+  value.node(value.row([{ identity: "user" }]), expected);
+  const failure = new TypeError("C# immutable metadata requires plain data records.");
+  value.host.resolveShape = () => { throw failure; };
+  assert.throws(() => value.freeze(), error => error === failure, "the original invalid-metadata failure is preserved");
 });
 
 test("declared empty construction keeps fresh expression identity without origin transport", () => {

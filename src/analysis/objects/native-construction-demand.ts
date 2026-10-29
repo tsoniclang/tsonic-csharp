@@ -4,7 +4,7 @@ import { sourceDeclarationIsModuleScoped, sourceEnclosingCallable,
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { csharpNullableTargetType } from "../../target-model/types/carriers/nullable.js";
-import { createCsharpMetadataBudget } from "../../target-model/metadata/immutable.js";
+import { createCsharpMetadataBudget, maximumCsharpMetadataEntries } from "../../target-model/metadata/immutable.js";
 import type { CsharpTypePolicyBaseHost } from "../source-evidence/types/resolution/model.js";
 import { csharpNativeConstructionMembersMatch } from "./native-construction-members.js";
 import { createCsharpObjectShapeValueStorage } from "../../policy/types/objects/shape-carriers.js";
@@ -68,49 +68,42 @@ export function selectCsharpLiteralDeclarationContext(
   const siblings = ast.children(block).filter((node): node is Node => node !== undefined);
   const position = siblings.indexOf(statement);
   if (position < 0) return undefined;
-  let binding = declaration!;
-  for (let alias = 0; alias < 2; alias += 1) {
-    const next = siblings[position + alias + 1];
-    if (next === undefined) return undefined;
-    const immediate = ast.is.IsReturnStatement(next) ? ast.as.AsReturnStatement(next)?.Expression
-      : ast.is.IsExpressionStatement(next) ? ast.as.AsExpressionStatement(next)?.Expression : undefined;
-    const call = immediate !== undefined && ast.is.IsCallExpression(immediate) ? ast.as.AsCallExpression(immediate) : undefined;
-    if (call !== undefined) {
-      for (const argument of call.Arguments?.Nodes ?? []) {
-        if (argument === undefined || !ast.is.IsIdentifier(argument) ||
-          navigation.referenceFor(argument)?.declaration !== binding) continue;
-        const checked = host.semanticsFor(argument).types.contextualValueSelection(argument);
-        if (checked.kind === "selected") return { component: checked.component, declarations, source: argument };
-      }
-      return undefined;
+  const next = siblings[position + 1];
+  if (next === undefined) return undefined;
+  const immediate = ast.is.IsReturnStatement(next) ? ast.as.AsReturnStatement(next)?.Expression
+    : ast.is.IsExpressionStatement(next) ? ast.as.AsExpressionStatement(next)?.Expression : undefined;
+  const call = immediate !== undefined && ast.is.IsCallExpression(immediate) ? ast.as.AsCallExpression(immediate) : undefined;
+  if (call !== undefined) {
+    for (const argument of call.Arguments?.Nodes ?? []) {
+      if (argument === undefined || !ast.is.IsIdentifier(argument) ||
+        navigation.referenceFor(argument)?.declaration !== declaration) continue;
+      const checked = host.semanticsFor(argument).types.contextualValueSelection(argument);
+      if (checked.kind === "selected") return { component: checked.component, declarations, source: argument };
     }
-    if (ast.is.IsReturnStatement(next)) {
-      const returned = ast.as.AsReturnStatement(next)?.Expression;
-      if (returned === undefined || !ast.is.IsIdentifier(returned) ||
-        navigation.referenceFor(returned)?.declaration !== binding) return undefined;
-      const callable = sourceEnclosingCallable(next, ast);
-      return callable === undefined ? undefined : returnContext(callable, declarations);
-    }
-    if (!ast.is.IsVariableStatement(next)) return undefined;
-    const nextList = ast.as.AsVariableStatement(next)?.DeclarationList;
-    const variables = nextList === undefined ? [] : ast.children(nextList).filter((node): node is Node =>
-      node !== undefined && ast.is.IsVariableDeclaration(node));
-    const nextDeclaration = variables.length === 1 ? variables[0] : undefined;
-    const nextVariable = nextDeclaration === undefined ? undefined : ast.as.AsVariableDeclaration(nextDeclaration);
-    const initializer = nextVariable?.Initializer;
-    if (initializer === undefined || !ast.is.IsIdentifier(initializer) ||
-      navigation.referenceFor(initializer)?.declaration !== binding) return undefined;
-    const authoredTypeNode = nextVariable?.Type;
-    if (authoredTypeNode !== undefined) {
-      const selectedType = host.semanticsFor(authoredTypeNode).types.authoredType(authoredTypeNode);
-      return selectedType === undefined ? undefined : { component: { selectedType, authoredTypeNode,
-        declaration: nextDeclaration }, declarations, source: expression };
-    }
-    if (alias !== 0) return undefined;
-    binding = nextDeclaration!;
-    declarations.push(binding);
+    return undefined;
   }
-  return undefined;
+  if (ast.is.IsReturnStatement(next)) {
+    const returned = ast.as.AsReturnStatement(next)?.Expression;
+    if (returned === undefined || !ast.is.IsIdentifier(returned) ||
+      navigation.referenceFor(returned)?.declaration !== declaration) return undefined;
+    const callable = sourceEnclosingCallable(next, ast);
+    return callable === undefined ? undefined : returnContext(callable, declarations);
+  }
+  if (!ast.is.IsVariableStatement(next)) return undefined;
+  const nextList = ast.as.AsVariableStatement(next)?.DeclarationList;
+  if (nextList === undefined || ast.variableDeclarationKind(nextList) !== "const") return undefined;
+  const variables = ast.children(nextList).filter((node): node is Node =>
+    node !== undefined && ast.is.IsVariableDeclaration(node));
+  const nextDeclaration = variables.length === 1 ? variables[0] : undefined;
+  const nextVariable = nextDeclaration === undefined ? undefined : ast.as.AsVariableDeclaration(nextDeclaration);
+  const initializer = nextVariable?.Initializer;
+  if (initializer === undefined || !ast.is.IsIdentifier(initializer) ||
+    navigation.referenceFor(initializer)?.declaration !== declaration) return undefined;
+  const authoredTypeNode = nextVariable?.Type;
+  if (authoredTypeNode === undefined) return undefined;
+  const selectedType = host.semanticsFor(authoredTypeNode).types.authoredType(authoredTypeNode);
+  return selectedType === undefined ? undefined : { component: { selectedType, authoredTypeNode,
+    declaration: nextDeclaration }, declarations, source: expression };
 }
 
 interface CsharpNativeConstructionHost extends Pick<CsharpTypePolicyBaseHost,
@@ -182,7 +175,16 @@ export function createCsharpNativeConstructionDemandQuery(
       const shape = host.resolveShape(selected, queries.sourceFile, asynchronous ? undefined : context?.component.authoredTypeNode);
       const original = host.resolveShape(source, queries.sourceFile, node);
       const budget = createCsharpMetadataBudget();
-      if (shape === undefined || !csharpNativeConstructionMembersMatch(source, original, shape, queries, host, budget.reserve)) {
+      let compatible = false;
+      try {
+        compatible = shape !== undefined && csharpNativeConstructionMembersMatch(source, original, shape, queries, host, budget.reserve);
+      } catch (error) {
+        if (!(error instanceof TypeError) || error.message !== "C# immutable metadata exceeds its finite resource budget.") throw error;
+        issue(node, "TSONIC_COMPILER_RESOURCE_LIMIT",
+          `Native construction of this object literal exceeded the finite metadata limit of ${maximumCsharpMetadataEntries} entries.`);
+        return;
+      }
+      if (shape === undefined || !compatible) {
         issue(node, "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN",
           "The declared native construction cannot retain all exact fields, absence and native storage without a copied or adapted object.");
         return;
