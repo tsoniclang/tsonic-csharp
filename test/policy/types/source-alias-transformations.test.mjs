@@ -42,7 +42,7 @@ test("checked native tuple indexes retain exact slots and reject foreign or malf
   const selected = checked.members[0];
   const one = queries.types.authoredType(source.ast.typeNode(alias("One")));
   const unbounded = queries.types.authoredType(source.ast.typeNode(alias("Unbounded")));
-  const foreign = queries.declarations.declarationSymbol(alias("One"));
+  const foreign = source.navigation.declarationSymbol(alias("One"), queries.sourceFile);
   for (const [label, member] of [
     ["foreign property", { ...selected, property: { ...selected.property, symbol: foreign } }],
     ["out of range", { ...selected, indexType: one, property: { ...selected.property, name: "1" } }],
