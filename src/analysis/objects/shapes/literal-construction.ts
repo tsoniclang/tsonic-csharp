@@ -80,10 +80,11 @@ export function createCsharpLiteralShapeResolver(
       ? [expectedShape.targetType]
       : expectedShape.implements;
     const queries = host.semantics(sourceFile);
-    const actualShape = resolveNode(objectLiteral, sourceFile);
-    const sourceType = selectedSourceType ?? literalSourceType(objectLiteral) ?? actualShape?.sourceType;
+    const sourceType = selectedSourceType ?? literalSourceType(objectLiteral);
+    const actualShape = selectedSourceType !== undefined && expectedShape.sourceType === sourceType ? expectedShape
+      : sourceType === undefined ? undefined : resolveType(sourceType, sourceFile, objectLiteral);
     const context = selectCsharpLiteralDeclarationContext(objectLiteral, queries, host);
-    const declared = sourceType !== undefined && expectedShape.sourceType === sourceType ? expectedShape
+    const declared = expectedShape.sourceType !== undefined ? expectedShape
       : context === undefined ? expectedShape : resolveType(context.component.selectedType, sourceFile,
         context.component.authoredTypeNode);
     const used = new Set<number>();
@@ -96,7 +97,7 @@ export function createCsharpLiteralShapeResolver(
       if (used.has(index)) return undefined;
       used.add(index);
       return { ...member,
-        sourceMemberEvidence: selected.member.sourceMemberEvidence,
+        sourceMemberEvidence: selected.member.sourceMemberEvidence?.filter(evidence => evidence.sourceType === declared.sourceType),
         sourceSubjects: Object.freeze([...new Set([...member.sourceSubjects ?? [], ...selected.member.sourceSubjects ?? []])]),
         sourceDeclarations: selected.member.sourceDeclarations,
         sourceTypes: selected.member.sourceTypes,

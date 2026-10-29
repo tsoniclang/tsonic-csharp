@@ -535,10 +535,8 @@ export function createCsharpObjectShapePolicy(
     }
     activeTypes.add(type);
     try {
-      const application = queries.types.aliasApplication(type);
-      const transformationRoot = application?.kind === "direct" && host.ast.is.IsTypeReferenceNode(application.typeNode)
-        ? application.typeNode : authoredTypeRoot;
-      const transformation = queries.types.standardTransformation(transformationRoot, type);
+      const transformation = queries.types.standardTransformation(undefined, type) ?? (authoredTypeRoot === undefined
+        ? undefined : queries.types.standardTransformation(authoredTypeRoot, type));
       if (transformation?.kind === "component") {
         const component = transformation.component;
         const native = resolveTypeWithState(component.selectedType, queries.sourceFile,
