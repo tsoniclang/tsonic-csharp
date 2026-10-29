@@ -23,6 +23,8 @@ import { resolveCsharpNativeParameterCarrier, selectCsharpContextualParameterCar
 import { selectCsharpSourceProfileCarrier } from "../../../../policy/operations/source-profiles/type-carriers.js";
 import type { CsharpProviderRelationResolver } from "../../../../providers/model/relation-resolver.js";
 import { selectCsharpSourceParameterVector } from "../../../../policy/types/callables/parameter-vector.js";
+import { resolveCsharpProviderDeclarationEvidence } from "../../../../source/extension/provider-identities.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 export function resolveCsharpSourceProfileBaseType(
   type: Type,
   queries: SourceFileSemantics,
@@ -236,12 +238,15 @@ export function resolveSignatureParameterEvidence(
 }
 
 export function resolveSourceTypeComponentEvidence(
-  { host, resolveAuthoredAndSelectedSourceType, resolveTypeWithState, resolvePointerReturn }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   component: SourceTypeComponentEvidence,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
+  const { host, resolveAuthoredAndSelectedSourceType, resolveTypeWithState, resolvePointerReturn } = scope;
   state = csharpSourceStorageContext(host, state, component.declaration);
+  const native = resolveCsharpErrorNativeParameterComponent(scope, component);
+  if (native.kind !== "not-applicable") return native.kind === "resolved" ? native.type : undefined;
   const pointer = component.declaration === undefined
     ? undefined
     : resolvePointerReturn(component.declaration, state);
@@ -265,4 +270,36 @@ export function resolveSourceTypeComponentEvidence(
         queries.sourceFile,
         nextState(state),
       );
+}
+
+function resolveCsharpErrorNativeParameterComponent(
+  { host }: CsharpTypeResolutionScope,
+  component: SourceTypeComponentEvidence,
+): { readonly kind: "not-applicable" | "unresolved" } | { readonly kind: "resolved"; readonly type: TargetTypeRef } {
+  const declaration = component.declaration;
+  if (declaration === undefined || host.sourceFacts === undefined || !host.ast.is.IsParameterDeclaration(declaration))
+    return { kind: "not-applicable" };
+  const owner = host.ast.parent(declaration);
+  const identity = resolveCsharpProviderDeclarationEvidence(host.sourceFacts, [owner], "signature");
+  if (identity.kind === "missing") return { kind: "not-applicable" };
+  if (identity.kind !== "resolved" || owner === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+    "A native Error component requires its one original checked provider signature.", declaration);
+  const queries = host.semanticsFor(declaration);
+  const present = queries.types.nonNullableType(component.selectedType);
+  if (present === undefined || classifyCsharpSourceProfileType(present, queries, host.ast)?.kind !== "error")
+    return { kind: "not-applicable" };
+  const selection = host.providers.resolveSignature(identity.declaration);
+  if (selection.kind === "rejected") return { kind: "unresolved" };
+  if (selection.kind !== "resolved" || selection.relations.length !== 1) return failTargetAnalysisInvariant("tsonic-csharp",
+    "A native Error component requires its exact provider signature relation.", declaration);
+  const relation = selection.relations[0]!;
+  const source = queries.types.declarationSignatureInfo(owner);
+  const index = source?.parameters.findIndex(parameter => parameter.declaration === declaration) ?? -1;
+  const slots = relation.kind === "signature" ? relation.parameters.filter(parameter => parameter.sourceParameterIndex === index) : [];
+  const slot = slots.length === 1 ? slots[0] : undefined;
+  const target = relation.kind !== "signature" || slot === undefined ? undefined : relation.targetMember.parameters[slot.targetParameterIndex];
+  if (index < 0 || slot === undefined || target === undefined || slot.sourceRest || slot.targetParamsArray ||
+      slot.sourcePassingMode !== "by-value" || slot.targetPassingMode !== target.passingMode)
+    return failTargetAnalysisInvariant("tsonic-csharp", "A native Error component requires its exact checked scalar source-to-native slot.", declaration);
+  return Object.freeze({ kind: "resolved", type: target.type });
 }
