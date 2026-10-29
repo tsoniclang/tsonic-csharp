@@ -33,7 +33,9 @@ export function createCsharpSourceUnionIndex(definitions?: CsharpTypeDefinitions
     retain(carrier, members, queries, state, physicalArm) {
       if (carrier === undefined) return undefined;
       const present = getCsharpNullableElementTargetType(carrier) ?? carrier;
-      const leaves = csharpUnionLeaves(present, definitions) ?? [{ carrier: present }];
+      const selectedLeaves = csharpUnionLeaves(present, definitions);
+      if (selectedLeaves === undefined && getCsharpRuntimeUnionArms(present, definitions) !== undefined) return carrier;
+      const leaves = selectedLeaves ?? [{ carrier: present }];
       const key = targetTypeRefKey(present);
       const entries = [...membersByCarrier.get(key) ?? []];
       const bindings = new Map([...state.sourceBindings ?? []].map(([node, binding]) => [node, binding.sourceType]));
@@ -56,7 +58,7 @@ export function createCsharpSourceUnionIndex(definitions?: CsharpTypeDefinitions
             entries.push(Object.freeze({ ...candidate, physicalCarrier }));
         }
       }
-      membersByCarrier.set(key, Object.freeze(entries));
+      if (entries.length > 0) membersByCarrier.set(key, Object.freeze(entries));
       return carrier;
     },
     select(carrier, selected, queries) {

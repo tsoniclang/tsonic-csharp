@@ -45,6 +45,7 @@ test("source union representation absorbs only an existing unambiguous native re
     ["foreign native owner", [error, foreign]],
     ["value carrier", [integer, exception]],
     ["tuple carrier", [{ kind: "tuple", elements: [integer] }, exception]],
+    ["pointer carrier", [{ kind: "pointer", pointee: integer }, exception]],
     ["unrelated native interfaces", [interfaceA, interfaceB]],
     ["ambiguous native bases", [ambiguous, interfaceA, interfaceB]],
   ]) {
@@ -62,6 +63,7 @@ test("native provider error unions preserve the same reference in both orders an
     export function first(value: Error | TransportError): Error | TransportError { return value; }
     export function second(value: TransportError | Error): TransportError | Error { return value; }
     export function optional(value: Error | TransportError | null | undefined): Error | TransportError | null | undefined { return value; }
+    export function create(): Error { return new Error("source"); }
   `, files: { "contracts.ts": `
     import type { Readable } from "node:stream";
     export type TransportError = NonNullable<Parameters<Readable["destroy"]>[0]>;
@@ -70,6 +72,8 @@ test("native provider error unions preserve the same reference in both orders an
   const generated = [...compiled.artifacts.values()].join("\n");
   assert.match(generated, /(?:System\.)?Exception first\((?:System\.)?Exception value\)/u);
   assert.match(generated, /(?:System\.)?Exception second\((?:System\.)?Exception value\)/u);
+  assert.match(generated, /Tsonic\.CSharp\.Runtime\.Error create\(\)/u,
+    "absorbing an alias arm never changes the source constructor or writable declared return identity");
   assert.doesNotMatch(generated, /Union<|TsValue|DynamicInvoke|System\.Reflection/u,
     "the selected native reference does not require a union wrapper, box or dynamic adapter");
   executeCsharpConstruction(compiled, "native-error-reference-union", false, false, [], `
@@ -77,6 +81,10 @@ using System;
 using Generated = Tsonic.Generated.Index;
 Exception immutable = new InvalidOperationException("native");
 var writable = new Tsonic.CSharp.Runtime.Error("source");
+var created = Generated.create();
+created.message = "changed";
+if (!ReferenceEquals(Generated.first(created), created) || Generated.first(created).Message != "changed")
+    throw new Exception("source construction and writable native storage");
 for (var index = 0; index < 1000; index++) {
     if (!ReferenceEquals(Generated.first(immutable), immutable) || !ReferenceEquals(Generated.second(writable), writable) ||
         !ReferenceEquals(Generated.optional(writable), writable) || Generated.optional(null) is not null)

@@ -256,17 +256,17 @@ export function resolveStandardSourceTypeTransformation(
   if (transformation.kind === "unresolved") {
     return undefined;
   }
-  if (transformation.kind === "non-nullish") {
-    if (queries.types.isNever(selectedType)) return csharpNeverTargetType();
-    const input = resolveSourceTypeComponentEvidence(transformation.component, queries, state);
-    return getCsharpNullableElementTargetType(input) ?? input;
-  }
-  if (transformation.kind === "component") {
-    return resolveSourceTypeComponentEvidence(
-      transformation.component,
-      queries,
-      state,
-    );
+  if (transformation.kind === "non-nullish" || transformation.kind === "component") {
+    if (transformation.kind === "non-nullish" && queries.types.isNever(selectedType)) return csharpNeverTargetType();
+    const component = transformation.component;
+    let selectedQueries = queries;
+    if (component.authoredTypeNode !== undefined && component.declaration === undefined) {
+      const sourceFile = host.ast.getSourceFile(authoredRoot);
+      if (sourceFile === undefined || !host.hasSemantics(sourceFile)) return undefined;
+      selectedQueries = host.semanticsFor(authoredRoot);
+    }
+    const input = resolveSourceTypeComponentEvidence(component, selectedQueries, state);
+    return transformation.kind === "non-nullish" ? getCsharpNullableElementTargetType(input) ?? input : input;
   }
   if (transformation.kind === "parameter-list") {
     const elements = transformation.parameters.map((element) =>

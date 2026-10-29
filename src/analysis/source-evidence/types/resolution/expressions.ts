@@ -24,7 +24,7 @@ import { resolveCsharpContextualLiteralCarrier } from "./contextual-literals.js"
 import { resolveCsharpSourceLiteralTargetType } from "../../../../policy/conversions/source-literals.js";
 
 export function resolveSelectedExpressionType(
-  { host, optionalAccessTargetType, policy, resolveNodeWithState, resolveReadStorage, resolveNonNullExpressionType, resolveMemberAccessTargetType, resolveSourceOwnedCallResult, resolveSourceOwnedConstructionResult, resolveSourceCallResultWithState, sourceUnions }: CsharpTypeResolutionScope,
+  { host, optionalAccessTargetType, policy, resolveNodeWithState, resolveReadStorage, resolveNonNullExpressionType, resolveMemberAccessTargetType, resolveSourceOwnedCallResult, resolveSourceOwnedConstructionResult, resolveSourceCallResultWithState, sourceUnions, sourceUnionDefinitions }: CsharpTypeResolutionScope,
   node: Node,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
@@ -89,7 +89,7 @@ export function resolveSelectedExpressionType(
     return sourceUnions.retain(combineCsharpTargetUnionMembers([left, right]), [
       { source: trueSource, carrier: left },
       { source: falseSource, carrier: right },
-    ], queries, state);
+    ], queries, state, sourceUnionDefinitions.physicalArm);
   }
   if (host.ast.is.IsBinaryExpression(node)) {
     const binary = host.ast.as.AsBinaryExpression(node);

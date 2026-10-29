@@ -13,6 +13,13 @@ import { resolveSelectedValueWithState } from "../../../../dist/analysis/source-
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../../dist/target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../../dist/target-model/types/equality.js";
 import { createCsharpSourceUnionIndex } from "../../../../dist/analysis/source-evidence/types/resolution/source-unions.js";
+import { createCsharpSourceUnionDefinitions } from "../../../../dist/analysis/source-evidence/types/resolution/union-definitions.js";
+
+const physicalArm = createCsharpSourceUnionDefinitions({
+  projectTypes: () => ({ directSupertypes: () => [] }),
+  providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) },
+  structuralTypes: { resolveTarget: () => undefined },
+}, () => assert.fail("the correspondence fixture must not reconstruct source types")).physicalArm;
 
 test("native nominal guard selection completes partial typeof evidence through the exact constructor owner", () => {
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: { "/src/index.ts": `
@@ -142,7 +149,7 @@ test("selected native values materialize all surviving exact union arms and reta
       assert.equal(carrier !== undefined, true, "each checked union member has its exact fixture carrier");
       return { source: type, carrier };
     });
-  sourceUnions.retain(storage, members, queries, { depth: 0 });
+  sourceUnions.retain(storage, members, queries, { depth: 0 }, physicalArm);
   const scope = {
     sourceUnions,
     host: {
@@ -202,7 +209,7 @@ function guardedArraySelection(body) {
   const sourceUnions = createCsharpSourceUnionIndex();
   sourceUnions.retain(storage, queries.types.unionOrIntersectionTypes(declaredType)
     .filter(type => !queries.types.isNullish(type)).map(type => ({ source: type,
-      carrier: queries.types.isStringLike(type) ? string : queries.types.isBigIntLike(type) ? integer : array })), queries, { depth: 0 });
+      carrier: queries.types.isStringLike(type) ? string : queries.types.isBigIntLike(type) ? integer : array })), queries, { depth: 0 }, physicalArm);
   const scope = {
     sourceUnions,
     host: {

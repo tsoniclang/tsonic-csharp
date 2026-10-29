@@ -30,7 +30,7 @@ export function resolveCsharpArrayLiteralSelection(
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): CsharpArrayLiteralSelection {
-  const { host, resolveNodeWithState, resolveTypeWithState, sourceUnions } = scope;
+  const { host, resolveNodeWithState, resolveTypeWithState, sourceUnions, sourceUnionDefinitions } = scope;
   if (!host.ast.is.IsArrayLiteralExpression(node)) return unavailable;
   const sourceType = queries.types.expressionType(node);
   if (sourceType === undefined) return unavailable;
@@ -112,7 +112,7 @@ export function resolveCsharpArrayLiteralSelection(
     : numeric.kind === "resolved" ? numeric.carrier : combineCsharpTargetUnionMembers(contributionCarriers);
   if (element === undefined) return unavailable;
   const retained = sourceUnions.retain(element, contributions.map((member, index) =>
-    ({ source: member.source, carrier: contributionCarriers[index]! })), queries, state);
+    ({ source: member.source, carrier: contributionCarriers[index]! })), queries, state, sourceUnionDefinitions.physicalArm);
   if (retained === undefined) return unavailable;
   let offset = 0;
   const elementCarriers = selected.map(group => {

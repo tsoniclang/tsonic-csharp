@@ -7,10 +7,56 @@ import { resolveCallableEvidence, resolveSignatureParameterEvidence, resolveSour
 import { csharpSourceStorageComponentContext } from "../../../dist/analysis/source-evidence/types/resolution/source-storage-projection.js";
 import { createSourceErrorProviderFixture } from "../../fixtures/dotnet-provider/source-error-bindings.mjs";
 import { getCsharpDelegateSignature, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
+import { resolveStandardSourceTypeTransformation } from "../../../dist/analysis/source-evidence/types/resolution/source-references.js";
 
 const typeOnlyPredicates = { IsTypeAliasDeclaration: () => false, IsInterfaceDeclaration: () => false,
   IsTypeParameterDeclaration: () => false };
 const subject = (node, kind = "value", projection = []) => Object.freeze({ node, kind, projection: Object.freeze(projection) });
+
+test("canonical authored utility components use their actual producer semantics without retargeting signature components", () => {
+  const root = {};
+  const authored = {};
+  const file = {};
+  const selected = {};
+  const producer = { sourceFile: file };
+  const importer = { sourceFile: {}, types: { isNever: () => false } };
+  const sourceBindings = new Map([[{}, { sourceType: selected, targetType: { kind: "source-primitive", name: "int64" } }]]);
+  const state = { depth: 2, sourceBindings };
+  const carrier = { kind: "source-primitive", name: "int64" };
+  for (const kind of ["component", "non-nullish"]) {
+    for (const [label, component, expected] of [
+      ["canonical authored input", { selectedType: selected, authoredTypeNode: authored }, producer],
+      ["inferred input", { selectedType: selected }, importer],
+      ["instantiated signature", { selectedType: selected, declaration: {}, authoredTypeNode: authored }, importer],
+    ]) {
+      let acquisitions = 0;
+      let selections = 0;
+      const scope = { host: {
+        ast: { getSourceFile: node => node === root ? file : undefined }, hasSemantics: actual => actual === file,
+        semanticsFor(node) { acquisitions += 1; assert.equal(node === root, true, label); return producer; },
+      }, resolveSourceTypeComponentEvidence(actual, queries, actualState) {
+        selections += 1;
+        assert.equal(actual === component && actual.selectedType === selected, true, `${label}: the original checked component is not reconstructed`);
+        assert.equal(queries === expected, true, `${label}: the actual selected context is preserved`);
+        assert.equal(actualState === state && actualState.sourceBindings === sourceBindings, true, `${label}: the original generic state survives`);
+        return carrier;
+      } };
+      assert.equal(resolveStandardSourceTypeTransformation(scope, { kind, component }, importer, state, root, selected) === carrier,
+        true, `${kind}/${label}: native component identity survives`);
+      assert.equal(selections, 1, `${label}: one component decision`);
+      assert.equal(acquisitions, expected === producer ? 1 : 0, `${label}: no alternate-query trial`);
+      if (expected !== producer) continue;
+      for (const [ownerLabel, host] of [
+        ["missing", { ...scope.host, ast: { getSourceFile: () => undefined } }],
+        ["foreign", { ...scope.host, hasSemantics: () => false }],
+      ]) {
+        assert.equal(resolveStandardSourceTypeTransformation({ ...scope, host }, { kind, component }, importer, state, root, selected) === undefined,
+          true, `${ownerLabel}: a required producer owner never falls back to importer semantics`);
+      }
+      assert.equal(selections === 1 && acquisitions === 1, true, "invalid owners acquire no alternate context or native component");
+    }
+  }
+});
 
 test("checked component transport preserves independently instantiated selection and refuses missing or foreign authored owners", () => {
   const definingFile = {};
