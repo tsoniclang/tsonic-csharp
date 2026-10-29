@@ -407,7 +407,7 @@ function sourceArgumentInferencePairs(
     const type = host.semantics(sourceFile).types.expressionType(literal);
     const actual = type === undefined ? undefined : resolveSelectedValueWithState(literal, type, sourceFile, nextState(state));
     if (actual === undefined) return undefined;
-    const shape = host.structuralTypes.resolveTarget(actual);
+    const shape = actual.kind === "target-named" ? host.structuralTypes.resolveTarget(actual) : undefined;
     const implemented = shape !== undefined && targetTypeRefEquals(shape.targetType, actual) ? shape.implements ?? [] : [];
     return [{ pattern, actual }, ...implemented.map(carrier => ({ pattern, actual: carrier }))];
   }

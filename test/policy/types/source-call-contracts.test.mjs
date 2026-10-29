@@ -69,6 +69,34 @@ test("independent checked arguments infer native destinations before the body AB
     "a completed native ABI keeps its own binder identity and never reselects an authored formal");
 });
 
+test("generic input inference consumes only its exact published native implemented views", () => {
+  const parameter = { kind: "type-parameter", identity: "native:BoxValue", name: "Value" };
+  const nativeBox = value => ({ kind: "target-named", id: "fixture.Box", typeArguments: [value],
+    csharpAllowsRefLikeTypeArguments: [false] });
+  const actual = { kind: "target-named", id: "fixture.BoxValue", csharpAllowsRefLikeTypeArguments: [] };
+  const expression = {};
+  const checkedType = {};
+  const source = { sourceArguments: [{ expression }], sourceArgumentBindings: [{ sourceArgumentIndex: 0,
+    effectiveArgumentIndex: 0, sourceParameterIndex: 0, sourceForm: "value" }] };
+  const callable = { nativeParameters: [{ targetParameter: { name: "value", type: nativeBox(parameter), passingMode: "by-value" } }] };
+  let shape = { targetType: actual, members: [], implements: [nativeBox(integer)] };
+  const scope = { host: {
+    ast: { is: { IsArrowFunction: () => false, IsFunctionExpression: () => false, IsParenthesizedExpression: () => false,
+      IsSatisfiesExpression: () => false, IsArrayLiteralExpression: () => false, IsObjectLiteralExpression: () => false } },
+    literalValues: { literalValue: { get: () => undefined } },
+    semantics: () => ({ types: { expressionType: selected => selected === expression ? checkedType : undefined } }),
+    structuralTypes: { resolveTarget: selected => selected === actual ? shape : undefined },
+  }, resolveSelectedValueWithState: (_expression, selected) => selected === checkedType ? actual : undefined };
+  const infer = () => inferSourceCallTargetTypeArguments(scope, source, callable, {}, new Set([parameter.identity]), { depth: 0 });
+  assert.equal(infer()?.get(parameter.identity) === integer, true, "the native int64 interface supplies the original binder's exact physical argument");
+  shape = { ...shape, implements: [nativeBox(integer), nativeBox(string)] };
+  assert.equal(infer() === undefined, true, "two conflicting native views cannot select the first binding");
+  shape = { ...shape, targetType: { ...actual, id: "foreign.BoxValue" }, implements: [nativeBox(integer)] };
+  assert.equal(infer()?.size, 0, "a foreign shape cannot certify the actual input's native interface");
+  shape = { targetType: actual, members: [], implements: [] };
+  assert.equal(infer()?.size, 0, "an absent native view does not manufacture a payload binding");
+});
+
 function fixture(carrier = csharpDelegateTargetType("System.Func", [integer], integer), direct = false) {
   const expression = {};
   const declaration = { kind: direct ? "function" : "variable" };
@@ -91,6 +119,7 @@ function fixture(carrier = csharpDelegateTargetType("System.Func", [integer], in
     } }),
     projectTypes: () => ({ catalog: { definitionForTarget: () => undefined } }),
     projectTypeCatalog: { definitionForTarget: () => undefined },
+    structuralTypes: { resolveTarget: () => undefined },
     typeDefinitions: { sourceUnionArms: () => undefined },
     representations: { genericProjections: () => [], closedInputContract: () => undefined,
       sourceCallable: () => { assert.equal(direct, true, "stored invocation must never select the creation ABI"); return openContract; } },
