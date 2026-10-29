@@ -295,6 +295,18 @@ test("an untyped empty literal is not assigned an arbitrary native destination",
   assert.equal(selected.constructionFor(literal) === undefined, true);
 });
 
+test("declared native construction never chooses one arm of a multi-carrier source union", () => {
+  const value = fixture();
+  const expected = value.row([{ identity: "user" }], native, { provider: true });
+  const first = value.row([{ identity: "user" }]);
+  const second = value.row([{ identity: "user" }]);
+  const literal = value.node({ union: [first, second] }, expected);
+  const selected = value.freeze();
+  assert.equal(selected.issues.some(issue => issue.code === "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN"), true,
+    "multiple present source carriers cannot gain a single native allocation by choosing an arm");
+  assert.equal(selected.constructionFor(literal) === undefined, true, "no partial union construction published");
+});
+
 test("a native literal selection never replaces its enclosing container", () => {
   const value = fixture();
   const expected = value.row([{ identity: "user" }], native, { provider: true });
