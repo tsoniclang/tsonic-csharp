@@ -166,3 +166,23 @@ test("native readonly policies do not request object-origin preparation and reta
       `${declaringName}.${name}: only operations that need shape evidence request it`);
   }
 });
+
+test("inferred generic readonly returns retain native class identity without wrappers or copies", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+    class Counter { count = 1; }
+    export function token<Value extends object>(value: Value) {
+      return Object.freeze(value);
+    }
+    export function run(): boolean {
+      const value = new Counter();
+      const view = token(value);
+      value.count = 2;
+      return view === value && view.count === 2;
+    }
+  ` });
+  assertCsharpCompilationSucceeded(compiled);
+  const generated = [...compiled.artifacts.values()].join("\n");
+  assert.equal(/FrozenObject|CheckWrite|EmptyObject\.(?:Freeze|IsFrozen)|ConditionalWeakTable|\.Clone\(/u.test(generated), false,
+    "the inferred readonly return preserves the native reference without runtime freeze state or copies");
+  executeCsharpConstruction(compiled, "readonly-freeze-inferred-generic-native-identity");
+});
