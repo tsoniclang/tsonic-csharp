@@ -5,6 +5,7 @@ import { csharpSourceUnionTargetType } from "../../../dist/target-model/types/so
 import { csharpUnionProjectionPath } from "../../../dist/policy/conversions/union-relations.js";
 import { selectCsharpRuntimeUnionProjection } from "../../../dist/policy/conversions/carriers.js";
 import { csharpRuntimeUnionProjectionMatches } from "../../../dist/analysis/conversions/validation.js";
+import { snapshotCsharpTargetTypes } from "../../../dist/target-model/types/snapshot.js";
 
 test("nested union payload paths are exact, immutable and independently checked", () => {
   const integer = csharpSourcePrimitiveTargetType("uint64");
@@ -37,4 +38,43 @@ test("nested union payload paths are exact, immutable and independently checked"
   const cycle = csharpSourceUnionTargetType("fixture.Cycle", "Cycle", []);
   const definitions = { sourceUnionArms: carrier => carrier === cycle ? [cycle] : undefined };
   assert.equal(csharpUnionProjectionPath(cycle, integer, definitions), undefined);
+});
+
+test("checked member evidence survives exact union projection without relaxing path or payload checks", () => {
+  let reads = 0;
+  const identity = Object.create({ compilerOwned: true });
+  identity.self = identity;
+  Object.defineProperty(identity, "poison", { get() { reads += 1; throw new Error("compiler handle must stay opaque"); } });
+  const payload = { kind: "target-named", id: "test.EvidencePayload", csharpAllowsRefLikeTypeArguments: [] };
+  const member = { receiverType: identity, property: { name: "value", symbol: identity, type: identity,
+    rootSymbols: [identity], optional: false, readonly: true }, declarations: [identity], getters: [], setters: [], read: "property" };
+  const shape = { targetType: payload, sourceType: identity, members: [{ sourceKey: { kind: "property", name: "value" },
+    sourceName: "value", targetName: "value", memberKind: "property", type: csharpSourcePrimitiveTargetType("uint64"),
+    sourceMemberEvidence: [{ ownerType: identity, sourceType: identity,
+      correspondence: { kind: "present", source: member, destination: member } }] }] };
+  const union = csharpRuntimeUnionTargetType([payload, csharpStringTargetType()], [shape, undefined]);
+  const policy = { projectTypes: { directSupertypes: () => [] },
+    providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) } };
+  const selected = selectCsharpRuntimeUnionProjection(policy, union, payload);
+  assert.equal(selected.kind, "runtime-union-projection", "the original native payload has one exact projection");
+  assert.equal(csharpRuntimeUnionProjectionMatches(policy, union, payload, selected), true,
+    "valid checked member metadata cannot make a path disagree with itself");
+  const [snapshot] = snapshotCsharpTargetTypes([union]);
+  assert.equal(csharpRuntimeUnionProjectionMatches(policy, snapshot, payload, selected), true, "immutable roundtrip retains the same projection");
+  assert.equal(snapshot.csharpRuntimeUnionObjectShapes[0].members[0].sourceMemberEvidence[0].ownerType === identity, true,
+    "roundtrip retains the checked owner identity");
+  const foreign = { ...payload, id: "foreign.EvidencePayload" };
+  const foreignUnion = csharpRuntimeUnionTargetType([foreign, csharpStringTargetType()]);
+  const poisoned = { get union() { reads += 1; return union; }, index: 0 };
+  for (const changed of [
+    { ...selected, path: [{ union, index: 1 }] },
+    { ...selected, path: [{ union: foreignUnion, index: 0 }] },
+    { ...selected, path: [poisoned] },
+    { ...selected, path: [{ union, index: 0, extra: true }] },
+    { ...selected, path: new Array(1) },
+    { ...selected, armType: foreign },
+    { ...selected, retainsAbsence: true },
+  ]) assert.equal(csharpRuntimeUnionProjectionMatches(policy, union, payload, changed), false,
+    "exact arm, path, payload, absence and ordinary metadata validation remain required");
+  assert.equal(reads, 0, "compiler handles and untrusted path accessors are not executed");
 });
