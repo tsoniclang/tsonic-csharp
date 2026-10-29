@@ -5,7 +5,8 @@ import { targetUseSiteIdentity } from "@tsonic/target-api/analysis";
 import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { selectCsharpNativeUseRepresentation } from "../../../dist/policy/conversions/native-use-representation.js";
 import { csharpNativeUseSite } from "../../../dist/target-model/records/native/native-demand.js";
-import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { csharpAbsenceTargetType, csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 
 const integer = Object.freeze({ kind: "source-primitive", name: "int32" });
 const floating = Object.freeze({ kind: "source-primitive", name: "float64" });
@@ -16,6 +17,8 @@ const checked = checkCsharpSource({ sourceText: `
   export const list = [binary];
   export const callback = () => binary;
   export const choice = true ? binary : binary;
+  export const nothing = null;
+  export const missing = undefined;
 ` });
 assert.equal(checked.sourceDiagnosticsText === "", true, checked.sourceDiagnosticsText);
 const source = createTargetSourceProgram(checked.source);
@@ -136,4 +139,24 @@ test("conditional result forwarding retains both alternative uses without treati
   const selected = selectCsharpNativeUseRepresentation(input);
   assert.equal(selected.kind === "selected" && selected.representation === "forward" && selected.children[0] === whenTrue &&
     selected.children[1] === whenFalse && selected.children.length === 2, true, "native-use-representations:94: selected.kind === \"selected\" && selected.representation === \"forward\" && selected.children");
+});
+
+test("one native absence input cannot substitute for the exact admitted writable storage", () => {
+  const target = csharpNullableTargetType(integer);
+  const foreign = csharpNullableTargetType(floating);
+  for (const name of ["nothing", "missing"]) {
+    const input = { ...base(initializer(name)), source: csharpAbsenceTargetType(), target, absent: true, literal: undefined };
+    const selected = selectCsharpNativeUseRepresentation(input);
+    assert.equal(selected.kind === "selected" && selected.representation === "convert" && selected.carrier === input.source &&
+      selected.children.length === 0 && selected.construction === undefined, true,
+    `${name}: absence remains a physical input converted to the requested native storage, not a fabricated construction`);
+    const stored = selectCsharpNativeUseRepresentation({ ...input, projection: "storage", source: target, absent: false });
+    assert.equal(stored.kind === "selected" && stored.representation === "forward" && stored.carrier === target, true,
+      `${name}: an exact storage read retains its completed physical carrier`);
+    for (const source of [undefined, foreign, input.source]) {
+      const missing = selectCsharpNativeUseRepresentation({ ...input, projection: "storage", source });
+      assert.equal(missing.kind === "pending" && missing.reason === "source-unresolved", true,
+        `${name}:${source === undefined ? "missing" : source === foreign ? "foreign" : "absence"}: no writable storage is invented`);
+    }
+  }
 });

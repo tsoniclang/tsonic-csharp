@@ -10,6 +10,10 @@ import { csharpNativeUseSite } from "../../../dist/target-model/records/native/n
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { createExpectedNativeUseOwner } from "../../helpers/expected-native-uses.mjs";
+import { nativeAbsenceSource } from "../../../../tsonic/test/fixtures/native-absence.mjs";
+import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
+import { getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
+import { isCsharpAbsenceTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 
 function owners(sourceText, surface = "native", targetOptions) {
   const compiled = compileCsharpSource({ sourceText, surface, targetOptions });
@@ -163,4 +167,53 @@ for (const surface of ["native", "js"]) test(`${surface} explicitly typed operan
   const floating = rows.find(row => row.name === "floatingOperands");
   assert.equal(floating.left === "source:float64" && floating.right === "source:float64" && floating.result === "source:float64", true, "expected-native-uses:176: floating.left === \"source:float64\" && floating.right === \"source:float64\" && floating.resu");
   console.log(JSON.stringify({ numericTypedOperandEvidence: surface, rows }));
+});
+
+for (const surface of ["native", "js"]) test(`${surface} generic setter absence retains its exact native member and use carrier`, () => {
+  const compiled = compileCsharpSource({ sourceText: nativeAbsenceSource, surface });
+  assert.equal(compiled.sourceDiagnosticsText === "", true, `${surface}: the original absence fixture remains checked`);
+  const program = compiled.result.program;
+  assert.equal(program !== undefined, true, `${surface}: the original absence program is admitted`);
+  const ast = program.source.ast;
+  const records = program.records;
+  const nodes = [];
+  const visit = node => {
+    nodes.push(node);
+    ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  program.source.navigation.sourceFiles.forEach(visit);
+  const originals = nodes.filter(node => ast.is.IsVariableDeclaration(node) && ast.text(ast.name(node)) === "original");
+  assert.equal(originals.length, 1, `${surface}: the authored original Point binding is unique`);
+  const point = records.storageType.get(originals[0]);
+  assert.equal(point?.kind === "target-named", true, `${surface}: original retains its declared native value carrier`);
+  const assignments = nodes.flatMap(node => {
+    if (!ast.is.IsBinaryExpression(node)) return [];
+    const selected = records.binaryOperation.get(node)?.target;
+    if (selected?.kind !== "resolved" || selected.sourceOperator !== "=") return [];
+    const property = records.selectedProperty.get(selected.left)?.selection;
+    const receiver = property?.source?.receiver.expression;
+    return receiver !== undefined && ast.is.IsIdentifier(receiver) && ast.text(receiver) === "held" ? [{ node, selected, property }] : [];
+  });
+  assert.equal(assignments.length, 2, `${surface}: original null and undefined writes are both retained`);
+  for (const { node, selected, property } of assignments) {
+    const label = `${surface}:${ast.kindName(selected.right)}`;
+    assert.equal(property.source.accessMode === "write" && ast.is.IsSetAccessorDeclaration(property.source.selectedDeclaration), true,
+      `${label}: the checked write declaration is the setter, not a getter alias`);
+    const storage = records.valueRead.get(selected.left)?.flowReadStorage;
+    assert.equal(storage !== undefined && targetTypeRefEquals(getCsharpNullableElementTargetType(storage), point), true,
+      `${label}: the setter instantiates the original Point nullable carrier before native-use admission`);
+    assert.equal(targetTypeRefEquals(selected.leftInputType, storage) && targetTypeRefEquals(selected.rightInputType, storage), true,
+      `${label}: both selected assignment inputs retain the exact completed writable carrier`);
+    const input = records.valueRead.get(selected.right)?.value;
+    assert.equal(isCsharpAbsenceTargetType(input), true, `${label}: null and undefined keep the one genuine absence input`);
+    const site = csharpNativeUseSite(node, { kind: "operand", position: "right" }, { target: storage });
+    const use = records.nativeUse.get(site);
+    assert.equal(use?.kind === "converted" && use.input.kind === "value" && targetTypeRefEquals(use.input.type, input) &&
+      targetTypeRefEquals(use.target, storage) && use.completion.kind === "value" && targetTypeRefEquals(use.completion.type, storage), true,
+    `${label}: the published native use retains exact input, target, role and completion`);
+    assert.equal(records.nativeUse.get(csharpNativeUseSite(node, { kind: "operand", position: "right" }, { target: point })) === undefined, true,
+      `${label}: a foreign nonnullable target has no admitted-use fallback`);
+    assert.equal(records.nativeUse.get(csharpNativeUseSite(node, { kind: "operand", position: "left" }, { target: storage })) === undefined, true,
+      `${label}: the write location cannot be read under a foreign operand role`);
+  }
 });
