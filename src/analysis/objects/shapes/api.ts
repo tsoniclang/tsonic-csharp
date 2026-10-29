@@ -54,6 +54,14 @@ export function createCsharpObjectShapePolicy(
   const unionDefinitions = createCsharpStructuralUnionDefinitions(host, (type, file, state) =>
     resolveTypeWithState(type, file, undefined, state), environment);
 
+  function checkedLiteralSourceType(node: Node, queries: SourceFileSemantics): Type | undefined {
+    const existing = literalSources.get(node);
+    if (existing !== undefined) return existing;
+    const selected = queries.types.expressionType(node);
+    if (selected !== undefined) literalSources.set(node, selected);
+    return selected;
+  }
+
   function resolveNativeParameter(
     declaration: Node,
     parameter: Node,
@@ -255,9 +263,8 @@ export function createCsharpObjectShapePolicy(
       }
       const source = selectedObjectShapeSource(node, queries, host, state);
       const objectLiteral = host.ast.is.IsObjectLiteralExpression(node);
-      const literalSource = !objectLiteral ? undefined : source.contextualTarget === undefined
-        ? source.type : queries.types.expressionType(node);
-      if (literalSource !== undefined) literalSources.set(node, literalSource);
+      const literalSource = objectLiteral ? checkedLiteralSourceType(node, queries) : undefined;
+      const semanticType = objectLiteral && source.contextualTarget === undefined ? literalSource : source.type;
       const selectedTarget = host.ast.is.IsClassDeclaration(node) || host.ast.is.IsClassExpression(node)
         ? host.typeResolver.resolveType(source.type, queries.sourceFile, nextState(state))
         : host.typeResolver.resolveNode(node, queries.sourceFile, nextState(state));
@@ -276,7 +283,7 @@ export function createCsharpObjectShapePolicy(
         ? undefined
         : host.ast.typeNode(declaration);
       const shape = resolveSemanticShape(
-        source.type,
+        semanticType,
         node,
         queries,
         state,
@@ -374,7 +381,7 @@ export function createCsharpObjectShapePolicy(
   }
 
   const resolveObjectLiteralTargetShape = createCsharpLiteralShapeResolver(host, {
-    resolveNode, resolveType, literalSourceType: (node: Node) => literalSources.get(node),
+    resolveNode, resolveType, literalSourceType: (node: Node) => checkedLiteralSourceType(node, host.semanticsFor(node)),
     retainLiteralMemberEvidence, instantiateMemberEvidence, rememberTargetShape,
   });
   const resolveProjectConstructibleSelectedType = createCsharpProjectShapeProjection(host, deriveMembers);
