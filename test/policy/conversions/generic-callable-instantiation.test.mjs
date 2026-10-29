@@ -61,6 +61,47 @@ test("one native method instantiation owns exact callback signatures, constraint
 });
 
 for (const surface of ["native", "js"]) {
+  test(`generic input binding uses its existing exact native implemented view on ${surface}`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+import type { int32, int64 } from "@tsonic/core/types.js";
+type Box<Value> = { value: Value };
+function first<Value>(box: Box<Value>): Value { return box.value; }
+function change<Value>(box: Box<Value>, value: Value): Box<Value> { box.value = value; return box; }
+export function run(): boolean {
+  const narrow: Box<int32> = { value: 7 as int32 };
+  const wide: Box<int64> = { value: 9007199254740993n as int64 };
+  const text: Box<string> = { value: "before" };
+  const alias = wide;
+  const before = first(wide);
+  const changed = change(wide, 9007199254740995n as int64);
+  return first(narrow) === 7 && before === 9007199254740993n && changed === wide && alias === wide &&
+    alias.value === 9007199254740995n && first(text) === "before" && change(text, "after") === text && text.value === "after";
+}` });
+    assertCsharpCompilationSucceeded(compiled);
+    assert.equal(/DynamicInvoke|TsValue|Convert\.ToDouble|\.ToArray\(|\.Select\(/u.test([...compiled.artifacts.values()].join("\n")), false,
+      "the selected input retains native width, original reference identity and the existing one generic body");
+    executeCsharpConstruction(compiled, `generic-implemented-native-input-${surface}`);
+  });
+  test(`native implemented input evidence cannot override explicit or conflicting generic bindings on ${surface}`, () => {
+    for (const [label, invocation] of [["explicit", "first<number>(signed)"], ["conflicting", "pair(signed, unsigned)"]]) {
+      const compiled = compileCsharpSource({ surface, sourceText: `
+import type { int32, uint32 } from "@tsonic/core/types.js";
+type Box<Value> = { value: Value };
+function first<Value>(box: Box<Value>): Value { return box.value; }
+function pair<Value>(left: Box<Value>, right: Box<Value>): Value { return left.value; }
+export function run(): boolean {
+  const signed: Box<int32> = { value: 7 as int32 };
+  const unsigned: Box<uint32> = { value: 9 as uint32 };
+  return ${invocation} === 7;
+}` });
+      assert.equal(compiled.sourceDiagnosticsText, "", `${label}: the checker admits the original logical number domain`);
+      assert.equal(compiled.targetDiagnostics.some(diagnostic => diagnostic.category === "error"), true,
+        `${label}: exact conflicting native evidence cannot choose the first input or change the explicit declaration contract`);
+      assert.equal(compiled.targetDiagnostics.every(diagnostic => diagnostic.code === "CSHARP_UNSUPPORTED_AST"), true,
+        `${label}: only the exact existing native admission refusal is expected, never an unrelated resource or invariant failure`);
+      assert.equal(compiled.artifacts.size, 0, `${label}: failed exact native admission publishes no artifacts`);
+    }
+  });
   test(`closed generic callback constraints use actual native numeric implementation metadata on ${surface}`, { timeout: 300_000 }, () => {
     const { compiled, value: numericBinding } = withCsharpSessionRequest({ surface, sourceText: `
 import type { int32, int64 } from "@tsonic/core/types.js";

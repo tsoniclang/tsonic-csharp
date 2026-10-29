@@ -406,7 +406,10 @@ function sourceArgumentInferencePairs(
   if (!host.ast.is.IsObjectLiteralExpression(literal)) {
     const type = host.semantics(sourceFile).types.expressionType(literal);
     const actual = type === undefined ? undefined : resolveSelectedValueWithState(literal, type, sourceFile, nextState(state));
-    return actual === undefined ? undefined : [{ pattern, actual }];
+    if (actual === undefined) return undefined;
+    const shape = host.structuralTypes.resolveTarget(actual);
+    const implemented = shape !== undefined && targetTypeRefEquals(shape.targetType, actual) ? shape.implements ?? [] : [];
+    return [{ pattern, actual }, ...implemented.map(carrier => ({ pattern, actual: carrier }))];
   }
   const elements = host.ast.properties(literal).map(element => {
     if (element === undefined) return undefined;
