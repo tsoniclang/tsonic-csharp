@@ -162,15 +162,17 @@ for (const [label, body, literal] of [
   ["mutable context alias", "const base = {}; let options: MakeDirectoryOptions = base; return options;", "{}"],
   ["settled item12 chain", "const base = { recursive: true }; const tuned = base; const final = tuned; const options: MakeDirectoryOptions = final; return options;", "{ recursive: true }"],
 ]) test(`C1202 requests the original literal annotation for ${label}`, () => {
-  const compiled = compile(`import type { MakeDirectoryOptions } from "node:fs";
-    export function make(): MakeDirectoryOptions { ${body} }`);
+  const sourceText = `import type { MakeDirectoryOptions } from "node:fs";
+    export function make(): MakeDirectoryOptions { ${body} }`;
+  const compiled = compile(sourceText);
   const issue = compiled.targetDiagnostics.find(diagnostic => diagnostic.code === "TSONIC_UNTYPED_OBJECT_LITERAL");
-  const ast = compiled.nativeStage.source.ast;
-  const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
-  const text = range?.kind !== "authored" ? undefined
-    : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end);
+  const range = issue?.sourceSpan;
+  const before = sourceText.slice(0, sourceText.indexOf(literal));
+  const line = before.split("\n").length;
+  const column = before.length - before.lastIndexOf("\n");
   assert.equal(issue?.message === "This object literal has no target type. Declare one, e.g. 'function baseOptions(): MakeDirectoryOptions'." &&
-    text === literal, true, `${label}: exact annotation diagnostic at the original literal, not the final conversion`);
+    range?.line === line && range.column === column && range.endLine === line && range.endColumn === column + literal.length,
+    true, `${label}: exact annotation diagnostic at the original literal, not the final conversion`);
   assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
     `${label}: no unproved native construction is published`);
 });
