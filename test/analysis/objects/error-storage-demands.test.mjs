@@ -2,14 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
-import { requiredStorageSubject } from "../../../../tsonic/test/fixtures/source-navigation.mjs";
 import { collectTargetSourceProfileContributions } from "../../../../tsonic/packages/host/dist/target/source-profile.js";
-import { createCsharpErrorStorageDemandQuery } from "../../../dist/analysis/objects/error-storage-demands.js";
+import { createCsharpErrorDeclarationQuery } from "../../../dist/analysis/objects/error-storage-demands.js";
+import { resolveSourceProfileType } from "../../../dist/analysis/source-evidence/types/resolution/source-profiles.js";
+import { createSourceErrorProviderFixture } from "../../fixtures/dotnet-provider/source-error-bindings.mjs";
 import { csharpSourceProfileContributions, csharpJsSurfaceSourceProfileContributions } from "../../../dist/source/profiles/declarations.js";
 
 for (const jsEnabled of [false, true]) {
-  test(`C# ${jsEnabled ? "JS" : "native"} Error storage keeps exact cross-file nested generic write origins`, () => {
+  test(`C# ${jsEnabled ? "JS" : "native"} Error declarations keep exact cross-file nested generic writes without origin-selected carriers`, () => {
     const files = {
       "/src/helpers.ts": `
         export interface SourceBox<Value> { readonly value: Value; }
@@ -44,30 +44,36 @@ for (const jsEnabled of [false, true]) {
       formatDiagnostics(checked.diagnostics.filter(diagnostic => diagnostic !== undefined), "/src"));
     const source = createTargetSourceProgram(checked);
     const projectFiles = source.sourceFiles.filter(file => files[source.ast.getFileName(file)] !== undefined);
-    const storage = createSourceStorageQuery(source, projectFiles);
-    const demand = createCsharpErrorStorageDemandQuery(source, storage);
+    const demand = createCsharpErrorDeclarationQuery(source);
     const declarations = new Map();
     const visit = node => {
       if (source.ast.is.IsVariableDeclaration(node)) declarations.set(source.ast.text(source.ast.name(node)), node);
       source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
     };
     for (const file of source.sourceFiles) if (files[source.ast.getFileName(file)] !== undefined) visit(file);
-    assert.equal(demand.fieldWrites.length, 1);
-    assert.equal(demand.nativeConstructors.length, 2);
-    for (const [name, expected] of [["original", "writable"], ["untouched", "immutable"], ["native", "immutable"]]) {
+    const nodes = source.navigation.nodesForFiles(projectFiles);
+    const writes = nodes.map(node => demand.mutationFor(node)).filter(selection => selection.kind === "resolved")
+      .flatMap(selection => selection.value).filter(mutation => mutation.kind === "field");
+    const constructors = nodes.filter(node => source.ast.is.IsNewExpression(node))
+      .map(node => demand.constructorFor(node)).filter(selection => selection.kind === "resolved");
+    assert.equal(writes.length, 1, "the actual selected nested Error write remains present");
+    assert.equal(constructors.length, 2, "only checked source Error constructor signatures are selected");
+    const providers = createSourceErrorProviderFixture();
+    const identity = { kind: "error", sourceName: "Error", errorName: "Error", baseException: true };
+    for (const name of ["original", "untouched", "native"]) {
       const declaration = declarations.get(name);
       assert.equal(declaration !== undefined, true, name);
-      const subject = requiredStorageSubject(storage, declaration);
-      assert.equal(demand.storageFor(subject).kind, expected, name);
-      const origins = demand.storageOriginsFor(subject);
-      assert.equal(origins.kind, "resolved", name);
-      assert.equal(origins.origins.length, 1, name);
-      assert.equal(demand.isNativeConstructor(origins.origins[0].node), name !== "native", name);
+      const carrier = resolveSourceProfileType({ host: { providers } }, identity, []);
+      assert.equal(carrier?.id, "Tsonic.CSharp.Runtime.Error", `${name}: a declared stored Error never varies with distant writes`);
     }
-    for (const constructor of demand.nativeConstructors) assert.equal(demand.isNativeConstructor(constructor.node), true);
-    assert.equal(demand.isNativeConstructor(declarations.get("record")), false);
-    assert.equal(demand.isNativeConstructor({}), false);
+    for (const constructor of constructors) assert.equal(constructor.value.result.node === constructor.value.node, true,
+      "construction retains its original checked expression");
+    assert.equal(demand.constructorFor(source.ast.as.AsVariableDeclaration(declarations.get("record")).Initializer).kind,
+      "not-applicable", "same-named record fields are not native Error declarations");
+    assert.equal(demand.constructorFor({}).kind, "unresolved", "foreign nodes cannot manufacture checked constructors");
     assert.equal(Object.isFrozen(demand), true);
-    assert.equal(Object.isFrozen(demand.nativeConstructors), true);
+    assert.equal(Object.isFrozen(constructors[0].value.result.component), true);
+    assert.equal("storageFor" in demand || "closedStorageOriginsFor" in demand, false,
+      "the C# declaration owner publishes no origin query or compatibility path");
   });
 }

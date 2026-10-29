@@ -21,7 +21,7 @@ import { reconcileCsharpSelectedTargetType, retainCsharpBroadValueCarrier } from
 import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
 import { csharpBoundSourceType, csharpSourceBindings, csharpSourceTemplateState } from "./type-bindings.js";
 import { csharpConditionalDeclaration, resolveCsharpConditionalApplication } from "./conditional-types.js";
-import { csharpSourceStorageContext, csharpSourceStorageComponentContext } from "./source-storage-projection.js";
+import { csharpSourceStorageComponentContext } from "./source-storage-projection.js";
 import { bindCsharpSourceTypeArguments } from "./generic-arguments.js";
 import { csharpTargetParameterValueType } from "../../../../target-model/types/member-facts.js";
 import { getCsharpCallableValueSignature } from "../../../../target-model/types/carriers/delegates.js";
