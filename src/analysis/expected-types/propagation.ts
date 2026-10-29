@@ -1,16 +1,12 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetUseSiteRef } from "@tsonic/target-api/analysis";
-import { ObjectLiteralProperty_SourceName, sourceExpressionValueInputs } from "@tsonic/target-api/source";
+import { ObjectLiteralProperty_SourceName } from "@tsonic/target-api/source";
 import { selectCsharpArrayLiteralCarrier } from "../../policy/types/collections/literal-construction.js";
 import { getCsharpRuntimeUnionArms } from "../../target-model/types/carriers/runtime-carriers.js";
 import { getCsharpNullableElementTargetType, csharpNullableTargetType, getCsharpArrayLiteralElementTargetType, isCsharpJsValueTargetType, isCsharpRecordDictionaryTargetType, csharpPropertySourceMemberKey, csharpWellKnownSymbolSourceMemberKey, resolveCsharpObjectShapeMemberBySourceKey, csharpObjectTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../policy/types/index.js";
 import type { selectCsharpBinaryOperation } from "../operations/operators.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpNativeObjectConstruction, CsharpNativeObjectMember, CsharpNativeUseSlot } from "../../target-model/records/native/native-demand.js";
-import { csharpTargetNamedType } from "../../target-model/types/factories.js";
-import { csharpQualifiedTypeRenderShape } from "../../target-model/types/render-shapes.js";
-import { selectCsharpConversion } from "../../policy/conversions/core.js";
-import { csharpNullableReferenceTargetType } from "../../target-model/types/carriers/nullable.js";
+import type { CsharpNativeUseSlot } from "../../target-model/records/native/native-demand.js";
 import type { CsharpConversionMode } from "../../target-model/conversions/selection.js";
 import type { CsharpExpectedTypeIssue } from "../../target-model/records/types/expected-types.js";
 import type { CsharpExactLiteralRequest, CsharpNativePropertyKeyBinding } from "../../target-model/conversions/exact-literals.js";
@@ -34,7 +30,6 @@ export interface CsharpExpectedTypePropagation {
     readonly arrayLiteralCarrier: (expression: Node, targetType: TargetTypeRef) => TargetTypeRef | undefined;
     readonly constructionCarrier: (expression: Node, targetType: TargetTypeRef) => TargetTypeRef | undefined;
     readonly objectShape: (expression: Node, targetType: TargetTypeRef) => CsharpObjectShapeFact | undefined;
-    readonly dynamicObject: (expression: Node, targetType: TargetTypeRef) => CsharpNativeObjectConstruction | undefined;
     /** The reason an object literal has no construction at this expected type (its shape construction was rejected). */
     readonly constructionRejection: (expression: Node, targetType: TargetTypeRef) => string | undefined;
     readonly intrinsicTarget: (expression: Node, targetType: TargetTypeRef) => boolean;
@@ -53,47 +48,24 @@ export function createCsharpExpectedTypePropagation(
   const arrayCarriers = new WeakMap<Node, Map<string, TargetTypeRef>>();
   const nonArrayCarriers = new WeakMap<Node, Map<string, TargetTypeRef>>();
   const objectConstructions = new WeakMap<Node, Map<string, CsharpObjectShapeFact>>();
-  const dynamicObjects = new WeakMap<Node, Map<string, CsharpNativeObjectConstruction>>();
   const constructionRejections = new WeakMap<Node, Map<string, string>>();
-  const dynamicConstructionIssues = new Map<Node, CsharpExpectedTypeIssue>();
   const intrinsicTargets = new WeakMap<Node, Set<string>>();
   const positionsByOwner = new WeakMap<Node, ReadonlyMap<Node, number>>();
   const propertyKeys = new WeakMap<Node, Map<string, readonly CsharpNativePropertyKeyBinding[]>>();
   const propertyKeyRequests: CsharpExactLiteralRequest[] = [];
-  const dynamicObjectOrigins = new Set<Node>();
-  const storage = policy.sourceStorage;
-  if (storage !== undefined) for (const node of storage.nodes) {
-    const selection = operations.sourceMember.get(node)?.jsValueOperation ?? operations.selectedElement.get(node)?.jsValue;
-    if (selection?.kind !== "resolved" || !["ReadDynamicSlot", "ReadDynamicSlotOptional", "WriteDynamicSlot",
-      "ReadDynamicElement", "ReadDynamicElementOptional", "WriteDynamicElement"].includes(selection.runtimeMember)) continue;
-    const receiver = policy.ast.is.IsPropertyAccessExpression(node)
-      ? policy.ast.as.AsPropertyAccessExpression(node)?.Expression
-      : policy.ast.is.IsElementAccessExpression(node) ? policy.ast.as.AsElementAccessExpression(node)?.Expression : undefined;
-    if (receiver === undefined) continue;
-    const selected = storage.subjectFor(receiver);
-    if (selected.kind !== "resolved") continue;
-    const origins = storage.closedOriginsFor(selected.subject);
-    if (origins.kind === "unresolved") continue;
-    for (const origin of origins.origins) {
-      if (origin.subject.kind === "value" && origin.subject.projection.length === 0 &&
-        policy.ast.is.IsObjectLiteralExpression(origin.subject.node)) dynamicObjectOrigins.add(origin.subject.node);
-    }
-  }
 
   return Object.freeze({
     propagate,
     recordIntrinsicArrayLiteralElements,
     recordIntrinsicObjectLiteralMembers,
     seal: () => Object.freeze({
-      issues: Object.freeze([...dynamicConstructionIssues.values()]),
+      issues: Object.freeze([]),
       arrayLiteralCarrier: (expression: Node, targetType: TargetTypeRef) =>
         arrayCarriers.get(expression)?.get(targetTypeRefKey(targetType)),
       constructionCarrier: (expression: Node, targetType: TargetTypeRef) =>
         (arrayCarriers.get(expression) ?? nonArrayCarriers.get(expression))?.get(targetTypeRefKey(targetType)),
       objectShape: (expression: Node, targetType: TargetTypeRef) =>
         objectConstructions.get(expression)?.get(targetTypeRefKey(targetType)),
-      dynamicObject: (expression: Node, targetType: TargetTypeRef) =>
-        dynamicObjects.get(expression)?.get(targetTypeRefKey(targetType)),
       constructionRejection: (expression: Node, targetType: TargetTypeRef) =>
         constructionRejections.get(expression)?.get(targetTypeRefKey(targetType)),
       intrinsicTarget: (expression: Node, targetType: TargetTypeRef) =>
@@ -206,74 +178,6 @@ export function createCsharpExpectedTypePropagation(
       ? carrier.typeArguments?.[1] : undefined;
     const positions = childPositions(expression);
     const member = (property: Node) => positioned(positions, property, index => forwarded(expression, { kind: "member", index }, parent, mode));
-    if (isCsharpJsValueTargetType(carrier) && dynamicObjectOrigins.has(expression)) {
-      const argumentType = csharpNullableReferenceTargetType(csharpObjectTargetType());
-      const backingType = csharpTargetNamedType("Tsonic.CSharp.Runtime.TsObject", undefined,
-        csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "TsObject"), { allowsRefLikeTypeArguments: [] });
-      const members: CsharpNativeObjectMember[] = [];
-      const properties: Node[] = [];
-      const refuse = (message: string): void => {
-        const reasons = constructionRejections.get(expression) ?? new Map<string, string>();
-        reasons.set(targetTypeRefKey(targetType), message);
-        constructionRejections.set(expression, reasons);
-        dynamicConstructionIssues.set(expression, Object.freeze({ node: expression,
-          code: "CSHARP_UNSUPPORTED_AST", message }));
-      };
-      for (const property of policy.ast.properties(expression)) {
-        if (property === undefined || !policy.ast.is.IsPropertyAssignment(property) &&
-          !policy.ast.is.IsShorthandPropertyAssignment(property)) return refuse(
-          "Dynamic object construction requires named data properties; accessor, method and spread members have no supported dynamic storage contract.");
-        const initializer = policy.ast.is.IsPropertyAssignment(property)
-          ? policy.ast.as.AsPropertyAssignment(property)?.Initializer : policy.ast.name(property);
-        if (initializer === undefined || policy.ast.is.IsShorthandPropertyAssignment(property) &&
-          policy.ast.as.AsShorthandPropertyAssignment(property)?.ObjectAssignmentInitializer !== undefined) return refuse(
-          "Dynamic object construction requires an exact checked value initializer for each data property.");
-        const name = policy.ast.name(property);
-        let selectedName: string;
-        if (name !== undefined && policy.ast.is.IsComputedPropertyName(name)) {
-          const selected = policy.semanticsFor(property).propertyNames.get(name);
-          const key = policy.ast.as.AsComputedPropertyName(name)?.Expression;
-          const effects = key === undefined ? undefined : policy.navigation.expressionEffects(key);
-          if (selected?.kind !== "resolved" || effects === undefined ||
-            effects.invokes || effects.mutates || effects.suspends || effects.mayThrow) return refuse(
-            "Dynamic object construction requires checked effect-free constant member names.");
-          selectedName = selected.name;
-        } else {
-          const selected = ObjectLiteralProperty_SourceName(policy.ast, property);
-          if (selected.kind !== "resolved") return refuse(
-            "Dynamic object construction requires checked constant member names.");
-          selectedName = selected.name;
-        }
-        properties.push(property);
-        const pending = [initializer];
-        const visited = new Set<Node>();
-        let nested = false;
-        while (pending.length > 0) {
-          const value = pending.pop()!;
-          if (visited.has(value)) continue;
-          visited.add(value);
-          if (policy.ast.is.IsObjectLiteralExpression(value)) {
-            nested = true;
-            continue;
-          }
-          for (const child of sourceExpressionValueInputs(policy.ast, value) ?? []) pending.push(child.expression);
-        }
-        const inputCarrier = nested ? carrier : argumentType;
-        const conversion = selectCsharpConversion(policy, inputCarrier, argumentType, "implicit");
-        if (conversion.kind === "rejected" || conversion.kind === "ambiguous") failTargetAnalysisInvariant(
-          "tsonic-csharp", "The selected native broad-object argument requires its exact existing ABI conversion.", initializer);
-        members.push(Object.freeze({ name: selectedName, initializer, carrier: inputCarrier, conversion }));
-      }
-      recordObjectCarrier(expression, targetType, carrier);
-      collection.addTargetType(argumentType);
-      collection.addTargetType(backingType);
-      const targets = dynamicObjects.get(expression) ?? new Map<string, CsharpNativeObjectConstruction>();
-      targets.set(targetTypeRefKey(targetType), Object.freeze({ backingType, argumentType,
-        writeMember: "WriteDynamicSlot", resultMember: "from", members: Object.freeze(members) }));
-      dynamicObjects.set(expression, targets);
-      for (const [index, entry] of members.entries()) record(entry.initializer, entry.carrier, strength, member(properties[index]!));
-      return;
-    }
     if (indexedValueType !== undefined) {
       recordObjectCarrier(expression, targetType, carrier);
       recordDictionaryKeys(expression, carrier);

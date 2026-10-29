@@ -112,8 +112,11 @@ for (const [name, body] of nonfreshControls) {
       ${body}
     ` });
     assertCsharpCheckingSucceeded(compiled);
-    assert.equal(compiled.targetDiagnostics.some(diagnostic => diagnostic.code === "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN"), true,
-      "exact allocation provenance is required");
+    const refusal = compiled.targetDiagnostics.find(diagnostic => diagnostic.code === "CSHARP_UNSUPPORTED_AST" &&
+      diagnostic.message.startsWith("No exact C# implicit conversion relates "));
+    assert.equal(refusal !== undefined, true, "the declared carrier has no valid native identity conversion");
+    assert.match(refusal.message, name === "conflicting native demands"
+      ? /MakeDirectoryOptions<>.*RmOptions<>/u : /MakeDirectoryOptions<>/u);
     assert.equal(compiled.artifacts.size, 0, "failed native construction cannot publish executable output");
   });
 }
