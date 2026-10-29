@@ -1,11 +1,11 @@
 import { createCsharpDestructuringAssignmentAnalysis } from "./destructuring-assignments.js";
 import { createCsharpBindingPatternProducer } from "../program/records/storage/binding-patterns.js";
-import type { AstReader, Node, ReadonlySourceFactResolver, SourceFile, Type } from "@tsonic/tsts";
+import type { AstReader, Node, SourceFile, Type } from "@tsonic/tsts";
 import { csharpNativePropertyNameIssue } from "../objects/computed-field-names.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { tryCsharpIdentifier } from "../../target-model/names/identifiers.js";
-import { getCsharpNullableElementTargetType, isCsharpValueTypeTargetType } from "../../target-model/types/index.js";
+import { getCsharpNullableElementTargetType, isCsharpValueTypeTargetType, targetTypeRefEquals } from "../../target-model/types/index.js";
 import {
   AsBinaryExpression,
   AsBindingElement,
@@ -50,12 +50,9 @@ import type { CsharpStorageClassifications } from "../../target-model/records/st
 import { selectCsharpConversion } from "../../policy/conversions/core.js";
 import { admitCsharpConversionSelection } from "../conversions/validation.js";
 import { classifyCsharpSourceProfileType } from "../../policy/identities/source-types.js";
-import { csharpSourceProfileDeclarationIdentity } from "../../policy/identities/selected-source.js";
-import { selectCsharpErrorNativeProperty } from "../../policy/operations/source-profiles/error-source-profile.js";
 
 export interface CsharpBindingPatternAnalysisInput {
   readonly ast: AstReader;
-  readonly sourceFacts: ReadonlySourceFactResolver | undefined;
   readonly semanticsFor: (node: Node) => SourceFileSemantics;
   readonly sourceFiles: readonly SourceFile[];
   readonly participation: CsharpNativeParticipationInput["participation"];
@@ -357,21 +354,19 @@ export function analyzeCsharpBindingPatterns(
     if (checked !== undefined && classifyCsharpSourceProfileType(checked, queries, ast)?.kind === "error") {
       const carrier = sourceCarrier ?? (ast.is.IsParameterDeclaration(sourceNode)
         ? input.evidence.sourceParameters.get(sourceNode)?.bodyType : undefined) ?? input.evidence.nodeTargetType.get(sourceNode);
-      analyzeNativeErrorPattern(pattern, sourceFile, checked, carrier);
+      analyzeNativeErrorPattern(pattern, sourceFile, carrier);
       return;
     }
     issue(pattern, "Object destructuring requires an exact source-owned declaration or target object-shape policy.");
   }
 
-  function analyzeNativeErrorPattern(pattern: Node, sourceFile: SourceFile, checked: Type, carrier: TargetTypeRef | undefined): void {
+  function analyzeNativeErrorPattern(pattern: Node, sourceFile: SourceFile, carrier: TargetTypeRef | undefined): void {
     const source = selectCsharpBindingPatternProjection({ kind: "native-source", carrier });
     if (source.kind !== "source" || source.source.kind !== "native-source") {
       issue(pattern, "An Error binding requires its admitted native formal or initializer carrier.", [], "CSHARP_ERROR_BINDING_NOT_PROVEN");
       return;
     }
     recordSource(pattern, source.source);
-    const queries = input.semanticsFor(pattern);
-    const members = queries.types.propertyInfos(checked);
     for (const elementNode of ast.elements(pattern)) {
       const element = elementNode === undefined ? undefined : AsBindingElement(ast, elementNode);
       if (elementNode === undefined || element?.name === undefined) continue;
@@ -379,32 +374,14 @@ export function analyzeCsharpBindingPatterns(
         issue(elementNode, "Object rest destructuring requires finalized provider object-spread semantics before C# emission.");
         continue;
       }
-      const property = objectShapePropertyName(elementNode);
-      const matches = property?.sourceName === undefined ? [] : members.filter(member => member.name === property.sourceName);
-      const member = matches.length === 1 ? matches[0] : undefined;
-      const declarations = member === undefined ? [] : [...new Set([...queries.declarations.symbolDeclarations(member.symbol),
-        ...member.rootSymbols.flatMap(symbol => queries.declarations.symbolDeclarations(symbol))])];
-      const identities = declarations.flatMap(declaration => {
-        const identity = csharpSourceProfileDeclarationIdentity(ast, input.semanticsFor(declaration), input.sourceFacts, declaration);
-        return identity?.kind === "member" && identity.declaringName === "Error" && identity.name === property?.sourceName ? [identity] : [];
-      });
-      const identity = identities.length === 1 ? identities[0] : undefined;
-      const selected = identity === undefined ? undefined : selectCsharpErrorNativeProperty(input.conversionPolicy, identity, source.source.carrier);
-      if (identity === undefined || selected === undefined || selected.kind !== "resolved" ||
-          selected.invocation.kind !== "member" && selected.invocation.kind !== "receiver-call") {
-        issue(elementNode, selected?.kind === "rejected" ? selected.diagnostic.message
-          : "An Error binding requires its exact checked property and native member relation.", [], "CSHARP_ERROR_BINDING_NOT_PROVEN");
+      const projection = input.evidence.bindingProjection.get(elementNode);
+      if (projection?.kind !== "native-member" || projection.node !== elementNode ||
+          !targetTypeRefEquals(projection.receiverCarrier, source.source.carrier)) {
+        issue(elementNode, "An Error binding requires its exact published native member and input carrier.", [], "CSHARP_ERROR_BINDING_NOT_PROVEN");
         continue;
       }
-      const admitted = selectCsharpBindingPatternProjection({ kind: "native-member", property: {
-        declaration: identity.declaration, member: selected.targetMember, receiver: selected.receiver, invocation: selected.invocation,
-      } });
-      if (admitted.kind !== "element" || admitted.element.kind !== "native-member") {
-        if (admitted.kind === "unresolved") for (const reason of admitted.reasons) issue(elementNode, reason);
-        continue;
-      }
-      recordElement(elementNode, admitted.element, element.Initializer);
-      const value = element.Initializer === undefined ? admitted.element.property.member.returnType : facts.get(elementNode)?.defaultValue?.target;
+      recordElement(elementNode, { kind: "native-member", property: projection.property }, element.Initializer);
+      const value = element.Initializer === undefined ? projection.property.member.returnType : facts.get(elementNode)?.defaultValue?.target;
       analyzeNested(element.name, elementNode, sourceFile, value);
     }
   }

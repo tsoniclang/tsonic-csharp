@@ -222,6 +222,7 @@ function createCsharpTypeSystem(
     ...host,
     typeResolver: typeResolution.recursive,
     objectShapes,
+    projectTypes: requireProjectTypes,
     scopedTargetType: representations.scopedTargetType,
   });
   projectTypes = analyzeCsharpProjectTypePolicy(

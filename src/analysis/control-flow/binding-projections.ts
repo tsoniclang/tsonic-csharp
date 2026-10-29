@@ -1,6 +1,6 @@
 import type { CsharpBindingProjection } from "../../target-model/records/storage/binding-projection-policy.js";
 
-import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
+import type { AstReader, Node, SourceFile, Type } from "@tsonic/tsts";
 import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
 import { csharpNullableTargetType } from "../../target-model/types/carriers/nullable.js";
 import { csharpBindingDefaultCarrier } from "../../policy/types/storage/binding-normalization.js";
@@ -8,18 +8,24 @@ import { getCsharpCollectionElementTargetType } from "../../target-model/types/c
 import { resolveCsharpObjectShapeMemberBySourceContract } from "../../target-model/types/object-shape-members.js";
 
 import type { CsharpRecursiveObjectShapePolicy } from "../objects/shapes/model.js";
-import type { CsharpRecursiveTypeResolver, CsharpTypeResolutionState } from "../source-evidence/types/resolution/model.js";
+import type { CsharpRecursiveTypeResolver, CsharpTypeResolutionState, CsharpTypePolicyBaseHost } from "../source-evidence/types/resolution/model.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpArrayBindingProjectionTarget, resolveCsharpArrayBindingCarrier } from "../../policy/types/collections/binding-array-carrier.js";
 import { nextState } from "../source-evidence/types/resolution/state.js";
+import type { CsharpProjectTypePolicy } from "../../target-model/records/types/project-types.js";
+import { classifyCsharpSourceProfileType } from "../../policy/identities/source-types.js";
+import { csharpSourceProfileDeclarationIdentity } from "../../policy/identities/selected-source.js";
+import { selectCsharpErrorNativeProperty } from "../../policy/operations/source-profiles/error-source-profile.js";
+import { selectCsharpBindingPatternProjection } from "../../policy/types/objects/binding-projection.js";
 
-export interface CsharpBindingProjectionPolicyHost {
+export interface CsharpBindingProjectionPolicyHost extends Pick<CsharpTypePolicyBaseHost, "providers" | "typeDefinitions" | "sourceFacts" | "hasSemantics"> {
   readonly ast: AstReader;
   readonly navigation: SourceProgramNavigation;
   readonly typeResolver: CsharpRecursiveTypeResolver;
   readonly objectShapes: CsharpRecursiveObjectShapePolicy;
   scopedTargetType(node: Node): TargetTypeRef | undefined;
   semantics(sourceFile: SourceFile): SourceFileSemantics;
+  projectTypes(): CsharpProjectTypePolicy;
 }
 
 export interface CsharpBindingProjectionPolicy {
@@ -61,21 +67,21 @@ export function createCsharpBindingProjectionPolicy(
         host,
         (node, file, state) => resolveProjection(node, file, state)?.bindingCarrier,
       );
-      const projected = host.ast.is.IsObjectBindingPattern(pattern)
+      const projection = host.ast.is.IsObjectBindingPattern(pattern)
         ? resolveObjectBindingProjection(binding, ownerType, state, host)
         : host.ast.is.IsArrayBindingPattern(pattern)
-        ? resolveArrayBindingProjection(binding, pattern, ownerType, host)
+        ? bindingValueProjection(resolveArrayBindingProjection(binding, pattern, ownerType, host))
         : undefined;
-      if (projected === undefined) {
+      if (projection === undefined) {
         return undefined;
       }
       const declaration = host.ast.as.AsBindingElement(binding);
-      if (declaration?.Initializer === undefined) return Object.freeze({ storageCarrier: projected, bindingCarrier: projected });
-      const storageCarrier = csharpNullableTargetType(projected);
+      if (declaration?.Initializer === undefined) return projection;
+      const storageCarrier = csharpNullableTargetType(projection.storageCarrier);
       const defaultValue = host.typeResolver.resolveNode(declaration.Initializer, declarationFile, nextState(state));
       if (defaultValue === undefined) return undefined;
-      const bindingCarrier = csharpBindingDefaultCarrier(projected, defaultValue);
-      return Object.freeze({ storageCarrier, bindingCarrier });
+      const bindingCarrier = csharpBindingDefaultCarrier(projection.bindingCarrier, defaultValue);
+      return Object.freeze({ ...projection, storageCarrier, bindingCarrier });
     } finally {
       activeBindings.delete(binding);
     }
@@ -158,7 +164,7 @@ function resolveObjectBindingProjection(
   ownerType: TargetTypeRef | undefined,
   state: CsharpTypeResolutionState,
   host: CsharpBindingProjectionPolicyHost,
-): TargetTypeRef | undefined {
+): CsharpBindingProjection | undefined {
   const declaration = host.ast.as.AsBindingElement(binding);
   if (declaration?.DotDotDotToken !== undefined) {
     const selected = host.scopedTargetType(binding);
@@ -167,9 +173,9 @@ function resolveObjectBindingProjection(
       : sourceFile === undefined ? undefined : host.objectShapes.resolveTypeWithState(
       host.semantics(sourceFile).declarations.declaredValueType(binding), sourceFile, undefined, nextState(state),
     );
-    return shape === undefined ? undefined : host.objectShapes.resolveCopyShape(
+    return bindingValueProjection(shape === undefined ? undefined : host.objectShapes.resolveCopyShape(
       shape, host.objectShapes.resolveTarget(ownerType),
-    )?.targetType;
+    )?.targetType);
   }
   const property = declaration?.PropertyName ?? declaration?.name;
   if (property === undefined) return undefined;
@@ -184,14 +190,67 @@ function resolveObjectBindingProjection(
   } else return undefined;
   const shape = host.objectShapes.resolveTarget(ownerType);
   if (shape === undefined) {
-    return undefined;
+    return resolveNativeErrorBindingProjection(binding, sourceName, ownerType, host);
   }
   const selected = resolveCsharpObjectShapeMemberBySourceContract(
     shape,
     sourceName,
     "checked-object-binding-property",
   );
-  return selected.kind === "resolved" ? selected.member.type : undefined;
+  return bindingValueProjection(selected.kind === "resolved" ? selected.member.type : undefined);
+}
+
+function bindingValueProjection(carrier: TargetTypeRef | undefined): CsharpBindingProjection | undefined {
+  return carrier === undefined ? undefined : Object.freeze({ kind: "value", storageCarrier: carrier, bindingCarrier: carrier });
+}
+
+function resolveNativeErrorBindingProjection(
+  binding: Node,
+  sourceName: string,
+  receiverCarrier: TargetTypeRef | undefined,
+  host: CsharpBindingProjectionPolicyHost,
+): CsharpBindingProjection | undefined {
+  const sourceFile = host.ast.getSourceFile(binding);
+  const pattern = host.ast.parent(binding);
+  const owner = pattern === undefined ? undefined : host.ast.parent(pattern);
+  if (receiverCarrier === undefined || sourceFile === undefined || !host.hasSemantics(sourceFile) || owner === undefined) return undefined;
+  const queries = host.semantics(sourceFile);
+  let checked: Type | undefined;
+  if (host.ast.is.IsParameterDeclaration(owner)) {
+    const declaration = host.ast.parent(owner);
+    const slots = declaration === undefined ? [] : queries.types.declarationSignatureInfo(declaration)?.parameters
+      .filter(slot => slot.declaration === owner) ?? [];
+    checked = slots.length === 1 ? slots[0]?.type : undefined;
+  } else if (host.ast.is.IsVariableDeclaration(owner)) {
+    const declaration = host.ast.as.AsVariableDeclaration(owner);
+    checked = declaration?.Type !== undefined ? queries.types.authoredType(declaration.Type)
+      : declaration?.Initializer === undefined ? undefined : queries.types.expressionType(declaration.Initializer);
+  } else if (host.ast.is.IsBindingElement(owner)) {
+    checked = queries.declarations.declaredValueType(owner);
+  }
+  if (checked === undefined || classifyCsharpSourceProfileType(checked, queries, host.ast)?.kind !== "error") return undefined;
+  const members = queries.types.propertyInfos(checked).filter(member => member.name === sourceName);
+  const member = members.length === 1 ? members[0] : undefined;
+  const declarations = member === undefined ? [] : [...new Set([...queries.declarations.symbolDeclarations(member.symbol),
+    ...member.rootSymbols.flatMap(symbol => queries.declarations.symbolDeclarations(symbol))])];
+  const identities = declarations.flatMap(declaration => {
+    const file = host.ast.getSourceFile(declaration);
+    if (file === undefined || !host.hasSemantics(file)) return [];
+    const identity = csharpSourceProfileDeclarationIdentity(host.ast, host.semantics(file), host.sourceFacts, declaration);
+    return identity?.kind === "member" && identity.declaringName === "Error" && identity.name === sourceName ? [identity] : [];
+  });
+  const identity = identities.length === 1 ? identities[0] : undefined;
+  const selected = identity === undefined ? undefined : selectCsharpErrorNativeProperty({ providers: host.providers,
+    projectTypes: host.projectTypes(), typeDefinitions: host.typeDefinitions }, identity, receiverCarrier);
+  if (identity === undefined || selected?.kind !== "resolved" ||
+      selected.invocation.kind !== "member" && selected.invocation.kind !== "receiver-call") return undefined;
+  const admitted = selectCsharpBindingPatternProjection({ kind: "native-member", property: {
+    declaration: identity.declaration, member: selected.targetMember, receiver: selected.receiver, invocation: selected.invocation,
+  } });
+  if (admitted.kind !== "element" || admitted.element.kind !== "native-member") return undefined;
+  const carrier = admitted.element.property.member.returnType;
+  return Object.freeze({ kind: "native-member", node: binding, receiverCarrier, property: admitted.element.property,
+    storageCarrier: carrier, bindingCarrier: carrier });
 }
 
 function resolveArrayBindingProjection(

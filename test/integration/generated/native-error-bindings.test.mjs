@@ -47,6 +47,9 @@ for (const surface of ["native", "js"]) {
       const projection = program.records.bindingPatternProjection.get(element)?.element;
       assert.equal(projection?.kind === "native-member" && projection.property.member.id.endsWith(memberId), true,
         `${name}: the original checked member admits the exact native property/helper`);
+      const early = program.records.bindingProjection.get(element);
+      assert.equal(early?.kind === "native-member" && early.node === element && early.property === projection.property, true,
+        `${name}: the early native/storage owner and late renderer consume the same immutable member decision`);
       assert.equal(Object.isFrozen(projection) && Object.isFrozen(projection.property), true,
         `${name}: the source/member decision is immutable before rendering`);
     }

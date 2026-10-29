@@ -3,8 +3,10 @@ import test from "node:test";
 import { csharpErrorSourceProfileCallPolicies, csharpErrorSourceProfilePropertyPolicies } from "../../../dist/policy/operations/source-profiles/error-source-profile.js";
 import { csharpExceptionTargetType, csharpNullableTargetType, csharpRuntimeErrorTargetType, csharpStringTargetType } from "../../../dist/policy/types/index.js";
 import { createSourceErrorProviderFixture } from "../../fixtures/dotnet-provider/source-error-bindings.mjs";
+import { emptyCsharpTypeDefinitions } from "../../../dist/target-model/types/source-union-definitions.js";
 
-const host = { providers: createSourceErrorProviderFixture() };
+const host = { providers: createSourceErrorProviderFixture(), projectTypes: { directSupertypes: () => [] },
+  typeDefinitions: emptyCsharpTypeDefinitions };
 
 test("source error construction and inheritance consume one exact native profile contract", () => {
   let constructors = 0;
