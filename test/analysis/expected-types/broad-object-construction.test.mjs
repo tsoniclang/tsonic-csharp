@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createSourceDiagnosticSpanReader } from "@tsonic/target-api/source";
+import { finalizeTargetDiagnostics } from "../../../../tsonic/packages/host/dist/diagnostics.js";
 import { compileCsharpSource, assertCsharpCheckingSucceeded, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
@@ -45,7 +46,8 @@ function assertCanonicalAnyRefusal(compiled) {
       "the diagnostic names an actual checked any value or authored type, not the native producer");
     const expected = readSpan(file, ast.pos(issue.sourceNode), ast.end(issue.sourceNode));
     assert.equal(expected !== undefined, true, "the checked source occurrence has a real source span");
-    assert.deepEqual(issue.sourceSpan, { ...expected, fileName: "index.ts" }, "the exact original source coordinates are preserved");
+    const finalized = finalizeTargetDiagnostics(compiled.source, [issue], "/project")[0];
+    assert.deepEqual(finalized.sourceSpan, { ...expected, fileName: "index.ts" }, "the exact original source coordinates are preserved");
   }
   assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0,
     true, "source-any admission refuses publication rather than selecting a dynamic native representation");
@@ -119,6 +121,9 @@ for (const surface of ["native", "js"]) {
     };
     csharpProgramSourceFiles(program).forEach(visit);
     assert.equal(literals.length, 5, "the same two nested pairs and shared-reference container remain distinct constructions");
+    assert.deepEqual(literals.map(node => program.records.nativeExpression.get(node)?.physical.objectShape?.members.map(member => member.sourceName)),
+      [["value", "child"], ["label"], ["first", "child", "last"], ["second"], ["first", "second"]],
+      "each construction retains every original member in its checked order");
     for (const node of literals) {
       const physical = program.records.nativeExpression.get(node)?.physical;
       assert.equal(physical !== undefined && physical.kind !== "erased" &&

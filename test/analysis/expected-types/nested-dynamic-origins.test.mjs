@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createSourceDiagnosticSpanReader } from "@tsonic/target-api/source";
+import { finalizeTargetDiagnostics } from "../../../../tsonic/packages/host/dist/diagnostics.js";
 import { compileCsharpSource, assertCsharpCheckingSucceeded, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
@@ -32,7 +33,8 @@ export function read(): unknown { const value: any = make(); return value.child;
       "the refusal belongs to actual checked any, not the untouched native payload");
     const span = createSourceDiagnosticSpanReader(ast)(file, ast.pos(issue.sourceNode), ast.end(issue.sourceNode));
     assert.equal(span !== undefined, true, "the original source occurrence has exact checked coordinates");
-    assert.deepEqual(issue.sourceSpan, { ...span, fileName: "index.ts" });
+    const finalized = finalizeTargetDiagnostics(compiled.source, [issue], "/project")[0];
+    assert.deepEqual(finalized.sourceSpan, { ...span, fileName: "index.ts" });
     assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0,
       true, "the missing shared gate cannot publish a native fallback");
   });

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createSourceDiagnosticSpanReader } from "@tsonic/target-api/source";
+import { finalizeTargetDiagnostics } from "../../../../tsonic/packages/host/dist/diagnostics.js";
 import { compileCsharpSource, assertCsharpCheckingSucceeded, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
@@ -33,7 +34,8 @@ function assertCanonicalAnyRefusal(compiled) {
     "the refusal belongs to a real checked any value or authored type, not the native construction");
   const span = createSourceDiagnosticSpanReader(ast)(file, ast.pos(issue.sourceNode), ast.end(issue.sourceNode));
   assert.equal(span !== undefined, true, "the original source occurrence retains actual coordinates");
-  assert.deepEqual(issue.sourceSpan, { ...span, fileName: "index.ts" }, "the canonical any diagnostic keeps its real source span");
+  const finalized = finalizeTargetDiagnostics(compiled.source, [issue], "/project")[0];
+  assert.deepEqual(finalized.sourceSpan, { ...span, fileName: "index.ts" }, "the canonical any diagnostic keeps its real source span");
   assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0,
     true, "the missing shared admission cannot publish a native fallback or partial artifacts");
 }
@@ -67,7 +69,8 @@ export function make(): unknown { return { [key()]: 7 }; }
     const file = ast.getSourceFile(issues[0].sourceNode);
     const span = createSourceDiagnosticSpanReader(ast)(file, ast.pos(issues[0].sourceNode), ast.end(issues[0].sourceNode));
     assert.equal(span !== undefined, true, "the computed key has real checked source coordinates");
-    assert.deepEqual(issues[0].sourceSpan, { ...span, fileName: "index.ts" });
+    const finalized = finalizeTargetDiagnostics(compiled.source, issues, "/project")[0];
+    assert.deepEqual(finalized.sourceSpan, { ...span, fileName: "index.ts" });
     assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0,
       true, "the effectful-key refusal still prevents every publication");
   });

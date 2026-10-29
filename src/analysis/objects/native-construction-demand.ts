@@ -180,6 +180,9 @@ export function createCsharpNativeConstructionDemandQuery(
       return;
     }
     const targetType = source !== members[0] ? csharpNullableTargetType(retained.targetType) : retained.targetType;
+    for (const member of retained.members) Object.freeze(member);
+    Object.freeze(retained.members);
+    Object.freeze(retained);
     constructions.set(node, Object.freeze({ targetType, shape: retained }));
   };
   const select = (node: Node): void => {

@@ -157,6 +157,10 @@ test("native construction uses the literal's declared context and freezes its lo
   selected.constructionFor(literal);
   assert.equal(value.queryCount(), queries, "sealed lookup does not recompute");
   assert.equal(Object.isFrozen(selected) && Object.isFrozen(selected.issues), true);
+  const shape = selected.constructionFor(literal).shape;
+  assert.equal(Object.isFrozen(shape) && Object.isFrozen(shape.members) && shape.members.every(Object.isFrozen), true,
+    "the exact native record and ordered checked members are immutable at their producer");
+  assert.throws(() => shape.members.reverse(), TypeError, "sealed native field order cannot be rewritten");
 });
 
 test("declared native construction preserves optional fields and one nullable alias state", () => {
