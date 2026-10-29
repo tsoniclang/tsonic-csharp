@@ -28,7 +28,7 @@ test("a checked native nominal view preserves nonunion storage when the checked 
     ["if (value instanceof Writable) observe(value);", true],
     ["if (!(value instanceof Writable)) return; observe(value);", true],
     ["if (value instanceof Writable && flag) observe(value);", true],
-    ["if (value instanceof Writable || value instanceof Writable) observe(value);", true],
+    ["if (value instanceof Writable || isWritable(value)) observe(value);", true],
     ["if (value instanceof Writable || flag) observe(value);", false],
     ["if (!(value instanceof Writable)) observe(value);", false],
     ["if (other instanceof Writable) observe(value);", false],
@@ -37,6 +37,7 @@ test("a checked native nominal view preserves nonunion storage when the checked 
     const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: { "/src/index.ts": `
       interface Payload { message: string; }
       declare const Writable: { new(): Payload };
+      declare function isWritable(value: unknown): boolean;
       declare function observe(value: unknown): void;
       function run(value: Payload, other: Payload, flag: boolean): void { ${body} }
     ` }, compilerOptions: { strict: true, target: "es2022", module: "esnext" } }).checkSource();
@@ -61,6 +62,8 @@ test("a checked native nominal view preserves nonunion storage when the checked 
     const storage = csharpExceptionTargetType();
     const view = csharpRuntimeErrorTargetType();
     const foreign = { ...storage, id: "ForeignOwner::Writable" };
+    const guardDeclaration = source.ast.statements(file).find(node => source.ast.is.IsFunctionDeclaration(node) &&
+      source.ast.text(source.ast.as.AsFunctionDeclaration(node)?.Name) === "isWritable");
     const host = {
       ast: source.ast, navigation: source.navigation, sourceFacts: source.sourceFacts,
       semantics: selectedFile => source.semantics.forFile(selectedFile), semanticsFor: node => source.semantics.forNode(node),
@@ -68,7 +71,11 @@ test("a checked native nominal view preserves nonunion storage when the checked 
       sourceStorage: createSourceStorageQuery(source, [file]),
       projectTypes: () => ({ directSupertypes: () => [] }), providers: createSourceErrorProviderFixture(),
       objectShapes: { resolveTarget: () => undefined }, structuralTypes: { resolveTarget: () => undefined },
-      closedTypeGuard: () => undefined,
+      closedTypeGuard(expression) {
+        const call = queries.operations.call(expression);
+        return call?.sourceArguments[0] !== undefined && queries.declarations.signatureDeclaration(call.selectedSignature) === guardDeclaration
+          ? { sourceOperand: call.sourceArguments[0].expression, predicate: { kind: "nominal", targetCarrier: view } } : undefined;
+      },
     };
     const flow = selectCsharpNativeFlowMembers(host, read, storage, guard => {
       assert.equal(source.navigation.sourceReferenceFor(guard.sourceConstructor)?.declaration === guard.declaration, true,
