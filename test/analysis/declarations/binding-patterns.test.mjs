@@ -99,6 +99,7 @@ function publishedProgram(sourceText, surface) {
 function factsInput(program, source, target) {
   return {
     ast: program.source.ast,
+    sourceFacts: source.sourceFacts,
     semanticsFor: source.semantics.forNode,
     sourceFiles: program.sourceFiles,
     participation: program.records.nativeParticipation,
@@ -243,7 +244,7 @@ test("an unsupported pattern stays a candidate issue with its pattern root and n
   const pattern = findNode(program, "KindArrayBindingPattern", "[value]");
   const initializer = source.ast.as.AsVariableDeclaration(declaration).Initializer;
   const carrier = csharpJsSetTargetType(csharpSourcePrimitiveTargetType("float64"));
-  const analysis = analyzeCsharpBindingPatterns({ ast: source.ast, semanticsFor: source.semantics.forNode,
+  const analysis = analyzeCsharpBindingPatterns({ ast: source.ast, sourceFacts: source.sourceFacts, semanticsFor: source.semantics.forNode,
     sourceFiles: program.sourceFiles, participation: { get: () => "body" },
     evidence: { compileTimeMetadata: { get: () => false } },
     operations: { nativeUnreachable: { get: () => false } },

@@ -1,4 +1,27 @@
 import assert from "node:assert/strict";
+
+test("native binding projections preserve one exact member and reject malformed receiver contracts", () => {
+  const string = csharpSourcePrimitiveTargetType("string");
+  const carrier = { kind: "target-named", id: "System.Exception", csharpAllowsRefLikeTypeArguments: [] };
+  const property = { declaration: {}, member: { id: "System.Exception.Message", sourceName: "message", targetName: "Message",
+    kind: "property", readonly: true, declaringType: carrier, parameters: [], returnType: string },
+    receiver: { kind: "instance" }, invocation: { kind: "member" } };
+  const source = selectCsharpBindingPatternProjection({ kind: "native-source", carrier });
+  assert.equal(source.kind === "source" && source.source.kind === "native-source" && source.source.carrier === carrier, true,
+    "the native input is not reclassified as a structural or source-owned object");
+  const selected = selectCsharpBindingPatternProjection({ kind: "native-member", property });
+  assert.equal(selected.kind === "element" && selected.element.kind === "native-member" && selected.element.property.member === property.member,
+    true, "the original native member is sealed without re-inference or copied runtime storage");
+  assert.equal(Object.isFrozen(selected.element.property), true, "the admitted member/receiver projection is immutable");
+  for (const [label, altered] of [
+    ["missing declaration", { ...property, declaration: undefined }],
+    ["missing native result", { ...property, member: { ...property.member, returnType: undefined } }],
+    ["wrong receiver", { ...property, receiver: { kind: "none" } }],
+    ["wrong native arity", { ...property, member: { ...property.member, parameters: [{ name: "extra", type: string, passingMode: "by-value" }] } }],
+    ["missing static receiver slot", { ...property, invocation: { kind: "receiver-call" } }],
+  ]) assert.equal(selectCsharpBindingPatternProjection({ kind: "native-member", property: altered }).kind, "unresolved",
+    `${label}: no fabricated native binding contract`);
+});
 import test from "node:test";
 import { selectCsharpBindingPatternDefault, selectCsharpBindingPatternProjection } from "../../../dist/policy/types/objects/binding-projection.js";
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";

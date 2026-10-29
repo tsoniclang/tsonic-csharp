@@ -4,6 +4,28 @@ import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../hel
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 import { selectCsharpProjectConstructorAbi } from "../../../dist/analysis/callables/calls/source-callable-abi.js";
 
+test("destructured Error parameters publish the original checked native slot before binding reads", () => {
+  const compiled = compileCsharpSource({ sourceText: `
+    export function read({ message: renamed }: Error): string { return renamed; }
+  ` });
+  assertCsharpCompilationSucceeded(compiled);
+  const { program } = compiled.result;
+  const { source } = program;
+  const declaration = source.navigation.nodes.find(node => source.ast.is.IsFunctionDeclaration(node) && source.ast.text(source.ast.name(node)) === "read");
+  assert.equal(declaration !== undefined, true, "one authored callable owns the binding input");
+  const parameter = source.ast.parameters(declaration)[0];
+  const checked = source.semantics.forNode(declaration).types.declarationSignatureInfo(declaration).parameters[0];
+  const published = program.records.callableDeclaration.get(declaration)?.contract.nativeParameters;
+  assert.equal(published?.length === 1 && published[0].sourceParameter === parameter && checked.declaration === parameter, true,
+    "the actual unique declaration slot is not reconstructed from a destructured variable name");
+  const carrier = published[0].targetParameter.type;
+  assert.equal(carrier.kind === "target-named" && (carrier.id === "System.Exception" || carrier.id.endsWith("::System.Exception")), true,
+    "the natural readonly formal keeps its exact native Exception input");
+  const body = program.records.callableParameter.get(parameter)?.carrier;
+  assert.equal(body === carrier || body?.kind === carrier.kind && body.id === carrier.id, true,
+    "the body and final native ABI consume the same published formal identity");
+});
+
 test("source receiver annotations do not change generated callable, class or interface ABI", () => {
   const sourceText = `
     interface Reader { read(RECEIVERvalue: number): number; }

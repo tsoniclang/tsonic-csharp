@@ -244,7 +244,7 @@ export function analyzeCsharpRepresentationIteration(
   for (const entry of expectedUse.entries) if (entry.site.role === "initializer")
     initializerUses.set(entry.site.subject, initializerUses.has(entry.site.subject) ? null : entry.use);
   const bindingCandidates = analyzeCsharpBindingPatterns({
-    ast: source.ast, semanticsFor: source.semantics.forNode, sourceFiles, participation: nativeParticipation.participation,
+    ast: source.ast, sourceFacts: source.sourceFacts, semanticsFor: source.semantics.forNode, sourceFiles, participation: nativeParticipation.participation,
     evidence: sourceEvidence, operations, valueReads, objectShapes, initializerUses,
     typePolicy: policy.types, conversionPolicy: Object.freeze({ ...policy, objectShapes }), storage: storageRepresentations,
   });

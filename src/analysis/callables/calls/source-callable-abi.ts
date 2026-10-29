@@ -53,7 +53,7 @@ export function createCsharpSourceParameterProducer(
     if (parameters === undefined) continue;
     for (const [index, parameter] of parameters.entries()) {
       const checked = signature.parameters.find(slot => slot.declaration === parameter);
-      const type = queries.declarations.declaredValueType(parameter);
+      const type = checked?.type;
       const present = type === undefined ? undefined : queries.types.nonNullableType(type);
       const identity = present === undefined ? undefined : classifyCsharpSourceProfileType(present, queries, policy.ast);
       if (identity?.kind !== "error") continue;

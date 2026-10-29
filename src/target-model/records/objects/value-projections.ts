@@ -2,6 +2,16 @@ import type { Node } from "@tsonic/tsts";
 import type { CsharpArrayBindingCarrier } from "../../types/carriers/binding-array-carrier.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../types/model.js";
 import type { CsharpConversionSelection } from "../../conversions/selection.js";
+import type { CsharpTargetMember } from "../../types/model.js";
+import type { CsharpTargetReceiverRelation } from "../../identities/provider-relations.js";
+import type { CsharpTargetPropertyInvocation } from "../program/source-profile-invocations.js";
+
+export interface CsharpNativeBindingProperty {
+  readonly declaration: Node;
+  readonly member: CsharpTargetMember;
+  readonly receiver: CsharpTargetReceiverRelation;
+  readonly invocation: Extract<CsharpTargetPropertyInvocation, { readonly kind: "member" | "receiver-call" }>;
+}
 
 export type CsharpBindingPatternSource =
   | {
@@ -10,6 +20,7 @@ export type CsharpBindingPatternSource =
       readonly bindingCarrier: CsharpArrayBindingCarrier;
     }
   | { readonly kind: "object-shape-source"; readonly shape: CsharpObjectShapeFact }
+  | { readonly kind: "native-source"; readonly carrier: TargetTypeRef }
   | { readonly kind: "source-owned-source" };
 
 export type CsharpTupleDefaultUse =
@@ -27,6 +38,7 @@ export type CsharpBindingElementProjection =
   | { readonly kind: "tuple-rest"; readonly start: number; readonly restCarrier: Extract<TargetTypeRef, { readonly kind: "tuple" }> }
   | { readonly kind: "object-shape-member"; readonly member: CsharpObjectShapeMemberFact }
   | { readonly kind: "object-shape-absence"; readonly carrier: TargetTypeRef }
+  | { readonly kind: "native-member"; readonly property: CsharpNativeBindingProperty }
   | {
       readonly kind: "object-shape-rest";
       readonly restShape: CsharpObjectShapeFact;

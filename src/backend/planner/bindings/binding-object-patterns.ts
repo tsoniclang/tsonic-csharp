@@ -32,13 +32,13 @@ export function planObjectBindingPattern(
     csharpTypeFromObjectShapeFact(input, objectShape, diagnostics, patternNode);
     return planObjectShapeBindingPattern(patternNode, sourceExpression, objectShape, sourceFile, input, diagnostics, state, planBindingNameFromProjection, planExpression);
   }
-  if (selected?.kind !== "source-owned-source") return failCsharpPlannerInvariant(
+  if (selected?.kind !== "source-owned-source" && selected?.kind !== "native-source") return failCsharpPlannerInvariant(
     "Object binding requires its admitted native source projection.", patternNode);
   const elements = AsBindingPattern(input.program.source.ast, patternNode)?.Elements?.Nodes ?? [];
   return elements.flatMap((elementNode) => {
     if (elementNode === undefined) {
       failCsharpPlannerInvariant("An admitted object pattern requires its dense checked element list.", patternNode);
     }
-    return planObjectBindingElement(elementNode, sourceExpression, sourceFile, input, diagnostics, state, planBindingNameFromProjection);
+    return planObjectBindingElement(elementNode, sourceExpression, sourceFile, input, diagnostics, state, planBindingNameFromProjection, planExpression);
   });
 }
