@@ -35,7 +35,7 @@ test("source union representation absorbs only an existing unambiguous native re
     assert.equal(definitions.physicalArm(error, carrier) === exception, true, "the narrower source carrier maps to its real native base");
     assert.equal(definitions.physicalArm(exception, carrier) === exception, true, "the native base arm retains its own identity");
     const optional = select([...members, csharpAbsenceTargetType()]);
-    assert.equal(getCsharpNullableElementTargetType(optional) === exception, true, "one native absence is preserved");
+    assert.equal(targetTypeRefEquals(getCsharpNullableElementTargetType(optional), exception), true, "one native absence preserves the exact native carrier identity");
     const distinct = select([...members, string]);
     const arms = getCsharpRuntimeUnionArms(distinct);
     assert.equal(arms?.length === 2 && arms.includes(exception) && arms.includes(string), true,
