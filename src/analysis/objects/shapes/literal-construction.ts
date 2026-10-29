@@ -26,10 +26,11 @@ export function createCsharpLiteralShapeResolver(
   dependencies: {
     readonly resolveNode: CsharpRecursiveObjectShapePolicy["resolveNode"];
     readonly retainLiteralMemberEvidence: ReturnType<typeof createCsharpObjectShapeMemberResolver>["retainLiteralMemberEvidence"];
+    readonly instantiateMemberEvidence: ReturnType<typeof createCsharpObjectShapeMemberResolver>["instantiateMemberEvidence"];
     readonly rememberTargetShape: (shape: CsharpObjectShapeFact) => CsharpObjectShapeFact;
   },
 ): CsharpRecursiveObjectShapePolicy["resolveObjectLiteralTargetShape"] {
-  const { resolveNode, retainLiteralMemberEvidence, rememberTargetShape } = dependencies;
+  const { resolveNode, retainLiteralMemberEvidence, instantiateMemberEvidence, rememberTargetShape } = dependencies;
   const environment = host.typeParameterConstraints;
   function resolveObjectLiteralTargetShape(
     expectedShape: CsharpObjectShapeFact | undefined,
@@ -76,10 +77,17 @@ export function createCsharpLiteralShapeResolver(
     const actualShape = expectedShape.targetType.kind === "target-named" &&
       (expectedShape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true
       ? resolveNode(objectLiteral, sourceFile) : undefined;
+    const queries = host.semantics(sourceFile);
+    const sourceType = queries.types.expressionType(objectLiteral);
+    const expectedMembers = sourceType === undefined ? undefined
+      : instantiateMemberEvidence(expectedShape.members, sourceType, queries, expectedShape.sourceType);
+    if (sourceType === undefined || expectedMembers === undefined) return {
+      kind: "rejected", subject: objectLiteral,
+      reason: "Object-literal construction requires exact member correspondence with its declared native contract.",
+    };
     const additionalMembers = actualShape?.members.filter(actual =>
       !expectedShape.members.some(expected => csharpSourceMemberKeysEqual(expected.sourceKey, actual.sourceKey))) ?? [];
-    const members = [...retainLiteralMemberEvidence([...expectedShape.members, ...additionalMembers],
-      objectLiteral, host.semantics(sourceFile))];
+    const members = [...retainLiteralMemberEvidence([...expectedMembers, ...additionalMembers], objectLiteral, queries)];
     const nativeMethodLiteral = members.some(member => member.memberKind === "method" &&
       member.sourceDeclarations?.some(declaration => host.ast.is.IsMethodDeclaration(declaration) &&
         host.ast.body(declaration) !== undefined && host.ast.parent(declaration) === objectLiteral) === true);
@@ -88,7 +96,7 @@ export function createCsharpLiteralShapeResolver(
     const ownsImplementation = expectedShape.methodImplementation?.declaration === objectLiteral;
     if (additionalMembers.length === 0 && accessors.kind === "none" && implemented === expectedShape.implements &&
       (!nativeMethodLiteral || ownsImplementation) && !copiedMethods) {
-      return { kind: "resolved", shape: expectedShape };
+      return { kind: "resolved", shape: { ...expectedShape, sourceType, members } };
     }
     if (copiedMethods) {
       const sources: { readonly property: Node; readonly shape: CsharpObjectShapeFact }[] = [];
@@ -200,7 +208,6 @@ export function createCsharpLiteralShapeResolver(
       kind: "rejected", subject: objectLiteral,
       reason: "Native object methods require one exact authored implementation and closed lexical capture types.",
     };
-    const sourceType = actualShape?.sourceType ?? expectedShape.sourceType;
     const shape = rememberTargetShape({
       targetType: createStructuralObjectShapeTarget(
         members,

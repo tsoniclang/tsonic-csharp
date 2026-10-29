@@ -33,6 +33,12 @@ export function selectCsharpLiteralDeclarationContext(
   const declaration = ast.parent(current);
   const variable = declaration !== undefined && ast.is.IsVariableDeclaration(declaration)
     ? ast.as.AsVariableDeclaration(declaration) : undefined;
+  if (variable?.Initializer === current && variable.Type !== undefined &&
+    ast.is.IsObjectLiteralExpression(expression) && ast.is.IsObjectBindingPattern(ast.name(declaration!))) {
+    const selectedType = queries.types.expressionType(expression);
+    return selectedType === undefined ? undefined : { component: { selectedType, declaration },
+      declarations: [], source: expression };
+  }
   const declarations = variable?.Initializer === current ? [declaration!] : [];
   const returnContext = (callable: Node, locals: readonly Node[]): CsharpLiteralContext | undefined => {
     const authoredTypeNode = ast.typeNode(callable);

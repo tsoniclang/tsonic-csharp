@@ -3,7 +3,7 @@ import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, Type } from "@tsonic/tsts";
 import type { SourceCallableTypeEvidence, SourceFileSemantics } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../../target-model/types/model.js";
 import { classifyCsharpSourceProfileDeclaration, classifyCsharpSourceProfileType, selectedCsharpSourceProfileOwner } from "../../../../policy/identities/source-types.js";
 
 import { csharpSourceTypeArgumentNodes } from "../../../../target-model/syntax/type-arguments.js";
@@ -623,6 +623,15 @@ export function resolveSourceValueDeclaration(
     return undefined;
   }
   if (refinement.kind === "unrelated") {
+    const present = getCsharpNullableElementTargetType(initializerTarget) ?? initializerTarget;
+    const selectedMembers = queries.types.isUnion(selectedValueType)
+      ? queries.types.unionOrIntersectionTypes(selectedValueType) : [selectedValueType];
+    if (syntax.type === undefined && present.kind === "target-named" &&
+      (present as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "enum" &&
+      selectedMembers.length > 0 && selectedMembers.every(member =>
+        queries.types.isNullish(member) || queries.types.isNumberLike(member))) {
+      return selectedMembers.some(member => queries.types.isNullish(member)) ? initializerTarget : present;
+    }
     return reconcileCsharpSelectedTargetType(
       initializerTarget,
       resolveTypeWithState(selectedValueType, queries.sourceFile, nextState(state)),

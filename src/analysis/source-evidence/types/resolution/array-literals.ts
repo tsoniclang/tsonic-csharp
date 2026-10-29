@@ -17,6 +17,7 @@ import { selectCsharpLiteralDeclarationContext } from "../../../objects/native-c
 import { csharpFreeTypeParameterIdentities } from "../../../../target-model/types/generic-references.js";
 import { resolveTypeParameter } from "./source-evidence.js";
 import { getCsharpGenericOptionalParts } from "../../../../target-model/types/projections.js";
+import { csharpUnionLeaves } from "../../../../target-model/types/union-relations.js";
 
 const unavailable: CsharpArrayLiteralSelection = Object.freeze({ kind: "unavailable" });
 type ArrayContribution = Parameters<typeof selectCsharpInferredNumericArrayElement>[0][number] & { readonly source: Type };
@@ -86,7 +87,7 @@ export function resolveCsharpArrayLiteralSelection(
   const contributions = selected.flatMap(group => group ?? []);
   const elements = contributions.map(member => member.carrier);
   const context = selectCsharpLiteralDeclarationContext(node, queries, host);
-  const destination = selectArrayElementDestination(scope, queries, state, context, sourceElements.length === 0);
+  const destination = selectArrayElementDestination(scope, node, queries, state, context, sourceElements.length === 0);
   if (elements.length === 0) {
     if (sourceElements.length === 0 && destination.kind === "unavailable" &&
       context === undefined) {
@@ -122,14 +123,24 @@ export function resolveCsharpArrayLiteralSelection(
 }
 function selectArrayElementDestination(
   scope: CsharpTypeResolutionScope,
+  expression: Node,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
   context: ReturnType<typeof selectCsharpLiteralDeclarationContext>,
   empty: boolean,
 ): { readonly kind: "resolved"; readonly carrier: TargetTypeRef } | { readonly kind: "unavailable" } {
-  if (context === undefined) return { kind: "unavailable" };
   const { host } = scope;
-  const argument = sourceExpressionCallArgument(context.returnedFrom ?? context.source,
+  const collectionElement = (carrier: TargetTypeRef | undefined): TargetTypeRef | undefined => {
+    const present = getCsharpNullableElementTargetType(carrier) ?? carrier;
+    const direct = getCsharpCollectionElementTargetType(present);
+    if (direct !== undefined || present === undefined) return direct;
+    const collections = csharpUnionLeaves(present, host.typeDefinitions)?.flatMap(leaf => {
+      const element = getCsharpCollectionElementTargetType(getCsharpNullableElementTargetType(leaf.carrier) ?? leaf.carrier);
+      return element === undefined ? [] : [element];
+    });
+    return collections?.length === 1 ? collections[0] : undefined;
+  };
+  const argument = sourceExpressionCallArgument(context?.returnedFrom ?? context?.source ?? expression,
     { ast: host.ast, semantics: { forNode: host.semanticsFor } });
   if (argument !== undefined) {
     const callQueries = host.semanticsFor(argument.call);
@@ -139,14 +150,14 @@ function selectArrayElementDestination(
     if (call === undefined || bindings.length !== 1) return { kind: "unavailable" };
     const excluded = empty ? undefined : new Set([argument.argumentIndex, ...call.sourceArguments.flatMap((argument, index) => {
       const declaration = host.navigation.referenceFor(argument.expression)?.declaration;
-      return declaration !== undefined && context.declarations.includes(declaration) ? [index] : [];
+      return declaration !== undefined && context?.declarations.includes(declaration) === true ? [index] : [];
     })]);
     const parameter = scope.resolveSourceCallArgumentParameter(call, bindings[0]!, callQueries.sourceFile, excluded);
-    const result = context.returnedFrom === undefined ? parameter
+    const result = context?.returnedFrom === undefined ? parameter
       : getCsharpCallableValueSignature(getCsharpNullableElementTargetType(parameter) ?? parameter)?.returnType;
-    const selected = context.returnedFrom !== undefined && host.ast.hasModifierKind(context.returnedFrom, "async")
+    const selected = context?.returnedFrom !== undefined && host.ast.hasModifierKind(context.returnedFrom, "async")
       ? getCsharpTaskResultTargetType(result) : result;
-    const element = getCsharpCollectionElementTargetType(getCsharpNullableElementTargetType(selected) ?? selected);
+    const element = collectionElement(selected);
     const unbound = new Set((call.sourceSelectedMethodTypeArguments ?? []).flatMap(argument => {
       if (argument.explicitTypeNode !== undefined) return [];
       const parameter = resolveTypeParameter(argument.typeParameter, callQueries, host.ast, host.typeParameterConstraints);
@@ -157,10 +168,11 @@ function selectArrayElementDestination(
     }
     return element === undefined ? { kind: "unavailable" } : { kind: "resolved", carrier: element };
   }
+  if (context === undefined) return { kind: "unavailable" };
   const selected = scope.resolveSourceTypeComponentEvidence(context.component, queries, nextState(state));
   const returned = context.component.declaration !== undefined &&
     scope.host.ast.hasModifierKind(context.component.declaration, "async")
     ? getCsharpTaskResultTargetType(selected) : selected;
-  const element = getCsharpCollectionElementTargetType(getCsharpNullableElementTargetType(returned) ?? returned);
+  const element = collectionElement(returned);
   return element === undefined ? { kind: "unavailable" } : { kind: "resolved", carrier: element };
 }
