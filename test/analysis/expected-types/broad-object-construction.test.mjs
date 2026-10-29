@@ -108,7 +108,7 @@ export function aliased(): Aliased {
 `;
 
 for (const surface of ["native", "js"]) {
-  test(`declared native object construction retains ordered members and shared references on ${surface}`, { timeout: 300_000 }, () => {
+  test(`declared native object construction retains ordered members and shared references on ${surface}`, { timeout: 300_000 }, context => {
     const compiled = compileCsharpSource({ surface, sourceText: declaredNativeSource });
     assertCsharpCompilationSucceeded(compiled);
     const program = compiled.result.program;
@@ -129,10 +129,6 @@ for (const surface of ["native", "js"]) {
       assert.equal(physical !== undefined && physical.kind !== "erased" &&
         physical.objectShape !== undefined && physical.dynamicObject === undefined, true,
       "declared native storage is never selected from a later dynamic reader");
-      assert.equal(Object.isFrozen(physical.objectShape), true, "the selected native shape is immutable");
-      assert.equal(Object.isFrozen(physical.objectShape.members), true, "the exact native member inventory is immutable");
-      assert.equal(physical.objectShape.members.every(member => Object.isFrozen(member)), true,
-        "each native member retains immutable checked evidence");
     }
     const output = [...compiled.artifacts.values()].join("\n");
     assert.doesNotMatch(output, /new Tsonic\.CSharp\.Runtime\.TsObject\(|\.CreateDynamicObject\(|\.WriteDynamicSlot\(/u,
@@ -151,9 +147,17 @@ var aliased = Tsonic.Generated.Index.aliased();
 if (aliased.first.value != 7 || !object.ReferenceEquals(aliased.first, aliased.second))
     throw new System.Exception("stored native alias identity");
 `);
+    context.diagnostic(`native ${surface}: nested 1/ready; trace abc; first 1/second 2/last 3; shared Box identity`);
+    for (const node of literals) {
+      const shape = program.records.nativeExpression.get(node).physical.objectShape;
+      assert.equal(Object.isFrozen(shape), true, "the selected native shape is immutable");
+      assert.equal(Object.isFrozen(shape.members), true, "the exact native member inventory is immutable");
+      assert.equal(shape.members.every(member => Object.isFrozen(member)), true,
+        "each native member retains immutable checked evidence");
+    }
   });
 
-  test(`escaping declared native scalar, reference and nested objects match handwritten allocation on ${surface}`, { timeout: 300_000 }, () => {
+  test(`escaping declared native scalar, reference and nested objects match handwritten allocation on ${surface}`, { timeout: 300_000 }, context => {
     const compiled = compileCsharpSource({ surface, sourceText: `
 type Scalar = { value: number };
 type Reference = { value: string };
@@ -221,5 +225,6 @@ static class Native {
 `);
     assert.match(measurements, /^scalar=(\d+)\/\1;reference=(\d+)\/\2;nested=(\d+)\/\3\s*$/u,
       "all three original escaping allocation predicates match their idiomatic native counterparts exactly");
+    context.diagnostic(`native ${surface}: ${measurements.trim()}`);
   });
 }
