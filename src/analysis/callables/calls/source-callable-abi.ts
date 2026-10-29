@@ -1,5 +1,5 @@
 import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
-import { AsParameterDeclaration, HasSourceKind, KindIdentifier, sourceCallableValueParameters } from "@tsonic/target-api/source";
+import { AsParameterDeclaration, HasSourceKind, KindIdentifier, isSourceCallableBodyBoundary, sourceCallableValueParameters } from "@tsonic/target-api/source";
 import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
 import { csharpNullableTargetType, getCsharpCallableValueSignature, getCsharpNullableElementTargetType, csharpCarrierAdmitsSourceAbsence,
@@ -42,7 +42,9 @@ export function createCsharpSourceParameterProducer(
   const active = new Set<Node>();
   let closed = false;
   for (const declaration of source.navigation.nodes) {
-    if (policy.ast.parameters(declaration).length === 0) continue;
+    if (!isSourceCallableBodyBoundary(policy.ast, declaration) && !policy.ast.is.IsMethodSignatureDeclaration(declaration) &&
+        !policy.ast.is.IsCallSignatureDeclaration(declaration) && !policy.ast.is.IsConstructSignatureDeclaration(declaration) &&
+        !policy.ast.is.IsFunctionTypeNode(declaration) && !policy.ast.is.IsConstructorTypeNode(declaration)) continue;
     const queries = source.semantics.forNode(declaration);
     const signature = queries.types.declarationSignatureInfo(declaration);
     if (signature === undefined) continue;
