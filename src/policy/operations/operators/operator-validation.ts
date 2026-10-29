@@ -171,7 +171,8 @@ function supportsIntrinsicEquality(
     return supportsIntrinsicEquality(left, rightElement, input);
   }
   if (targetTypeRefEquals(left, csharpBigIntegerTargetType()) &&
-    targetTypeRefEquals(right, csharpBigIntegerTargetType())) {
+      (targetTypeRefEquals(right, csharpBigIntegerTargetType()) || isCsharpIntegralTargetType(right)) ||
+    targetTypeRefEquals(right, csharpBigIntegerTargetType()) && isCsharpIntegralTargetType(left)) {
     return true;
   }
   if (
