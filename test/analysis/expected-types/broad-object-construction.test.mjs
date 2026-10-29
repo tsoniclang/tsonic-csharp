@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
+import { createSourceDiagnosticSpanReader } from "@tsonic/target-api/source";
+import { compileCsharpSource, assertCsharpCheckingSucceeded, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
@@ -22,51 +23,38 @@ export function readOrdered(): number { const value: any = ordered(); return val
 export function readAliased(): unknown { const value: any = aliased(); return value.first; }
 `;
 
+function assertCanonicalAnyRefusal(compiled) {
+  assertCsharpCheckingSucceeded(compiled);
+  const issues = compiled.result.diagnostics.filter(issue => issue.category === "error");
+  assert.equal(issues.length > 0, true, "the original any-containing source still requires the shared admission refusal");
+  const ast = compiled.source.ast;
+  const readSpan = createSourceDiagnosticSpanReader(ast);
+  const nodes = new Set();
+  const visit = node => {
+    nodes.add(node);
+    ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  compiled.source.sourceFiles.filter(file => file !== undefined && !ast.isDeclarationFile(file)).forEach(visit);
+  for (const issue of issues) {
+    assert.equal(issue.code, "TSONIC_ANY_UNSUPPORTED", "one canonical shared source-any diagnostic owns the failure");
+    assert.equal(issue.message, "'any' has no native representation. Declare the type, or use 'unknown' and narrow it.");
+    assert.equal(nodes.has(issue.sourceNode), true, "the refusal retains its actual checked project-source occurrence");
+    const file = ast.getSourceFile(issue.sourceNode);
+    const queries = compiled.source.getSourceFileQueries(file);
+    assert.equal(queries.typeShape.isAny(queries.checker.getTypeAtLocation(issue.sourceNode)), true,
+      "the diagnostic names an actual checked any value or authored type, not the native producer");
+    const expected = readSpan(file, ast.pos(issue.sourceNode), ast.end(issue.sourceNode));
+    assert.equal(expected !== undefined, true, "the checked source occurrence has a real source span");
+    assert.deepEqual(issue.sourceSpan, { ...expected, fileName: "index.ts" }, "the exact original source coordinates are preserved");
+  }
+  assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0,
+    true, "source-any admission refuses publication rather than selecting a dynamic native representation");
+}
+
 for (const surface of ["native", "js"]) {
   test(`fresh broad object construction seals ordered native value members on ${surface}`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface, sourceText });
-    assertCsharpCompilationSucceeded(compiled);
-    const program = compiled.result.program;
-    assert.equal(program !== undefined, true, "the checked program publishes its admitted records");
-    const ast = program.source.ast;
-    const literals = [];
-    const visit = node => {
-      if (ast.is.IsObjectLiteralExpression(node)) literals.push(node);
-      ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
-    };
-    csharpProgramSourceFiles(program).forEach(visit);
-    assert.equal(literals.length, 5, "both nested literals and the alias container are checked");
-    for (const node of literals) {
-      const use = program.records.nativeExpression.get(node)?.physical;
-      assert.equal(use !== undefined && use.kind !== "erased" && use.dynamicObject !== undefined &&
-        use.objectShape === undefined, true, "fresh broad construction carries a sealed member plan, not a synthetic shape");
-      assert.equal(Object.isFrozen(use.dynamicObject), true, "the selected authored member order is immutable");
-      assert.equal(Object.isFrozen(use.dynamicObject.members), true, "the native object member vector is immutable");
-      assert.equal(use.dynamicObject.members.every(member => Object.isFrozen(member)), true,
-        "each selected member retains immutable checked name and initializer evidence");
-    }
-    const output = [...compiled.artifacts.values()].join("\n");
-    assert.equal((output.match(/new Tsonic\.CSharp\.Runtime\.TsObject\(\)/gu) ?? []).length, 5,
-      "one direct native construction is emitted for each fresh literal");
-    assert.equal(/\.CreateDynamicObject\(|new object\??\[/u.test(output), false,
-      "direct native field writes do not allocate a params array or box the closed value carrier");
-    assert.equal(/\bObjectShape_[a-f0-9]+\b|System\.Reflection|\bdynamic\b/u.test(output), false,
-      "fresh broad literals require neither a boxed intermediate shape nor reflective access");
-    assert.equal(/\.WriteDynamicSlot\("value",/u.test(output) && /\.WriteDynamicSlot\("label",/u.test(output), true,
-      "the nested literal retains both exact native fields");
-    executeCsharpConstruction(compiled, `broad-object-construction-${surface}`, false, false, [], `
-var nested = Tsonic.Generated.Index.nested();
-if (System.Convert.ToInt64(nested.ReadDynamicSlot("value").unwrap()) != 1 ||
-    nested.ReadDynamicSlot("child").ReadDynamicSlotAs<string>("label") != "ready")
-    throw new System.Exception("nested native values");
-var ordered = Tsonic.Generated.Index.ordered();
-if (Tsonic.Generated.Index.trace() != "abc" ||
-    System.Convert.ToInt64(ordered.ReadDynamicSlot("last").unwrap()) != 3)
-    throw new System.Exception("initializer order and exactly-once effects");
-var aliased = Tsonic.Generated.Index.aliased();
-if (!object.ReferenceEquals(aliased.ReadDynamicSlot("first").unwrap(), aliased.ReadDynamicSlot("second").unwrap()))
-    throw new System.Exception("stored native alias identity");
-`);
+    assertCanonicalAnyRefusal(compiled);
   });
 }
 
@@ -93,13 +81,89 @@ export function readScalar(): number { const value: any = scalar(0); return valu
 export function readReference(): string { const value: any = reference(""); return value.value; }
 export function readNested(): number { const value: any = nested(0); return value.child.value; }
 ` });
+    assertCanonicalAnyRefusal(compiled);
+  });
+}
+
+const declaredNativeSource = `
+interface Child { label: string; }
+interface Nested { value: number; child: Child; }
+interface OrderedChild { second: number; }
+interface Ordered { first: number; child: OrderedChild; last: number; }
+interface Aliased { first: Box; second: Box; }
+let order: string = "";
+function mark(label: string, value: number): number { order = order + label; return value; }
+export function trace(): string { return order; }
+export function nested(): Nested { return { value: 1, child: { label: "ready" } }; }
+export function ordered(): Ordered {
+  return { first: mark("a", 1), child: { second: mark("b", 2) }, last: mark("c", 3) };
+}
+export class Box { value: number = 7; }
+export function aliased(): Aliased {
+  const box = new Box();
+  return { first: box, second: box };
+}
+`;
+
+for (const surface of ["native", "js"]) {
+  test(`declared native object construction retains ordered members and shared references on ${surface}`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: declaredNativeSource });
+    assertCsharpCompilationSucceeded(compiled);
+    const program = compiled.result.program;
+    assert.equal(program !== undefined, true, "the declared native constructions are admitted");
+    const ast = program.source.ast;
+    const literals = [];
+    const visit = node => {
+      if (ast.is.IsObjectLiteralExpression(node)) literals.push(node);
+      ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    };
+    csharpProgramSourceFiles(program).forEach(visit);
+    assert.equal(literals.length, 5, "the same two nested pairs and shared-reference container remain distinct constructions");
+    for (const node of literals) {
+      const physical = program.records.nativeExpression.get(node)?.physical;
+      assert.equal(physical !== undefined && physical.kind !== "erased" &&
+        physical.objectShape !== undefined && physical.dynamicObject === undefined, true,
+      "declared native storage is never selected from a later dynamic reader");
+      assert.equal(Object.isFrozen(physical.objectShape), true, "the selected native shape is immutable");
+      assert.equal(Object.isFrozen(physical.objectShape.members), true, "the exact native member inventory is immutable");
+      assert.equal(physical.objectShape.members.every(member => Object.isFrozen(member)), true,
+        "each native member retains immutable checked evidence");
+    }
+    const output = [...compiled.artifacts.values()].join("\n");
+    assert.doesNotMatch(output, /new Tsonic\.CSharp\.Runtime\.TsObject\(|\.CreateDynamicObject\(|\.WriteDynamicSlot\(/u,
+      "the declared native objects do not acquire dictionary construction or writes");
+    assert.doesNotMatch(output, /new object\??\[|System\.Reflection|\bdynamic\b/u,
+      "native construction adds no params-array boxing, reflection or dynamic dispatch");
+    executeCsharpConstruction(compiled, `declared-native-object-construction-${surface}`, false, false, [], `
+var nested = Tsonic.Generated.Index.nested();
+if (nested.value != 1 || nested.child.label != "ready")
+    throw new System.Exception("nested native values");
+var ordered = Tsonic.Generated.Index.ordered();
+if (Tsonic.Generated.Index.trace() != "abc" || ordered.first != 1 ||
+    ordered.child.second != 2 || ordered.last != 3)
+    throw new System.Exception("initializer order and exactly-once effects");
+var aliased = Tsonic.Generated.Index.aliased();
+if (aliased.first.value != 7 || !object.ReferenceEquals(aliased.first, aliased.second))
+    throw new System.Exception("stored native alias identity");
+`);
+  });
+
+  test(`escaping declared native scalar, reference and nested objects match handwritten allocation on ${surface}`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+type Scalar = { value: number };
+type Reference = { value: string };
+type Nested = { child: Scalar };
+export function scalar(value: number): Scalar { return { value }; }
+export function reference(value: string): Reference { return { value }; }
+export function nested(value: number): Nested { return { child: { value } }; }
+` });
     assertCsharpCompilationSucceeded(compiled);
     const output = [...compiled.artifacts.values()].join("\n");
-    assert.equal(output.includes("CreateDynamicObject("), false, "no params-array helper is selected for any native object");
-    executeCsharpConstruction(compiled, `broad-object-allocation-${surface}`, false, false, [], `
+    assert.doesNotMatch(output, /TsObject|CreateDynamicObject\(|WriteDynamicSlot\(|System\.Reflection|\bdynamic\b/u,
+      "native scalar, reference and nested fields do not use dynamic storage");
+    const measurements = executeCsharpConstruction(compiled, `declared-native-object-allocation-${surface}`, false, false, [], `
 using System;
 using System.Runtime.CompilerServices;
-using Tsonic.CSharp.Runtime;
 using Index = Tsonic.Generated.Index;
 for (int iteration = 0; iteration < 4096; iteration++) {
     Escape.Value = Index.scalar(iteration);
@@ -130,31 +194,27 @@ start = GC.GetAllocatedBytesForCurrentThread();
 for (int iteration = 0; iteration < 8192; iteration++) Escape.Value = Native.nested(iteration);
 long nativeNested = GC.GetAllocatedBytesForCurrentThread() - start;
 if (generatedNested != nativeNested) throw new Exception($"nested allocation {generatedNested} != {nativeNested}");
-if (Convert.ToInt64(Escape.Value.ReadDynamicSlot("child").ReadDynamicSlot("value").unwrap()) != 8191)
-    throw new Exception("escaping native nested payload");
-static class Escape { public static TsValue Value; }
+if (Escape.Value is not NativeNested native || native.child.value != 8191)
+    throw new Exception("escaping handwritten nested payload");
+var generated = Index.nested(8191);
+var child = generated.child;
+if (child.value != 8191 || !object.ReferenceEquals(child, generated.child))
+    throw new Exception("escaping native nested payload and repeated-read identity");
+Console.WriteLine($"scalar={generatedScalar}/{nativeScalar};reference={generatedReference}/{nativeReference};nested={generatedNested}/{nativeNested}");
+static class Escape { public static object? Value; }
+sealed class NativeScalar { public double value; }
+sealed class NativeReference { public string value = ""; }
+sealed class NativeNested { public NativeScalar child = null!; }
 static class Native {
     [MethodImpl(MethodImplOptions.NoInlining)]
-    public static TsValue scalar(double value) {
-        var target = new TsObject();
-        target.WriteDynamicSlot("value", value);
-        return TsValue.from(target);
-    }
+    public static NativeScalar scalar(double value) => new NativeScalar { value = value };
     [MethodImpl(MethodImplOptions.NoInlining)]
-    public static TsValue reference(string value) {
-        var target = new TsObject();
-        target.WriteDynamicSlot("value", value);
-        return TsValue.from(target);
-    }
+    public static NativeReference reference(string value) => new NativeReference { value = value };
     [MethodImpl(MethodImplOptions.NoInlining)]
-    public static TsValue nested(double value) {
-        var child = new TsObject();
-        child.WriteDynamicSlot("value", value);
-        var target = new TsObject();
-        target.WriteDynamicSlot("child", child);
-        return TsValue.from(target);
-    }
+    public static NativeNested nested(double value) => new NativeNested { child = new NativeScalar { value = value } };
 }
 `);
+    assert.match(measurements, /^scalar=(\d+)\/\1;reference=(\d+)\/\2;nested=(\d+)\/\3\s*$/u,
+      "all three original escaping allocation predicates match their idiomatic native counterparts exactly");
   });
 }
