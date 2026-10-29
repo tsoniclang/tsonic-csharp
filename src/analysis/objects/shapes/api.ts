@@ -606,7 +606,7 @@ export function createCsharpObjectShapePolicy(
           targetType: contextualProjectType,
           sourceType: type,
           members,
-        } : { ...declared, sourceType: type };
+        } : { ...declared, sourceType: type, members };
       }
       const implemented = contextualProjectType !== undefined &&
           declaredKind === "interface"
