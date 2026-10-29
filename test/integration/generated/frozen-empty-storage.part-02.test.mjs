@@ -20,7 +20,7 @@ test("cross-file declared object signatures retain readonly freeze identity", { 
   executeCsharpConstruction(compiled, "frozen-empty-cross-file");
 });
 
-test("repeated empty freeze matches handwritten native allocation with no additional state", { timeout: 300_000 }, () => {
+test("repeated empty freeze matches handwritten native allocation with no additional state", { timeout: 300_000 }, context => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: `
     export function run(): boolean {
       const value: object = {};
@@ -55,6 +55,7 @@ test("repeated empty freeze matches handwritten native allocation with no additi
     System.Console.WriteLine($"native allocation {generatedBytes}/{nativeBytes}");
   `);
   assert.match(output, /native allocation (\d+)\/\1/);
+  context.diagnostic(output.trim());
 });
 
 const identitySources = new Set([

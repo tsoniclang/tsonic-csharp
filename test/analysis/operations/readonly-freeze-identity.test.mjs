@@ -118,3 +118,35 @@ test("value identity admits only one exact by-value native carrier before the se
     if (!rejected) assert.equal(selected.value.invocation.kind, "value-identity", "the one admitted invocation is sealed directly");
   }
 });
+
+test("readonly array views retain their native storage and alias mutations without copying", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+    export function run(): boolean {
+      const values = [1, 2];
+      const readonly = Object.freeze(values);
+      values[0] = 7;
+      return readonly === values && readonly[0] === 7 && readonly.length === 2;
+    }
+  ` });
+  assertCsharpCompilationSucceeded(compiled);
+  const generated = [...compiled.artifacts.values()].join("\n");
+  assert.equal(/FrozenObject|CheckWrite|ToArray\(|\.Clone\(|ConditionalWeakTable/u.test(generated), false,
+    "the readonly view introduces neither storage duplication nor runtime freeze state");
+  executeCsharpConstruction(compiled, "readonly-freeze-native-array-identity");
+});
+
+test("readonly identity evaluates the actual selected generic callee result rather than an input origin", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+    interface Item { count: number; }
+    function replace<Value extends object>(value: Value, replacement: Value): Value { return replacement; }
+    export function run(): boolean {
+      const first: Item = { count: 1 };
+      const second: Item = { count: 2 };
+      const readonly = Object.freeze(replace(first, second));
+      second.count = 3;
+      return readonly === second && readonly !== first && readonly.count === 3 && first.count === 1;
+    }
+  ` });
+  assertCsharpCompilationSucceeded(compiled);
+  executeCsharpConstruction(compiled, "readonly-freeze-selected-callee-result");
+});
