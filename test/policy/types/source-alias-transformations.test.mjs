@@ -1,8 +1,65 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createTsonicPlugin as nodejsCapability } from "../../../../csharp-nodejs/dist/index.js";
-import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { assertCsharpCompilationSucceeded, compileCsharpSource, analyzeCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { resolveTypeReferenceNode } from "../../../dist/analysis/source-evidence/types/resolution/source-references.js";
+import { resolveCsharpProviderIndexedAccess } from "../../../dist/analysis/source-evidence/types/resolution/indexed-access.js";
+import { getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
+
+test("checked native tuple indexes retain exact slots and reject foreign or malformed correspondence", () => {
+  const { source, analysis } = analyzeCsharpSource({ surface: "js", capabilities: [nodejsCapability()], sourceText: `
+    import type { Readable } from "node:stream";
+    type Arguments = Parameters<Readable["destroy"]>;
+    type Selected = Arguments[0];
+    type One = 1;
+    type Unbounded = number;
+    export function preserve(value: Arguments): Arguments { return value; }
+  ` });
+  assert.equal(analysis.kind, "resolved", "the source publishes its real checked native tuple");
+  const aliases = source.navigation.nodes.filter(node => source.ast.is.IsTypeAliasDeclaration(node));
+  const alias = name => aliases.find(node => source.ast.text(source.ast.name(node)) === name);
+  const node = source.ast.typeNode(alias("Selected"));
+  const owner = source.ast.as.AsIndexedAccessTypeNode(node).ObjectType;
+  const queries = source.semantics.forNode(node);
+  const tuple = analysis.value.records.nodeTargetType.get(owner);
+  assert.equal(tuple?.kind, "tuple", "the exact owner is a finite native tuple");
+  assert.equal(tuple.elements.length, 1, "the original source signature has one native scalar slot");
+  const element = tuple.elements[0];
+  const present = getCsharpNullableElementTargetType(element);
+  assert.equal(present?.kind === "target-named" && present.id.endsWith("::System.Exception"), true,
+    "native provider identity and its one absence state precede indexing");
+  const syntax = source.ast.as.AsIndexedAccessTypeNode(node);
+  const ownerType = queries.types.authoredType(owner);
+  const indexType = queries.types.authoredType(syntax.IndexType);
+  const checked = queries.types.selectIndexedAccess(ownerType, indexType);
+  assert.equal(checked?.kind === "resolved" && checked.members.length === 1, true, "one original checked property slot");
+  const scope = { host: { ast: source.ast }, resolveNodeWithState(actual, file) {
+    assert.equal(actual === owner && file === queries.sourceFile, true, "the same authored owner and file reach native resolution");
+    return tuple;
+  } };
+  assert.equal(resolveCsharpProviderIndexedAccess(scope, node, queries, { depth: 0 }) === element, true,
+    "indexing returns the identical native element, without a source-Error reconstruction or absence copy");
+  const selected = checked.members[0];
+  const one = queries.types.authoredType(source.ast.typeNode(alias("One")));
+  const unbounded = queries.types.authoredType(source.ast.typeNode(alias("Unbounded")));
+  const foreign = queries.declarations.declarationSymbol(alias("One"));
+  for (const [label, member] of [
+    ["foreign property", { ...selected, property: { ...selected.property, symbol: foreign } }],
+    ["out of range", { ...selected, indexType: one, property: { ...selected.property, name: "1" } }],
+    ["unbounded index", { ...selected, indexType: unbounded }],
+    ["wrong read component", { ...selected, readType: one }],
+    ["wrong optional slot", { ...selected, property: { ...selected.property, optional: !selected.property.optional } }],
+  ]) {
+    const altered = { ...queries, types: { ...queries.types,
+      selectIndexedAccess: () => ({ ...checked, members: [member] }) } };
+    const rejected = resolveCsharpProviderIndexedAccess(scope, node, altered, { depth: 0 });
+    assert.equal(rejected?.kind === "opaque" && rejected.id === "native-tuple-index-evidence-unavailable", true,
+      `${label}: required native correspondence cannot fall through to a different source carrier`);
+  }
+  const truncated = { ...scope, resolveNodeWithState: () => ({ ...tuple, elements: [] }) };
+  assert.equal(resolveCsharpProviderIndexedAccess(truncated, node, queries, { depth: 0 })?.kind, "opaque",
+    "a missing native element is not fabricated or silently truncated");
+});
 
 test("checked component transformations do not require native carriers for discarded inputs", () => {
   const node = {};

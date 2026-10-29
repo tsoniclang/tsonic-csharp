@@ -532,7 +532,7 @@ export function selectCsharpErrorObservationView(
   carrier: TargetTypeRef | undefined,
   selectedType?: Type,
 ): TargetTypeRef | undefined {
-  if (carrier === undefined || !scope.host.ast.is.IsIdentifier(node)) return carrier;
+  if (carrier?.kind !== "target-named" || !scope.host.ast.is.IsIdentifier(node)) return carrier;
   const selected = selectedType ?? queries.types.expressionType(node);
   const identity = selected === undefined ? undefined : classifyCsharpSourceProfileType(
     queries.types.nonNullableType(selected) ?? selected, queries, scope.host.ast);

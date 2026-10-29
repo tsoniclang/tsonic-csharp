@@ -18,6 +18,32 @@ export function resolveCsharpProviderIndexedAccess(
   const evidence = sourceIndexedTypeEvidence(scope.host.ast, queries, node);
   if (evidence === undefined) return undefined;
   const owner = scope.resolveNodeWithState(evidence.owner, queries.sourceFile, nextState(state));
+  if (owner?.kind === "tuple") {
+    const rejected: TargetTypeRef = { kind: "opaque", id: "native-tuple-index-evidence-unavailable" };
+    const source = queries.types.authoredType(evidence.owner);
+    if (source === undefined || !queries.types.isTuple(source)) return rejected;
+    const elements = queries.types.tupleElementInfos(source);
+    if (elements.length !== owner.elements.length || elements.some(element =>
+      element.elementKind !== "required" && element.elementKind !== "optional")) return rejected;
+    const properties = queries.types.propertyInfos(source);
+    let result: TargetTypeRef | undefined;
+    for (const { selection } of evidence.members) {
+      if (selection.kind !== "property") return rejected;
+      const literal = queries.types.numericLiteralValue(selection.indexType) ?? queries.types.stringLiteralValue(selection.indexType);
+      const index = typeof literal === "number" ? literal : typeof literal === "string" && /^(0|[1-9][0-9]*)$/u.test(literal)
+        ? Number(literal) : undefined;
+      if (index === undefined || !Number.isSafeInteger(index) || index < 0 || index >= elements.length ||
+        selection.property.name !== String(index)) return rejected;
+      const property = properties.find(property => property.symbol === selection.property.symbol);
+      const element = owner.elements[index];
+      if (element === undefined || property === undefined || property.name !== selection.property.name ||
+        property.optional !== selection.property.optional ||
+        !queries.types.isIdentical(property.type, selection.readType)) return rejected;
+      if (result !== undefined && !targetTypeRefEquals(result, element)) return rejected;
+      result = element;
+    }
+    return result ?? rejected;
+  }
   return projectCsharpProviderIndexedMembers(owner, evidence.members, scope.host.providers, scope.host.sourceFacts);
 }
 
