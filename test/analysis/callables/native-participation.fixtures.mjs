@@ -19,7 +19,7 @@ function analyze(sourceText, surface = "native") {
   assert.equal(Object.hasOwn(program.records, "nativeParticipation"), true, "one published participation reader");
   const storage = createSourceStorageQuery(source, source.navigation.sourceFiles);
   assert.equal(storage.failureReason(), undefined, "bounded owned source domain");
-  return { source, ast: source.ast, nodes: storage.nodes, program, compiled };
+  return { source, ast: source.ast, nodes: source.navigation.nodesForFiles(source.navigation.sourceFiles), program, compiled };
 }
 
 function labels(value) {

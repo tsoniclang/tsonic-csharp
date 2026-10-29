@@ -83,6 +83,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
   });
   const statementErasure = Object.freeze({ attributeApplications: sourceAttributeApplications, safetyApplications });
   const sourceFiles = Object.freeze([...source.navigation.sourceFiles]);
+  const sourceNodes = source.navigation.nodesForFiles(sourceFiles);
   const literalValues = analyzeSourceLiteralValues(source.ast, sourceFiles);
   const sourceStorage = createSourceStorageQuery(source, sourceFiles, undefined, createCsharpSourceProfileStorageEffects(source, providers));
   const sourceStorageFailure = sourceStorage.failureReason();
@@ -105,13 +106,13 @@ function analyzeCsharpTargetProgramBeforeSeal(
   });
   const callOnlyAlias = createCsharpSourceProfileCallableAliasQuery(source);
   const typeHost = {
-    integerRanges: createCsharpIntegerRangeIndex(source, sourceStorage.nodes),
+    integerRanges: createCsharpIntegerRangeIndex(source, sourceNodes),
     enumConstants: source.semantics.enumConstants,
     literalValues,
     sourceStorage,
     errorStorageDemands: createCsharpErrorStorageDemandQuery(source, sourceStorage),
     callOnlyAlias,
-    objectMethodSources: analyzeCsharpObjectMethodSources(source.ast, sourceStorage.nodes, source.navigation, callOnlyAlias),
+    objectMethodSources: analyzeCsharpObjectMethodSources(source.ast, sourceNodes, source.navigation, callOnlyAlias),
     ast: source.ast,
     sourceFiles,
     sourceFacts: source.sourceFacts,
@@ -312,7 +313,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
   if (bindingPatterns.issues.length > 0) return rejectCsharpAnalysisIssues(bindingPatterns.issues);
   if (analysis.refLikeDiagnostics.length > 0) return rejectedTargetStage(analysis.refLikeDiagnostics);
   const promiseResults = analyzeCsharpPromiseResults({ source, genericAdoption,
-    storage: sourceStorage, nodes: sourceStorage.nodes,
+    storage: sourceStorage, nodes: sourceNodes,
     records: { valueRead: analysis.valueReads.valueRead, selectedCall: analysis.operations.selectedCall,
       selectedConstruction: analysis.operations.selectedConstruction },
     definitions: analysis.typeDefinitions, nativePlacement: analysis.refLikeDiagnostics,

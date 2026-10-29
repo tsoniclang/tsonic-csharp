@@ -187,7 +187,7 @@ test(`${surface} participation excludes an unused capturing function before its 
   walk(unused);
   const requiredRecords = [];
   const selected = analyzeCsharpNativeParticipation({ ast: value.ast,
-    storage: { nodes: [...value.nodes].reverse(), failureReason: () => undefined },
+    nodes: [...value.nodes].reverse(),
     navigation: value.source.navigation,
     captureClosure: { get(node) {
       assert.equal(node === unused, false, "unusedness is decided before asking for a native frame");
@@ -210,7 +210,7 @@ test("compile-time metadata excludes the whole subtree without a participation r
   assert.equal(root !== undefined, true, "actual checked callable metadata root");
   const records = value.program.records;
   const requiredRecords = [];
-  const input = { ast: value.ast, storage: { nodes: [...value.nodes].reverse(), failureReason: () => undefined },
+  const input = { ast: value.ast, nodes: [...value.nodes].reverse(),
     navigation: value.source.navigation,
     captureClosure: records.captureClosure, lambdaCreation: records.lambdaCreation, objectShapes: value.program.objectShapes,
     compileTimeMetadata: { get: node => node === root }, requiredRecords };
@@ -220,7 +220,7 @@ test("compile-time metadata excludes the whole subtree without a participation r
     "metadata is not an erased native callable publication");
   assert.equal(requiredRecords.length, 0, "metadata and descendants require no native record");
   const unresolved = analyzeCsharpNativeParticipation({ ...input,
-    storage: { nodes: value.nodes.slice(1), failureReason: () => undefined } });
+    nodes: value.nodes.slice(1) });
   assert.equal(unresolved.kind === "rejected" && !Object.hasOwn(unresolved, "value"), true,
     "an unresolved native domain cannot silently become empty or publish a participation reader");
   assert.equal(unresolved.diagnostics.length === 1 && unresolved.diagnostics[0].code === "CSHARP_NATIVE_PARTICIPATION_NOT_CLOSED" &&
@@ -240,20 +240,19 @@ test(`${surface} malformed or budget-exhausted participation domains reject prec
   assert.equal(limited.failureReason(), "Source storage transport exceeds its finite source-node budget.",
     "the budget control uses a real bounded source-storage failure, not an invented empty domain");
   assert.equal(limited.nodes.length < value.nodes.length, true, "the resource-exhausted checked domain is actually partial");
-  const validFailure = () => undefined;
   const cyclic = { ...value.ast, parent: node => node === root ? root : value.ast.parent(node) };
-  for (const [label, ast, storage, reason] of [
-    ["stored budget failure", value.ast, limited, limited.failureReason()],
-    ["missing parent", value.ast, { nodes: value.nodes.filter(node => node !== root), failureReason: validFailure },
+  for (const [label, ast, nodes, reason] of [
+    ["stored budget failure", value.ast, limited.nodes, limited.failureReason()],
+    ["missing parent", value.ast, value.nodes.filter(node => node !== root),
       "Source participation requires every checked parent in its finite source domain."],
-    ["duplicate source identity", value.ast, { nodes: [...value.nodes, root], failureReason: validFailure },
+    ["duplicate source identity", value.ast, [...value.nodes, root],
       "Source participation requires one occurrence of each checked source node."],
-    ["cyclic parent correspondence", cyclic, { nodes: value.nodes, failureReason: validFailure },
+    ["cyclic parent correspondence", cyclic, value.nodes,
       "Source participation requires acyclic checked parent correspondence."],
   ]) {
     const requiredRecords = [];
     let classifications = 0;
-    const rejected = analyzeCsharpNativeParticipation({ ast, storage, navigation: value.source.navigation,
+    const rejected = analyzeCsharpNativeParticipation({ ast, nodes, navigation: value.source.navigation,
       captureClosure: records.captureClosure, lambdaCreation: records.lambdaCreation,
       objectShapes: value.program.objectShapes,
       compileTimeMetadata: { get() { classifications++; return false; } }, requiredRecords });

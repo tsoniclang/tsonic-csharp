@@ -132,6 +132,7 @@ export function finalizeCsharpNativeEmission(
   const { input, configuration } = request;
   const source = input.source;
   const sourceFiles = analysis.policy.sourceFiles;
+  const sourceNodes = source.navigation.nodesForFiles(sourceFiles);
   const literalValues = analysis.policy.literalValues;
   const { classFactories, captureStorage, callableCreations, nativeParticipation, classInitialization,
     exactLiterals, nativeDemand, bindingPatterns, conversions } = analysis;
@@ -140,10 +141,10 @@ export function finalizeCsharpNativeEmission(
     evidence: analysis.sourceEvidence, operations: analysis.operations });
   const typeDefinitions = analysis.typeDefinitions.seal();
   const projectTypes = sealCsharpProjectTypeClassifications(
-    analysis.typeSystem.projectTypes, source.ast, sourceStorage.nodes, analysis.objectShapes,
+    analysis.typeSystem.projectTypes, source.ast, sourceNodes, analysis.objectShapes,
   );
   const sourceSyntax = targetSourceSyntaxProgram(source);
-  const admittedIterations = admitCsharpIterationBindings(analysis.policy, sourceStorage.nodes,
+  const admittedIterations = admitCsharpIterationBindings(analysis.policy, sourceNodes,
     nativeDemand.nativeUse, analysis.operations, analysis.storage,
     nativeParticipation.participation, analysis.sourceEvidence.compileTimeMetadata);
   const admittedOperations = admittedIterations.operations;
@@ -154,19 +155,19 @@ export function finalizeCsharpNativeEmission(
     exact: exactLiterals, values: analysis.valueReads });
   const templateStrings = analyzeCsharpTemplateStrings(source.ast, nativeDemand);
   const dictionaryLiterals = analyzeCsharpDictionaryLiterals(source.ast, nativeDemand);
-  const unionEquality = analyzeCsharpUnionEquality(sourceStorage.nodes, admittedOperations);
-  const closedTypeTests = analyzeCsharpClosedTypeTests(sourceStorage.nodes, admittedOperations, typeDefinitions);
-  const unaryEmission = analyzeCsharpUnaryEmission({ ast: source.ast, nodes: sourceStorage.nodes, admitted: admittedControlNode,
+  const unionEquality = analyzeCsharpUnionEquality(sourceNodes, admittedOperations);
+  const closedTypeTests = analyzeCsharpClosedTypeTests(sourceNodes, admittedOperations, typeDefinitions);
+  const unaryEmission = analyzeCsharpUnaryEmission({ ast: source.ast, nodes: sourceNodes, admitted: admittedControlNode,
     operations: admittedOperations, literals: literalValues, exact: exactLiterals });
-  const typeofEmission = analyzeCsharpTypeofEmission({ ast: source.ast, nodes: sourceStorage.nodes, admitted: admittedControlNode,
+  const typeofEmission = analyzeCsharpTypeofEmission({ ast: source.ast, nodes: sourceNodes, admitted: admittedControlNode,
     operations: admittedOperations, values: analysis.valueReads, factories: classFactories, definitions: typeDefinitions });
-  const receiverCallProperties = analyzeCsharpReceiverCallProperties(sourceStorage.nodes, admittedOperations, admittedControlNode);
-  const restSequences = analyzeCsharpRestSequences(sourceStorage.nodes, admittedOperations, analysis.valueReads, admittedControlNode);
-  const jsCalls = analyzeCsharpJsCalls(source.ast, sourceStorage.nodes, admittedOperations, admittedControlNode);
-  const callAdmission = analyzeCsharpCallAdmission(source.ast, sourceStorage.nodes, admittedOperations, analysis.valueReads, admittedControlNode);
-  const optionalCallChains = analyzeCsharpOptionalCallChains(source.ast, sourceStorage.nodes, admittedOperations, nativeDemand, admittedControlNode);
+  const receiverCallProperties = analyzeCsharpReceiverCallProperties(sourceNodes, admittedOperations, admittedControlNode);
+  const restSequences = analyzeCsharpRestSequences(sourceNodes, admittedOperations, analysis.valueReads, admittedControlNode);
+  const jsCalls = analyzeCsharpJsCalls(source.ast, sourceNodes, admittedOperations, admittedControlNode);
+  const callAdmission = analyzeCsharpCallAdmission(source.ast, sourceNodes, admittedOperations, analysis.valueReads, admittedControlNode);
+  const optionalCallChains = analyzeCsharpOptionalCallChains(source.ast, sourceNodes, admittedOperations, nativeDemand, admittedControlNode);
   const nonCallableIssues = [
-    ...admitCsharpUnionProjections(sourceStorage.nodes, admittedOperations, typeDefinitions),
+    ...admitCsharpUnionProjections(sourceNodes, admittedOperations, typeDefinitions),
     ...literalEmission.issues,
     ...dictionaryLiterals.issues,
     ...unionEquality.issues,
@@ -178,19 +179,19 @@ export function finalizeCsharpNativeEmission(
     ...jsCalls.issues,
     ...callAdmission.issues,
     ...optionalCallChains.issues,
-    ...analyzeCsharpConditions({ ast: source.ast, nodes: sourceStorage.nodes, demand: nativeDemand, operations: admittedOperations, values: analysis.valueReads }),
+    ...analyzeCsharpConditions({ ast: source.ast, nodes: sourceNodes, demand: nativeDemand, operations: admittedOperations, values: analysis.valueReads }),
     ...analyzeCsharpVoidAdmission({ ast: source.ast, demand: nativeDemand, values: analysis.valueReads, operations: admittedOperations }),
     ...analyzeCsharpAwaitAdmission({ ast: source.ast, demand: nativeDemand, values: analysis.valueReads, operations: admittedOperations }),
     ...admittedIterations.issues,
-    ...admitCsharpStatementBindings(source.ast, sourceStorage.nodes, nativeDemand.nativeUse,
+    ...admitCsharpStatementBindings(source.ast, sourceNodes, nativeDemand.nativeUse,
       admittedOperations, analysis.storage, analysis.sourceEvidence.generator,
       nativeParticipation.participation, analysis.sourceEvidence.compileTimeMetadata,
       analysis.valueReads.valueRead),
-    ...admitCsharpNativeDeclarations(source.ast, sourceStorage.nodes, nativeDemand.nativeUse,
+    ...admitCsharpNativeDeclarations(source.ast, sourceNodes, nativeDemand.nativeUse,
       projectTypes, source.navigation, analysis.sourceEvidence, analysis.storage,
       nativeParticipation.participation, admittedOperations.nativeUnreachable,
       analysis.declarations, callableAdapters.callableDispatch, classFactories.classFactory, captureStorage),
-    ...admitCsharpNativeStorageBindings(source.ast, sourceStorage.nodes, nativeDemand.nativeUse,
+    ...admitCsharpNativeStorageBindings(source.ast, sourceNodes, nativeDemand.nativeUse,
       analysis.storage, admittedOperations.nativeRefReturn, nativeParticipation.participation,
       analysis.sourceEvidence.compileTimeMetadata, admittedOperations.nativeUnreachable),
   ];
@@ -201,15 +202,15 @@ export function finalizeCsharpNativeEmission(
     return failTargetAnalysisInvariant("tsonic-csharp",
       `Native consumption '${incomplete.site.role}' requires completed '${incomplete.reason}' evidence before publication.`, incomplete.expression);
   }
-  const generators = analyzeCsharpGenerators({ ast: source.ast, nodes: sourceStorage.nodes, evidence: analysis.sourceEvidence,
+  const generators = analyzeCsharpGenerators({ ast: source.ast, nodes: sourceNodes, evidence: analysis.sourceEvidence,
     admitted: admittedControlNode, erased: node => analysis.sourceEvidence.compileTimeMetadata.get(node) === true ||
       admittedOperations.nativeUnreachable.get(node) === true || nativeParticipation.participation.get(node) === "erased",
     required: analysis.requiredRecords });
   if (generators.issues.length !== 0) return rejectedTargetStage(generators.issues);
-  const callableDeclarations = analyzeCsharpCallableDeclarationEmission({ ast: source.ast, nodes: sourceStorage.nodes,
+  const callableDeclarations = analyzeCsharpCallableDeclarationEmission({ ast: source.ast, nodes: sourceNodes,
     admitted: admittedControlNode, declarations: analysis.declarations, generators: generators.records, callables: analysis.callables });
   if (callableDeclarations.issues.length !== 0) return rejectedTargetStage(callableDeclarations.issues);
-  const callableParameters = analyzeCsharpCallableParameterEmission({ ast: source.ast, callables: analysis.callables, nodes: sourceStorage.nodes,
+  const callableParameters = analyzeCsharpCallableParameterEmission({ ast: source.ast, callables: analysis.callables, nodes: sourceNodes,
     declarations: analysis.declarations, values: analysis.valueReads, storage: analysis.storage, conversions, literals: literalValues,
     exact: exactLiterals, admitted: admittedControlNode, required: analysis.requiredRecords });
   if (callableParameters.issues.length !== 0) return rejectedTargetStage(callableParameters.issues);
@@ -230,7 +231,7 @@ export function finalizeCsharpNativeEmission(
     exact: exactLiterals, boxSites });
   if (jsValueBoxing.issues.length > 0) return rejectedTargetStage(jsValueBoxing.issues);
   const nativeMemberNames = analyzeCsharpNativeMemberNames({
-    ast: source.ast, nodes: sourceStorage.nodes, nativeUse: nativeDemand.nativeUse,
+    ast: source.ast, nodes: sourceNodes, nativeUse: nativeDemand.nativeUse,
     metadata: analysis.sourceEvidence, participation: nativeParticipation.participation,
     unreachable: admittedOperations.nativeUnreachable, projectTypes, names: analysis.names,
     dispatch: callableAdapters.callableDispatch, writes: analysis.declarations.methodWrite,
@@ -245,13 +246,13 @@ export function finalizeCsharpNativeEmission(
   const names = analysis.names.seal(nativeDemand.requiredBindingRoots, nativeMemberNames);
   if (names.issues.length > 0) return rejectedTargetStage(names.issues);
   const objectShapeDemand = publishCsharpNativeArtifactDemand(selectCsharpObjectShapePublication(objectShapeClosure.value, names));
-  const rawInterfaceIssues = admitCsharpRawInterfaceDeclarations(source.ast, sourceStorage.nodes,
+  const rawInterfaceIssues = admitCsharpRawInterfaceDeclarations(source.ast, sourceNodes,
     nativeDemand.nativeUse, callableAdapters.objectShapes, objectShapeDemand, analysis.storage,
     analysis.sourceEvidence.compileTimeMetadata, nativeParticipation.participation,
     admittedOperations.nativeUnreachable);
   if (rawInterfaceIssues.length > 0) return rejectedTargetStage(rawInterfaceIssues);
   const switchCoversDiscriminant = createSourceSwitchCoverage(source);
-  const statementCompletions = analyzeCsharpStatementCompletions({ ast: source.ast, nodes: sourceStorage.nodes,
+  const statementCompletions = analyzeCsharpStatementCompletions({ ast: source.ast, nodes: sourceNodes,
     returnContexts: analysis.expectedTypes.returnContext, returnContracts: analysis.declarations.returnContract,
     values: analysis.valueReads.valueRead,
     nativeUse: nativeDemand.nativeUse, storage: analysis.storage.storageType,
@@ -265,11 +266,11 @@ export function finalizeCsharpNativeEmission(
     } });
   const nativeControlIssues = analyzeCsharpNativeControlFlow(source, statementCompletions.controlExit, admittedControlNode);
   if (nativeControlIssues.length !== 0) return rejectedTargetStage(nativeControlIssues);
-  const statementExits = analyzeCsharpStatementExits({ ast: source.ast, nodes: sourceStorage.nodes,
+  const statementExits = analyzeCsharpStatementExits({ ast: source.ast, nodes: sourceNodes,
     operations: admittedOperations, metadata: analysis.sourceEvidence.compileTimeMetadata,
     participation: nativeParticipation.participation, values: analysis.valueReads.valueRead,
     switchCoversDiscriminant, required: analysis.requiredRecords });
-  const lexicalValues = analyzeCsharpLexicalValues({ nodes: sourceStorage.nodes, navigation: source.navigation,
+  const lexicalValues = analyzeCsharpLexicalValues({ nodes: sourceNodes, navigation: source.navigation,
     captures: captureStorage, values: analysis.valueReads, metadata: analysis.sourceEvidence });
   if (lexicalValues.issues.length !== 0) return rejectedTargetStage(lexicalValues.issues);
   const sourceOutputIdentities = analyzeCsharpSourceOutputIdentities({ ast: source.ast, sourceFiles, paths: input.paths,
@@ -278,7 +279,7 @@ export function finalizeCsharpNativeEmission(
       factory.instanceScope, factory.factoryName, ...(factory.identity === undefined ? [] : [factory.identity.name]),
     ])] });
   if (sourceOutputIdentities.kind === "rejected") return rejectedTargetStage(sourceOutputIdentities.diagnostics);
-  const objectShapeEmission = analyzeCsharpObjectShapeEmission({ ast: source.ast, nodes: sourceStorage.nodes, nativeDemand, bindings: bindingPatterns,
+  const objectShapeEmission = analyzeCsharpObjectShapeEmission({ ast: source.ast, nodes: sourceNodes, nativeDemand, bindings: bindingPatterns,
     demand: objectShapeDemand, shapes: callableAdapters.objectShapes, names });
   if (objectShapeEmission.issues.length !== 0) return rejectedTargetStage(objectShapeEmission.issues);
   const captureMethods = analyzeCsharpCaptureMethods(source.ast, captureStorage, callableAdapters.objectShapes, analysis.callables);
@@ -296,57 +297,57 @@ export function finalizeCsharpNativeEmission(
     methods: objectMethods.records, members: objectMembers.records, storage: analysis.storage,
     callables: analysis.callables });
   if (objectLiterals.issues.length !== 0) return rejectedTargetStage(objectLiterals.issues);
-  const thisEmission = analyzeCsharpThisEmission({ ast: source.ast, nodes: sourceStorage.nodes, admitted: admittedControlNode,
+  const thisEmission = analyzeCsharpThisEmission({ ast: source.ast, nodes: sourceNodes, admitted: admittedControlNode,
     captures: captureStorage, initialization: classInitialization, factories: classFactories, values: analysis.valueReads,
     shapes: callableAdapters.objectShapes, methods: objectMethods.records, literals: objectLiterals.records });
   if (thisEmission.issues.length !== 0) return rejectedTargetStage(thisEmission.issues);
-  const indexedRecords = analyzeCsharpIndexedRecords(sourceStorage.nodes, admittedOperations);
+  const indexedRecords = analyzeCsharpIndexedRecords(sourceNodes, admittedOperations);
   if (indexedRecords.issues.length !== 0) return rejectedTargetStage(indexedRecords.issues);
-  const projectEmission = analyzeCsharpProjectEmission({ source, nodes: sourceStorage.nodes, projectTypes,
+  const projectEmission = analyzeCsharpProjectEmission({ source, nodes: sourceNodes, projectTypes,
     factories: classFactories, evidence: analysis.sourceEvidence, names, projections: analysis.typeProjections });
   if (projectEmission.issues.length !== 0) return rejectedTargetStage(projectEmission.issues);
-  const receiverTypes = analyzeCsharpMemberReceiverTypes({ source, nodes: sourceStorage.nodes,
+  const receiverTypes = analyzeCsharpMemberReceiverTypes({ source, nodes: sourceNodes,
     operations: admittedOperations, projects: projectEmission.records, factories: classFactories });
-  const sourceReferences = analyzeCsharpSourceReferences({ source, nodes: sourceStorage.nodes, admitted: admittedControlNode,
+  const sourceReferences = analyzeCsharpSourceReferences({ source, nodes: sourceNodes, admitted: admittedControlNode,
     evidence: analysis.sourceEvidence, factories: classFactories, captures: captureStorage, demand: nativeDemand,
     operations: admittedOperations, files: sourceOutputIdentities.records, backing: analysis.storage.nativeBacking,
     delegateAdapters: conversions.delegateAdapters, jsCalls: jsCalls.records, receivers: receiverTypes });
   if (sourceReferences.issues.length !== 0) return rejectedTargetStage(sourceReferences.issues);
-  const memberReceivers = analyzeCsharpMemberReceivers({ source, nodes: sourceStorage.nodes, operations: admittedOperations,
+  const memberReceivers = analyzeCsharpMemberReceivers({ source, nodes: sourceNodes, operations: admittedOperations,
     references: sourceReferences.records, receivers: receiverTypes, admitted: admittedControlNode });
   if (memberReceivers.issues.length !== 0) return rejectedTargetStage(memberReceivers.issues);
-  const propertyAdmission = analyzeCsharpPropertyAdmission({ ast: source.ast, nodes: sourceStorage.nodes,
+  const propertyAdmission = analyzeCsharpPropertyAdmission({ ast: source.ast, nodes: sourceNodes,
     operations: admittedOperations, admitted: admittedControlNode, projectDeclaration: node => source.navigation.isProjectDeclaration(node), receivers: memberReceivers.records, jsCalls: jsCalls.records,
     modules: sourceReferences.records.sourceModuleReference, evidence: analysis.sourceEvidence });
   if (propertyAdmission.issues.length !== 0) return rejectedTargetStage(propertyAdmission.issues);
   // Native member names are selected only where the planner renders one: an admitted source member read and the
   // callee of an admitted native method call.
-  const memberNames = analyzeCsharpSourceMemberNames({ ast: source.ast, nodes: sourceStorage.nodes, operations: admittedOperations, names,
+  const memberNames = analyzeCsharpSourceMemberNames({ ast: source.ast, nodes: sourceNodes, operations: admittedOperations, names,
     rendered: node => propertyAdmission.records.sourceMemberEmission.get(node)?.kind === "member" ||
       memberReceivers.records.nativeMethodCallee.get(node) !== undefined });
   if (memberNames.issues.length !== 0) return rejectedTargetStage(memberNames.issues);
-  const elementAdmission = analyzeCsharpElementAdmission({ ast: source.ast, nodes: sourceStorage.nodes, operations: admittedOperations,
+  const elementAdmission = analyzeCsharpElementAdmission({ ast: source.ast, nodes: sourceNodes, operations: admittedOperations,
     demand: nativeDemand, admitted: admittedControlNode, receivers: memberReceivers.records, navigation: source.navigation });
   if (elementAdmission.issues.length !== 0) return rejectedTargetStage(elementAdmission.issues);
-  const typeParameterEmission = analyzeCsharpTypeParameterEmission({ ast: source.ast, nodes: sourceStorage.nodes,
+  const typeParameterEmission = analyzeCsharpTypeParameterEmission({ ast: source.ast, nodes: sourceNodes,
     evidence: analysis.sourceEvidence, admitted: admittedControlNode });
   if (typeParameterEmission.issues.length !== 0) return rejectedTargetStage(typeParameterEmission.issues);
-  const identifierIssues = analyzeCsharpIdentifierEmission({ ast: source.ast, nodes: sourceStorage.nodes, names,
+  const identifierIssues = analyzeCsharpIdentifierEmission({ ast: source.ast, nodes: sourceNodes, names,
     factories: classFactories, projects: projectEmission.records, parameters: typeParameterEmission.records,
     operations: admittedOperations, admitted: admittedControlNode });
   if (identifierIssues.length !== 0) return rejectedTargetStage(identifierIssues);
-  const classEmission = analyzeCsharpClassEmission({ ast: source.ast, nodes: sourceStorage.nodes, projectTypes, factories: classFactories,
+  const classEmission = analyzeCsharpClassEmission({ ast: source.ast, nodes: sourceNodes, projectTypes, factories: classFactories,
     captures: captureStorage, storage: analysis.storage, names, admitted: admittedControlNode, callables: analysis.callables });
   if (classEmission.issues.length !== 0) return rejectedTargetStage(classEmission.issues);
   const sourceUnions = analyzeCsharpSourceUnionEmission(typeDefinitions);
-  const nativeLayouts = analyzeCsharpNativeMemoryEmission({ nodes: sourceStorage.nodes, storage: analysis.storage, operations: admittedOperations });
-  const typedLocationEmission = analyzeCsharpTypedLocationEmission({ source, nodes: sourceStorage.nodes,
+  const nativeLayouts = analyzeCsharpNativeMemoryEmission({ nodes: sourceNodes, storage: analysis.storage, operations: admittedOperations });
+  const typedLocationEmission = analyzeCsharpTypedLocationEmission({ source, nodes: sourceNodes,
     storage: analysis.storage, operations: admittedOperations, members: objectMembers.records, admitted: admittedControlNode });
   if (typedLocationEmission.issues.length !== 0) return rejectedTargetStage(typedLocationEmission.issues);
   const binaryCarriers = (selection: CsharpResolvedBinaryOperation): readonly TargetTypeRef[] => [
     selection.leftType, selection.rightType, selection.leftInputType, selection.rightInputType, selection.resultType,
   ];
-  const operationCarriers = sourceStorage.nodes.flatMap(node => {
+  const operationCarriers = sourceNodes.flatMap(node => {
     if (!admittedControlNode(node)) return [];
     const binary = admittedOperations.binaryOperation.get(node);
     const unary = admittedOperations.unaryOperation.get(node)?.target;
@@ -373,7 +374,7 @@ export function finalizeCsharpNativeEmission(
         clause.comparison === undefined ? [] : binaryCarriers(clause.comparison)) : [],
     ];
   });
-  const typeEmission = analyzeCsharpTypeEmission({ ast: source.ast, nodes: sourceStorage.nodes, evidence: analysis.sourceEvidence,
+  const typeEmission = analyzeCsharpTypeEmission({ ast: source.ast, nodes: sourceNodes, evidence: analysis.sourceEvidence,
     languageDialect: configuration.languageDialect,
     extraTypes: [...typedLocationEmission.carriers, ...nativeLayouts.carriers, ...restSequences.carriers, ...operationCarriers,
       ...nativeDemand.entries.flatMap(({ use }) => use.kind === "erased" ? []
@@ -383,10 +384,10 @@ export function finalizeCsharpNativeEmission(
   if (typeEmission.issues.length !== 0) return rejectedTargetStage(typeEmission.issues);
   const nativeConstants = analyzeCsharpNativeConstants({ ast: source.ast, demand: nativeDemand, literals: literalValues,
     exact: exactLiterals, values: analysis.valueReads, types: typeEmission.records, references: sourceReferences.records });
-  const expressionEmission = analyzeCsharpExpressionEmission({ source, nodes: sourceStorage.nodes, demand: nativeDemand, conversions,
+  const expressionEmission = analyzeCsharpExpressionEmission({ source, nodes: sourceNodes, demand: nativeDemand, conversions,
     evidence: analysis.sourceEvidence, factories: classFactories, operations: admittedOperations });
   if (expressionEmission.issues.length !== 0) return rejectedTargetStage(expressionEmission.issues);
-  const binaryEmission = analyzeCsharpBinaryEmission({ source, nodes: sourceStorage.nodes, operations: admittedOperations,
+  const binaryEmission = analyzeCsharpBinaryEmission({ source, nodes: sourceNodes, operations: admittedOperations,
     demand: nativeDemand, storage: analysis.storage, constants: nativeConstants, optionalLocals: analysis.optionalLocals,
     admitted: admittedControlNode });
   if (binaryEmission.issues.length !== 0) return rejectedTargetStage(binaryEmission.issues);
@@ -412,30 +413,30 @@ export function finalizeCsharpNativeEmission(
   const propertyValueProjection = analyzeCsharpPropertyValueProjection(conversions, callableAdapters.objectShapes, typeDefinitions,
     objectLiterals.records, source);
   if (propertyValueProjection.issues.length !== 0) return rejectedTargetStage(propertyValueProjection.issues);
-  const sourceCallEmission = analyzeCsharpSourceCallEmission({ source, nodes: sourceStorage.nodes, operations: admittedOperations,
+  const sourceCallEmission = analyzeCsharpSourceCallEmission({ source, nodes: sourceNodes, operations: admittedOperations,
     evidence: analysis.sourceEvidence, declarations: analysis.declarations, conversions, captures: captureStorage,
     references: sourceReferences.records, admitted: admittedControlNode });
   if (sourceCallEmission.issues.length !== 0) return rejectedTargetStage(sourceCallEmission.issues);
-  const targetArguments = analyzeCsharpTargetArguments({ ast: source.ast, nodes: sourceStorage.nodes, operations: admittedOperations,
+  const targetArguments = analyzeCsharpTargetArguments({ ast: source.ast, nodes: sourceNodes, operations: admittedOperations,
     sources: sourceCallEmission.records, demand: nativeDemand, admitted: admittedControlNode });
   if (targetArguments.issues.length !== 0) return rejectedTargetStage(targetArguments.issues);
-  const argumentPassing = analyzeCsharpArgumentPassing({ source, requests: targetArguments.requests, nodes: sourceStorage.nodes,
+  const argumentPassing = analyzeCsharpArgumentPassing({ source, requests: targetArguments.requests, nodes: sourceNodes,
     evidence: analysis.sourceEvidence, storage: analysis.storage, operations: admittedOperations,
     elements: elementAdmission.records, admitted: admittedControlNode });
   if (argumentPassing.issues.length !== 0) return rejectedTargetStage(argumentPassing.issues);
-  const lambdaEmission = analyzeCsharpLambdaEmission({ source, nodes: sourceStorage.nodes, captures: captureStorage,
+  const lambdaEmission = analyzeCsharpLambdaEmission({ source, nodes: sourceNodes, captures: captureStorage,
     declarations: callableDeclarations.records, parameters: callableParameters.records,
     creations: callableCreations, storage: analysis.storage, values: analysis.valueReads,
     types: typeEmission.records, arguments: targetArguments.records, constants: nativeConstants, demand: nativeDemand, admitted: admittedControlNode });
   if (lambdaEmission.issues.length !== 0) return rejectedTargetStage(lambdaEmission.issues);
-  const locationRetentionIssues = admitCsharpLocationRetention({ source, nodes: sourceStorage.nodes, operations: admittedOperations,
+  const locationRetentionIssues = admitCsharpLocationRetention({ source, nodes: sourceNodes, operations: admittedOperations,
     storage: analysis.storage, elements: elementAdmission.records, arguments: argumentPassing.records, admitted: admittedControlNode });
   if (locationRetentionIssues.length !== 0) return rejectedTargetStage(locationRetentionIssues);
-  const targetCallEmission = analyzeCsharpTargetCallEmission({ nodes: sourceStorage.nodes, admitted: admittedControlNode, operations: admittedOperations,
+  const targetCallEmission = analyzeCsharpTargetCallEmission({ nodes: sourceNodes, admitted: admittedControlNode, operations: admittedOperations,
     arguments: targetArguments.records, sources: sourceCallEmission.records, optional: optionalCallChains.records,
     shapes: objectShapeDemand, demand: nativeDemand, expressions: expressionEmission.records });
   if (targetCallEmission.issues.length !== 0) return rejectedTargetStage(targetCallEmission.issues);
-  const constructionEmission = analyzeCsharpConstructionEmission({ source, nodes: sourceStorage.nodes, admitted: admittedControlNode,
+  const constructionEmission = analyzeCsharpConstructionEmission({ source, nodes: sourceNodes, admitted: admittedControlNode,
     operations: admittedOperations, values: analysis.valueReads, demand: nativeDemand, evidence: analysis.sourceEvidence,
     modules: sourceModuleConstructions.index.sourceModuleConstruction, files: sourceOutputIdentities.records, arguments: targetArguments.records });
   if (constructionEmission.issues.length !== 0) return rejectedTargetStage(constructionEmission.issues);
@@ -471,25 +472,25 @@ export function finalizeCsharpNativeEmission(
     objectShapeEmission: objectShapeEmission.records,
     objectShapes: createCsharpObjectShapeRecords(callableAdapters.objectShapes),
     sourceFiles: sourceOutputIdentities.records,
-    bindingIdentities: analyzeCsharpBindingIdentities(source, sourceStorage.nodes),
+    bindingIdentities: analyzeCsharpBindingIdentities(source, sourceNodes),
     classEmission: classEmission.records,
     callableParameters: callableParameters.records,
     callableDeclarations: callableDeclarations.records,
     nativeMemberNames,
     methods: analyzeCsharpMethodEmission(source.ast, nativeMemberNames),
-    classFields: analyzeCsharpClassFieldInitialization({ ast: source.ast, nodes: sourceStorage.nodes, storage: analysis.storage }),
+    classFields: analyzeCsharpClassFieldInitialization({ ast: source.ast, nodes: sourceNodes, storage: analysis.storage }),
     lexicalValues: lexicalValues.records,
     structuralInterfaces: analyzeCsharpStructuralInterfaceEmission({ ast: source.ast,
       shapes: callableAdapters.objectShapes, names, projectTypes, projections: analysis.typeProjections, declarations: analysis.declarations }),
-    nativeDeclarations: analyzeCsharpNativeDeclarationForms({ ast: source.ast, nodes: sourceStorage.nodes, projectTypes, required: analysis.requiredRecords }),
-    declarationModifiers: analyzeCsharpDeclarationModifiers({ ast: source.ast, nodes: sourceStorage.nodes,
+    nativeDeclarations: analyzeCsharpNativeDeclarationForms({ ast: source.ast, nodes: sourceNodes, projectTypes, required: analysis.requiredRecords }),
+    declarationModifiers: analyzeCsharpDeclarationModifiers({ ast: source.ast, nodes: sourceNodes,
       dispatch: callableAdapters.callableDispatch, helperAccess: captureStorage.helperAccess, required: analysis.requiredRecords, generators: generators.records, factories: classFactories.classFactory }),
     generators: generators.records,
-    localBindings: analyzeCsharpLocalBindings({ ast: source.ast, navigation: source.navigation, nodes: sourceStorage.nodes,
+    localBindings: analyzeCsharpLocalBindings({ ast: source.ast, navigation: source.navigation, nodes: sourceNodes,
       admitted: admittedControlNode, nativeRefs: admittedOperations.nativeRefReturn, storage: analysis.storage.storageType,
       moduleInitialization: moduleInitialization.index.moduleBindingInitialization, required: analysis.requiredRecords,
       optionalLocals: analysis.optionalLocals }),
-    resourceScopes: analyzeCsharpResourceScopes({ ast: source.ast, nodes: sourceStorage.nodes,
+    resourceScopes: analyzeCsharpResourceScopes({ ast: source.ast, nodes: sourceNodes,
       erased: node => analysis.sourceEvidence.compileTimeMetadata.get(node) === true ||
         admittedOperations.nativeUnreachable.get(node) === true || nativeParticipation.participation.get(node) === "erased",
       required: analysis.requiredRecords }),
@@ -527,10 +528,10 @@ export function finalizeCsharpNativeEmission(
     sourceModuleConstructions: sourceModuleConstructions.index, moduleInitialization: moduleInitialization.index,
   };
   const constructors = analyzeCsharpConstructorEmission({
-    ast: source.ast, nodes: sourceStorage.nodes, declarations: analysis.declarations, storage: analysis.storage,
+    ast: source.ast, nodes: sourceNodes, declarations: analysis.declarations, storage: analysis.storage,
     captured: declaration => captureStorage.capturedBinding.get(declaration) !== undefined,
     admitted: admittedControlNode,
-    arguments: analyzeCsharpConstructorArguments(source.ast, sourceStorage.nodes, recordInput, admittedControlNode),
+    arguments: analyzeCsharpConstructorArguments(source.ast, sourceNodes, recordInput, admittedControlNode),
   });
   if (constructors.issues.length !== 0) return rejectedTargetStage(constructors.issues);
   const records = createCsharpProgramRecords({ ...recordInput, constructors: constructors.records }, analysis.requiredRecords);
