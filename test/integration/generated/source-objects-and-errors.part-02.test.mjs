@@ -118,8 +118,12 @@ export function run(): boolean {
 }` });
     assertCsharpCompilationSucceeded(compiled);
     const generated = [...compiled.artifacts.values()].join("\n");
-    assert.match(generated, /interface ObjectShape_\w+<out Property0, out Property1>/u);
-    assert.match(generated, /interface ObjectShape_\w+<Property0, Property1> : ObjectShape_\w+<Property0, Property1>/u);
+    const nativeItem = /interface (ObjectShape_\w+)<Property0, Property1>\s*\{/u.exec(generated)?.[1];
+    assert.equal(typeof nativeItem, "string", "readonly arguments use the ordinary native Item carrier");
+    assert.equal(generated.includes(`${nativeItem}<double, string> view = item;`), true,
+      "the readonly view directly aliases the same native Item carrier");
+    assert.equal(/interface ObjectShape_\w+<out Property0, out Property1>/u.test(generated), false,
+      "readonly views do not introduce a separate covariant native wrapper");
     executeCsharpConstruction(compiled, `mapped-readonly-${surface ?? "native"}`);
   });
 }
