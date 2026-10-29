@@ -96,7 +96,8 @@ export function createCsharpLiteralShapeResolver(
     const ownsImplementation = expectedShape.methodImplementation?.declaration === objectLiteral;
     if (additionalMembers.length === 0 && accessors.kind === "none" && implemented === expectedShape.implements &&
       (!nativeMethodLiteral || ownsImplementation) && !copiedMethods) {
-      return { kind: "resolved", shape: { ...expectedShape, sourceType, members } };
+      for (const member of members) Object.freeze(member);
+      return { kind: "resolved", shape: Object.freeze({ ...expectedShape, sourceType, members: Object.freeze(members) }) };
     }
     if (copiedMethods) {
       const sources: { readonly property: Node; readonly shape: CsharpObjectShapeFact }[] = [];
@@ -221,7 +222,9 @@ export function createCsharpLiteralShapeResolver(
       ...(methodImplementation === undefined ? {} : { methodImplementation }),
       ...(implemented === undefined ? {} : { implements: implemented }),
     });
-    return { kind: "resolved", shape };
+    for (const member of shape.members) Object.freeze(member);
+    Object.freeze(shape.members);
+    return { kind: "resolved", shape: Object.freeze(shape) };
   }
 
   return resolveObjectLiteralTargetShape;
