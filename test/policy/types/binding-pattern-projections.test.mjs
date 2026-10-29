@@ -13,8 +13,16 @@ test("native binding projections preserve one exact member and reject malformed 
   assert.equal(selected.kind === "element" && selected.element.kind === "native-member" && selected.element.property.member === property.member,
     true, "the original native member is sealed without re-inference or copied runtime storage");
   assert.equal(Object.isFrozen(selected.element.property), true, "the admitted member/receiver projection is immutable");
+  const helper = { ...property, member: { ...property.member, id: "Tsonic.CSharp.Runtime.ErrorObject.name", kind: "method", static: true,
+    declaringType: { kind: "target-named", id: "Tsonic.CSharp.Runtime.ErrorObject", csharpAllowsRefLikeTypeArguments: [] },
+    parameters: [{ name: "error", type: carrier, passingMode: "by-value" }] },
+    receiver: { kind: "target-parameter", targetParameterIndex: 0 }, invocation: { kind: "receiver-call" } };
+  const receiverCall = selectCsharpBindingPatternProjection({ kind: "native-member", property: helper });
+  assert.equal(receiverCall.kind === "element" && receiverCall.element.kind === "native-member" &&
+    receiverCall.element.property.member === helper.member, true, "the static native helper retains its exact declaring type and receiver slot");
   for (const [label, altered] of [
     ["missing declaration", { ...property, declaration: undefined }],
+    ["missing native declaring type", { ...property, member: { ...property.member, declaringType: undefined } }],
     ["missing native result", { ...property, member: { ...property.member, returnType: undefined } }],
     ["wrong receiver", { ...property, receiver: { kind: "none" } }],
     ["wrong native arity", { ...property, member: { ...property.member, parameters: [{ name: "extra", type: string, passingMode: "by-value" }] } }],

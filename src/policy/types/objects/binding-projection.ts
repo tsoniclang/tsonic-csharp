@@ -13,7 +13,7 @@ import { csharpAbsenceTargetType, isCsharpAbsenceTargetType, isCsharpJsValueTarg
 import { getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
 import { tryCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 
-import type { TargetTypeRef, CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../../target-model/types/model.js";
+import type { TargetTypeRef, CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetMember } from "../../../target-model/types/model.js";
 import { type CsharpArrayBindingCarrier } from "../../../target-model/types/carriers/binding-array-carrier.js";
 import { csharpArrayBindingProjectionTarget, resolveCsharpArrayBindingCarrier } from "../collections/binding-array-carrier.js";
 
@@ -23,7 +23,7 @@ type BindingPatternProjectionRequest =
       readonly rest: boolean; readonly hasDefault: boolean }
   | { readonly kind: "object-source"; readonly shape: CsharpObjectShapeFact | undefined; readonly sourceOwned: boolean }
   | { readonly kind: "native-source"; readonly carrier: TargetTypeRef | undefined }
-  | { readonly kind: "native-member"; readonly property: CsharpNativeBindingProperty }
+  | { readonly kind: "native-member"; readonly property: Omit<CsharpNativeBindingProperty, "member"> & { readonly member: CsharpTargetMember } }
   | { readonly kind: "object-member"; readonly shape: CsharpObjectShapeFact; readonly sourceName: string;
       readonly description: string; readonly permitsAbsence: boolean }
   | { readonly kind: "object-rest"; readonly source: CsharpObjectShapeFact; readonly rest: CsharpObjectShapeFact;
@@ -35,6 +35,10 @@ type BindingPatternProjectionSelection =
   | { readonly kind: "source"; readonly source: CsharpBindingPatternSource }
   | { readonly kind: "element"; readonly element: CsharpBindingElementProjection }
   | { readonly kind: "unresolved"; readonly reasons: readonly string[] };
+
+function hasNativeBindingMemberTypes(member: CsharpTargetMember): member is CsharpNativeBindingProperty["member"] {
+  return member.declaringType !== undefined && member.returnType !== undefined;
+}
 
 export function selectCsharpBindingPatternDefault(carrier: TargetTypeRef): CsharpTupleDefaultUse {
   const element = getCsharpNullableElementTargetType(carrier);
@@ -89,11 +93,13 @@ export function selectCsharpBindingPatternProjection(input: BindingPatternProjec
       return input.carrier === undefined ? unresolved() : source({ kind: "native-source", carrier: input.carrier });
     case "native-member": {
       const { member, receiver, invocation, declaration } = input.property;
-      const valid = declaration !== undefined && member.returnType !== undefined && (invocation.kind === "member"
+      if (declaration === undefined || !hasNativeBindingMemberTypes(member))
+        return unresolved("A native binding requires its exact checked member and receiver relation.");
+      const valid = invocation.kind === "member"
         ? member.kind === "property" && member.static !== true && member.parameters.length === 0 && receiver.kind === "instance"
         : member.kind === "method" && member.static === true && member.parameters.length === 1 &&
-          member.parameters[0]?.passingMode === "by-value" && receiver.kind === "target-parameter" && receiver.targetParameterIndex === 0);
-      return valid ? element({ kind: "native-member", property: Object.freeze({ ...input.property }) })
+          member.parameters[0]?.passingMode === "by-value" && receiver.kind === "target-parameter" && receiver.targetParameterIndex === 0;
+      return valid ? element({ kind: "native-member", property: Object.freeze({ ...input.property, member }) })
         : unresolved("A native binding requires its exact checked member and receiver relation.");
     }
     case "object-member": {
