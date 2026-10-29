@@ -7,6 +7,9 @@ import { createCsharpErrorDeclarationQuery } from "../../../dist/analysis/object
 import { resolveSourceProfileType } from "../../../dist/analysis/source-evidence/types/resolution/source-profiles.js";
 import { createSourceErrorProviderFixture } from "../../fixtures/dotnet-provider/source-error-bindings.mjs";
 import { csharpSourceProfileContributions, csharpJsSurfaceSourceProfileContributions } from "../../../dist/source/profiles/declarations.js";
+import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { getCsharpNullableElementTargetType, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 
 for (const jsEnabled of [false, true]) {
   test(`C# ${jsEnabled ? "JS" : "native"} Error declarations keep exact cross-file nested generic writes without origin-selected carriers`, () => {
@@ -75,5 +78,65 @@ for (const jsEnabled of [false, true]) {
     assert.equal(Object.isFrozen(constructors[0].value.result.component), true);
     assert.equal("storageFor" in demand || "closedStorageOriginsFor" in demand, false,
       "the C# declaration owner publishes no origin query or compatibility path");
+  });
+}
+
+for (const surface of ["native", "js"]) {
+  test(`C# ${surface} Error formals share one declaration-owned native input across bodies, defaults and dispatch`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      export function read(error: Error): string { return error.message; }
+      export function write(error: Error): string { error.message = "changed"; return error.message; }
+      export function defaulted(error: Error = new Error("fallback")): string { return error.message; }
+      export function optional(error?: Error): string | undefined { return error?.message; }
+    ` });
+    assertCsharpCompilationSucceeded(compiled);
+    const program = compiled.result.program;
+    const { source } = program;
+    for (const name of ["read", "write", "defaulted", "optional"]) {
+      const declaration = source.navigation.nodes.find(node => source.ast.is.IsFunctionDeclaration(node) &&
+        source.ast.text(source.ast.name(node)) === name);
+      assert.equal(declaration !== undefined, true, `${name}: original declaration`);
+      const parameter = source.ast.parameters(declaration)[0];
+      const contract = program.records.callableDeclaration.get(declaration)?.contract;
+      assert.equal(contract?.nativeParameters.length, 1, `${name}: exactly one native parameter is published`);
+      assert.equal(contract.nativeParameters[0].sourceParameter === parameter, true, `${name}: the original checked slot survives`);
+      const native = contract.nativeParameters[0].targetParameter.type;
+      const value = getCsharpNullableElementTargetType(native) ?? native;
+      assert.equal(value.kind, "target-named", `${name}: actual native reference carrier`);
+      const expected = name === "write" ? "Tsonic.CSharp.Runtime.Error" : "System.Exception";
+      assert.equal(value.id === expected || value.id.endsWith(`::${expected}`), true, `${name}: exact native capability, not a stored-value guess`);
+      assert.equal(program.records.callableDispatch.get(declaration)?.implementation === contract, true,
+        `${name}: dispatch consumes the identical sealed source callable contract`);
+      const runtimeDefault = program.records.runtimeDefault.get(parameter);
+      if (name === "defaulted") {
+        assert.equal(runtimeDefault !== undefined && targetTypeRefEquals(runtimeDefault.parameterType, native), true,
+          "the initializer uses the same published incoming native contract");
+      }
+      const body = runtimeDefault?.valueType ?? native;
+      for (const use of source.navigation.declarationUses(parameter)) {
+        const parent = source.ast.parent(use.reference);
+        if (parent === undefined || !source.ast.is.IsPropertyAccessExpression(parent) ||
+            source.ast.as.AsPropertyAccessExpression(parent).Expression !== use.reference) continue;
+        const actual = program.records.nodeTargetType.get(use.reference);
+        const present = getCsharpNullableElementTargetType(body) ?? body;
+        assert.equal(actual !== undefined &&
+          (targetTypeRefEquals(actual, body) || targetTypeRefEquals(actual, present)), true,
+        `${name}: body references use the same input/default normalization, not the global Error constructor carrier`);
+      }
+      assert.equal(Object.isFrozen(contract.nativeParameters[0]) && Object.isFrozen(contract.nativeParameters[0].targetParameter), true,
+        `${name}: the native slot is immutable before body publication`);
+    }
+    executeCsharpConstruction(compiled, `error-formal-default-contract-${surface}`, false, false, [], `
+using System;
+using Generated = Tsonic.Generated.Index;
+var original = new Tsonic.CSharp.Runtime.Error("original");
+Exception native = new InvalidOperationException("native");
+if (Generated.read(native) != "native" || Generated.defaulted() != "fallback" || Generated.defaulted(native) != "native")
+    throw new Exception("native readonly/default contract");
+if (Generated.optional(null) is not null || Generated.optional(native) != "native")
+    throw new Exception("native optional contract");
+if (Generated.write(original) != "changed" || original.message != "changed")
+    throw new Exception("writable native identity");
+`);
   });
 }

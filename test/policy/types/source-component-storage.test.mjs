@@ -59,7 +59,7 @@ test("implementation signature evidence uses the original contextual tuple param
       return native;
     },
   };
-  scope.host.representations = { genericProjections: () => [] };
+  scope.host.representations = { genericProjections: () => [], sourceParameter: () => undefined };
   scope.resolveSignatureParameterEvidence = (...arguments_) => resolveSignatureParameterEvidence(scope, ...arguments_);
   scope.resolveCallableEvidence = (...arguments_) => resolveCallableEvidence(scope, ...arguments_);
   const selected = resolveCallableEvidence(scope, callable, queries, { depth: 0 });
@@ -119,7 +119,7 @@ test("callable parameters establish their exact entry input while tuple transfor
   const state = { depth: 2, sourceStorageSubject: imported };
   for (const use of ["callable", "parameter-list"]) {
     const resolved = resolveSignatureParameterEvidence({
-      host: { ast: { typeNode: () => syntax, parent: () => undefined }, sourceStorage: { subject(node, kind) {
+      host: { ast: { typeNode: () => syntax, parent: () => undefined }, representations: { sourceParameter: () => undefined }, sourceStorage: { subject(node, kind) {
         assert.equal(node === owner && kind === "input", true, "signature entry is not a mutable binding or physical member");
         return { kind: "resolved", subject: input };
       } } },
