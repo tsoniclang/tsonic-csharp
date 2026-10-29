@@ -181,6 +181,7 @@ test("generic method type arguments come only from shared selected call evidence
     ["src/analysis/operations/members/calls/type-arguments.ts", 3],
     ["src/analysis/operations/source-profiles/js/regexp-protocol.ts", 1],
     ["src/analysis/operations/source-profiles/policy-selection.ts", 1],
+    ["src/analysis/source-evidence/types/resolution/array-literals.ts", 1],
     ["src/analysis/source-evidence/types/resolution/call-contracts.ts", 1],
     ["src/analysis/source-evidence/types/resolution/calls.ts", 4],
     ["src/analysis/source-evidence/types/resolution/expressions.ts", 1],
