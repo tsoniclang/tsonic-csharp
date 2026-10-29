@@ -24,7 +24,7 @@ import { analyzeCsharpSourceModuleConstructions } from "../source-modules/index.
 import { composeCsharpBinaryExecutionDriver } from "../../target-model/metadata/binary-execution-drivers.js";
 import { analyzeCsharpModuleInitialization } from "../module-initialization/index.js";
 import { createCsharpSourceProfileCallableAliasQuery } from "../operations/source-profiles/callable-aliases.js";
-import { createCsharpErrorStorageDemandQuery } from "../objects/error-storage-demands.js";
+import { createCsharpErrorDeclarationQuery } from "../objects/error-storage-demands.js";
 import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 import { createCsharpSourceProfileStorageEffects } from "../operations/source-profiles/source-storage-effects.js";
 import { analyzeCsharpGenericAdoption, analyzeCsharpPromiseResults } from "../callables/async/promise-results.js";
@@ -110,7 +110,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     enumConstants: source.semantics.enumConstants,
     literalValues,
     sourceStorage,
-    errorStorageDemands: createCsharpErrorStorageDemandQuery(source, sourceStorage),
+    errorDeclarations: createCsharpErrorDeclarationQuery(source),
     callOnlyAlias,
     objectMethodSources: analyzeCsharpObjectMethodSources(source.ast, sourceNodes, source.navigation, callOnlyAlias),
     ast: source.ast,

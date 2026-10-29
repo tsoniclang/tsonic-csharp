@@ -346,7 +346,6 @@ export interface CsharpTypeResolutionScope {
   resolveSourceProfileType(
   identity: ReturnType<typeof classifyCsharpSourceProfileType>,
   typeArguments: readonly TargetTypeRef[],
-  subject: import("@tsonic/target-api/analysis").SourceStorageSubject | undefined,
 ): TargetTypeRef | undefined;
   generatorProtocol(
   typeArguments: readonly TargetTypeRef[],

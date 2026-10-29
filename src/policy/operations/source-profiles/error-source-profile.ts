@@ -4,13 +4,13 @@ import { csharpSourceProfileCall, csharpSourceProfileDiagnostic } from "./source
 import type { CsharpSourceProfileOwner } from "../../identities/selected-source.js";
 import { csharpRuntimeErrorTargetType, csharpExceptionTargetType, csharpStringTargetType, csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
-import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { csharpTargetNamedType } from "../../../target-model/types/factories.js";
 import { csharpQualifiedTypeRenderShape } from "../../../target-model/types/render-shapes.js";
 import type { CsharpTargetMember, TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpTargetId } from "../../../target-model/identities/target.js";
 import { csharpSourceErrorNames, type CsharpSourceErrorName } from "../../../target-model/identities/source-errors.js";
 import { snapshotCsharpMetadata } from "../../../target-model/metadata/immutable.js";
+import { namedTargetTypeImplicitlyAccepts } from "../../conversions/carriers.js";
 
 const errorType = csharpRuntimeErrorTargetType();
 const exceptionType = csharpExceptionTargetType();
@@ -137,7 +137,16 @@ export const csharpErrorSourceProfilePropertyPolicies:
           if (exception.kind === "rejected") return exception;
           if (exception.kind !== "resolved") return undefined;
           const receiver = getCsharpNullableElementTargetType(context.receiverType) ?? context.receiverType;
-          if (receiver !== undefined && targetTypeRefEquals(receiver, exception.value)) {
+          const writable = context.host.providers.publishNativeIdentities(errorType);
+          if (writable.kind === "rejected") return writable;
+          if (writable.kind !== "resolved" || receiver === undefined) return undefined;
+          const hasWritableFields = namedTargetTypeImplicitlyAccepts(context.host, receiver, writable.value, new Set());
+          if (!hasWritableFields) {
+            if (!namedTargetTypeImplicitlyAccepts(context.host, receiver, exception.value, new Set())) return {
+              kind: "rejected",
+              diagnostic: csharpSourceProfileDiagnostic("CSHARP_ERROR_NATIVE_STORAGE_NOT_PROVEN", 9100954,
+                "The selected Error field requires its exact native Exception or writable Error hierarchy.", []),
+            };
             if (context.source.accessMode !== "read") return {
               kind: "rejected",
               diagnostic: csharpSourceProfileDiagnostic("CSHARP_ERROR_READONLY_STORAGE", 9100953,

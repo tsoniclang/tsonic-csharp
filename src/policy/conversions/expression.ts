@@ -9,7 +9,7 @@ import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../types/index.js";
 import type { CsharpConversionShapeQueries } from "./shape-queries.js";
 import { selectCsharpUnionArmMapping, selectCsharpUnionInjection } from "./union-relations.js";
-import { selectCsharpRuntimeUnionProjection, selectDelegateConversion } from "./carriers.js";
+import { namedTargetTypeImplicitlyAccepts, selectCsharpRuntimeUnionProjection, selectDelegateConversion } from "./carriers.js";
 import { selectCsharpGuardedIntegerConversion } from "./integer-refinement.js";
 import { isCsharpRefLikeTargetType } from "../../target-model/types/ref-like.js";
 
@@ -164,7 +164,8 @@ export function selectCsharpFlowReadConversion(
   }
   if (selectedThrowable) {
     const exception = input.providers.publishNativeIdentities(csharpExceptionTargetType());
-    if (exception.kind === "resolved" && targetTypeRefEquals(storageType, exception.value)) {
+    if (exception.kind === "resolved" && targetTypeRefEquals(storageType, exception.value) &&
+        namedTargetTypeImplicitlyAccepts(input, selectedReadType, exception.value, new Set())) {
       return { kind: "cast", proof: "reference" };
     }
   }
