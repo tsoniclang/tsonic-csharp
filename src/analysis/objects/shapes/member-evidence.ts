@@ -120,6 +120,13 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
         !sameCheckedMember(selected.source, previous.source) ? undefined : selected;
   }
 
+  function sameMemberSource(left: Type, right: Type, queries: SourceFileSemantics): boolean {
+    if (left === right) return true;
+    const symbol = queries.declarations.typeSymbol(left);
+    return symbol !== undefined && symbol === queries.declarations.typeSymbol(right) &&
+      queries.types.isIdentical(left, right);
+  }
+
   function instantiateMemberEvidence(
     members: readonly CsharpObjectShapeMemberFact[],
     type: Type,
@@ -132,8 +139,9 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     const instantiated = members.map(member => {
       const evidence = member.sourceMemberEvidence;
       if (evidence === undefined || evidence.length === 0) return undefined;
-      const direct = evidence.filter(selected => selected.sourceType === type);
-      const candidates = direct.length === 0 ? evidence.filter(selected => selected.sourceType === previousSourceType) : direct;
+      const direct = evidence.filter(selected => sameMemberSource(selected.sourceType, type, queries));
+      const candidates = direct.length === 0
+        ? evidence.filter(selected => sameMemberSource(selected.sourceType, previousSourceType, queries)) : direct;
       if (candidates.length === 0) return undefined;
       let selected: CsharpObjectShapeMemberEvidence | undefined;
       for (const candidate of candidates) {
@@ -150,10 +158,10 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
         pair.destination.property.symbol === retained.correspondence.destination.property.symbol);
       if (matching.length !== 1) return undefined;
       const pair = matching[0]!;
-      const sourceMemberEvidence = Object.freeze([Object.freeze({ ownerType: retained.ownerType, sourceType: type,
-        correspondence: pair })]);
+      const sourceMemberEvidence = Object.freeze([retained.sourceType === type && retained.correspondence === pair
+        ? retained : Object.freeze({ ownerType: retained.ownerType, sourceType: type, correspondence: pair })]);
       if (pair.kind !== "present") {
-        const retainedAbsence = retained.correspondence.kind === "absent" && retained.sourceType === type;
+        const retainedAbsence = retained.correspondence.kind === "absent" && sameMemberSource(retained.sourceType, type, queries);
         const declaredContext = retained.correspondence.kind === "present" && retained.sourceType === retained.ownerType &&
           previousSourceType === retained.ownerType;
         return member.optional === true && pair.destination.property.optional && (retainedAbsence || declaredContext)

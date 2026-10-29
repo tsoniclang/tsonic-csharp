@@ -62,13 +62,13 @@ export function mergeCsharpObjectShapeSubjects(
         ...(member.sourceDeclarations ?? []),
         ...(other.sourceDeclarations ?? []),
       ]);
-      const sourceMemberEvidence = new Set([
-        ...(member.sourceMemberEvidence ?? []),
-        ...(other.sourceMemberEvidence ?? []),
-      ]);
+      const sourceMemberEvidence = [...(member.sourceMemberEvidence ?? []), ...(other.sourceMemberEvidence ?? [])]
+        .filter((evidence, index, alternatives) => alternatives.findIndex(candidate =>
+          candidate.ownerType === evidence.ownerType && candidate.sourceType === evidence.sourceType &&
+          candidate.correspondence === evidence.correspondence) === index);
       return {
         ...member,
-        ...(sourceMemberEvidence.size === 0 ? {} : { sourceMemberEvidence: Object.freeze([...sourceMemberEvidence]) }),
+        ...(sourceMemberEvidence.length === 0 ? {} : { sourceMemberEvidence: Object.freeze(sourceMemberEvidence) }),
         ...(subjects.size === 0
           ? {}
           : { sourceSubjects: Object.freeze([...subjects]) }),
