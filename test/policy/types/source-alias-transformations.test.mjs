@@ -64,6 +64,11 @@ test("native provider error unions preserve the same reference in both orders an
     export function second(value: TransportError | Error): TransportError | Error { return value; }
     export function optional(value: Error | TransportError | null | undefined): Error | TransportError | null | undefined { return value; }
     export function create(): Error { return new Error("source"); }
+    export function update(value: Error | TransportError): boolean {
+      if (value instanceof Error) { value.message = "updated"; return true; }
+      return false;
+    }
+    export function checked(value: TransportError): Error { return value as Error; }
   `, files: { "contracts.ts": `
     import type { Readable } from "node:stream";
     export type TransportError = NonNullable<Parameters<Readable["destroy"]>[0]>;
@@ -85,6 +90,12 @@ var created = Generated.create();
 created.message = "changed";
 if (!ReferenceEquals(Generated.first(created), created) || Generated.first(created).Message != "changed")
     throw new Exception("source construction and writable native storage");
+if (Generated.update(immutable) || !Generated.update(writable) || writable.message != "updated" ||
+    !ReferenceEquals(Generated.checked(writable), writable))
+    throw new Exception("checked native narrowing and writable reference identity");
+var refused = false;
+try { Generated.checked(immutable); } catch (InvalidCastException) { refused = true; }
+if (!refused) throw new Exception("immutable native identity cannot become writable");
 for (var index = 0; index < 1000; index++) {
     if (!ReferenceEquals(Generated.first(immutable), immutable) || !ReferenceEquals(Generated.second(writable), writable) ||
         !ReferenceEquals(Generated.optional(writable), writable) || Generated.optional(null) is not null)
