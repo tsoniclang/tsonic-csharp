@@ -12,6 +12,41 @@ const typeOnlyPredicates = { IsTypeAliasDeclaration: () => false, IsInterfaceDec
   IsTypeParameterDeclaration: () => false };
 const subject = (node, kind = "value", projection = []) => Object.freeze({ node, kind, projection: Object.freeze(projection) });
 
+test("checked component transport preserves independently instantiated selection and refuses missing or foreign authored owners", () => {
+  const definingFile = {};
+  const selectedFile = {};
+  const authored = {};
+  const selected = {};
+  const parameter = {};
+  const bindings = new Map([[parameter, { sourceType: selected, targetType: { kind: "source-primitive", name: "int64" } }]]);
+  const state = { depth: 0, sourceBindings: bindings };
+  const native = { kind: "source-primitive", name: "int64" };
+  let resolved = 0;
+  const scope = {
+    host: { ast: { getSourceFile: () => definingFile }, hasSemantics: file => file === definingFile },
+    resolveAuthoredAndSelectedSourceType(node, authoredFile, original, actualSelectedFile, actualState) {
+      assert.equal(node === authored && authoredFile === definingFile, true, "the original authored owner is retained");
+      assert.equal(original === selected && actualSelectedFile === selectedFile, true,
+        "a genuine independently instantiated selected context is not replaced by a declaration type");
+      assert.equal(actualState.sourceBindings === bindings, true, "the original generic bindings survive transport");
+      resolved += 1;
+      return native;
+    },
+  };
+  const component = { authoredTypeNode: authored, selectedType: selected };
+  assert.equal(resolveSourceTypeComponentEvidence(scope, component, { sourceFile: selectedFile }, state) === native, true,
+    "an existing checked component is transported without replacing either identity");
+  assert.equal(resolved, 1, "one checked component decision");
+  for (const [label, host] of [
+    ["missing owner", { ast: { getSourceFile: () => undefined }, hasSemantics: () => false }],
+    ["foreign owner", { ast: { getSourceFile: () => definingFile }, hasSemantics: () => false }],
+  ]) {
+    assert.equal(resolveSourceTypeComponentEvidence({ ...scope, host }, component, { sourceFile: selectedFile }, state) === undefined,
+      true, `${label}: no importer-context fallback or fabricated component`);
+  }
+  assert.equal(resolved, 1, "missing and foreign components never reach the native consumer");
+});
+
 test("implementation signature evidence uses the original contextual tuple parameter before erased semantic storage", () => {
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/project", files: {
     "/project/index.ts": "const consume: (...values: [number, bigint, string]) => boolean = (...values) => values[0] > 0;",

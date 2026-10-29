@@ -6,7 +6,10 @@ import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../../target
 import { csharpSourceUnionTargetType } from "../../../../target-model/types/source-union-definitions.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/equality.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
-import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/carriers/runtime-carriers.js";
+import { combineCsharpTargetUnionMembers, getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpUnionReferenceImplicitlyAccepts } from "../../../../policy/conversions/carriers.js";
+import { retainCsharpUnionObjectShapes } from "./source-union-refinement.js";
+import { csharpUnionLeaves } from "../../../../target-model/types/union-relations.js";
 import { nextState } from "./state.js";
 import { csharpSourceTemplateState } from "./type-bindings.js";
 
@@ -24,7 +27,39 @@ export function createCsharpSourceUnionDefinitions(
 ) {
   const selected = new WeakMap<Type, Definition>();
   const definitions = new Map<string, Definition>();
+  const accepts = (source: TargetTypeRef, target: TargetTypeRef): boolean => csharpUnionReferenceImplicitlyAccepts({
+    typeDefinitions: host.typeDefinitions, projectTypes: host.projectTypes(), providers: host.providers,
+    objectShapes: host.objectShapes,
+  }, source, target);
+  const physicalArm = (source: TargetTypeRef, carrier: TargetTypeRef): TargetTypeRef | undefined => {
+    const present = getCsharpNullableElementTargetType(carrier) ?? carrier;
+    const arms = csharpUnionLeaves(present, host.typeDefinitions)?.map(leaf => leaf.carrier) ?? [present];
+    const exact = arms.find(arm => targetTypeRefEquals(source, arm));
+    if (exact !== undefined) return exact;
+    const targets = arms.filter(arm => accepts(source, arm) && !accepts(arm, source));
+    const maximal = targets.filter(arm => !targets.some(other =>
+      !targetTypeRefEquals(arm, other) && accepts(arm, other) && !accepts(other, arm)));
+    return maximal.length === 1 ? maximal[0] : undefined;
+  };
+  const combine = (arms: readonly TargetTypeRef[] | undefined): TargetTypeRef | undefined => {
+    if (arms === undefined) return undefined;
+    const combined = combineCsharpTargetUnionMembers(arms);
+    if (combined === undefined) return undefined;
+    const present = getCsharpNullableElementTargetType(combined) ?? combined;
+    const members = getCsharpRuntimeUnionArms(present) ?? [present];
+    const retained = members.filter(member => {
+      const alternatives = members.filter(other => !targetTypeRefEquals(member, other));
+      if (alternatives.length === 0) return true;
+      const carrier = combineCsharpTargetUnionMembers(alternatives);
+      return carrier === undefined || physicalArm(member, carrier) === undefined;
+    });
+    const result = combineCsharpTargetUnionMembers(retained);
+    const nullable = getCsharpNullableElementTargetType(combined) !== undefined;
+    return retainCsharpUnionObjectShapes(result === undefined || !nullable || isCsharpAbsenceTargetType(result)
+      ? result : csharpNullableTargetType(result), host.structuralTypes.resolveTarget);
+  };
   return Object.freeze({
+    physicalArm,
     reference(type: Type): TargetTypeRef | undefined {
       const definition = selected.get(type);
       if (definition === undefined) return undefined;
@@ -35,13 +70,13 @@ export function createCsharpSourceUnionDefinitions(
       return definition.result;
     },
     resolve(type: Type, queries: SourceFileSemantics, state: CsharpTypeResolutionState,
-      construct: () => { readonly carrier: TargetTypeRef | undefined; readonly arms: readonly TargetTypeRef[] }) {
+      construct: () => readonly TargetTypeRef[] | undefined) {
       const cached = selected.get(type);
       if (cached !== undefined) return cached.result;
       const application = queries.types.aliasApplication(type);
       const identity = application === undefined ? undefined : sourceNodeIdentity(host.ast, application.declaration);
       if (application?.kind !== "direct" || identity === undefined || host.typeDefinitions === undefined ||
-        !host.navigation.isProjectDeclaration(application.declaration)) return construct().carrier;
+        !host.navigation.isProjectDeclaration(application.declaration)) return combine(construct());
       const arguments_ = application.bindings.map(binding => resolveType(binding.argument, queries.sourceFile, nextState(state)));
       if (arguments_.some(argument => argument === undefined)) return undefined;
       const typeArguments = arguments_ as readonly TargetTypeRef[];
@@ -67,14 +102,14 @@ export function createCsharpSourceUnionDefinitions(
         recursive: false, building: true };
       definitions.set(key, definition);
       selected.set(type, definition);
-      const resolved = construct();
+      const resolved = combine(construct());
       definition.building = false;
-      const present = getCsharpNullableElementTargetType(resolved.carrier) ?? resolved.carrier;
+      const present = getCsharpNullableElementTargetType(resolved) ?? resolved;
       const arms = present === undefined ? [] : getCsharpRuntimeUnionArms(present) ?? [present];
       definition.result = host.typeDefinitions.sourceUnionArms(carrier) !== undefined
-        ? resolved.carrier === undefined ? undefined : definition.reference
-        : !definition.recursive ? resolved.carrier
-        : resolved.carrier !== undefined && host.typeDefinitions.registerSourceUnion({ carrier, arms })
+        ? resolved === undefined ? undefined : definition.reference
+        : !definition.recursive ? resolved
+        : resolved !== undefined && host.typeDefinitions.registerSourceUnion({ carrier, arms })
           ? definition.reference : undefined;
       return definition.result;
     },

@@ -2,12 +2,10 @@ import { csharpProviderBindingFromResolution } from "../../../../providers/model
 import type { CsharpTargetNamedTypeRef, CsharpTargetParameter, TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
-import { retainCsharpUnionObjectShapes } from "./source-union-refinement.js";
 import type { SourceCallableTypeEvidence, SourceFileSemantics, SourceTypeComponentEvidence } from "@tsonic/target-api/source";
 import type { AstReader, Type } from "@tsonic/tsts";
 
 import { classifyCsharpSourceProfileType } from "../../../../policy/identities/source-types.js";
-import { combineCsharpTargetUnionMembers } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpDelegateTargetType } from "../../../../target-model/types/carriers/delegates.js";
 
 import { csharpNullableTargetType } from "../../../../target-model/types/carriers/nullable.js";
@@ -67,12 +65,10 @@ export function resolveUnionType(
   let resolved: readonly (TargetTypeRef | undefined)[] = [];
   const carrier = sourceUnionDefinitions.resolve(type, queries, state, () => {
     resolved = sourceMembers.map(member => resolveTypeWithState(member, queries.sourceFile, nextState(state)));
-    if (resolved.some(member => member === undefined)) return { carrier: undefined, arms: [] };
-    const arms = resolved as readonly TargetTypeRef[];
-    return { carrier: retainCsharpUnionObjectShapes(combineCsharpTargetUnionMembers(arms),
-      host.structuralTypes.resolveTarget), arms };
+    return resolved.some(member => member === undefined) ? undefined : resolved as readonly TargetTypeRef[];
   });
-  return sourceUnions.retain(carrier, resolved.map((arm, index) => ({ source: sourceMembers[index]!, carrier: arm! })), queries, state);
+  return sourceUnions.retain(carrier, resolved.map((arm, index) => ({ source: sourceMembers[index]!, carrier: arm! })),
+    queries, state, sourceUnionDefinitions.physicalArm);
 }
 
 export function resolveCallableType(
@@ -255,8 +251,9 @@ export function resolveSourceTypeComponentEvidence(
   }
   const authoredSourceFile = component.authoredTypeNode === undefined
     ? queries.sourceFile
-    : host.ast.getSourceFile(component.authoredTypeNode) ??
-      queries.sourceFile;
+    : host.ast.getSourceFile(component.authoredTypeNode);
+  if (authoredSourceFile === undefined || authoredSourceFile !== queries.sourceFile &&
+    !host.hasSemantics(authoredSourceFile)) return undefined;
   return component.authoredTypeNode === undefined
     ? resolveTypeWithState(
         component.selectedType,

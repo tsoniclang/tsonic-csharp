@@ -4,7 +4,6 @@ import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
-import { combineCsharpTargetUnionMembers } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpJsArrayTargetType } from "../../../../target-model/types/carriers/js.js";
 
 import { csharpNullableTargetType } from "../../../../target-model/types/carriers/nullable.js";
@@ -15,7 +14,6 @@ import { resolveKeywordType } from "../../../../policy/types/resolution/source-p
 import { selectedCsharpSourceProfileOwner } from "../../../../policy/identities/source-types.js";
 import { sourceFactSubjectsForNode } from "./source-evidence.js";
 
-import { retainCsharpUnionObjectShapes } from "./source-union-refinement.js";
 import { resolveCsharpProviderIndexedAccess } from "./indexed-access.js";
 import { csharpSourceStorageContext, csharpSourceStorageComponentContext } from "./source-storage-projection.js";
 
@@ -150,12 +148,11 @@ function resolveNodeCarrierWithState(
     let members: readonly (TargetTypeRef | undefined)[] = [];
     const carrier = scope.sourceUnionDefinitions.resolve(selected, queries, state, () => {
       members = host.ast.children(node).map(member => resolveNodeWithState(member, queries.sourceFile, nextState(state)));
-      if (members.some(member => member === undefined)) return { carrier: undefined, arms: [] };
-      const arms = members as readonly TargetTypeRef[];
-      return { carrier: retainCsharpUnionObjectShapes(combineCsharpTargetUnionMembers(arms), host.structuralTypes.resolveTarget), arms };
+      return members.some(member => member === undefined) ? undefined : members as readonly TargetTypeRef[];
     });
     return scope.sourceUnions.retain(carrier,
-      members.map((member, index) => ({ source: sourceMembers[index]!, carrier: member! })), queries, state);
+      members.map((member, index) => ({ source: sourceMembers[index]!, carrier: member! })), queries, state,
+      scope.sourceUnionDefinitions.physicalArm);
   }
   if (host.ast.is.IsNamedTupleMember(node)) {
     return resolveNodeWithState(

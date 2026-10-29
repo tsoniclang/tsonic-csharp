@@ -11,6 +11,7 @@ import { csharpUnionLeaves } from "../../../../target-model/types/union-relation
 interface CsharpSourceUnionMember {
   readonly source: Type;
   readonly carrier: TargetTypeRef;
+  readonly physicalCarrier: TargetTypeRef;
   readonly bindings: ReadonlyMap<Node, Type>;
 }
 
@@ -20,6 +21,7 @@ export interface CsharpSourceUnionIndex {
     members: readonly { readonly source: Type; readonly carrier: TargetTypeRef }[],
     queries: SourceFileSemantics,
     state: CsharpTypeResolutionState,
+    physicalArm: (source: TargetTypeRef, carrier: TargetTypeRef) => TargetTypeRef | undefined,
   ): TargetTypeRef | undefined;
   select(carrier: TargetTypeRef, selected: Type, queries: SourceFileSemantics):
     { readonly kind: "unavailable" | "rejected" } | { readonly kind: "resolved"; readonly carrier: TargetTypeRef };
@@ -28,28 +30,30 @@ export interface CsharpSourceUnionIndex {
 export function createCsharpSourceUnionIndex(definitions?: CsharpTypeDefinitions): CsharpSourceUnionIndex {
   const membersByCarrier = new Map<string, readonly CsharpSourceUnionMember[]>();
   return {
-    retain(carrier, members, queries, state) {
+    retain(carrier, members, queries, state, physicalArm) {
       if (carrier === undefined) return undefined;
       const present = getCsharpNullableElementTargetType(carrier) ?? carrier;
-      const leaves = csharpUnionLeaves(present, definitions);
-      if (leaves === undefined) return carrier;
+      const leaves = csharpUnionLeaves(present, definitions) ?? [{ carrier: present }];
       const key = targetTypeRefKey(present);
       const entries = [...membersByCarrier.get(key) ?? []];
       const bindings = new Map([...state.sourceBindings ?? []].map(([node, binding]) => [node, binding.sourceType]));
       for (const member of members) {
         const inner = getCsharpNullableElementTargetType(member.carrier) ?? member.carrier;
-        const nested = getCsharpRuntimeUnionArms(inner, definitions) === undefined ? undefined
+        const nested = !queries.types.isUnion(member.source) && getCsharpRuntimeUnionArms(inner, definitions) === undefined ? undefined
           : membersByCarrier.get(targetTypeRefKey(inner));
         const sources = queries.types.isUnion(member.source)
           ? queries.types.unionOrIntersectionTypes(member.source) : [member.source];
         const candidates = nested ?? sources.filter(source => !queries.types.isNullish(source))
           .map(source => Object.freeze({ source, carrier: inner, bindings }));
         for (const candidate of candidates) {
-          if (!leaves.some(leaf => targetTypeRefEquals(leaf.carrier, candidate.carrier))) continue;
+          const physicalCarrier = physicalArm(candidate.carrier, present);
+          if (physicalCarrier === undefined || !leaves.some(leaf => targetTypeRefEquals(leaf.carrier, physicalCarrier))) continue;
           if (!entries.some(entry => entry.source === candidate.source &&
             targetTypeRefEquals(entry.carrier, candidate.carrier) &&
+            targetTypeRefEquals(entry.physicalCarrier, physicalCarrier) &&
             entry.bindings.size === candidate.bindings.size &&
-            [...entry.bindings].every(([node, type]) => candidate.bindings.get(node) === type))) entries.push(candidate);
+            [...entry.bindings].every(([node, type]) => candidate.bindings.get(node) === type)))
+            entries.push(Object.freeze({ ...candidate, physicalCarrier }));
         }
       }
       membersByCarrier.set(key, Object.freeze(entries));
@@ -66,8 +70,8 @@ export function createCsharpSourceUnionIndex(definitions?: CsharpTypeDefinitions
         queries.types.isNumberLike(selected) && queries.types.isNumberLike(entry.source) ||
         queries.types.isBigIntLike(selected) && queries.types.isBigIntLike(entry.source));
       const first = candidates[0];
-      return first === undefined || candidates.some(candidate => !targetTypeRefEquals(candidate.carrier, first.carrier))
-        ? { kind: "rejected" } : { kind: "resolved", carrier: first.carrier };
+      return first === undefined || candidates.some(candidate => !targetTypeRefEquals(candidate.physicalCarrier, first.physicalCarrier))
+        ? { kind: "rejected" } : { kind: "resolved", carrier: first.physicalCarrier };
     },
   };
 }
