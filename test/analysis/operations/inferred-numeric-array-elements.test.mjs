@@ -584,9 +584,16 @@ for (const surface of ["native", "js"]) {
     const ast = compiled.nativeStage.source.ast;
     const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
     const text = range?.kind !== "authored" ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end);
-    assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH" &&
-      issue.message === "Array construction requires one consistent actual native element destination across its storage and uses." &&
-      text === "[narrow, signed]", true, `no use-order winner, array copy or consumer-side storage repair hides conflicting native destinations; ${diagnosticLabel(compiled)}`);
+    const owner = issue?.sourceNode === undefined ? undefined : ast.parent(issue.sourceNode);
+    const ownerRange = owner === undefined ? undefined : ast.authoredRange(owner);
+    const ownerText = ownerRange?.kind !== "authored" ? undefined
+      : ast.getSourceText(ast.getSourceFile(owner)).slice(ownerRange.start, ownerRange.end);
+    const expected = surface === "native"
+      ? "No exact C# implicit conversion relates 'array:1:source:float32' to 'array:1:source:float64'."
+      : "No exact C# implicit conversion relates 'target:Tsonic.CSharp.Js.JSArray`1<source:float32>' to 'target:Tsonic.CSharp.Js.JSArray`1<source:float64>'.";
+    assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "CSHARP_UNSUPPORTED_AST" &&
+      issue.message === expected && text === "values" && ownerText === "double(values)", true,
+      `the incompatible native use is refused without retyping the earlier literal, copying its array or repairing storage; ${diagnosticLabel(compiled)}`);
     assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
       "one physical construction is either closed or precisely refused before publication");
   });

@@ -217,7 +217,8 @@ test("optional native call completion admission retains the exact present-to-opt
   }), (node, source, target) => {
     pairs.push({ node, source, target });
     return selectCsharpConversion(policy, source, target, "implicit");
-  }, requiredRecords, [], new Map([[expression, Object.freeze({ completion, omitted: Object.freeze([]) })]]));
+  }, requiredRecords, [], new Map([[expression, Object.freeze({ completion, omitted: Object.freeze([]) })]]),
+  { objectShapes: { resolveTarget: () => undefined } });
   assert.equal(admitted.issues.length, 0, "a valid native bool-to-Nullable<bool> branch is admitted before sealing");
   assert.equal(pairs.length === 1 && pairs[0].node === expression &&
     targetTypeRefEquals(pairs[0].source, booleanType) && targetTypeRefEquals(pairs[0].target, target), true,
@@ -239,7 +240,7 @@ test("authored absence into required native storage retains its exact refusal at
     selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined },
   }, (node, from, target) => ({
     key: "authored-absence", classification: { source: from, target, selection: selected },
-  }), () => selected, requiredRecords, [], new Map());
+  }), () => selected, requiredRecords, [], new Map(), { objectShapes: { resolveTarget: () => undefined } });
   assert.equal(selected.kind === "rejected" && admitted.issues.length === 1, true,
     "native declaration defaults never waive an authored incompatible absence conversion");
   assert.equal(admitted.issues[0].node === expression && admitted.issues[0].code === "CSHARP_UNSUPPORTED_AST" &&
@@ -257,7 +258,7 @@ test("void and never native completions admit no present-value conversion", () =
     }, () => assert.fail(`${kind} has no consumed value conversion`),
     () => assert.fail(`${kind} has no present-value conversion`), requiredRecords, [],
     new Map([[expression, Object.freeze({ completion: Object.freeze({ source: carrier, target: carrier }),
-      omitted: Object.freeze([]) })]]));
+      omitted: Object.freeze([]) })]]), { objectShapes: { resolveTarget: () => undefined } });
     assert.equal(admitted.issues.length, 0, `${kind} does not manufacture an absence or value rejection`);
     assert.equal(admitted.expressions.size, 0, `${kind} publishes no expression conversion`);
     assert.equal(requiredRecords.length, 0, `${kind} requires no value conversion record`);
@@ -280,7 +281,7 @@ test("native call completion admission requires its exact pair only once across 
     presentConversions++;
     return selectCsharpConversion(policy, source, target, "implicit");
   }, requiredRecords, [], new Map([[expression, Object.freeze({ completion: Object.freeze({ source: booleanType, target }),
-    omitted: Object.freeze([]) })]]));
+    omitted: Object.freeze([]) })]]), { objectShapes: { resolveTarget: () => undefined } });
   assert.equal(admitted.issues.length, 0, "duplicate consuming sites retain valid native optional bool admission");
   assert.equal(presentConversions, 1, "the selected present-result conversion is admitted once");
   assert.equal(requiredRecords.filter(record => record.family === "conversion" && record.subject === expression &&
@@ -327,7 +328,8 @@ test("consumed native void completions require expression evidence without fabri
   }, (node, from, to, mode, exactInteger, boundary, completion) => ({ key: "void-completion",
     classification: { source: from, target: to,
       selection: admitCsharpConversionSelection(policy, from, to, { kind: "absence" }, completion) },
-  }), () => assert.fail("the native void completion has no generic value conversion"), requiredRecords, [], new Map());
+  }), () => assert.fail("the native void completion has no generic value conversion"), requiredRecords, [], new Map(),
+  { objectShapes: { resolveTarget: () => undefined } });
   assert.equal(admitted.issues.length, 0, "the actual void input becomes one admitted absent value");
   assert.equal(admitted.expressions.get(expression)?.get("void-completion")?.selection.kind, "absence",
     "rendering receives the exact admitted expression conversion");
@@ -353,7 +355,7 @@ test("omitted source arguments admit their physical absence pairs once before di
     return admitCsharpConversionSelection(policy, from, to, selectCsharpConversion(policy, from, to, "implicit"));
   }, requiredRecords, [], new Map([[expression, Object.freeze({
     omitted: Object.freeze([Object.freeze({ source, target })]),
-  })]]));
+  })]]), { objectShapes: { resolveTarget: () => undefined } });
   assert.equal(admitted.issues.length, 0, "the checked omitted slot is admitted independently of its void call result");
   assert.equal(physicalPairs, 1, "repeated result uses never duplicate the omitted slot admission");
   assert.equal(admitted.expressions.size, 0, "no source expression is fabricated for an omitted argument");
@@ -372,7 +374,8 @@ test("an unresolved omitted formal is refused before publication without a guess
     selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined },
   }, () => assert.fail("the missing formal never becomes an expression"),
   (node, from, target) => selectCsharpConversion(policy, from, target, "implicit"), requiredRecords, [],
-  new Map([[expression, Object.freeze({ omitted: Object.freeze([{ source, target: undefined }]) })]]));
+  new Map([[expression, Object.freeze({ omitted: Object.freeze([{ source, target: undefined }]) })]]),
+  { objectShapes: { resolveTarget: () => undefined } });
   assert.equal(admitted.issues.length === 1 && admitted.issues[0].node === expression &&
     admitted.issues[0].code === "CSHARP_UNSUPPORTED_AST" &&
     admitted.issues[0].message === "C# conversion requires closed source and target representations.", true,
@@ -396,7 +399,8 @@ test("post-seal corruption pairs are source refusals at their actual conversion 
       selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined },
     }, (node, from, to) => ({ key: "exact-refused-pair",
       classification: { source: from, target: to, selection: selectCsharpConversion(policy, from, to, "implicit") },
-    }), () => assert.fail("a refused expression pair cannot need a separate native value"), requiredRecords, [], new Map());
+    }), () => assert.fail("a refused expression pair cannot need a separate native value"), requiredRecords, [], new Map(),
+    { objectShapes: { resolveTarget: () => undefined } });
     assert.equal(admitted.issues.length === 1 && admitted.issues[0].node === expression &&
       admitted.issues[0].code === "CSHARP_UNSUPPORTED_AST" && admitted.issues[0].message === reason, true,
     "the identical malformed pair is rejected with its exact owning message and node before publication");

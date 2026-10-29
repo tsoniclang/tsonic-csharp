@@ -8,6 +8,7 @@ import { csharpSourceTypeParameter } from "../../../dist/source/extension/type-p
 import { csharpOptionalStorageProjection, getCsharpGenericOptionalParts } from "../../../dist/target-model/types/projections.js";
 
 function scenario(rejectedIndex, count = 3) {
+  const owner = {};
   const carriers = Array.from({ length: count }, () => ({ kind: "source-primitive", name: "int64" }));
   const properties = carriers.map((type, index) => ({ name: `field${index}`, symbol: {}, rootSymbols: [], type,
     optional: index === 1, readonly: index === 2 }));
@@ -28,28 +29,38 @@ function scenario(rejectedIndex, count = 3) {
   const queries = {
     sourceFile: {},
     declarations: { typeSymbol: () => undefined, symbolDeclarations: () => [] },
-    types: { propertyInfos: () => properties, isNumberLike: () => false, isBigIntLike: () => false },
+    types: { propertyInfos: () => properties, isNumberLike: () => false, isBigIntLike: () => false,
+      structuralMembers(actual, expected, purpose) {
+        assert.equal(actual === owner && expected === owner, true, "one original checked owner supplies its exact self-correspondence");
+        assert.equal(purpose, "correspondence", "member collection retains checked correspondence, not another resolver pass");
+        const inventory = { type: owner, calls: [], constructs: [], indexes: [] };
+        return { kind: "available", source: inventory, destination: inventory,
+          members: properties.map(property => {
+            const selected = { receiverType: owner, property, declarations: [], getters: [], setters: [], read: "property" };
+            return { kind: "present", source: selected, destination: selected };
+          }) };
+      } },
   };
-  return { resolver, queries, selected, carriers };
+  return { resolver, queries, selected, carriers, owner };
 }
 
 test("structural members stop at the first unavailable carrier without publishing a partial shape", () => {
   for (const rejectedIndex of [0, 1, 2]) {
-    const { resolver, queries, selected } = scenario(rejectedIndex);
-    assert.equal(resolver.deriveMembers({}, queries, { depth: 0 }) === undefined, true, `rejected field${rejectedIndex}`);
+    const { resolver, queries, selected, owner } = scenario(rejectedIndex);
+    assert.equal(resolver.deriveMembers(owner, queries, { depth: 0 }) === undefined, true, `rejected field${rejectedIndex}`);
     assert.deepEqual(selected, Array.from({ length: rejectedIndex + 1 }, (_, index) => index));
   }
 });
 
 test("structural member rejection does no later resolver work even for a wide record", () => {
-  const { resolver, queries, selected } = scenario(0, 256);
-  assert.equal(resolver.deriveMembers({}, queries, { depth: 0 }) === undefined, true, "the exact unavailable record stays unavailable");
+  const { resolver, queries, selected, owner } = scenario(0, 256);
+  assert.equal(resolver.deriveMembers(owner, queries, { depth: 0 }) === undefined, true, "the exact unavailable record stays unavailable");
   assert.deepEqual(selected, [0]);
 });
 
 test("complete structural records preserve member order, native carriers and optional/readonly evidence", () => {
-  const { resolver, queries, selected, carriers } = scenario(-1);
-  const members = resolver.deriveMembers({}, queries, { depth: 0 });
+  const { resolver, queries, selected, carriers, owner } = scenario(-1);
+  const members = resolver.deriveMembers(owner, queries, { depth: 0 });
   assert.equal(members?.length === 3, true, "complete closed member collection");
   assert.deepEqual(selected, [0, 1, 2]);
   assert.deepEqual(members.map(member => member.sourceName), ["field0", "field1", "field2"]);

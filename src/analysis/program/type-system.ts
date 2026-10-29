@@ -253,10 +253,11 @@ export function createCsharpTypeAnalysis(
     },
   });
   const system = createCsharpTypeSystem(host, catalog, selectedRepresentations);
-  nativeConstruction = createCsharpNativeConstructionDemandQuery(host.sourceStorage, {
+  nativeConstruction = createCsharpNativeConstructionDemandQuery({
     ...host,
     scopedTargetType: representations.scopedTargetType,
     resolveShape: system.objectShapes.resolveType,
+    resolveLiteralShape: system.objectShapes.resolveObjectLiteralTargetShape,
     retainSourceShape: system.objectShapes.retainConstructionSource,
   });
   return Object.freeze({ ...system, nativeConstruction });

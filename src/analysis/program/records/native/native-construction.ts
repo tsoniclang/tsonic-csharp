@@ -6,8 +6,7 @@ export function createCsharpNativeConstructionRecords(
   issues: readonly CsharpNativeConstructionIssue[],
 ): CsharpNativeConstructionDemandQueries {
   const selected = new WeakMap(entries);
-  const complete = issues.length === 0;
   return Object.freeze({ issues: Object.freeze([...issues]),
-    constructionFor: (node: Node) => complete ? selected.get(node) : undefined,
+    constructionFor: (node: Node) => selected.get(node),
   });
 }

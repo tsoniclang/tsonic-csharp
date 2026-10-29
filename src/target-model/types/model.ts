@@ -1,4 +1,5 @@
 import type { ArgumentPassingMode, ExtensionFactSubject, Node, ResolvedSourceWellKnownSymbolInfo, SourcePrimitiveKind, Type } from "@tsonic/tsts";
+import type { SourceStructuralMemberPair } from "@tsonic/target-api/source";
 import type { CsharpTargetBinaryExecutionDriver } from "../metadata/provider-metadata.js";
 
 export type CsharpTypeofRuntimeKind = "string" | "number" | "boolean" | "bigint" | "symbol" | "object" | "function" | "undefined";
@@ -14,12 +15,19 @@ export type CsharpObjectMethodValueStorage =
   | { readonly kind: "delegate"; readonly type: TargetTypeRef }
   | { readonly kind: "protocol"; readonly type: TargetTypeRef; readonly invocationName: string };
 
+export interface CsharpObjectShapeMemberEvidence {
+  readonly ownerType: Type;
+  readonly sourceType: Type;
+  readonly correspondence: SourceStructuralMemberPair;
+}
+
 export interface CsharpObjectShapeMemberFact {
   readonly sourceKey: CsharpSourceMemberKey;
   readonly sourceName: string;
   readonly sourceSubjects?: readonly ExtensionFactSubject[];
   readonly sourceDeclarations?: readonly Node[];
   readonly sourceTypes?: readonly Type[];
+  readonly sourceMemberEvidence?: readonly CsharpObjectShapeMemberEvidence[];
   readonly targetName: string;
   readonly memberKind: "property" | "method";
   readonly type: TargetTypeRef;

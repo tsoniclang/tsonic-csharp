@@ -1,5 +1,9 @@
 import type { Node } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import { sourceEnclosingCallable } from "@tsonic/target-api/source";
+import type { CsharpPolicyContext } from "../../policy/model/context.js";
+import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
+import { csharpUntypedObjectLiteralIssue, selectCsharpLiteralDeclarationContext } from "../objects/native-construction-demand.js";
 import type { CsharpConversionMode, CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import type { CsharpConversionIssue, CsharpExpressionConversionClassification } from "../../target-model/records/operations/conversions.js";
 import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
@@ -28,6 +32,9 @@ export function sealCsharpConversionUses(
   requiredRecords: CsharpRequiredRecord[],
   preparationIssues: readonly CsharpConversionIssue[],
   callConversions: ReadonlyMap<Node, CsharpCallConversionRequests>,
+  context: Pick<CsharpPolicyContext, "ast" | "navigation" | "semanticsFor"> & {
+    readonly objectShapes: Pick<CsharpPolicyContext["objectShapes"], "resolveTarget">;
+  },
 ): {
   readonly expressions: Map<Node, Map<string, CsharpExpressionConversionClassification>>;
   readonly issues: readonly CsharpConversionIssue[];
@@ -129,6 +136,12 @@ export function sealCsharpConversionUses(
     selections.set(admitted.key, admitted.classification);
     expressions.set(expression, selections);
     if (admitted.classification.selection.kind === "rejected" || admitted.classification.selection.kind === "ambiguous") {
+      const literalIssue = mode === "implicit" && admitted.classification.selection.kind === "rejected"
+        ? untypedObjectLiteralIssue(expression, target) : undefined;
+      if (literalIssue !== undefined) {
+        issues.push(literalIssue);
+        return;
+      }
       issues.push(Object.freeze({ node: expression, code: admitted.classification.selection.kind === "rejected"
         ? admitted.classification.selection.code ?? "CSHARP_UNSUPPORTED_AST" : "CSHARP_UNSUPPORTED_AST",
         message: admitted.classification.selection.reason }));
@@ -138,5 +151,22 @@ export function sealCsharpConversionUses(
       construct: "consumed native carrier conversion", producer: "sealCsharpConversionUses" });
     requireCsharpRecord(requiredRecords, { family: "expressionConversion", subject: expression, source, target, mode,
       construct: "consumed native expression conversion", producer: "sealCsharpConversionUses" });
+  }
+
+  function untypedObjectLiteralIssue(expression: Node, target: TargetTypeRef): CsharpConversionIssue | undefined {
+    const shape = context.objectShapes.resolveTarget(getCsharpNullableElementTargetType(target) ?? target);
+    if (shape?.constructible !== true) return undefined;
+    const queries = context.semanticsFor(expression);
+    const checked = queries.types.expressionType(expression);
+    if (checked === undefined || queries.types.isUnion(checked)) return undefined;
+    const symbol = queries.declarations.typeSymbol(checked);
+    const declarations = symbol === undefined ? [] : queries.declarations.symbolDeclarations(symbol);
+    const literal = declarations.length === 1 ? declarations[0] : undefined;
+    if (literal === undefined || !context.ast.is.IsObjectLiteralExpression(literal) ||
+      !context.navigation.isProjectDeclaration(literal) ||
+      context.ast.getSourceFile(literal) !== context.ast.getSourceFile(expression) ||
+      sourceEnclosingCallable(literal, context.ast) !== sourceEnclosingCallable(expression, context.ast) ||
+      selectCsharpLiteralDeclarationContext(literal, context.semanticsFor(literal), context) !== undefined) return undefined;
+    return csharpUntypedObjectLiteralIssue(literal);
   }
 }

@@ -1,7 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import { IsTypeSyntaxNode, sourceCallableValueParameters } from "@tsonic/target-api/source";
 
-import { conversionIsImplicitlyApplicable } from "../../policy/conversions/core.js";
 import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
 import { getCsharpCallableValueSignature, getCsharpLambdaSignature, getCsharpNullableElementTargetType, csharpNullableReferenceTargetType, csharpNullableTargetType, csharpTargetStorageIdentityEquals, csharpDelegateSignaturesMatchNativeBinding, targetTypeRefEquals, targetTypeRefKey } from "../../policy/types/index.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
@@ -15,7 +14,6 @@ import type { CsharpTargetOperationClassifications } from "../../target-model/re
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import type { CsharpStorageClassifications, CsharpStorageRepresentationClassifications, CsharpStorageIssue } from "../../target-model/records/storage/storage.js";
-import { canConstructCsharpStorageLiteral } from "./literal-construction.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/objects/required-records.js";
 
 interface MutableStorageContract {
@@ -304,6 +302,7 @@ export function analyzeCsharpStorage(
     const sourceType = evidence.nodeTargetType.get(expression);
     const sourceCallable = getCsharpCallableValueSignature(getCsharpNullableElementTargetType(sourceType) ?? sourceType);
     const expectedCallable = getCsharpCallableValueSignature(getCsharpNullableElementTargetType(expectedType) ?? expectedType);
+    if (sourceCallable === undefined || expectedCallable === undefined) return;
     if (sourceCallable !== undefined && expectedCallable !== undefined &&
       !csharpDelegateSignaturesMatchNativeBinding(sourceCallable, expectedCallable)) return;
     const requiredStorageType = sourceType !== undefined &&
@@ -336,33 +335,6 @@ export function analyzeCsharpStorage(
       }
       return;
     }
-    const aliases = new Set<Node>();
-    let current = expression;
-    while (true) {
-      const declaration = policy.navigation.referenceFor(current)?.declaration;
-      if (declaration === undefined || !policy.ast.is.IsVariableDeclaration(declaration) ||
-        aliases.has(declaration)) return;
-      const variable = policy.ast.as.AsVariableDeclaration(declaration);
-      if (variable?.Initializer === undefined || !storageDeclarationCanRefine(declaration, requiredStorageType)) return;
-      aliases.add(declaration);
-      if (aliases.size > maximumStorageContracts) {
-        issues.push(issue(expression, "CSHARP_STORAGE_ALIAS_BUDGET_EXCEEDED",
-          `Selected storage exceeds its finite ${maximumStorageContracts}-alias budget.`));
-        return;
-      }
-      const initializer = variable.Initializer;
-      if (policy.ast.is.IsObjectLiteralExpression(initializer) || policy.ast.is.IsArrayLiteralExpression(initializer)) {
-        if (!canConstructCsharpStorageLiteral(initializer, requiredStorageType,
-          policy, evidence, objectShapes, conversions)) return;
-        break;
-      }
-      const initializerConversion = conversions.expressionConversion.get(initializer,
-        evidence.nodeTargetType.get(initializer), requiredStorageType, "implicit");
-      if (initializerConversion !== undefined && conversionIsImplicitlyApplicable(initializerConversion)) break;
-      if (!policy.ast.is.IsIdentifier(initializer)) return;
-      current = initializer;
-    }
-    for (const declaration of aliases) requireTargetType(expression, declaration, requiredStorageType);
   }
 
   function storageDeclarationCanRefine(declaration: Node, required: TargetTypeRef): boolean {

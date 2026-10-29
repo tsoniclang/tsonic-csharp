@@ -10,7 +10,7 @@ test("fresh empty native construction retains allocation and alias identity thro
   const compiled = compileCsharpSource({ surface: "js", capabilities: [nodejsCapability()], sourceText: `
     import type { MakeDirectoryOptions } from "node:fs";
     function make(): MakeDirectoryOptions {
-      const value = {};
+      const value: MakeDirectoryOptions = {};
       const alias = value;
       const selected: MakeDirectoryOptions = alias;
       selected.mode = 11;
@@ -35,7 +35,7 @@ test("fresh native indexed construction retains one environment and its exact al
   const compiled = compileCsharpSource({ surface: "js", capabilities: [nodejsCapability()], sourceText: `
     import type { ProcessEnv } from "node:process";
     export function make(value: string): ProcessEnv {
-      const original = {};
+      const original: ProcessEnv = {};
       const alias = original;
       const environment: ProcessEnv = alias;
       environment["TSONIC_ENVIRONMENT_PROOF"] = value;
@@ -112,8 +112,11 @@ for (const [name, body] of nonfreshControls) {
       ${body}
     ` });
     assertCsharpCheckingSucceeded(compiled);
-    assert.equal(compiled.targetDiagnostics.some(diagnostic => diagnostic.code === "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN"), true,
-      "exact allocation provenance is required");
+    const refusal = compiled.targetDiagnostics.find(diagnostic => diagnostic.code === "CSHARP_UNSUPPORTED_AST" &&
+      diagnostic.message.startsWith("No exact C# implicit conversion relates "));
+    assert.equal(refusal !== undefined, true, "the declared carrier has no valid native identity conversion");
+    assert.match(refusal.message, name === "conflicting native demands"
+      ? /MakeDirectoryOptions<>.*RmOptions<>/u : /MakeDirectoryOptions<>/u);
     assert.equal(compiled.artifacts.size, 0, "failed native construction cannot publish executable output");
   });
 }

@@ -44,7 +44,7 @@ export function createCsharpObjectShapePolicy(
   host: CsharpObjectShapePolicyHost,
 ): CsharpRecursiveObjectShapePolicy {
   const environment = host.typeParameterConstraints;
-  const { deriveMembers, instantiateMemberEvidence, resolvePropertyType, retainLiteralMemberEvidence } = createCsharpObjectShapeMemberResolver(host);
+  const { deriveMembers, instantiateMemberEvidence, retainMemberDeclarationEvidence, resolvePropertyType, retainLiteralMemberEvidence } = createCsharpObjectShapeMemberResolver(host);
   const activeNodes = new WeakSet<object>();
   const activeTypes = new WeakSet<object>();
   const nodeShapes = new WeakMap<object, CsharpObjectShapeFact>();
@@ -361,12 +361,12 @@ export function createCsharpObjectShapePolicy(
       host.semantics(sourceFile),
       state,
       undefined,
-      authoredTypeRoot,
+      authoredLiteral === undefined ? authoredTypeRoot : undefined,
     );
     return shape === undefined ? undefined : rememberTargetShape(shape);
   }
 
-  const resolveObjectLiteralTargetShape = createCsharpLiteralShapeResolver(host, { resolveNode, retainLiteralMemberEvidence, rememberTargetShape });
+  const resolveObjectLiteralTargetShape = createCsharpLiteralShapeResolver(host, { resolveNode, retainLiteralMemberEvidence, instantiateMemberEvidence, rememberTargetShape });
   const resolveProjectConstructibleSelectedType = createCsharpProjectShapeProjection(host, deriveMembers);
 
   function remember(
@@ -483,6 +483,7 @@ export function createCsharpObjectShapePolicy(
               sourceName: field.sourceName,
               sourceSubjects: [field.sourceType, ...(selectedMember?.sourceSubjects ?? [])],
               ...(selectedMember?.sourceDeclarations === undefined ? {} : { sourceDeclarations: selectedMember.sourceDeclarations }),
+              ...(selectedMember.sourceMemberEvidence === undefined ? {} : { sourceMemberEvidence: selectedMember.sourceMemberEvidence }),
               ...(selectedMember?.bound === true ? { bound: true as const } : {}),
               ...(sourceType === undefined
                 ? {}
@@ -543,7 +544,8 @@ export function createCsharpObjectShapePolicy(
         resolvePropertyType,
       });
       if (providerShape !== undefined) {
-        return providerShape;
+        const members = retainMemberDeclarationEvidence(providerShape.members, type, queries);
+        return members === undefined ? undefined : { ...providerShape, members };
       }
       const contextualProjectType = targetType !== undefined &&
           isProjectSourceTargetType(targetType)
@@ -628,7 +630,9 @@ export function createCsharpObjectShapePolicy(
       };
       if (authoredLiteral !== undefined) {
         const selected = resolveObjectLiteralTargetShape(shape, authoredLiteral, queries.sourceFile);
-        return selected.kind === "resolved" ? { ...selected.shape, sourceType: type } : undefined;
+        if (selected.kind !== "resolved") return undefined;
+        const members = instantiateMemberEvidence(selected.shape.members, type, queries, selected.shape.sourceType);
+        return members === undefined ? undefined : { ...selected.shape, sourceType: type, members };
       }
       return structuralContract && unionDefinitions.reference(type) === undefined &&
         !host.representations.requiresClosedStructuralContract(shape.targetType)
@@ -733,6 +737,9 @@ export function createCsharpObjectShapePolicy(
           if (selected.kind !== "resolved" || selected.member.memberKind !== "method") return undefined;
           member = Object.freeze({ ...selected.member,
             sourceSubjects: Object.freeze([...new Set([...selected.member.sourceSubjects ?? [], ...member.sourceSubjects ?? []])]),
+            sourceMemberEvidence: Object.freeze([...new Set([
+              ...selected.member.sourceMemberEvidence ?? [], ...member.sourceMemberEvidence ?? [],
+            ])]),
             ...(member.sourceTypes === undefined ? {} : { sourceTypes: member.sourceTypes }),
           });
         }

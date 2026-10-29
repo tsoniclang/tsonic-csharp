@@ -3,7 +3,7 @@ import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, Type } from "@tsonic/tsts";
 import type { SourceCallableTypeEvidence, SourceFileSemantics } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../../target-model/types/model.js";
 import { classifyCsharpSourceProfileDeclaration, classifyCsharpSourceProfileType, selectedCsharpSourceProfileOwner } from "../../../../policy/identities/source-types.js";
 
 import { csharpSourceTypeArgumentNodes } from "../../../../target-model/syntax/type-arguments.js";
@@ -562,8 +562,9 @@ export function resolveSourceValueDeclaration(
       return bound;
     }
   }
+  const declaredSourceType = declarationQueries.declarations.declaredValueType(declaration);
   const declaredTarget = resolveTypeWithState(
-    declarationQueries.declarations.declaredValueType(declaration),
+    declaredSourceType,
     sourceFile,
     nextState(state),
   );
@@ -593,11 +594,26 @@ export function resolveSourceValueDeclaration(
       selectedSource !== undefined && queries.types.isNonPrimitive(selectedSource)) ?? selected ?? declaredTarget, state);
   }
   const arrayInitializer = host.ast.is.IsArrayLiteralExpression(syntax.initializer);
+  const declarationKind = host.ast.variableDeclarationKind(declaration);
+  const mutableVariable = syntax.type === undefined && host.ast.is.IsVariableDeclaration(declaration) &&
+    (declarationKind === "let" || declarationKind === "var");
+  const initializerSourceType = mutableVariable ? declarationQueries.types.expressionType(syntax.initializer) : undefined;
+  const literalBaseType = initializerSourceType === undefined ? undefined
+    : declarationQueries.types.literalBaseType(initializerSourceType);
+  const widenedInitializer = mutableVariable &&
+    declaredTarget !== undefined && declaredSourceType !== undefined && initializerSourceType !== undefined &&
+    literalBaseType !== undefined && !declarationQueries.types.isIdentical(initializerSourceType, literalBaseType) &&
+    declarationQueries.types.isIdentical(declaredSourceType, literalBaseType) &&
+    scope.targetPreservesAuthoredSourcePrimitiveFacts(syntax.initializer, declaredTarget, declarationQueries);
+  const declaredCallable = mutableVariable && getCsharpCallableValueSignature(
+    getCsharpNullableElementTargetType(declaredTarget) ?? declaredTarget,
+  ) !== undefined;
   const initializerTarget = arrayInitializer
     ? resolveNodeWithState(syntax.initializer, sourceFile, nextState(state))
+    : widenedInitializer ? declaredTarget
     : resolveDirectSourceFacts([syntax.initializer], sourceFile, nextState(state)) ??
       resolveSelectedExpressionType(syntax.initializer, declarationQueries, nextState(state)) ??
-      (host.ast.variableDeclarationKind(declaration) !== "const" && declaredTarget !== undefined
+      (declaredTarget !== undefined && (declaredCallable || !mutableVariable && declarationKind !== "const")
         ? declaredTarget
         : resolveNodeWithState(syntax.initializer, sourceFile, nextState(state)));
   if (initializerTarget === undefined) {
@@ -623,6 +639,15 @@ export function resolveSourceValueDeclaration(
     return undefined;
   }
   if (refinement.kind === "unrelated") {
+    const present = getCsharpNullableElementTargetType(initializerTarget) ?? initializerTarget;
+    const selectedMembers = queries.types.isUnion(selectedValueType)
+      ? queries.types.unionOrIntersectionTypes(selectedValueType) : [selectedValueType];
+    if (syntax.type === undefined && present.kind === "target-named" &&
+      (present as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "enum" &&
+      selectedMembers.length > 0 && selectedMembers.every(member =>
+        queries.types.isNullish(member) || queries.types.isNumberLike(member))) {
+      return selectedMembers.some(member => queries.types.isNullish(member)) ? initializerTarget : present;
+    }
     return reconcileCsharpSelectedTargetType(
       initializerTarget,
       resolveTypeWithState(selectedValueType, queries.sourceFile, nextState(state)),
