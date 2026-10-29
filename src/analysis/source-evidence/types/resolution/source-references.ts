@@ -562,8 +562,9 @@ export function resolveSourceValueDeclaration(
       return bound;
     }
   }
+  const declaredSourceType = declarationQueries.declarations.declaredValueType(declaration);
   const declaredTarget = resolveTypeWithState(
-    declarationQueries.declarations.declaredValueType(declaration),
+    declaredSourceType,
     sourceFile,
     nextState(state),
   );
@@ -593,8 +594,17 @@ export function resolveSourceValueDeclaration(
       selectedSource !== undefined && queries.types.isNonPrimitive(selectedSource)) ?? selected ?? declaredTarget, state);
   }
   const arrayInitializer = host.ast.is.IsArrayLiteralExpression(syntax.initializer);
+  const initializerSourceType = declarationQueries.types.expressionType(syntax.initializer);
+  const literalBaseType = initializerSourceType === undefined ? undefined
+    : declarationQueries.types.literalBaseType(initializerSourceType);
+  const widenedInitializer = syntax.type === undefined && host.ast.variableDeclarationKind(declaration) !== "const" &&
+    declaredTarget !== undefined && declaredSourceType !== undefined && initializerSourceType !== undefined &&
+    literalBaseType !== undefined && !declarationQueries.types.isIdentical(initializerSourceType, literalBaseType) &&
+    declarationQueries.types.isIdentical(declaredSourceType, literalBaseType) &&
+    scope.targetPreservesAuthoredSourcePrimitiveFacts(syntax.initializer, declaredTarget, declarationQueries);
   const initializerTarget = arrayInitializer
     ? resolveNodeWithState(syntax.initializer, sourceFile, nextState(state))
+    : widenedInitializer ? declaredTarget
     : resolveDirectSourceFacts([syntax.initializer], sourceFile, nextState(state)) ??
       resolveSelectedExpressionType(syntax.initializer, declarationQueries, nextState(state)) ??
       (syntax.type !== undefined && host.ast.variableDeclarationKind(declaration) !== "const" && declaredTarget !== undefined
