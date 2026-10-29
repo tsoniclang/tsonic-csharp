@@ -5,6 +5,7 @@ import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { collectTargetSourceProfileContributions } from "../../../../tsonic/packages/host/dist/target/source-profile.js";
 import { createCsharpErrorDeclarationQuery } from "../../../dist/analysis/objects/error-storage-demands.js";
 import { resolveSourceProfileType } from "../../../dist/analysis/source-evidence/types/resolution/source-profiles.js";
+import { selectCsharpErrorObservationView } from "../../../dist/analysis/source-evidence/types/resolution/source-references.js";
 import { createSourceErrorProviderFixture } from "../../fixtures/dotnet-provider/source-error-bindings.mjs";
 import { csharpSourceProfileContributions, csharpJsSurfaceSourceProfileContributions } from "../../../dist/source/profiles/declarations.js";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
@@ -82,6 +83,60 @@ for (const jsEnabled of [false, true]) {
 }
 
 for (const surface of ["native", "js"]) {
+  test(`C# ${surface} immediate Error observations preserve adjacent writes, native casts and subtype identity`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      class DetailedError extends Error {
+        readonly code: number = 7;
+        constructor() { super("original"); }
+      }
+      export function update(error: Error): Error {
+        const before = error.message;
+        error.message = before + "!";
+        return error;
+      }
+      export function cast(error: unknown): Error { return error as Error; }
+      export function detail(error: DetailedError): number { return error.code; }
+      export function run(): boolean {
+        const original = new DetailedError();
+        const returned = update(original);
+        return returned === original && cast(original) === original && detail(original) === 7 && original.message === "original!";
+      }
+    ` });
+    assertCsharpCompilationSucceeded(compiled);
+    const program = compiled.result.program;
+    const { source } = program;
+    const { ast } = source;
+    const update = source.navigation.nodes.find(node => ast.is.IsFunctionDeclaration(node) && ast.text(ast.name(node)) === "update");
+    assert.equal(update !== undefined, true, "the writable declaration is original checked syntax");
+    const parameter = ast.parameters(update)[0];
+    const formal = program.records.callableDeclaration.get(update)?.contract.nativeParameters[0].targetParameter.type;
+    assert.equal(formal?.kind === "target-named" && (formal.id === "Tsonic.CSharp.Runtime.Error" ||
+      formal.id.endsWith("::Tsonic.CSharp.Runtime.Error")), true, "a readonly read never removes the adjacent writable formal capability");
+    const fields = source.navigation.declarationUses(parameter).map(use => ast.parent(use.reference))
+      .filter(node => node !== undefined && ast.is.IsPropertyAccessExpression(node));
+    assert.equal(fields.length, 2, "the same native input has one immediate read and one write");
+    const demand = createCsharpErrorDeclarationQuery(source);
+    const read = fields.find(node => demand.fieldFor(node).value?.accessMode === "read");
+    const write = fields.find(node => demand.fieldFor(node).value?.accessMode === "write");
+    assert.equal(read !== undefined && write !== undefined, true, "checked access modes remain separate");
+    const selected = node => program.records.nodeTargetType.get(ast.as.AsPropertyAccessExpression(node).Expression);
+    const view = selected(read);
+    assert.equal(view?.kind === "target-named" && (view.id === "System.Exception" || view.id.endsWith("::System.Exception")), true,
+      "only the readonly occurrence takes the real native Exception upcast");
+    assert.equal(targetTypeRefEquals(selected(write), formal), true, "the neighboring setter retains its actual writable identity");
+    const assertion = source.navigation.nodes.find(node => ast.is.IsAsExpression(node));
+    assert.equal(assertion !== undefined && targetTypeRefEquals(program.records.nodeTargetType.get(assertion), formal), true,
+      "an explicit checked native cast is not converted into a readonly observation");
+    const providers = createSourceErrorProviderFixture();
+    const scope = { host: { ast, providers, errorDeclarations: demand, projectTypes: () => ({ directSupertypes: () => [] }) } };
+    const receiver = ast.as.AsPropertyAccessExpression(read).Expression;
+    const queries = source.semantics.forNode(receiver);
+    const foreign = { ...formal, id: "ForeignOwner::Unrelated", csharpBaseType: undefined };
+    assert.throws(() => selectCsharpErrorObservationView(scope, receiver, queries, foreign),
+      /native reference relation to Exception/u, "foreign same-shaped evidence cannot manufacture a native observation view");
+    executeCsharpConstruction(compiled, `error-immediate-native-view-${surface}`);
+  });
+
   test(`C# ${surface} Error formals share one declaration-owned native input across bodies, defaults and emission`, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
       export function read(error: Error): string { return error.message; }
