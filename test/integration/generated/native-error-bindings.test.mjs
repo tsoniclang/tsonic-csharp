@@ -71,13 +71,19 @@ for (var index = 0; index < 1000; index++) {
     if (Generated.message(readonlyView) != "live" || Generated.name(readonlyView) != writable.name || Generated.stack(readonlyView) is not null)
         throw new Exception("native binding warmup");
 }
-var before = GC.GetAllocatedBytesForCurrentThread();
-for (var index = 0; index < 10000; index++) {
-    if (Generated.message(readonlyView) != "live" || Generated.name(readonlyView) != writable.name || Generated.stack(readonlyView) is not null)
-        throw new Exception("native binding identity");
-}
-if (GC.GetAllocatedBytesForCurrentThread() != before) throw new Exception("native binding allocation");
+ObservationBytes(readonlyView, writable);
+for (var replay = 0; replay < 3; replay++)
+    if (ObservationBytes(readonlyView, writable) != 0) throw new Exception("native binding allocation");
 if (writable.message != "live") throw new Exception("binding copied or replaced the original native object");
+
+static long ObservationBytes(Exception readonlyView, Tsonic.CSharp.Runtime.Error writable) {
+    var before = GC.GetAllocatedBytesForCurrentThread();
+    for (var index = 0; index < 10000; index++) {
+        if (Generated.message(readonlyView) != "live" || Generated.name(readonlyView) != writable.name || Generated.stack(readonlyView) is not null)
+            throw new Exception("native binding identity");
+    }
+    return GC.GetAllocatedBytesForCurrentThread() - before;
+}
 `);
   });
 }
