@@ -49,8 +49,8 @@ export function createCsharpSourceParameterProducer(
     for (const [index, parameter] of parameters.entries()) {
       const checked = signature.parameters.find(slot => slot.declaration === parameter);
       const type = queries.declarations.declaredValueType(parameter);
-      const identity = type === undefined ? undefined
-        : classifyCsharpSourceProfileType(queries.types.nonNullableType(type), queries, policy.ast);
+      const present = type === undefined ? undefined : queries.types.nonNullableType(type);
+      const identity = present === undefined ? undefined : classifyCsharpSourceProfileType(present, queries, policy.ast);
       if (identity?.kind !== "error") continue;
       if (checked === undefined || type === undefined) failTargetAnalysisInvariant("tsonic-csharp",
         "A source Error parameter requires its original checked declaration signature slot.", parameter);
@@ -58,7 +58,7 @@ export function createCsharpSourceParameterProducer(
         baseException: identity.baseException });
     }
   }
-  const records: CsharpSourceParameterClassifications = Object.freeze({ get(parameter) {
+  const records: CsharpSourceParameterClassifications = Object.freeze({ get(parameter: Node) {
     const cached = published.get(parameter);
     if (cached !== undefined) return cached;
     const registration = registered.get(parameter);

@@ -34,20 +34,19 @@ export function closeCsharpContextualRestInputs(
     const published = evidence.sourceParameters.get(contract.parameters[index]!);
     if (published !== undefined) {
       const parameter = published.nativeParameters[0];
-      if (published.nativeParameters.length !== 1 || parameter !== contract.nativeParameters[index] ||
+      if (published.nativeParameters.length !== 1 || parameter === undefined || parameter !== contract.nativeParameters[index] ||
           !targetTypeRefEquals(parameter.targetParameter.type, type)) return failTargetAnalysisInvariant("tsonic-csharp",
         "A contextual rest contract cannot reselect its already published native Error formal.", contract.parameters[index]);
       return parameter;
     }
-    return (
-    index < restIndex && contract.nativeParameters[index]!.targetParameter.optional === true
+    return index < restIndex && contract.nativeParameters[index]!.targetParameter.optional === true
       ? contract.nativeParameters[index]! : Object.freeze({
     sourceParameter: contract.parameters[index]!,
     targetParameter: Object.freeze({ name: contract.nativeParameters[index]!.targetParameter.name, type, passingMode: "by-value" as const,
       ...(signature.optionalParameterIndexes?.includes(index) ? { optional: true } : {}),
       ...(index === restIndex ? { paramsArray: true } : {}),
     }),
-  }));
+  });
   }));
   const adapters = admitCsharpCallableParameterAdapters(conversions,
     nativeParameters.map(parameter => parameter.targetParameter), contract.nativeParameters.map(parameter => parameter.targetParameter));

@@ -408,6 +408,7 @@ export function withSourceTargetBindings(
       ...host,
       representations: {
         genericProjections: host.representations.genericProjections,
+        sourceParameter: host.representations.sourceParameter,
         requiresClosedStructuralContract(type) {
           return host.representations.requiresClosedStructuralContract(type);
         },
