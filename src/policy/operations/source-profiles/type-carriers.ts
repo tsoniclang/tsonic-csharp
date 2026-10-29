@@ -11,7 +11,7 @@ import { csharpEnumerableTargetType } from "../../../target-model/types/carriers
 import { csharpRuntimeErrorTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 
 export function selectCsharpSourceProfileCarrier(
-  data: { readonly baseErrorCarrier: TargetTypeRef | undefined; readonly dictionaryCarrier: TargetTypeRef | undefined },
+  data: { readonly dictionaryCarrier: TargetTypeRef | undefined },
   identity: ReturnType<typeof classifyCsharpSourceProfileType>,
   typeArguments: readonly TargetTypeRef[],
 ): TargetTypeRef | undefined {
@@ -32,7 +32,6 @@ export function selectCsharpSourceProfileCarrier(
         ? csharpStringTargetType()
         : undefined;
     case "error": {
-      if (identity.baseException && typeArguments.length === 0) return data.baseErrorCarrier;
       return typeArguments.length === 0 ? csharpRuntimeErrorTargetType(identity.errorName) : undefined;
     }
     case "array":

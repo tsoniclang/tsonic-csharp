@@ -11,13 +11,12 @@ import { combineCsharpTargetUnionMembers } from "../../../../target-model/types/
 import { csharpDelegateTargetType } from "../../../../target-model/types/carriers/delegates.js";
 
 import { csharpNullableTargetType } from "../../../../target-model/types/carriers/nullable.js";
-import { csharpExceptionTargetType, csharpRuntimeErrorTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
+import { csharpRuntimeErrorTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
 import { csharpTargetTypeFromBinding } from "../../../../policy/types/storage/bindings.js";
 import { definedValues } from "./source-evidence.js";
 import { nextState } from "./state.js";
 import { csharpRuntimeParameterDefault } from "../../../../policy/types/storage/parameter-defaults.js";
 import { resolveCsharpCallableTypeParameters } from "./callable-type-parameters.js";
-import type { SourceStorageSubject } from "@tsonic/target-api/analysis";
 import { csharpSourceStorageContext } from "./source-storage-projection.js";
 import { resolveCsharpNativeParameterCarrier, selectCsharpContextualParameterCarrier } from "./source-references.js";
 
@@ -40,27 +39,12 @@ export function resolveSourceProfileType(
   { host }: CsharpTypeResolutionScope,
   identity: ReturnType<typeof classifyCsharpSourceProfileType>,
   typeArguments: readonly TargetTypeRef[],
-  subject: SourceStorageSubject | undefined,
 ): TargetTypeRef | undefined {
-  let baseErrorCarrier: TargetTypeRef | undefined;
-  if (identity?.kind === "error" && identity.baseException && typeArguments.length === 0) {
-    const sourceFile = subject === undefined ? undefined : host.ast.getSourceFile(subject.node);
-    if (subject === undefined || sourceFile !== undefined && !host.hasSemantics(sourceFile)) {
-      baseErrorCarrier = csharpExceptionTargetType();
-    } else {
-      const demand = host.errorStorageDemands.storageFor(subject);
-      if (demand.kind === "unresolved") return undefined;
-      const origins = demand.kind === "writable" ? undefined : host.errorStorageDemands.closedStorageOriginsFor(subject);
-      baseErrorCarrier = demand.kind === "writable" || origins?.kind === "complete" && origins.origins.length > 0 &&
-        origins.origins.every(origin => host.errorStorageDemands.isNativeConstructor(origin.subject.node))
-        ? csharpRuntimeErrorTargetType() : csharpExceptionTargetType();
-    }
-  }
   const binding = identity?.kind === "record" && typeArguments.length === 2
     ? csharpProviderBindingFromResolution(host.providers.findTargetBindingByMetadataName("System.Collections.Generic.Dictionary`2", "ordinary"))
     : undefined;
   const dictionaryCarrier = binding === undefined ? undefined : csharpTargetTypeFromBinding(binding, typeArguments);
-  const selected = selectCsharpSourceProfileCarrier({ baseErrorCarrier, dictionaryCarrier }, identity, typeArguments);
+  const selected = selectCsharpSourceProfileCarrier({ dictionaryCarrier }, identity, typeArguments);
   if (identity?.kind !== "error" || selected === undefined) return selected;
   const published = host.providers.publishNativeIdentities(selected);
   return published.kind === "resolved" ? published.value : undefined;

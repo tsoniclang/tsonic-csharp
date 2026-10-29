@@ -102,7 +102,6 @@ export function resolveTypeReferenceNode(
     return resolveSourceProfileType(
         profileIdentity,
         typeArguments as readonly TargetTypeRef[],
-        csharpSourceStorageContext(host, state, node).sourceStorageSubject,
       );
   }
   if (
