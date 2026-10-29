@@ -594,20 +594,26 @@ export function resolveSourceValueDeclaration(
       selectedSource !== undefined && queries.types.isNonPrimitive(selectedSource)) ?? selected ?? declaredTarget, state);
   }
   const arrayInitializer = host.ast.is.IsArrayLiteralExpression(syntax.initializer);
-  const initializerSourceType = declarationQueries.types.expressionType(syntax.initializer);
+  const declarationKind = host.ast.variableDeclarationKind(declaration);
+  const mutableVariable = syntax.type === undefined && host.ast.is.IsVariableDeclaration(declaration) &&
+    (declarationKind === "let" || declarationKind === "var");
+  const initializerSourceType = mutableVariable ? declarationQueries.types.expressionType(syntax.initializer) : undefined;
   const literalBaseType = initializerSourceType === undefined ? undefined
     : declarationQueries.types.literalBaseType(initializerSourceType);
-  const widenedInitializer = syntax.type === undefined && host.ast.variableDeclarationKind(declaration) !== "const" &&
+  const widenedInitializer = mutableVariable &&
     declaredTarget !== undefined && declaredSourceType !== undefined && initializerSourceType !== undefined &&
     literalBaseType !== undefined && !declarationQueries.types.isIdentical(initializerSourceType, literalBaseType) &&
     declarationQueries.types.isIdentical(declaredSourceType, literalBaseType) &&
     scope.targetPreservesAuthoredSourcePrimitiveFacts(syntax.initializer, declaredTarget, declarationQueries);
+  const declaredCallable = mutableVariable && getCsharpCallableValueSignature(
+    getCsharpNullableElementTargetType(declaredTarget) ?? declaredTarget,
+  ) !== undefined;
   const initializerTarget = arrayInitializer
     ? resolveNodeWithState(syntax.initializer, sourceFile, nextState(state))
     : widenedInitializer ? declaredTarget
     : resolveDirectSourceFacts([syntax.initializer], sourceFile, nextState(state)) ??
       resolveSelectedExpressionType(syntax.initializer, declarationQueries, nextState(state)) ??
-      (syntax.type !== undefined && host.ast.variableDeclarationKind(declaration) !== "const" && declaredTarget !== undefined
+      (declaredTarget !== undefined && (declaredCallable || !mutableVariable && declarationKind !== "const")
         ? declaredTarget
         : resolveNodeWithState(syntax.initializer, sourceFile, nextState(state)));
   if (initializerTarget === undefined) {

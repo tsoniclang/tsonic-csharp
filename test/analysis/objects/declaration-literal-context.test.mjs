@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource, assertCsharpCheckingSucceeded } from "../../helpers/direct-csharp-session.mjs";
+import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { createTsonicPlugin as nodejsCapability } from "../../../../csharp-nodejs/dist/index.js";
 import { selectCsharpArrayLiteralCarrier } from "../../../dist/policy/types/collections/literal-construction.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
@@ -193,3 +194,27 @@ for (const [label, sourceText] of [
   assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
     `${label}: rejected native conversion publishes no program`);
 });
+
+for (const surface of ["native", "js"]) {
+  test(`mutable checked callable bindings retain authored native parameter and result widths on ${surface}`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      import type { int32, int64 } from "@tsonic/core/types.js";
+      function exact(value: int32): int32 { return value; }
+      export function run(): boolean {
+        let selected = (value: int32): int32 => value;
+        let copied = exact;
+        let wide = (value: int64): int64 => value;
+        return selected(7 as int32) === copied(7 as int32) &&
+          wide(9007199254740993n as int64) === 9007199254740993n;
+      }
+    ` });
+    assertCsharpCheckingSucceeded(compiled);
+    assertAccepted(compiled, `${surface}: checked mutable callable native components`);
+    const source = [...compiled.artifacts.values()].join("\n");
+    assert.equal(/Func<int, int> selected/u.test(source), true, `${surface}: the mutable callable keeps its exact int32 ABI`);
+    assert.equal(/Func<long, long> wide/u.test(source), true, `${surface}: the mutable callable keeps its exact int64 ABI`);
+    executeCsharpConstruction(compiled, `mutable-native-callable-${surface}`, false, false, [], `
+if (!Tsonic.Generated.Index.run()) throw new System.Exception("mutable callable native widths and exact wide result");
+`);
+  });
+}
