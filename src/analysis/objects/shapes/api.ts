@@ -48,6 +48,7 @@ export function createCsharpObjectShapePolicy(
   const activeNodes = new WeakSet<object>();
   const activeTypes = new WeakSet<object>();
   const nodeShapes = new WeakMap<object, CsharpObjectShapeFact>();
+  const literalSources = new WeakMap<Node, Type>();
   const targetShapes = new Map<string, CsharpObjectShapeFact>();
   const genericShapes = new Map<string, CsharpObjectShapeFact>();
   const unionDefinitions = createCsharpStructuralUnionDefinitions(host, (type, file, state) =>
@@ -253,13 +254,17 @@ export function createCsharpObjectShapePolicy(
         return directStruct;
       }
       const source = selectedObjectShapeSource(node, queries, host, state);
+      const objectLiteral = host.ast.is.IsObjectLiteralExpression(node);
+      const literalSource = !objectLiteral ? undefined : source.contextualTarget === undefined
+        ? source.type : queries.types.expressionType(node);
+      if (literalSource !== undefined) literalSources.set(node, literalSource);
       const selectedTarget = host.ast.is.IsClassDeclaration(node) || host.ast.is.IsClassExpression(node)
         ? host.typeResolver.resolveType(source.type, queries.sourceFile, nextState(state))
         : host.typeResolver.resolveNode(node, queries.sourceFile, nextState(state));
       const selectedShape = resolveTarget(selectedTarget);
       if (selectedShape !== undefined && source.type !== undefined &&
         (!host.ast.is.IsObjectLiteralExpression(node) || selectedShape.constructible === true)) {
-        const actualType = host.ast.is.IsObjectLiteralExpression(node) ? queries.types.expressionType(node) : source.type;
+        const actualType = objectLiteral ? literalSource : source.type;
         const members = actualType === undefined ? undefined
           : instantiateMemberEvidence(selectedShape.members, actualType, queries, selectedShape.sourceType);
         if (members !== undefined) return state.sourceBindings === undefined
@@ -277,6 +282,7 @@ export function createCsharpObjectShapePolicy(
         state,
         source.contextualTarget ?? selectedTarget,
         authoredTypeRoot,
+        literalSource,
       );
       if (shape !== undefined) {
         return state.sourceBindings === undefined ? remember(node, shape) : rememberTargetShape(shape);
@@ -362,12 +368,14 @@ export function createCsharpObjectShapePolicy(
       state,
       undefined,
       authoredLiteral === undefined ? authoredTypeRoot : undefined,
+      authoredLiteral === undefined ? undefined : type,
     );
     return shape === undefined ? undefined : rememberTargetShape(shape);
   }
 
   const resolveObjectLiteralTargetShape = createCsharpLiteralShapeResolver(host, {
-    resolveNode, resolveType, retainLiteralMemberEvidence, instantiateMemberEvidence, rememberTargetShape,
+    resolveNode, resolveType, literalSourceType: (node: Node) => literalSources.get(node),
+    retainLiteralMemberEvidence, instantiateMemberEvidence, rememberTargetShape,
   });
   const resolveProjectConstructibleSelectedType = createCsharpProjectShapeProjection(host, deriveMembers);
 
@@ -515,6 +523,7 @@ export function createCsharpObjectShapePolicy(
     state: CsharpTypeResolutionState,
     selectedTarget?: TargetTypeRef,
     authoredTypeRoot?: Node,
+    literalSourceType?: Type,
   ): CsharpObjectShapeFact | undefined {
     if (
       type === undefined ||
@@ -526,7 +535,10 @@ export function createCsharpObjectShapePolicy(
     }
     activeTypes.add(type);
     try {
-      const transformation = queries.types.standardTransformation(authoredTypeRoot, type);
+      const application = queries.types.aliasApplication(type);
+      const transformationRoot = application?.kind === "direct" && host.ast.is.IsTypeReferenceNode(application.typeNode)
+        ? application.typeNode : authoredTypeRoot;
+      const transformation = queries.types.standardTransformation(transformationRoot, type);
       if (transformation?.kind === "component") {
         const component = transformation.component;
         const native = resolveTypeWithState(component.selectedType, queries.sourceFile,
@@ -642,10 +654,9 @@ export function createCsharpObjectShapePolicy(
         ...(implemented === undefined ? {} : { implements: implemented }),
       };
       if (authoredLiteral !== undefined) {
-        const selected = resolveObjectLiteralTargetShape(shape, authoredLiteral, queries.sourceFile);
+        const selected = resolveObjectLiteralTargetShape(shape, authoredLiteral, queries.sourceFile, literalSourceType ?? type);
         if (selected.kind !== "resolved") return undefined;
-        const members = instantiateMemberEvidence(selected.shape.members, type, queries, selected.shape.sourceType);
-        return members === undefined ? undefined : { ...selected.shape, sourceType: type, members };
+        return selected.shape;
       }
       return structuralContract && unionDefinitions.reference(type) === undefined &&
         !host.representations.requiresClosedStructuralContract(shape.targetType)
