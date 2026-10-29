@@ -5,6 +5,7 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 import { frozenObjectSources } from "../../../../tsonic/test/fixtures/frozen-objects.mjs";
 import { selectCsharpTargetCallEmission } from "../../../dist/policy/operations/members/target-call-emission.js";
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
+import { csharpJsSourceProfileCallPolicies } from "../../../dist/policy/operations/source-profiles/js/registry.js";
 
 test("selected freeze keeps the native reference and permits mutation through an independent alias", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: `
@@ -149,4 +150,19 @@ test("readonly identity evaluates the actual selected generic callee result rath
   ` });
   assertCsharpCompilationSucceeded(compiled);
   executeCsharpConstruction(compiled, "readonly-freeze-selected-callee-result");
+});
+
+test("native readonly policies do not request object-origin preparation and retained object APIs still do", () => {
+  for (const [declaringName, name, shapes] of [
+    ["ObjectConstructor", "freeze", undefined],
+    ["ObjectConstructor", "isFrozen", undefined],
+    ["ObjectConstructor", "assign", true],
+    ["JSON", "stringify", true],
+  ]) {
+    const policies = csharpJsSourceProfileCallPolicies.filter(policy => policy.source.owner === "js" &&
+      policy.source.kind === "member" && policy.source.declaringName === declaringName && policy.source.name === name);
+    assert.equal(policies.length, 1, `${declaringName}.${name}: one exact selected policy owner`);
+    assert.equal(policies[0].inputRequirements?.objectShapes, shapes,
+      `${declaringName}.${name}: only operations that need shape evidence request it`);
+  }
 });

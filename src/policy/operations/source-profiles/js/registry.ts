@@ -23,8 +23,10 @@ export const csharpJsSourceProfileCallPolicies:
       inputRequirements: Object.freeze({ ...policy.inputRequirements, regexpExecution: true as const }) })),
     ...csharpJsGlobalCallPolicies,
     ...csharpJsNumberCallPolicies,
-    ...csharpJsObjectCallPolicies.map(policy => Object.freeze({ ...policy,
-      inputRequirements: Object.freeze({ ...policy.inputRequirements, objectShapes: true as const }) })),
+    ...csharpJsObjectCallPolicies.map(policy => policy.source.owner === "js" && policy.source.kind === "member" &&
+      policy.source.declaringName === "ObjectConstructor" && (policy.source.name === "freeze" || policy.source.name === "isFrozen")
+      ? policy : Object.freeze({ ...policy,
+        inputRequirements: Object.freeze({ ...policy.inputRequirements, objectShapes: true as const }) })),
     ...csharpJsStringCallPolicies.map(policy => Object.freeze({ ...policy,
       inputRequirements: Object.freeze({ ...policy.inputRequirements, regexpProtocol: true as const }) })),
     ...csharpJsWeakCollectionCallPolicies,
