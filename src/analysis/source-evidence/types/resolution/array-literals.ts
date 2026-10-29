@@ -18,6 +18,8 @@ import { csharpFreeTypeParameterIdentities } from "../../../../target-model/type
 import { resolveTypeParameter } from "./source-evidence.js";
 import { getCsharpGenericOptionalParts } from "../../../../target-model/types/projections.js";
 import { csharpUnionLeaves } from "../../../../target-model/types/union-relations.js";
+import { csharpSourceUnionIdentity } from "../../../../target-model/types/source-union-definitions.js";
+import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 
 const unavailable: CsharpArrayLiteralSelection = Object.freeze({ kind: "unavailable" });
 type ArrayContribution = Parameters<typeof selectCsharpInferredNumericArrayElement>[0][number] & { readonly source: Type };
@@ -157,6 +159,16 @@ function selectArrayElementDestination(
       : getCsharpCallableValueSignature(getCsharpNullableElementTargetType(parameter) ?? parameter)?.returnType;
     const selected = context?.returnedFrom !== undefined && host.ast.hasModifierKind(context.returnedFrom, "async")
       ? getCsharpTaskResultTargetType(result) : result;
+    if (csharpSourceUnionIdentity(getCsharpNullableElementTargetType(selected) ?? selected) !== undefined) {
+      const declaration = call.sourceSelectedSignatureParameters[bindings[0]!.sourceParameterIndex];
+      if (declaration?.authoredTypeNode === undefined) return { kind: "unavailable" };
+      const declared = scope.resolveSourceCallSelectedType(call, declaration.parameterDeclaration,
+        declaration.authoredTypeNode, bindings[0]!.selectedParameterType, callQueries.sourceFile,
+        nextState(state), excluded);
+      if (declared === undefined || parameter === undefined || !targetTypeRefEquals(declared, parameter)) {
+        return { kind: "unavailable" };
+      }
+    }
     const element = collectionElement(selected);
     const unbound = new Set((call.sourceSelectedMethodTypeArguments ?? []).flatMap(argument => {
       if (argument.explicitTypeNode !== undefined) return [];

@@ -597,7 +597,7 @@ export function resolveSourceValueDeclaration(
     ? resolveNodeWithState(syntax.initializer, sourceFile, nextState(state))
     : resolveDirectSourceFacts([syntax.initializer], sourceFile, nextState(state)) ??
       resolveSelectedExpressionType(syntax.initializer, declarationQueries, nextState(state)) ??
-      (host.ast.variableDeclarationKind(declaration) !== "const" && declaredTarget !== undefined
+      (syntax.type !== undefined && host.ast.variableDeclarationKind(declaration) !== "const" && declaredTarget !== undefined
         ? declaredTarget
         : resolveNodeWithState(syntax.initializer, sourceFile, nextState(state)));
   if (initializerTarget === undefined) {

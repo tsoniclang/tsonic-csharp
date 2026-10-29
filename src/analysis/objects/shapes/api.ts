@@ -628,7 +628,9 @@ export function createCsharpObjectShapePolicy(
       };
       if (authoredLiteral !== undefined) {
         const selected = resolveObjectLiteralTargetShape(shape, authoredLiteral, queries.sourceFile);
-        return selected.kind === "resolved" ? selected.shape : undefined;
+        if (selected.kind !== "resolved") return undefined;
+        const members = instantiateMemberEvidence(selected.shape.members, type, queries, selected.shape.sourceType);
+        return members === undefined ? undefined : { ...selected.shape, sourceType: type, members };
       }
       return structuralContract && unionDefinitions.reference(type) === undefined &&
         !host.representations.requiresClosedStructuralContract(shape.targetType)
