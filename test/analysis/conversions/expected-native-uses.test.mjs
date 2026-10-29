@@ -8,10 +8,9 @@ import { createCsharpExpectedTypePropagation } from "../../../dist/analysis/expe
 import { collectCsharpExpectedNativeUseSites } from "../../../dist/analysis/expected-types/native-uses.js";
 import { csharpNativeUseSite } from "../../../dist/target-model/records/native/native-demand.js";
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
-import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
+import { targetTypeRefEquals, targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { createExpectedNativeUseOwner } from "../../helpers/expected-native-uses.mjs";
 import { nativeAbsenceSource } from "../../../../tsonic/test/fixtures/native-absence.mjs";
-import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { isCsharpAbsenceTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 

@@ -126,6 +126,12 @@ export function declarationResultTypeNode(
   if (host.ast.is.IsGetAccessorDeclaration(declaration)) {
     return host.ast.as.AsGetAccessorDeclaration(declaration)?.Type;
   }
+  if (host.ast.is.IsSetAccessorDeclaration(declaration)) {
+    const parameters = host.ast.parameters(declaration);
+    return parameters.length === 1
+      ? host.ast.as.AsParameterDeclaration(parameters[0])?.Type
+      : undefined;
+  }
   if (host.ast.is.IsPropertyDeclaration(declaration)) {
     return host.ast.as.AsPropertyDeclaration(declaration)?.Type;
   }
