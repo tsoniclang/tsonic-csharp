@@ -25,6 +25,11 @@ import { csharpSourceStorageComponentContext } from "./source-storage-projection
 import { bindCsharpSourceTypeArguments } from "./generic-arguments.js";
 import { csharpTargetParameterValueType } from "../../../../target-model/types/member-facts.js";
 import { getCsharpCallableValueSignature } from "../../../../target-model/types/carriers/delegates.js";
+import { csharpExceptionTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
+import { csharpNullableTargetType } from "../../../../target-model/types/carriers/nullable.js";
+import { namedTargetTypeImplicitlyAccepts } from "../../../../policy/conversions/carriers.js";
+import { sourceOperatorFromKindName } from "../../../../target-model/syntax/operators.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
 export function resolveTypeReferenceNode(
   { host, resolveCheckerTransformedSourceType, resolveCompositionalSourceTypeAlias, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceType, resolveProviderType, resolveSourceProfileType, resolveStandardSourceTypeTransformation, resolveTypeWithState, targetPreservesAuthoredSourcePrimitiveFacts }: CsharpTypeResolutionScope,
@@ -521,6 +526,52 @@ export function selectCsharpContextualParameterCarrier(
 }
 
 export function resolveSourceValueDeclaration(
+  scope: CsharpTypeResolutionScope,
+  node: Node,
+  queries: SourceFileSemantics,
+  state: CsharpTypeResolutionState,
+  selectedType?: Type,
+): TargetTypeRef | undefined {
+  const carrier = resolveSourceValueDeclarationCarrier(scope, node, queries, state, selectedType);
+  if (carrier === undefined || !scope.host.ast.is.IsIdentifier(node)) return carrier;
+  const selected = selectedType ?? queries.types.expressionType(node);
+  const identity = selected === undefined ? undefined : classifyCsharpSourceProfileType(
+    queries.types.nonNullableType(selected) ?? selected, queries, scope.host.ast);
+  if (identity?.kind !== "error" || !identity.baseException) return carrier;
+  const { host } = scope;
+  let operand = node;
+  let parent = host.ast.parent(operand);
+  while (parent !== undefined && host.ast.is.IsParenthesizedExpression(parent)) {
+    operand = parent;
+    parent = host.ast.parent(operand);
+  }
+  if (parent === undefined) return carrier;
+  let observation = false;
+  if (host.ast.is.IsPropertyAccessExpression(parent) || host.ast.is.IsElementAccessExpression(parent)) {
+    const field = host.errorDeclarations.fieldFor(parent);
+    if (field.kind === "unresolved") return failTargetAnalysisInvariant("tsonic-csharp", field.reason, parent);
+    observation = field.kind === "resolved" && field.value.receiver.node === operand && field.value.accessMode === "read";
+  } else if (host.ast.is.IsBinaryExpression(parent)) {
+    const operator = sourceOperatorFromKindName(host.ast.operatorKindName(parent));
+    const binary = host.ast.as.AsBinaryExpression(parent);
+    const other = binary?.Left === operand ? binary.Right : binary?.Right === operand ? binary.Left : undefined;
+    const otherType = other === undefined ? undefined : queries.types.expressionType(other);
+    const otherIdentity = otherType === undefined ? undefined : classifyCsharpSourceProfileType(otherType, queries, host.ast);
+    observation = (operator === "===" || operator === "!==") && otherIdentity?.kind === "error";
+  }
+  if (!observation) return carrier;
+  const exception = host.providers.publishNativeIdentities(csharpExceptionTargetType());
+  if (exception.kind !== "resolved") return failTargetAnalysisInvariant("tsonic-csharp",
+    "A checked Error observation requires its exact native Exception identity.", node);
+  const present = getCsharpNullableElementTargetType(carrier) ?? carrier;
+  if (!namedTargetTypeImplicitlyAccepts({ providers: host.providers, projectTypes: host.projectTypes(),
+    typeDefinitions: host.typeDefinitions, objectShapes: host.objectShapes }, present, exception.value, new Set()))
+    return failTargetAnalysisInvariant("tsonic-csharp",
+      "A checked Error observation requires its selected carrier's native reference relation to Exception.", node);
+  return getCsharpNullableElementTargetType(carrier) === undefined ? exception.value : csharpNullableTargetType(exception.value);
+}
+
+function resolveSourceValueDeclarationCarrier(
   scope: CsharpTypeResolutionScope,
   node: Node,
   queries: SourceFileSemantics,

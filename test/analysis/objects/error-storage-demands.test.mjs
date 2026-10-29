@@ -119,9 +119,12 @@ for (const surface of ["native", "js"]) {
             source.ast.as.AsPropertyAccessExpression(parent).Expression !== use.reference) continue;
         const actual = program.records.nodeTargetType.get(use.reference);
         const present = getCsharpNullableElementTargetType(body) ?? body;
-        assert.equal(actual !== undefined &&
-          (targetTypeRefEquals(actual, body) || targetTypeRefEquals(actual, present)), true,
-        `${name}: body references use the same input/default normalization, not the global Error constructor carrier`);
+        const readonly = source.semantics.forNode(parent).operations.propertyAccess(parent)?.accessMode === "read";
+        const selected = getCsharpNullableElementTargetType(actual) ?? actual;
+        assert.equal(readonly ? selected?.kind === "target-named" &&
+          (selected.id === "System.Exception" || selected.id.endsWith("::System.Exception")) :
+          actual !== undefined && (targetTypeRefEquals(actual, body) || targetTypeRefEquals(actual, present)), true,
+        `${name}: the published body input admits only the immediate readonly native observation view`);
       }
       assert.equal(Object.isFrozen(contract.nativeParameters[0]) && Object.isFrozen(contract.nativeParameters[0].targetParameter), true,
         `${name}: the native slot is immutable before body publication`);
