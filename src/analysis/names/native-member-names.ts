@@ -35,7 +35,7 @@ import { objectShapeArtifactKey } from "../../target-model/records/objects/objec
 import { objectShapeStorageMemberName, objectShapeBoundStorageMemberName,
   objectShapeAccessorGetterStorageMemberName, objectShapeAccessorSetterStorageMemberName,
   objectShapeMethodBodyName, objectShapeMethodInvocationName, objectShapeMethodValueStorageNames,
-  csharpDeferredCaptureStorageNames, csharpFrozenStorageName, csharpJsonValueProjectionMethodName,
+  csharpDeferredCaptureStorageNames, csharpJsonValueProjectionMethodName,
   csharpJsonValueWriterMethodName, csharpEnumerableKeysMethodName, csharpEnumerableKeysStorageName } from "../../target-model/names/object-members.js";
 
 export interface CsharpNativeMemberNameInput {
@@ -425,9 +425,6 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
         recordHeader(name, { name: nativeName(name), kind, genericParameterIds: [], parameters: [] });
       };
       for (const member of shape.members) {
-        if (artifact.capabilities.includes("js-freeze") && member.accessor === undefined && !structural) {
-          field(csharpFrozenStorageName(shape, objectShapeStorageMemberName(shape, member)));
-        }
         if (artifact.materialization === "source") {
           if (source?.kind === "interface" && member.memberKind === "method" &&
             (artifact.capabilities.includes("method-values") || member.optional === true)) {

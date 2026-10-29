@@ -44,7 +44,6 @@ import { analyzeCsharpAuthoredObjectMethods } from "../objects/authored-methods.
 import { analyzeCsharpObjectMemberEmission } from "../objects/member-emission.js";
 import { analyzeCsharpObjectLiterals } from "../objects/object-literals.js";
 import { analyzeCsharpIndexedRecords } from "../objects/indexed-records.js";
-import { analyzeCsharpFrozenDataProperties } from "../objects/frozen-data-properties.js";
 import { analyzeCsharpCaptureMethods } from "../objects/capture-methods.js";
 import { analyzeCsharpDeclarationModifiers } from "../declarations/classes/modifiers.js";
 import { analyzeCsharpNativeDeclarationForms } from "../declarations/native-forms.js";
@@ -303,9 +302,6 @@ export function finalizeCsharpNativeEmission(
   if (thisEmission.issues.length !== 0) return rejectedTargetStage(thisEmission.issues);
   const indexedRecords = analyzeCsharpIndexedRecords(sourceStorage.nodes, admittedOperations);
   if (indexedRecords.issues.length !== 0) return rejectedTargetStage(indexedRecords.issues);
-  const frozenDataProperties = analyzeCsharpFrozenDataProperties({ ast: source.ast, demand: objectShapeDemand, members: objectMembers.records,
-    storage: analysis.storage, operations: admittedOperations, attributes: attributeApplications, methodWrites: analysis.declarations.methodWrite });
-  if (frozenDataProperties.issues.length !== 0) return rejectedTargetStage(frozenDataProperties.issues);
   const projectEmission = analyzeCsharpProjectEmission({ source, nodes: sourceStorage.nodes, projectTypes,
     factories: classFactories, evidence: analysis.sourceEvidence, names, projections: analysis.typeProjections });
   if (projectEmission.issues.length !== 0) return rejectedTargetStage(projectEmission.issues);
@@ -464,7 +460,6 @@ export function finalizeCsharpNativeEmission(
     typeParameterEmission: typeParameterEmission.records,
     projectEmission: projectEmission.records,
     captureMethods: captureMethods.records,
-    frozenDataProperties: frozenDataProperties.records,
     indexedRecords: indexedRecords.records,
     objectLiterals: objectLiterals.records,
     objectMembers: objectMembers.records,

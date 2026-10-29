@@ -38,6 +38,7 @@ function buildSelectedTargetCall(node: Node, selected: CsharpTargetCallEmission,
   const generic = () => renderSelectedCsharpTargetMethodTypeArguments(selected.selection, node, sourceFile, input, diagnostics);
   const invocation = selected.invocation;
   switch (invocation.kind) {
+    case "value-identity": return arguments_[0]!.expression;
     case "native-task-resolution": {
       const argument = arguments_[0]!.expression;
       if (invocation.form === "task") return argument;

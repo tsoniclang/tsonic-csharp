@@ -1,10 +1,9 @@
 import type { Node } from "@tsonic/tsts";
 import type { CsharpCallArtifactRequirement, CsharpObjectShapeProjectionKind, CsharpTargetInvocation, CsharpTargetMember, TargetTypeRef } from "../../../types/index.js";
-import { csharpEmptyObjectTargetType, isCsharpEmptyObjectTargetType, csharpObjectTargetType, csharpQualifiedTypeRenderShape, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTsValueTargetType, csharpTargetNamedType, csharpTaskTargetType, getCsharpTaskResultTargetType, getCsharpDelegateSignature, isCsharpRecordDictionaryTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/index.js";
+import { csharpObjectTargetType, csharpQualifiedTypeRenderShape, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTsValueTargetType, csharpTargetNamedType, csharpTaskTargetType, getCsharpTaskResultTargetType, getCsharpDelegateSignature, isCsharpRecordDictionaryTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/index.js";
 import { csharpJsArrayTargetType } from "../../../../target-model/types/carriers/js.js";
-import { csharpValueDomainHasTargetType } from "../../../types/objects/value-domain-carrier.js";
 import type { CsharpSourceProfileCallPolicy } from "../../../model/source-profiles.js";
-import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
+import { csharpSourceProfileDiagnostic, resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
 import { closedObjectParameter, jsCallIdentity, jsCallPolicy, jsConstructIdentity, jsMemberIdentity, jsRuntimeTargetType, jsUnsupportedCallPolicy, receiverHelperMethod, staticMethod, targetParameter } from "./common.js";
 
 const stringType = csharpStringTargetType();
@@ -50,32 +49,19 @@ const unsupportedObjectMethods = [
 
 export const csharpJsObjectCallPolicies:
   readonly CsharpSourceProfileCallPolicy[] = Object.freeze([
-    ...["freeze", "isFrozen"].map(name => jsCallPolicy(
-      jsMemberIdentity("ObjectConstructor", name),
+    jsCallPolicy(
+      jsMemberIdentity("ObjectConstructor", "freeze"),
       context => {
         const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
         if (argument === undefined) return undefined;
-        const expression = context.source.sourceArguments[0]?.expression;
-        if (isCsharpEmptyObjectTargetType(argument) || targetTypeRefEquals(argument, objectType) && expression !== undefined &&
-          csharpValueDomainHasTargetType(context.host, expression, csharpEmptyObjectTargetType())) {
-          return staticMethod(`Tsonic.CSharp.Runtime.EmptyObject.${name}`, name,
-            name === "freeze" ? "Freeze" : "IsFrozen", csharpEmptyObjectTargetType(),
-            [targetParameter("value", argument)], name === "freeze" ? argument : boolType,
-            { typeParameters: [{ name: "T", csharpAllowsRefLike: false }] });
-        }
-        const shape = expression === undefined ? undefined : context.inputs.objectShape.get(expression);
-        if (shape === undefined || !targetTypeRefEquals(argument, shape.targetType)) return undefined;
-        return staticMethod(`Tsonic.CSharp.Js.FrozenObject.${name}`, name,
-          name === "freeze" ? "Freeze" : "IsFrozen", jsRuntimeTargetType("FrozenObject"),
-          [targetParameter("value", argument)], name === "freeze" ? argument : boolType, {
-            typeParameters: [{ name: "T", csharpAllowsRefLike: false }],
-            csharpArtifactRequirements: [{ kind: "object-shape-capability",
-              source: { kind: "argument", index: 0 }, capability: "js-freeze", rootKind: "object-shape" }],
-          });
-      }, noReceiver, { targetMethodTypeArguments: context => {
-        const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
-        return argument === undefined ? undefined : [argument];
-      } })),
+        return staticMethod("js.ObjectConstructor.freeze", "freeze", "freeze", objectType,
+          [targetParameter("value", argument)], argument, { csharpInvocation: { kind: "value-identity" } });
+      }, noReceiver),
+    jsCallPolicy(jsMemberIdentity("ObjectConstructor", "isFrozen"), () => ({
+      kind: "rejected",
+      diagnostic: csharpSourceProfileDiagnostic("TSONIC_IS_FROZEN_UNSUPPORTED", 9101002,
+        "Object.isFrozen has no native equivalent; immutability is a compile-time property. Use readonly declarations instead."),
+    }), noReceiver),
     jsCallPolicy(
       jsMemberIdentity("ObjectConstructor", "is"),
       () =>

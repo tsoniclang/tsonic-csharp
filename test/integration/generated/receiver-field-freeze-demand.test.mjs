@@ -4,14 +4,14 @@ import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../hel
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
 for (const { name, declarations, invocation } of retainedFieldFreezeOrigins) {
-  test(`retained direct writes observe ${name} freeze without guarding reads`, { timeout: 300_000 }, () => {
+  test(`retained direct writes through ${name} readonly views preserve mutable aliases`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface: "js", sourceText: retainedFieldFreezeOriginSource(declarations, invocation) });
     assertCsharpCompilationSucceeded(compiled);
     executeCsharpConstruction(compiled, `retained-field-freeze-origin-${name}`);
   });
 }
 
-test("generic inherited field captures observe freeze through the exact structural instantiation", { timeout: 300_000 }, () => {
+test("generic inherited field captures preserve mutation through readonly views", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: retainedFieldGenericFreezeSource });
   assertCsharpCompilationSucceeded(compiled);
   executeCsharpConstruction(compiled, "retained-field-freeze-generic-inherited");

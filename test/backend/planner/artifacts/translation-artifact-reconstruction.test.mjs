@@ -193,7 +193,7 @@ function genericCapabilityArtifacts() {
 }
 
 test("one exact native declaration publishes the selected capabilities for every closed view", () => {
-  for (const capability of ["reference-identity", "method-values", "enumerable-keys", "js-freeze", "json-serialization"]) {
+  for (const capability of ["reference-identity", "method-values", "enumerable-keys", "json-serialization"]) {
     for (const capabilityFirst of [false, true]) {
       const { demand, declaration, first, second, unrelated } = genericCapabilityArtifacts();
       assert.equal(demand.registerObjectShape(first, "synthetic").kind, "accepted", "the first closed carrier is admitted");

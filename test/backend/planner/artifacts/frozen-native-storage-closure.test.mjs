@@ -40,7 +40,7 @@ function createScope(entries, options = {}) {
 
 function collect(root, entries, options = {}) {
   return collectCsharpReferenceClosure(createScope(entries, options), root.targetType, root, new Map(),
-    options.capability ?? "js-freeze");
+    options.capability ?? "reference-identity");
 }
 
 function assertShapes(result, expected) {
@@ -49,7 +49,7 @@ function assertShapes(result, expected) {
     expected.map(shape => targetTypeRefKey(shape.targetType)).sort());
 }
 
-test("freezing a derived source object includes every exact native base storage owner", () => {
+test("native reference identity does not introduce frozen base storage owners", () => {
   const base = sourceClass("Base");
   const middle = sourceClass("Middle");
   const leaf = sourceClass("Leaf");
@@ -59,10 +59,10 @@ test("freezing a derived source object includes every exact native base storage 
     { shape: other },
     { shape: middle, base: base.targetType },
     { shape: base },
-  ]), [base, middle, leaf]);
+  ]), [leaf]);
 });
 
-test("freeze capability follows structural views into source inheritance without freezing child payload types", () => {
+test("structural reference identity follows declared interfaces without frozen base or child payloads", () => {
   const view = { targetType: {
     kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "View", csharpStructuralContract: true,
   }, members: [] };
@@ -74,10 +74,10 @@ test("freeze capability follows structural views into source inheritance without
   assertShapes(collect(view, [
     { shape: view }, { shape: base }, { shape: child },
     { shape: leaf, base: base.targetType },
-  ]), [view, base, leaf]);
+  ]), [view, leaf]);
 });
 
-test("closed generic native bases include their one authored declaration storage owner", () => {
+test("closed generic reference identity does not require a frozen native declaration owner", () => {
   const parameter = { kind: "type-parameter", identity: "Base:T", name: "T" };
   const integer = { kind: "source-primitive", name: "int32" };
   const text = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "System.String" };
@@ -90,7 +90,7 @@ test("closed generic native bases include their one authored declaration storage
     { shape: numeric, declaration: template },
     { shape: textual, declaration: template },
     { shape: leaf, base: numeric.targetType },
-  ]), [template, numeric, leaf]);
+  ]), [leaf]);
 });
 
 test("native inheritance does not expand unrelated reference capability contracts", () => {
@@ -100,15 +100,15 @@ test("native inheritance does not expand unrelated reference capability contract
     { capability: "reference-identity" }), [leaf]);
 });
 
-test("late source class registration inherits the native base freeze demand only", () => {
+test("late source class registration does not inherit a native base freeze demand", () => {
   const base = sourceClass("Base");
   const leaf = sourceClass("Leaf");
   const scope = createScope([{ shape: base }, { shape: leaf, base: base.targetType }]);
-  scope.records.set("base", { fact: base, capabilities: new Set(["js-freeze", "reference-identity"]) });
-  assert.deepEqual(inheritedObjectShapeCapabilities(scope, leaf), ["js-freeze"]);
+  scope.records.set("base", { fact: base, capabilities: new Set(["reference-identity"]) });
+  assert.deepEqual(inheritedObjectShapeCapabilities(scope, leaf), []);
 });
 
-test("late generic inheritance follows the canonical native declaration without erasing instantiations", () => {
+test("late generic inheritance never promotes native declarations into a freeze closure", () => {
   const baseParameter = { kind: "type-parameter", identity: "Base:T", name: "T" };
   const derivedParameter = { kind: "type-parameter", identity: "Derived:T", name: "T" };
   const base = sourceClass("Base", [baseParameter]);
@@ -117,14 +117,14 @@ test("late generic inheritance follows the canonical native declaration without 
   const scope = createScope([
     { shape: base }, { shape: selectedBase, declaration: base }, { shape: leaf, base: selectedBase.targetType },
   ]);
-  scope.records.set("base", { fact: base, capabilities: new Set(["js-freeze"]) });
-  assert.deepEqual(inheritedObjectShapeCapabilities(scope, leaf), ["js-freeze"]);
+  scope.records.set("base", { fact: base, capabilities: new Set(["reference-identity"]) });
+  assert.deepEqual(inheritedObjectShapeCapabilities(scope, leaf), []);
   assertShapes(collect(base, [
     { shape: base }, { shape: selectedBase, declaration: base }, { shape: leaf, base: selectedBase.targetType },
-  ]), [base, selectedBase, leaf]);
+  ]), [base]);
 });
 
-test("freeze storage closure rejects missing, external and mismatched native base evidence", () => {
+test("reference identity is independent of obsolete frozen base storage evidence", () => {
   const leaf = sourceClass("Leaf");
   const base = sourceClass("Base");
   for (const options of [
@@ -140,7 +140,7 @@ test("freeze storage closure rejects missing, external and mismatched native bas
       resolveTarget: selected => selected.id === "External"
         ? { targetType: selected, members: [] } : undefined },
   ]) {
-    assert.equal(collect(leaf, options.entries, options).kind, "rejected", "unclosed native storage");
+    assertShapes(collect(leaf, options.entries, options), [leaf]);
   }
 });
 

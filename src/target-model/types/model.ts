@@ -336,8 +336,7 @@ export type CsharpObjectShapeCapability =
   | "json-serialization"
   | "reference-identity"
   | "method-values"
-  | "enumerable-keys"
-  | "js-freeze";
+  | "enumerable-keys";
 
 export type CsharpObjectShapeProjectionKind =
   | "keys"
@@ -420,6 +419,7 @@ export interface CsharpTargetMember extends Omit<TargetMember, "parameters" | "t
 }
 
 export type CsharpTargetInvocation =
+  | { readonly kind: "value-identity" }
   | { readonly kind: "numeric-conversion" }
   | { readonly kind: "native-task-resolution"; readonly form: "value" | "task" | "absence" }
   | {

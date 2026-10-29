@@ -23,7 +23,12 @@ export function selectCsharpTargetCallEmission(input: CsharpTargetCallEmissionIn
   if (result === undefined) return refuse("Selected native call requires its exact physical completion carrier.");
   const selected = member.csharpInvocation;
   let invocation: CsharpTargetInvocationEmission;
-  if (selected?.kind === "numeric-conversion") {
+  if (selected?.kind === "value-identity") {
+    if (!member.static || instance || member.parameters.length !== 1 || count !== 1 || passing[0] ||
+      !targetTypeRefEquals(member.parameters[0]!.type, result) || !selectCsharpTypeEmission({ carrier: result }))
+      return refuse("A selected value identity requires one by-value operand and its identical native result carrier.");
+    invocation = { kind: "value-identity" };
+  } else if (selected?.kind === "numeric-conversion") {
     if (member.returnType === undefined || !selectCsharpTypeEmission({ carrier: member.returnType }) || member.parameters.length !== 1 || count !== 1 || passing[0])
       return refuse("The selected numeric conversion requires one exact value and a renderable result type.");
     invocation = { kind: "numeric", target: member.returnType, identity: targetTypeRefEquals(member.parameters[0]!.type, member.returnType) };

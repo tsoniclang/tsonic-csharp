@@ -53,7 +53,6 @@ import type { CsharpObjectMethodRecords } from "../../../target-model/records/ob
 import type { CsharpObjectMemberRecords } from "../../../target-model/records/objects/object-members.js";
 import type { CsharpObjectLiteralRecords } from "../../../target-model/records/objects/object-literals.js";
 import type { CsharpIndexedRecordRecords } from "../../../target-model/records/objects/indexed-records.js";
-import type { CsharpFrozenDataPropertyRecords } from "../../../target-model/records/storage/frozen-data-properties.js";
 import type { CsharpCaptureMethodRecords } from "../../../target-model/records/callables/capture-methods.js";
 
 export interface CsharpProgramRecordInput {
@@ -100,7 +99,6 @@ export interface CsharpProgramRecordInput {
   readonly targetCallEmission: import("../../../target-model/records/calls/target-call-emission.js").CsharpTargetCallEmissionRecords;
   readonly constructionEmission: import("../../../target-model/records/objects/construction.js").CsharpConstructionRecords;
   readonly captureMethods: CsharpCaptureMethodRecords;
-  readonly frozenDataProperties: CsharpFrozenDataPropertyRecords;
   readonly indexedRecords: CsharpIndexedRecordRecords;
   readonly objectLiterals: CsharpObjectLiteralRecords;
   readonly objectMembers: CsharpObjectMemberRecords;
@@ -200,7 +198,6 @@ export function createCsharpProgramRecords(
     ...input.targetCallEmission,
     ...input.constructionEmission,
     ...input.captureMethods,
-    ...input.frozenDataProperties,
     ...input.indexedRecords,
     objectLiteral: input.objectLiterals.objectLiteral,
     objectLiteralMember: input.objectLiterals.objectLiteralMember,

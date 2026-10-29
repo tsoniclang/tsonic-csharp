@@ -47,13 +47,12 @@ test("reference capabilities do not cross generic instantiation identities", () 
   assert.deepEqual(new Set(result.shapes.values()), new Set([numeric, numericChild]));
 });
 
-test("reference closure rejects transitive value storage and unprotected frozen writes", () => {
+test("reference closure rejects transitive value storage without imposing freeze write guards", () => {
   const root = shape("Root");
   const value = shape("Value", [root], {
     targetType: { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Value", csharpValueType: true },
   });
   assert.equal(collect(root, [value]).kind, "rejected");
   const bound = shape("Bound", [root], { members: [{ bound: true }] });
-  assert.equal(collect(root, [bound], "js-freeze").kind, "rejected");
   assert.equal(collect(root, [bound], "reference-identity").kind, "accepted");
 });

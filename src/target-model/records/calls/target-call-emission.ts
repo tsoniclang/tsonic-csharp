@@ -6,6 +6,7 @@ import type { TargetTypeRef } from "../../types/model.js";
 import type { CsharpSourceOperator } from "../../syntax/operators.js";
 
 export type CsharpTargetInvocationEmission =
+  | { readonly kind: "value-identity" }
   | { readonly kind: "integer-truncation"; readonly target: TargetTypeRef; readonly signed: boolean }
   | { readonly kind: "native-task-resolution"; readonly form: "value" | "task" | "absence";
       readonly owner: TargetTypeRef; readonly payload: TargetTypeRef }

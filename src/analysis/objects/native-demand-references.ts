@@ -3,14 +3,13 @@ import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef, TargetTypeRef } f
 import { isCsharpValueTypeTargetType, targetTypeRefEquals, targetTypeRefKey, isSourceDeclaredNominalShape } from "../../target-model/types/index.js";
 import { objectShapeArtifactKey } from "../../target-model/records/objects/object-shape-keys.js";
 import { maximumArtifactCount } from "./native-demand-batches.js";
-import { resolveCsharpSourceClassStorage } from "./native-demand-storage.js";
 
 export function collectCsharpReferenceClosure(
   scope: CsharpObjectShapeDemandScope,
   type: TargetTypeRef,
   preferred: CsharpObjectShapeFact | undefined,
   pending: ReadonlyMap<string, CsharpObjectShapeFact>,
-  capability: "js-freeze" | "reference-identity" | "method-values" | "enumerable-keys",
+  capability: "reference-identity" | "method-values" | "enumerable-keys",
 ): { readonly kind: "accepted"; readonly shapes: ReadonlyMap<string, CsharpObjectShapeFact> }
   | { readonly kind: "rejected"; readonly reason: string } {
   const root = preferred ?? scope.host.objectShapes.resolveTarget(type);
@@ -19,12 +18,7 @@ export function collectCsharpReferenceClosure(
   const visible = scope.visibleObjectShapes(pending);
   const dependents = new Map<string, { readonly base: TargetTypeRef; readonly shape: CsharpObjectShapeFact }[]>();
   for (const shape of visible) {
-    const nativeBase = capability === "js-freeze"
-      ? resolveCsharpSourceClassStorage(scope, shape.targetType)?.baseType : undefined;
-    const nativeOwner = nativeBase === undefined ? undefined
-      : resolveCsharpSourceClassStorage(scope, nativeBase)?.declaration.targetType;
-    for (const base of [...shape.implements ?? [], ...(nativeBase === undefined ? [] : [nativeBase]),
-      ...(nativeOwner === undefined ? [] : [nativeOwner])]) {
+    for (const base of shape.implements ?? []) {
       const key = targetTypeRefKey(base);
       const edges = dependents.get(key) ?? [];
       edges.push({ base, shape });
@@ -54,27 +48,10 @@ export function collectCsharpReferenceClosure(
       const order = scope.host.objectShapes.propertyOrder(shape, undefined, "keys");
       if (order.kind === "rejected") return order;
     }
-    if (isCsharpValueTypeTargetType(shape.targetType) || capability === "js-freeze" && shape.members.some(member => member.bound === true)) {
-      return { kind: "rejected", reason: `The ${capability} capability cannot use native value storage or an unprotected bound write route.` };
+    if (isCsharpValueTypeTargetType(shape.targetType)) {
+      return { kind: "rejected", reason: `The ${capability} capability cannot use native value storage.` };
     }
     shapes.set(key, shape);
-    if (capability === "js-freeze" && shape.targetType.kind === "target-named" &&
-      (shape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "class") {
-      const storage = resolveCsharpSourceClassStorage(scope, shape.targetType);
-      if (storage === undefined) {
-        return { kind: "rejected", reason: "A frozen source class requires its exact sealed declaration and native storage heritage." };
-      }
-      enqueue(storage.declaration);
-      if (storage.baseType !== undefined) {
-        const base = scope.host.objectShapes.resolveTarget(storage.baseType);
-        if (base?.targetType.kind !== "target-named" ||
-          (base.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind !== "class" ||
-          !targetTypeRefEquals(base.targetType, storage.baseType)) {
-          return { kind: "rejected", reason: "A frozen source class requires closed source-owned native base-field storage." };
-        }
-        enqueue(base);
-      }
-    }
     if (capability === "method-values") {
       if (shape.declarationTemplate !== undefined) enqueue(shape.declarationTemplate);
       for (const member of shape.members) {

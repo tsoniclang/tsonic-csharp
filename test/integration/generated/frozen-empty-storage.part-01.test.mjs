@@ -10,39 +10,35 @@ test("inferred broad freeze results retain the native object carrier instead of 
   assertCsharpCompilationSucceeded(compiled);
   const text = generatedText(compiled);
   assert.match(text, /object frozen =/);
-  assert.match(text, /EmptyObject\.Freeze<object>/);
-  assert.match(text, /EmptyObject\.Freeze<Tsonic\.CSharp\.Runtime\.EmptyObject>/);
-  assert.doesNotMatch(text, /FrozenObject|ConditionalWeakTable|dynamic\b|Unsafe\./);
+  assert.doesNotMatch(text, /EmptyObject\.(?:Freeze|IsFrozen)|FrozenObject|CheckWrite|ConditionalWeakTable|dynamic\b|Unsafe\./);
   executeCsharpConstruction(compiled, "frozen-empty-inferred-object-carrier");
 });
 
-test("empty freeze uses one native state across broad aliases, parameters and returns", { timeout: 300_000 }, () => {
+test("readonly freeze retains native identity across broad aliases, parameters and returns", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: frozenEmptyStorageSources[1][1] });
   assertCsharpCompilationSucceeded(compiled);
   const text = generatedText(compiled);
-  assert.match(text, /EmptyObject\.Freeze<object>/);
-  assert.match(text, /EmptyObject\.IsFrozen<object>/);
   assert.match(text, /object retain\(object value\)/);
   assert.match(text, /9007199254740993L/);
-  assert.doesNotMatch(text, /FrozenObject|ConditionalWeakTable|dynamic\b|Unsafe\.|GetProperty|Activator/);
+  assert.doesNotMatch(text, /EmptyObject\.(?:Freeze|IsFrozen)|FrozenObject|CheckWrite|ConditionalWeakTable|dynamic\b|Unsafe\.|GetProperty|Activator/);
   executeCsharpConstruction(compiled, "frozen-empty-broad-aliases");
 });
 
-test("empty freeze retains exact container origins without altering native object elements", { timeout: 300_000 }, () => {
+test("readonly freeze preserves container identity without altering native object elements", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: frozenEmptyStorageSources[2][1] });
   assertCsharpCompilationSucceeded(compiled);
   assert.doesNotMatch(generatedText(compiled), /FrozenObject|ConditionalWeakTable/);
   executeCsharpConstruction(compiled, "frozen-empty-container-aliases");
 });
 
-test("empty freeze closes private callbacks and receivers without treating type exports as value escapes", { timeout: 300_000 }, () => {
+test("readonly freeze preserves private callback and receiver identity", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: frozenEmptyStorageSources[3][1] });
   assertCsharpCompilationSucceeded(compiled);
   assert.doesNotMatch(generatedText(compiled), /FrozenObject|ConditionalWeakTable|dynamic\b|Unsafe\./);
   executeCsharpConstruction(compiled, "frozen-empty-closed-local-receivers");
 });
 
-test("exported readonly token bindings retain exact empty identity without an external replacement domain", { timeout: 300_000 }, () => {
+test("exported readonly token bindings retain their native empty identity", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: frozenEmptyStorageSources[4][1] });
   assertCsharpCompilationSucceeded(compiled);
   const text = generatedText(compiled);
@@ -58,7 +54,7 @@ test("selected aliases of native freeze operations preserve exact result identit
   executeCsharpConstruction(compiled, "frozen-empty-selected-operation-aliases");
 });
 
-test("externally visible readonly empty members retain their one fixed native value domain", { timeout: 300_000 }, () => {
+test("externally visible readonly empty members retain their native identity", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: frozenEmptyStorageSources[6][1] });
   assertCsharpCompilationSucceeded(compiled);
   assert.doesNotMatch(generatedText(compiled), /FrozenObject|ConditionalWeakTable/);

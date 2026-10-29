@@ -8,7 +8,6 @@ import { maximumJsonClosureDepth } from "./native-demand-batches.js";
 import { objectShapeArtifactKey } from "../../target-model/records/objects/object-shape-keys.js";
 import { objectShapeProjectionKey } from "../../target-model/records/objects/object-shape-keys.js";
 import { collectCsharpReferenceClosure } from "./native-demand-references.js";
-import { resolveCsharpSourceClassStorage } from "./native-demand-storage.js";
 import { selectCsharpJsonObjectShapeContract } from "../../policy/types/objects/json-object-shapes.js";
 
 export function collectJsonClosure(
@@ -70,7 +69,6 @@ export function collectCapabilityClosure(
   switch (capability) {
     case "json-serialization":
       return scope.collectJsonClosure(type, preferredShape, pendingShapes);
-    case "js-freeze":
     case "reference-identity":
     case "method-values":
     case "enumerable-keys":
@@ -272,16 +270,6 @@ export function inheritedObjectShapeCapabilities(
       if (targetTypeRefEquals(implemented, record.fact.targetType)) {
         record.capabilities.forEach((capability) => inherited.add(capability));
       }
-    }
-  }
-  const nativeBase = resolveCsharpSourceClassStorage(scope, fact.targetType)?.baseType;
-  const nativeOwner = nativeBase === undefined ? undefined
-    : resolveCsharpSourceClassStorage(scope, nativeBase)?.declaration.targetType;
-  if (nativeBase !== undefined) for (const record of scope.records.values()) {
-    if (record.capabilities.has("js-freeze") &&
-      (targetTypeRefEquals(nativeBase, record.fact.targetType) ||
-        nativeOwner !== undefined && targetTypeRefEquals(nativeOwner, record.fact.targetType))) {
-      inherited.add("js-freeze");
     }
   }
   return Object.freeze([...inherited].sort());

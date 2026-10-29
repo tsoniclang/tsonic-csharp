@@ -49,7 +49,6 @@ import type { CsharpObjectMethodRecords } from "./objects/object-methods.js";
 import type { CsharpObjectMemberRecords } from "./objects/object-members.js";
 import type { CsharpObjectLiteralRecords } from "./objects/object-literals.js";
 import type { CsharpIndexedRecordRecords } from "./objects/indexed-records.js";
-import type { CsharpFrozenDataPropertyRecords } from "./storage/frozen-data-properties.js";
 import type { CsharpCaptureMethodRecords } from "./callables/capture-methods.js";
 import type { CsharpCompilationRecords } from "./program/compilation.js";
 import type { CsharpSourceNameRecords } from "./names.js";
@@ -94,7 +93,6 @@ export interface CsharpProgramRecords extends CsharpSourceNameRecords, CsharpSta
   readonly projectSourceReference: import("./program/project-emission.js").CsharpProjectEmissionRecords["projectSourceReference"];
   readonly projectSourceType: import("./program/project-emission.js").CsharpProjectEmissionRecords["projectSourceType"];
   readonly indexedRecordRead: CsharpIndexedRecordRecords["indexedRecordRead"];
-  readonly frozenDataProperties: CsharpFrozenDataPropertyRecords["frozenDataProperties"];
   readonly captureMethods: CsharpCaptureMethodRecords["captureMethods"];
   readonly bindingIdentity: CsharpBindingIdentityRecords["bindingIdentity"];
   readonly sourceFile: CsharpSourceFileRecords["sourceFile"];

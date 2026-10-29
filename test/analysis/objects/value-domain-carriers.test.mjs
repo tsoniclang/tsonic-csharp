@@ -335,13 +335,12 @@ test("sealed value domains retain exact source identity without source or physic
   assert.equal(selectedValueDomainHasTargetType({}, selected.expression, exact), false, "missing analysis proof has no resolver fallback");
 });
 
-test("analysis closes actual invocation arguments for broad aliases, containers and selected native freeze calls", () => {
+test("readonly freeze preserves native identity across broad aliases without closed-origin state", () => {
   for (const index of [0, 1, 2, 5]) {
     const compiled = compileCsharpSource({ surface: "js", sourceText: frozenEmptyStorageSources[index][1] });
     assertCsharpCompilationSucceeded(compiled);
     const text = [...compiled.artifacts.values()].join("\n");
-    assert.match(text, /EmptyObject\.(?:Freeze|IsFrozen)/u, `actual checked invocation ${index}`);
-    assert.doesNotMatch(text, /FrozenObject|ConditionalWeakTable|DynamicInvoke|System\.Reflection/u,
+    assert.doesNotMatch(text, /EmptyObject\.(?:Freeze|IsFrozen)|FrozenObject|CheckWrite|ConditionalWeakTable|DynamicInvoke|System\.Reflection/u,
       `actual checked invocation ${index} has no additional carrier, state table or fallback`);
   }
 });

@@ -17,11 +17,9 @@ function freeze(value: Base): void { Object.freeze(value); }
 export function run(): boolean {
   const value = new Derived();
   freeze(value);
-  let inherited = false;
-  let own = false;
-  try { value.value = 3; } catch (error) { inherited = error instanceof TypeError; }
-  try { value.extra = 4; } catch (error) { own = error instanceof TypeError; }
-  return inherited && own && value.value === 1 && value.extra === 2;
+  value.value = 3;
+  value.extra = 4;
+  return value.value === 3 && value.extra === 4;
 }
 ` },
   { name: "escaped-base-storage", source: `
@@ -42,12 +40,9 @@ export function run(): boolean {
   const change = first.change;
   Object.freeze(first);
   second.change(3);
-  let retained = false;
-  let escapedOwner = false;
-  try { change(7); } catch (error) { retained = error instanceof TypeError; }
-  try { escaped()(8); } catch (error) { escapedOwner = error instanceof TypeError; }
-  return retained && escapedOwner && base.value === 1 && first.value === 1 &&
-    second.value === 3 && Object.isFrozen(base) && !Object.isFrozen(second);
+  change(7);
+  escaped()(8);
+  return base.value === 7 && first.value === 7 && second.value === 3 && first !== second;
 }
 ` },
   { name: "generic-native-base", source: `
@@ -68,11 +63,8 @@ export function run(): boolean {
   const other = new Base<string>("first");
   freeze(value);
   other.change("second");
-  try { change(7); } catch (error) {
-    return error instanceof TypeError && value.value === 1 && base.value === 1 &&
-      other.value === "second" && !Object.isFrozen(other);
-  }
-  return false;
+  change(7);
+  return value.value === 7 && base.value === 7 && other.value === "second";
 }
 ` },
   { name: "abstract-storage-contract", source: `
@@ -86,10 +78,8 @@ export function run(): boolean {
   const base: Base = value;
   const change = base.change;
   Object.freeze(value);
-  try { change(7); } catch (error) {
-    return error instanceof TypeError && value.value === 2 && base.value === 2;
-  }
-  return false;
+  change(7);
+  return value.value === 7 && base.value === 7;
 }
 ` },
   { name: "generic-freeze-parameter", source: `
@@ -105,10 +95,8 @@ export function run(): boolean {
   const change = value.change;
   freeze(value);
   other.change("second");
-  try { change(3); } catch (error) {
-    return error instanceof TypeError && value.value === 1 && other.value === "second";
-  }
-  return false;
+  change(3);
+  return value.value === 3 && other.value === "second";
 }
 ` },
   { name: "shallow-accessor-private-storage", source: `
@@ -127,8 +115,8 @@ class Base {
 class Derived extends Base { extra = 2; }
 export function run(): boolean {
   const value = new Derived();
-  Object.freeze(value);
-  return value.change() && Object.isFrozen(value) && !Object.isFrozen(value.child);
+  const readonly = Object.freeze(value);
+  return value.change() && readonly === value && readonly.child === value.child;
 }
 ` },
   { name: "reentrant-base-write", source: `
@@ -141,28 +129,25 @@ export function run(): boolean {
   const value = new Derived();
   let calls = 0;
   const next = (): number => { calls += 1; Object.freeze(value); return 2; };
-  try { value.change(next); } catch (error) {
-    return error instanceof TypeError && calls === 1 && value.value === 1;
-  }
-  return false;
+  value.change(next);
+  return calls === 1 && value.value === 2;
 }
 ` },
   { name: "suspended-base-write", asynchronous: true, source: `
 async function pause(): Promise<void> {}
 class Base {
   value = 1;
-  change = async (): Promise<void> => { await pause(); this.value = 2; };
+  change = async (): Promise<number> => { await pause(); this.value = 2; return this.value; };
 }
 class Derived extends Base { extra = 2; }
-function escaped(): () => Promise<void> {
+function escaped(): () => Promise<number> {
   const value = new Derived();
   Object.freeze(value);
   return value.change;
 }
 export async function run(): Promise<boolean> {
   const change = escaped();
-  try { await change(); } catch (error) { return error instanceof TypeError; }
-  return false;
+  return await change() === 2;
 }
 ` },
 ];

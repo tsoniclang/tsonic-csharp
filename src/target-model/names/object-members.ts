@@ -9,13 +9,6 @@ export function csharpDeferredCaptureStorageNames(name: string): { readonly valu
   return { valueName: `${name}Value`, initializedName: `${name}Initialized` };
 }
 
-export function csharpFrozenStorageName(shape: CsharpObjectShapeFact, name: string): string {
-  const reserved = new Set(shape.members.map(member => objectShapeStorageMemberName(shape, member)));
-  let candidate = `__tsonic_frozen_${name}`;
-  while (reserved.has(candidate)) candidate = `_${candidate}`;
-  return candidate;
-}
-
 export function objectShapeStorageMemberName(objectShape: CsharpObjectShapeFact, member: CsharpObjectShapeFact["members"][number]): string {
   if (member.memberKind !== "method") {
     return member.targetName;

@@ -35,7 +35,6 @@ import {
 } from "../program/compilation-unit.js";
 
 
-import { guardCsharpFrozenDataProperties } from "./frozen-data-properties.js";
 import { renderCsharpStructuralInterfaceMembers } from "./structural-interfaces.js";
 import { renderCsharpMethodValueContracts } from "./method-values.js";
 import { csharpEnumerableKeysContract, renderCsharpEnumerableKeys } from "./enumerable-keys.js";
@@ -185,7 +184,7 @@ function renderObjectShapeDeclaration(
       ...captureMethods,
       ...methodValues,
       ...enumerableKeys,
-      ...guardCsharpFrozenDataProperties(fact, members, input, diagnostics),
+      ...members,
       ...(jsonSerializable ? renderJsonSerializableObjectShapeMethod(fact, input.program.records) : []),
       ...renderObjectShapeProjectionMethods(
         input,

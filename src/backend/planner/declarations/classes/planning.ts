@@ -18,7 +18,6 @@ import { getCsharpObjectShapeFactForNode } from "../../objects/fact-queries.js";
 import { planImplicitForwardingConstructors } from "../../project/type-constructors.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import { csharpSafetyModifiersForDeclaration, withCsharpSafetyModifiers } from "../../safety/explicit-safety.js";
-import { guardCsharpFrozenDataProperties } from "../../objects/frozen-data-properties.js";
 import { createCsharpMemberPlanningContext } from "../../context.js";
 import { classFactoryContext, completeLocalClassConstructor } from "./factories.js";
 import { planClassInitializationRegion } from "./initializers.js";
@@ -120,8 +119,7 @@ export function planClassDeclaration(
         } }] },
       }]),
       ...(objectShape === undefined ? [] : planCsharpStructuralInterfaceMembers(objectShape, input, diagnostics)),
-      ...(objectShape !== undefined
-        ? guardCsharpFrozenDataProperties(objectShape, members, input, diagnostics) : members),
+      ...members,
       ...(jsonSerializable && objectShape !== undefined
         ? renderJsonSerializableObjectShapeMethod(objectShape, input.program.records)
         : []),

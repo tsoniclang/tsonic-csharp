@@ -12,7 +12,7 @@ test("empty freeze preserves checked absent-path refinement and evaluates operan
   executeCsharpConstruction(compiled, "frozen-empty-refined-absence");
 });
 
-test("cross-file object signatures retain exact closed EmptyObject origins", { timeout: 300_000 }, () => {
+test("cross-file declared object signatures retain readonly freeze identity", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: frozenEmptyStorageCrossFileSources["index.ts"],
     files: { "retain.ts": frozenEmptyStorageCrossFileSources["retain.ts"] } });
   assertCsharpCompilationSucceeded(compiled);
@@ -24,25 +24,23 @@ test("repeated empty freeze matches handwritten native allocation with no additi
   const compiled = compileCsharpSource({ surface: "js", sourceText: `
     export function run(): boolean {
       const value: object = {};
-      let frozen = false;
+      let retained = value;
       for (let iteration = 0; iteration < 20000; iteration += 1) {
-        Object.freeze(value);
-        frozen = Object.isFrozen(value);
+        retained = Object.freeze(value);
       }
-      return frozen;
+      return retained === value;
     }
   ` });
   assertCsharpCompilationSucceeded(compiled);
-  assert.doesNotMatch(generatedText(compiled), /FrozenObject|ConditionalWeakTable|TsValue|dynamic\b/);
+  assert.doesNotMatch(generatedText(compiled), /EmptyObject\.(?:Freeze|IsFrozen)|FrozenObject|CheckWrite|ConditionalWeakTable|TsValue|dynamic\b/);
   const output = executeCsharpConstruction(compiled, "frozen-empty-native-allocation", false, false, [], `
     static bool Handwritten() {
       var value = new Tsonic.CSharp.Runtime.EmptyObject();
-      var frozen = false;
+      object retained = value;
       for (var iteration = 0; iteration < 20000; iteration += 1) {
-        Tsonic.CSharp.Runtime.EmptyObject.Freeze(value);
-        frozen = Tsonic.CSharp.Runtime.EmptyObject.IsFrozen(value);
+        retained = value;
       }
-      return frozen;
+      return System.Object.ReferenceEquals(retained, value);
     }
     Tsonic.Generated.Index.run();
     Handwritten();
@@ -59,16 +57,24 @@ test("repeated empty freeze matches handwritten native allocation with no additi
   assert.match(output, /native allocation (\d+)\/\1/);
 });
 
+const identitySources = new Set([
+  "private erased record", "exported opaque object", "exported opaque object with local empty call",
+  "exported alias", "mixed allocation origins", "exported generic unknown with local empty call", "escaping private callable",
+]);
+
 for (const [name, sourceText] of Array.from(openSources).slice(0, 28)) {
-test(`open empty freeze proof rejects ${name} before any publication`, () => {
+test(`declared readonly freeze contract: ${name}`, () => {
     const compiled = compileCsharpSource({ surface: "js", sourceText });
     assert.equal(compiled.sourceDiagnosticsText, "", "source remains valid without annotations");
-    assert.equal(compiled.extensionDiagnostics.length + compiled.targetDiagnostics.length > 0, true,
-      "missing exact native origin evidence must fail closed");
-    assert.equal(compiled.targetDiagnostics.some(diagnostic => diagnostic.code === "CSHARP_JS_SOURCE_PROFILE_CALL_NOT_CLOSED" &&
-      /^The exact selected JS source-profile call 'js\.ObjectConstructor\.(?:freeze|isFrozen)\.member' has no closed C# target relation\.$/.test(diagnostic.message)), true,
-      "the exact freeze operation owner rejects the unproven domain");
-    assert.equal(compiled.artifacts.size, 0, "rejected source publishes no target artifacts");
+    if (identitySources.has(name)) {
+      assertCsharpCompilationSucceeded(compiled);
+      assert.doesNotMatch(generatedText(compiled), /EmptyObject\.(?:Freeze|IsFrozen)|FrozenObject|CheckWrite|ConditionalWeakTable/);
+    } else {
+      assert.equal(compiled.targetDiagnostics.some(diagnostic => diagnostic.code === "TSONIC_IS_FROZEN_UNSUPPORTED" &&
+        diagnostic.message.includes("Object.isFrozen has no native equivalent")), true,
+        "the selected query is refused independently of the operand's origin");
+      assert.equal(compiled.artifacts.size, 0, "refused runtime frozenness publishes no target artifacts");
+    }
   });
 }
 
