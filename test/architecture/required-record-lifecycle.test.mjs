@@ -341,10 +341,12 @@ test("callable contracts and forwarding consume the actual attempt's mandatory f
 test("unclosed native participation rejects before its reader or any native demand is consumed", () => {
   const call = composedCall("analyzeCsharpNativeParticipation", iteration, "participation result");
   const input = ast.arguments(call)[0];
-  const storage = property(input, "storage");
-  assert.equal(storage !== undefined && ast.is.IsPropertyAssignment(storage) &&
-    text(ast.as.AsPropertyAssignment(storage).Initializer) === "sourceStorage", true,
-    "the participation owner receives the actual complete storage domain and its failure reason, not only a partial node array");
+  const nodes = property(input, "nodes");
+  const sourceNodes = descendants(iteration).find(node => ast.is.IsVariableDeclaration(node) && named(node, "sourceNodes"));
+  assert.equal(nodes !== undefined && ast.is.IsPropertyAssignment(nodes) &&
+    text(ast.as.AsPropertyAssignment(nodes).Initializer) === "sourceNodes" && sourceNodes !== undefined &&
+    text(ast.as.AsVariableDeclaration(sourceNodes).Initializer) === "source.navigation.nodesForFiles(sourceFiles)", true,
+    "the participation owner receives the complete canonical inventory for the exact checked files, not a storage-failure authority");
   const statements = ast.statements(ast.body(iteration));
   const index = topLevelIndex(statements, statement => ownDeclaration(statement, "participation") !== undefined, "participation result");
   const rejection = statements[index + 1];
