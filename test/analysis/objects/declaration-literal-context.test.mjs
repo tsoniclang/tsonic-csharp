@@ -175,3 +175,21 @@ for (const [label, body, literal] of [
   assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
     `${label}: no unproved native construction is published`);
 });
+
+for (const [label, sourceText] of [
+  ["another body", `const base = { recursive: true };
+    export function make(): MakeDirectoryOptions { return base; }`],
+  ["declared structural context", `export function make(): MakeDirectoryOptions {
+    const base: { recursive: boolean } = { recursive: true }; const alias = base; return alias; }`],
+  ["a parameter without a literal declaration", `export function make(base: { recursive: boolean }): MakeDirectoryOptions {
+    return base; }`],
+]) test(`failed native conversion retains its own diagnostic for ${label}`, () => {
+  const compiled = compile(`import type { MakeDirectoryOptions } from "node:fs"; ${sourceText}`);
+  assert.equal(compiled.targetDiagnostics.some(diagnostic => diagnostic.code === "CSHARP_UNSUPPORTED_AST" &&
+    diagnostic.message.startsWith("No exact C# implicit conversion relates ")), true,
+  `${label}: an unrelated native conversion is not an untyped-literal refusal`);
+  assert.equal(compiled.targetDiagnostics.some(diagnostic => diagnostic.code === "TSONIC_UNTYPED_OBJECT_LITERAL"), false,
+    `${label}: no original literal is guessed or retyped`);
+  assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
+    `${label}: rejected native conversion publishes no program`);
+});

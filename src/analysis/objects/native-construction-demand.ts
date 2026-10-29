@@ -100,7 +100,18 @@ export function selectCsharpLiteralDeclarationContext(
   if (initializer === undefined || !ast.is.IsIdentifier(initializer) ||
     navigation.referenceFor(initializer)?.declaration !== declaration) return undefined;
   const authoredTypeNode = nextVariable?.Type;
-  if (authoredTypeNode === undefined) return undefined;
+  if (authoredTypeNode === undefined) {
+    if (!ast.is.IsArrayLiteralExpression(expression)) return undefined;
+    const following = siblings[position + 2];
+    const returned = following !== undefined && ast.is.IsReturnStatement(following)
+      ? ast.as.AsReturnStatement(following)?.Expression : undefined;
+    if (returned === undefined || !ast.is.IsIdentifier(returned) ||
+      navigation.referenceFor(returned)?.declaration !== nextDeclaration) return undefined;
+    const callable = sourceEnclosingCallable(following!, ast);
+    return callable === undefined || ast.typeNode(callable) === undefined ||
+      sourceEnclosingCallable(expression, ast) !== callable ? undefined
+      : returnContext(callable, [...declarations, nextDeclaration!]);
+  }
   const selectedType = host.semanticsFor(authoredTypeNode).types.authoredType(authoredTypeNode);
   return selectedType === undefined ? undefined : { component: { selectedType, authoredTypeNode,
     declaration: nextDeclaration }, declarations, source: expression };
@@ -112,6 +123,11 @@ interface CsharpNativeConstructionHost extends Pick<CsharpTypePolicyBaseHost,
   resolveLiteralShape(shape: CsharpObjectShapeFact, node: Node, file: SourceFile): CsharpObjectLiteralTargetShapeResolution;
   retainSourceShape(node: Node, type: Type, shape: CsharpObjectShapeFact, file: SourceFile): CsharpObjectShapeFact | undefined;
   scopedTargetType(node: Node): TargetTypeRef | undefined;
+}
+
+export function csharpUntypedObjectLiteralIssue(node: Node): CsharpNativeConstructionIssue {
+  return Object.freeze({ node, code: "TSONIC_UNTYPED_OBJECT_LITERAL",
+    message: "This object literal has no target type. Declare one, e.g. 'function baseOptions(): MakeDirectoryOptions'." });
 }
 
 export function createCsharpNativeConstructionDemandQuery(
@@ -160,8 +176,7 @@ export function createCsharpNativeConstructionDemandQuery(
       return;
     }
     if (host.ast.properties(node).length === 0 && selected === undefined) {
-      issue(node, "TSONIC_UNTYPED_OBJECT_LITERAL",
-        "This object literal has no target type. Declare one, e.g. 'function baseOptions(): MakeDirectoryOptions'.");
+      issues.push(csharpUntypedObjectLiteralIssue(node));
       return;
     }
     const native = selected !== undefined && queries.facts.typeSubjects(selected).some(subject => {
