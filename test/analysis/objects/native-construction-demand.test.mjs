@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { providerVirtualDeclarationFactKey, sourcePrimitiveFactKey } from "@tsonic/tsts";
+import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { createCsharpNativeConstructionDemandQuery } from "../../../dist/analysis/objects/native-construction-demand.js";
+import { createCsharpObjectShapeMemberResolver } from "../../../dist/analysis/objects/shapes/member-evidence.js";
+import { mergeCsharpObjectShapeSubjects } from "../../../dist/analysis/objects/shapes/construction.js";
+import { checkCsharpSource, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { maximumCsharpMetadataEntries } from "../../../dist/target-model/metadata/immutable.js";
@@ -487,4 +491,138 @@ test("consumed any is refused without a dynamic object-construction path", () =>
   const selected = value.freeze();
   assert.equal(selected.issues[0].code, "TSONIC_ANY_UNSUPPORTED");
   assert.equal(selected.constructionFor(literal) === undefined, true);
+});
+
+function memberProvenanceFixture() {
+  const checked = checkCsharpSource({ sourceText: `
+    type Slot = { value?: number };
+    type Other = { value?: number };
+    type Required = { value: number };
+    export const omitted: Slot = {};
+    export const present: Slot = { value: 1 };
+    export const other: Other = {};
+    export const required: Required = { value: 1 };
+    export const fresh: Slot = {};
+  ` });
+  assert.equal(checked.sourceDiagnosticsText, "", "all owner evidence comes from valid checked declarations");
+  const source = createTargetSourceProgram(checked.source);
+  const ast = source.ast;
+  const declarations = new Map();
+  const visit = node => {
+    if (ast.is.IsVariableDeclaration(node)) declarations.set(ast.text(ast.name(node)), node);
+    ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+  };
+  source.navigation.sourceFiles.forEach(visit);
+  const queries = source.semantics.forNode(declarations.get("omitted"));
+  const owner = name => queries.types.authoredType(ast.typeNode(declarations.get(name)));
+  const actual = name => queries.types.expressionType(ast.as.AsVariableDeclaration(declarations.get(name)).Initializer);
+  const resolver = createCsharpObjectShapeMemberResolver({});
+  const member = ownerType => {
+    const selected = queries.types.structuralMembers(ownerType, ownerType, "correspondence");
+    assert.equal(selected.kind === "available" && selected.members.length === 1 && selected.members[0].kind === "present",
+      true, "one checked declared property owns the native slot");
+    const declared = selected.members[0].destination;
+    const property = declared.property;
+    return { sourceKey: { kind: "property", name: "value" }, sourceName: "value", targetName: "value",
+      sourceSubjects: [property.symbol, ...property.rootSymbols, ...declared.declarations], sourceTypes: [property.type],
+      memberKind: "property", type: property.optional ? csharpNullableTargetType(floating) : floating,
+      ...(property.optional ? { optional: true } : {}) };
+  };
+  const declared = ownerType => {
+    const selected = resolver.retainMemberDeclarationEvidence([member(ownerType)], ownerType, queries);
+    assert.equal(selected !== undefined, true, "the declared member has checked typed ownership evidence");
+    return selected;
+  };
+  return { queries, resolver, owner, actual, declared };
+}
+
+test("typed optional member evidence survives literal, declared value and read publication", () => {
+  const value = memberProvenanceFixture();
+  const owner = value.owner("omitted");
+  const actual = value.actual("omitted");
+  const literal = value.resolver.instantiateMemberEvidence(value.declared(owner), actual, value.queries, owner);
+  assert.equal(literal?.length === 1 && literal[0].optional === true &&
+    literal[0].sourceMemberEvidence[0].ownerType === owner && literal[0].sourceMemberEvidence[0].sourceType === actual &&
+    literal[0].sourceMemberEvidence[0].correspondence.kind === "absent", true,
+  "the physical optional slot keeps its declared owner without fabricating a present source property");
+  const declaration = value.resolver.instantiateMemberEvidence(literal, owner, value.queries, actual);
+  assert.equal(declaration?.length === 1 && declaration[0].sourceMemberEvidence[0].ownerType === owner &&
+    declaration[0].sourceMemberEvidence[0].correspondence.kind === "present", true,
+  "the declared value revalidates the same exact optional member");
+  const read = value.resolver.instantiateMemberEvidence(declaration, owner, value.queries, owner);
+  assert.equal(read?.length === 1 && targetTypeRefEquals(read[0].type, literal[0].type), true,
+    "a later read retains the same native carrier without a missing-member fallback");
+});
+
+test("typed optional native construction publishes an actual omitted slot without origin repair", () => {
+  const compiled = compileCsharpSource({ sourceText: `
+    export function run(): boolean {
+      const optional: { useGrouping?: boolean } = {};
+      const alias = optional;
+      return alias.useGrouping === undefined;
+    }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText, "", "the original declared optional context is source-valid");
+  assert.equal(compiled.targetDiagnostics.length, 0,
+    compiled.targetDiagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
+  assert.equal(compiled.artifacts.size > 0, true, "the physical optional field survives publication and its absence read");
+});
+
+test("typed member evidence never admits a missing required slot", () => {
+  const value = memberProvenanceFixture();
+  const owner = value.owner("required");
+  assert.equal(value.resolver.instantiateMemberEvidence(value.declared(owner), value.actual("omitted"), value.queries, owner) === undefined,
+    true, "a checked absent result cannot initialize a required native field");
+});
+
+test("missing, foreign, stale and mismatched member evidence cannot inherit optional absence", () => {
+  const value = memberProvenanceFixture();
+  const owner = value.owner("omitted");
+  const selected = value.declared(owner)[0];
+  const evidence = selected.sourceMemberEvidence[0];
+  const { sourceMemberEvidence: _removed, ...missing } = selected;
+  const controls = [
+    ["missing evidence", missing],
+    ["foreign declared owner", { ...selected, sourceMemberEvidence: [{ ...evidence, ownerType: value.owner("other") }] }],
+    ["stale absence", { ...selected, sourceMemberEvidence: [{ ...evidence,
+      correspondence: { kind: "absent", destination: evidence.correspondence.destination } }] }],
+    ["mismatched present property", { ...selected, sourceMemberEvidence: [{ ...evidence,
+      correspondence: { ...evidence.correspondence, source: { ...evidence.correspondence.source,
+        property: { ...evidence.correspondence.source.property, symbol: {} } } } }] }],
+  ];
+  for (const [label, member] of controls) assert.equal(
+    value.resolver.instantiateMemberEvidence([member], value.actual("omitted"), value.queries, owner) === undefined,
+    true, `${label}: no native slot is published from missing or unrelated proof`);
+});
+
+test("canonical member merging retains separate owners without transferring an absence proof", () => {
+  const value = memberProvenanceFixture();
+  const firstOwner = value.owner("omitted");
+  const secondOwner = value.owner("other");
+  const firstType = value.actual("omitted");
+  const secondType = value.actual("other");
+  const first = value.resolver.instantiateMemberEvidence(value.declared(firstOwner), firstType, value.queries, firstOwner);
+  const second = value.resolver.instantiateMemberEvidence(value.declared(secondOwner), secondType, value.queries, secondOwner);
+  const merged = mergeCsharpObjectShapeSubjects({ targetType: structural, sourceType: firstType, members: first },
+    { targetType: structural, sourceType: secondType, members: second });
+  const evidence = merged.members[0].sourceMemberEvidence;
+  assert.equal(evidence.length === 2 && evidence.includes(first[0].sourceMemberEvidence[0]) &&
+    evidence.includes(second[0].sourceMemberEvidence[0]), true, "each checked source/declaration/member alternative remains intact");
+  assert.equal(value.resolver.instantiateMemberEvidence(merged.members, secondType, value.queries, merged.sourceType)?.length === 1,
+    true, "the exact second source selects only its own retained proof");
+  assert.equal(value.resolver.instantiateMemberEvidence(merged.members, value.actual("fresh"), value.queries, merged.sourceType) === undefined,
+    true, "another empty source cannot inherit absence merely because its physical shape key matches");
+});
+
+test("ambiguous optional declaration owners never choose a first matching proof", () => {
+  const value = memberProvenanceFixture();
+  const firstOwner = value.owner("omitted");
+  const secondOwner = value.owner("other");
+  const actual = value.actual("omitted");
+  const first = value.resolver.instantiateMemberEvidence(value.declared(firstOwner), actual, value.queries, firstOwner);
+  const second = value.resolver.instantiateMemberEvidence(value.declared(secondOwner), actual, value.queries, secondOwner);
+  const merged = mergeCsharpObjectShapeSubjects({ targetType: structural, sourceType: actual, members: first },
+    { targetType: structural, sourceType: actual, members: second });
+  assert.equal(value.resolver.instantiateMemberEvidence(merged.members, actual, value.queries, actual) === undefined,
+    true, "different checked owners associated with the same source are ambiguous, not a success fallback");
 });

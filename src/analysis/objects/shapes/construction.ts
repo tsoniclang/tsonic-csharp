@@ -62,8 +62,13 @@ export function mergeCsharpObjectShapeSubjects(
         ...(member.sourceDeclarations ?? []),
         ...(other.sourceDeclarations ?? []),
       ]);
+      const sourceMemberEvidence = new Set([
+        ...(member.sourceMemberEvidence ?? []),
+        ...(other.sourceMemberEvidence ?? []),
+      ]);
       return {
         ...member,
+        ...(sourceMemberEvidence.size === 0 ? {} : { sourceMemberEvidence: Object.freeze([...sourceMemberEvidence]) }),
         ...(subjects.size === 0
           ? {}
           : { sourceSubjects: Object.freeze([...subjects]) }),
