@@ -154,6 +154,10 @@ if (aliased.first.value != 7 || !object.ReferenceEquals(aliased.first, aliased.s
       assert.equal(Object.isFrozen(shape.members), true, "the exact native member inventory is immutable");
       assert.equal(shape.members.every(member => Object.isFrozen(member)), true,
         "each native member retains immutable checked evidence");
+      assert.equal(program.records.nativeExpression.get(node).physical.objectShape === shape, true,
+        "repeated native reads retain the same sealed shape identity");
+      assert.throws(() => shape.members.push(shape.members[0]), TypeError,
+        "a completed native member inventory cannot acquire a foreign member after publication");
     }
   });
 
