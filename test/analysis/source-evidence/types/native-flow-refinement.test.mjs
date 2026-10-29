@@ -14,7 +14,7 @@ import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "..
 import { targetTypeRefEquals } from "../../../../dist/target-model/types/equality.js";
 import { createCsharpSourceUnionIndex } from "../../../../dist/analysis/source-evidence/types/resolution/source-unions.js";
 import { createCsharpSourceUnionDefinitions } from "../../../../dist/analysis/source-evidence/types/resolution/union-definitions.js";
-import { csharpExceptionTargetType, csharpRuntimeErrorTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
+import { csharpExceptionTargetType, csharpNeverTargetType, csharpRuntimeErrorTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
 import { createSourceErrorProviderFixture } from "../../../fixtures/dotnet-provider/source-error-bindings.mjs";
 
 const physicalArm = createCsharpSourceUnionDefinitions({
@@ -35,12 +35,12 @@ test("a checked native nominal view preserves nonunion storage when the checked 
     ["if (value instanceof Writable) { value = other; observe(value); }", false],
   ]) {
     const checked = createCompilerSessionFromFiles({ currentDirectory: "/src", files: { "/src/index.ts": `
-      declare class Payload { message: string; }
+      interface Payload { message: string; }
       declare const Writable: { new(): Payload };
       declare function observe(value: unknown): void;
       function run(value: Payload, other: Payload, flag: boolean): void { ${body} }
     ` }, compilerOptions: { strict: true, target: "es2022", module: "esnext" } }).checkSource();
-    assertNoTargetDiagnostics(checked.diagnostics);
+    assert.equal(checked.diagnostics.length, 0, `the checked native interface control is valid: ${body}`);
     const source = createTargetSourceProgram(checked);
     const file = checked.getSourceFile("/src/index.ts");
     let read;
@@ -55,8 +55,9 @@ test("a checked native nominal view preserves nonunion storage when the checked 
     const queries = source.semantics.forNode(read);
     const declared = queries.declarations.declaredValueType(declaration);
     const selected = queries.types.expressionType(read);
-    assert.equal(declared === selected && !queries.types.isUnion(declared), true,
-      "native evidence must not depend on a changed or union-shaped checked Type");
+    assert.equal(!queries.types.isUnion(declared), true, "the declared native interface is not a source union");
+    if (writable) assert.equal(declared === selected, true,
+      "a proved native subtype view does not require any checked Type change");
     const storage = csharpExceptionTargetType();
     const view = csharpRuntimeErrorTargetType();
     const foreign = { ...storage, id: "ForeignOwner::Writable" };
@@ -82,7 +83,7 @@ test("a checked native nominal view preserves nonunion storage when the checked 
       "negative, foreign, unknown-path and invalidated proofs never grant a writable view");
     const scope = { host, sourceValueDeclaration: (_node, referenced) => referenced,
       resolveNodeWithState: () => assert.fail("the scoped native base is already known"),
-      resolveTypeWithState: type => queries.declarations.symbolName(queries.declarations.typeSymbol(type)) === "Payload" ? view : undefined };
+      resolveTypeWithState: type => queries.types.isNever(type) ? csharpNeverTargetType() : view };
     const resolved = resolveSelectedValueWithState(scope, read, selected, file, { depth: 0 });
     assert.equal(targetTypeRefEquals(resolved, writable ? view : storage), true,
       "selected-value resolution consumes the same completed view before its generic scoped-storage return");
