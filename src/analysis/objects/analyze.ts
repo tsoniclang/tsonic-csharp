@@ -4,7 +4,6 @@ import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type {CsharpObjectShapeFact, TargetTypeRef} from "../../policy/types/index.js";
 import type { CsharpObjectLiteralTargetShapeResolution } from "../../target-model/records/objects/object-shapes.js";
 import {
-  csharpObjectShapeContractKey,
   csharpObjectShapesEqual,
   isCsharpJsValueTargetType,
   targetTypeRefKey,
@@ -26,7 +25,6 @@ import { instantiateCsharpObjectShape } from "../../policy/types/objects/instant
 import type { CsharpProjectTypeIssue } from "../../target-model/records/types/project-types.js";
 import { namedTargetTypeImplicitlyAccepts } from "../../policy/conversions/carriers.js";
 
-const noExpectedShape = "<none>";
 const maximumObjectShapeClassifications = 131_072;
 
 export function analyzeCsharpObjectShapes(
@@ -290,7 +288,7 @@ export function analyzeCsharpObjectShapes(
 
   const literalResults = new WeakMap<
     Node,
-    Map<string, CsharpObjectLiteralTargetShapeResolution>
+    Map<CsharpObjectShapeFact | undefined, CsharpObjectLiteralTargetShapeResolution>
   >();
   const literalUnionCarriers = new WeakMap<Node, ReadonlyMap<string, TargetTypeRef>>();
   const unionTypes = evidence.targetTypes.filter(type =>
@@ -310,7 +308,7 @@ export function analyzeCsharpObjectShapes(
       }
     }
     literalUnionCarriers.set(literal, unionCarriers);
-    const results = new Map<string, CsharpObjectLiteralTargetShapeResolution>();
+    const results = new Map<CsharpObjectShapeFact | undefined, CsharpObjectLiteralTargetShapeResolution>();
     literalResults.set(literal, results);
     const contextualShape = policy.objectShapes.resolveType(
       evidence.contextualType.get(literal)?.selectedType,
@@ -334,12 +332,11 @@ export function analyzeCsharpObjectShapes(
     const results = literalResults.get(literal);
     const sourceFile = objectLiterals.get(literal);
     if (results === undefined || sourceFile === undefined) return undefined;
-    const key = expected === undefined ? noExpectedShape : csharpObjectShapeContractKey(expected);
-    const previous = results.get(key);
+    const previous = results.get(expected);
     if (previous !== undefined) return previous;
     reserveClassification();
     const result = policy.objectShapes.resolveObjectLiteralTargetShape(expected, literal, sourceFile);
-    results.set(key, result);
+    results.set(expected, result);
     if (result.kind === "resolved") {
       admittedShapes.add(result.shape);
       rememberShape(result.shape);
@@ -411,13 +408,12 @@ export function analyzeCsharpObjectShapes(
       }
       for (const literal of objectLiterals.keys()) propertyOrders.recordEmptyLiteral(literal);
       const completeShape = (shape: CsharpObjectShapeFact): CsharpObjectShapeFact => {
-        const canonical = byTarget.get(targetTypeRefKey(shape.targetType)) ?? shape;
-        const existing = completedShapes.get(canonical);
+        const existing = completedShapes.get(shape);
         if (existing !== undefined) return existing;
-        const selected = Object.freeze(withInterfaces(canonical)!);
+        const selected = Object.freeze(withInterfaces(shape)!);
         for (const member of selected.members) Object.freeze(member);
         Object.freeze(selected.members);
-        completedShapes.set(canonical, selected);
+        completedShapes.set(shape, selected);
         return selected;
       };
       for (const shape of admittedShapes) completeShape(shape);
@@ -436,10 +432,12 @@ export function analyzeCsharpObjectShapes(
       }
       for (const [key, shape] of copies) copies.set(key, completeShape(shape));
       for (const literal of objectLiterals.keys()) {
-        for (const [key, result] of literalResults.get(literal) ?? []) {
-          if (result.kind === "resolved") literalResults.get(literal)!.set(key,
-            Object.freeze({ ...result, shape: completeShape(result.shape) }));
+        const completed = new Map<CsharpObjectShapeFact | undefined, CsharpObjectLiteralTargetShapeResolution>();
+        for (const [expected, result] of literalResults.get(literal) ?? []) {
+          completed.set(expected === undefined ? undefined : completeShape(expected), result.kind === "resolved"
+            ? Object.freeze({ ...result, shape: completeShape(result.shape) }) : result);
         }
+        literalResults.set(literal, completed);
       }
       const publishedShapes = [...byTarget.values()].map(completeShape).concat([...byNode.values()], [...copies.values()],
         [...objectLiterals.keys()].flatMap(literal =>
@@ -553,12 +551,7 @@ export function analyzeCsharpObjectShapes(
     },
     resolveObjectLiteralTargetShape(expectedShape, objectLiteral) {
       if (published !== undefined) return published.resolveObjectLiteralTargetShape(expectedShape, objectLiteral);
-      const original = expectedShape === undefined ? undefined
-        : byTarget.get(targetTypeRefKey(expectedShape.targetType)) ?? expectedShape;
-      const key = original === undefined
-        ? noExpectedShape
-        : csharpObjectShapeContractKey(original);
-      const result = literalResults.get(objectLiteral)?.get(key) ?? classifyLiteral(original, objectLiteral);
+      const result = literalResults.get(objectLiteral)?.get(expectedShape) ?? classifyLiteral(expectedShape, objectLiteral);
       return result?.kind === "resolved"
         ? { ...result, shape: withInterfaces(result.shape)! } : result;
     },

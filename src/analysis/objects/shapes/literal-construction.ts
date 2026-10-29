@@ -20,17 +20,20 @@ import type { CsharpObjectShapePolicyHost, CsharpRecursiveObjectShapePolicy } fr
 import type { CsharpObjectLiteralTargetShapeResolution } from "../../../target-model/records/objects/object-shapes.js";
 
 import type { createCsharpObjectShapeMemberResolver } from "./member-evidence.js";
+import { selectCsharpLiteralDeclarationContext } from "../native-construction-demand.js";
+import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target-model/types/object-shape-members.js";
 
 export function createCsharpLiteralShapeResolver(
   host: CsharpObjectShapePolicyHost,
   dependencies: {
     readonly resolveNode: CsharpRecursiveObjectShapePolicy["resolveNode"];
+    readonly resolveType: CsharpRecursiveObjectShapePolicy["resolveType"];
     readonly retainLiteralMemberEvidence: ReturnType<typeof createCsharpObjectShapeMemberResolver>["retainLiteralMemberEvidence"];
     readonly instantiateMemberEvidence: ReturnType<typeof createCsharpObjectShapeMemberResolver>["instantiateMemberEvidence"];
     readonly rememberTargetShape: (shape: CsharpObjectShapeFact) => CsharpObjectShapeFact;
   },
 ): CsharpRecursiveObjectShapePolicy["resolveObjectLiteralTargetShape"] {
-  const { resolveNode, retainLiteralMemberEvidence, instantiateMemberEvidence, rememberTargetShape } = dependencies;
+  const { resolveNode, resolveType, retainLiteralMemberEvidence, instantiateMemberEvidence, rememberTargetShape } = dependencies;
   const environment = host.typeParameterConstraints;
   function resolveObjectLiteralTargetShape(
     expectedShape: CsharpObjectShapeFact | undefined,
@@ -74,19 +77,48 @@ export function createCsharpLiteralShapeResolver(
           (expectedShape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true)
       ? [expectedShape.targetType]
       : expectedShape.implements;
+    const queries = host.semantics(sourceFile);
+    const sourceType = queries.types.expressionType(objectLiteral);
+    const context = selectCsharpLiteralDeclarationContext(objectLiteral, queries, host);
+    const declared = sourceType !== undefined && expectedShape.sourceType === sourceType ? expectedShape
+      : context === undefined ? expectedShape : resolveType(context.component.selectedType, sourceFile,
+        context.component.authoredTypeNode);
     const actualShape = expectedShape.targetType.kind === "target-named" &&
       (expectedShape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true
       ? resolveNode(objectLiteral, sourceFile) : undefined;
-    const queries = host.semantics(sourceFile);
-    const sourceType = actualShape?.sourceType ?? expectedShape.sourceType;
-    const expectedMembers = actualShape === undefined ? expectedShape.members : sourceType === undefined ? undefined
-      : instantiateMemberEvidence(expectedShape.members, sourceType, queries, expectedShape.sourceType);
+    const used = new Set<number>();
+    const declaredMembers = declared?.sourceType === undefined ? undefined : expectedShape.members.map(member => {
+      const selected = resolveCsharpObjectShapeMemberBySelectedSubject(declared,
+        [...member.sourceSubjects ?? [], ...member.sourceDeclarations ?? []]);
+      if (selected.kind !== "resolved" || selected.member.memberKind !== member.memberKind ||
+        !csharpSourceMemberKeysEqual(selected.member.sourceKey, member.sourceKey)) return undefined;
+      const index = declared.members.indexOf(selected.member);
+      if (used.has(index)) return undefined;
+      used.add(index);
+      return { ...member,
+        sourceMemberEvidence: selected.member.sourceMemberEvidence,
+        sourceSubjects: Object.freeze([...new Set([...member.sourceSubjects ?? [], ...selected.member.sourceSubjects ?? []])]),
+        sourceDeclarations: selected.member.sourceDeclarations,
+        sourceTypes: selected.member.sourceTypes,
+      };
+    });
+    const expectedMembers = sourceType === undefined || declared?.sourceType === undefined || declaredMembers === undefined ||
+        declaredMembers.some(member => member === undefined) || used.size !== declared.members.length ? undefined
+      : instantiateMemberEvidence(declaredMembers as CsharpObjectShapeFact["members"], sourceType, queries, declared.sourceType);
     if (sourceType === undefined || expectedMembers === undefined) return {
       kind: "rejected", subject: objectLiteral,
       reason: "Object-literal construction requires exact member correspondence with its declared native contract.",
     };
     const additionalMembers = actualShape?.members.filter(actual =>
       !expectedShape.members.some(expected => csharpSourceMemberKeysEqual(expected.sourceKey, actual.sourceKey))) ?? [];
+    if (actualShape === undefined) {
+      const retained = new Set(expectedMembers.flatMap(member => member.sourceMemberEvidence?.flatMap(evidence =>
+        evidence.correspondence.kind === "present" ? [evidence.correspondence.source.property.symbol] : []) ?? []));
+      if (queries.types.propertyInfos(sourceType).some(property => !retained.has(property.symbol))) return {
+        kind: "rejected", subject: objectLiteral,
+        reason: "Object-literal construction requires exact native storage for every actual source member.",
+      };
+    }
     const members = [...retainLiteralMemberEvidence([...expectedMembers, ...additionalMembers], objectLiteral, queries)];
     const nativeMethodLiteral = members.some(member => member.memberKind === "method" &&
       member.sourceDeclarations?.some(declaration => host.ast.is.IsMethodDeclaration(declaration) &&

@@ -366,7 +366,9 @@ export function createCsharpObjectShapePolicy(
     return shape === undefined ? undefined : rememberTargetShape(shape);
   }
 
-  const resolveObjectLiteralTargetShape = createCsharpLiteralShapeResolver(host, { resolveNode, retainLiteralMemberEvidence, instantiateMemberEvidence, rememberTargetShape });
+  const resolveObjectLiteralTargetShape = createCsharpLiteralShapeResolver(host, {
+    resolveNode, resolveType, retainLiteralMemberEvidence, instantiateMemberEvidence, rememberTargetShape,
+  });
   const resolveProjectConstructibleSelectedType = createCsharpProjectShapeProjection(host, deriveMembers);
 
   function remember(
@@ -524,6 +526,15 @@ export function createCsharpObjectShapePolicy(
     }
     activeTypes.add(type);
     try {
+      const transformation = queries.types.standardTransformation(authoredTypeRoot, type);
+      if (transformation?.kind === "component") {
+        const component = transformation.component;
+        const native = resolveTypeWithState(component.selectedType, queries.sourceFile,
+          component.authoredTypeNode, nextState(state));
+        const members = native?.sourceType === undefined ? undefined
+          : instantiateMemberEvidence(native.members, type, queries, native.sourceType);
+        return native === undefined || members === undefined ? undefined : { ...native, sourceType: type, members };
+      }
       const selectedType = selectedTarget ?? (authoredTypeRoot === undefined
         ? host.typeResolver.resolveType(
           type,

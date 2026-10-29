@@ -3,7 +3,6 @@ import { type Node } from "@tsonic/tsts";
 import { type CsharpObjectShapeFact, type CsharpStructuralInterfaceImplementation, type TargetTypeRef } from "../../../../target-model/types/model.js";
 import { type CsharpProjectTypeIssue } from "../../../../target-model/records/types/project-types.js";
 import { targetTypeRefKey } from "../../../../target-model/types/equality.js";
-import { csharpObjectShapeContractKey } from "../../../../target-model/types/object-shape-identity.js";
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
@@ -35,7 +34,7 @@ export function sealCsharpObjectShapeClassifications(input: {
   readonly copiedMethodImplementations: ReadonlySet<string>;
   readonly literals: readonly {
     readonly literal: Node;
-    readonly results: ReadonlyMap<string, CsharpObjectLiteralTargetShapeResolution>;
+    readonly results: ReadonlyMap<CsharpObjectShapeFact | undefined, CsharpObjectLiteralTargetShapeResolution>;
     readonly unions: ReadonlyMap<string, TargetTypeRef>;
   }[];
 }): CsharpObjectShapeAnalysis {
@@ -75,9 +74,7 @@ export function sealCsharpObjectShapeClassifications(input: {
       return type === undefined ? undefined : targetShapes[targetTypeRefKey(getCsharpNullableElementTargetType(type) ?? type)];
     },
     resolveObjectLiteralTargetShape(expected: CsharpObjectShapeFact | undefined, literal: Node): CsharpObjectLiteralTargetShapeResolution | undefined {
-      const original = expected === undefined ? undefined : targets.get(targetTypeRefKey(expected.targetType)) ?? expected;
-      const key = original === undefined ? "<none>" : csharpObjectShapeContractKey(original);
-      return literals.get(literal)?.results.get(key);
+      return literals.get(literal)?.results.get(expected);
     },
   });
 }

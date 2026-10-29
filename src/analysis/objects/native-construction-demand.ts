@@ -78,6 +78,23 @@ export function selectCsharpLiteralDeclarationContext(
   }
   const direct = queries.types.contextualValueSelection(expression);
   if (direct.kind === "selected") return { component: direct.component, declarations, source: expression };
+  if (direct.kind === "ambiguous") {
+    const actual = queries.types.expressionType(expression);
+    if (actual === undefined) return undefined;
+    const candidates = direct.types.filter(type => {
+      const selected = queries.types.structuralMembers(actual, type, "correspondence");
+      return selected.kind === "available" && selected.source.type === actual && selected.destination.type === type;
+    });
+    if (candidates.length !== 1) return undefined;
+    const contextual = queries.types.contextualType(expression);
+    const selectedType = candidates[0]!;
+    const authoredTypeNode = contextual?.authoredTypeNode;
+    return { component: { selectedType,
+      ...(contextual?.declaration === undefined ? {} : { declaration: contextual.declaration }),
+      ...(contextual?.contextualCall === undefined ? {} : { contextualCall: contextual.contextualCall }),
+      ...(authoredTypeNode === undefined || queries.types.authoredSelection(authoredTypeNode, selectedType).kind === "unrelated"
+        ? {} : { authoredTypeNode }) }, declarations, source: expression };
+  }
   if (declarations.length === 0) return undefined;
   const list = ast.parent(declaration!);
   const statement = ast.parent(list);
@@ -191,6 +208,11 @@ export function createCsharpNativeConstructionDemandQuery(
     const source = queries.types.expressionType(node);
     if (source === undefined || queries.types.constructSignatures(source).length !== 0) return;
     const context = selectCsharpLiteralDeclarationContext(node, queries, host);
+    if (context === undefined && queries.types.contextualValueSelection(node).kind === "ambiguous") {
+      issue(node, "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN",
+        "Native construction requires one exact checked declaration-local source component.");
+      return;
+    }
     const contextual = context?.component.selectedType;
     const asynchronous = context?.returnedFrom !== undefined && host.ast.hasModifierKind(context.returnedFrom, "async");
     const selected = contextual !== undefined && asynchronous ? queries.types.typeArguments(contextual)[0] : contextual;
