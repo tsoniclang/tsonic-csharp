@@ -4,10 +4,18 @@ import { selectCsharpContextualAsyncReturn } from "../../../dist/policy/conversi
 import { csharpBigIntegerTargetType, csharpNullableTargetType, csharpRuntimeUnionTargetType, csharpSourcePrimitiveTargetType,
   csharpStringTargetType, csharpTaskTargetType, csharpVoidTargetType, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 
-const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) }, target: {} };
 const integer = csharpSourcePrimitiveTargetType("int32");
 const text = csharpStringTargetType();
 const absentInteger = csharpNullableTargetType(integer);
+const bigInteger = csharpBigIntegerTargetType();
+const bigIntegerBinding = { id: "System.Numerics.BigInteger", sourceName: "BigInteger", targetName: "System.Numerics.BigInteger",
+  target: "csharp", kind: "struct", csharpType: bigInteger, conversionOperators: [{ id: "BigInteger.op_Implicit.Int64",
+    conversionKind: "implicit", declaringType: bigInteger, sourceType: csharpSourcePrimitiveTargetType("int64"), targetType: bigInteger }] };
+const policy = { projectTypes: { directSupertypes: () => [] }, providers: {
+  findTargetBindingByTargetId: () => ({ kind: "missing" }),
+  findTargetBindingByMetadataName: name => name === "System.Numerics.BigInteger"
+    ? { kind: "resolved", binding: bigIntegerBinding } : { kind: "missing" },
+}, target: {} };
 
 test("contextual async bodies select one exact Task result before emission", () => {
   const task = csharpTaskTargetType(absentInteger);
