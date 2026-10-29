@@ -6,6 +6,7 @@ import { createCsharpNativeConstructionDemandQuery } from "../../../dist/analysi
 import { createCsharpObjectShapeMemberResolver } from "../../../dist/analysis/objects/shapes/member-evidence.js";
 import { mergeCsharpObjectShapeSubjects } from "../../../dist/analysis/objects/shapes/construction.js";
 import { checkCsharpSource, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { maximumCsharpMetadataEntries } from "../../../dist/target-model/metadata/immutable.js";
@@ -566,6 +567,9 @@ test("typed optional native construction publishes an actual omitted slot withou
   assert.equal(compiled.targetDiagnostics.length, 0,
     compiled.targetDiagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));
   assert.equal(compiled.artifacts.size > 0, true, "the physical optional field survives publication and its absence read");
+  executeCsharpConstruction(compiled, "typed-optional-member-publication", false, false, [], `
+if (!Tsonic.Generated.Index.run()) throw new System.Exception("declared optional slot preserves native absence through an alias");
+`);
 });
 
 test("typed member evidence never admits a missing required slot", () => {
