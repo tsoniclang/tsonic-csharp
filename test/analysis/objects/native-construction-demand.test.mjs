@@ -5,6 +5,7 @@ import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { createCsharpNativeConstructionDemandQuery } from "../../../dist/analysis/objects/native-construction-demand.js";
 import { createCsharpObjectShapeMemberResolver } from "../../../dist/analysis/objects/shapes/member-evidence.js";
 import { mergeCsharpObjectShapeSubjects } from "../../../dist/analysis/objects/shapes/construction.js";
+import { createCsharpObjectLiteralShapeKey, sealCsharpObjectShapeClassifications } from "../../../dist/analysis/program/records/objects/object-shapes.js";
 import { checkCsharpSource, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
@@ -633,4 +634,42 @@ test("ambiguous optional declaration owners never choose a first matching proof"
     { targetType: structural, sourceType: actual, members: second });
   assert.equal(value.resolver.instantiateMemberEvidence(merged.members, actual, value.queries, actual) === undefined,
     true, "different checked owners associated with the same source are ambiguous, not a success fallback");
+});
+
+test("live and sealed literal inputs retain exact checked owners through immutable shape wrappers", () => {
+  const value = memberProvenanceFixture();
+  const owner = value.owner("omitted");
+  const actual = value.actual("omitted");
+  const members = value.resolver.instantiateMemberEvidence(value.declared(owner), actual, value.queries, owner);
+  assert.equal(members !== undefined, true, "the original optional correspondence is checked");
+  const shape = { targetType: structural, sourceType: actual, members };
+  const literal = {};
+  const literalKey = createCsharpObjectLiteralShapeKey();
+  const result = Object.freeze({ kind: "resolved", shape });
+  const sealed = sealCsharpObjectShapeClassifications({ issues: [], propertyOrders: {},
+    structuralDefinitionIds: new Set(), structuralImplementations: new Map(), structuralImplementationTypes: [],
+    targetShapes: {}, nodes: new Map(), knownShapes: [shape], copies: new Map(), copiedMethodImplementations: new Set(),
+    literalKey, literals: [{ literal, results: new Map([[literalKey(shape), result]]), unions: new Map() }],
+  });
+  const wrapper = Object.freeze({ ...shape, members: Object.freeze(members.map(member => Object.freeze({ ...member }))) });
+  assert.equal(sealed.resolveObjectLiteralTargetShape(wrapper, literal) === result, true,
+    "a fresh immutable wrapper preserves the SAME semantic/native input instead of requiring object identity");
+  assert.equal(sealed.resolveObjectLiteralTargetShape({ ...wrapper, sourceType: value.actual("fresh") }, literal) === undefined,
+    true, "physical equality never supplies another actual checked source");
+  const member = members[0];
+  const retained = member.sourceMemberEvidence[0];
+  for (const [label, evidence] of [
+    ["foreign declared owner", { ...retained, ownerType: value.owner("other") }],
+    ["stale destination readonly", { ...retained, correspondence: { ...retained.correspondence,
+      destination: { ...retained.correspondence.destination, property: { ...retained.correspondence.destination.property,
+        readonly: !retained.correspondence.destination.property.readonly } } } }],
+    ["stale destination read", { ...retained, correspondence: { ...retained.correspondence,
+      destination: { ...retained.correspondence.destination, read: "unavailable" } } }],
+  ]) {
+    const foreign = { ...shape, members: [{ ...member, sourceMemberEvidence: [evidence] }] };
+    assert.equal(sealed.resolveObjectLiteralTargetShape(foreign, literal) === undefined, true,
+      `${label} cannot borrow the admitted optional-absence result`);
+  }
+  assert.equal(sealed.resolveObjectLiteralTargetShape(wrapper, {}) === undefined, true,
+    "an unadmitted literal cannot inherit another occurrence's result");
 });
