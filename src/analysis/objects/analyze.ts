@@ -511,7 +511,6 @@ export function analyzeCsharpObjectShapes(
         structuralImplementations: sealedStructuralImplementations,
         structuralImplementationTypes,
         targetShapes,
-        targets: byTarget,
         nodes: byNode,
         knownShapes,
         copies,

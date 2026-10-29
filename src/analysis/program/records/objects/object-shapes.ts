@@ -27,7 +27,6 @@ export function sealCsharpObjectShapeClassifications(input: {
   readonly structuralImplementations: ReadonlyMap<string, readonly CsharpStructuralInterfaceImplementation[]>;
   readonly structuralImplementationTypes: readonly TargetTypeRef[];
   readonly targetShapes: Readonly<Record<string, CsharpObjectShapeFact>>;
-  readonly targets: ReadonlyMap<string, CsharpObjectShapeFact>;
   readonly nodes: ReadonlyMap<Node, CsharpObjectShapeFact>;
   readonly knownShapes: readonly CsharpObjectShapeFact[];
   readonly copies: ReadonlyMap<string, CsharpObjectShapeFact>;
@@ -38,7 +37,6 @@ export function sealCsharpObjectShapeClassifications(input: {
     readonly unions: ReadonlyMap<string, TargetTypeRef>;
   }[];
 }): CsharpObjectShapeAnalysis {
-  const targets = new Map(input.targets);
   const nodes = new WeakMap(input.nodes);
   const copies = new Map(input.copies);
   const copiedMethods = new Set(input.copiedMethodImplementations);
