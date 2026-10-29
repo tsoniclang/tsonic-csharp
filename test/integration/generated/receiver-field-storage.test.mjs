@@ -14,9 +14,9 @@ for (const surface of ["native", "js"]) for (const example of receiverFieldStora
   });
 }
 
-test("freezing an identity-preserving direct view rejects live field replacement", { timeout: 300_000 }, () => {
+test("readonly direct views preserve identity and observe live field replacement", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: receiverFieldStorageFreezeSource +
-    '\nexport function main(): void { if (!run()) throw new Error("retained structural freeze"); }' });
+    '\nexport function main(): void { if (!run()) throw new Error("retained structural readonly identity"); }' });
   assertCsharpCompilationSucceeded(compiled);
-  executeCsharpConstruction(compiled, "receiver-field-storage-freeze");
+  executeCsharpConstruction(compiled, "receiver-field-storage-readonly-identity");
 });
