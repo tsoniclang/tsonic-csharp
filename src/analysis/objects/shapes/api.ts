@@ -382,7 +382,7 @@ export function createCsharpObjectShapePolicy(
 
   const resolveObjectLiteralTargetShape = createCsharpLiteralShapeResolver(host, {
     resolveNode, resolveType, literalSourceType: (node: Node) => checkedLiteralSourceType(node, host.semanticsFor(node)),
-    retainLiteralMemberEvidence, retainMemberDeclarationEvidence, instantiateMemberEvidence, rememberTargetShape,
+    retainLiteralMemberEvidence, instantiateMemberEvidence, rememberTargetShape,
   });
   const resolveProjectConstructibleSelectedType = createCsharpProjectShapeProjection(host, deriveMembers);
 
