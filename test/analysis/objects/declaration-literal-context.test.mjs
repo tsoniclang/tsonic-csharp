@@ -39,7 +39,8 @@ for (const callers of ["", "export function caller(): MakeDirectoryOptions { ret
   test(`untyped object return asks for its own annotation${callers === "" ? " without a caller" : " despite a typed caller"}`, () => {
     const compiled = compile(`import type { MakeDirectoryOptions } from "node:fs";
       function make() { return {}; } ${callers}`);
-    assert.equal(compiled.targetDiagnostics.some(diagnostic => diagnostic.code === "TSONIC_UNTYPED_OBJECT_LITERAL"), true,
+    assert.equal(compiled.targetDiagnostics.some(diagnostic => diagnostic.code === "TSONIC_UNTYPED_OBJECT_LITERAL" &&
+      diagnostic.message === "This object literal has no target type. Declare one, e.g. 'function baseOptions(): MakeDirectoryOptions'."), true,
       "the original literal needs an annotation, not caller-based reconstruction");
     assert.equal(compiled.artifacts.size, 0, "annotation refusal publishes no executable source");
   });
@@ -47,7 +48,8 @@ for (const callers of ["", "export function caller(): MakeDirectoryOptions { ret
 for (const callers of ["", "export function caller(): number[] { return make(); }"])
   test(`untyped array return asks for its own element annotation${callers === "" ? " without a caller" : " despite a typed caller"}`, () => {
     const compiled = compile(`function make() { return []; } ${callers}`);
-    assert.equal(compiled.targetDiagnostics.some(diagnostic => diagnostic.code === "TSONIC_UNTYPED_ARRAY_LITERAL"), true,
+    assert.equal(compiled.targetDiagnostics.some(diagnostic => diagnostic.code === "TSONIC_UNTYPED_ARRAY_LITERAL" &&
+      diagnostic.message === "This empty array has no element type. Declare one, e.g. 'function emptyBuffer(): number[]'."), true,
       "the original empty array needs an element annotation");
     assert.equal(compiled.artifacts.size, 0, "annotation refusal publishes no executable source");
   });
@@ -69,7 +71,8 @@ test("a literal consumed as any is refused instead of selecting dynamic object b
   const compiled = compile(`export function run(): number {
     const value: any = { field: 1 }; return value.field;
   }`);
-  assert.equal(compiled.targetDiagnostics.some(diagnostic => diagnostic.code === "TSONIC_ANY_UNSUPPORTED"), true,
+  assert.equal(compiled.targetDiagnostics.some(diagnostic => diagnostic.code === "TSONIC_ANY_UNSUPPORTED" &&
+    diagnostic.message === "'any' has no native representation. Declare the type, or use 'unknown' and narrow it."), true,
     "a consumed any requests a declared native type");
   assert.equal(compiled.artifacts.size, 0, "no dynamic construction fallback");
 });
