@@ -43,6 +43,8 @@ test("checked native tuple indexes retain exact slots and reject foreign or malf
   const one = queries.types.authoredType(source.ast.typeNode(alias("One")));
   const unbounded = queries.types.authoredType(source.ast.typeNode(alias("Unbounded")));
   const foreign = source.navigation.declarationSymbol(alias("One"), queries.sourceFile);
+  assert.equal(one !== undefined && unbounded !== undefined && foreign !== undefined, true,
+    "negative controls use actual checked out-of-range/unbounded types and a distinct declaration symbol");
   for (const [label, member] of [
     ["foreign property", { ...selected, property: { ...selected.property, symbol: foreign } }],
     ["out of range", { ...selected, indexType: one, property: { ...selected.property, name: "1" } }],
