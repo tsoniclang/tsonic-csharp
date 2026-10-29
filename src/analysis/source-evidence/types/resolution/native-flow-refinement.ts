@@ -27,18 +27,28 @@ export function selectCsharpNativeFlowMembers(
     (member, predicate) => selectCsharpNativeCarrierPredicate(host.typeDefinitions, member, predicate));
   if (selected === undefined || selected.kind === "resource-exhausted") return selected;
   type Member = Extract<CsharpNativeFlowSelection, { readonly kind: "resolved" }>["members"][number];
+  const accepts = (source: TargetTypeRef, target: TargetTypeRef): boolean => targetTypeRefEquals(source, target) ||
+    csharpUnionReferenceImplicitlyAccepts({ providers: host.providers, projectTypes: host.projectTypes(),
+      typeDefinitions: host.typeDefinitions, objectShapes: host.objectShapes }, source, target);
   const distinct = (values: readonly Member[]): readonly Member[] => values.filter((value, index) =>
     values.findIndex(other => targetTypeRefEquals(value.storage, other.storage) && targetTypeRefEquals(value.view, other.view)) === index);
   const refine = (proof: SourceGuardedValueProof<CsharpNativeFlowPredicate>, values: readonly Member[]): readonly Member[] => {
-    if (proof.kind !== "guard") return proof.kind === "all" ? refine(proof.right, refine(proof.left, values))
-      : distinct([...refine(proof.left, values), ...refine(proof.right, values)]);
+    if (proof.kind !== "guard") {
+      if (proof.kind === "all") return refine(proof.right, refine(proof.left, values));
+      const alternatives = distinct([...refine(proof.left, values), ...refine(proof.right, values)]);
+      return values.flatMap(member => {
+        const paths = alternatives.filter(other => targetTypeRefEquals(other.storage, member.storage));
+        if (paths.length === 0) return [];
+        const common = paths.filter(candidate => paths.every(other => accepts(other.view, candidate.view)));
+        return [Object.freeze({ storage: member.storage, view: common.length === 1 ? common[0]!.view : member.view })];
+      });
+    }
     const predicate = proof.guard.predicate;
     return values.flatMap(member => {
       const result = selectCsharpNativeCarrierPredicate(host.typeDefinitions, member.view, predicate);
       if (result !== undefined && result !== proof.assumed) return [];
       if (result === undefined && proof.assumed && predicate.kind === "nominal" &&
-        csharpUnionReferenceImplicitlyAccepts({ providers: host.providers, projectTypes: host.projectTypes(),
-          typeDefinitions: host.typeDefinitions, objectShapes: host.objectShapes }, predicate.targetCarrier, member.view)) {
+        accepts(predicate.targetCarrier, member.view)) {
         return [Object.freeze({ storage: member.storage, view: predicate.targetCarrier })];
       }
       return [member];

@@ -190,7 +190,8 @@ function resolveSelectedValueCarrierWithState(
         reason: "Checked native read-view selection exhausted its analysis-work budget." });
       return undefined;
     }
-    if (guarded?.kind === "resolved" && guarded.members.length > 0) {
+    if (guarded?.kind === "resolved" && guarded.members.length > 0 && (queries.types.isUnion(declaredType) ||
+      guarded.members.some(member => !targetTypeRefEquals(member.storage, member.view)))) {
       const symbol = queries.declarations.typeSymbol(selectedType);
       if (queries.types.isUnion(declaredType) && symbol !== undefined && queries.declarations.symbolDeclarations(symbol).some(candidate =>
         host.navigation.isProjectDeclaration(candidate) && (host.ast.is.IsClassDeclaration(candidate) || host.ast.is.IsClassExpression(candidate)))) {

@@ -59,6 +59,7 @@ test("a checked native nominal view preserves nonunion storage when the checked 
       "native evidence must not depend on a changed or union-shaped checked Type");
     const storage = csharpExceptionTargetType();
     const view = csharpRuntimeErrorTargetType();
+    const foreign = { ...storage, id: "ForeignOwner::Writable" };
     const host = {
       ast: source.ast, navigation: source.navigation, sourceFacts: source.sourceFacts,
       semantics: selectedFile => source.semantics.forFile(selectedFile), semanticsFor: node => source.semantics.forNode(node),
@@ -80,11 +81,11 @@ test("a checked native nominal view preserves nonunion storage when the checked 
     } else assert.equal(flow?.kind !== "resolved" || flow.members.every(member => targetTypeRefEquals(member.view, storage)), true,
       "negative, foreign, unknown-path and invalidated proofs never grant a writable view");
     const scope = { host, sourceValueDeclaration: (_node, referenced) => referenced,
-      resolveNodeWithState: () => assert.fail("the scoped native base is already known"), resolveTypeWithState: () => view };
+      resolveNodeWithState: () => assert.fail("the scoped native base is already known"),
+      resolveTypeWithState: type => queries.declarations.symbolName(queries.declarations.typeSymbol(type)) === "Payload" ? view : undefined };
     const resolved = resolveSelectedValueWithState(scope, read, selected, file, { depth: 0 });
     assert.equal(targetTypeRefEquals(resolved, writable ? view : storage), true,
       "selected-value resolution consumes the same completed view before its generic scoped-storage return");
-    const foreign = { ...view, id: "ForeignOwner::Writable" };
     const rejected = selectCsharpNativeFlowMembers(host, read, storage, () => foreign);
     assert.equal(rejected?.kind !== "resolved" || rejected.members.every(member => targetTypeRefEquals(member.view, storage)), true,
       "a foreign constructor carrier cannot establish the native hierarchy relation");

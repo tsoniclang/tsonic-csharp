@@ -376,10 +376,16 @@ export function analyzeCsharpSourceEvidence(
       declaredTargetType !== undefined &&
       selectedTargetType !== undefined &&
       targetTypeRefEquals(declaredTargetType, selectedTargetType);
+    const nativeFlow = readStorageTargetType === undefined ? undefined : types.nativeFlowMembers(node, readStorageTargetType);
+    if (!typeOnly && nativeFlow?.kind === "resource-exhausted" && !nativeExpressionIssues.has(node)) {
+      nativeExpressionIssues.set(node, { diagnostic: Object.freeze({ code: "TSONIC_COMPILER_RESOURCE_LIMIT", category: "error",
+        source: "tsonic-csharp", sourceNode: node, message: "Checked native read-view selection exhausted its analysis-work budget." }),
+        requiredBy: new Set([node]) });
+    }
     const flowReadTargetType = recordTargetType(selectCsharpFlowReadCarrier({
       exactSourceRead: refinement.kind === "resolved" && refinement.refinement.kind === "exact",
       nativeSourceRead: refinement.kind === "resolved" && refinement.refinement.kind === "exact" &&
-        readStorageTargetType !== undefined && types.nativeFlowMembers(node, readStorageTargetType)?.kind === "resolved",
+        nativeFlow?.kind === "resolved",
       unrelatedSourceTypesShareTargetRepresentation, selectedTargetType, readStorageTargetType, memberTargetTypes,
     }));
     refinements.set(node, Object.freeze({

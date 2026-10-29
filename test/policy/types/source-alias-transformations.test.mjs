@@ -91,10 +91,10 @@ created.message = "changed";
 if (!ReferenceEquals(Generated.first(created), created) || Generated.first(created).Message != "changed")
     throw new Exception("source construction and writable native storage");
 if (Generated.update(immutable) || !Generated.update(writable) || writable.message != "updated" ||
-    !ReferenceEquals(Generated.checked(writable), writable))
+    !ReferenceEquals(Generated.@checked(writable), writable))
     throw new Exception("checked native narrowing and writable reference identity");
 var refused = false;
-try { Generated.checked(immutable); } catch (InvalidCastException) { refused = true; }
+try { Generated.@checked(immutable); } catch (InvalidCastException) { refused = true; }
 if (!refused) throw new Exception("immutable native identity cannot become writable");
 for (var index = 0; index < 1000; index++) {
     if (!ReferenceEquals(Generated.first(immutable), immutable) || !ReferenceEquals(Generated.second(writable), writable) ||
