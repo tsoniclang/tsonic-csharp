@@ -165,14 +165,13 @@ for (const [label, body, literal] of [
   const sourceText = `import type { MakeDirectoryOptions } from "node:fs";
     export function make(): MakeDirectoryOptions { ${body} }`;
   const compiled = compile(sourceText);
-  const issue = compiled.targetDiagnostics.find(diagnostic => diagnostic.code === "TSONIC_UNTYPED_OBJECT_LITERAL");
-  const range = issue?.sourceSpan;
-  const before = sourceText.slice(0, sourceText.indexOf(literal));
-  const line = before.split("\n").length;
-  const column = before.length - before.lastIndexOf("\n");
+  const issue = compiled.result.diagnostics.find(diagnostic => diagnostic.code === "TSONIC_UNTYPED_OBJECT_LITERAL");
+  const ast = compiled.source.ast;
+  const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
+  const text = range?.kind !== "authored" ? undefined
+    : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end);
   assert.equal(issue?.message === "This object literal has no target type. Declare one, e.g. 'function baseOptions(): MakeDirectoryOptions'." &&
-    range?.line === line && range.column === column && range.endLine === line && range.endColumn === column + literal.length,
-    true, `${label}: exact annotation diagnostic at the original literal, not the final conversion`);
+    text === literal, true, `${label}: exact annotation diagnostic at the original literal, not the final conversion`);
   assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
     `${label}: no unproved native construction is published`);
 });
