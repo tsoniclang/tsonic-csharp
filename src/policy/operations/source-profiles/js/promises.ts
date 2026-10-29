@@ -8,6 +8,7 @@ import { csharpQualifiedTypeRenderShape } from "../../../../target-model/types/i
 import { csharpTargetNamedType } from "../../../../target-model/types/index.js";
 import { csharpJsEventLoopBinaryExecutionDriver } from "../../../../target-model/project/binary-execution-drivers.js";
 import { resolveCsharpOptionalStorage } from "../../../types/storage/optional-storage.js";
+import { resolveCsharpSourceProfileGenericResult } from "../source-profile-result.js";
 
 const objectType = csharpObjectTargetType();
 const rejectionType = csharpNullableTargetType(objectType);
@@ -222,21 +223,23 @@ function promiseResolveMember(
 function promiseRejectMember(
   context: CsharpSourceProfileCallPolicyContext,
 ): CsharpTargetMember | undefined {
-  const task = resolveResultTask(context);
-  return task === undefined
+  const task = resolveCsharpSourceProfileGenericResult(context, 1, arguments_ =>
+    csharpTaskTargetType(arguments_[0]!));
+  const result = getCsharpTaskResultTargetType(task);
+  return task === undefined || result === undefined
     ? undefined
     : staticMethod(
-        `Tsonic.CSharp.Js.PromiseRuntime.Reject:${targetIdentity(task.result)}`,
+        `Tsonic.CSharp.Js.PromiseRuntime.Reject:${targetIdentity(result)}`,
         "reject",
         "Reject",
-        promiseRuntimeType(task.result),
+        promiseRuntimeType(result),
         [
           targetParameter("reason", objectType, {
             optional: true,
             csharpAcceptsClosedSourceArgument: true,
           }),
         ],
-        task.task,
+        task,
       );
 }
 
