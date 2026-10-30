@@ -127,7 +127,7 @@ export function analyzeCsharpConversions(
       const admitted = sealCsharpConversionUses(nativeDemand, preparedOperations, (expression, source, target, mode, exactInteger, boundary, sourceCompletion) => {
         const selected = boundary === undefined ? classifyExpression(expression, source, target, mode, exactInteger, sourceCompletion) : boundary.selection;
         if (selected === undefined) return undefined;
-        admitCsharpDelegateEmission(delegateContracts, source, target, selected);
+        admitCsharpDelegateEmission(delegateContracts, source, target, selected, objectShapes);
         issues.push(...admitCsharpDelegateOperand(policy.ast, captures, delegateContracts, expression, source, target, selected));
         collectCsharpGeneratedHelpers(selected, requiredHelpers);
         if (boundary === undefined && sourceCompletion?.kind !== "void") classifyPair(source, target, mode, expression);
@@ -191,7 +191,7 @@ export function analyzeCsharpConversions(
     const selected = admitCsharpConversionSelection(conversionPolicy, source, target,
       selectCsharpConversion(conversionPolicy, source, target, mode));
     pairSelections.set(key, selected);
-    admitCsharpDelegateEmission(delegateContracts, source, target, selected);
+    admitCsharpDelegateEmission(delegateContracts, source, target, selected, objectShapes);
     return selected;
   }
 
@@ -276,7 +276,7 @@ export function analyzeCsharpConversions(
       expressionSelections.set(expression, selections);
     }
     selections.set(key, Object.freeze({ source, target, selection: selected }));
-    admitCsharpDelegateEmission(delegateContracts, source, target, selected);
+    admitCsharpDelegateEmission(delegateContracts, source, target, selected, objectShapes);
     return selected;
   }
 

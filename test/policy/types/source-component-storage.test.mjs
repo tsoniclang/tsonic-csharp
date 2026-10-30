@@ -121,11 +121,9 @@ test("implementation signature evidence uses the original contextual tuple param
   let physicalSelections = 0;
   const scope = {
     host: { ast: source.ast, sourceStorage: storage, objectShapes: {
-      resolveNativeParameter(owner, parameter, type) {
-        assert.equal(owner === implementation && parameter === incoming && targetTypeRefEquals(type, native), true,
-          "physical input selection consumes the same complete contextual tuple");
+      resolveTarget() {
         physicalSelections += 1;
-        return { kind: "resolved", type };
+        assert.fail("the already-completed contextual native tuple is not reselected by a physical-shape consumer");
       },
     } },
     sourceValueDeclarationSyntax: node => ({ type: source.ast.typeNode(node),
@@ -145,8 +143,11 @@ test("implementation signature evidence uses the original contextual tuple param
   scope.resolveCallableEvidence = (...arguments_) => resolveCallableEvidence(scope, ...arguments_);
   const selected = resolveCallableEvidence(scope, callable, queries, { depth: 0 });
   const signature = getCsharpDelegateSignature(selected);
+  assert.equal(source.ast.parent(incoming) === implementation && signature?.parameters.length === native.elements.length &&
+    signature.parameters.every((type, index) => targetTypeRefEquals(type, native.elements[index])), true,
+  "the original implementation parameter consumes the same complete contextual native tuple");
   assert.equal(signature?.parameters.length === 3 && signature.parameters.every((type, index) =>
-    targetTypeRefEquals(type, native.elements[index])) && formalSelections === 1 && physicalSelections === 1, true,
+    targetTypeRefEquals(type, native.elements[index])) && formalSelections === 1 && physicalSelections === 0, true,
     "callable ABI evidence retains the one contextual native tuple without semantic reselection");
 });
 

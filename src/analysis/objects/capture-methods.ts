@@ -12,9 +12,11 @@ import { objectShapeMethodInvocationName } from "../../target-model/names/object
 import type { CsharpCallableContractIndex } from "../../target-model/records/callables/callable-values.js";
 import { selectCsharpExplicitImplementationConstraints } from "../../policy/constraints/type-parameter-constraints.js";
 import { getCsharpDelegateSignature } from "../../target-model/types/carriers/delegates.js";
+import type { CsharpDelegateContractRecords } from "../../target-model/records/callables/callable-conversions.js";
+import { csharpCallableNativeDelegateExtractions } from "../conversions/callable-emission.js";
 
 export function analyzeCsharpCaptureMethods(ast: AstReader, captures: CsharpCaptureStorage, shapes: CsharpObjectShapeClassifications,
-  callables: Pick<CsharpCallableContractIndex, "get">) {
+  callables: Pick<CsharpCallableContractIndex, "get">, delegateContract: CsharpDelegateContractRecords["delegateContract"]) {
   const values = new Map<string, readonly CsharpCaptureMethodEmission[]>();
   const issues: TargetDiagnostic[] = [];
   for (const frame of captures.frames) {
@@ -66,6 +68,7 @@ export function analyzeCsharpCaptureMethods(ast: AstReader, captures: CsharpCapt
       }
       methods.push(Object.freeze({ method, form: ast.is.IsFunctionDeclaration(method.declaration) ? "declaration"
         : ast.is.IsArrowFunction(method.declaration) ? "arrow" : "function", quotation,
+        nativeExtractions: csharpCallableNativeDelegateExtractions(method.type, delegateContract),
         protocolMethods: Object.freeze(protocolMethods), returnsVoid: isCsharpVoidTargetType(selected.signature.returnType),
         returnType: quotation ? method.type : selected.signature.returnType,
         signature: Object.freeze({ ...selected.signature, returnPassing: undefined }) }));

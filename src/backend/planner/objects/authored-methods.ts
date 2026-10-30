@@ -17,6 +17,8 @@ import { csharpCapturedBindingExpression, csharpCaptureFrameExpression } from ".
 import { objectShapeArtifactKey } from "../../../target-model/records/objects/object-shape-keys.js";
 import { planCsharpArtifactMemberHiding } from "../declarations/modifiers.js";
 import type { CsharpPlannedAddressOperand } from "../expressions/planned-values.js";
+import { nullableCsharpType } from "../types/primitives.js";
+import type { CsharpNativeDelegateExtraction } from "../../../target-model/records/callables/callable-conversions.js";
 
 export function csharpObjectCaptureFields(shape: CsharpObjectShapeFact, input: CsharpPlanningContext): readonly CsharpObjectCaptureField[] {
   const selected = input.program.records.objectCaptures.get(shape);
@@ -64,6 +66,7 @@ export function renderCsharpAuthoredObjectMethods(
       ...(value.kind === "fixed" ? {} : { modifiers: ["private", ...method.modifiers.filter(modifier =>
         modifier !== "public" && modifier !== "protected" && modifier !== "internal" && modifier !== "private")] }) });
     members.push(...methodContext.scope.generatedMethods?.values() ?? []);
+    members.push(...renderCsharpNativeDelegateExtractions(shape, member.nativeExtractions, member.emission.bodyName, input, declaration));
     if (member.bodyInvocation !== undefined) {
       const explicitInterface = csharpTypeFromTargetTypeRef(member.bodyInvocation.interface, input.scope.typeParameterNames);
       if (explicitInterface === undefined) failCsharpPlannerInvariant("An admitted original method body requires its native protocol.", declaration);
@@ -91,6 +94,26 @@ export function renderCsharpAuthoredObjectMethods(
     }
   }
   return members;
+}
+
+export function renderCsharpNativeDelegateExtractions(shape: CsharpObjectShapeFact,
+  extractions: readonly CsharpNativeDelegateExtraction[], bodyName: string, input: CsharpPlanningContext,
+  declaration: Node): readonly CsharpTypeMember[] {
+  return extractions.flatMap((extraction): readonly CsharpTypeMember[] => {
+    const type = csharpTypeFromTargetTypeRef(extraction.targetCarrier, input.scope.typeParameterNames);
+    if (type === undefined) failCsharpPlannerInvariant("An admitted native extraction requires its exact delegate carrier.", declaration);
+    const typeArguments = extraction.methodTypeArguments.map(argument => csharpTypeFromTargetTypeRef(argument, input.scope.typeParameterNames)
+      ?? failCsharpPlannerInvariant("An admitted native extraction requires its exact method type arguments.", declaration));
+    const stored: CsharpExpression = { kind: "IdentifierName", name: extraction.valueName };
+    return [{ kind: "FieldDeclaration", name: extraction.valueName, type: nullableCsharpType(type),
+      modifiers: ["private", ...planCsharpArtifactMemberHiding(input.program.records.nativeMemberHiding, shape, extraction.valueName)] },
+    { kind: "PropertyDeclaration", name: extraction.name, type,
+      modifiers: ["public", ...planCsharpArtifactMemberHiding(input.program.records.nativeMemberHiding, shape, extraction.name)],
+      getter: { kind: "Block", statements: [{ kind: "ReturnStatement", expression: { kind: "AssignmentExpression",
+        operatorToken: { kind: "QuestionQuestionEqualsToken" }, left: stored,
+        right: { kind: "ObjectCreationExpression", type, arguments: [{ kind: "Argument", expression: {
+          kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: "this" }, name: bodyName, typeArguments } }] } } }] } }];
+  });
 }
 
 export function planCsharpObjectCaptureAssignments(

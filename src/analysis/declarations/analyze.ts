@@ -223,13 +223,8 @@ function classifyReturnContract(
       && sourceResult !== undefined && csharpSourceUnionReturnLayout({ source: observed[0]!, target: observedBaseline,
         sourceType: sourceResult, queries, ast: policy.ast, definitions: policy.typeDefinitions,
         resolveType: type => policy.types.resolveType(type, queries.sourceFile) }) ? observed[0] : undefined;
-    const nativeTarget = authoredReturnType.kind === "target-named" ? authoredReturnType as CsharpTargetNamedTypeRef : undefined;
-    const native = !asynchronous && !incomplete && nativeTarget !== undefined &&
-      (nativeTarget.csharpStructuralContract === true || nativeTarget.csharpSourceDeclarationKind === "interface")
-      ? policy.objectShapes.resolveNativeReturn(declaration, authoredReturnType, observed) : undefined;
-    if (native?.kind === "rejected") return { kind: "rejected", reason: native.reason };
     const type = actual !== undefined ? asynchronous ? csharpTaskTargetType(actual) : actual
-      : native?.type ?? authoredReturnType;
+      : authoredReturnType;
     return { kind: "resolved", type,
       ...(pointer === undefined ? {} : { undefinedReturn: pointer.undefinedReturn, fallthroughUndefined: pointer.fallthroughUndefined }) };
   }

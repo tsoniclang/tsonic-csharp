@@ -74,9 +74,10 @@ test("monomorphic native method handles adapt their exact callable member withou
   const binding = selectDelegateConversion({}, handle, source);
   assert.equal(binding?.kind === "delegate-adapter" && binding.strategy === "native-binding", true, "matching native signatures bind directly");
   const native = planCsharpDelegateAdapter({}, {}, input, diagnostics, handle, source, binding, factory, applyCsharpConversionSelection);
-  assert.equal(native.kind, "ObjectCreationExpression", "only the requested native delegate is allocated");
-  assert.equal(native.arguments[0].expression.receiver === factory && native.arguments[0].expression.name === "run", true,
-    "native binding captures the exact method receiver once without a protocol-to-delegate cast");
+  assert.equal(native.kind, "SimpleMemberAccessExpression", "native binding consumes the original handle's selected stable extraction");
+  assert.equal(native.receiver === factory &&
+    native.name === input.program.records.delegateContract.get(handle, source).nativeExtraction.name, true,
+  "native binding evaluates the exact original receiver once and reads its completed native getter without a delegate cast");
   const retained = planCsharpDelegateAdaptationBody({}, {}, input, diagnostics, handle, target, selected, stable,
     applyCsharpConversionSelection);
   assert.equal(retained.body.statements[0].expression.callee.name, "run", "retained adapter bodies use the same sealed method member");

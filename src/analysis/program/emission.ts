@@ -240,6 +240,7 @@ export function finalizeCsharpNativeEmission(
     nativeValueCarriers, storage: analysis.storage, moduleInitialization: moduleInitialization.index,
     callables: analysis.callables, callableCreations, classPropertyStorage: admittedOperations.classPropertyStorage,
     captureFrameShape: captureStorage.captureFrameShape, capturedBinding: captureStorage.capturedBinding,
+    delegateContract: conversions.delegateContract,
     providers: analysis.policy.providers,
   });
   if (nativeMemberNames.issues.length > 0) return rejectedTargetStage(nativeMemberNames.issues);
@@ -282,16 +283,18 @@ export function finalizeCsharpNativeEmission(
   const objectShapeEmission = analyzeCsharpObjectShapeEmission({ ast: source.ast, nodes: sourceNodes, nativeDemand, bindings: bindingPatterns,
     demand: objectShapeDemand, shapes: callableAdapters.objectShapes, names });
   if (objectShapeEmission.issues.length !== 0) return rejectedTargetStage(objectShapeEmission.issues);
-  const captureMethods = analyzeCsharpCaptureMethods(source.ast, captureStorage, callableAdapters.objectShapes, analysis.callables);
+  const captureMethods = analyzeCsharpCaptureMethods(source.ast, captureStorage, callableAdapters.objectShapes, analysis.callables,
+    conversions.delegateContract);
   if (captureMethods.issues.length !== 0) return rejectedTargetStage(captureMethods.issues);
   const structuralObjectEmission = analyzeCsharpStructuralObjectEmission({ shapes: callableAdapters.objectShapes,
-    demand: objectShapeDemand, storage: analysis.storage, captureMethods: captureMethods.records.captureMethods });
+    demand: objectShapeDemand, storage: analysis.storage, captureMethods: captureMethods.records.captureMethods,
+    delegateContract: conversions.delegateContract });
   if (structuralObjectEmission.issues.length !== 0) return rejectedTargetStage(structuralObjectEmission.issues);
   const objectMembers = analyzeCsharpObjectMemberEmission({ shapes: callableAdapters.objectShapes,
     demand: objectShapeDemand, storage: analysis.storage, captures: captureStorage });
   if (objectMembers.issues.length !== 0) return rejectedTargetStage(objectMembers.issues);
   const objectMethods = analyzeCsharpAuthoredObjectMethods({ ast: source.ast, shapes: callableAdapters.objectShapes,
-    demand: objectShapeDemand, captures: captureStorage, members: objectMembers.records });
+    demand: objectShapeDemand, captures: captureStorage, members: objectMembers.records, delegateContract: conversions.delegateContract });
   if (objectMethods.issues.length !== 0) return rejectedTargetStage(objectMethods.issues);
   const objectLiterals = analyzeCsharpObjectLiterals({ source: sourceSyntax, demand: nativeDemand, shapes: callableAdapters.objectShapes,
     methods: objectMethods.records, members: objectMembers.records, storage: analysis.storage,
@@ -482,7 +485,8 @@ export function finalizeCsharpNativeEmission(
     lexicalValues: lexicalValues.records,
     structuralInterfaces: analyzeCsharpStructuralInterfaceEmission({ ast: source.ast,
       shapes: callableAdapters.objectShapes, names, projectTypes, projections: analysis.typeProjections, declarations: analysis.declarations }),
-    nativeDeclarations: analyzeCsharpNativeDeclarationForms({ ast: source.ast, nodes: sourceNodes, projectTypes, required: analysis.requiredRecords }),
+    nativeDeclarations: analyzeCsharpNativeDeclarationForms({ ast: source.ast, nodes: sourceNodes, projectTypes,
+      shapes: callableAdapters.objectShapes, required: analysis.requiredRecords }),
     declarationModifiers: analyzeCsharpDeclarationModifiers({ ast: source.ast, nodes: sourceNodes,
       dispatch: callableAdapters.callableDispatch, helperAccess: captureStorage.helperAccess, required: analysis.requiredRecords, generators: generators.records, factories: classFactories.classFactory }),
     generators: generators.records,

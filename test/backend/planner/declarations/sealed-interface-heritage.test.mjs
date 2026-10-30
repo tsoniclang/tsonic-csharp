@@ -13,6 +13,7 @@ import { admitCsharpRawInterfaceDeclarations } from "../../../../dist/analysis/d
 import { createCsharpPlanningContext } from "../../../../dist/backend/planner/context.js";
 import { planInterfaceDeclaration } from "../../../../dist/backend/planner/declarations/interfaces/planning.js";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../../helpers/direct-csharp-session.mjs";
+import { csharpDelegateContractRecord } from "../../../helpers/planning-records.mjs";
 
 // The sealed program publishes records only; the checked project files come from the checked source.
 function projectFiles(compiled) {
@@ -159,6 +160,7 @@ test("generated method-value handles reuse only the identical available inherite
     const capabilities = new Map([[objectShapeArtifactKey(child), ["method-values"]],
       ...facts.flatMap((fact, index) => parents[index].methodValues ? [[objectShapeArtifactKey(fact), ["method-values"]]] : [])]);
     const emission = analyzeCsharpStructuralObjectEmission({
+      delegateContract: csharpDelegateContractRecord([]),
       captureMethods: { get: () => undefined },
       shapes: { knownShapes: () => [child, ...facts], resolveTarget: carrier => byKey.get(targetTypeRefKey(carrier)) },
       demand: { artifacts: [], get: key => capabilities.has(key) ? { capabilities: capabilities.get(key) } : undefined }, storage });

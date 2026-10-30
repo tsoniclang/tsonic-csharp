@@ -6,6 +6,7 @@ import { selectCsharpObjectMemberEmission } from "../../../dist/policy/types/obj
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpMethodValueType } from "../../../dist/target-model/types/method-values.js";
 import { createStructuralObjectShapeTarget } from "../../../dist/analysis/objects/shapes/construction.js";
+import { csharpDelegateContractRecord } from "../../helpers/planning-records.mjs";
 
 test("authored copied and captured method owners seal the implemented nullable binder primary", () => {
   const outer = { kind: "type-parameter", identity: "Outer", name: "Outer",
@@ -32,6 +33,7 @@ test("authored copied and captured method owners seal the implemented nullable b
     const authored = selectCsharpObjectMemberEmission({ shape, member: selectedMember, authored: true, receiverBound: false });
     assert.equal(authored.kind, "selected", `${control.name}: exact authored signature is admitted`);
     const authoredRecords = analyzeCsharpAuthoredObjectMethods({
+      delegateContract: csharpDelegateContractRecord([]),
       ast: { getSourceFile: () => ({}) }, demand: { artifacts: [],
         get: () => ({ materialization: "synthetic", capabilities: [] }) },
       shapes: { knownShapes: () => [shape] }, captures: {},
@@ -59,7 +61,7 @@ test("authored copied and captured method owners seal the implemented nullable b
     }, { frames: [frame] }, { resolveTarget: () => shape }, { get: () => ({
       kind: "source", sourceDeclaration: declaration, returnType: parameter,
       nativeParameters: [{ sourceParameter: {}, targetParameter: { type: parameter, passingMode: "by-value" } }],
-    }) });
+    }) }, csharpDelegateContractRecord([]));
     assert.equal(captured.issues.length, 0, `${control.name}: exact captured native contract is admitted`);
     const capturedPlan = captured.records.captureMethods.get(shape)[0].protocolMethods[0].explicitConstraints;
     assert.equal(capturedPlan.length, 1, `${control.name}: one captured implemented binder`);

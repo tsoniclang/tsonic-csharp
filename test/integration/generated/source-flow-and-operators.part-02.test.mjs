@@ -16,6 +16,7 @@ import { nullishMemberStorageSource } from "../../../../tsonic/test/fixtures/nul
 import { contextualClassArgumentsSource } from "../../../../tsonic/test/fixtures/contextual-class-arguments.mjs";
 import { classUnionUpcastSource, anonymousClassUnionUpcastSource } from "../../../../tsonic/test/fixtures/class-union-upcasts.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 
 for (const surface of Array.from([undefined, "js"]).slice(0, 1)) {
 
@@ -97,7 +98,16 @@ test("object rest retains stored method values through reordered structural inte
   const compiled = compileCsharpSource({ surface: "js", sourceText: structuralMethodRestSource });
   executeCsharpConstruction(compiled, "structural-method-rest");
   const shapes = compiled.artifacts.get("generated/TsonicObjectShapes.cs") ?? "";
-  assert.match(shapes, /\bFunc<double, double>/u);
+  const methods = compiled.result.program.objectShapes.knownShapes()
+    .filter(shape => shape.methodImplementation !== undefined)
+    .flatMap(shape => shape.members.filter(member => member.sourceName === "run"));
+  assert.equal(methods.length >= 2 && methods.every(member => member.methodValueContract !== undefined &&
+    member.methodValueStorage === undefined && targetTypeRefEquals(member.methodValueContract, methods[0].methodValueContract)), true,
+  "the original reordered methods retain the same exact immutable native invocation contract");
+  assert.equal(/\bdouble run\(double (?:arg0|value)\)/u.test(shapes), true,
+    "the original method retains its exact native double argument and result ABI");
+  assert.equal(/\brequired Func<double, double>|CreateDynamicObject|ReadDynamicSlot|WriteDynamicSlot|System\.Reflection/u.test(shapes), false,
+    "method copying adds no replaceable delegate field, dynamic member or reflection representation");
 });
 
 test("object rest never binds a copied method to its original receiver", () => {

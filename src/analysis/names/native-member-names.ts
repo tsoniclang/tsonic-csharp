@@ -31,6 +31,8 @@ import type { CsharpModuleInitializationIndex } from "../../target-model/records
 import type { CsharpCallableContractIndex } from "../../target-model/records/callables/callable-values.js";
 import type { CsharpCallableCreationIndex } from "../../target-model/records/callables/callable-values.js";
 import type { CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
+import type { CsharpDelegateContractRecords } from "../../target-model/records/callables/callable-conversions.js";
+import { csharpCallableNativeDelegateExtractions, csharpNativeDelegateExtractionsForOwner, selectCsharpNativeDelegateExtractions } from "../conversions/callable-emission.js";
 import { objectShapeArtifactKey } from "../../target-model/records/objects/object-shape-keys.js";
 import { objectShapeStorageMemberName, objectShapeBoundStorageMemberName,
   objectShapeAccessorGetterStorageMemberName, objectShapeAccessorSetterStorageMemberName,
@@ -62,6 +64,7 @@ export interface CsharpNativeMemberNameInput {
   readonly captureFrameShape: CsharpCaptureStorage["captureFrameShape"];
   readonly capturedBinding: CsharpCaptureStorage["capturedBinding"];
   readonly providers: Pick<CsharpProviderRelationResolver, "findTargetBindingByTargetId" | "findTargetBindingByMetadataName">;
+  readonly delegateContract: CsharpDelegateContractRecords["delegateContract"];
 }
 
 interface NativeMemberSignature {
@@ -324,6 +327,8 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
 
   function interfaceHeaders(shape: CsharpObjectShapeFact): readonly string[] {
     const names: string[] = [];
+    names.push(...csharpNativeDelegateExtractionsForOwner(shape.targetType, input.delegateContract)
+      .map(extraction => nativeName(extraction.name)));
     const values = artifacts.get(objectShapeArtifactKey(shape))?.capabilities.includes("method-values") === true;
     for (const member of shape.members) {
       if (member.memberKind === "method") {
@@ -424,7 +429,13 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
       const field = (name: string, kind: "field" | "property" = "field"): void => {
         recordHeader(name, { name: nativeName(name), kind, genericParameterIds: [], parameters: [] });
       };
+      if (structural) for (const extraction of csharpNativeDelegateExtractionsForOwner(shape.targetType, input.delegateContract))
+        field(extraction.name, "property");
       for (const member of shape.members) {
+        for (const extraction of selectCsharpNativeDelegateExtractions(shape, member, input.delegateContract)) {
+          field(extraction.name, "property");
+          if (!structural && csharpObjectShapeMethodDeclaration(shape, member) !== undefined) field(extraction.valueName);
+        }
         if (artifact.materialization === "source") {
           if (source?.kind === "interface" && member.memberKind === "method" &&
             (artifact.capabilities.includes("method-values") || member.optional === true)) {
@@ -459,6 +470,12 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
         if (member.bound === true) field(objectShapeBoundStorageMemberName(shape, member));
         const backing = input.storage.nativeField.get(shape.targetType, member.targetName);
         if (backing !== undefined) field(backing.storageName, "property");
+      }
+      for (const method of artifact.materialization === "synthetic" ? frame?.methods ?? [] : []) {
+        for (const extraction of csharpCallableNativeDelegateExtractions(method.type, input.delegateContract)) {
+          field(extraction.name, "property");
+          field(extraction.valueName);
+        }
       }
       for (const binding of artifact.materialization === "synthetic" ? frame?.bindings ?? [] : []) {
         if (binding.initialization !== "deferred") continue;
