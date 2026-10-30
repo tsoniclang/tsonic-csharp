@@ -6,6 +6,7 @@ import { analyzeCsharpCaptureStorage } from "../../../dist/analysis/callables/st
 import { csharpConstructorCapturedPlaces } from "../../../dist/analysis/callables/emission/constructor-entry.js";
 import { sealCsharpCaptureStorage } from "../../../dist/analysis/program/records/callables/capture-storage.js";
 import { csharpMethodValueType } from "../../../dist/target-model/types/method-values.js";
+import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 
 const scalar = Object.freeze({ kind: "source-primitive", name: "float64" });
 const callable = Object.freeze({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [true],
@@ -194,7 +195,8 @@ test("publication rejects conflicting physical evidence for the same original ca
     mutable: true, initialization: "initialized" });
   const incompatible = Object.freeze({ ...place, type: Object.freeze({ kind: "source-primitive", name: "int64" }) });
   assert.throws(() => sealCsharpCaptureStorage({ lexicalCaptures: [
-    { owner: {}, values: [place], receivers: [] }, { owner: {}, values: [incompatible], receivers: [] },
+    { owner: {}, type: callable, values: [place], receivers: [] },
+    { owner: {}, type: callable, values: [incompatible], receivers: [] },
   ] }), /one completed physical storage decision/u);
 });
 
@@ -206,8 +208,7 @@ test("a checked quantified protocol retains its native method and shares its ori
   }`);
   const owner = input.owner("generic");
   const parameter = Object.freeze({ kind: "type-parameter", name: "Value", identity: "Fixture.Value" });
-  const signature = Object.freeze({ kind: "target-named", id: "System.Func",
-    csharpAllowsRefLikeTypeArguments: [true, true], typeArguments: [parameter, parameter] });
+  const signature = csharpDelegateTargetType("System.Func", [parameter], parameter);
   const protocol = Object.freeze({ kind: "target-named", id: "tsonic.shape:quantified-fixture",
     csharpAllowsRefLikeTypeArguments: [], csharpRender: { kind: "named", name: "QuantifiedFixture" } });
   const type = csharpMethodValueType(protocol, "invoke", "fixture-quantified", signature, [parameter.identity]);
