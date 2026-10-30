@@ -657,6 +657,13 @@ test("live and sealed literal inputs retain exact checked owners through immutab
   assert.equal(sealed.resolveObjectLiteralTargetShape({ ...wrapper, sourceType: value.actual("fresh") }, literal) === undefined,
     true, "physical equality never supplies another actual checked source");
   const member = members[0];
+  const staleReadonly = Object.freeze({ ...wrapper,
+    members: Object.freeze([Object.freeze({ ...member, readonly: member.readonly !== true })]),
+  });
+  assert.equal(literalKey(staleReadonly) !== literalKey(wrapper), true,
+    "the consumed native member readonly input is separate from checked correspondence readonly");
+  assert.equal(sealed.resolveObjectLiteralTargetShape(staleReadonly, literal) === undefined, true,
+    "a readonly-only stale wrapper cannot borrow the admitted construction result");
   const retained = member.sourceMemberEvidence[0];
   for (const [label, evidence] of [
     ["foreign declared owner", { ...retained, ownerType: value.owner("other") }],

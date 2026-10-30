@@ -29,6 +29,7 @@ export function createCsharpObjectLiteralShapeKey(): (shape: CsharpObjectShapeFa
     csharpObjectShapeContractKey(shape), identity(shape.sourceType),
     shape.members.map(member => [
       member.sourceSubjects?.map(identity), member.sourceDeclarations?.map(identity), member.sourceTypes?.map(identity),
+      member.readonly === true,
       member.typeParameters?.map(parameter => identity(parameter.declaration)),
       member.sourceMemberEvidence?.map(evidence => [identity(evidence.ownerType), identity(evidence.sourceType),
         evidence.correspondence.kind, checkedMember(evidence.correspondence.destination),
