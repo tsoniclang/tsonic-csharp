@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
-import { code, identity, nativeEntryCases, nativeEntryInverses, nativeOpaquePayloadCases, nativeConstructorCases, nativeConstructorInverses, sourcePosition, sourceSpan, cases, rejected } from "./generic-adoption-admission.fixtures.mjs";
+import { code, identity, nativeEntryCases, nativeEntryInverses, nativeOpaquePayloadCases, nativeConstructorCases, nativeConstructorInverses, sourcePosition, sourceSpan, cases, rejected, declaredNativePromiseCall } from "./generic-adoption-admission.fixtures.mjs";
 
 for (const [name, declarations, expression] of Array.from(nativeOpaquePayloadCases).slice(12, 13)) {
 test("C# ordinary opaque callable input keeps its native value: " + name, { timeout: 300_000 }, () => {
@@ -18,13 +18,11 @@ for (const [name, declarations, expression] of Array.from(nativeOpaquePayloadCas
 test("C# native opaque callable input is unresolved, not safe empty: " + name, () => {
     const compiled = compileCsharpSource({ surface: "js", sourceText: declarations +
       "\nexport function reject(value: Promise<number>): void { void wrap(value); }" });
-    assert.deepEqual(compiled.result.diagnostics.map(issue => issue.code), ["CSHARP_ASYNC_RESULT_USE_NOT_PROVEN"],
-      "one precise source refusal, never a fabricated empty-safe execution or downstream native error");
-    const issue = compiled.result.diagnostics[0];
+    const issue = rejected(compiled, "wrap(value)", "KindCallExpression", "wrap");
     const { ast } = compiled.source;
     assert.equal(ast.kindName(issue.sourceNode), "KindCallExpression", "the original resolving operation owns uncertainty");
     assert.equal(Buffer.from(ast.getSourceText(ast.getSourceFile(issue.sourceNode))).subarray(ast.pos(issue.sourceNode), ast.end(issue.sourceNode))
-      .toString("utf8").trim(), expression, "both targets report the same exact demanded operation");
+      .toString("utf8").trim(), "wrap(value)", "approved C-1348: the declared instantiation owns adoption");
     assert.equal(compiled.result.program === undefined && compiled.result.artifacts.length === 0, true,
       "an unresolved source adoption publishes no program or artifact");
   });
@@ -145,9 +143,9 @@ for (const [name, declaration] of Array.from([
     constructor(read: () => Promise<Value>) { this.read = read; } }`],
 ]).slice(0, 4)) {
 test(`C# generic adoption keeps the unknown ${name} receiver contract`, () => {
-    rejected(compileCsharpSource({ surface: "js", sourceText: `${declaration}
+    declaredNativePromiseCall(compileCsharpSource({ surface: "js", sourceText: `${declaration}
       export function reject(value: Contract<Promise<number>>) { return value.read(); }` }),
-    "value.read()", "KindCallExpression");
+    "value.read()");
   });
 }
 
@@ -195,7 +193,10 @@ test("C# keeps opaque resolver provenance explicitly unresolved for a Promise-va
     function wrap<Value>(value: Value) { return new Promise<Value>(resolve => { const done = opaque(resolve); done(value); }); }
     export function reject(promised: Promise<number>): void { void wrap(promised); }` });
   assert.deepEqual(compiled.result.diagnostics.map(issue => issue.code), ["CSHARP_ASYNC_RESULT_USE_NOT_PROVEN"],
-    "one exact unresolved source admission, not a safe empty summary or a later native error");
+    "one exact unresolved source admission, not a safe empty summary or a later native error: " +
+      JSON.stringify(compiled.result.diagnostics.map(({ code, message, sourceNode }) => ({ code, message,
+        start: sourceNode === undefined ? undefined : compiled.source.ast.pos(sourceNode),
+        end: sourceNode === undefined ? undefined : compiled.source.ast.end(sourceNode) }))));
   const issue = compiled.result.diagnostics[0];
   const { ast } = compiled.source;
   assert.equal(ast.kindName(issue.sourceNode), "KindCallExpression", "the original unresolved operation is the diagnostic site");

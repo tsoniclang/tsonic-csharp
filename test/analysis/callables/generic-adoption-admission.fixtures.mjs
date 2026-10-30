@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { getCsharpTaskResultTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 
 const code = "TSONIC_GENERIC_ASYNC_ADOPTION_UNSUPPORTED";
 
@@ -570,4 +571,26 @@ function rejected(compiled, text, kind, declarationName) {
   return issue;
 }
 
-export { code, identity, nativeEntryCases, nativeEntryInverses, nativeOpaquePayloadCases, nativeConstructorCases, nativeConstructorInverses, sourcePosition, sourceSpan, cases, rejected };
+function declaredNativePromiseCall(compiled, text) {
+  assert.equal(compiled.result.diagnostics.length, 0,
+    JSON.stringify(compiled.result.diagnostics.map(({ code, message }) => ({ code, message }))));
+  const program = compiled.result.program;
+  assert.equal(program !== undefined && compiled.result.artifacts.length > 0, true,
+    "the admitted native contract publishes its actual program and source");
+  const { ast } = compiled.source;
+  const calls = program.source.navigation.nodesForFiles(program.sourceFiles).filter(node => {
+    if (!ast.is.IsCallExpression(node)) return false;
+    const file = ast.getSourceFile(node);
+    return file !== undefined && compiled.source.sourceFiles.includes(file) &&
+      Buffer.from(ast.getSourceText(file)).subarray(ast.pos(node), ast.end(node)).toString("utf8").trim() === text;
+  });
+  assert.equal(calls.length, 1, "the exact original checked call has one selected native signature");
+  assert.equal(program.records.selectedCall.get(calls[0]) !== undefined, true,
+    "the native call record belongs to the same original checked call");
+  const output = program.records.valueRead.get(calls[0])?.value;
+  const inner = getCsharpTaskResultTargetType(output);
+  assert.equal(inner !== undefined && getCsharpTaskResultTargetType(inner) !== undefined, true,
+    "the declared Task<Task<T>> output is preserved without adoption or flattening");
+}
+
+export { code, identity, nativeEntryCases, nativeEntryInverses, nativeOpaquePayloadCases, nativeConstructorCases, nativeConstructorInverses, sourcePosition, sourceSpan, cases, rejected, declaredNativePromiseCall };
