@@ -126,7 +126,7 @@ export function analyzeCsharpDeclarations(
     if (isCallableDeclaration(policy, node)) {
       declarations.returnContract(
         node,
-        withAbsenceCompletion(policy, evidence, node, classifyReturnContract(policy, evidence, valueReadStages, node)),
+        withAbsenceCompletion(policy, evidence, node, classifyReturnContract(policy, evidence, operations, valueReadStages, node)),
       );
     }
     policy.ast.forEachChild(node, (child) => {
@@ -209,6 +209,7 @@ function withAbsenceCompletion(
 function classifyReturnContract(
   policy: CsharpPolicyContext,
   evidence: CsharpSourceEvidenceIndex,
+  operations: CsharpTargetOperationClassifications,
   valueReadStages: CsharpValueReadStageIndex,
   declaration: Node,
 ): CsharpReturnTargetContract {
@@ -235,12 +236,20 @@ function classifyReturnContract(
     : { kind: "resolved", type: authoredReturnType,
         ...(pointer === undefined ? {} : { undefinedReturn: pointer.undefinedReturn, fallthroughUndefined: pointer.fallthroughUndefined }) };
   const observed: TargetTypeRef[] = [];
+  let inferredBaseline = observedBaseline;
   let incomplete = false;
   forEachCsharpDirectReturnExpression(policy.ast, declaration, (expression) => {
     const type = valueReadStages.get(expression)?.returnedValue;
     if (type === undefined) {
       incomplete = true;
     } else {
+      if (!asynchronous && authoredReturnType === undefined && policy.ast.is.IsCallExpression(expression)) {
+        const call = operations.selectedCall.get(expression);
+        const result = call?.sourceResult;
+        if (result !== undefined && (result.completion !== undefined || call?.unionCall.kind === "resolved" &&
+          targetTypeRefEquals(call.unionCall.resultType, result.selectedType)) && targetTypeRefEquals(result.nativeType, baseline) &&
+          targetTypeRefEquals(result.selectedType, type)) inferredBaseline = result.selectedType;
+      }
       if (asynchronous) {
         const awaited = getCsharpAwaitResultTargetType(type, policy.typeDefinitions);
         if (awaited !== undefined) observed.push(awaited);
@@ -270,7 +279,7 @@ function classifyReturnContract(
   }
   const observedContract = reconcileInferredReturnTargetContract(
     policy,
-    observedBaseline,
+    inferredBaseline,
     observed,
     incomplete,
   );

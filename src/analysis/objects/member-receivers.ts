@@ -50,6 +50,7 @@ export function analyzeCsharpMemberReceivers(input: { readonly source: TargetSou
   for (const node of input.nodes) {
     if (!input.admitted(node)) continue;
     const call = input.operations.selectedCall.get(node);
+    if (call?.unionCall?.kind === "resolved") continue;
     const selected = call?.sourceCall;
     if (call?.target?.kind !== "source-owned" || selected === undefined || selected.kind !== "function" && selected.kind !== "method") continue;
     const refuse = (message: string): void => { issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: selected.expression, message }); };
@@ -70,7 +71,8 @@ export function analyzeCsharpMemberReceivers(input: { readonly source: TargetSou
     if (selection?.kind !== "source-owned" || member === undefined || !selection.source.callCallee || member.jsValueOperation.kind !== "not-js-value" ||
       member.runtimeUnionProperty.kind !== "not-runtime-union" || member.objectShape !== undefined && member.shapeMember?.kind !== "resolved" ||
       member.shapeMember !== undefined && member.shapeMember.kind !== "resolved" || member.shapeMember?.kind === "resolved" && member.shapeMember.member.memberKind !== "method") {
-      refuse("A direct source method requires its exact sealed native member selection."); continue;
+      refuse(call?.unionCall?.kind === "rejected" ? call.unionCall.reason
+        : "A direct source method requires its exact sealed native member selection."); continue;
     }
     const projection = element?.receiverProjection ?? property?.receiverProjection;
     const receiver = input.receivers.get(selection.source.receiver.expression, selection.source.receiver.valueDeclaration)

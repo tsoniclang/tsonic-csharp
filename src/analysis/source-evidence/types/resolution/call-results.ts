@@ -10,6 +10,7 @@ import { targetTypeRefEquals } from "../../../../target-model/types/equality.js"
 import { retainCsharpBroadValueCarrier } from "../../../../policy/types/resolution/selected-type-evidence.js";
 import { getCsharpTaskResultTargetType } from "../../../../target-model/types/carriers/delegates.js";
 import { selectCsharpAwaitCompletion } from "../../../../policy/operations/control-flow/await-completions.js";
+import type { CsharpTypeDefinitions } from "../../../../target-model/types/source-union-definitions.js";
 
 export function selectCsharpSourceCallResult(
   host: CsharpTypePolicyHost,
@@ -52,7 +53,7 @@ export function selectCsharpSourceCallResult(
 }
 
 export function completeCsharpSourceCallAdoption(
-  host: Pick<CsharpTypePolicyHost, "typeDefinitions">,
+  host: { readonly typeDefinitions?: CsharpTypeDefinitions },
   selected: CsharpSourceCallResult | undefined,
 ): CsharpSourceCallResult | undefined {
   if (selected === undefined) return undefined;
