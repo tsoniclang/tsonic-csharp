@@ -42,13 +42,11 @@ for (const surface of Array.from([undefined, "js"]).slice(0, 2)) {
     `;
   test(`source rest arguments preserve native expansion and direct sequence transport (${surface ?? "native"})`, { timeout: 300_000 }, () => {
     const original = compileCsharpSource({ surface, sourceText });
-    const sourceCarrier = surface === "js" ? "target:Tsonic.CSharp.Js.JSArray`1<source:int64>" : "array:1:source:int64";
-    const destination = surface === "js" ? "target:Tsonic.CSharp.Js.JSArray`1<source:float64>" : "array:1:source:float64";
-    const message = `No exact C# implicit conversion relates '${sourceCarrier}' to '${destination}'.`;
-    assert.equal(original.sourceDiagnosticsText === "" && original.result.program === undefined && original.artifacts.size === 0 &&
-      original.targetDiagnostics.length === 4 && original.targetDiagnostics.every(issue =>
-        issue.code === "CSHARP_UNSUPPORTED_AST" && issue.message === message), true,
-    "the original inferred int64 storage is not retyped by later number[] forwarding or spread calls");
+    assert.equal(original.sourceDiagnosticsText, "");
+    assert.throws(() => executeCsharpConstruction(original, `native-rest-type-error-${surface ?? "native"}`),
+      error => error?.actual === 1 && error?.expected === 0 && /error CS1503:/u.test(error.message) &&
+        /long|Int64/u.test(error.message) && /double|Double/u.test(error.message),
+      "the ORIGINAL four later float-formal uses must reach the native compiler without retyping, copying or early-refusal certification");
   });
   for (const [variant, supportedSource] of [
       ["declared", sourceText.replace("const values = [2, 3];", "const values: number[] = [2, 3];")],

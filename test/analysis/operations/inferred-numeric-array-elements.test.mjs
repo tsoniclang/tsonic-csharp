@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpNativeUseSource } from "../../helpers/expected-native-uses.mjs";
+import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { getCsharpArrayLiteralElementTargetType } from "../../../dist/target-model/types/carriers/collections.js";
 import { getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
@@ -307,13 +308,11 @@ for (const surface of ["native", "js"]) {
     `;
   test(`${surface} inferred array binding and field storage retain their actual construction carrier`, () => {
     const compiled = compile(surface, originalStorageSource);
-    const source = surface === "js" ? "target:Tsonic.CSharp.Js.JSArray`1<source:int64>" : "array:1:source:int64";
-    const destination = surface === "js" ? "target:Tsonic.CSharp.Js.JSArray`1<source:float64>" : "array:1:source:float64";
-    const message = `No exact C# implicit conversion relates '${source}' to '${destination}'.`;
-    assert.equal(compiled.sourceDiagnosticsText === "" && compiled.result.program === undefined &&
-      compiled.targetDiagnostics.length === 1 && compiled.targetDiagnostics[0].code === "CSHARP_UNSUPPORTED_AST" &&
-      compiled.targetDiagnostics[0].message === message, true,
-    "the original later number[] consumer cannot change independently created int64 array storage");
+    assert.equal(compiled.sourceDiagnosticsText, "");
+    assert.throws(() => executeCsharpConstruction(compiled, `native-array-storage-type-error-${surface}`, false, false, [], "return;"),
+      error => error?.actual === 1 && error?.expected === 0 && /error CS1503:/u.test(error.message) &&
+        /long|Int64/u.test(error.message) && /double|Double/u.test(error.message),
+      "the ORIGINAL array call mismatch requires actual native CS1503; an early compiler refusal is not that proof");
   });
   for (const [variant, sourceText] of [
     ["declared", originalStorageSource.replace("let demandedValues = [1, 2]", "let demandedValues: number[] = [1, 2]")],

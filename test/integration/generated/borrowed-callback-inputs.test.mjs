@@ -8,13 +8,10 @@ for (const surface of [undefined, "js"]) {
   test(`selected callback inputs preserve native repeated mutation and readonly aliases (${surface ?? "native"})`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface, sourceText: borrowedCallbackInputSource });
     assertCsharpCheckingSucceeded(compiled);
-    const source = surface === "js" ? "target:Tsonic.CSharp.Js.JSArray`1<source:int64>" : "array:1:source:int64";
-    const destination = surface === "js" ? "target:Tsonic.CSharp.Js.JSArray`1<source:float64>" : "array:1:source:float64";
-    const message = `No exact C# implicit conversion relates '${source}' to '${destination}'.`;
-    assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0 &&
-      compiled.targetDiagnostics.length === 2 && compiled.targetDiagnostics.every(issue =>
-        issue.code === "CSHARP_UNSUPPORTED_AST" && issue.message === message), true,
-    "the original unannotated int64 array cannot be retyped or copied at either later number[] call");
+    assert.throws(() => executeCsharpConstruction(compiled, `borrowed-callback-type-error-${surface ?? "native"}`),
+      error => error?.actual === 1 && error?.expected === 0 && /error CS1503:/u.test(error.message) &&
+        /long|Int64/u.test(error.message) && /double|Double/u.test(error.message),
+      "the ORIGINAL int64-to-number[] mismatch must reach the actual native compiler; an early Tsonic refusal is still OPEN");
   });
 
   for (const [variant, sourceText] of [

@@ -58,7 +58,7 @@ export function selectCsharpInferredNumericArrayElement(
   const actualFloating = fixed.some(carrier => carrier.kind === "source-primitive" &&
     (carrier.name === "float32" || carrier.name === "float64"));
   const candidates = [...new Map(contributions.flatMap(contribution => {
-    const canonical = flexibleInteger(contribution) ? contribution.literalDefault : undefined;
+    const canonical = flexibleInteger(contribution) ? numericLiteralDefault(contribution) : undefined;
     return [contribution.carrier, ...(canonical === undefined ? [] : [canonical])].map(carrier =>
       [targetTypeRefKey(carrier), carrier] as const);
   })).values()];
@@ -75,7 +75,7 @@ export function selectCsharpInferredNumericArrayElement(
   const carriers: TargetTypeRef[] = [];
   for (const contribution of contributions) {
     if (!flexibleInteger(contribution)) { carriers.push(contribution.carrier); continue; }
-    const canonical = incompatibleIntegers ? contribution.literalDefault : contribution.carrier;
+    const canonical = incompatibleIntegers ? numericLiteralDefault(contribution) : contribution.carrier;
     if (canonical === undefined || contribution.literal?.numeric?.kind !== "authored" ||
       (canonical.kind === "source-primitive" && (canonical.name === "float32" || canonical.name === "float64")
         ? !sourceNumericLiteralIsExactlyRepresentableAsBinaryFloat(contribution.literal.numeric.token, canonical.name)
@@ -93,8 +93,14 @@ function numeric(type: TargetTypeRef | undefined): boolean {
 
 function flexibleInteger(contribution: CsharpNumericArrayContribution): boolean {
   const literal = contribution.literal;
-  return literal?.numeric?.kind === "authored" && literal.numeric.token.exponent >= 0n &&
-    !(literal.numeric.token.negative && literal.numeric.token.coefficient === 0n);
+  const selected = literal?.numeric?.kind === "authored" ? resolveCsharpSourceLiteralTargetType(literal) : undefined;
+  return selected?.kind === "source-primitive" && selected.name === "int64";
+}
+
+function numericLiteralDefault(contribution: CsharpNumericArrayContribution): TargetTypeRef | undefined {
+  const declared = contribution.literalDefault;
+  return declared?.kind === "source-primitive" && declared.name === "float64"
+    ? resolveCsharpSourceLiteralTargetType(contribution.literal) : declared;
 }
 
 function fits(candidate: TargetTypeRef, contribution: CsharpNumericArrayContribution): boolean {
@@ -104,7 +110,7 @@ function fits(candidate: TargetTypeRef, contribution: CsharpNumericArrayContribu
     !sourceNumericLiteralIsExactlyRepresentableAsBinaryFloat(literal.numeric.token, candidate.name)) return false;
   if (targetTypeRefEquals(candidate, carrier)) return true;
   if (literal?.numeric?.kind === "authored") {
-    if (isCsharpIntegralTargetType(candidate) && !(literal.numeric.token.negative && literal.numeric.token.coefficient === 0n) &&
+    if (isCsharpIntegralTargetType(candidate) && flexibleInteger(contribution) &&
       csharpLiteralIsRepresentableAs(literal, candidate)) return true;
     if (candidate.kind === "source-primitive" && candidate.name === "float32" &&
       sourceNumericLiteralIsExactlyRepresentableAsBinaryFloat(literal.numeric.token, "float32")) return true;

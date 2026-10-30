@@ -58,6 +58,22 @@ test("integer construction preserves the full int64 range and rejects overflow w
     "float64", "exponent notation remains authored floating even when integral");
 });
 
+test("mixed native union fallbacks retain the authored int64 carrier instead of the erased floating default", () => {
+  const integer = literal(9007199254740993n, 0n, 9007199254740993n, "int64");
+  const text = Object.freeze({ carrier: csharpStringTargetType(), literal: undefined, literalDefault: undefined });
+  const absent = Object.freeze({ carrier: csharpAbsenceTargetType(), literal: undefined, literalDefault: undefined });
+  for (const inputs of [[text, integer], [integer, text], [absent, integer], [integer, absent]]) {
+    const actual = select(inputs);
+    assert.equal(actual.kind === "unavailable" && actual.carriers.length === inputs.length &&
+      actual.carriers.every((carrier, index) => carrier === inputs[index].carrier), true,
+    "ordinary nonnumeric/absence arms do not round or replace the exact existing native integer arm");
+  }
+  for (const value of [literal(1n, 0n, 1n), literal(9007199254740993n, 0n, 9007199254740993n)]) {
+    selected(select([fixed("int32"), fixed("uint32"), value]), "int64",
+      "the existing exact common native carrier contains both peers and the authored integer without inventing floating storage");
+  }
+});
+
 test("pure authored default selection requires matching checked and literal-base evidence", () => {
   const input = literal(1n, 0n, 1n, "int32");
   const authored = Object.freeze({ ...input, literal: Object.freeze({ ...input.literal, number: 1 }) });
