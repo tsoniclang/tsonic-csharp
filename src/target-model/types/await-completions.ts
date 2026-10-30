@@ -19,4 +19,8 @@ export interface CsharpAwaitCompletion {
   readonly result: TargetTypeRef;
   readonly alternatives: readonly CsharpAwaitAlternative[];
   readonly optional: boolean;
+  readonly adoption?: {
+    readonly native: CsharpAwaitCompletion;
+    readonly continuation: CsharpAwaitCompletion;
+  };
 }
