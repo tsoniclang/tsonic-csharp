@@ -594,6 +594,9 @@ export function resolveSourceValueDeclaration(
       selectedSource !== undefined && queries.types.isNonPrimitive(selectedSource)) ?? selected ?? declaredTarget, state);
   }
   const arrayInitializer = host.ast.is.IsArrayLiteralExpression(syntax.initializer);
+  const numericInitializer = syntax.type === undefined &&
+    (host.ast.is.IsVariableDeclaration(declaration) || host.ast.is.IsPropertyDeclaration(declaration)) &&
+    host.literalValues.literalValue.get(syntax.initializer)?.numeric !== undefined;
   const declarationKind = host.ast.variableDeclarationKind(declaration);
   const mutableVariable = syntax.type === undefined && host.ast.is.IsVariableDeclaration(declaration) &&
     (declarationKind === "let" || declarationKind === "var");
@@ -608,7 +611,7 @@ export function resolveSourceValueDeclaration(
   const declaredCallable = mutableVariable && getCsharpCallableValueSignature(
     getCsharpNullableElementTargetType(declaredTarget) ?? declaredTarget,
   ) !== undefined;
-  const initializerTarget = arrayInitializer
+  const initializerTarget = arrayInitializer || numericInitializer
     ? resolveNodeWithState(syntax.initializer, sourceFile, nextState(state))
     : widenedInitializer ? declaredTarget
     : resolveDirectSourceFacts([syntax.initializer], sourceFile, nextState(state)) ??
@@ -617,7 +620,7 @@ export function resolveSourceValueDeclaration(
         ? declaredTarget
         : resolveNodeWithState(syntax.initializer, sourceFile, nextState(state)));
   if (initializerTarget === undefined) {
-    return arrayInitializer ? undefined : declaredTarget;
+    return arrayInitializer || numericInitializer ? undefined : declaredTarget;
   }
   if (node === declaration) {
     return initializerTarget;

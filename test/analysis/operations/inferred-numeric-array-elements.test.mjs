@@ -309,10 +309,18 @@ for (const surface of ["native", "js"]) {
   test(`${surface} inferred array binding and field storage retain their actual construction carrier`, () => {
     const compiled = compile(surface, originalStorageSource);
     assert.equal(compiled.sourceDiagnosticsText, "");
-    assert.throws(() => executeCsharpConstruction(compiled, `native-array-storage-type-error-${surface}`, false, false, [], "return;"),
-      error => error?.actual === 1 && error?.expected === 0 && /error CS1503:/u.test(error.message) &&
-        /long|Int64/u.test(error.message) && /double|Double/u.test(error.message),
-      "the ORIGINAL array call mismatch requires actual native CS1503; an early compiler refusal is not that proof");
+    const issue = compiled.nativeStage.diagnostics[0];
+    const ast = compiled.nativeStage.source.ast;
+    const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
+    const source = issue?.sourceNode === undefined ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode));
+    const expected = surface === "native"
+      ? "No exact C# implicit conversion relates 'array:1:source:int64' to 'array:1:source:float64'."
+      : "No exact C# implicit conversion relates 'target:Tsonic.CSharp.Js.JSArray`1<source:int64>' to 'target:Tsonic.CSharp.Js.JSArray`1<source:float64>'.";
+    assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "CSHARP_UNSUPPORTED_AST" &&
+      issue.message === expected && range?.kind === "authored" && source.slice(range.start, range.end) === "demandedValues", true,
+      "the original later number[] call is refused at its exact int64-array argument, without retargeting storage");
+    assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
+      "the incompatible array conversion publishes no partial program or copied construction");
   });
   for (const [variant, sourceText] of [
     ["declared", originalStorageSource.replace("let demandedValues = [1, 2]", "let demandedValues: number[] = [1, 2]")],

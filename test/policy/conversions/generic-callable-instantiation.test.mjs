@@ -61,6 +61,26 @@ test("one native method instantiation owns exact callback signatures, constraint
 });
 
 for (const surface of ["native", "js"]) {
+  test(`a bare quantified input retains its native carrier rather than its implemented views on ${surface}`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+import type { int64 } from "@tsonic/core/types.js";
+interface Score { score: int64; }
+class Entry implements Score { score: int64 = 9007199254740993n; }
+function identity<Value>(value: Value): Value { return value; }
+function replace<Value extends object>(value: Value, replacement: Value): Value { return replacement; }
+function read<Value extends Score>(value: Value): int64 { return value.score; }
+export function run(): boolean {
+  const entry = new Entry();
+  const replacement = new Entry();
+  const selected = replace(entry, replacement);
+  return identity(entry) === entry && selected === replacement && selected !== entry &&
+    read(entry) === 9007199254740993n && read(selected) === 9007199254740993n;
+}` });
+    assertCsharpCompilationSucceeded(compiled);
+    assert.equal(/DynamicInvoke|TsValue|Convert\.ToDouble|\.ToArray\(|\.Clone\(/u.test([...compiled.artifacts.values()].join("\n")), false,
+      "direct quantified inputs retain exact native identity and widths without a copied implemented-view transport");
+    executeCsharpConstruction(compiled, `generic-direct-native-input-${surface}`);
+  });
   test(`generic input binding uses its existing exact native implemented view on ${surface}`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
 import type { int32, int64 } from "@tsonic/core/types.js";
