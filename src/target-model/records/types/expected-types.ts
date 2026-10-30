@@ -1,6 +1,19 @@
 import type { TargetTypeRef } from "../../types/model.js";
 import type { CsharpReturnContextIndex } from "../calls/return-contexts.js";
 import type { Node } from "@tsonic/tsts";
+import type { TargetUseSiteRef } from "@tsonic/target-api/analysis";
+
+interface CsharpQuotationBindingIdentity {
+  readonly declaration: Node;
+  readonly initializer: Node;
+  readonly callable: Node;
+  readonly argumentSites: readonly TargetUseSiteRef[];
+}
+
+export type CsharpQuotationBindingSelection = CsharpQuotationBindingIdentity & (
+  | { readonly kind: "selected"; readonly targetType: TargetTypeRef }
+  | { readonly kind: "conflicting"; readonly targetTypes: readonly TargetTypeRef[] }
+);
 
 export interface CsharpExpectedTypeIssue {
   readonly node: Node;
@@ -16,6 +29,7 @@ export interface CsharpExpectedTypeClassifications {
   readonly returnContext: CsharpReturnContextIndex["returnContext"];
   readonly exactIntegerConversion: { readonly get: (expression: Node, targetType: TargetTypeRef) => boolean };
   readonly storageExpectedType: { readonly get: (expression: Node) => readonly TargetTypeRef[] };
+  readonly quotationBinding: { readonly get: (declaration: Node) => CsharpQuotationBindingSelection | undefined };
   readonly callableTarget: { readonly get: (expression: Node) => TargetTypeRef | undefined };
   readonly arrayLiteralCarrier: { readonly get: (expression: Node, targetType: TargetTypeRef) => TargetTypeRef | undefined };
   readonly expectedBinary: { readonly get: (expression: Node, targetType: TargetTypeRef) => import("../operations/operator-selection.js").CsharpOperationSelection<
