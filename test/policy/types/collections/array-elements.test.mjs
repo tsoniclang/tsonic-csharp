@@ -70,8 +70,13 @@ test("mixed native union fallbacks retain the authored int64 carrier instead of 
     "ordinary nonnumeric/absence arms do not round or replace the exact existing native integer arm");
   }
   for (const value of [literal(1n, 0n, 1n), literal(9007199254740993n, 0n, 9007199254740993n)]) {
-    selected(select([fixed("int32"), fixed("uint32"), value]), "int64",
-      "the existing exact common native carrier contains both peers and the authored integer without inventing floating storage");
+    const signed = fixed("int32");
+    const unsigned = fixed("uint32");
+    const actual = select([signed, unsigned, value]);
+    assert.equal(actual.kind === "unavailable" && actual.carriers.length === 3 &&
+      actual.carriers[0] === signed.carrier && actual.carriers[1] === unsigned.carrier &&
+      actual.carriers[2].kind === "source-primitive" && actual.carriers[2].name === "int64", true,
+    "incompatible native peers retain their identity and order beside the authored int64 arm without invented floating storage");
   }
 });
 
