@@ -12,14 +12,19 @@ import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 export function selectCsharpAwaitCompletion(
   carrier: TargetTypeRef | undefined,
   definitions?: CsharpTypeDefinitions,
+  resultUse: "consumed" | "discarded" = "consumed",
 ): CsharpAwaitCompletion | undefined {
   if (carrier === undefined) return undefined;
   const present = getCsharpNullableElementTargetType(carrier);
+  if (carrier.kind === "type-parameter") return resultUse === "discarded" ? Object.freeze({
+    form: "task-test", discard: true, excludeUnmatched: false, result: csharpVoidTargetType(),
+    alternatives: Object.freeze([]), optional: false,
+  }) : undefined;
   const leaves = getCsharpRuntimeUnionArms(present ?? carrier, definitions) === undefined
     ? [{ carrier: present ?? carrier, path: [] }]
     : csharpUnionLeaves(present ?? carrier, definitions);
   if (leaves === undefined) return undefined;
-  if (leaves.length === 0 || leaves.some(leaf => leaf.carrier.kind === "type-parameter" ||
+  if (leaves.length === 0 || leaves.some(leaf => leaf.carrier.kind === "type-parameter" && leaf.path.length === 0 ||
     leaf.carrier.kind === "opaque" || isCsharpJsValueTargetType(leaf.carrier))) return undefined;
   const alternatives = leaves.map(leaf => {
     const taskResult = leaf.carrier.kind === "target-named"

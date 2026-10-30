@@ -1,12 +1,13 @@
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, Type } from "@tsonic/tsts";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import { sourceExpressionResultDisposition, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../../target-model/types/model.js";
 import { csharpSourcePrimitiveTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
 
 import { nextState } from "./state.js";
-import { resolveBinaryTargetRepresentation, commonTargetRepresentation, getTaskResultType } from "../../../../policy/types/resolution/representation.js";
+import { resolveBinaryTargetRepresentation, commonTargetRepresentation } from "../../../../policy/types/resolution/representation.js";
+import { selectCsharpAwaitCompletion } from "../../../../policy/operations/control-flow/await-completions.js";
 import { selectCsharpTargetCall, selectCsharpTargetElement, selectCsharpTargetProperty } from "../../../operations/members/selected-members.js";
 import { isCsharpAssignmentOperator, sourceOperatorFromKindName } from "../../../../target-model/syntax/operators.js";
 import { selectCsharpMethodValue } from "../../../objects/method-values.js";
@@ -138,7 +139,8 @@ export function resolveSelectedExpressionType(
     );
     return awaited === undefined
       ? undefined
-      : getTaskResultType(awaited, host.typeDefinitions);
+      : selectCsharpAwaitCompletion(awaited, host.typeDefinitions,
+        sourceExpressionResultDisposition(host.ast, node).kind === "discarded" ? "discarded" : "consumed")?.result;
   }
   if (
     host.ast.is.IsCallExpression(node) ||
