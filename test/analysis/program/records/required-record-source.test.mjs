@@ -116,6 +116,8 @@ for (const surface of ["native", "js"]) {
       typeDefinitions: program.typeDefinitions, semanticsFor: source.semantics.forNode,
     });
     const expected = createExpectedNativeUseOwner(compiled).analysis;
+    assert.equal(typeof expected.quotationBinding?.get === "function", true,
+      "the storage input explicitly supplies the canonical quotation-binding lookup");
     const declarations = new Map(nodes.filter(node => ast.is.IsArrowFunction(node)).map(declaration => {
       const signature = getCsharpLambdaSignature(records.callableTarget.get(declaration));
       assert.equal(signature !== undefined, true, "each adapted lambda has its exact published signature");
