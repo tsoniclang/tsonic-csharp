@@ -163,6 +163,9 @@ export function copy(value: StoredCallable): { run: (value: number) => number } 
   const { removed, ...rest } = value;
   return rest;
 }
+export function replace(value: { run: (value: number) => number }, replacement: (value: number) => number): void {
+  value.run = replacement;
+}
 export function run(): boolean {
   const source = make();
   const first = copy(source);
@@ -432,6 +435,14 @@ for (int index = 0; index < 8192; index++) System.GC.KeepAlive(NativeRestCopy.Cr
 long nativeBytes = System.GC.GetAllocatedBytesForCurrentThread() - beforeNative;
 if (nativeBytes <= 0 || generatedBytes > nativeBytes)
     throw new System.Exception($"native rest allocation: generated={generatedBytes}, native={nativeBytes}");
+var retained = original.run;
+Tsonic.Generated.Index.replace(first, value => value + 13);
+if (object.ReferenceEquals(first.run, retained) || !object.ReferenceEquals(original.run, retained) ||
+    !object.ReferenceEquals(second.run, retained) || first.run(2) != 15 || retained(2) != 9)
+    throw new System.Exception("copied function properties retain their distinct replaceable native slots");
+Tsonic.Generated.Index.replace(original, value => value + 17);
+if (original.run(2) != 19 || second.run(2) != 9 || retained(2) != 9 || first.run(2) != 15)
+    throw new System.Exception("property replacement preserves earlier native delegate snapshots and independent copies");
 System.Console.WriteLine($"generatedBytes={generatedBytes};nativeBytes={nativeBytes}");
 
 sealed class NativeRestCopy
