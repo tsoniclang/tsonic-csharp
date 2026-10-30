@@ -72,6 +72,16 @@ for (const surface of ["native", "js"]) {
     ` });
     assertCsharpCompilationSucceeded(compiled);
   });
+
+  test(`source-any admission preserves qualified native type names on ${surface}`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      import type * as Native from "@tsonic/core/types.js";
+      export function preserve(value: Native.int32): Native.int32 { return value; }
+    ` });
+    assertCsharpCompilationSucceeded(compiled);
+    assert.match([...compiled.artifacts.values()].join("\n"), /public static int preserve\(int value\)/u,
+      "a checked native type qualifier is not a runtime any value and retains its exact native width");
+  });
 }
 
 test("canonical source-any admission refuses a current untyped library result without tracing its users", () => {

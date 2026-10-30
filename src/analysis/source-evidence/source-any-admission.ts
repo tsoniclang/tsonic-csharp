@@ -12,6 +12,7 @@ function isCheckedTypeNode(ast: AstReader, node: Node): boolean {
 function isCheckedValue(ast: AstReader, node: Node): boolean {
   if (ast.is.IsIdentifier(node)) {
     const parent = ast.parent(node);
+    if (parent !== undefined && ast.is.IsQualifiedName(parent)) return false;
     return parent === undefined || ast.name(parent) !== node || ast.is.IsShorthandPropertyAssignment(parent);
   }
   return ast.is.IsVariableDeclaration(node) || ast.is.IsParameterDeclaration(node) ||
