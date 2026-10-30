@@ -2,7 +2,7 @@ import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { analyzeSourceDeclarationGenericAdoption, sourceGenericAdoptionDiagnosticCode,
   sourceGenericAdoptionDiagnosticMessage, createSourceDeclarationOwnershipQuery,
-  createSourceDeclarationOwnershipBudget, defaultSourceStorageLimits,
+  createSourceDeclarationOwnershipBudget, defaultSourceDeclarationOwnershipLimits,
   type SourceDeclarationOwnershipBudget, type SourceDeclarationOwnershipPremises,
   type SourceDeclarationOwnershipUnresolved } from "@tsonic/target-api/analysis";
 import { sourceExpressionResultDisposition, type TargetSourceProgram } from "@tsonic/target-api/source";
@@ -55,7 +55,7 @@ export function analyzeCsharpPromiseResults(input: {
   if (input.nativePlacement.length !== 0) return Object.freeze({ results, diagnostics: input.nativePlacement });
   const root = input.nodes[0] ?? source.sourceFiles[0];
   if (root === undefined) return Object.freeze({ results, diagnostics: Object.freeze([]) });
-  const budget = createSourceDeclarationOwnershipBudget(root, defaultSourceStorageLimits);
+  const budget = createSourceDeclarationOwnershipBudget(root, defaultSourceDeclarationOwnershipLimits);
   const unresolved = (at: Node, reason: string): SourceDeclarationOwnershipUnresolved =>
     Object.freeze({ kind: "unresolved", at, reason, cause: Object.freeze({ kind: "required-fact" }) });
   const refused = new WeakSet<Node>();
