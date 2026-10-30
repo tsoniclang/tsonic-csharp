@@ -5,7 +5,9 @@ import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/ty
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { csharpNullableTargetType } from "../../target-model/types/carriers/nullable.js";
 import { createCsharpMetadataBudget, maximumCsharpMetadataEntries } from "../../target-model/metadata/immutable.js";
-import type { CsharpTypePolicyBaseHost } from "../source-evidence/types/resolution/model.js";
+import type { CsharpTypePolicyBaseHost, CsharpTypeResolutionState } from "../source-evidence/types/resolution/model.js";
+import { nextState } from "../source-evidence/types/resolution/state.js";
+import type { CsharpObjectShapePolicyHost } from "./shapes/model.js";
 import { csharpNativeConstructionMembersMatch } from "./native-construction-members.js";
 import { createCsharpObjectShapeValueStorage } from "../../policy/types/objects/shape-carriers.js";
 import type { CsharpNativeConstructionDemandQueries, CsharpNativeConstructionIssue,
@@ -174,6 +176,50 @@ export function selectCsharpLiteralDeclarationContext(
   const selectedType = host.semanticsFor(authoredTypeNode).types.authoredType(authoredTypeNode);
   return selectedType === undefined ? undefined : { component: { selectedType, authoredTypeNode,
     declaration: nextDeclaration }, declarations, source: expression };
+}
+
+export function resolveCsharpLiteralContextTarget(
+  context: CsharpLiteralContext,
+  host: CsharpObjectShapePolicyHost,
+  state: CsharpTypeResolutionState,
+  resolveShape: (context: CsharpLiteralContext, native: TargetTypeRef, state: CsharpTypeResolutionState) => CsharpObjectShapeFact | undefined,
+): TargetTypeRef | undefined {
+  const queries = host.semanticsFor(context.source);
+  const component = context.component;
+  if (context.container !== undefined) {
+    const container = context.container;
+    const native = resolveCsharpLiteralContextTarget(container.context, host, nextState(state), resolveShape);
+    if (native === undefined) return undefined;
+    const parent = resolveShape(container.context, native, nextState(state));
+    if (parent?.sourceType !== container.context.component.selectedType ||
+      container.member.receiverType !== parent.sourceType || container.member.property.type !== component.selectedType) return undefined;
+    const matching = parent.members.filter(member => member.sourceMemberEvidence?.some(evidence =>
+      evidence.sourceType === parent.sourceType && evidence.correspondence.kind === "present" &&
+      evidence.correspondence.source.receiverType === parent.sourceType &&
+      evidence.correspondence.source.property.symbol === container.member.property.symbol &&
+      evidence.correspondence.source.property.type === component.selectedType) === true);
+    return matching.length === 1 ? matching[0]!.type : undefined;
+  }
+  if (component.authoredTypeNode !== undefined) {
+    return host.typeResolver.resolveSelectedType(component.authoredTypeNode, component.selectedType,
+      queries.sourceFile, nextState(state));
+  }
+  const call = component.contextualCall;
+  if (call === undefined) return undefined;
+  const bindings = call.sourceArgumentBindings.filter(binding => binding.sourceForm === "value" &&
+    call.sourceArguments[binding.sourceArgumentIndex]?.expression === context.source);
+  const parameter = bindings.length !== 1 ? undefined
+    : call.sourceSelectedSignatureParameters[bindings[0]!.sourceParameterIndex];
+  if (call.sourceSelectedSignatureKind !== "resolved" || !host.ast.is.IsNewExpression(call.call) ||
+    parameter?.parameterDeclaration === undefined || parameter.selectedType !== component.selectedType ||
+    bindings[0]!.selectedParameterType !== component.selectedType) return undefined;
+  const contract = host.representations.sourceCallable(call, queries.sourceFile, "checked");
+  const declaration = queries.declarations.signatureDeclaration(call.selectedSignature);
+  const slots = contract?.nativeParameters.filter(slot => slot.sourceParameter === parameter.parameterDeclaration);
+  if (contract?.sourceDeclaration !== declaration || declaration === undefined || slots?.length !== 1) return undefined;
+  const receiver = host.typeResolver.resolveNode(call.call, queries.sourceFile, nextState(state));
+  const selected = host.projectTypes().instantiateMemberType(parameter.parameterDeclaration, receiver, slots[0]!.targetParameter.type);
+  return selected.kind === "resolved" ? selected.type : undefined;
 }
 
 interface CsharpNativeConstructionHost extends Pick<CsharpTypePolicyBaseHost,
