@@ -31,7 +31,7 @@ import {
   isCsharpVoidTargetType,
   getCsharpTaskResultTargetType,
 } from "../../policy/types/index.js";
-import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { selectCsharpSourceParameterDefault } from "../callables/calls/source-callable-abi.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";

@@ -24,6 +24,7 @@ export function createCsharpOperationErasure(
   return Object.freeze({
     attributeApplications: indexes.attributeApplications,
     safetyApplications: indexes.safetyApplications,
+    nativeErrorNameInitializations: indexes.nativeErrorNameInitializations,
     demandedInvocations: new Set(indexes.attributeApplications.all.flatMap(application =>
       isAstNode(ast, application.invocation) ? [application.invocation] : [])),
     issues,
