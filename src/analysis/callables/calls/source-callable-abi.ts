@@ -5,7 +5,7 @@ import type { CsharpPolicyContext } from "../../../policy/model/context.js";
 import { csharpNullableTargetType, getCsharpCallableValueSignature } from "../../../policy/types/index.js";
 import type { CsharpTargetParameter, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpProjectForwardingConstructor } from "../../../target-model/records/types/project-types.js";
-import type { SourceCallableSourceContract, CsharpSourceCallableParameterContract, SourceCallableContract, CsharpSourceCallParameterContract } from "../../../target-model/records/callables/source-callable-contract.js";
+import type { SourceCallableSourceContract, CsharpSourceCallableParameterContract, SourceCallableContract, CsharpSourceCallParameterContract, CsharpSourceCallableNativeSignature } from "../../../target-model/records/callables/source-callable-contract.js";
 import type { ResolvedSourceCallInfo } from "../../../target-model/records/calls/source-calls.js";
 import { csharpDelegateSignatureHasSupportedPassingModes } from "../../../target-model/types/carriers/delegates.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
@@ -17,6 +17,25 @@ import { csharpSourceTypeParameter } from "../../../source/extension/type-parame
 import { csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { selectCsharpSourceParameterVector } from "../../../policy/types/callables/parameter-vector.js";
 
+export function selectCsharpSourceCallableGenericAbi(
+  ast: AstReader,
+  declaration: Node,
+): Pick<CsharpSourceCallableNativeSignature, "methodTypeParameterIdentities" | "methodAllowsRefLikeTypeArguments"> | undefined {
+  const parameters = ast.typeParameters(declaration).map(parameter =>
+    parameter === undefined ? undefined : csharpSourceTypeParameter(parameter, ast)?.identity);
+  if (parameters.some(identity => identity === undefined || identity.length === 0) ||
+      new Set(parameters).size !== parameters.length) return undefined;
+  const identities: string[] = [];
+  for (const identity of parameters) {
+    if (identity === undefined) return undefined;
+    identities.push(identity);
+  }
+  return Object.freeze({
+    methodTypeParameterIdentities: Object.freeze(identities),
+    methodAllowsRefLikeTypeArguments: Object.freeze(identities.map(() => false)),
+  });
+}
+
 export function selectCsharpSourceCallableAbi(
   policy: CsharpPolicyContext,
   evidence: CsharpSourceEvidenceIndex,
@@ -25,7 +44,6 @@ export function selectCsharpSourceCallableAbi(
   declaration: Node,
   sourceFile: SourceFile,
   projections: CsharpGenericProjectionIndex,
-  contextualInputs: readonly (TargetTypeRef | undefined)[] | undefined,
 ): SourceCallableSourceContract | undefined {
   const checked = policy.semantics(sourceFile).types.declarationSignatureInfo(declaration);
   const valueParameters = sourceCallableValueParameters(policy.ast, declaration, policy.semantics(sourceFile));
@@ -50,7 +68,6 @@ export function selectCsharpSourceCallableAbi(
       names,
       parameterNode,
       index,
-      contextualInputs?.[index],
       checked.parameters.find(parameter => parameter.declaration === parameterNode)?.acceptsOmission,
     );
     if (parameters === undefined) {
@@ -58,26 +75,17 @@ export function selectCsharpSourceCallableAbi(
     }
     nativeParameters.push(...parameters);
   }
-  const methodTypeParameterIdentities = policy.ast.typeParameters(declaration).map(
-    (parameter) => parameter === undefined ? undefined : csharpSourceTypeParameter(parameter, policy.ast)?.identity,
-  );
-  if (
-    methodTypeParameterIdentities.some((name) =>
-      name === undefined || name.length === 0
-    ) ||
-    new Set(methodTypeParameterIdentities).size !== methodTypeParameterIdentities.length
-  ) {
-    return undefined;
-  }
+  const genericAbi = selectCsharpSourceCallableGenericAbi(policy.ast, declaration);
+  if (genericAbi === undefined) return undefined;
   const owner = sourceCallableReceiverTypeOwner(policy, declaration);
   return Object.freeze({
     kind: "source",
     sourceDeclaration: declaration,
     nativeSignature: Object.freeze({ methodTypeParameterIdentities: Object.freeze(
-      [...methodTypeParameterIdentities as string[], ...projections.genericProjection.get(declaration).map(parameter => parameter.identity)],
+      [...genericAbi.methodTypeParameterIdentities, ...projections.genericProjection.get(declaration).map(parameter => parameter.identity)],
     ),
     methodAllowsRefLikeTypeArguments: Object.freeze([
-      ...methodTypeParameterIdentities.map(() => false), ...projections.genericProjection.get(declaration).map(() => false),
+      ...genericAbi.methodAllowsRefLikeTypeArguments, ...projections.genericProjection.get(declaration).map(() => false),
     ]),
     ...(owner === undefined ? {} : { receiverTypeOwner: owner }) }),
     parameters: valueParameters,
@@ -93,7 +101,6 @@ function sourceParameterContracts(
   names: CsharpSourceNameResolver,
   parameterNode: Node | undefined,
   parameterIndex: number,
-  contextualInput: TargetTypeRef | undefined,
   acceptsOmission: boolean | undefined,
 ): readonly CsharpSourceCallableParameterContract[] | undefined {
   if (parameterNode === undefined) {
@@ -105,9 +112,9 @@ function sourceParameterContracts(
   }
   if (parameter.DotDotDotToken === undefined && acceptsOmission === undefined) return undefined;
   const typeSubject = parameter.Type ?? parameter.name;
-  const selectedType = contextualInput ?? (typeSubject === undefined
+  const selectedType = typeSubject === undefined
     ? undefined
-    : evidence.nodeTargetType.get(typeSubject));
+    : evidence.nodeTargetType.get(typeSubject);
   if (selectedType === undefined) {
     return undefined;
   }

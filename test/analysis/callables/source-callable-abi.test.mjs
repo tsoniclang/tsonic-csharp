@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
-import { selectCsharpProjectConstructorAbi } from "../../../dist/analysis/callables/calls/source-callable-abi.js";
+import { selectCsharpProjectConstructorAbi, selectCsharpSourceCallableGenericAbi } from "../../../dist/analysis/callables/calls/source-callable-abi.js";
 
 test("source receiver annotations do not change generated callable, class or interface ABI", () => {
   const sourceText = `
@@ -56,6 +56,40 @@ test("native-only constructor contracts contain no fabricated source vector", ()
   assert.equal(Object.isFrozen(selected) && Object.isFrozen(selected.nativeParameters), true, "the native contract is frozen before publication");
   assert.equal(selectCsharpProjectConstructorAbi({ definition: { declaration: owner }, source: { parameters: [] },
     targetMember: { parameters: [] } }) === undefined, true, "missing native return evidence does not manufacture a contract");
+});
+
+test("authored and bodyless source generic slots publish the same declared anti-constraints", () => {
+  const compiled = compileCsharpSource({ sourceText: `
+    declare function external<Part>(value: Part): Part;
+    function identity<Value>(value: Value): Value { return value; }
+    export function run(value: number): number { return identity(value); }
+  ` });
+  assertCsharpCompilationSucceeded(compiled);
+  const program = compiled.result.program;
+  const { ast } = program.source;
+  const declarations = csharpProgramSourceFiles(program).flatMap(file => ast.statements(file))
+    .filter(node => ast.is.IsFunctionDeclaration(node) && ast.typeParameters(node).length > 0);
+  assert.equal(declarations.length, 2, "the original authored and bodyless generic declarations remain checked");
+  for (const declaration of declarations) {
+    const signature = selectCsharpSourceCallableGenericAbi(ast, declaration);
+    assert.equal(signature !== undefined && signature.methodTypeParameterIdentities.length === 1 &&
+      signature.methodTypeParameterIdentities[0].length > 0, true, "one exact declared generic slot");
+    assert.deepEqual(signature.methodAllowsRefLikeTypeArguments, [false],
+      "ordinary source CLR slots do not declare an allows-ref-struct anti-constraint");
+    assert.equal(Object.isFrozen(signature) && Object.isFrozen(signature.methodTypeParameterIdentities) &&
+      Object.isFrozen(signature.methodAllowsRefLikeTypeArguments), true, "declared native metadata is immutable");
+    const [parameter] = ast.typeParameters(declaration);
+    assert.equal(selectCsharpSourceCallableGenericAbi({ ...ast, typeParameters: () => [undefined] }, declaration) === undefined,
+      true, "a missing authored parameter cannot manufacture permission metadata");
+    assert.equal(selectCsharpSourceCallableGenericAbi({ ...ast, typeParameters: () => [parameter, parameter] }, declaration) === undefined,
+      true, "duplicate formal identity cannot manufacture a second native slot");
+    if (ast.body(declaration) !== undefined) {
+      const emitted = program.records.callableDeclaration.get(declaration)?.contract;
+      assert.equal(emitted !== undefined, true, "the authored runtime body keeps its canonical completed contract");
+      assert.deepEqual(emitted.nativeSignature.methodTypeParameterIdentities, signature.methodTypeParameterIdentities);
+      assert.deepEqual(emitted.nativeSignature.methodAllowsRefLikeTypeArguments, signature.methodAllowsRefLikeTypeArguments);
+    }
+  }
 });
 
 test("native callable and class emission transport the original canonical contracts", () => {
