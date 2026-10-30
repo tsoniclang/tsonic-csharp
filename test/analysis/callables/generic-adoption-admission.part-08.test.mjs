@@ -2,7 +2,42 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
-import { code, identity, nativeEntryCases, nativeEntryInverses, nativeOpaquePayloadCases, nativeConstructorCases, nativeConstructorInverses, sourcePosition, sourceSpan, cases, rejected, declaredNativePromiseCall } from "./generic-adoption-admission.fixtures.mjs";
+import { code, identity, nativeEntryCases, nativeEntryInverses, nativeOpaquePayloadCases, nativeConstructorCases, nativeConstructorInverses, sourcePosition, sourceSpan, cases, declaredNativePromiseCall } from "./generic-adoption-admission.fixtures.mjs";
+
+function admitted(compiled, text, kind, declarationName) {
+  assert.deepEqual(compiled.result.diagnostics.map(issue => issue.code), [],
+    "approved C-1399: the declared adoption contract compiles without a history refusal: " +
+      JSON.stringify(compiled.result.diagnostics.map(({ code, message }) => ({ code, message }))));
+  const program = compiled.result.program;
+  assert.equal(program !== undefined && compiled.result.artifacts.length > 0, true,
+    "the same complete native contract publishes its program and artifacts");
+  const { ast } = compiled.source;
+  const nodes = program.source.navigation.nodesForFiles(program.sourceFiles);
+  const matches = nodes.filter(node => {
+    if (ast.kindName(node) !== kind) return false;
+    const file = ast.getSourceFile(node);
+    return file !== undefined && compiled.source.sourceFiles.includes(file) &&
+      Buffer.from(ast.getSourceText(file)).subarray(ast.pos(node), ast.end(node)).toString("utf8").trim() === text;
+  });
+  assert.equal(matches.length, 1, "the precise original checked instantiation is retained exactly once");
+  const sourceNode = matches[0];
+  const native = ast.is.IsNewExpression(sourceNode)
+    ? program.records.selectedConstruction.get(sourceNode) : program.records.selectedCall.get(sourceNode);
+  assert.equal(native !== undefined, true, "the same checked operation owns the completed native ABI");
+  const semantics = program.source.semantics.forNode(sourceNode);
+  const selected = semantics.operations.call(sourceNode);
+  assert.equal(selected?.sourceSelectedSignatureKind, "resolved", "the original selected signature is complete");
+  const declaration = semantics.declarations.signatureDeclaration(selected.selectedSignature);
+  assert.equal(declaration !== undefined, true, "the actual selected declaration is retained, including native providers");
+  if (declarationName !== undefined) {
+    const owner = ast.name(declaration) === undefined ? ast.parent(declaration) : declaration;
+    assert.equal(owner !== undefined && ast.text(ast.name(owner)) === declarationName, true,
+      "the original declaration owns the same checked generic binder");
+    assert.equal(ast.typeParameters(owner).length > 0 || ast.typeParameters(declaration).length > 0, true,
+      "native metadata keeps the actual authored generic parameter identity");
+  }
+  return { ast, sourceNode, declaration, nodes };
+}
 
 for (const [name, declarations, expression] of Array.from(nativeOpaquePayloadCases).slice(12, 13)) {
 test("C# ordinary opaque callable input keeps its native value: " + name, { timeout: 300_000 }, () => {
@@ -18,13 +53,12 @@ for (const [name, declarations, expression] of Array.from(nativeOpaquePayloadCas
 test("C# native opaque callable input is unresolved, not safe empty: " + name, () => {
     const compiled = compileCsharpSource({ surface: "js", sourceText: declarations +
       "\nexport function reject(value: Promise<number>): void { void wrap(value); }" });
-    const issue = rejected(compiled, "wrap(value)", "KindCallExpression", "wrap");
-    const { ast } = compiled.source;
-    assert.equal(ast.kindName(issue.sourceNode), "KindCallExpression", "the original resolving operation owns uncertainty");
-    assert.equal(Buffer.from(ast.getSourceText(ast.getSourceFile(issue.sourceNode))).subarray(ast.pos(issue.sourceNode), ast.end(issue.sourceNode))
+    const { ast, sourceNode } = admitted(compiled, "wrap(value)", "KindCallExpression", "wrap");
+    assert.equal(ast.kindName(sourceNode), "KindCallExpression", "the original resolving operation owns the native contract");
+    assert.equal(Buffer.from(ast.getSourceText(ast.getSourceFile(sourceNode))).subarray(ast.pos(sourceNode), ast.end(sourceNode))
       .toString("utf8").trim(), "wrap(value)", "approved C-1348: the declared instantiation owns adoption");
-    assert.equal(compiled.result.program === undefined && compiled.result.artifacts.length === 0, true,
-      "an unresolved source adoption publishes no program or artifact");
+    assert.equal(compiled.result.program !== undefined && compiled.result.artifacts.length > 0, true,
+      "approved C-1399: the declared native adoption publishes its complete program and artifacts");
   });
 
 test("C# ordinary opaque callable input keeps its native value: " + name, { timeout: 300_000 }, () => {
@@ -40,7 +74,7 @@ for (const [name, declarations] of Array.from(nativeConstructorCases).slice(0, 3
 test("C# official native constructor keeps exact generic adoption: " + name, () => {
     const compiled = compileCsharpSource({ surface: "native", sourceText: declarations +
       "\nexport function reject(promised: Promise<number>): void { void wrap(promised); }" });
-    rejected(compiled, "wrap(promised)", "KindCallExpression", "wrap");
+    admitted(compiled, "wrap(promised)", "KindCallExpression", "wrap");
   });
 
 test("C# official native constructor preserves its ordinary native value: " + name, { timeout: 300_000 }, () => {
@@ -65,7 +99,7 @@ test("C# official native constructor inverse: " + name, { timeout: 300_000 }, ()
 
 for (const [name, declarations, invoked] of Array.from(cases).slice(0, 19)) {
 test(`C# generic adoption refuses the actual Promise-valued ${name} site before sealing`, () => {
-    rejected(compileCsharpSource({ surface: "js", sourceText: `${declarations}
+    admitted(compileCsharpSource({ surface: "js", sourceText: `${declarations}
       export function reject(promised: Promise<number>): void { void ${invoked}(promised); }` }),
     `${invoked}(promised)`, "KindCallExpression", invoked);
   });
@@ -84,22 +118,25 @@ test("adoption provenance carries its fixed Unicode/CRLF payload independent of 
   const sourceText = 'const marker = "界😀";\r\nasync function identity<Value>(value: Value) {\r\n\treturn value;\r\n}\r\n' +
     "export function reject(promised: Promise<number>): void {\r\n\tvoid identity(promised);\r\n}";
   const compiled = compileCsharpSource({ surface: "js", projectRoot: "/another/csharp/src", sourceText });
-  const issue = rejected(compiled, "identity(promised)", "KindCallExpression", "identity");
-  assert.deepEqual(issue.sourceSpan, { fileName: "index.ts", line: 6, column: 7, endLine: 6, endColumn: 25 },
+  const { ast, sourceNode, declaration, nodes } = admitted(compiled, "identity(promised)", "KindCallExpression", "identity");
+  assert.deepEqual(sourceSpan(ast, sourceNode), { fileName: "index.ts", line: 6, column: 7, endLine: 6, endColumn: 25 },
     "exact actual instantiation coordinates, not the related declaration");
-  assert.deepEqual(issue.evidence, ["declaration index.ts:2:1", "first-sensitive-operation index.ts:3:2"],
-    "byte-identical, independent of the physical checkout");
+  assert.deepEqual(sourcePosition(ast, declaration), { line: 2, column: 1 },
+    "the same selected generic declaration keeps its original Unicode/CRLF coordinates");
+  assert.equal(nodes.some(node => ast.is.IsReturnStatement(node) &&
+    sourcePosition(ast, node).line === 3 && sourcePosition(ast, node).column === 2), true,
+  "the original own-body return coordinates stay byte-identical without becoming adoption authority");
 });
 
 test("C# generic class adoption is refused at the checked constructor", () => {
-  rejected(compileCsharpSource({ surface: "js", sourceText: `
+  admitted(compileCsharpSource({ surface: "js", sourceText: `
     class Holder<Value> { constructor(readonly value: Value) {} async get(): Promise<Value> { return this.value; } }
     export function reject(promised: Promise<number>): void { void new Holder(promised); }
   ` }), "new Holder(promised)", "KindNewExpression", "Holder");
 });
 
 test("C# refuses a known Promise wrapper with a still-free inner payload before physical analysis", () => {
-  rejected(compileCsharpSource({ surface: "js", sourceText: `${identity}
+  admitted(compileCsharpSource({ surface: "js", sourceText: `${identity}
     function wrap<Value>(value: Value) { return identity(Promise.resolve(value)); }
     export function run(): void { void wrap(7); }` }),
   "identity(Promise.resolve(value))", "KindCallExpression", "identity");
@@ -121,7 +158,7 @@ test(`C# generic adoption refuses the actual ${name} class receiver`, () => {
       ${extra} export function reject(holder: ${receiver}) { return holder.get(); }
     ` });
     if (unsupportedHeritage === undefined) {
-      rejected(compiled, "holder.get()", "KindCallExpression");
+      admitted(compiled, "holder.get()", "KindCallExpression");
       return;
     }
     assert.deepEqual(compiled.result.diagnostics.map(issue => issue.code),
@@ -204,7 +241,7 @@ test(`C# retains ${recursive ? "recursive" : "direct"} resolver/value correlatio
   });
 
 test(`C# refuses the matching ${recursive ? "recursive" : "direct"} adopting resolver row`, () => {
-    rejected(compileCsharpSource({ surface: "js", sourceText: `${helper}
+    admitted(compileCsharpSource({ surface: "js", sourceText: `${helper}
       function wrap<Value>(value: Value): Promise<Value> { return new Promise<Value>(resolve => deliver(resolve, value, 2)); }
       export function reject(promised: Promise<number>): void { void wrap(promised); }` }),
     "wrap(promised)", "KindCallExpression", "wrap");
@@ -215,19 +252,13 @@ test("C# keeps opaque resolver provenance explicitly unresolved for a Promise-va
   const compiled = compileCsharpSource({ surface: "js", sourceText: `declare function opaque<Value>(value: Value): Value;
     function wrap<Value>(value: Value) { return new Promise<Value>(resolve => { const done = opaque(resolve); done(value); }); }
     export function reject(promised: Promise<number>): void { void wrap(promised); }` });
-  assert.deepEqual(compiled.result.diagnostics.map(issue => issue.code), ["CSHARP_ASYNC_RESULT_USE_NOT_PROVEN"],
-    "one exact unresolved source admission, not a safe empty summary or a later native error: " +
-      JSON.stringify(compiled.result.diagnostics.map(({ code, message, sourceNode }) => ({ code, message,
-        start: sourceNode === undefined ? undefined : compiled.source.ast.pos(sourceNode),
-        end: sourceNode === undefined ? undefined : compiled.source.ast.end(sourceNode) }))));
-  const issue = compiled.result.diagnostics[0];
-  const { ast } = compiled.source;
-  assert.equal(ast.kindName(issue.sourceNode), "KindCallExpression", "the original unresolved operation is the diagnostic site");
-  assert.equal(Buffer.from(ast.getSourceText(ast.getSourceFile(issue.sourceNode)))
-    .subarray(ast.pos(issue.sourceNode), ast.end(issue.sourceNode)).toString("utf8").trim(), "done(value)",
-  "the precise same source operation is reported on both targets");
-  assert.equal(compiled.result.program === undefined && compiled.result.artifacts.length === 0, true,
-    "the unresolved source summary publishes no program or artifacts");
+  const { ast, sourceNode } = admitted(compiled, "done(value)", "KindCallExpression");
+  assert.equal(ast.kindName(sourceNode), "KindCallExpression", "the same original bodyless-native resolver call is retained");
+  assert.equal(Buffer.from(ast.getSourceText(ast.getSourceFile(sourceNode)))
+    .subarray(ast.pos(sourceNode), ast.end(sourceNode)).toString("utf8").trim(), "done(value)",
+  "the precise same source operation has the declared native contract");
+  assert.equal(compiled.result.program !== undefined && compiled.result.artifacts.length > 0, true,
+    "approved C-1399: bodyless native identity and discarded adoption publish the complete native program");
 });
 
 test("C# preserves an ordinary native actual despite an open symbolic resolver alias", { timeout: 300_000 }, () => {

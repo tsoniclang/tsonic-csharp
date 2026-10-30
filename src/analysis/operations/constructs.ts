@@ -486,10 +486,34 @@ function awaitResultMappingRejection(
   completion: CsharpAwaitCompletion | undefined,
 ): string | undefined {
   if (completion === undefined) return undefined;
-  for (const alternative of completion.alternatives) {
-    if (alternative.resultMapping === undefined) continue;
-    const admitted = admitCsharpConversionSelection(policy, alternative.result, completion.result, alternative.resultMapping);
-    if (admitted.kind === "rejected") return admitted.reason;
+  const pending: { readonly phase: CsharpAwaitCompletion; readonly leaving: boolean }[] = [
+    { phase: completion, leaving: false },
+  ];
+  const active = new Set<CsharpAwaitCompletion>();
+  const validated = new Set<CsharpAwaitCompletion>();
+  while (pending.length > 0) {
+    const current = pending.pop()!;
+    const phase = current.phase;
+    if (current.leaving) {
+      active.delete(phase);
+      validated.add(phase);
+      continue;
+    }
+    if (active.has(phase)) return "C# await adoption requires a finite completed phase composition.";
+    if (validated.has(phase)) continue;
+    if (phase.adoption !== undefined) {
+      active.add(phase);
+      pending.push({ phase, leaving: true });
+      pending.push({ phase: phase.adoption.continuation, leaving: false });
+      pending.push({ phase: phase.adoption.native, leaving: false });
+      continue;
+    }
+    for (const alternative of phase.alternatives) {
+      if (alternative.resultMapping === undefined) continue;
+      const admitted = admitCsharpConversionSelection(policy, alternative.result, phase.result, alternative.resultMapping);
+      if (admitted.kind === "rejected") return admitted.reason;
+    }
+    validated.add(phase);
   }
   return undefined;
 }
