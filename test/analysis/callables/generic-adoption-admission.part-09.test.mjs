@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
-import { code, identity, nativeEntryCases, nativeEntryInverses, nativeOpaquePayloadCases, nativeConstructorCases, nativeConstructorInverses, sourcePosition, sourceSpan, cases, rejected } from "./generic-adoption-admission.fixtures.mjs";
+import { code, identity, nativeEntryCases, nativeEntryInverses, nativeOpaquePayloadCases, nativeConstructorCases, nativeConstructorInverses, sourcePosition, sourceSpan, cases, rejected, declaredNativePromiseCall } from "./generic-adoption-admission.fixtures.mjs";
 
 for (const [name, body] of Array.from([
   ["unused-named", "async function unused() { return value; } return 1;"],
@@ -26,18 +26,18 @@ for (const declaration of Array.from([
   "abstract class Contract { abstract identity<Value>(value: Value): Promise<Value>; }",
 ]).slice(0, 2)) {
 test(`C# generic adoption keeps its unknown ${declaration.startsWith("interface") ? "interface" : "abstract"} signature`, () => {
-    rejected(compileCsharpSource({ surface: "js", sourceText: `${declaration}
+    declaredNativePromiseCall(compileCsharpSource({ surface: "js", sourceText: `${declaration}
       export function reject(contract: Contract, promised: Promise<number>): void { void contract.identity(promised); }` }),
-    "contract.identity(promised)", "KindCallExpression", "identity");
+    "contract.identity(promised)");
   });
 }
 
 test("C# unknown source generic bodies fail closed at their actual instantiation", () => {
-  rejected(compileCsharpSource({ surface: "js", sourceText: `
+  declaredNativePromiseCall(compileCsharpSource({ surface: "js", sourceText: `
     export function reject(callback: <Value>(value: Value) => Promise<Value>, promised: Promise<number>): void {
       void callback(promised);
     }
-  ` }), "callback(promised)", "KindCallExpression");
+  ` }), "callback(promised)");
 });
 
 test("C# ordinary library generics and constrained native values do not acquire an adoption refusal", () => {

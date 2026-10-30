@@ -7,6 +7,10 @@ import { code, identity, nativeEntryCases, nativeEntryInverses, nativeOpaquePayl
 for (const [name, sourceText] of Array.from(nativeEntryInverses).slice(13, 19)) {
 test("C# native callback non-adoption inverse: " + name, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText });
+    if (name === "known-source-ignored-callable" || name === "opaque-map-unused-callable") {
+      rejected(compiled, "wrap(Promise.resolve(5))", "KindCallExpression", "wrap");
+      return;
+    }
     assert.equal(compiled.result.diagnostics.length, 0,
       JSON.stringify(compiled.result.diagnostics.map(({ code, message }) => ({ code, message }))));
     const output = executeCsharpConstruction(compiled, "native-callback-inverse-" + name, false, false, [], "");

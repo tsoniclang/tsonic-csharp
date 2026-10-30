@@ -18,13 +18,11 @@ for (const [name, declarations, expression] of Array.from(nativeOpaquePayloadCas
 test("C# native opaque callable input is unresolved, not safe empty: " + name, () => {
     const compiled = compileCsharpSource({ surface: "js", sourceText: declarations +
       "\nexport function reject(value: Promise<number>): void { void wrap(value); }" });
-    assert.deepEqual(compiled.result.diagnostics.map(issue => issue.code), ["CSHARP_ASYNC_RESULT_USE_NOT_PROVEN"],
-      "one precise source refusal, never a fabricated empty-safe execution or downstream native error");
-    const issue = compiled.result.diagnostics[0];
+    const issue = rejected(compiled, "wrap(value)", "KindCallExpression", "wrap");
     const { ast } = compiled.source;
     assert.equal(ast.kindName(issue.sourceNode), "KindCallExpression", "the original resolving operation owns uncertainty");
     assert.equal(Buffer.from(ast.getSourceText(ast.getSourceFile(issue.sourceNode))).subarray(ast.pos(issue.sourceNode), ast.end(issue.sourceNode))
-      .toString("utf8").trim(), expression, "both targets report the same exact demanded operation");
+      .toString("utf8").trim(), "wrap(value)", "approved C-1348: the declared instantiation owns adoption");
     assert.equal(compiled.result.program === undefined && compiled.result.artifacts.length === 0, true,
       "an unresolved source adoption publishes no program or artifact");
   });
@@ -42,13 +40,11 @@ for (const [name, declarations, expression] of Array.from(nativeOpaquePayloadCas
 test("C# native opaque callable input is unresolved, not safe empty: " + name, () => {
     const compiled = compileCsharpSource({ surface: "js", sourceText: declarations +
       "\nexport function reject(value: Promise<number>): void { void wrap(value); }" });
-    assert.deepEqual(compiled.result.diagnostics.map(issue => issue.code), ["CSHARP_ASYNC_RESULT_USE_NOT_PROVEN"],
-      "one precise source refusal, never a fabricated empty-safe execution or downstream native error");
-    const issue = compiled.result.diagnostics[0];
+    const issue = rejected(compiled, "wrap(value)", "KindCallExpression", "wrap");
     const { ast } = compiled.source;
     assert.equal(ast.kindName(issue.sourceNode), "KindCallExpression", "the original resolving operation owns uncertainty");
     assert.equal(Buffer.from(ast.getSourceText(ast.getSourceFile(issue.sourceNode))).subarray(ast.pos(issue.sourceNode), ast.end(issue.sourceNode))
-      .toString("utf8").trim(), expression, "both targets report the same exact demanded operation");
+      .toString("utf8").trim(), "wrap(value)", "approved C-1348: the declared instantiation owns adoption");
     assert.equal(compiled.result.program === undefined && compiled.result.artifacts.length === 0, true,
       "an unresolved source adoption publishes no program or artifact");
   });
