@@ -6,7 +6,7 @@ import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { targetTypeRefKey } from "../../target-model/types/equality.js";
 import { csharpNativeUseSite } from "../../target-model/records/native/native-demand.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpExpectedTypeIssue } from "../../target-model/records/types/expected-types.js";
+import type { CsharpExpectedTypeIssue, CsharpQuotationBindingSelection } from "../../target-model/records/types/expected-types.js";
 import type { CsharpExpectedTypePending, CsharpExpectedTypeRecord, CsharpExpectedTypeUse, CsharpExpectedUseRequest } from "./model.js";
 
 const maximumExpectedTargetUses = 1_048_576;
@@ -17,6 +17,7 @@ export interface CsharpExpectedUseProjection {
   readonly expectedType: (expression: Node) => readonly TargetTypeRef[];
   readonly requiredExpectedType: (expression: Node) => readonly TargetTypeRef[];
   readonly storageExpectedType: (expression: Node) => readonly TargetTypeRef[];
+  readonly quotationBinding: (declaration: Node) => CsharpQuotationBindingSelection | undefined;
   readonly exactIntegerConversion: (expression: Node, targetType: TargetTypeRef) => boolean;
   readonly requests: readonly CsharpExpectedUseRequest[];
 }
@@ -26,6 +27,9 @@ export interface CsharpExpectedUseCollection {
   readonly addTargetType: (targetType: TargetTypeRef) => void;
   readonly takePending: () => CsharpExpectedTypePending | undefined;
   readonly recordedUses: (expression: Node) => readonly CsharpExpectedTypeUse[];
+  readonly recordQuotationBinding: (declaration: Node, initializer: Node, callable: Node, targetType: TargetTypeRef,
+    argumentSite: TargetUseSiteRef) => void;
+  readonly quotationBinding: (declaration: Node) => CsharpQuotationBindingSelection | undefined;
   readonly contextualCallables: ReadonlySet<Node>;
   readonly issues: readonly CsharpExpectedTypeIssue[];
   readonly seal: () => CsharpExpectedUseProjection;
@@ -42,6 +46,7 @@ export function createCsharpExpectedUseCollection(policy: Pick<CsharpPolicyConte
   const targetTypes = new Map<string, TargetTypeRef>();
   const issues: CsharpExpectedTypeIssue[] = [];
   const contextualCallables = new Set<Node>();
+  const quotationBindings = new Map<Node, CsharpQuotationBindingSelection>();
   const bySubject = new WeakMap<object, Map<string, SiteEntry>>();
   const sites: SiteEntry[] = [];
   const pending: { readonly value: CsharpExpectedTypePending; readonly current: CsharpExpectedTypeUse | CsharpExpectedUseRequest;
@@ -121,6 +126,30 @@ export function createCsharpExpectedUseCollection(policy: Pick<CsharpPolicyConte
   return Object.freeze({ record, contextualCallables, issues,
     addTargetType(targetType: TargetTypeRef) { open(); targetTypes.set(targetTypeRefKey(targetType), targetType); },
     recordedUses: (expression: Node) => [...(byExpression.get(expression)?.values() ?? [])],
+    recordQuotationBinding(declaration: Node, initializer: Node, callable: Node, targetType: TargetTypeRef,
+      argumentSite: TargetUseSiteRef) {
+      open();
+      const previous = quotationBindings.get(declaration);
+      if (previous !== undefined && (previous.initializer !== initializer || previous.callable !== callable)) {
+        failTargetAnalysisInvariant("tsonic-csharp", "One quotation binding names different original creation nodes.", declaration);
+      }
+      const site = siteEntry(argumentSite).site;
+      const argumentSites = previous?.argumentSites.includes(site) === true ? previous.argumentSites
+        : Object.freeze([...(previous?.argumentSites ?? []), site]);
+      const targets = new Map((previous === undefined ? [] : previous.kind === "selected" ? [previous.targetType] : previous.targetTypes)
+        .map(selected => [targetTypeRefKey(selected), selected]));
+      const key = targetTypeRefKey(targetType);
+      if (!targets.has(key)) targets.set(key, targetType);
+      const identity = { declaration, initializer, callable, argumentSites };
+      quotationBindings.set(declaration, targets.size === 1
+        ? Object.freeze({ ...identity, kind: "selected", targetType: targets.get(key)! })
+        : Object.freeze({ ...identity, kind: "conflicting", targetTypes: Object.freeze([...targets.values()]) }));
+      if (targets.size > 1 && previous?.kind !== "conflicting") issues.push(Object.freeze({
+        node: declaration, code: "CSHARP_QUOTATION_BINDING_CONFLICT",
+        message: "One immutable quotation binding requires incompatible native Expression carriers.",
+      }));
+    },
+    quotationBinding: (declaration: Node) => quotationBindings.get(declaration),
     takePending() {
       open();
       while (processed < pending.length) {
@@ -148,6 +177,7 @@ export function createCsharpExpectedUseCollection(policy: Pick<CsharpPolicyConte
         expectedType: (expression: Node) => views.get(expression)?.all ?? noExpectedTypes,
         requiredExpectedType: (expression: Node) => views.get(expression)?.required ?? noExpectedTypes,
         storageExpectedType: (expression: Node) => views.get(expression)?.storage ?? noExpectedTypes,
+        quotationBinding: (declaration: Node) => quotationBindings.get(declaration),
         exactIntegerConversion: (expression: Node, targetType: TargetTypeRef) => byExpression.get(expression)?.get(targetTypeRefKey(targetType))?.exactInteger === true,
         requests: Object.freeze(sites.flatMap(entry => [...entry.requests.values()])),
       });

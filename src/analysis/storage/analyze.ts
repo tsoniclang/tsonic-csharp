@@ -145,12 +145,17 @@ export function analyzeCsharpStorage(
     nodes.push(node);
     const declaration = policy.ast.is.IsVariableDeclaration(node) ? node
       : policy.ast.is.IsIdentifier(node) ? policy.navigation.referenceFor(node)?.declaration : undefined;
-    const closedCallableType = declaration === undefined ? undefined : callables.closedInputType(declaration);
-    if (declaration !== undefined && closedCallableType !== undefined) {
-      requireTargetType(node, declaration, closedCallableType);
-    } else {
-      for (const expectedType of expectedTypes.storageExpectedType.get(node)) {
-        recordPromotedRepresentation(node, expectedType);
+    const quotation = declaration === undefined ? undefined : expectedTypes.quotationBinding.get(declaration);
+    if (quotation?.kind === "selected") {
+      requireTargetType(node, quotation.declaration, quotation.targetType);
+    } else if (quotation === undefined) {
+      const closedCallableType = declaration === undefined ? undefined : callables.closedInputType(declaration);
+      if (declaration !== undefined && closedCallableType !== undefined) {
+        requireTargetType(node, declaration, closedCallableType);
+      } else {
+        for (const expectedType of expectedTypes.storageExpectedType.get(node)) {
+          recordPromotedRepresentation(node, expectedType);
+        }
       }
     }
     recordCallableParameterRequirements(node);

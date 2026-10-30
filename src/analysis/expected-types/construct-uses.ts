@@ -1,11 +1,13 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
-import { isSourceCallableBodyBoundary } from "@tsonic/target-api/source";
+import { HasSyntacticModifier, isSourceCallableBodyBoundary, ModifierFlagsAsync, sourceEnclosingCallable } from "@tsonic/target-api/source";
 import { csharpCallableValueType } from "../../policy/types/callables/value-type.js";
 import { csharpSourceArgumentExpectedType, csharpTargetParameterValueType, getCsharpGeneratorProtocol,
   resolveCsharpObjectShapeMemberBySelectedSubject } from "../../policy/types/index.js";
 import { csharpSelectedTargetArgumentBindings, csharpSourceOwnedArgumentBindings, csharpProviderArgumentSourceCarrier } from "../../policy/operations/members/native-use-arguments.js";
 import { isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
 import type { CsharpNativeUseSlot } from "../../target-model/records/native/native-demand.js";
+import { csharpNativeUseSite } from "../../target-model/records/native/native-demand.js";
+import { getCsharpExpressionTreeDelegateType } from "../../target-model/types/carriers/delegates.js";
 import type { CsharpTargetCallSelection } from "../../target-model/records/operations/member-selections.js";
 import type { ResolvedSourceCallInfo } from "../../target-model/records/calls/source-calls.js";
 import type { CsharpSourceArgumentGrouping } from "../../target-model/records/operations/operations.js";
@@ -34,6 +36,12 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
     const slot: CsharpNativeUseSlot | undefined = policy.ast.is.IsVariableDeclaration(node) || policy.ast.is.IsPropertyDeclaration(node)
       ? { kind: "initializer" } : policy.ast.is.IsParameterDeclaration(node) || policy.ast.is.IsBindingElement(node) ? { kind: "default" } : undefined;
     if (initializer === undefined) return;
+    const quotation = collection.quotationBinding(node);
+    if (quotation !== undefined) {
+      record(initializer, quotation.kind === "selected" ? quotation.targetType : undefined, "required",
+        { owner: node, slot: { kind: "initializer" }, ...(quotation.kind === "conflicting" ? { withheld: "argument-inconsistent" as const } : {}) });
+      return;
+    }
     const name = policy.ast.name(node);
     if (policy.ast.is.IsVariableDeclaration(node) && name !== undefined &&
       (policy.ast.is.IsObjectBindingPattern(name) || policy.ast.is.IsArrayBindingPattern(name))) {
@@ -199,11 +207,48 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
       const target = sequence?.sourceType ?? projected ?? csharpProviderArgumentSourceCarrier(mapping) ??
         sourceArgumentExpectedType(expression, argument.targetParameter, argument.sourceForm);
       const binding = bySource.get(argument.sourceArgumentIndex)?.get(argument.effectiveArgumentIndex);
-      record(expression, target, "required", { owner,
+      const demand: CsharpExpectedUseSiteDemand = { owner,
         slot: binding?.slot ?? { kind: "argument", sourceIndex: argument.sourceArgumentIndex, effectiveIndex: argument.effectiveArgumentIndex,
           parameterIndex: argument.targetParameterIndex },
-        ...(bindings.kind !== "bound" || binding === undefined ? { withheld: "argument-inconsistent" as const } : {}) });
+        ...(bindings.kind !== "bound" || binding === undefined ? { withheld: "argument-inconsistent" as const } : {}) };
+      record(expression, target, "required", demand);
+      if (expression !== undefined && bindings.kind === "bound" && binding !== undefined && sequence === undefined &&
+        getCsharpExpressionTreeDelegateType(target) !== undefined) recordQuotationInitializer(expression, target, demand);
     }
+  }
+
+  function recordQuotationInitializer(expression: Node, target: TargetTypeRef, demand: CsharpExpectedUseSiteDemand): void {
+    const scope = sourceEnclosingCallable(demand.owner, policy.ast);
+    if (scope === undefined) return;
+    const first = quotationInitializer(expression, scope);
+    if (first === undefined) return;
+    const second = policy.ast.is.IsIdentifier(first.value) ? quotationInitializer(first.value, scope) : undefined;
+    const original = second?.value ?? first.value;
+    if (!policy.ast.is.IsArrowFunction(original) || HasSyntacticModifier(policy.ast, original, ModifierFlagsAsync)) return;
+    const argumentSite = csharpNativeUseSite(demand.owner, demand.slot, { target });
+    collection.recordQuotationBinding(first.declaration, first.initializer, original, target, argumentSite);
+    if (second !== undefined) collection.recordQuotationBinding(second.declaration, second.initializer, original, target, argumentSite);
+  }
+
+  function quotationInitializer(expression: Node, scope: Node):
+    { readonly declaration: Node; readonly initializer: Node; readonly value: Node } | undefined {
+    if (!policy.ast.is.IsIdentifier(expression)) return undefined;
+    const reference = policy.navigation.sourceReferenceFor(expression);
+    const declaration = reference?.declaration;
+    if (reference?.project !== true || declaration === undefined || !policy.ast.is.IsVariableDeclaration(declaration) ||
+      policy.ast.variableDeclarationKind(declaration) !== "const" || policy.ast.typeNode(declaration) !== undefined ||
+      !policy.ast.is.IsIdentifier(policy.ast.name(declaration)) || sourceEnclosingCallable(declaration, policy.ast) !== scope ||
+      policy.ast.getSourceFile(declaration) !== policy.ast.getSourceFile(expression)) return undefined;
+    const initializer = policy.ast.as.AsVariableDeclaration(declaration)?.Initializer;
+    if (initializer === undefined) return undefined;
+    let value = initializer;
+    while (policy.ast.is.IsParenthesizedExpression(value) || policy.ast.is.IsSatisfiesExpression(value)) {
+      const operand = policy.ast.is.IsParenthesizedExpression(value) ? policy.ast.as.AsParenthesizedExpression(value)?.Expression
+        : policy.ast.as.AsSatisfiesExpression(value)?.Expression;
+      if (operand === undefined) return undefined;
+      value = operand;
+    }
+    return { declaration, initializer, value };
   }
 
   function sourceArgumentExpectedType(expression: Node | undefined, parameter: Parameters<typeof csharpSourceArgumentExpectedType>[0],

@@ -180,7 +180,22 @@ function selectArrayElementDestination(
     }
     return element === undefined ? { kind: "unavailable" } : { kind: "resolved", carrier: element };
   }
-  if (context === undefined) return { kind: "unavailable" };
+  if (context === undefined) {
+    if (!empty) return { kind: "unavailable" };
+    let branch = expression;
+    while (host.ast.is.IsParenthesizedExpression(host.ast.parent(branch))) branch = host.ast.parent(branch)!;
+    const parent = host.ast.parent(branch);
+    const conditional = parent === undefined ? undefined : host.ast.as.AsConditionalExpression(parent);
+    if (conditional === undefined || conditional.WhenTrue !== branch && conditional.WhenFalse !== branch) {
+      return { kind: "unavailable" };
+    }
+    const checked = queries.types.expressionType(parent!);
+    const arguments_ = checked === undefined || !queries.types.isArrayLike(checked) ? [] : queries.types.typeArguments(checked);
+    if (arguments_.length !== 1 || queries.types.isNever(arguments_[0]!)) return { kind: "unavailable" };
+    const selected = scope.resolveTypeWithState(checked!, queries.sourceFile, nextState(state));
+    const element = collectionElement(selected);
+    return element === undefined ? { kind: "unavailable" } : { kind: "resolved", carrier: element };
+  }
   const selected = scope.resolveSourceTypeComponentEvidence(context.component, queries, nextState(state));
   const returned = context.component.declaration !== undefined &&
     scope.host.ast.hasModifierKind(context.component.declaration, "async")
