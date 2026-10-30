@@ -192,7 +192,7 @@ test(`${surface} participation excludes an unused capturing function before its 
     captureClosure: { get(node) {
       assert.equal(node === unused, false, "unusedness is decided before asking for a native frame");
       return records.captureClosure.get(node);
-    } }, lambdaCreation: records.lambdaCreation, objectShapes: value.program.objectShapes,
+    } }, callableCreation: records.callableCreation, objectShapes: value.program.objectShapes,
     compileTimeMetadata: records.compileTimeMetadata, requiredRecords });
   assert.equal(selected.kind, "resolved", "the complete reverse-ordered domain resolves before publication");
   assert.equal(selected.value.participation.get(unused), "erased", "the erased root retains its single decision");
@@ -212,7 +212,7 @@ test("compile-time metadata excludes the whole subtree without a participation r
   const requiredRecords = [];
   const input = { ast: value.ast, storage: { nodes: [...value.nodes].reverse(), failureReason: () => undefined },
     navigation: value.source.navigation,
-    captureClosure: records.captureClosure, lambdaCreation: records.lambdaCreation, objectShapes: value.program.objectShapes,
+    captureClosure: records.captureClosure, callableCreation: records.callableCreation, objectShapes: value.program.objectShapes,
     compileTimeMetadata: { get: node => node === root }, requiredRecords };
   const selected = analyzeCsharpNativeParticipation(input);
   assert.equal(selected.kind, "resolved", "a complete metadata-only domain resolves before its reader is exposed");
@@ -254,7 +254,7 @@ test(`${surface} malformed or budget-exhausted participation domains reject prec
     const requiredRecords = [];
     let classifications = 0;
     const rejected = analyzeCsharpNativeParticipation({ ast, storage, navigation: value.source.navigation,
-      captureClosure: records.captureClosure, lambdaCreation: records.lambdaCreation,
+      captureClosure: records.captureClosure, callableCreation: records.callableCreation,
       objectShapes: value.program.objectShapes,
       compileTimeMetadata: { get() { classifications++; return false; } }, requiredRecords });
     assert.equal(rejected.kind === "rejected" && !Object.hasOwn(rejected, "value"), true,

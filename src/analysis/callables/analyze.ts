@@ -2,7 +2,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import { selectCsharpSourceCallableAbi, selectCsharpProjectConstructorAbi } from "./calls/source-callable-abi.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { isCsharpSourceCallableArtifactDeclaration, targetTypeRefEquals } from "../../policy/types/index.js";
-import type { CsharpTargetParameter, TargetTypeRef } from "../../policy/types/index.js";
+import type { CsharpTargetParameter } from "../../policy/types/index.js";
 
 import type { SourceCallableSourceContract, SourceCallableContract } from "../../target-model/records/callables/source-callable-contract.js";
 import type { CsharpDeclarationClassifications } from "../../target-model/records/program/declarations.js";
@@ -11,11 +11,8 @@ import type { CsharpSourceEvidenceIndex } from "../../target-model/records/progr
 import type { CsharpCallableContractIndex, CsharpClosedCallableInput } from "../../target-model/records/callables/callable-values.js";
 import type { CsharpGenericProjectionIndex } from "../../target-model/records/types/type-projections.js";
 import { closeCsharpProjectCallableContracts } from "../project-types/callable-contracts.js";
-import { selectCsharpClosedCallableContext } from "../expected-types/callable-contexts.js";
-import type { CsharpClosedCallableContext } from "../expected-types/callable-contexts.js";
 import { csharpCallableValueType } from "../../policy/types/callables/value-type.js";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { CsharpCallableConversionPolicy } from "./native/adapters.js";
 import { closeCsharpContextualRestInputs } from "./calls/contextual-rest-inputs.js";
 
@@ -26,12 +23,9 @@ export function analyzeCsharpCallableContracts(
   names: CsharpSourceNameResolver,
   projections: CsharpGenericProjectionIndex,
   source: TargetSourceProgram,
-  operations: CsharpTargetOperationClassifications,
   conversions: CsharpCallableConversionPolicy,
 ): CsharpCallableContractIndex {
   const byDeclaration = new Map<Node, SourceCallableSourceContract>();
-  const closedContexts = new WeakMap<Node, CsharpClosedCallableContext>();
-  const closedAliases = new Map<Node, Node>();
   const byProjectConstructor = new Map<string, SourceCallableContract>();
   const contracts: SourceCallableContract[] = [];
   const declarationContracts: SourceCallableSourceContract[] = [];
@@ -49,7 +43,7 @@ export function analyzeCsharpCallableContracts(
     contracts[index] = contract;
   }
   for (const { declaration, sourceFile } of checkedDeclarations) {
-    const selected = selectCsharpSourceCallableAbi(policy, evidence, declarations, names, declaration, sourceFile, projections, undefined);
+    const selected = selectCsharpSourceCallableAbi(policy, evidence, declarations, names, declaration, sourceFile, projections);
     const contract = selected === undefined ? undefined : closeCsharpContextualRestInputs(policy, evidence, conversions, selected);
     if (contract !== undefined) {
       byDeclaration.set(declaration, contract);
@@ -71,51 +65,21 @@ export function analyzeCsharpCallableContracts(
     }
   }
   const closedInputs = new Map<Node, CsharpClosedCallableInput>();
-  const invocationInputs = new Map<Node, TargetTypeRef>();
   for (const [declaration, contract] of byDeclaration) {
     const nativeType = csharpCallableValueType(contract);
     if (nativeType === undefined) continue;
     if (contract.bodyInputs !== undefined || policy.ast.is.IsFunctionExpression(declaration) && policy.ast.name(declaration) !== undefined &&
       contract.parameters.some(parameter => declarations.runtimeDefault.get(parameter)?.acceptsOmission === true)) {
       closedInputs.set(declaration, Object.freeze({ type: nativeType, source: contract }));
-      invocationInputs.set(declaration, nativeType);
-      publishClosedAliases(declaration);
-      continue;
     }
-    const context = closedContexts.get(declaration);
-    if (context === undefined) continue;
-    if (context.invocationType !== undefined && csharpClosedInvocationMatches(nativeType, context.invocationType)) {
-      closedInputs.set(declaration, Object.freeze({ type: context.invocationType,
-        ...(targetTypeRefEquals(nativeType, context.invocationType) ? { source: contract } : {}),
-      }));
-      invocationInputs.set(declaration, context.invocationType);
-    } else if (context.inputTypes.some(type => type !== undefined)) closedInputs.set(declaration, Object.freeze({ type: nativeType }));
-  }
-  for (const [alias, origin] of closedAliases) {
-    const invocationType = invocationInputs.get(origin);
-    const source = closedInputs.get(origin)?.source;
-    if (invocationType !== undefined) closedInputs.set(alias, Object.freeze({ type: invocationType,
-      ...(source === undefined ? {} : { source }),
-    }));
   }
   return sealCsharpCallableContractIndex({ contracts, declarationContracts: nativeDeclarations, byDeclaration,
     byProjectConstructor, closedInputs });
-
-  function publishClosedAliases(declaration: Node): void {
-    for (const alias of source.navigation.expressionValueFlow(declaration).aliasDeclarations) {
-      if (source.navigation.declarationUseSummary(alias).bindingWritten) continue;
-      const subject = policy.sourceStorage?.storageSubjectFor(alias);
-      const origins = subject?.kind === "resolved" ? policy.sourceStorage?.closedOriginsFor(subject.subject) : undefined;
-      if (origins?.kind === "complete" && origins.origins.length > 0 && origins.origins.every(origin =>
-        origin.subject.node === declaration && origin.subject.projection.length === 0)) closedAliases.set(alias, declaration);
-    }
-  }
 
   function visit(node: Node, sourceFile: SourceFile): void {
     if (evidence.compileTimeMetadata.get(node)) return;
     const accessor = policy.ast.is.IsGetAccessorDeclaration(node) || policy.ast.is.IsSetAccessorDeclaration(node);
     if (isCsharpSourceCallableArtifactDeclaration(policy.ast, node) || accessor) {
-      const context = accessor ? undefined : selectCsharpClosedCallableContext(source, policy, operations, node);
       const selected = selectCsharpSourceCallableAbi(
         policy,
         evidence,
@@ -124,19 +88,12 @@ export function analyzeCsharpCallableContracts(
         node,
         sourceFile,
         projections,
-        context?.inputTypes,
       );
       const contract = selected === undefined ? undefined : closeCsharpContextualRestInputs(policy, evidence, conversions, selected);
       if (contract !== undefined) {
         byDeclaration.set(node, contract);
         contracts.push(contract);
         declarationContracts.push(contract);
-        if (context !== undefined) {
-          closedContexts.set(node, context);
-          if (context.invocationType !== undefined) {
-            publishClosedAliases(node);
-          }
-        }
       }
     } else if ((policy.ast.is.IsFunctionDeclaration(node) || policy.ast.is.IsMethodDeclaration(node) ||
         policy.ast.is.IsConstructorDeclaration(node)) && source.navigation.isProjectDeclaration(node)) {
@@ -164,7 +121,7 @@ export function csharpCallableContractIndexesEqual(
     const other = right.closedInputs[index];
     return other !== undefined && entry.declaration === other.declaration &&
       targetTypeRefEquals(entry.input.type, other.input.type) &&
-      entry.input.source?.sourceDeclaration === other.input.source?.sourceDeclaration;
+      entry.input.source.sourceDeclaration === other.input.source.sourceDeclaration;
   }) && left.contracts.length === right.contracts.length &&
     left.contracts.every((candidate, index) => {
       const other = right.contracts[index];
@@ -298,5 +255,4 @@ function stringArraysEqual(
     left.every((value, index) => value === right[index]);
 }
 
-import { csharpClosedInvocationMatches } from "../../policy/types/callables/value-type.js";
 import { sealCsharpCallableContractIndex } from "../program/records/callables/callable-values.js";

@@ -71,8 +71,13 @@ export type CsharpNativeCompletion =
   | { readonly kind: "void" }
   | { readonly kind: "never" };
 
+export type CsharpNativeCallableAllocation =
+  | { readonly kind: "cached"; readonly staticBody: true }
+  | { readonly kind: "quotation"; readonly staticBody: false }
+  | { readonly kind: "inline" | "direct" | "fresh"; readonly staticBody: boolean };
+
 export type CsharpNativeCallableCreation =
-  | { readonly kind: "selected"; readonly carrier: TargetTypeRef }
+  | { readonly kind: "selected"; readonly carrier: TargetTypeRef; readonly allocation: CsharpNativeCallableAllocation }
   | { readonly kind: "discarded" }
   | { readonly kind: "pending" };
 

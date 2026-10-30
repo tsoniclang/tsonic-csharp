@@ -37,15 +37,7 @@ export function analyzeCsharpExpectedTypes(
   const propagation = createCsharpExpectedTypePropagation(input, collection, classifyExpectedBinary);
   for (const sourceFile of policy.sourceFiles) visit(sourceFile, sourceFile);
   recordInitializers();
-  let changed = true;
-  while (changed) {
-    drainPending();
-    changed = returnTargets.refreshCallableTargets();
-    if (changed) {
-      for (const sourceFile of policy.sourceFiles) visit(sourceFile, sourceFile);
-      recordInitializers();
-    }
-  }
+  drainPending();
   returnTargets.recordReturnDemands();
   drainPending();
   const projection = collection.seal();
@@ -62,7 +54,6 @@ export function analyzeCsharpExpectedTypes(
     exactIntegerConversion: Object.freeze({ get: projection.exactIntegerConversion }),
     storageExpectedType: Object.freeze({ get: projection.storageExpectedType }),
     quotationBinding: Object.freeze({ get: projection.quotationBinding }),
-    callableTarget: Object.freeze({ get: returns.callableTarget }),
     arrayLiteralCarrier: Object.freeze({ get: constructions.arrayLiteralCarrier }),
     expectedBinary: Object.freeze({ get: (expression: Node, targetType: TargetTypeRef) =>
       expectedBinaries.get(expression)?.get(targetTypeRefKey(targetType)) }),
@@ -78,7 +69,6 @@ export function analyzeCsharpExpectedTypes(
 
   function visit(node: Node, sourceFile: SourceFile): void {
     if (evidence.compileTimeMetadata.get(node) || operations.nativeUnreachable.get(node)) return;
-    returnTargets.recordTypeParameter(node);
     returnTargets.recordAccessorReturnContext(node);
     if (policy.ast.is.IsVariableDeclaration(node) || policy.ast.is.IsParameterDeclaration(node) ||
       policy.ast.is.IsPropertyDeclaration(node) || policy.ast.is.IsBindingElement(node) || policy.ast.is.IsEnumMember(node)) initializers.add(node);

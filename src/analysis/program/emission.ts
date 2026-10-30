@@ -236,8 +236,8 @@ export function finalizeCsharpNativeEmission(
     dispatch: callableAdapters.callableDispatch, writes: analysis.declarations.methodWrite,
     factories: classFactories.classFactory, helperAccess: captureStorage.helperAccess,
     requiredBindingRoots: nativeDemand.requiredBindingRoots, artifactClosure: objectShapeClosure.value,
-    nativeValueCarriers, storage: analysis.storage, moduleInitialization: moduleInitialization.index,
-    callables: analysis.callables, callableCreations, classPropertyStorage: admittedOperations.classPropertyStorage,
+    nativeValueCarriers, storage: analysis.storage,
+    callables: analysis.callables, classPropertyStorage: admittedOperations.classPropertyStorage,
     captureFrameShape: captureStorage.captureFrameShape, capturedBinding: captureStorage.capturedBinding,
     providers: analysis.policy.providers,
   });
@@ -392,8 +392,7 @@ export function finalizeCsharpNativeEmission(
   if (binaryEmission.issues.length !== 0) return rejectedTargetStage(binaryEmission.issues);
   const sourceFileEmission = analyzeCsharpSourceFileEmission({ source, identities: sourceOutputIdentities.records,
     factories: classFactories, evidence: analysis.sourceEvidence, operations: admittedOperations,
-    moduleInitialization: moduleInitialization.index, expectedTypes: analysis.expectedTypes,
-    declarations: callableDeclarations.records, names, storage: analysis.storage });
+  });
   if (sourceFileEmission.issues.length !== 0) return rejectedTargetStage(sourceFileEmission.issues);
   const binaryExecutionDriver = composeCsharpBinaryExecutionDriver(prerequisiteBinaryExecutionDriver,
     [...promiseResults.results.values()].some(result => result.discard !== undefined) ? csharpJsEventLoopBinaryExecutionDriver : undefined);
@@ -528,7 +527,8 @@ export function finalizeCsharpNativeEmission(
   };
   const constructors = analyzeCsharpConstructorEmission({
     ast: source.ast, nodes: sourceStorage.nodes, declarations: analysis.declarations, storage: analysis.storage,
-    captured: declaration => captureStorage.capturedBinding.get(declaration) !== undefined,
+    captured: declaration => captureStorage.capturedPlace.get(declaration) !== undefined ||
+      captureStorage.capturedBinding.get(declaration) !== undefined,
     admitted: admittedControlNode,
     arguments: analyzeCsharpConstructorArguments(source.ast, sourceStorage.nodes, recordInput, admittedControlNode),
   });

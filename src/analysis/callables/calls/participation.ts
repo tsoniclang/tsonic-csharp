@@ -1,10 +1,11 @@
 import { createCsharpNativeParticipationProducer } from "../../program/records/native/native-participation.js";
 import type { AstReader, Node } from "@tsonic/tsts";
 import { sourceEnclosingCallable, sourceLexicalFunctionIsUnused, sourceNodesOutsideErasedSubtrees } from "@tsonic/target-api/source";
-import { rejectedTargetStage, resolvedTargetStage, type TargetStageResult } from "@tsonic/target-api/artifacts";
+import { failTargetAnalysisInvariant, rejectedTargetStage, resolvedTargetStage, type TargetStageResult } from "@tsonic/target-api/artifacts";
 import type { SourceStorageQueries } from "@tsonic/target-api/analysis";
 import type { SourceProgramNavigation } from "@tsonic/target-api/source";
 import type { CsharpCaptureStorage } from "../../../target-model/records/callables/capture-storage.js";
+import type { CsharpCallableCreationIndex } from "../../../target-model/records/callables/callable-values.js";
 import type { CsharpNativeParticipation, CsharpNativeParticipationInput } from "../../../target-model/records/native/native-demand.js";
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target-model/types/object-shape-members.js";
@@ -18,7 +19,7 @@ export interface CsharpNativeParticipationAnalysisInput {
   readonly navigation: Pick<SourceProgramNavigation, "declarationUseSummary" | "declarationSymbol" |
     "sourceReferenceFor" | "callableImplementation" | "referencesWithin">;
   readonly captureClosure: CsharpCaptureStorage["captureClosure"];
-  readonly lambdaCreation: CsharpCaptureStorage["lambdaCreation"];
+  readonly callableCreation: CsharpCallableCreationIndex["callableCreation"];
   readonly objectShapes: Pick<CsharpObjectShapeClassifications, "resolveNode">;
   readonly compileTimeMetadata: CsharpSourceEvidenceIndex["compileTimeMetadata"];
   readonly requiredRecords: CsharpRequiredRecord[];
@@ -47,7 +48,10 @@ export function analyzeCsharpNativeParticipation(input: CsharpNativeParticipatio
   function select(node: Node): CsharpNativeParticipation | undefined {
     if (ast.is.IsModuleDeclaration(node)) return "erased";
     if (ast.is.IsArrowFunction(node) || ast.is.IsFunctionExpression(node)) {
-      return input.lambdaCreation.get(node).kind === "discarded" ? "erased" : "body";
+      const creation = input.callableCreation.get(node);
+      if (creation === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+        "Lambda creation requires its exact admitted native allocation decision.", node);
+      return creation.kind === "discarded" ? "erased" : "body";
     }
     if (ast.is.IsFunctionDeclaration(node)) {
       if (ast.body(node) === undefined) return "erased";

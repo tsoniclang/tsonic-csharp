@@ -3,7 +3,10 @@ import test from "node:test";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { analyzeCsharpCaptureStorage } from "../../../dist/analysis/callables/storage/capture-storage.js";
+import { analyzeCsharpCallableCreations } from "../../../dist/analysis/callables/values/creation.js";
+import { analyzeCsharpNativeParticipation } from "../../../dist/analysis/callables/calls/participation.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
+import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 
 const scalar = Object.freeze({ kind: "source-primitive", name: "float64" });
 const callable = csharpDelegateTargetType("System.Func", [scalar], scalar);
@@ -22,7 +25,9 @@ function fixture(body, quotation = false) {
   const lambdas = [];
   const calls = [];
   const declarations = new Map();
+  const nodes = [];
   const visit = node => {
+    nodes.push(node);
     if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) lambdas.push(node);
     if (source.ast.is.IsCallExpression(node)) calls.push(node);
     if (source.ast.is.IsFunctionDeclaration(node)) declarations.set(source.ast.text(source.ast.name(node)), node);
@@ -44,21 +49,42 @@ function fixture(body, quotation = false) {
   }));
   const evidence = { compileTimeMetadata: { get: () => false },
     typeParameterConstraints: { get: () => [] },
+    contextualType: { get: node => {
+      const selectedType = source.semantics.forNode(node).types.expressionType(node);
+      return selectedType === undefined ? undefined : { selectedType, targetType: target };
+    } },
     nodeTargetType: { get: node => source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node) ? callable : scalar },
     storageTargetType: { get: () => undefined } };
   const storage = { nativeBacking: { get: () => undefined },
     nativeArray: { get: () => undefined },
     storageType: { get: () => undefined },
     typedLocationIdentity: { get: () => false } };
-  const names = { resolve: () => ({ kind: "resolved", name: "selected" }), temporaryName: name => name };
   const target = quotation ? { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Fixture::Quotation", csharpExpressionTreeDelegateType: callable } : undefined;
   const selected = analyzeCsharpCaptureStorage(source, { knownShapes: () => [] }, storage, evidence,
-    [], names, { runtimeDefault: Object.freeze({ get: () => undefined }) }, { selectedCall: Object.freeze({ get: node => operations.get(node) }) },
-    { callableTarget: Object.freeze({ get: () => target }), expectedType: Object.freeze({ get: () => [] }) },
-    { expressionConversion: Object.freeze({ get: () => undefined }) });
+    []);
   assert.equal(selected.issues.length === 0, true, "closed capture storage");
   assert.equal(lambdas.length, 1, "one exact authored callable");
-  return { selected, lambda: lambdas[0], operations, source };
+  const lambda = lambdas[0];
+  const parameters = source.ast.parameters(lambda);
+  const contract = Object.freeze({ kind: "source", sourceDeclaration: lambda,
+    nativeSignature: Object.freeze({ methodTypeParameterIdentities: [], methodAllowsRefLikeTypeArguments: [] }),
+    parameters, nativeParameters: parameters.map(parameter => ({ sourceParameter: parameter,
+      targetParameter: { name: source.ast.text(source.ast.name(parameter)), type: scalar, passingMode: "by-value" } })),
+    returnType: scalar });
+  const creations = analyzeCsharpCallableCreations({ source, nodes, captures: selected,
+    contracts: { get: identity => identity.declaration === lambda ? contract : undefined, closedInputType: () => undefined },
+    operations: { selectedCall: { get: node => operations.get(node) }, selectedConstruction: { get: () => undefined } },
+    storage: { lambdaParameterType: { get: parameter => parameters.includes(parameter) ? scalar : undefined } },
+    evidence, conversions: { conversion: { get: (input, output) => targetTypeRefEquals(input, output) ? { kind: "identity" } : undefined } },
+    literals: { literalValue: { get: () => undefined } } });
+  return { selected: creations, captures: selected, lambda, operations, source, nodes, evidence };
+}
+
+function allocationFor(input) {
+  const creation = input.selected.callableCreation.get(input.lambda);
+  assert.equal(creation?.kind, "selected", "the actual original callable has one selected native creation");
+  assert.equal(creation.carrier !== undefined, true, "form and carrier belong to the same completed fact");
+  return creation.allocation;
 }
 
 for (const [name, body] of [
@@ -70,8 +96,8 @@ for (const [name, body] of [
 ]) {
   test(`only sealed invocation arguments cache capture-free ${name}`, () => {
     const input = fixture(body);
-    const selected = input.selected.lambdaCreation.get(input.lambda);
-    assert.equal(selected.kind, "cached");
+    const selected = allocationFor(input);
+    assert.equal(selected.kind, name === "immutable aliases" ? "fresh" : "cached", "approved C-1394: no all-use alias cache");
     assert.equal(selected.staticBody, true);
     assert.equal(Object.isFrozen(selected), true);
   });
@@ -91,7 +117,7 @@ for (const [name, body, staticBody = true] of [
 ]) {
   test(`${name} preserves fresh native creation despite stateless bodies`, () => {
     const input = fixture(body);
-    const selected = input.selected.lambdaCreation.get(input.lambda);
+    const selected = allocationFor(input);
     assert.equal(selected.kind, "fresh");
     assert.equal(selected.staticBody, staticBody, "observed self values require their exact nonstatic identity binding");
   });
@@ -99,26 +125,29 @@ for (const [name, body, staticBody = true] of [
 
 test("invocation-only captured callbacks use their native activation without static caches", () => {
   const input = fixture("return invoke((entry: number) => entry + value);");
-  assert.equal(input.selected.lambdaCreation.get(input.lambda).kind, "inline");
-  assert.equal(input.selected.lambdaCreation.get(input.lambda).staticBody, false);
+  assert.equal(allocationFor(input).kind, "inline");
+  assert.equal(allocationFor(input).staticBody, false);
 });
 
-// Every function value of the analysed program has a sealed allocation decision; a node outside it has none, and reading
-// one is an analysis invariant rather than a fabricated fresh allocation.
 test("missing callable creation evidence is an invariant, not a default allocation", () => {
   const input = fixture("return invoke((entry: number) => entry + 1);");
-  assert.throws(() => input.selected.lambdaCreation.get({}), error => error instanceof Error &&
+  assert.equal(input.selected.callableCreation.get({}) === undefined, true, "a foreign node has no fabricated native creation");
+  assert.throws(() => analyzeCsharpNativeParticipation({ ast: input.source.ast,
+    storage: { nodes: input.nodes, failureReason: () => undefined }, navigation: input.source.navigation,
+    captureClosure: input.captures.captureClosure, callableCreation: { get: () => undefined },
+    objectShapes: { resolveNode: () => undefined }, compileTimeMetadata: input.evidence.compileTimeMetadata,
+    requiredRecords: [] }), error => error instanceof Error &&
     error.message === "Lambda creation requires its exact admitted native allocation decision.");
-  assert.equal(Object.isFrozen(input.selected.lambdaCreation.get(input.lambda)), true);
+  assert.equal(Object.isFrozen(input.selected.callableCreation.get(input.lambda)), true);
 });
 
 for (const body of ["return invoke((entry: number) => entry + 1);", "return invoke((entry: number) => entry + value);"]) {
   test(`exact quotation evidence preserves syntax independently of delegate flow (${body})`, () => {
     const input = fixture(body, true);
-    const selected = input.selected.lambdaCreation.get(input.lambda);
+    const selected = allocationFor(input);
     assert.equal(selected.kind, "quotation");
     assert.equal(selected.staticBody, false);
-    assert.equal(input.selected.captureClosure.get(input.lambda) === undefined, true, "quotation has no native capture closure");
+    assert.equal(input.captures.captureClosure.get(input.lambda) === undefined, true, "quotation has no native capture closure");
     assert.equal(Object.isFrozen(selected), true);
   });
 }

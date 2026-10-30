@@ -18,6 +18,7 @@ export interface CsharpConversionAnalysis {
     readonly valueReads: CsharpValueReadClassifications;
   }): CsharpPreparedConversionClassifications;
   close(nativeDemand: CsharpNativeDemandAnalysis, requiredRecords: CsharpRequiredRecord[],
-    captures: import("../../target-model/records/callables/capture-storage.js").CsharpCaptureStorage): void;
+    captures: import("../../target-model/records/callables/capture-storage.js").CsharpCaptureStorage,
+    creations: import("../../target-model/records/callables/callable-values.js").CsharpCallableCreationIndex): void;
   seal(): CsharpConversionClassifications;
 }

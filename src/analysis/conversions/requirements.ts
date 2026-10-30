@@ -66,7 +66,7 @@ export function collectCsharpConversionRequirements(input: CsharpConversionRequi
   ): void {
     if (evidence.compileTimeMetadata.get(node)) return;
     if (operations.nativeUnreachable.get(node)) return;
-    const sourceTypes = exactSourceTypes(node, valueReads, expectedTypes.callableTarget.get(node));
+    const sourceTypes = exactSourceTypes(node, valueReads);
     const expectedTargets = expectedTypes.expectedType.get(node);
     const literalTargets = policy.ast.is.IsArrayLiteralExpression(node) ? expectedTargets.flatMap(target => {
       const carrier = expectedTypes.arrayLiteralCarrier.get(node, target);
@@ -104,11 +104,9 @@ export function collectCsharpConversionRequirements(input: CsharpConversionRequi
   function exactSourceTypes(
     node: Node,
     valueReads: CsharpValueReadClassifications,
-    callableTarget?: TargetTypeRef,
   ): readonly TargetTypeRef[] {
     const read = valueReads.valueRead.get(node);
     const candidates = [
-      callableTarget,
       read?.selectedOperation,
       read?.narrowedRead,
       read?.storage,

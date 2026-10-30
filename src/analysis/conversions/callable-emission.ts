@@ -8,6 +8,7 @@ import { getCsharpNullableElementTargetType } from "../../target-model/types/car
 import { isCsharpVoidTargetType } from "../../target-model/types/identity.js";
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { CsharpCaptureStorage } from "../../target-model/records/callables/capture-storage.js";
+import type { CsharpCallableCreationIndex } from "../../target-model/records/callables/callable-values.js";
 import type { CsharpConversionIssue } from "../../target-model/records/operations/conversions.js";
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 
@@ -38,7 +39,8 @@ export function admitCsharpDelegateEmission(producer: CsharpDelegateContractProd
     admitCsharpDelegateEmission(producer, sourceSignature.returnType, targetSignature.returnType, selected.returnConversion);
 }
 
-export function admitCsharpDelegateOperand(ast: AstReader, captures: CsharpCaptureStorage, producer: CsharpDelegateContractProducer,
+export function admitCsharpDelegateOperand(ast: AstReader, captures: CsharpCaptureStorage, creations: CsharpCallableCreationIndex,
+  producer: CsharpDelegateContractProducer,
   node: Node, source: TargetTypeRef, target: TargetTypeRef, selection: CsharpConversionSelection): readonly CsharpConversionIssue[] {
   if (selection.kind !== "delegate-adapter") return [];
   const contract = producer.records.delegateContract.get(source, target)
@@ -48,8 +50,13 @@ export function admitCsharpDelegateOperand(ast: AstReader, captures: CsharpCaptu
     return refuse("C# delegate adaptation requires exact renderable source and target signatures.");
   if (contract.targetSignature.parameters.some(carrier => !selectCsharpTypeEmission({ carrier })))
     return refuse("C# delegate adaptation requires renderable exact target parameter types.");
-  const lambda = (ast.is.IsArrowFunction(node) || ast.is.IsFunctionExpression(node)) && captures.captureClosure.get(node) === undefined &&
-    captures.lambdaCreation.get(node).kind === "inline";
+  let lambda = false;
+  if ((ast.is.IsArrowFunction(node) || ast.is.IsFunctionExpression(node)) && captures.captureClosure.get(node) === undefined) {
+    const creation = creations.callableCreation.get(node);
+    if (creation?.kind !== "selected") return failTargetAnalysisInvariant("tsonic-csharp",
+      "An admitted delegate operand requires its exact native callable creation.", node);
+    lambda = creation.allocation.kind === "inline";
+  }
   if (lambda && selection.strategy === "native-binding" && (contract.sourceSignature.returnPassing !== undefined ||
     contract.sourceSignature.parameterPassingModes.some(mode => mode !== "by-value")))
     return refuse("A by-reference native delegate binding requires an exact native method group or delegate value.");
