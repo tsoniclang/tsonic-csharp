@@ -82,7 +82,39 @@ for (const surface of ["native", "js"]) {
     assert.match([...compiled.artifacts.values()].join("\n"), /public static int preserve\(int value\)/u,
       "a checked native type qualifier is not a runtime any value and retains its exact native width");
   });
+
+  test(`source-any admission preserves declared generic and Promise components on ${surface}`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      export function identity<Value>(value: Value): Value { return value; }
+      export async function ready(value: Promise<string>): Promise<string> { return await value; }
+      export function run(): boolean { return identity("native") === "native"; }
+    ` });
+    assertCsharpCompilationSucceeded(compiled);
+    executeCsharpConstruction(compiled, `source-any-generic-promise-${surface}`);
+  });
 }
+
+test("source-any admission checks intrinsic flags without promoting type parameters or unknown through constraints", () => {
+  const checked = checkCsharpSource({ sourceText: `
+    interface Contract<Value> { value: Value; }
+    interface Derived<Value> extends Contract<Value> {}
+    class Native implements Derived<string> { value: string = "native"; }
+    export function identity<Value>(value: Value): Value { return value; }
+    export function preserve(value: unknown): unknown { return value; }
+  ` });
+  assertCsharpCheckingSucceeded(checked);
+  const source = createTargetSourceProgram(checked.source);
+  const selected = { ...source, semantics: { ...source.semantics, forFile(file) {
+    const queries = source.semantics.forFile(file);
+    return { ...queries, types: { ...queries.types,
+      isAny() { throw new Error("admission must check the exact intrinsic flag, not a broadened predicate"); },
+      apparentType() { throw new Error("an apparent type cannot turn a checked type parameter into any"); },
+      widenedType() { throw new Error("widening is not source-any admission evidence"); },
+    } };
+  } } };
+  assert.equal(analyzeCsharpSourceAnyAdmission(selected).length, 0,
+    "declared type parameters and unknown retain their own exact checked types");
+});
 
 test("canonical source-any admission refuses a current untyped library result without tracing its users", () => {
   assertAnyRefusal(compileCsharpSource({ surface: "js", sourceText: `
