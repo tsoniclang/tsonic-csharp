@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { join } from "node:path";
-import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { assertCsharpCheckingSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { testRepositoryRoots } from "../../../../tsonic/test/scripts/workspace-layout.mjs";
 import { nativeNumericArraysSource } from "../../../../tsonic/test/fixtures/native-numeric-arrays.mjs";
 import { createTsonicPlugin as nodejsCapability } from "../../../../csharp-nodejs/dist/index.js";
@@ -12,8 +12,22 @@ import { nativeAbsenceSource, nativeAbsenceJsSource, nativeAbsenceArraySource } 
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { csharpObjectTargetType, getCsharpNullableElementTargetType, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 
-test("native Node result carriers reach locals and comparisons unchanged", { timeout: 300_000 }, () => {
+test("an earlier native result record refuses later CpuUsage parameter context without retyping", () => {
   const compiled = compileCsharpSource({ surface: "js", capabilities: [nodejsCapability()], sourceText: nativeNodeResultsSource });
+  assertCsharpCheckingSucceeded(compiled);
+  const errors = compiled.targetDiagnostics.filter(issue => issue.category === "error");
+  assert.equal(errors.length, 1, errors.map(issue => `${issue.code}: ${issue.message}`).join(" | "));
+  assert.equal(errors[0].code, "CSHARP_TARGET_CALL_NOT_CLOSED");
+  assert.match(errors[0].message, /Source argument 0.*cannot satisfy exact target parameter 'previous'.*CpuUsage/u,
+    "the existing local argument refusal owns the original late native-context mismatch");
+  assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0,
+    true, "the earlier native record is not retyped, copied or published as CpuUsage");
+});
+
+test("native Node result carriers reach locals and comparisons unchanged", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", capabilities: [nodejsCapability()],
+    sourceText: 'import type { CpuUsage } from "node:process";\n' +
+      nativeNodeResultsSource.replace("const previous =", "const previous: CpuUsage =") });
   executeCsharpConstruction(compiled, "native-node-results", false, false,
     [join(testRepositoryRoots.csharpNodejs, "csharp/src/Tsonic.CSharp.Node/Tsonic.CSharp.Node.csproj")]);
   const text = [...compiled.artifacts.values()].join("\n");
