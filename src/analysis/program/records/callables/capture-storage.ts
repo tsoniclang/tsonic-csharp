@@ -23,6 +23,7 @@ export function sealCsharpCaptureStorage(input: CsharpCaptureStoragePublication)
     frames: input.frames,
     lexicalCaptures: input.lexicalCaptures,
     capturedPlace: Object.freeze({ get: (declaration: Node) => places.get(declaration) }),
+    constructorCapture: Object.freeze({ get: (constructor: Node) => input.constructorCaptures.get(constructor) }),
     captureFrame: Object.freeze({ get: (scope: Node) => input.byScope.get(scope) }),
     capturedBinding: Object.freeze({ get: (declaration: Node) => input.byBinding.get(declaration) }),
     physicalStorageType: Object.freeze({ get(declaration: Node, logicalType: TargetTypeRef): TargetTypeRef {

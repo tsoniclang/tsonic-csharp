@@ -8,7 +8,7 @@ export function csharpConstructorCapturedPlaces(
   ast: AstReader, constructor: Node, captures: Pick<CsharpCaptureStorage, "lexicalCaptures">,
 ): readonly CsharpOriginalCapturedPlace[] {
   const body = ast.body(constructor);
-  if (body === undefined) return Object.freeze([]);
+  if (body === undefined || csharpConstructorBaseCall(ast, constructor) === undefined) return Object.freeze([]);
   const parameters = ast.parameters(constructor);
   const selected = new Map<Node, { readonly parameter: Node; readonly place: CsharpOriginalCapturedPlace }>();
   for (const closure of captures.lexicalCaptures) for (const place of closure.values) {

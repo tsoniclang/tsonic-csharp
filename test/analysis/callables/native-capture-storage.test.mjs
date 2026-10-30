@@ -133,7 +133,7 @@ for (const destructured of [false, true]) {
       }`);
     const result = input.evaluate();
     assert.equal(result.issues.length, 0);
-    assert.equal(result.frames.length, 0);
+    assert.equal(result.frames.length, 1, "only the required class construction entry protocol");
     const declaration = input.binding("value");
     let parameterDeclaration = declaration;
     while (input.source.ast.is.IsBindingElement(parameterDeclaration)) {
@@ -144,6 +144,14 @@ for (const destructured of [false, true]) {
     assert.equal(selected.length, 1);
     assert.equal(selected[0].declaration === declaration, true);
     assert.equal(selected[0].scope === input.source.ast.body(constructor), true);
+    const protocol = result.constructorCapture.get(constructor);
+    assert.equal(protocol !== undefined && protocol.declaration === constructor, true);
+    assert.equal(protocol.owner === input.source.ast.parent(constructor), true);
+    assert.equal(protocol.scope === selected[0].scope, true);
+    assert.equal(protocol.places[0].declaration === declaration, true);
+    assert.equal(protocol.frame === result.frames[0], true);
+    assert.equal(protocol.frame.protocols.some(selected => selected.kind === "class" && selected.declaration === protocol.owner), true);
+    assert.equal(result.capturedBinding.get(declaration)?.frame === protocol.frame, true);
     assert.equal(result.lexicalCaptures.filter(capture => capture.values.some(value => value.declaration === declaration)).length, 2);
   });
 }
