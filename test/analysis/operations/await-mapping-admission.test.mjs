@@ -11,8 +11,8 @@ registerHooks({
     const source = String(loaded.source);
     assert.equal(source.includes(marker), true, "the await completion selector is the injection point");
     return { ...loaded, shortCircuit: true, source: source.replace(marker, "function selectedCsharpAwaitCompletion(") +
-      "\nexport function selectCsharpAwaitCompletion(carrier, definitions) {\n" +
-      "  const completion = selectedCsharpAwaitCompletion(carrier, definitions);\n" +
+      "\nexport function selectCsharpAwaitCompletion(carrier, definitions, resultUse) {\n" +
+      "  const completion = selectedCsharpAwaitCompletion(carrier, definitions, resultUse);\n" +
       "  return completion === undefined || globalThis.staleAwaitResultMapping === undefined\n" +
       "    ? completion : globalThis.staleAwaitResultMapping(completion);\n}\n" };
   },
