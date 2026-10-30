@@ -636,6 +636,29 @@ test("ambiguous optional declaration owners never choose a first matching proof"
     true, "different checked owners associated with the same source are ambiguous, not a success fallback");
 });
 
+for (const surface of ["native", "js"]) {
+  test(`distinct checked literal arms retain their own evidence on one native layout (${surface})`, () => {
+    executeCsharpConstruction(compileCsharpSource({ surface, sourceText: `
+      type Found = { kind: "found"; value: number };
+      type Missing = { kind: "missing"; value: number };
+      type Lookup = Found | Missing;
+      function score(result: Lookup): number {
+        if (result.kind === "found") {
+          const found: Found = result;
+          return found.value + 1;
+        }
+        const missing: Missing = result;
+        return missing.value - 1;
+      }
+      export function run(): boolean {
+        const found: Lookup = { kind: "found", value: 10 };
+        const missing: Lookup = { kind: "missing", value: 10 };
+        return score(found) === 11 && score(missing) === 9 && found !== missing;
+      }
+    ` }), `distinct-literal-arm-owners-${surface}`);
+  });
+}
+
 test("live and sealed literal inputs retain exact checked owners through immutable shape wrappers", () => {
   const value = memberProvenanceFixture();
   const owner = value.owner("omitted");

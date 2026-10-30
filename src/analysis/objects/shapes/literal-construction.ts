@@ -114,11 +114,16 @@ export function createCsharpLiteralShapeResolver(
       : sourceType === undefined ? undefined : resolveType(sourceType, sourceFile, objectLiteral);
     const ownInput = sourceType !== undefined && expectedShape.sourceType === sourceType;
     const context = ownInput ? undefined : selectCsharpLiteralDeclarationContext(objectLiteral, queries, host);
-    const declaredType = expectedShape.sourceType ?? context?.component.selectedType;
-    const declaredShape = declaredType === undefined || declaredType === expectedShape.sourceType ? undefined
+    const contextualType = context?.component.selectedType;
+    const contextualMembers = contextualType === undefined ? undefined : expectedShape.members.map(member => ({ ...member,
+      sourceMemberEvidence: member.sourceMemberEvidence?.filter(evidence => evidence.sourceType === contextualType),
+    }));
+    const retainedContext = contextualMembers?.every(member => (member.sourceMemberEvidence?.length ?? 0) > 0) === true;
+    const declaredType = retainedContext ? contextualType : expectedShape.sourceType ?? contextualType;
+    const declaredShape = retainedContext || declaredType === undefined || declaredType === expectedShape.sourceType ? undefined
       : resolveType(declaredType, sourceFile, context?.component.authoredTypeNode,
           [expectedShape.targetType, ...(expectedShape.implements ?? [])], context);
-    const declaredMembers = declaredType === undefined ? undefined : declaredType === expectedShape.sourceType
+    const declaredMembers = retainedContext ? contextualMembers : declaredType === undefined ? undefined : declaredType === expectedShape.sourceType
       ? expectedShape.members.map(member => ({ ...member,
           sourceMemberEvidence: member.sourceMemberEvidence?.filter(evidence => evidence.sourceType === declaredType),
         }))
