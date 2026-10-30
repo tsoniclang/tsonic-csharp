@@ -36,7 +36,8 @@ export function selectCsharpInferredNumericArrayElement(
     return Object.freeze({ kind: "resolved", carrier: originalFloating });
   }
   if (contributions.every(contribution => contribution.literal?.numeric?.kind === "authored")) {
-    if (checkedElement === undefined || !numeric(checkedElement) || contributions.some(contribution => contribution.literalDefault === undefined ||
+    if (checkedElement === undefined || !numeric(checkedElement) || contributions.some(contribution =>
+      !numeric(contribution.carrier) || contribution.literalDefault === undefined ||
       !targetTypeRefEquals(contribution.literalDefault, checkedElement))) return unavailable();
     if (contributions.every(contribution => csharpLiteralIsRepresentableAs(contribution.literal, checkedElement))) {
       return Object.freeze({ kind: "resolved", carrier: checkedElement });

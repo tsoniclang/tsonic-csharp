@@ -48,6 +48,8 @@ test("pure authored default selection requires matching checked and literal-base
     [[authored], undefined],
     [[authored], csharpStringTargetType()],
     [[authored], primitive("int64")],
+    [[Object.freeze({ ...authored, carrier: csharpStringTargetType() })], primitive("float64")],
+    [[Object.freeze({ ...authored, carrier: csharpBooleanTargetType() })], primitive("float64")],
     [[Object.freeze({ ...authored, literalDefault: undefined })], primitive("float64")],
     [[Object.freeze({ ...authored, literalDefault: csharpStringTargetType() })], primitive("float64")],
   ]) {

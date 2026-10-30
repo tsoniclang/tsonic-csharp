@@ -315,8 +315,7 @@ for (const surface of ["native", "js"]) {
         const initializer = declaration?.Initializer;
         if (initializer !== undefined && ast.is.IsArrayLiteralExpression(initializer)) {
           const name = ast.text(ast.name(node));
-          const expected = name === "localValues" || name === "values"
-            ? surface === "native" ? "int32" : "float64" : "float64";
+          const expected = "float64";
           const construction = program.records.nativeExpression.get(initializer)?.use;
           const stored = program.records.storageType.get(node);
           const read = program.records.valueRead.get(initializer)?.value;
@@ -324,7 +323,7 @@ for (const surface of ["native", "js"]) {
             getCsharpArrayLiteralElementTargetType(construction.carrier)?.name === expected &&
             getCsharpArrayLiteralElementTargetType(stored)?.name === expected &&
             getCsharpArrayLiteralElementTargetType(read)?.name === expected, true,
-          `${name}: inferred mutable storage and fields consume the original native construction without a copy or a checker-number substitution`);
+          `${name}: mutable storage and fields consume their own checked numeric construction without a copy or later-use retyping`);
           found.add(name);
         }
       }
