@@ -6,8 +6,7 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 import { testRepositoryRoots } from "../../../../tsonic/test/scripts/workspace-layout.mjs";
 import { createTsonicPlugin as nodejsCapability } from "../../../../csharp-nodejs/dist/index.js";
 
-test("native option reference fields retain one allocation, aliases and exact string payloads", { timeout: 300_000 }, () => {
-  const compiled = compileCsharpSource({ surface: "js", capabilities: [nodejsCapability()], sourceText: `
+const nativeOptionsSource = `
     import type { TlsOptions } from "node:tls";
     export function make(key: string, cert: string): TlsOptions {
       const options = { key, cert };
@@ -23,7 +22,19 @@ test("native option reference fields retain one allocation, aliases and exact st
       const value = make(key, cert);
       return value.key === key && value.cert === cert && value.ca === undefined;
     }
-  ` });
+  `;
+
+test("untyped native option aliases refuse later native context without publishing artifacts", () => {
+  const compiled = compileCsharpSource({ surface: "js", capabilities: [nodejsCapability()], sourceText: nativeOptionsSource });
+  const errors = compiled.targetDiagnostics.filter(issue => issue.category === "error");
+  assert.equal(errors.length > 0 && errors.every(issue => issue.code === "TSONIC_UNTYPED_OBJECT_LITERAL"), true,
+    `the original two-alias source requires its own native literal context: ${errors.slice(0, 4).map(issue => issue.code).join(", ")}`);
+  assert.equal(compiled.artifacts.size, 0, "untyped native option aliases publish no native artifacts");
+});
+
+test("native option reference fields retain one allocation, aliases and exact string payloads", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", capabilities: [nodejsCapability()],
+    sourceText: nativeOptionsSource.replace("const options =", "const options: TlsOptions =") });
   executeCsharpConstruction(compiled, "native-reference-construction", false, false,
     [join(testRepositoryRoots.csharpNodejs, "csharp/src/Tsonic.CSharp.Node/Tsonic.CSharp.Node.csproj")], `
 using System;
