@@ -178,7 +178,7 @@ export function analyzeCsharpStorage(
     }
     const parameters = sourceCallableValueParameters(policy.ast, node, policy.semanticsFor(node));
     if (parameters === undefined) return;
-    const callableTarget = contextual ? expectedTypes.callableTarget.get(node) : undefined;
+    const callableTarget = contextual ? evidence.contextualType.get(node)?.targetType : undefined;
     const selectedSignature = callableTarget === undefined
       ? undefined
       : getCsharpLambdaSignature(callableTarget);

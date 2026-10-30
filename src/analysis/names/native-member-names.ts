@@ -27,9 +27,7 @@ import type { CsharpSourceNameResolver } from "./plan.js";
 import type { CsharpObjectShapeDemandClosure } from "../../target-model/records/objects/object-shape-demand.js";
 import type { CsharpNativeValueCarriers } from "../../target-model/records/native/native-value-carriers.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage/storage.js";
-import type { CsharpModuleInitializationIndex } from "../../target-model/records/program/module-initialization.js";
 import type { CsharpCallableContractIndex } from "../../target-model/records/callables/callable-values.js";
-import type { CsharpCallableCreationIndex } from "../../target-model/records/callables/callable-values.js";
 import type { CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
 import { objectShapeArtifactKey } from "../../target-model/records/objects/object-shape-keys.js";
 import { objectShapeStorageMemberName, objectShapeBoundStorageMemberName,
@@ -55,9 +53,7 @@ export interface CsharpNativeMemberNameInput {
   readonly artifactClosure: Pick<CsharpObjectShapeDemandClosure, "artifacts" | "targetShapes">;
   readonly nativeValueCarriers: Pick<CsharpNativeValueCarriers, "nativeValueDeclaration">;
   readonly storage: Pick<CsharpStorageClassifications, "nativeField" | "nativeModuleField">;
-  readonly moduleInitialization: Pick<CsharpModuleInitializationIndex, "callableVisibility">;
   readonly callables: Pick<CsharpCallableContractIndex, "get">;
-  readonly callableCreations: Pick<CsharpCallableCreationIndex, "callableTarget">;
   readonly classPropertyStorage: CsharpTargetOperationClassifications["classPropertyStorage"];
   readonly captureFrameShape: CsharpCaptureStorage["captureFrameShape"];
   readonly capturedBinding: CsharpCaptureStorage["capturedBinding"];
@@ -153,12 +149,10 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
           }, root);
         }
       }
-      if (factory.retainsEnvironment) {
-        nativeBaseMembers ??= nativeMembers(inherited.nativeBase, "class", declaration);
-        if (nativeBaseMembers !== undefined) recordMember({ kind: "source", declaration, role: "storage" }, {
-          name: factory.environmentName, kind: "field", genericParameterIds: [], parameters: [],
-        }, [...inherited.members, ...nativeBaseMembers]);
-      }
+      nativeBaseMembers ??= nativeMembers(inherited.nativeBase, "class", declaration);
+      if (nativeBaseMembers !== undefined) recordMember({ kind: "source", declaration, role: "storage" }, {
+        name: factory.environmentName, kind: "field", genericParameterIds: [], parameters: [],
+      }, [...inherited.members, ...nativeBaseMembers]);
     }
   }
   moduleMembers();
@@ -296,18 +290,11 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
     for (const { node, name } of moduleBindings) {
       const selected = input.names.resolve(name);
       if (selected.kind !== "resolved") continue;
-      const declaration = AsVariableDeclaration(input.ast, node);
-      const direct = input.moduleInitialization.callableVisibility.get(node) !== undefined;
-      const carrier = declaration?.Initializer === undefined ? undefined : input.callableCreations.callableTarget.get(declaration.Initializer);
-      const signature = carrier === undefined ? undefined : getCsharpDelegateSignature(carrier);
-      if (direct && signature === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
-        "An admitted module method requires its selected physical callable signature before name sealing.", node);
       const ancestors = nativeMembers(undefined, "class", node);
       if (ancestors === undefined) continue;
       recordMember({ kind: "source", declaration: node, role: "member" }, {
-        name: nativeName(selected.name), kind: direct ? "method" : input.storage.nativeModuleField.get(node) ? "field" : "property",
-        genericParameterIds: [], parameters: signature?.parameters.map((type, index) =>
-          ({ type, passingMode: signature.parameterPassingModes[index]! })) ?? [],
+        name: nativeName(selected.name), kind: input.storage.nativeModuleField.get(node) ? "field" : "property",
+        genericParameterIds: [], parameters: [],
       }, ancestors);
     }
   }

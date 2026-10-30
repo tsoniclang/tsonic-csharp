@@ -373,7 +373,7 @@ function owners(sourceText, surface) {
   const final = { ast, exactLiteral: exact.exactLiteral, callableCreation: { get: () => undefined }, valueRead: records.valueRead,
     absentValue: { get: () => false }, operations: records };
   const initializer = name => ast.as.AsVariableDeclaration(nodes.find(node => ast.is.IsVariableDeclaration(node) && ast.text(ast.name(node)) === name)).Initializer;
-  return { ast, nodes, program, expected, final, initializer };
+  return { source, ast, nodes, program, expected, final, initializer };
 }
 
 for (const surface of ["native", "js"]) test(`${surface} real expected requests admit selected numeric carriers without integer-summary substitution`, () => {
@@ -456,8 +456,9 @@ function nativeCreations(value, overrides = {}) {
       parameters, nativeParameters, returnType: result.type,
     };
   };
-  return analyzeCsharpCallableCreations({ ast: value.ast, nodes: value.nodes,
-    captures: records, contracts: { get: identity => contract(identity.declaration), closedInputType: () => undefined }, expectedTypes: records,
+  return analyzeCsharpCallableCreations({ source: value.source, nodes: value.nodes,
+    captures: records, contracts: { get: identity => contract(identity.declaration), closedInputType: () => undefined },
+    operations: { selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined } },
     storage: records, evidence: records, conversions: records, ...overrides });
 }
 
@@ -489,13 +490,24 @@ test("frame callable creation retains the selected implementation carrier before
     for (let index = 0; index < 3; index++) { const read = () => index; return read; }
     return () => 0;
   }`, "native");
-  const expression = value.nodes.find(node => value.ast.is.IsArrowFunction(node) &&
-    value.program.records.captureClosure.get(node) !== undefined);
-  assert.equal(expression !== undefined, true, "the real capture owner publishes a shared-frame method");
-  const closure = value.program.records.captureClosure.get(expression);
-  const selected = nativeCreations(value).callableCreation.get(expression);
-  assert.equal(selected?.kind === "selected" && selected.carrier === closure.method.type, true,
-    "actual frame method identity is authoritative, not the consumer's delegate request");
+  const records = value.program.records;
+  const captures = records.lexicalCaptures.find(entry => value.ast.is.IsArrowFunction(entry.owner) && entry.values.length === 1);
+  assert.equal(captures !== undefined && value.nodes.includes(captures.owner), true,
+    "the original checked lambda publishes its native capture");
+  const expression = captures.owner;
+  const place = captures.values[0];
+  const declaration = value.ast.as.AsVariableDeclaration(place.declaration);
+  assert.equal(declaration !== undefined && value.ast.text(declaration.Name) === "index" &&
+    records.capturedPlace.get(place.declaration) === place && place.mutable &&
+    records.physicalStorageType.get(place.declaration, place.type) === place.type, true,
+    "the loop index retains the same original mutable place and exact physical type");
+  assert.equal(records.captureClosure.get(expression) === undefined, true,
+    "an ordinary native lambda does not manufacture a protocol frame");
+  const actual = nativeCreations(value);
+  const selected = actual.callableCreation.get(expression);
+  assert.equal(selected?.kind === "selected" && targetTypeRefEquals(selected.carrier, captures.type) &&
+    actual.callableTarget.get(expression) === selected.carrier, true,
+    "the canonical native carrier is selected before any unrelated destination conversion");
 });
 
 test("discarded callable definitions do not manufacture a carrier or a runtime value", () => {

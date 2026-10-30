@@ -14,7 +14,7 @@ export interface CsharpCallableContractPublication {
 
 export interface CsharpClosedCallableInput {
   readonly type: TargetTypeRef;
-  readonly source?: SourceCallableSourceContract;
+  readonly source: SourceCallableSourceContract;
 }
 
 export interface CsharpCallableContractIndex {
