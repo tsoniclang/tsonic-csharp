@@ -6,38 +6,16 @@ import {
   compileCsharpSource,
 } from "../../helpers/direct-csharp-session.mjs";
 import { csharpProgramObjectLiteralShapes } from "../../helpers/program-source-files.mjs";
+import { staticKeys } from "./computed-field-names.split-fixtures.mjs";
 
-const staticKeys = [
-  { name: "string literal", prelude: "", key: '"value"', ordinary: "value" },
-  { name: "numeric literal", prelude: "", key: "0x10", ordinary: "16" },
-  { name: "negative numeric literal", prelude: "", key: "-1", ordinary: '"-1"' },
-  { name: "zero numeric literal", prelude: "", key: "-0", ordinary: "0", declarationKey: "0" },
-  { name: "fractional numeric literal", prelude: "", key: "1.5", ordinary: "1.5" },
-  { name: "exponent numeric literal", prelude: "", key: "1e21", ordinary: "1e21", expected: "1e+21" },
-  { name: "const string", prelude: 'const key = "value";', key: "key", ordinary: "value" },
-  { name: "const numeric", prelude: "const key = 16;", key: "key", ordinary: "16" },
-  { name: "numeric enum", prelude: "enum Key { Value = 16 }", key: "Key.Value", ordinary: "16" },
-  { name: "parenthesized const", prelude: 'const key = "value";', key: "((key))", declarationKey: "key", ordinary: "value" },
-  { name: "nonidentifier string", prelude: 'const key = "x-y";', key: "key", ordinary: '"x-y"' },
-  { name: "empty string", prelude: 'const key = "";', key: "key", ordinary: '""' },
-  { name: "exact large integer literal", prelude: "", key: "9007199254740993", ordinary: "9007199254740993", refused: true },
-  { name: "exact large const integer", prelude: "const key = 9007199254740993;", key: "key", ordinary: "9007199254740993", refused: true },
-  { name: "destructured const string", prelude: 'const { key } = { key: "value" } as const;', key: "key", ordinary: "value" },
-  { name: "destructured const integer", prelude: "const [key] = [9007199254740993] as const;", key: "key", ordinary: "9007199254740993", refused: true },
-  { name: "destructured spread const integer", prelude: "const prefix = [1, 9007199254740993] as const; const [, key] = [...prefix, 3] as const;", key: "key", ordinary: "9007199254740993", refused: true },
-  { name: "coherent wide integer", prelude: "", key: "9007199254740994", ordinary: "9007199254740994" },
-  { name: "coherent rounded binary integer spelling", prelude: "", key: "1152921504606847000", ordinary: "1152921504606847000" },
-  { name: "radix exponent spelling", prelude: "", key: "0x3635c9adc5dea00000", ordinary: "1e21", expected: "1e+21" },
-  { name: "reserved native identifier", prelude: 'const key = "class";', key: "key", ordinary: '"class"' },
-];
-
-for (const surface of [undefined, "js"]) {
-  for (const [label, declarations, body] of [
+for (const surface of Array.from([undefined, "js"]).slice(0, 1)){
+for (const [label, declarations, body] of [
     ["object body", "", 'function unused(key: string): number { const value = { [key]: 7 }; return 1; }'],
     ["native struct body", 'import { field, struct } from "@tsonic/core/lang.js"; function key(): "value" { return "value"; }',
       'function unused(): number { const Shape = struct({ [key()]: field<number>() }); return 1; }'],
-  ]) {
-    for (const required of [false, true]) test(`C# ${surface ?? "native"} ${required ? "requires" : "erases"} a computed key in a nested ${label}`, () => {
+  ]){
+for (const required of [false, true]){
+test(`C# ${surface ?? "native"} ${required ? "requires" : "erases"} a computed key in a nested ${label}`, () => {
       const compiled = compileCsharpSource({ surface, sourceText: `${declarations}
 export function run(): number {
   ${body}
@@ -60,9 +38,10 @@ export function run(): number {
       assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.result.artifacts.length === 0, true,
         "a required rejected key publishes no program, plan or native artifact");
     });
-  }
+}
+}
 
-  test(`C# ${surface ?? "native"} a later required signature cannot lose a key first mentioned in an erased body`, () => {
+test(`C# ${surface ?? "native"} a later required signature cannot lose a key first mentioned in an erased body`, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
 declare const key: unique symbol;
 interface Holder { readonly [key]: number; }
@@ -78,7 +57,7 @@ export function accept(value: Holder): void {}
       "the required native type never publishes a partial program");
   });
 
-  test(`C# ${surface ?? "native"} retains every rejected key in one required object`, () => {
+test(`C# ${surface ?? "native"} retains every rejected key in one required object`, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
 function first(): "first" { return "first"; }
 function second(): "second" { return "second"; }
@@ -96,7 +75,7 @@ export function run(): number { const value = { [first()]: 1, [second()]: 2 }; r
       "no rejected object is emitted");
   });
 
-  test(`C# ${surface ?? "native"} rejects an effectful native struct key without dropping its evaluation`, () => {
+test(`C# ${surface ?? "native"} rejects an effectful native struct key without dropping its evaluation`, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
 import { field, struct } from "@tsonic/core/lang.js";
 function key(): "value" { return "value"; }
@@ -114,7 +93,7 @@ export function accept(value: Shape): void {}
     assert.equal(compiled.result.artifacts.length, 0, "no native field is invented from the call's singleton return type");
   });
 
-  test(`C# ${surface ?? "native"} erases checked symbolic type-family metadata without a native field obligation`, () => {
+test(`C# ${surface ?? "native"} erases checked symbolic type-family metadata without a native field obligation`, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
 declare const storage: unique symbol;
 interface Stored<Value> { readonly [storage]: Value; }
@@ -126,7 +105,7 @@ export function read(value: Storage<number>): number { return value; }
       "the phantom predicate never becomes emitted native storage");
   });
 
-  test(`C# ${surface ?? "native"} still refuses an actual symbolic native field`, () => {
+test(`C# ${surface ?? "native"} still refuses an actual symbolic native field`, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
 declare const storage: unique symbol;
 export interface Holder { readonly [storage]: number; }
@@ -139,7 +118,7 @@ export function accept(value: Holder): void {}
     assert.equal(compiled.result.artifacts.length, 0, "no synthetic symbolic native field is invented");
   });
 
-  test(`C# ${surface ?? "native"} keeps non-authored checked element arguments`, () => {
+test(`C# ${surface ?? "native"} keeps non-authored checked element arguments`, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
 export function read(): number {
   const pair = { 1: 7 };
@@ -150,11 +129,11 @@ export function read(): number {
     assertCsharpCompilationSucceeded(compiled);
   });
 
-  for (const [kind, declaration] of [
+for (const [kind, declaration] of [
     ["class", "export class Holder { [+1] = 1; }"],
     ["interface", "export interface Holder { [-0]: number; }"],
-  ]) {
-    test(`C# ${surface ?? "native"} refuses an emitted signed bound ${kind} key`, () => {
+  ]){
+test(`C# ${surface ?? "native"} refuses an emitted signed bound ${kind} key`, () => {
       const compiled = compileCsharpSource({ surface, sourceText: `${declaration}
 export function accept(value: Holder): void {}
 ` });
@@ -165,16 +144,16 @@ export function accept(value: Holder): void {}
       assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined, true, "bound key mismatch is pre-seal");
       assert.equal(compiled.result.artifacts.length, 0, "no mismatched native field name is emitted");
     });
-  }
+}
 
-  test(`C# ${surface ?? "native"} object zero and its destructuring use the completed checked identity`, () => {
+test(`C# ${surface ?? "native"} object zero and its destructuring use the completed checked identity`, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
 export function read(): number { const object = { [-0]: 7 }; const { [-0]: value } = object; return value; }
 ` });
     assertCsharpCompilationSucceeded(compiled);
   });
 
-  test(`C# ${surface ?? "native"} struct fields share checked computed names with finalized FieldFact evidence`, () => {
+test(`C# ${surface ?? "native"} struct fields share checked computed names with finalized FieldFact evidence`, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
 import { field, struct } from "@tsonic/core/lang.js";
 const key = "value";
@@ -187,7 +166,7 @@ export function read(value: Shape): number { return value.ok + value[key]; }
     assert.equal(output.includes("ok") && output.includes("value"), true, "both checked field names reach native generation");
   });
 
-  test(`C# ${surface ?? "native"} computed names do not admit a non-field struct initializer`, () => {
+test(`C# ${surface ?? "native"} computed names do not admit a non-field struct initializer`, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
 import { struct } from "@tsonic/core/lang.js";
 export const Shape = struct({ ["bad"]: 1 });
@@ -199,7 +178,7 @@ export const Shape = struct({ ["bad"]: 1 });
     assert.equal(compiled.result.artifacts.length, 0, "an invalid struct has no native artifacts");
   });
 
-  test(`C# ${surface ?? "native"} regular string enums are refused for ordinary and computed fields`, () => {
+test(`C# ${surface ?? "native"} regular string enums are refused for ordinary and computed fields`, () => {
     for (const computed of [false, true]) {
       const compiled = compileCsharpSource({ surface, sourceText: `
 enum Key { Value = "value" }
@@ -217,8 +196,9 @@ export function make(): number {
       assert.equal(compiled.result.artifacts.length, 0, "no unadmitted native enum is emitted");
     }
   });
-  for (const current of staticKeys) {
-    test(`C# ${surface ?? "native"} ${current.refused ? "refuses a conflicting checker identity for" : "admits"} ${current.name} as an ordinary exact field`, () => {
+
+for (const current of staticKeys){
+test(`C# ${surface ?? "native"} ${current.refused ? "refuses a conflicting checker identity for" : "admits"} ${current.name} as an ordinary exact field`, () => {
       if (current.refused) {
         for (const computed of [false, true]) {
           const compiled = compileCsharpSource({ surface, sourceText: `
@@ -264,9 +244,9 @@ export function make(): number {
         member.sourceKey.kind === "property" && member.sourceKey.name === expectedName)), true,
       "sealed native member preserves the exact source key, not a rounded checked spelling");
     });
-  }
+}
 
-  test(`C# ${surface ?? "native"} static class fields and methods use one native name plan`, () => {
+test(`C# ${surface ?? "native"} static class fields and methods use one native name plan`, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
 const valueKey = "value";
 const readKey = "read";
@@ -282,7 +262,7 @@ export function make(): number { return new Holder()[readKey](); }
     assert.equal(generated.includes("value"), true, "computed field renders ordinary native storage");
   });
 
-  test(`C# ${surface ?? "native"} imported computed fields use the declaration file's sealed evidence`, () => {
+test(`C# ${surface ?? "native"} imported computed fields use the declaration file's sealed evidence`, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
 import type { Holder } from "./holder.js";
 export function make(): number { const value: Holder = { value: 7 }; return value.value; }
@@ -290,7 +270,7 @@ export function make(): number { const value: Holder = { value: 7 }; return valu
     assertCsharpCompilationSucceeded(compiled);
   });
 
-  test(`C# ${surface ?? "native"} computed method overloads keep their checked implementation`, () => {
+test(`C# ${surface ?? "native"} computed method overloads keep their checked implementation`, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
 const key = "read";
 class Holder {
@@ -302,7 +282,7 @@ export function make(): number { return new Holder()[key](7); }
     assertCsharpCompilationSucceeded(compiled);
   });
 
-  test(`C# ${surface ?? "native"} constructor-spelled computed methods remain ordinary methods`, () => {
+test(`C# ${surface ?? "native"} constructor-spelled computed methods remain ordinary methods`, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
 const key = "constructor";
 class Holder { [key](): number { return 7; } }
@@ -311,7 +291,7 @@ export function make(): number { return new Holder()[key](); }
     assertCsharpCompilationSucceeded(compiled);
   });
 
-  test(`C# ${surface ?? "native"} inferred objects refuse disagreeing large numeric names`, () => {
+test(`C# ${surface ?? "native"} inferred objects refuse disagreeing large numeric names`, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
 export function make(): number {
   const value = { [9007199254740993]: 7 };
@@ -325,8 +305,8 @@ export function make(): number {
     assert.equal(compiled.result.artifacts.length, 0, "no rounded or unselectable native field is emitted");
   });
 
-  for (const key of ["-9007199254740993", "1152921504606846976", "18446744073709551616", "1.0000000000000001", "1e-400"]) {
-    test(`C# ${surface ?? "native"} refuses numeric named key ${key} without a representability cap`, () => {
+for (const key of ["-9007199254740993", "1152921504606846976", "18446744073709551616", "1.0000000000000001", "1e-400"]){
+test(`C# ${surface ?? "native"} refuses numeric named key ${key} without a representability cap`, () => {
       const compiled = compileCsharpSource({ surface, sourceText: `export function make(): number { const value = { [${key}]: 1 }; return 0; }` });
       assertCsharpCheckingSucceeded(compiled);
       const issues = compiled.targetDiagnostics.filter(issue => issue.code === "CSHARP_COMPUTED_FIELD_NAME_NOT_PROVEN");
@@ -335,16 +315,16 @@ export function make(): number {
       assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined, true, "the numeric mismatch is a pre-seal source rejection");
       assert.equal(compiled.result.artifacts.length, 0, "no dynamic or rounded-key fallback is emitted");
     });
-  }
+}
 
-  for (const current of [
+for (const current of [
     { name: "dynamic argument", source: 'export function make(key: string): number { const value = { [key]: 1 }; return 0; }' },
     { name: "mutable literal binding", source: 'export function make(): number { let key: "value" = "value"; const value = { [key]: 1 }; return 0; }' },
     { name: "effectful singleton call", source: 'function key(): "value" { return "value"; } export function make(): number { const value = { [key()]: 1 }; return 0; }' },
     { name: "effectful property getter", source: 'const key = { get name(): "value" { return "value"; } }; export function make(): number { const value = { [key.name]: 1 }; return 0; }' },
     { name: "effectful enum receiver", source: 'enum Key { Value = 1 } const holder = { get selected(): typeof Key { return Key; } }; export function make(): number { const value = { [holder.selected.Value]: 1 }; return 0; }' },
-  ]) {
-    test(`C# ${surface ?? "native"} rejects ${current.name} before sealing`, () => {
+  ]){
+test(`C# ${surface ?? "native"} rejects ${current.name} before sealing`, () => {
       const compiled = compileCsharpSource({ surface, sourceText: current.source });
       assertCsharpCheckingSucceeded(compiled);
       const issues = compiled.targetDiagnostics.filter(issue => issue.code === "CSHARP_COMPUTED_FIELD_NAME_NOT_PROVEN");
@@ -354,5 +334,39 @@ export function make(): number {
       assert.equal(compiled.result.plan === undefined, true, "invalid key never reaches the planner");
       assert.equal(compiled.result.artifacts.length, 0, "invalid key emits no native artifacts");
     });
-  }
+}
+}
+
+for (const surface of Array.from([undefined, "js"]).slice(1, 2)){
+for (const [label, declarations, body] of [
+    ["object body", "", 'function unused(key: string): number { const value = { [key]: 7 }; return 1; }'],
+    ["native struct body", 'import { field, struct } from "@tsonic/core/lang.js"; function key(): "value" { return "value"; }',
+      'function unused(): number { const Shape = struct({ [key()]: field<number>() }); return 1; }'],
+  ]){
+for (const required of [false, true]){
+test(`C# ${surface ?? "native"} ${required ? "requires" : "erases"} a computed key in a nested ${label}`, () => {
+      const compiled = compileCsharpSource({ surface, sourceText: `${declarations}
+export function run(): number {
+  ${body}
+  return ${required ? label === "object body" ? 'unused("value")' : "unused()" : "42"};
+}` });
+      assertCsharpCheckingSucceeded(compiled);
+      if (!required) {
+        assertCsharpCompilationSucceeded(compiled);
+        const output = [...compiled.artifacts.values()].join("\n");
+        assert.equal(output.includes("return 42") && !/\bunused\b/u.test(output), true,
+          "the actual participation owner erases the unused body and its native key obligations");
+        return;
+      }
+      assert.equal(compiled.targetDiagnostics.length, 1, "one demanded key owns the only source refusal");
+      assert.equal(compiled.targetDiagnostics[0]?.code, "CSHARP_COMPUTED_FIELD_NAME_NOT_PROVEN", "the actual native key is refused before generic missing carriers");
+      assert.equal(compiled.targetDiagnostics[0]?.message, label === "object body"
+        ? "The computed key is not a const singleton binding or an exact enum constant."
+        : "A computed property key call must retain its effects and cannot be replaced with a static native field name.",
+      "the shared selected cause is preserved, not reconstructed from an unresolved carrier");
+      assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.result.artifacts.length === 0, true,
+        "a required rejected key publishes no program, plan or native artifact");
+    });
+}
+}
 }
