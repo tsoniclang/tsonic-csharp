@@ -12,7 +12,7 @@ import { csharpEmptyObjectTargetType } from "../../../dist/target-model/types/ca
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { substituteObjectShapeFactTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
 import { createCsharpMetadataBudget } from "../../../dist/target-model/metadata/immutable.js";
-import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
+import { compileCsharpSource, assertCsharpCheckingSucceeded, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { frozenEmptyStorageSources } from "../../../../tsonic/test/fixtures/frozen-empty-storage.mjs";
 
 test("native source-storage projections preserve exact field, element and tuple identities at every consumer", () => {
@@ -335,9 +335,27 @@ test("sealed value domains retain exact source identity without source or physic
   assert.equal(selectedValueDomainHasTargetType({}, selected.expression, exact), false, "missing analysis proof has no resolver fallback");
 });
 
-test("readonly freeze preserves native identity across broad aliases without closed-origin state", () => {
+test("later readonly freeze refuses an untyped empty object before publication", () => {
+  const sourceText = frozenEmptyStorageSources[0][1];
+  const compiled = compileCsharpSource({ surface: "js", sourceText });
+  assertCsharpCheckingSucceeded(compiled);
+  assert.equal(compiled.result.diagnostics.length, 1, "the original direct literal has one precise refusal");
+  const issue = compiled.result.diagnostics[0];
+  assert.equal(issue.code, "TSONIC_UNTYPED_OBJECT_LITERAL");
+  assert.equal(issue.message, "This object literal has no target type. Declare one, e.g. 'function baseOptions(): MakeDirectoryOptions'.");
+  const range = issue.sourceNode === undefined ? undefined : compiled.source.ast.authoredRange(issue.sourceNode);
+  const literalStart = sourceText.indexOf("{}", sourceText.indexOf("const direct ="));
+  assert.equal(range?.kind === "authored" && range.start === literalStart && range.end === literalStart + 2, true,
+    "the original untyped literal owns the diagnostic, not its later generic freeze");
+  assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+    "no partial program, plan or artifacts are published");
+});
+
+test("typed readonly freeze preserves native identity across broad aliases without closed-origin state", () => {
   for (const index of [0, 1, 2, 5]) {
-    const compiled = compileCsharpSource({ surface: "js", sourceText: frozenEmptyStorageSources[index][1] });
+    const originalSource = frozenEmptyStorageSources[index][1];
+    const sourceText = index === 0 ? originalSource.replace("const direct = {};", "const direct: Token = {};") : originalSource;
+    const compiled = compileCsharpSource({ surface: "js", sourceText });
     assertCsharpCompilationSucceeded(compiled);
     const text = [...compiled.artifacts.values()].join("\n");
     assert.doesNotMatch(text, /EmptyObject\.(?:Freeze|IsFrozen)|FrozenObject|CheckWrite|ConditionalWeakTable|DynamicInvoke|System\.Reflection/u,
