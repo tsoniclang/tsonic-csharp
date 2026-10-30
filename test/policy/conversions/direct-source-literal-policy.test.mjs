@@ -50,13 +50,16 @@ test("signed pure C# literals apply the same exact representation policy", () =>
   );
 });
 
-test("checked negative zero remains a floating native value on every surface", () => {
+test("unannotated integer zero has no sign while written or declared floating zero retains its sign", () => {
   for (const target of [{ id: "csharp" }, { id: "csharp", surfaces: ["js"] }]) {
     for (const text of ["0", "0.0", "0e100"]) {
       const negative = literalValue(prefixLiteral("KindMinusToken", text));
       assert.equal(Object.is(negative?.number, -0), true, `${text}: the checked literal retains its actual sign`);
-      assert.equal(resolveCsharpSourceLiteralTargetType(negative)?.name, "float64",
-        `${text}: integer storage cannot preserve negative zero`);
+      assert.equal(resolveCsharpSourceLiteralTargetType(negative)?.name, text === "0" ? "int64" : "float64",
+        `${text}: only written floating notation asks for a signed native zero`);
+      const declared = selectCsharpExactLiteralConversion(negative, csharpSourcePrimitiveTargetType("float64"));
+      assert.equal(declared.kind === "resolved" && declared.recipe.kind === "signed-zero", true,
+        `${text}: an actual declared floating destination still retains the negative sign`);
     }
     const positive = literalValue(numericLiteral("0"));
     assert.equal(resolveCsharpSourceLiteralTargetType(positive)?.name,

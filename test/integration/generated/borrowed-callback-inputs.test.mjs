@@ -51,15 +51,20 @@ for (const surface of [undefined, "js"]) {
         local += 1;
         const quotient = 5 / 2;
         const floating = 5 / 2.0;
+        const integerZero = -0;
+        const writtenZero = -0.0;
+        const declaredZero: number = -0;
         return wide === 9007199254740993 && values[0] === 1 && values[1] === 2 &&
-          counter.count === 3 && local === 43 && quotient === 2 && floating === 2.5;
+          counter.count === 3 && local === 43 && quotient === 2 && floating === 2.5 &&
+          integerZero === 0 && 1.0 / writtenZero < 0 && 1.0 / declaredZero < 0;
       }
     ` });
     executeCsharpConstruction(compiled, `integer-defaults-${surface ?? "native"}`);
     const source = compiled.artifacts.get("src/Index.cs");
     assert.equal(/long\s+wide\s*=\s*9007199254740993L/u.test(source) && /long\s+count\s*=/u.test(source) &&
       /long\s+local\s*=\s*42L/u.test(source) && /long\s+quotient\s*=\s*5L\s*\/\s*2L/u.test(source) &&
-      /double\s+floating\s*=/u.test(source) && /double\s+declared\s*=/u.test(source), true,
+      /double\s+floating\s*=/u.test(source) && /double\s+declared\s*=/u.test(source) &&
+      /long\s+integerZero\s*=\s*0L/u.test(source), true,
       "local/property integers retain int64 while written and declared floating properties retain double");
   });
 
@@ -78,5 +83,30 @@ for (const surface of [undefined, "js"]) {
       "the incompatible later assignment is refused at its source without changing the original int64 storage");
     assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
       "the rejected assignment publishes no converted or retargeted native program");
+  });
+
+  test(`declared inherited and implemented properties own their exact native carriers on ${surface ?? "native"}`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      import type { int32 } from "@tsonic/core/types.js";
+      interface Narrow { narrow: int32; }
+      abstract class Base<Value> { abstract value: Value; }
+      class Declared extends Base<number> implements Narrow { value = 1; narrow = 2; }
+      class Independent { count = 3; }
+      export function run(): boolean {
+        const declared = new Declared();
+        const alias: Base<number> = declared;
+        const native: Narrow = declared;
+        declared.value = 1.5;
+        native.narrow = 7;
+        return alias === declared && alias.value === 1.5 && declared.narrow === 7 && new Independent().count === 3;
+      }
+    ` });
+    executeCsharpConstruction(compiled, `declared-native-property-${surface ?? "native"}`);
+    const generated = [...compiled.artifacts.values()].join("\n");
+    assert.equal(/override double value/u.test(generated) && /public int narrow/u.test(generated) &&
+      /public long count/u.test(generated), true,
+      "indexed base/interface declarations select double/int32 while an independent unannotated member stays int64");
+    assert.equal(/\.Clone\(|\.ToArray\(|Convert\.ToDouble/u.test(generated), false,
+      "declaration-owned member identity and native widths require no copied receiver or conversion helper");
   });
 }

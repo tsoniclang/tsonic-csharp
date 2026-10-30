@@ -8,7 +8,6 @@ export function resolveCsharpSourceLiteralTargetType(
   const numeric = literal?.numeric;
   if (numeric === undefined) return literal?.number === undefined
     ? undefined : csharpSourcePrimitiveTargetType("float64");
-  if (numeric.kind !== "authored" || numeric.token.negative && numeric.token.coefficient === 0n ||
-    /[.eE]/u.test(numeric.token.decimalText)) return csharpSourcePrimitiveTargetType("float64");
+  if (numeric.kind !== "authored" || /[.eE]/u.test(numeric.token.decimalText)) return csharpSourcePrimitiveTargetType("float64");
   return csharpSourcePrimitiveTargetType("int64");
 }

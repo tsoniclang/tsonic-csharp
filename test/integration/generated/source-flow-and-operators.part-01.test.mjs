@@ -77,8 +77,7 @@ for (const surface of Array.from([undefined, "js"]).slice(0, 2)) {
 }
 
 for (const surface of Array.from([undefined, "js"]).slice(0, 2)) {
-test(`dense destructuring defaults preserve explicit absence, null and lazy evaluation (${surface ?? "native"})`, { timeout: 300_000 }, () => {
-    executeCsharpConstruction(compileCsharpSource({ ...(surface === undefined ? {} : { surface }), sourceText: `
+  const denseSource = `
       import { Exception } from "@tsonic/dotnet/System.js";
       let calls = 0;
       function fallback(): number { calls += 1; return calls; }
@@ -98,7 +97,27 @@ test(`dense destructuring defaults preserve explicit absence, null and lazy eval
         if (selected !== 4) throw new Exception("undefined-only default");
         return true;
       }
-    ` }), `dense-defaults-${surface ?? "native"}`);
+    `;
+  test(`dense destructuring defaults preserve explicit absence, null and lazy evaluation (${surface ?? "native"})`, () => {
+    const compiled = compileCsharpNativeUseSource({ surface, sourceText: denseSource });
+    assert.equal(compiled.sourceDiagnosticsText, "");
+    const issue = compiled.nativeStage.diagnostics[0];
+    const ast = compiled.nativeStage.source.ast;
+    const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
+    const owner = issue?.sourceNode === undefined ? undefined : ast.parent(issue.sourceNode);
+    const ownerRange = owner === undefined ? undefined : ast.authoredRange(owner);
+    const source = issue?.sourceNode === undefined ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode));
+    assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "CSHARP_UNSUPPORTED_AST" &&
+      issue.message === "No exact C# implicit conversion relates 'source:float64' to 'source:int64'." &&
+      range?.kind === "authored" && source.slice(range.start, range.end) === "assigned" &&
+      ownerRange?.kind === "authored" && source.slice(ownerRange.start, ownerRange.end) === "assigned = fallback()", true,
+      "the original later float assignment is refused at its exact int64 destination, not by retyping its earlier initializer");
+    assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
+      "a refused native assignment publishes no retargeted storage or partial program");
+  });
+  test(`declared floating dense defaults preserve explicit absence, null and lazy evaluation (${surface ?? "native"})`, { timeout: 300_000 }, () => {
+    executeCsharpConstruction(compileCsharpSource({ surface,
+      sourceText: denseSource.replace("let assigned = 0;", "let assigned: number = 0;") }), `dense-defaults-${surface ?? "native"}`);
   });
 }
 

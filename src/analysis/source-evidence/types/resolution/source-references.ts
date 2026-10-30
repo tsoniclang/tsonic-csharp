@@ -593,6 +593,27 @@ export function resolveSourceValueDeclaration(
     return resolveCsharpNativeParameterCarrier(scope, declaration, retainCsharpBroadValueCarrier(declaredTarget, selected,
       selectedSource !== undefined && queries.types.isNonPrimitive(selectedSource)) ?? selected ?? declaredTarget, state);
   }
+  let inheritedTarget: TargetTypeRef | undefined;
+  if (syntax.type === undefined && host.ast.is.IsPropertyDeclaration(declaration)) {
+    const contracts = host.navigation.memberContracts(declaration);
+    if (contracts.kind !== "resolved") return undefined;
+    if (contracts.contracts.length !== 0) {
+      const owner = host.projectTypeCatalog.definitionContainingDeclaration(declaration);
+      const receiver = owner === undefined ? undefined : host.projectTypeCatalog.targetTypeForDeclaration(
+        owner.declaration, owner.typeParameterBindings);
+      if (receiver === undefined) return undefined;
+      for (const contract of contracts.contracts) {
+        const contractFile = host.ast.getSourceFile(contract);
+        const type = contractFile === undefined ? undefined : resolveNodeWithState(contract, contractFile, nextState(state));
+        if (type === undefined) return undefined;
+        const selected = host.projectTypes().instantiateMemberType(contract, receiver, type);
+        if (selected.kind !== "resolved" || inheritedTarget !== undefined && !targetTypeRefEquals(inheritedTarget, selected.type)) {
+          return undefined;
+        }
+        inheritedTarget = selected.type;
+      }
+    }
+  }
   const arrayInitializer = host.ast.is.IsArrayLiteralExpression(syntax.initializer);
   const numericInitializer = syntax.type === undefined &&
     (host.ast.is.IsVariableDeclaration(declaration) || host.ast.is.IsPropertyDeclaration(declaration)) &&
@@ -611,14 +632,14 @@ export function resolveSourceValueDeclaration(
   const declaredCallable = mutableVariable && getCsharpCallableValueSignature(
     getCsharpNullableElementTargetType(declaredTarget) ?? declaredTarget,
   ) !== undefined;
-  const initializerTarget = arrayInitializer || numericInitializer
+  const initializerTarget = inheritedTarget ?? (arrayInitializer || numericInitializer
     ? resolveNodeWithState(syntax.initializer, sourceFile, nextState(state))
     : widenedInitializer ? declaredTarget
     : resolveDirectSourceFacts([syntax.initializer], sourceFile, nextState(state)) ??
       resolveSelectedExpressionType(syntax.initializer, declarationQueries, nextState(state)) ??
       (declaredTarget !== undefined && (declaredCallable || !mutableVariable && declarationKind !== "const")
         ? declaredTarget
-        : resolveNodeWithState(syntax.initializer, sourceFile, nextState(state)));
+        : resolveNodeWithState(syntax.initializer, sourceFile, nextState(state))));
   if (initializerTarget === undefined) {
     return arrayInitializer || numericInitializer ? undefined : declaredTarget;
   }
