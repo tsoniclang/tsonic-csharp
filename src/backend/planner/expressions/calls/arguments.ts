@@ -41,6 +41,12 @@ export function translateCallArgument(expression: Node, parameter: CsharpTargetP
   const selected = input.program.records.callArgumentEmission.get(expression, parameter, sourceForm, mapping);
   if (selected === undefined) failCsharpPlannerInvariant("An admitted call argument requires its exact parameter-specific native adaptation.", expression);
   if (selected.kind === "plain") return planCallArgument(expression, sourceFile, input, diagnostics, selected.target, parameter.passingMode, parameter);
+  if (selected.kind === "native-binding") {
+    const value = planCallArgument(expression, sourceFile, input, diagnostics, selected.source, "by-value");
+    const type = csharpTypeFromTargetTypeRef(selected.source, input.scope.typeParameterNames);
+    if (type === undefined) failCsharpPlannerInvariant("A nominal native argument requires its sealed delegate carrier.", expression);
+    return value === undefined ? undefined : { ...value, nativeBinding: type };
+  }
   if (selected.kind === "convert") {
     const source = selected.read === "expression" ? planExpression(expression, sourceFile, input, diagnostics) :
       planCallArgument(expression, sourceFile, input, diagnostics, selected.source, "by-value");

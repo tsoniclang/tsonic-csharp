@@ -151,6 +151,11 @@ export function analyzeCsharpRepresentationIteration(
     valueReadStages.valueReadStages,
   );
   const objectShapes = analyzeCsharpObjectShapes(policy, sourceEvidence, operations);
+  const conversionAnalysis = analyzeCsharpConversions(
+    policy,
+    sourceEvidence,
+    objectShapes,
+  );
   const callables = analyzeCsharpCallableContracts(
     policy,
     sourceEvidence,
@@ -159,7 +164,8 @@ export function analyzeCsharpRepresentationIteration(
     typeProjections,
     input.source,
     Object.freeze({ typeDefinitions: policy.typeDefinitions, projectTypes: policy.projectTypes,
-      providers: policy.providers, target: policy.target, objectShapes }),
+      providers: policy.providers, target: policy.target, objectShapes, conversion: conversionAnalysis.classifications.conversion }),
+    operations,
   );
   const expectedTypes = analyzeCsharpExpectedTypes(
     policy,
@@ -170,11 +176,6 @@ export function analyzeCsharpRepresentationIteration(
     valueReadStages.valueReadStages,
     declarations,
     typeProjections,
-  );
-  const conversionAnalysis = analyzeCsharpConversions(
-    policy,
-    sourceEvidence,
-    objectShapes,
   );
   const storageRepresentations = analyzeCsharpStorage(
     policy,
@@ -202,7 +203,7 @@ export function analyzeCsharpRepresentationIteration(
   const classFactories = analyzeCsharpClassFactories(source, typeSystem.projectTypes.catalog, sourceEvidence,
     storagePreparation.captures, names, requiredRecords);
   const captureStorage = analyzeCsharpCaptureStorage(source, objectShapes, storagePreparation.captures, sourceEvidence,
-    classFactories.factories.flatMap(factory => factory.captures));
+    classFactories.factories.flatMap(factory => factory.captures), callables, operations.erasedStatement);
   const callableCreations = analyzeCsharpCallableCreations({
     source, nodes: sourceStorage.nodes, captures: captureStorage, contracts: callables,
     operations, storage: storageRepresentations, evidence: sourceEvidence, conversions: preparedConversions,

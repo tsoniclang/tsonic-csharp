@@ -1,7 +1,7 @@
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { SourceFile } from "@tsonic/tsts";
 import type { CsharpTypeResolutionState } from "./model.js";
-import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
+import type { CsharpSourceCallParameterReadDomain, ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
 import { completeCsharpSourceCallAdoption, selectCsharpSourceCallResult } from "./call-results.js";
 
@@ -47,9 +47,14 @@ export function resolveSourceCallParameter(
   source: ResolvedSourceCallInfo,
   parameterIndex: number,
   sourceFile: SourceFile,
+  domain: CsharpSourceCallParameterReadDomain,
 ): TargetTypeRef | undefined {
+  if (domain !== "declared" && domain !== "callable") return undefined;
+  if (domain === "declared" && source.sourceSelectedSignatureKind !== "resolved") return undefined;
   return resolveSelectedSourceCallParameter(scope, source, parameterIndex, sourceFile,
-    scope.resolveSourceCallContract(source, sourceFile, { depth: 0 }, "checked"));
+    domain === "declared" ? Object.freeze({ kind: "declaration",
+      contract: scope.host.representations.sourceCallable(source, sourceFile, "checked") })
+      : scope.resolveSourceCallContract(source, sourceFile, { depth: 0 }, "checked"));
 }
 
 function resolveSelectedSourceCallParameter(

@@ -16,6 +16,7 @@ import { composeCsharpPlannedCall, csharpPlannedArgumentSyntax, type CsharpPlann
 import { planCsharpNativeFunctionCallee, planCsharpNativeMethodCallee } from "./native-callees.js";
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
+import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 
 export function translateSourceOwnedCall(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner, planCallArgument: CallArgumentPlanner, state?: DestructuringPlannerState): CsharpPlannedValue | undefined {
@@ -67,9 +68,18 @@ export function translateSourceOwnedCall(node: Node, sourceFile: SourceFile, inp
       (receiver, args) => invoke({ kind: "SimpleMemberAccessExpression", receiver: receiver!, name: method.name }, args));
   }
   const expression = planExpression(callee.expression, sourceFile, input, diagnostics);
-  return optional === undefined ? expression === undefined ? undefined : composeCsharpPlannedCall(node, sourceFile, input, diagnostics, expression, arguments_, (value, args) => invoke(value!, args))
+  const invokeValue = (value: CsharpExpression, args: readonly CsharpArgument[]): CsharpPlannedValue | undefined => {
+    let operand = value;
+    while (operand.kind === "ParenthesizedExpression") operand = operand.expression;
+    if (operand.kind !== "LambdaExpression") return invoke(value, args);
+    const type = expression?.completion.kind === "value"
+      ? csharpTypeFromTargetTypeRef(expression.completion.carrier, input.scope.typeParameterNames) : undefined;
+    if (type === undefined) failCsharpPlannerInvariant("An immediately invoked native lambda requires its completed callable carrier.", node);
+    return invoke({ kind: "CastExpression", type, expression: operand }, args);
+  };
+  return optional === undefined ? expression === undefined ? undefined : composeCsharpPlannedCall(node, sourceFile, input, diagnostics, expression, arguments_, (value, args) => invokeValue(value!, args))
     : planCsharpOptionalReceiverValue(node, sourceFile, input, diagnostics, expression, value => composeCsharpPlannedCall(node, sourceFile, input, diagnostics,
-      csharpPlannedValue(optional.type, value), arguments_, (callable, args) => invoke(callable!, args)), selected.result.selectedType);
+      csharpPlannedValue(optional.type, value), arguments_, (callable, args) => invokeValue(callable!, args)), selected.result.selectedType);
 }
 
 export function translateSourceOwnedArguments(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],

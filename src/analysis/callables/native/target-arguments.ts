@@ -7,7 +7,8 @@ import type { ResolvedSourceCallInfo } from "../../../target-model/records/calls
 import type { CsharpCallArgumentForm, CsharpCallArgumentEmission, CsharpTargetArgumentOperand, CsharpTargetArgumentsEmission } from "../../../target-model/records/calls/target-arguments.js";
 import type { CsharpSourceCallEmissionRecords } from "../../../target-model/records/calls/source-call-emission.js";
 import type { CsharpNativeDemandAnalysis } from "../../../target-model/records/native/native-demand.js";
-import { csharpTargetParameterValueType, getCsharpDelegateSignature, getCsharpJsArrayElementTargetType } from "../../../target-model/types/index.js";
+import { csharpTargetParameterValueType, getCsharpDelegateSignature, getCsharpJsArrayElementTargetType,
+  csharpObjectTargetType, getCsharpNullableElementTargetType, targetTypeRefEquals } from "../../../target-model/types/index.js";
 import { csharpArgumentVectorCallbackResultMatches } from "../../../policy/conversions/callable-completions.js";
 import { selectCsharpTypeEmission } from "../../../policy/types/resolution/type-emission.js";
 import { csharpPositionalArgumentsAreRepresentable } from "../../../policy/operations/members/call-arguments.js";
@@ -26,7 +27,16 @@ export function analyzeCsharpTargetArguments(input: { readonly ast: AstReader; r
     if (form === "spread-element") { refuse(expression, "Tuple-expanded call arguments require an explicit target tuple expansion plan."); return; }
     if (form === "spread-sequence" && !parameter.paramsArray) { refuse(expression, "Sequence-spread call arguments require an exact related C# params parameter."); return; }
     let value: CsharpCallArgumentEmission;
-    if (parameter.csharpSourceArgumentAdapter !== undefined) {
+    if (parameter.csharpSourceArgumentAdapter?.kind === "native-binding") {
+      const source = parameter.csharpSourceArgumentAdapter.sourceCallableType;
+      const physical = getCsharpNullableElementTargetType(parameter.type) ?? parameter.type;
+      if (form !== "value" || parameter.passingMode !== "by-value" || parameter.paramsArray === true ||
+          getCsharpDelegateSignature(source) === undefined || !targetTypeRefEquals(physical, csharpObjectTargetType()) ||
+          !selectCsharpTypeEmission({ carrier: source }) || !selectCsharpTypeEmission({ carrier: parameter.type })) {
+        refuse(expression, "A nominal native binding requires its selected delegate and an object-valued physical parameter."); return;
+      }
+      value = { kind: "native-binding", source, target: parameter.type };
+    } else if (parameter.csharpSourceArgumentAdapter !== undefined) {
       const adapter = parameter.csharpSourceArgumentAdapter;
       if (adapter.kind !== "ecmascript-argument-vector-callback" || form !== "value" || parameter.passingMode !== "by-value") {
         refuse(expression, "The selected ECMAScript callback adapter requires one ordinary by-value source argument."); return;
@@ -65,7 +75,7 @@ export function analyzeCsharpTargetArguments(input: { readonly ast: AstReader; r
       } else value = { kind: "plain", target };
     }
     if (value.kind === "plain") requests.push({ node: expression, target: value.target, passing: parameter.passingMode, parameter });
-    else if (value.kind === "argument-vector" || value.read === "argument") requests.push({ node: expression, target: value.source, passing: "by-value", parameter: undefined });
+    else if (value.kind === "argument-vector" || value.kind === "native-binding" || value.read === "argument") requests.push({ node: expression, target: value.source, passing: "by-value", parameter: undefined });
     producer.argument(expression, parameter, form, mapping, value);
   };
   const call = (node: Node, source: ResolvedSourceCallInfo, selection: CsharpSelectedTargetCall): void => {

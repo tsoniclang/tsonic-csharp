@@ -46,25 +46,30 @@ for (const [name, annotation] of [
     assert.equal(signatures.find(signature => signature !== undefined).parameters.length, 1, "authored ABI is not contextual callback ABI");
     assert.equal(getCsharpDelegateSignature(selected.program.records.storageType.get(selected.variables.get("alias")))?.parameters.length, 1,
       "narrowed alias retains the original callable identity");
-    assert.equal(selected.program.records.lambdaCreation.get(selected.lambda).kind, "fresh", "no cache for observed identity");
+    const creation = selected.program.records.callableCreation.get(selected.lambda);
+    assert.equal(creation?.kind, "selected", "one completed native creation");
+    assert.equal(creation.allocation.kind, "fresh", "no cache for observed identity");
   });
 }
 
-for (const [name, expression, creation] of [
-  ["stateless", "value + 1", "cached"],
-  ["captured", "value + step", "inline"],
+for (const [name, expression, staticBody] of [
+  ["stateless", "value + 1", true],
+  ["captured", "value + step", false],
 ]) {
   test(`closed ${name} const aliases share the selected native storage ABI`, () => {
     const selected = fixture(`const mapper = (value: int): int => ${expression}; const alias = mapper; return Array.from(values, alias);`);
     const target = selected.program.records.callableTarget.get(selected.lambda);
-    assert.equal(getCsharpDelegateSignature(target)?.parameters.length, 2, "one selected native invocation signature");
+    assert.equal(getCsharpDelegateSignature(target)?.parameters.length, 1, "one declared native input, not a later destination's ABI");
     for (const name of ["mapper", "alias"]) {
       const declaration = selected.variables.get(name);
       assert.equal(declaration !== undefined, true, name);
-      assert.equal(targetTypeRefEquals(selected.program.records.requiredStorageType.get(declaration), target), true, name);
+      assert.equal(selected.program.records.requiredStorageType.get(declaration) === undefined, true, `${name}: no use-derived storage promotion`);
       assert.equal(targetTypeRefEquals(selected.program.records.storageType.get(declaration), target), true, name);
     }
-    assert.equal(selected.program.records.lambdaCreation.get(selected.lambda).kind, creation);
+    const completed = selected.program.records.callableCreation.get(selected.lambda);
+    assert.equal(completed?.kind, "selected", "one completed native creation");
+    assert.equal(completed.carrier === target, true, "the original completed creation owns its native carrier");
+    assert.equal(completed.allocation.staticBody, staticBody, "native inline caching follows the original body and captures");
   });
 }
 
@@ -81,6 +86,8 @@ for (const [name, body] of [
       "no unproved source storage promotion");
     assert.equal(getCsharpDelegateSignature(selected.program.records.storageType.get(selected.variables.get("alias")))?.parameters.length, 1,
       "aliases preserve the identical authored value carrier until the invocation boundary");
-    assert.equal(selected.program.records.lambdaCreation.get(selected.lambda).kind, "fresh", "observable or unknown identity preserved");
+    const creation = selected.program.records.callableCreation.get(selected.lambda);
+    assert.equal(creation?.kind, "selected", "one completed native creation");
+    assert.equal(creation.allocation.kind, "fresh", "observable or unknown identity preserved");
   });
 }

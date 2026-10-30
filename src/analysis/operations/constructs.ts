@@ -160,20 +160,20 @@ export function analyzeCsharpOperationConstruct(
     ast.is.IsBinaryExpression(node) ||
     ast.is.IsPrefixUnaryExpression(node) ||
     ast.is.IsPostfixUnaryExpression(node);
+  const typedLocation = operationNode ? selectCsharpTypedLocationOperation(policy, node, sourceFile) : undefined;
   if (operationNode) {
     const nativePointer = selectCsharpNativePointerOperation(policy, node, sourceFile);
     if (nativePointer.kind === "rejected") issues?.push(Object.freeze({ node, code: "CSHARP_NATIVE_POINTER_OPERATION_NOT_MAPPED",
       message: `C# native-pointer '${nativePointer.operation}' is not mapped: ${nativePointer.reason}` }));
     producer.nativePointer.selected(node, nativePointer,
     );
-    const typedLocation = selectCsharpTypedLocationOperation(policy, node, sourceFile);
-    if (typedLocation.kind === "rejected") {
+    if (typedLocation?.kind === "rejected") {
       const root = selectCsharpRefusedTypedLocationOperandCall(policy, node, sourceFile);
       if (root === undefined) issues?.push(Object.freeze({ node, code: "CSHARP_UNSUPPORTED_AST",
         message: csharpTypedLocationLoweringRefusal(typedLocation.operation, typedLocation.reason) }));
       else if (!issues?.some(issue => issue.node === root.node && issue.code === root.code)) issues?.push(root);
     }
-    producer.typedLocation.selected(node, typedLocation);
+    producer.typedLocation.selected(node, typedLocation!);
   }
   if (ast.is.IsCallExpression(node)) {
     const expression = ast.as.AsCallExpression(node);
@@ -245,7 +245,8 @@ export function analyzeCsharpOperationConstruct(
         : {
             sourceTypeArguments:
               policy.types.resolveSourceCallTypeArguments(source, sourceFile),
-            ...classifyCsharpSourceCallArguments(policy, source, sourceFile, sourceCall, sourceMethodValue),
+            ...classifyCsharpSourceCallArguments(policy, source, sourceFile, sourceCall, sourceMethodValue,
+              target?.kind === "resolved" ? target : undefined, typedLocation),
           }),
     }));
   } else if (ast.is.IsNewExpression(node)) {
@@ -285,9 +286,10 @@ export function analyzeCsharpOperationConstruct(
               ),
           }
         : {},
-      ...target?.kind === "source-owned"
+      ...target?.kind === "source-owned" || target?.kind === "resolved"
         ? {
-            ...classifyCsharpSourceCallArguments(policy, target.source, sourceFile),
+            ...classifyCsharpSourceCallArguments(policy, target.source, sourceFile, undefined, undefined,
+              target.kind === "resolved" ? target : undefined),
           }
         : {},
     }));

@@ -24,8 +24,9 @@ export function selectCsharpGenericFrameClosures(
     const declaration = source.ast.is.IsFunctionDeclaration(node);
     if (!source.ast.is.IsArrowFunction(node) && !source.ast.is.IsFunctionExpression(node) && !declaration) continue;
     if (declaration && (source.ast.typeParameters(node).length === 0 ||
-        capture.values.length === 0 && capture.receivers.length === 0)) continue;
-    const type = evidence.contextualType.get(node)?.targetType ?? capture.type;
+        !source.navigation.declarationUseSummary(node).uses.some(use => use.kind === "first-class" &&
+          evidence.compileTimeMetadata.get(use.reference) !== true))) continue;
+    const type = capture.type;
     const method = getCsharpMethodValue(type);
     if (declaration && (method === undefined || method.typeParameters.length === 0)) continue;
     if (source.ast.typeParameters(node).length === 0 && method === undefined) continue;

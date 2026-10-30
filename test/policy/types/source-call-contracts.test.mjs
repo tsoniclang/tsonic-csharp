@@ -105,6 +105,33 @@ function fixture(carrier = csharpDelegateTargetType("System.Func", [integer], in
   return { scope, source, signatureDeclaration, openContract, sourceParameter };
 }
 
+test("declared parameter reads require their explicit domain without admitting a runtime source callee", () => {
+  const { scope, source, openContract } = fixture(undefined, true);
+  const file = {};
+  let declarationReads = 0;
+  let calleeReads = 0;
+  scope.host.representations.sourceCallable = (selected, sourceFile, selection) => {
+    assert.equal(selected === source && sourceFile === file && selection === "checked", true,
+      "the original checked declaration is the only parameter authority");
+    declarationReads++;
+    return openContract;
+  };
+  scope.resolveSourceCallContract = () => { calleeReads++; return { kind: "rejected" }; };
+  assert.equal(resolveSourceCallParameter(scope, source, 0, file, "declared") === outer, true);
+  assert.equal(declarationReads === 1 && calleeReads === 0, true,
+    "a declared input does not admit a runtime receiver");
+  assert.equal(resolveSourceCallParameter(scope, source, 0, file, "callable") === undefined, true);
+  assert.equal(declarationReads === 1 && calleeReads === 1, true,
+    "a source value still requires its own callee admission");
+  for (const domain of [undefined, null, "checked", ""]) {
+    assert.equal(resolveSourceCallParameter(scope, source, 0, file, domain) === undefined, true,
+      `invalid read domain ${String(domain)}`);
+  }
+  assert.equal(resolveSourceCallParameter(scope, source, 0, file) === undefined, true,
+    "the removed omitted-domain form refuses");
+  assert.equal(declarationReads === 1 && calleeReads === 1, true);
+});
+
 test("stored aliases use their selected closed input and result, not creation templates", () => {
   for (const type of [integer, string]) {
     for (const carrier of [csharpDelegateTargetType("System.Func", [type], type),
@@ -119,7 +146,7 @@ test("stored aliases use their selected closed input and result, not creation te
         assert.equal(csharpFreeTypeParameterIdentities([selected.contract.returnType]).size, 0, "no free creation binder");
         assert.equal(Object.isFrozen(selected.contract.nativeParameters[0].targetParameter), true);
       }
-      assert.equal(targetTypeRefEquals(resolveSourceCallParameter(scope, source, 0, {}), type), true);
+      assert.equal(targetTypeRefEquals(resolveSourceCallParameter(scope, source, 0, {}, "callable"), type), true);
       assert.equal(targetTypeRefEquals(resolveSourceCallParameters(scope, source, {})[0].type, type), true);
       assert.equal(targetTypeRefEquals(resolveSourceCallArgumentParameter(scope, source,
         { sourceParameterIndex: 0, effectiveArgumentIndex: 0, sourceForm: "value" }, {}), type), true);
@@ -174,7 +201,7 @@ test("published closed source inputs retain authored omission across a required 
     assert.equal(selected.kind === "declaration" && selected.closedInput === true && selected.contract === closed, true,
       "one published native implementation, not the external required input or a creation template");
   }
-  assert.equal(resolveSourceCallParameter(current.scope, current.source, 0, {}) === optional, true,
+  assert.equal(resolveSourceCallParameter(current.scope, current.source, 0, {}, "callable") === optional, true,
     "the checked external parameter maps to its proven physical input without a declaration-identity guess");
   const parameters = resolveSourceCallParameters(current.scope, current.source, {});
   assert.equal(parameters.length === 1 && parameters[0].optional === true && parameters[0].type === optional, true,
@@ -198,7 +225,7 @@ test("missing or inconsistent stored evidence rejects without a declaration fall
     const { scope, source } = fixture();
     scope.resolveSelectedValueWithState = () => carrier;
     assert.equal(scope.resolveSourceCallContract(source, {}, { depth: 0 }, "checked").kind, "rejected");
-    assert.equal(resolveSourceCallParameter(scope, source, 0, {}) === undefined, true);
+    assert.equal(resolveSourceCallParameter(scope, source, 0, {}, "callable") === undefined, true);
     assert.equal(resolveSourceCallParameters(scope, source, {}) === undefined, true);
     assert.equal(resolveSourceCallResultWithState(scope, source, {}, { depth: 0 }, undefined) === undefined, true);
   }
@@ -451,7 +478,7 @@ test("selected stored contracts do not require invented signature or parameter s
   assert.equal(selected.kind, "value", "exact native and selected semantic parameter correspondence");
   assert.equal(selected.contract.sourceDeclaration === undefined, true);
   assert.equal(selected.contract.nativeParameters[0].sourceParameter === undefined, true);
-  assert.equal(targetTypeRefEquals(resolveSourceCallParameter(scope, source, 0, {}), integer), true);
+  assert.equal(targetTypeRefEquals(resolveSourceCallParameter(scope, source, 0, {}, "callable"), integer), true);
 });
 
 test("native invocation arguments retain their complete projected order independently of checked inventory order", () => {

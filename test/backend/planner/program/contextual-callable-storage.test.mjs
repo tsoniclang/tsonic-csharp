@@ -119,9 +119,12 @@ for (const surface of [undefined, "js"]) {
         statement.expression.left.name === name).expression.right;
       let adapted = initialization;
       while (adapted.kind === "CastExpression" || adapted.kind === "ParenthesizedExpression") adapted = adapted.expression;
+      let native = adapted;
       if (adapted.kind === "SwitchExpression") {
         assert.equal(adapted.arms.length, 1, "one original native callable evaluation feeds one boundary adapter");
         assert.equal(adapted.arms[0].pattern.kind, "VarPattern", "the adapter retains the original evaluated callable");
+        native = adapted.expression;
+        while (native.kind === "CastExpression" || native.kind === "ParenthesizedExpression") native = native.expression;
         adapted = adapted.arms[0].expression;
         while (adapted.kind === "CastExpression" || adapted.kind === "ParenthesizedExpression") adapted = adapted.expression;
       }
@@ -129,25 +132,32 @@ for (const surface of [undefined, "js"]) {
       const adapterStatements = adapter?.body.kind === "Block" ? adapter.body.statements : [];
       const nativeReturn = csharpTypeFromTargetTypeRef(nativeSignature.returnType);
       assert.equal(nativeReturn !== undefined, true, `${name}: renderable method return`);
-      const method = [...ownStatements, ...adapterStatements].find(statement => statement.kind === "LocalFunctionStatement" &&
-        sameCsharpType(statement.returnType, nativeReturn));
-      assert.equal(method !== undefined, true, `${name}: the initializer retains its native producer`);
-      assert.equal(sameCsharpType(method.returnType, nativeReturn), true,
-        `${name}: native method, adapted body and await use one callable carrier`);
-      assert.equal(method.parameters.length, nativeSignature.parameters.length, `${name}: exact callable arity`);
-      assert.equal(method.parameters.every((parameter, index) =>
+      const method = name === "storedCompletion" ? adapterStatements.find(statement => statement.kind === "LocalFunctionStatement" &&
+        sameCsharpType(statement.returnType, nativeReturn)) : undefined;
+      if (name === "storedCompletion") {
+        assert.equal(method !== undefined && method.modifiers.includes("async"), true,
+          "approved C1445: the genuine Task/union adaptation calls one native Task method, not an inner delegate");
+        assert.equal(sameCsharpType(method.returnType, nativeReturn), true, "the exact canonical native Task return");
+        assert.equal(asyncLambdaCount(ownStatements), 0, "the union adapter allocates no inner async source delegate");
+      } else {
+        assert.equal(native.kind === "LambdaExpression" && native.async === true, true,
+          `${name}: the nonadapted native async producer stays inline`);
+      }
+      assert.equal(getCsharpTaskResultTargetType(nativeSignature.returnType) !== undefined, true,
+        `${name}: native creation, adapted body and await use one Task carrier`);
+      const parameters = name === "storedCompletion" ? method.parameters : native.parameters;
+      assert.equal(parameters.length, nativeSignature.parameters.length, `${name}: exact callable arity`);
+      assert.equal(parameters.every((parameter, index) =>
         sameCsharpType(parameter.type, csharpTypeFromTargetTypeRef(nativeSignature.parameters[index]))), true,
         `${name}: selected native parameter carriers`);
-      assert.equal(method.modifiers.includes("async"), true,
-        `${name}: only the exact intrinsic Task producer is async`);
       if (name === "storedCompletion") {
         assert.equal(adapter !== undefined && adapter.async !== true && adapter.parameters.length === signature.parameters.length, true,
           "approved C-1426: the sole initializer adapts to the exact original union contract");
         assert.equal(adapter.parameters.every((parameter, index) =>
           sameCsharpType(parameter.type, csharpTypeFromTargetTypeRef(signature.parameters[index]))), true,
           "the union adapter preserves each original native input");
-        assert.equal([...ownStatements, ...adapterStatements].filter(selected => selected.kind === "LocalFunctionStatement" &&
-          selected.modifiers.includes("async")).length, 1, "one existing native async body, no additional Task wrapper");
+        assert.equal(adapterStatements.filter(statement => statement.kind === "LocalFunctionStatement" &&
+          statement.modifiers.includes("async")).length, 1, "one existing native async body, no additional Task wrapper");
         assert.equal(adapterStatements.at(-1)?.kind, "ReturnStatement", "adapted union result");
         assert.equal(adapterStatements.at(-1).expression.kind, "InvocationExpression", "native union injection");
         assert.equal(adapterStatements.at(-1).expression.callee.name, "From1", "exact selected Task alternative");
@@ -188,21 +198,32 @@ for (const surface of [undefined, "js"]) {
       "approved C-1407: the original native module value holds its exact delegate");
     assert.equal(field.modifiers.includes("public"), true, "public module-value visibility stays exact");
     const initializer = input.source.ast.as.AsVariableDeclaration(declaration).Initializer;
-    assert.equal(input.program.records.callableCreation.get(initializer)?.kind, "selected", "one completed native creation");
+    const creation = input.program.records.callableCreation.get(initializer);
+    assert.equal(creation?.kind, "selected", "one completed native creation");
     assert.equal(Object.hasOwn(input.program.records, "callableVisibility"), false, "no obsolete promotion publication");
-    const nativeReturn = csharpTypeFromTargetTypeRef(signature.returnType);
-    const method = statements.find(statement => statement.kind === "LocalFunctionStatement" &&
-      sameCsharpType(statement.returnType, nativeReturn));
-    assert.equal(method !== undefined, true, "exact native async producer at the initializer");
-    assert.equal(sameCsharpType(method.returnType, csharpTypeFromTargetTypeRef(signature.returnType)), true,
-      "promoted native Task<long> matches its body and caller");
-    assert.equal(method.modifiers.includes("async"), true);
+    const nativeSignature = getCsharpDelegateSignature(creation.carrier);
+    assert.equal(targetTypeRefEquals(nativeSignature?.returnType, signature.returnType), true,
+      "the native Task<long> creation matches its body and caller");
+    const initialization = statements.find(statement => statement.kind === "ExpressionStatement" &&
+      statement.expression.kind === "AssignmentExpression" && statement.expression.left.kind === "IdentifierName" &&
+      statement.expression.left.name === name.name).expression.right;
+    let native = initialization;
+    while (native.kind === "CastExpression" || native.kind === "ParenthesizedExpression") native = native.expression;
+    assert.equal(native.kind, "LambdaExpression", "approved C-1441 exact inline async producer at the initializer");
+    assert.equal(native.async, true);
+    assert.equal(native.parameters.length, nativeSignature.parameters.length, "the same native input vector");
     assert.equal(statements.filter(statement => statement.kind === "ExpressionStatement" &&
       statement.expression.kind === "AssignmentExpression" && statement.expression.left.kind === "IdentifierName" &&
       statement.expression.left.name === name.name).length, 1, "approved C-1407: one original binding initialization");
-    assert.equal(statements.filter(statement => statement.kind === "LocalFunctionStatement" && statement.modifiers.includes("async")).length,
+    assert.equal(asyncLambdaCount(statements),
       1, "one native async body, no additional Task wrapper");
   });
+}
+
+function asyncLambdaCount(value) {
+  if (value === null || typeof value !== "object") return 0;
+  return (value.kind === "LambdaExpression" && value.async === true ? 1 : 0) +
+    Object.values(value).reduce((count, child) => count + asyncLambdaCount(child), 0);
 }
 
 function fixture(surface, sourceText) {

@@ -48,7 +48,10 @@ function fixture() {
     semantics: () => semantics,
     semanticsFor: () => semantics,
     navigation: { isProjectDeclaration: () => true },
-    types: { resolveSelectedValue: () => union, resolveSourceCallParameter: () => incoming,
+    types: { resolveSelectedValue: () => union, resolveSourceCallParameter: (_source, _index, _file, domain) => {
+        assert.equal(domain, "callable", "union calls retain source-callee admission");
+        return incoming;
+      },
       resolveSourceCallResult: () => ({ selectedType: integer }), resolveSourceCallTypeArguments: () => [],
       resolveNode: declaration => { const type = signatures[declarations.indexOf(declaration)];
         return type === undefined ? undefined : { kind: "resolved", type }; },
@@ -115,7 +118,10 @@ for (const [name, mutate] of invalidSignatures) {
 test("native rest and optional contracts remain independent from initializer syntax", () => {
   const input = fixture();
   const array = { kind: "array", element: input.integer };
-  input.policy.types.resolveSourceCallParameter = () => array;
+  input.policy.types.resolveSourceCallParameter = (_source, _index, _file, domain) => {
+    assert.equal(domain, "callable", "rest inputs retain source-callee admission");
+    return array;
+  };
   input.selected.rest = true;
   for (const parameter of input.parameters) {
     delete parameter.Initializer;

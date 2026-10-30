@@ -7,6 +7,10 @@ import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/pr
 import type { CsharpStorageIssue } from "../../../target-model/records/storage/storage.js";
 import { selectCsharpNamedSelfBinding } from "./named-self.js";
 import type { CsharpNativeClosureCapture, CsharpNamedSelfBinding } from "../../../target-model/records/callables/capture-storage.js";
+import type { CsharpCallableContractIndex } from "../../../target-model/records/callables/callable-values.js";
+import { csharpCallableValueType } from "../../../policy/types/callables/value-type.js";
+import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
+import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations/operations.js";
 
 export function analyzeCsharpNativeCaptures(
   source: TargetSourceProgram,
@@ -14,12 +18,14 @@ export function analyzeCsharpNativeCaptures(
   physicalType: (declaration: Node, type: TargetTypeRef) => TargetTypeRef,
   issues: CsharpStorageIssue[],
   creationDemand: Pick<ReadonlyMap<Node, boolean>, "get">,
+  callables: Pick<CsharpCallableContractIndex, "get" | "closedInputType">,
+  erasedStatement: CsharpTargetOperationClassifications["erasedStatement"],
 ): { readonly lexicalCaptures: readonly CsharpNativeClosureCapture[];
   readonly namedSelfBindings: readonly CsharpNamedSelfBinding[] } {
   const captures: CsharpNativeClosureCapture[] = [];
   const namedSelfBindings: CsharpNamedSelfBinding[] = [];
   const visit = (node: Node): void => {
-    if (evidence.compileTimeMetadata.get(node)) return;
+    if (evidence.compileTimeMetadata.get(node) || erasedStatement.get(node)) return;
     const literal = source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node);
     if (literal) {
       const discarded = creationDemand.get(node);
@@ -31,9 +37,16 @@ export function analyzeCsharpNativeCaptures(
       const lexical = sourceLexicalCaptures(node, [node], source.ast, source.navigation, "source");
       const namedSelf = selectCsharpNamedSelfBinding(source, node, lexical, evidence, issues);
       if (namedSelf !== undefined) namedSelfBindings.push(namedSelf);
-      const type = evidence.nodeTargetType.get(node);
-      if (type === undefined) issues.push({ node, code: "CSHARP_CAPTURE_CALLABLE_NOT_CLOSED",
-        message: "A native closure requires its exact checked callable contract." });
+      const contract = callables.get({ kind: "declaration", declaration: node });
+      const protocol = evidence.nodeTargetType.get(node);
+      const type = contract === undefined ? undefined : getCsharpMethodValue(protocol) !== undefined
+        ? protocol : callables.closedInputType(node) ?? csharpCallableValueType(contract);
+      if (type === undefined && literal) {
+        const file = source.ast.getSourceFile(node);
+        issues.push({ node, code: "CSHARP_CAPTURE_CALLABLE_NOT_CLOSED",
+          message: "A native closure requires its exact checked callable contract." +
+            ` Source '${file === undefined ? "<missing>" : source.ast.getFileName(file).slice(0, 512)}:${source.ast.pos(node)}-${source.ast.end(node)}'.` });
+      }
       const values = lexical.captures.filter(capture => !evidence.compileTimeMetadata.get(capture.declaration)).map(capture => {
         const logical = evidence.storageTargetType.get(capture.declaration) ?? evidence.nodeTargetType.get(capture.declaration);
         const scope = sourceBindingScope(capture.declaration, source.ast);

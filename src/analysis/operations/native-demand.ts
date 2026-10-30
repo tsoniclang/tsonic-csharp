@@ -335,7 +335,8 @@ export function analyzeCsharpNativeDemand(
     const expression = child.expression;
     const expected = input.expected.expectedUse.get(site);
     const withheld = exactPending.get(site.subject)?.get(targetUseSiteIdentity(site));
-    if (withheld !== undefined) return pending(site, expression, "expected-use-pending", withheld.message);
+    if (withheld !== undefined) return pending(site, expression, "expected-use-pending",
+      `${withheld.reason}${withheld.message === undefined ? "" : `: ${withheld.message.slice(0, 2048)}`}`);
     requireCsharpRecord(requiredRecords, { family: "sourceArgument", subject: expression,
       construct: "native expression passing", producer: "analyzeCsharpNativeDemand" });
     if (ast.is.IsArrowFunction(expression) || ast.is.IsFunctionExpression(expression)) requireCsharpRecord(requiredRecords, {

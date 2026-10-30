@@ -7,10 +7,10 @@ import { csharpConstructorCapturedPlaces } from "../../../dist/analysis/callable
 import { sealCsharpCaptureStorage } from "../../../dist/analysis/program/records/callables/capture-storage.js";
 import { csharpMethodValueType } from "../../../dist/target-model/types/method-values.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
+import { createCaptureContractFixture } from "../../helpers/capture-contracts.mjs";
 
 const scalar = Object.freeze({ kind: "source-primitive", name: "float64" });
-const callable = Object.freeze({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [true],
-  id: "System.Func", typeArguments: [scalar] });
+const callable = csharpDelegateTargetType("System.Func", [], scalar);
 
 function fixture(text) {
   const checked = createCompilerSessionFromFiles({ currentDirectory: "/project",
@@ -62,7 +62,7 @@ function fixture(text) {
     storageTargetType: { get: () => undefined }, nodeTargetType: { get: node => types.get(node) },
     typeParameterConstraints: { get: () => undefined },
     contextualType: { get: node => contexts.get(node) },
-  }, classCaptures);
+  }, classCaptures, createCaptureContractFixture(source, node => types.get(node)), { get: () => false });
   return { source, binding, owner, evaluate, types, metadata, classCaptures, storageTypes, contexts };
 }
 
@@ -226,7 +226,7 @@ test("a checked quantified protocol retains its native method and shares its ori
     csharpAllowsRefLikeTypeArguments: [], csharpRender: { kind: "named", name: "QuantifiedFixture" } });
   const type = csharpMethodValueType(protocol, "invoke", "fixture-quantified", signature, [parameter.identity]);
   assert.equal(type !== undefined, true, "the exact native quantified invocation contract is completed");
-  input.contexts.set(owner, { targetType: type });
+  input.types.set(owner, type);
   const result = input.evaluate();
   assert.equal(result.issues.length, 0);
   assert.equal(result.frames.length, 2, "only the required shared place and quantified value environments");

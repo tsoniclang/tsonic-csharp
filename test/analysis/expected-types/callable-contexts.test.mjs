@@ -100,14 +100,15 @@ function fixture(body, overrides = {}) {
   const names = { resolve: node => ({ kind: "resolved", name: source.ast.text(node) }) };
   const analyzed = analyzeCsharpCallableContracts(policy, evidence, declarations, names, { genericProjection: Object.freeze({ get: () => [] }) }, source,
     Object.freeze({ typeDefinitions: undefined, projectTypes: policy.projectTypes, providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) }, target: {},
-      objectShapes }));
+      objectShapes, conversion: { get() { throw new Error("This fixture has no contextual native parameter adaptation."); } } }), operations);
   const contract = analyzed.get({ kind: "declaration", declaration: lambda });
   assert.equal(contract !== undefined, true, "the original declaration has its completed native ABI");
   const nativeCarrier = csharpCallableValueType(contract);
   const creations = analyzeCsharpCallableCreations({ source, nodes, contracts: analyzed, operations,
     captures: { captureClosure: { get: () => undefined }, namedSelf: { get: () => undefined },
       lexicalCaptures: [{ owner: lambda, values: [], receivers: [] }] },
-    storage: { lambdaParameterType: { get: parameter => contract.nativeParameters.find(entry => entry.sourceParameter === parameter)?.targetParameter.type } },
+    storage: { lambdaParameterType: { get: parameter => contract.nativeParameters.find(entry => entry.sourceParameter === parameter)?.targetParameter.type },
+      storageType: { get: declaration => source.ast.is.IsVariableDeclaration(declaration) ? nativeCarrier : undefined } },
     evidence, conversions: { conversion: { get: (sourceType, targetType) => targetTypeRefEquals(sourceType, targetType) ? { kind: "identity" } : undefined } },
     literals: { literalValue: { get: () => undefined } } });
   return { scopedType, creation: creations.callableCreation.get(lambda), nativeCarrier, contract, lambda, source,

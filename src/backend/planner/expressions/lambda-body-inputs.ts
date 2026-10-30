@@ -17,9 +17,7 @@ export function planCsharpLambdaBodyInputs(
 ): { readonly parameters: readonly CsharpLambdaParameter[]; readonly prelude: readonly CsharpStatement[] } {
   const layout = contract.bodyInputs;
   if (layout === undefined) return failCsharpPlannerInvariant("A contextual rest body requires its sealed input layout.", contract.sourceDeclaration);
-  const native: CsharpParameter[] = parameters.map(parameter => ({ name: parameter.name,
-    type: parameter.type ?? failCsharpPlannerInvariant("A contextual rest body requires each physical native parameter.", contract.sourceDeclaration),
-  }));
+  const nativeParameters = [...parameters];
   const body = layout.parameters.map(parameter => {
     const node = parameter.sourceParameter;
     const name = input.program.source.ast.name(node);
@@ -34,9 +32,22 @@ export function planCsharpLambdaBodyInputs(
         : { kind: "DefaultExpression" as const, type, nullForgiving: true } }),
     };
   });
+  const native: CsharpParameter[] = parameters.map(parameter => ({ name: parameter.name,
+    type: parameter.type ?? failCsharpPlannerInvariant("A contextual rest body requires each physical native parameter.", contract.sourceDeclaration),
+  }));
   const prelude: CsharpStatement[] = [];
   for (const [index, parameter] of layout.parameters.entries()) {
     const adapter = layout.adapters[index];
+    if (adapter?.kind === "value") {
+      const incoming = parameters[adapter.parameterIndex];
+      const planned = incoming === undefined ? undefined
+        : entry(parameter.sourceParameter, { ...incoming, name: body[index]!.name });
+      if (planned?.parameters.length !== 1)
+        return failCsharpPlannerInvariant("A native body input requires its exact scalar parameter entry.", parameter.sourceParameter);
+      nativeParameters[adapter.parameterIndex] = planned.parameters[0]!;
+      prelude.push(...planned.prelude);
+      continue;
+    }
     const planned = entry(parameter.sourceParameter, { kind: "Parameter", name: body[index]!.name, type: body[index]!.type });
     if (adapter === undefined || planned?.parameters.length !== 1)
       return failCsharpPlannerInvariant("A contextual rest body requires one admitted scalar entry for each source binding.", parameter.sourceParameter);
@@ -48,5 +59,5 @@ export function planCsharpLambdaBodyInputs(
     prelude.push(...selected.statements, { kind: "LocalDeclarationStatement", name: incoming.name, type: incoming.type, initializer: value },
       ...planned.prelude);
   }
-  return { parameters, prelude };
+  return { parameters: nativeParameters, prelude };
 }

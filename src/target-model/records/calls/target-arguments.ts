@@ -7,6 +7,7 @@ import type { CsharpConversionSelection } from "../../conversions/selection.js";
 export type CsharpCallArgumentForm = CsharpSelectedCallArgument["sourceForm"];
 export type CsharpCallArgumentEmission =
   | { readonly kind: "plain"; readonly target: TargetTypeRef }
+  | { readonly kind: "native-binding"; readonly source: TargetTypeRef; readonly target: TargetTypeRef }
   | { readonly kind: "convert"; readonly read: "expression" | "argument"; readonly source: TargetTypeRef;
       readonly target: TargetTypeRef; readonly conversion: CsharpConversionSelection }
   | { readonly kind: "argument-vector"; readonly source: TargetTypeRef; readonly target: TargetTypeRef; readonly vector: TargetTypeRef;

@@ -14,7 +14,8 @@ import { closeCsharpProjectCallableContracts } from "../project-types/callable-c
 import { csharpCallableValueType } from "../../policy/types/callables/value-type.js";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpCallableConversionPolicy } from "./native/adapters.js";
-import { closeCsharpContextualRestInputs } from "./calls/contextual-rest-inputs.js";
+import type { CsharpConversionClassifications } from "../../target-model/records/operations/conversions.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 
 export function analyzeCsharpCallableContracts(
   policy: CsharpPolicyContext,
@@ -23,7 +24,8 @@ export function analyzeCsharpCallableContracts(
   names: CsharpSourceNameResolver,
   projections: CsharpGenericProjectionIndex,
   source: TargetSourceProgram,
-  conversions: CsharpCallableConversionPolicy,
+  conversions: CsharpCallableConversionPolicy & Pick<CsharpConversionClassifications, "conversion">,
+  operations: Pick<CsharpTargetOperationClassifications, "selectedCall" | "selectedConstruction">,
 ): CsharpCallableContractIndex {
   const byDeclaration = new Map<Node, SourceCallableSourceContract>();
   const byProjectConstructor = new Map<string, SourceCallableContract>();
@@ -43,8 +45,7 @@ export function analyzeCsharpCallableContracts(
     contracts[index] = contract;
   }
   for (const { declaration, sourceFile } of checkedDeclarations) {
-    const selected = selectCsharpSourceCallableAbi(policy, evidence, declarations, names, declaration, sourceFile, projections);
-    const contract = selected === undefined ? undefined : closeCsharpContextualRestInputs(policy, evidence, conversions, selected);
+    const contract = selectCsharpSourceCallableAbi(policy, evidence, declarations, names, declaration, sourceFile, projections, operations, conversions);
     if (contract !== undefined) {
       byDeclaration.set(declaration, contract);
       contracts.push(contract);
@@ -88,8 +89,10 @@ export function analyzeCsharpCallableContracts(
         node,
         sourceFile,
         projections,
+        operations,
+        conversions,
       );
-      const contract = selected === undefined ? undefined : closeCsharpContextualRestInputs(policy, evidence, conversions, selected);
+      const contract = selected;
       if (contract !== undefined) {
         byDeclaration.set(node, contract);
         contracts.push(contract);
@@ -121,6 +124,7 @@ export function csharpCallableContractIndexesEqual(
     const other = right.closedInputs[index];
     return other !== undefined && entry.declaration === other.declaration &&
       targetTypeRefEquals(entry.input.type, other.input.type) &&
+      entry.input.source !== undefined && other.input.source !== undefined &&
       entry.input.source.sourceDeclaration === other.input.source.sourceDeclaration;
   }) && left.contracts.length === right.contracts.length &&
     left.contracts.every((candidate, index) => {

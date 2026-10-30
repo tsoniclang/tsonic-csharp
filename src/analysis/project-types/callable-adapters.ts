@@ -14,7 +14,7 @@ import { scopedTargetTypeRefKey, targetTypeRefEquals, targetTypeRefKey } from ".
 import type { CsharpStructuralInterfaceImplementation, CsharpTargetNamedTypeRef, CsharpTargetParameter, TargetTypeRef } from "../../target-model/types/model.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/object-shape-members.js";
 import { substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
-import { admitCsharpCallableParameterAdapters, admitCsharpCallableResultAdapter, type CsharpCallableConversionPolicy } from "../callables/native/adapters.js";
+import { admitCsharpCallableParameterAdapters, admitCsharpCallableResultAdapter, admitCsharpCallableValueAdapter, type CsharpCallableConversionPolicy } from "../callables/native/adapters.js";
 import { csharpCallableParametersEqual, instantiateCsharpInheritedCallable } from "../callables/generics/instantiation.js";
 import type { CsharpCallableContractIndex } from "../../target-model/records/callables/callable-values.js";
 import type { CsharpObjectShapeAnalysis, CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
@@ -165,7 +165,8 @@ export function analyzeCsharpProjectCallableAdapters(
         else overridesBase = true;
         continue;
       }
-      const parameters = admitCsharpCallableParameterAdapters(policy, contract.nativeParameters.map(parameter => parameter.targetParameter),
+      const parameters = admitCsharpCallableParameterAdapters((source, target) => admitCsharpCallableValueAdapter(policy, source, target),
+        contract.nativeParameters.map(parameter => parameter.targetParameter),
         implementation.nativeParameters.map(parameter => parameter.targetParameter));
       if (parameters === undefined || result === undefined) {
         reject(declaration, "An inherited callable requires an exact logical-argument and native-result adaptation.");
@@ -277,7 +278,7 @@ export function analyzeCsharpProjectCallableAdapters(
               sourceReturnType: substituteTargetTypeParameters(instantiated.nativeSignature.sourceReturnType, substitutions) }) }),
         });
         const incoming = contract.nativeParameters.map(parameter => parameter.targetParameter);
-        const parameters = admitCsharpCallableParameterAdapters(policy, incoming,
+        const parameters = admitCsharpCallableParameterAdapters((source, target) => admitCsharpCallableValueAdapter(policy, source, target), incoming,
           implementation.nativeParameters.map(parameter => parameter.targetParameter));
         const result = admitCsharpCallableResultAdapter(policy, implementation, contract.returnType);
         if (parameters === undefined || result === undefined) {

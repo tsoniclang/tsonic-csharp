@@ -19,6 +19,7 @@ import { csharpCallableValueType } from "../../../policy/types/callables/value-t
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations/operations.js";
 import type { CsharpNativeCallableAllocation } from "../../../target-model/records/native/native-demand.js";
+import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 
 export interface CsharpCallableCreationInput {
   readonly source: TargetSourceProgram;
@@ -26,7 +27,7 @@ export interface CsharpCallableCreationInput {
   readonly captures: Pick<CsharpCaptureStorage, "captureClosure" | "lexicalCaptures" | "namedSelf">;
   readonly contracts: CsharpCallableContractIndex;
   readonly operations: Pick<CsharpTargetOperationClassifications, "selectedCall" | "selectedConstruction">;
-  readonly storage: Pick<CsharpStorageClassifications, "lambdaParameterType">;
+  readonly storage: Pick<CsharpStorageClassifications, "lambdaParameterType" | "storageType">;
   readonly evidence: Pick<CsharpSourceEvidenceIndex, "nodeTargetType" | "contextualType" | "compileTimeMetadata">;
   readonly conversions: Pick<CsharpConversionClassifications, "conversion">;
   readonly literals: SourceLiteralIndex;
@@ -55,12 +56,21 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
     const operation = argument === undefined ? undefined : ast.is.IsNewExpression(argument.call)
       ? input.operations.selectedConstruction.get(argument.call) : input.operations.selectedCall.get(argument.call);
     const nativeArguments = operation?.sourceArgumentParameterTypes;
-    const grouping = operation?.sourceArgumentGrouping;
-    const nativeBindings = argument === undefined || grouping?.kind !== "grouped" ? []
-      : grouping.arguments.filter(binding => binding.sourceArgumentIndex === argument.argumentIndex &&
-        binding.expression === argument.argument && binding.sourceForm === "value");
-    const contextualCarrier = nativeArguments === undefined ? input.evidence.contextualType.get(node)?.targetType
-      : nativeBindings.length === 1 ? nativeArguments[nativeBindings[0]!.effectiveArgumentIndex] : undefined;
+    const checked = argument === undefined ? undefined : input.source.semantics.forNode(argument.call).operations.call(argument.call);
+    const nativeBindings = checked?.sourceArgumentBindings.filter(binding =>
+      argument !== undefined && binding.sourceArgumentIndex === argument.argumentIndex && binding.sourceForm === "value" &&
+      checked.sourceArguments[binding.sourceArgumentIndex]?.expression === argument.argument) ?? [];
+    const immediate = nativeBindings.length === 1 ? nativeArguments?.[checked!.sourceArgumentBindings.indexOf(nativeBindings[0]!)] : undefined;
+    if (argument !== undefined && immediate === undefined) {
+      producer.publish(node, Object.freeze({ kind: "pending" }));
+      continue;
+    }
+    const disposition = sourceExpressionResultDisposition(ast, node);
+    const contextual = argument !== undefined ? immediate
+      : disposition.kind === "stored" && ast.is.IsVariableDeclaration(disposition.use)
+        ? input.storage.storageType.get(disposition.use)
+        : input.evidence.contextualType.get(node)?.targetType;
+    const contextualCarrier = getCsharpNullableElementTargetType(contextual) ?? contextual;
     const contract = input.contracts.get({ kind: "declaration", declaration: node });
     const closed = input.contracts.closedInputType(node);
     const native = contract === undefined ? undefined : closed ?? csharpCallableValueType(contract);
@@ -83,7 +93,6 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
       selectedArgument.call.invocationOnlyCallableArgumentIndexes?.includes(argument.argumentIndex) === true &&
       selectedArgument.call.arguments.filter(binding => binding.sourceArgumentIndex === argument.argumentIndex).length === 1 &&
       selectedArgument.call.arguments.some(binding => binding.sourceArgumentIndex === argument.argumentIndex && binding.sourceForm === "value");
-    const disposition = sourceExpressionResultDisposition(ast, node);
     const direct = disposition.kind === "consumed" && ast.is.IsCallExpression(disposition.use);
     const allocation: CsharpNativeCallableAllocation = Object.freeze(
       getCsharpExpressionTreeDelegateType(carrier) !== undefined ? { kind: "quotation", staticBody: false }

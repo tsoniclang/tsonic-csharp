@@ -4,6 +4,7 @@ import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../../
 import { genericCallableOwnershipCases } from "../../../../../tsonic/test/fixtures/generic-callable-ownership.mjs";
 import { unsupportedGenericCallableOwnershipCases } from "../../../fixtures/generic-callable-ownership.mjs";
 import { receiverFieldUnconstrainedEqualitySource } from "../../../../../tsonic/test/fixtures/receiver-field-capture-edges.mjs";
+import { executeCsharpConstruction } from "../../../helpers/native-construction.mjs";
 
 function compile(sourceText) {
   const compiled = compileCsharpSource({ sourceText });
@@ -89,7 +90,7 @@ test("generic escaping callables share mutable lexical storage with ordinary cal
   `);
   assert.match(owners, /\bInvoke<T>\(T left, T right\)/u);
   assert.match(owners, /value\d+ \? left : right/u);
-  assert.match(owners, /value\d+ = false/u);
+  assert.match(source + owners, /value\d+ = false/u);
   assert.match(source, /\.choose\.__tsonic_invoke_body_Invoke<string>\(/u);
   assert.equal(/class __TsonicCallable_/u.test(owners), false,
     "the once-per-activation callable reuses its shared native frame");
@@ -198,9 +199,16 @@ test("transitive native constraint dependencies are finalized on the physical ow
 for (const example of unsupportedGenericCallableOwnershipCases) for (const surface of ["native", "js"]) {
   test(`unimplemented quantified ownership rejects ${example.name} in ${surface}`, () => {
     const compiled = compileCsharpSource({ surface, sourceText: example.source, files: example.files });
-    assert.equal(compiled.result.diagnostics.some(diagnostic =>
-      diagnostic.code === example.code && diagnostic.message.includes(example.message)), true, example.name);
-    assert.equal(compiled.artifacts.size, 0, "no partial native artifact for an unsupported quantified owner");
+    if (example.code === "CSHARP_QUANTIFIED_NAMED_CALLABLE_NOT_SUPPORTED") {
+      assertCsharpCompilationSucceeded(compiled);
+      assert.equal(compiled.artifacts.size > 0, true, "approved C1439/C1413: original named quantified owner publishes native output");
+      executeCsharpConstruction(compiled, `named-quantified-${example.name}-${surface}`, false, false, [],
+        "Tsonic.Generated.Index.main();");
+    } else {
+      assert.equal(compiled.result.diagnostics.some(diagnostic =>
+        diagnostic.code === example.code && diagnostic.message.includes(example.message)), true, example.name);
+      assert.equal(compiled.artifacts.size, 0, "no partial native artifact for an unsupported quantified owner");
+    }
   });
 }
 
@@ -220,6 +228,7 @@ test("supported named local monomorphic values retain their existing native dele
   assertCsharpCompilationSucceeded(compiled);
   const source = compiled.artifacts.get("src/Index.cs");
   assert.equal(typeof source, "string", "existing named local source");
-  assert.match(source, /chooseCallable/u);
+  assert.match(source, /new Func<double, double, double>\(choose\)/u);
+  assert.match(source, /ReferenceEquals\(selected\.first, selected\.second\)/u);
   assert.doesNotMatch(source, /\.Invoke<|EqualityComparer|\bdynamic\b/u);
 });

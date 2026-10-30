@@ -17,8 +17,57 @@ import { admitCsharpDelegateOperand } from "../../../../dist/analysis/conversion
 import { createCsharpDelegateContractProducer } from "../../../../dist/analysis/program/records/callables/callable-conversions.js";
 import { admitCsharpDelegateEmission } from "../../../../dist/analysis/conversions/callable-emission.js";
 import { csharpDelegateContractRecord } from "../../../helpers/planning-records.mjs";
+import { csharpPlannedArgumentSyntax } from "../../../../dist/backend/planner/expressions/calls/planned-arguments.js";
+import { csharpPlannedValue } from "../../../../dist/backend/planner/expressions/planned-values.js";
+import { analyzeCsharpTargetArguments } from "../../../../dist/analysis/callables/native/target-arguments.js";
+import { csharpObjectTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
+import { csharpTypeFromTargetTypeRef } from "../../../../dist/backend/planner/types/render.js";
 
 const integer = { kind: "source-primitive", name: "int32" };
+
+test("nominal native arguments cast only an unanchored inline lambda at an object-typed slot", () => {
+  const carrier = nativeDelegate("Selected");
+  const type = csharpTypeFromTargetTypeRef(carrier, new Map());
+  assert.equal(type !== undefined, true, "the same selected nominal delegate has its native type syntax");
+  const lambda = { kind: "LambdaExpression", parameters: [{ kind: "Parameter", name: "value" }],
+    body: { kind: "IdentifierName", name: "value" } };
+  const planned = { ...csharpPlannedValue(carrier, lambda), nativeBinding: type };
+  const cast = csharpPlannedArgumentSyntax(planned, lambda).expression;
+  assert.equal(cast.kind === "CastExpression" && cast.type === type && cast.expression === lambda, true,
+    "one cast to the selected native delegate around the same original lambda");
+  for (const anchored of [cast, { kind: "IdentifierName", name: "typedNativeTemporary" }]) {
+    assert.equal(csharpPlannedArgumentSyntax(planned, anchored).expression === anchored, true,
+      "existing casts and typed native temporaries are retained, not wrapped again");
+  }
+  assert.equal(csharpPlannedArgumentSyntax(csharpPlannedValue(carrier, lambda), lambda).expression === lambda, true,
+    "a genuinely delegate-typed parameter keeps its exact inline lambda");
+});
+
+test("nominal native binding admission owns the physical object slot and rejects delegate-typed or foreign inputs", () => {
+  const node = {};
+  const expression = {};
+  const carrier = nativeDelegate("Selected");
+  for (const [physical, selected, admitted] of [[csharpObjectTargetType(), carrier, true],
+    [carrier, carrier, false], [integer, carrier, false], [csharpObjectTargetType(), integer, false]]) {
+    const parameter = { name: "callback", type: physical, passingMode: "by-value",
+      csharpSourceArgumentAdapter: { kind: "native-binding", sourceCallableType: selected } };
+    const source = { sourceArguments: [{ expression }], sourceArgumentBindings: [], sourceSelectedSignatureParameters: [] };
+    const call = { origin: "source-profile", receiver: { kind: "none" }, targetMember: { parameters: [parameter] },
+      arguments: [{ sourceArgumentIndex: 0, effectiveArgumentIndex: 0, sourceForm: "value",
+        targetParameterIndex: 0, targetParameter: parameter }] };
+    const analysis = analyzeCsharpTargetArguments({ ast: {}, nodes: [node], admitted: () => true, demand: {},
+      operations: { selectedCall: { get: () => ({ target: { kind: "resolved", source, call } }) },
+        selectedConstruction: { get: () => undefined } }, sources: { sourceArgumentsEmission: { get: () => undefined } } });
+    assert.equal(analysis.issues.length === 0, admitted, "only the proven nominal delegate/object boundary admits");
+    const record = analysis.records.callArgumentEmission.get(expression, parameter, "value", undefined);
+    assert.equal(record?.kind === "native-binding", admitted, "one completed native-binding argument fact");
+    if (admitted) {
+      assert.equal(record.source === carrier && record.target === physical, true, "selected nominal and physical types stay distinct");
+      assert.equal(analysis.requests.length === 1 && analysis.requests[0].target === carrier, true,
+        "the original argument requires the same completed native delegate");
+    }
+  }
+});
 const policy = { projectTypes: { directSupertypes: () => [] }, providers: { findTargetBindingByTargetId() { return { kind: "missing" }; } }, target: {} };
 // Each binding plans against the delegate contract the analysis publishes for its one admitted conversion.
 const context = conversions => ({ scope: {}, program: { records: { delegateContract: csharpDelegateContractRecord(conversions),
@@ -100,7 +149,8 @@ test("mutated native-binding selections and unsupported byref lambdas fail close
     const producer = createCsharpDelegateContractProducer();
     admitCsharpDelegateEmission(producer, refSource, refTarget, selected);
     const issues = admitCsharpDelegateOperand({ is: { IsArrowFunction: node => node === lambda, IsFunctionExpression: () => false } },
-      { captureClosure: { get: () => undefined }, lambdaCreation: { get: () => ({ kind: "inline" }) } },
+      { captureClosure: { get: () => undefined } },
+      { callableCreation: { get: () => ({ kind: "selected", carrier: refSource, allocation: { kind: "inline", staticBody: false } }) } },
       producer, lambda, refSource, refTarget, selected);
     assert.deepEqual(issues.map(issue => issue.message),
       ["A by-reference native delegate binding requires an exact native method group or delegate value."]);
@@ -146,11 +196,10 @@ test("real provider native execution seals the original IntTransform lambda with
   const generated = [...compiled.artifacts].filter(([path]) => path.endsWith(".cs"));
   assert.equal(generated.length > 0, true);
   const text = generated.map(([, source]) => source).join("\n");
-  const method = /int ([\p{L}_][\p{L}\p{N}_]*)\(int current\)/u.exec(text)?.[1];
-  assert.equal(typeof method, "string", "authored lambda retains its native method signature");
-  assert.equal(text.includes(`Invoke(new Provider.ParameterModes.IntTransform(${method}), value)`), true);
+  assert.match(text, /Invoke\(\(int current\) => current, value\)/u,
+    "the authored lambda retains its exact inline native input and return");
   assert.doesNotMatch(text.slice(0, text.indexOf("public static int invokeAlias")), /new Func|System\.Func|\.Invoke\)/u);
-  assert.match(text, /InvokeVoid\(new Provider\.ParameterModes\.IntAction\(/u);
+  assert.match(text, /InvokeVoid\(\(int current\) =>/u);
   assert.doesNotMatch(text, /new Action|System\.Action/u);
   const proof = mkdtempSync(fileURLToPath(new URL("../../../../.temp/native-delegate-execution-", import.meta.url)));
   for (const [index, [, source]] of generated.entries()) writeFileSync(join(proof, `Generated${index}.cs`), source);

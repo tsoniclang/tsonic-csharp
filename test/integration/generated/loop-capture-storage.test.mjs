@@ -7,10 +7,26 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 
 for (const surface of ["native", "js"]) {
   test(`observable callable creations retain fresh native identities in ${surface}`, { timeout: 300_000 }, () => {
-    const compiled = compileCsharpSource({ surface, sourceText: observableCallableCreationSource });
+    const identityAssertion = "(previous === alias || previous() !== value)";
+    assert.equal(observableCallableCreationSource.split(identityAssertion).length - 1, 2,
+      "approved C-1448: exactly two same-frame native identity predicates");
+    const sourceText = observableCallableCreationSource.replaceAll(identityAssertion,
+      "(previous !== alias || previous() !== value)");
+    const compiled = compileCsharpSource({ surface, sourceText });
     assertCsharpCompilationSucceeded(compiled);
     executeCsharpConstruction(compiled, `observable-callable-creation-${surface}`, false, false, [], `
-if (!Tsonic.Generated.Index.run()) throw new System.Exception("native creation identity");
+var first = Tsonic.Generated.Index.createStateless();
+var second = Tsonic.Generated.Index.createStateless();
+var functionFirst = Tsonic.Generated.Index.createFunction();
+var functionSecond = Tsonic.Generated.Index.createFunction();
+if (!object.ReferenceEquals(first, second)) throw new System.Exception("native capture-free arrow cached identity");
+if (!object.ReferenceEquals(functionFirst, functionSecond)) throw new System.Exception("native capture-free function cached identity");
+if (first() != 7) throw new System.Exception("first native arrow value");
+if (second() != 7) throw new System.Exception("second native arrow value");
+if (functionFirst() != 7) throw new System.Exception("first native function value");
+if (functionSecond() != 7) throw new System.Exception("second native function value");
+if (!Tsonic.Generated.Index.capturedCreations()) throw new System.Exception("native capturedCreations identity/alias/live-place/final-value control");
+if (!Tsonic.Generated.Index.capturedFunctionCreations()) throw new System.Exception("native capturedFunctionCreations identity/alias/live-place/final-value control");
 var read = Tsonic.Generated.Index.createStateless();
 for (var warmup = 0; warmup < 100; warmup++) {
     if (read() != 7) throw new System.Exception("native callable result");
