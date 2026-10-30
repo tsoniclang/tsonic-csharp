@@ -132,6 +132,8 @@ test(`C# generic adoption refuses the actual ${name} class receiver`, () => {
     assert.equal(ast.kindName(issue.sourceNode), "KindExpressionWithTypeArguments",
       "the original dependent heritage clause owns the refusal, not the receiver call");
     const sourceFile = ast.getSourceFile(issue.sourceNode);
+    assert.equal(sourceFile !== undefined && compiled.source.sourceFiles.includes(sourceFile), true,
+      "approved C-1389: the heritage subject retains its original checked source owner");
     assert.equal(Buffer.from(ast.getSourceText(sourceFile))
       .subarray(ast.pos(issue.sourceNode), ast.end(issue.sourceNode)).toString("utf8").trim(),
     unsupportedHeritage, "the unchanged authored base type is retained exactly");

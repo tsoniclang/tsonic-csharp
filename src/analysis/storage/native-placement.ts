@@ -16,6 +16,7 @@ import { getCsharpTaskResultTargetType } from "../../target-model/types/carriers
 import { getCsharpGeneratorProtocol } from "../../target-model/types/carriers/generators.js";
 import { isCsharpRefLikeTargetType } from "../../target-model/types/ref-like.js";
 import { analyzeCsharpRefLikeLiveness, analyzeCsharpRefLikeEvaluation } from "./ref-like-liveness.js";
+import { selectCsharpSourceCallableGenericAbi } from "../callables/calls/source-callable-abi.js";
 
 export interface CsharpNativePlacementInput {
   readonly source: TargetSourceProgram;
@@ -201,7 +202,10 @@ export function analyzeCsharpRefLikePlacements(input: CsharpNativePlacementInput
           if ((callee.kind === "function" || callee.kind === "method") &&
             !input.source.navigation.isProjectDeclaration(callee.declaration)) continue;
           const allowed = callee.kind === "function" || callee.kind === "method"
-            ? [input.callables.get({ kind: "declaration", declaration: callee.declaration })?.nativeSignature.methodAllowsRefLikeTypeArguments]
+            ? [(ast.is.IsFunctionDeclaration(callee.declaration) && ast.body(callee.declaration) === undefined
+                ? selectCsharpSourceCallableGenericAbi(ast, callee.declaration)
+                : input.callables.get({ kind: "declaration", declaration: callee.declaration })?.nativeSignature)
+              ?.methodAllowsRefLikeTypeArguments]
             : callee.kind === "union-method" && sourceCall.unionCall?.kind === "resolved"
               ? sourceCall.unionCall.methods.map(method => input.callables.get({ kind: "declaration",
                   declaration: method.declaration })?.nativeSignature.methodAllowsRefLikeTypeArguments)
