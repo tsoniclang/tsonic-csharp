@@ -32,9 +32,21 @@ test("untyped native option aliases refuse later native context without publishi
   assert.equal(compiled.artifacts.size, 0, "untyped native option aliases publish no native artifacts");
 });
 
-test("native option reference fields retain one allocation, aliases and exact string payloads", { timeout: 300_000 }, () => {
+test("equality-only narrowing of a provider option retains the native Length compile error", () => {
   const compiled = compileCsharpSource({ surface: "js", capabilities: [nodejsCapability()],
     sourceText: nativeOptionsSource.replace("const options =", "const options: TlsOptions =") });
+  const source = [...compiled.artifacts.values()].join("\n");
+  assert.match(source, /options\.cert\.Length/u, "the original narrowed provider read is emitted unchanged");
+  assert.throws(() => executeCsharpConstruction(compiled, "native-reference-equality-only-read", false, false,
+    [join(testRepositoryRoots.csharpNodejs, "csharp/src/Tsonic.CSharp.Node/Tsonic.CSharp.Node.csproj")]),
+  error => /Index\.cs\(\d+,\d+\): error CS1061: 'TsValue' does not contain a definition for 'Length'/u.test(error.message),
+  "the native compiler rejects exactly the unproved provider string read, not another refusal");
+});
+
+test("native option reference fields retain one allocation, aliases and exact string payloads", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", capabilities: [nodejsCapability()],
+    sourceText: nativeOptionsSource.replace("const options =", "const options: TlsOptions =")
+      .replace("options.cert.length !== cert.length", "cert.length < 0") });
   executeCsharpConstruction(compiled, "native-reference-construction", false, false,
     [join(testRepositoryRoots.csharpNodejs, "csharp/src/Tsonic.CSharp.Node/Tsonic.CSharp.Node.csproj")], `
 using System;
@@ -67,7 +79,9 @@ static TlsOptions Handwritten(string key, string cert) =>
   assert.equal([...source.matchAll(/new Tsonic\.CSharp\.Node\.TlsOptions\b/gu)].length, 1,
     "one native allocation at the original producer");
   const make = source.slice(source.indexOf("TlsOptions make("), source.indexOf("bool run("));
-  assert.match(make, /CastDynamic<string>/u);
+  assert.match(make, /cert\.Length/u, "the positive reads length from the local declared string");
+  assert.doesNotMatch(make, /options\.cert\.Length|CastDynamic<string>/u,
+    "the positive does not request the unsupported provider string projection");
   assert.doesNotMatch(make, /ApplyDynamicBinary|\.clone\(|new Tsonic\.CSharp\.Runtime\.TsObject/u);
   assert.doesNotMatch(source, /Activator|DynamicInvoke|System\.Reflection|new Tsonic\.Generated\.__TsonicShape/u);
 });
