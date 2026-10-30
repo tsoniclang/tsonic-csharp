@@ -31,15 +31,7 @@ export function analyzeCsharpLexicalValues(input: {
         reject(declaration, "A lexical function requires one exact checked native delegate contract.");
         continue;
       }
-      const creation = input.captures.lexicalValueCreation.get(declaration);
-      const inlineReference = creation?.kind === "resolved" ? creation.inlineReference : undefined;
-      const name = input.captures.lexicalValueName.get(declaration);
-      if (inlineReference === undefined && name === undefined) {
-        reject(declaration, "A lexical callable owner requires its stable analyzed storage name.");
-        continue;
-      }
-      values.push(Object.freeze({ declaration, carrier, references: Object.freeze(references), storage: inlineReference === undefined
-        ? Object.freeze({ kind: "binding", name: name! }) : Object.freeze({ kind: "inline", reference: inlineReference }) }));
+      values.push(Object.freeze({ declaration, carrier, references: Object.freeze(references) }));
     }
     if (values.length !== 0) rows.set(statement, Object.freeze(values));
   }
