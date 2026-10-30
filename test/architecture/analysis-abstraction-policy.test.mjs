@@ -347,6 +347,30 @@ test("architecture validator rejects executable hooks in policy-like records", (
   assert.deepEqual(forbidden.map((text) => ruleMatches(hookRule, text)), [true, true, true, true, true]);
   assert.deepEqual(allowed.map((text) => ruleMatches(hookRule, text)), Array(allowed.length).fill(false));
 });
+test("architecture hook identifiers distinguish local data from functions without treating unknown values as data", () => {
+  const hookRule = analysisAbstractionRules.find(rule => rule.id === "source-id-executable-policy-hook");
+  const forbidden = [
+    "const selected = request => request; const row = { result: selected };",
+    "const selected = function (request) { return request; }; const row = { result: selected };",
+    "function selected(request) { return request; } const row = { result: selected };",
+    "const selected = request => request; const alias = selected; const row = { result: alias };",
+    "const selected = { run() {} }; const callback = selected.run; const row = { result: callback };",
+    "const row = { result: missing };",
+    "const selected = missing; const row = { result: selected };",
+    "const selected = externalFactory(); const row = { result: selected };",
+    "const selected = { kind: 'resolved' }; function use(selected) { return { result: selected }; }",
+    "function use() { const selected = () => 1; return { result: selected }; } const selected = 1;",
+    "const selected = 1; function use() { if (true) { var selected = () => 1; } return { result: selected }; }",
+  ];
+  const allowed = [
+    "const completedResult = { kind: 'rejected', reason: 'required member' }; const row = { result: completedResult };",
+    "const selected = 7; const row = { result: selected };",
+    "const selected = { kind: 'resolved' }; const alias = selected; const row = { result: alias };",
+    "const selected = () => 1; function use() { const selected = { kind: 'resolved' }; return { result: selected }; }",
+  ];
+  for (const source of forbidden) assert.equal(ruleMatches(hookRule, source), true, source);
+  for (const source of allowed) assert.equal(ruleMatches(hookRule, source), false, source);
+});
 test("architecture validator rejects fabricated TSTS compiler objects", () => {
   assertFindings(
     "src/backend/planner/bindings/destructuring-assignment.ts",
