@@ -298,14 +298,28 @@ function actualUnionDestinationEvidence(program, label) {
 }
 
 for (const surface of ["native", "js"]) {
-  test(`${surface} inferred array binding and field storage retain their actual construction carrier`, () => {
-    const program = accepted(compile(surface, `
+  const originalStorageSource = `
       function select(values: number[]): number[] { return values; }
       export function local() { let localValues = [1, 2]; localValues[0] = 3; return localValues[0]; }
       export function authored() { let authoredValues: number[] = [1, 2]; authoredValues[0] = 1.5; return authoredValues; }
       export function destination() { let demandedValues = [1, 2]; return select(demandedValues); }
       export class Counter { values = [1, 2]; current() { return this.values[0]; } }
-    `));
+    `;
+  test(`${surface} inferred array binding and field storage retain their actual construction carrier`, () => {
+    const compiled = compile(surface, originalStorageSource);
+    const source = surface === "js" ? "target:Tsonic.CSharp.Js.JSArray`1<source:int64>" : "array:1:source:int64";
+    const destination = surface === "js" ? "target:Tsonic.CSharp.Js.JSArray`1<source:float64>" : "array:1:source:float64";
+    const message = `No exact C# implicit conversion relates '${source}' to '${destination}'.`;
+    assert.equal(compiled.sourceDiagnosticsText === "" && compiled.result.program === undefined &&
+      compiled.targetDiagnostics.length === 1 && compiled.targetDiagnostics[0].code === "CSHARP_UNSUPPORTED_AST" &&
+      compiled.targetDiagnostics[0].message === message, true,
+    "the original later number[] consumer cannot change independently created int64 array storage");
+  });
+  for (const [variant, sourceText] of [
+    ["declared", originalStorageSource.replace("let demandedValues = [1, 2]", "let demandedValues: number[] = [1, 2]")],
+    ["written", originalStorageSource.replace("let demandedValues = [1, 2]", "let demandedValues = [1.0, 2.0]")],
+  ]) test(`${surface} ${variant} floating destination preserves independent native integer storage`, () => {
+    const program = accepted(compile(surface, sourceText));
     const ast = program.source.ast;
     const found = new Set();
     const visit = node => {
@@ -315,7 +329,7 @@ for (const surface of ["native", "js"]) {
         const initializer = declaration?.Initializer;
         if (initializer !== undefined && ast.is.IsArrayLiteralExpression(initializer)) {
           const name = ast.text(ast.name(node));
-          const expected = "float64";
+          const expected = name === "authoredValues" || name === "demandedValues" ? "float64" : "int64";
           const construction = program.records.nativeExpression.get(initializer)?.use;
           const stored = program.records.storageType.get(node);
           const read = program.records.valueRead.get(initializer)?.value;
@@ -323,7 +337,7 @@ for (const surface of ["native", "js"]) {
             getCsharpArrayLiteralElementTargetType(construction.carrier)?.name === expected &&
             getCsharpArrayLiteralElementTargetType(stored)?.name === expected &&
             getCsharpArrayLiteralElementTargetType(read)?.name === expected, true,
-          `${name}: mutable storage and fields consume their own checked numeric construction without a copy or later-use retyping`);
+          `${name}: declared/written floating values and unannotated native integers retain distinct original storage without copying`);
           found.add(name);
         }
       }

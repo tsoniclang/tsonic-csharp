@@ -25,8 +25,7 @@ test("shared mutable arrays cannot silently widen their native element storage",
 });
 
 for (const surface of Array.from([undefined, "js"]).slice(0, 2)) {
-test(`source rest arguments preserve native expansion and direct sequence transport (${surface ?? "native"})`, { timeout: 300_000 }, () => {
-    const compiled = compileCsharpSource({ ...(surface === undefined ? {} : { surface }), sourceText: `
+  const sourceText = `
       function sum(...values: number[]): number {
         let total = 0;
         for (const value of values) total += value;
@@ -40,15 +39,29 @@ test(`source rest arguments preserve native expansion and direct sequence transp
           sum(1, ...values, 4) === 10 && callable() === 0 && callable(1, 2) === 3 &&
           callable(...values) === 5 && callable(1, ...values) === 6;
       }
-    ` });
-    executeCsharpConstruction(compiled, `native-rest-boundary-${surface ?? "native"}`);
-    const source = compiled.artifacts.get("src/Index.cs");
-    // The native surface prints the int tokens; the js surface, where the literals read as float64, prints 1D
-    // (RULINGS 2026-10-22, native integer literal printing).
-    assert.match(source, surface === undefined ? /sum\(1, 2, 3\)/u : /sum\(1D, 2D, 3D\)/u);
-    assert.match(source, /return global::Tsonic\.Generated\.Index\.sum\(values\);/u);
-    assert.doesNotMatch(source, /sum\(\[\.\. values\]\)/u);
+    `;
+  test(`source rest arguments preserve native expansion and direct sequence transport (${surface ?? "native"})`, { timeout: 300_000 }, () => {
+    const original = compileCsharpSource({ surface, sourceText });
+    const sourceCarrier = surface === "js" ? "target:Tsonic.CSharp.Js.JSArray`1<source:int64>" : "array:1:source:int64";
+    const destination = surface === "js" ? "target:Tsonic.CSharp.Js.JSArray`1<source:float64>" : "array:1:source:float64";
+    const message = `No exact C# implicit conversion relates '${sourceCarrier}' to '${destination}'.`;
+    assert.equal(original.sourceDiagnosticsText === "" && original.result.program === undefined && original.artifacts.size === 0 &&
+      original.targetDiagnostics.length === 4 && original.targetDiagnostics.every(issue =>
+        issue.code === "CSHARP_UNSUPPORTED_AST" && issue.message === message), true,
+    "the original inferred int64 storage is not retyped by later number[] forwarding or spread calls");
   });
+  for (const [variant, supportedSource] of [
+      ["declared", sourceText.replace("const values = [2, 3];", "const values: number[] = [2, 3];")],
+      ["written", sourceText.replace("const values = [2, 3];", "const values = [2.0, 3.0];")],
+    ]) test(`${variant} floating rest arguments preserve native expansion and direct sequence transport (${surface ?? "native"})`,
+    { timeout: 300_000 }, () => {
+      const compiled = compileCsharpSource({ surface, sourceText: supportedSource });
+      executeCsharpConstruction(compiled, `native-rest-boundary-${variant}-${surface ?? "native"}`);
+      const source = compiled.artifacts.get("src/Index.cs");
+      assert.match(source, /sum\(1L, 2L, 3L\)/u);
+      assert.match(source, /return global::Tsonic\.Generated\.Index\.sum\(values\);/u);
+      assert.doesNotMatch(source, /sum\(\[\.\. values\]\)/u);
+    });
 }
 
 for (const surface of Array.from([undefined, "js"]).slice(0, 2)) {

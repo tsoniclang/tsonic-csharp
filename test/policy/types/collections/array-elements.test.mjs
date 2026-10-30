@@ -53,7 +53,9 @@ test("integer construction preserves the full int64 range and rejects overflow w
     assert.equal(actual.kind === "rejected" && actual.reason.includes("native element range"), true,
       "an unannotated native integer cannot silently become floating or BigInteger");
   }
-  selected(select([literal(1n, 1n, 10n)]), "float64", "exponent notation remains authored floating even when integral");
+  const exponent = literal(1n, 1n, 10n);
+  selected(select([Object.freeze({ ...exponent, literal: Object.freeze({ ...exponent.literal, number: 10 }) })]),
+    "float64", "exponent notation remains authored floating even when integral");
 });
 
 test("pure authored default selection requires matching checked and literal-base evidence", () => {
