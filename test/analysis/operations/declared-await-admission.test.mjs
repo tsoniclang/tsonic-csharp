@@ -5,6 +5,7 @@ import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { analyzeCsharpAwaitAdmission } from "../../../dist/analysis/callables/async/await-admission.js";
 import { selectCsharpAwaitCompletion } from "../../../dist/policy/operations/control-flow/await-completions.js";
 import { promiseConstructorMember, promiseResolutionMember } from "../../../dist/policy/operations/source-profiles/promise-source-profile.js";
+import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import {
   csharpRuntimeUnionTargetType,
   csharpSourcePrimitiveTargetType,
@@ -12,6 +13,7 @@ import {
   getCsharpDelegateSignature,
   getCsharpRuntimeUnionArms,
   getCsharpTaskResultTargetType,
+  isCsharpVoidTargetType,
   targetTypeRefEquals,
 } from "../../../dist/target-model/types/index.js";
 
@@ -150,4 +152,36 @@ test("native Promise resolution retains the selected nested native signature and
   assert.equal(member.csharpInvocation.kind, "native-task-resolution");
   assert.equal(member.csharpInvocation.form, "task");
   assert.equal(promiseResolutionMember(nested, narrow) === undefined, true, "a different native payload is not retargeted");
+});
+
+test("discarded bare-T await publishes one native Task test and no invented result on both surfaces", () => {
+  for (const surface of ["native", "js"]) {
+    const compiled = compileCsharpSource({ surface, sourceText:
+      "export async function observe<T>(x: T): Promise<void> { await x; }" });
+    assertCsharpCompilationSucceeded(compiled);
+    const program = compiled.result.program;
+    assert.equal(program !== undefined, true, "only complete native facts are published");
+    const file = compiled.source.getSourceFile("/project/index.ts");
+    assert.equal(file !== undefined, true, "the original declaration is retained");
+    const awaits = [];
+    const visit = node => {
+      if (program.source.ast.is.IsAwaitExpression(node)) awaits.push(node);
+      program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    };
+    visit(file);
+    assert.equal(awaits.length, 1);
+    const completion = program.records.awaitCompletion.get(awaits[0]);
+    assert.equal(completion?.form, "task-test");
+    assert.equal(completion.discard, true);
+    assert.equal(isCsharpVoidTargetType(completion.result), true);
+    assert.equal(isCsharpVoidTargetType(program.records.valueRead.get(awaits[0])?.value), true,
+      "the actual result producer publishes the canonical void completion");
+    const generated = [...compiled.artifacts.values()].join("\n");
+    assert.equal([...generated.matchAll(/\bis\s+(?:global::)?(?:System\.Threading\.Tasks\.)?Task\b/gu)].length, 1);
+    assert.equal([...generated.matchAll(/\bawait\b/gu)].length, 1);
+    assert.match(generated, /\bif\s*\(\s*x\s+is\b/u, "the same original parameter is tested once");
+    assert.equal([...generated.matchAll(/\bx\b/gu)].length, 2, "one parameter declaration and one runtime read");
+    assert.doesNotMatch(generated, /\b(?:dynamic|GetType|GetProperty|TaskCompletionSource)\b/u,
+      "no reflection, dynamic fallback or synthetic completion allocation");
+  }
 });
