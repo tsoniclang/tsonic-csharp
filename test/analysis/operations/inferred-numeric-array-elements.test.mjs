@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpNativeUseSource } from "../../helpers/expected-native-uses.mjs";
-import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { getCsharpArrayLiteralElementTargetType } from "../../../dist/target-model/types/carriers/collections.js";
 import { getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
@@ -17,6 +16,8 @@ import { csharpNullableTargetType } from "../../../dist/target-model/types/carri
 import { csharpNumericReturnBaselineCovered } from "../../../dist/policy/conversions/union-relations.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
+import { combineCsharpTargetUnionMembers } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 
 const header = 'import type { float32, float64, int16, uint16, int32, uint32, int64 } from "@tsonic/core/types.js";';
 const emptyProviders = createCsharpProviderRelationResolver({ providers: [], providerPolicies: [] });
@@ -29,6 +30,33 @@ const accepted = compiled => {
     compiled.targetDiagnostics.map(issue => `${issue.code}: ${issue.message}`).join(" | "));
   return compiled.result.program;
 };
+const numericRangeReason = "An inferred numeric array literal is outside its declared or default native element range.";
+const numericCommonReason = "Inferred array elements require an exact common native numeric carrier; an explicit native array destination is required for a rounding conversion.";
+const refused = (compiled, expected) => {
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  const ast = compiled.nativeStage.source.ast;
+  const actual = compiled.nativeStage.diagnostics.map(issue => {
+    const range = issue.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
+    const file = issue.sourceNode === undefined ? undefined : ast.getSourceFile(issue.sourceNode);
+    return { code: issue.code, message: issue.message,
+      text: range?.kind === "authored" && file !== undefined ? ast.getSourceText(file).slice(range.start, range.end) : undefined };
+  });
+  assert.deepEqual(actual, expected, "every exact local diagnostic retains its native reason and authored expression");
+  assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
+    "failed native admission publishes no program, copied array or partial artifacts");
+};
+const arrayRefusal = (message, text) => ({ code: "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH", message, text });
+const contextualSource = (source, element) => source.replaceAll("const values = [", `const values: ${element}[] = [`);
+const laterArgumentContexts = new Set(["argument", "explicit generic argument", "native generic receiver",
+  "nested generic argument", "nested generic receiver"]);
+const arrayConversionRefusal = (surface, source, target) => {
+  const wrap = element => surface === "native" ? { kind: "array", element } : csharpJsArrayTargetType(element);
+  return { code: "CSHARP_UNSUPPORTED_AST", message:
+    `No exact C# implicit conversion relates '${targetTypeRefKey(wrap(source))}' to '${targetTypeRefKey(wrap(target))}'.`, text: "values" };
+};
+const inferredTextUnion = () => combineCsharpTargetUnionMembers([csharpStringTargetType(),
+  csharpSourcePrimitiveTargetType("int64"), csharpSourcePrimitiveTargetType("float64")]);
+const declaredTextUnion = () => combineCsharpTargetUnionMembers([csharpStringTargetType(), csharpSourcePrimitiveTargetType("float64")]);
 
 test("inferred numeric return coverage preserves complete native union layouts without converting their arrays", () => {
   const integer = csharpSourcePrimitiveTargetType("int32");
@@ -291,10 +319,11 @@ function actualUnionDestinationEvidence(program, label) {
   for (const node of ast.elements(expression).slice(1)) {
     const literal = program.records.exactLiteral.get(node, csharpSourcePrimitiveTargetType("float64"));
     const native = program.records.nativeExpression.get(node)?.use;
+    const expected = /[.eE]/u.test(ast.text(node)) ? "float64" : "int64";
     assert.equal(literal?.kind === "source-representation" && native?.kind === "converted" &&
-      native.input.kind === "value" && native.input.type.kind === "source-primitive" && native.input.type.name === "float64" &&
+      native.input.kind === "value" && native.input.type.kind === "source-primitive" && native.input.type.name === expected &&
       targetTypeRefKey(native.target) === targetTypeRefKey(element), true,
-    `${label}: source-representation literals reach their actual admitted native double union endpoint`);
+    `${label}: exact integer/written-floating inputs reach their own declared double union endpoint`);
   }
 }
 
@@ -368,7 +397,7 @@ for (const surface of ["native", "js"]) {
     });
   }
   test(`${surface} native float32 inference and actual explicit destinations preserve their distinct contracts`, () => {
-    const program = accepted(compile(surface, `
+    const originalSource = `
       export function inferred(narrow: float32, signed: int16, unsigned: uint16): number {
         const narrowSigned = [narrow, signed]; const narrowUnsigned = [unsigned, narrow];
         const signedNarrow = [signed, narrow]; const unsignedNarrow = [narrow, unsigned];
@@ -381,7 +410,9 @@ for (const surface of ["native", "js"]) {
       export function explicit(narrow: float32, signed: int32): number {
         const actualDouble: number[] = [narrow, signed]; const actualSingle: float32[] = [narrow, signed];
         return actualDouble[1] + actualSingle[1];
-      }`));
+      }`;
+    refused(compile(surface, originalSource), [arrayRefusal(numericCommonReason, "[narrow, 16777217]")]);
+    const program = accepted(compile(surface, originalSource.replace("const integerPastSingle = [", "const integerPastSingle: number[] = [")));
     const carriers = arrays(program);
     for (const name of ["narrowSigned", "narrowUnsigned", "signedNarrow", "unsignedNarrow", "half", "quarter", "halfReverse", "actualSingle"]) assert.equal(
       carriers.get(name)?.kind === "source-primitive" && carriers.get(name)?.name === "float32", true,
@@ -415,9 +446,9 @@ for (const surface of ["native", "js"]) {
     }
     for (const name of ["left", "middle", "right", "wrapped"]) {
       const arms = getCsharpRuntimeUnionArms(carriers.get(name), program.typeDefinitions);
-      assert.equal(arms?.length === 3 && ["int32", "uint32", "float64"].every(kind =>
+      assert.equal(arms?.length === 3 && ["int32", "uint32", "int64"].every(kind =>
         arms.some(arm => arm.kind === "source-primitive" && arm.name === kind)), true,
-      `${name}: actual integer peers and the canonical f64 literal arm remain distinct`);
+      `${name}: actual integer peers and the canonical int64 literal arm remain distinct`);
     }
     const genuine = getCsharpRuntimeUnionArms(carriers.get("genuine"), program.typeDefinitions);
     assert.equal(genuine?.length === 2 && ["int32", "int64"].every(kind => genuine.some(arm =>
@@ -441,20 +472,32 @@ for (const surface of ["native", "js"]) {
     accepted(compile(surface, body));
   });
   for (const [name, body] of Object.entries(destinationBodies)) test(`${surface} actual ${name} destination changes physical i32 element storage`, () => {
-    const program = accepted(compile(surface, body("float32", "runSingle") + body("number", "runDouble")));
+    const originalSource = body("float32", "runSingle") + body("number", "runDouble");
+    if (laterArgumentContexts.has(name)) refused(compile(surface, originalSource), [
+      arrayRefusal(numericCommonReason, "[narrow, signed]"), arrayRefusal(numericCommonReason, "[narrow, signed]"),
+    ]);
+    const program = accepted(compile(surface, laterArgumentContexts.has(name)
+      ? contextualSource(body("float32", "runSingle"), "float32") + contextualSource(body("number", "runDouble"), "number")
+      : originalSource));
     actualDestinationEvidence(program, ["float32", "float64"], name);
   });
   for (const [name, body] of Object.entries(destinationBodies)) test(`${surface} actual ${name} closed union destination preserves explicit native rounding`, () => {
     const source = body("(string | number)", "run").replaceAll("[narrow, signed]",
       '["text", 9007199254740993, -9007199254740993, 1e100]');
-    const program = accepted(compile(surface, source));
+    if (laterArgumentContexts.has(name)) refused(compile(surface, source), [
+      arrayConversionRefusal(surface, inferredTextUnion(), declaredTextUnion()),
+    ]);
+    const program = accepted(compile(surface, laterArgumentContexts.has(name) ? contextualSource(source, "(string | number)") : source));
     actualUnionDestinationEvidence(program, name);
   });
   test(`${surface} an actual generic union argument selects the literal's physical storage order`, () => {
-    const program = accepted(compile(surface, `function consume<T>(values: (string | T)[]): void {}
+    const originalSource = `function consume<T>(values: (string | T)[]): void {}
       export function run(): number {
         const values = ["text", 9007199254740993, -9007199254740993, 1e100]; consume<number>(values); return 7;
-      }`));
+      }`;
+    const declared = csharpRuntimeUnionTargetType([csharpStringTargetType(), csharpSourcePrimitiveTargetType("float64")]);
+    refused(compile(surface, originalSource), [arrayConversionRefusal(surface, inferredTextUnion(), declared)]);
+    const program = accepted(compile(surface, contextualSource(originalSource, "(string | number)")));
     const ast = program.source.ast;
     let call;
     let array;
@@ -481,7 +524,10 @@ for (const surface of ["native", "js"]) {
       export function run(): (string | number)[] { const receiver = new Receiver<number>();
         const values = ["text", 9007199254740993, -9007199254740993, 1e100]; return receiver.accept(values); }`],
   ]) test(`${surface} actual ${name} union bindings are authoritative native destinations`, () => {
-    actualUnionDestinationEvidence(accepted(compile(surface, source)), name);
+    if (laterArgumentContexts.has(name)) refused(compile(surface, source), [arrayConversionRefusal(surface,
+      inferredTextUnion(), csharpRuntimeUnionTargetType([csharpStringTargetType(), csharpSourcePrimitiveTargetType("float64")]))]);
+    actualUnionDestinationEvidence(accepted(compile(surface,
+      laterArgumentContexts.has(name) ? contextualSource(source, "(string | number)") : source)), name);
   });
   test(`${surface} explicit heterogeneous and nullable native destinations retain their real selected widths`, () => {
     const program = accepted(compile(surface, `
@@ -507,20 +553,24 @@ for (const surface of ["native", "js"]) {
       "an actual heterogeneous destination preserves the full native integer arm as well as a genuine computed float");
   });
   test(`${surface} inferred heterogeneous counter-controls preserve exact integers, fractions, signed zero and computed values`, () => {
-    const program = accepted(compile(surface, `export function run(computed: number) {
+    const originalSource = `export function run(computed: number) {
       const exact = ["text", 9007199254740994];
       const huge = ["text", 1606938044258990275541962092341162602522202993782792835301376];
       const fraction = ["text", 0.1]; const signedZero = ["text", -0];
       const actualFloat = ["text", computed]; const absent = [undefined, 9007199254740994];
       return exact.${surface === "native" ? "Length" : "length"} + huge.${surface === "native" ? "Length" : "length"} +
         fraction.${surface === "native" ? "Length" : "length"} + signedZero.${surface === "native" ? "Length" : "length"} +
-        actualFloat.${surface === "native" ? "Length" : "length"} + absent.${surface === "native" ? "Length" : "length"}; }`));
+        actualFloat.${surface === "native" ? "Length" : "length"} + absent.${surface === "native" ? "Length" : "length"}; }`;
+    refused(compile(surface, originalSource), [arrayRefusal(numericRangeReason,
+      '["text", 1606938044258990275541962092341162602522202993782792835301376]')]);
+    const program = accepted(compile(surface, originalSource.replace("const huge = [", "const huge: (string | number)[] = [")));
     const selected = constructedArrays(program);
     for (const name of ["exact", "huge", "fraction", "signedZero", "actualFloat"]) {
       const arms = getCsharpRuntimeUnionArms(selected.get(name), program.typeDefinitions);
-      assert.equal(arms?.length === 2 && arms.some(arm => arm.kind === "source-primitive" && arm.name === "float64") &&
+      const expected = name === "exact" || name === "signedZero" ? "int64" : "float64";
+      assert.equal(arms?.length === 2 && arms.some(arm => arm.kind === "source-primitive" && arm.name === expected) &&
         arms.some(arm => isCsharpStringTargetType(arm) || isCsharpJsStringTargetType(arm)), true,
-      `${name}: actual exact or computed f64 contributions remain with the existing heterogeneous native carrier`);
+      `${name}: exact int64 and declared/written/computed floating contributions retain the existing heterogeneous native carrier`);
     }
   });
   for (const [name, body] of [
@@ -552,6 +602,16 @@ for (const surface of ["native", "js"]) {
   ]) test(`${surface} a self-inferred ${name} is not an explicit closed union destination`, () => {
     const compiled = compile(surface, body);
     assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
+    if (name === "plain generic argument") {
+      const program = accepted(compiled);
+      const arms = getCsharpRuntimeUnionArms(arrays(program).get("values"), program.typeDefinitions);
+      assert.equal(arms?.length === 2 && arms.some(arm => arm.kind === "source-primitive" && arm.name === "int64") &&
+        arms.some(arm => isCsharpStringTargetType(arm) || isCsharpJsStringTargetType(arm)), true,
+      "the generic identity consumes the exact earlier string/int64 construction without a floating rounding destination");
+      assert.equal(/\.ToArray\(|\.Clone\(|Convert\.ToDouble/u.test([...compiled.artifacts.values()].join("\n")), false,
+        "an inferred generic identity requires no array repair or lossy numeric conversion");
+      return;
+    }
     const issue = compiled.nativeStage.diagnostics[0];
     const ast = compiled.nativeStage.source.ast;
     const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
@@ -571,7 +631,8 @@ for (const surface of ["native", "js"]) {
       export function run(narrow: float32, signed: int32, wide: number) {
         return call(wide, () => { const values = [narrow, signed]; return values; }); }`],
   ]) test(`${surface} an independently inferred generic ${name} retains its actual native destination`, () => {
-    const program = accepted(compile(surface, body));
+    if (name === "argument") refused(compile(surface, body), [arrayRefusal(numericCommonReason, "[narrow, signed]")]);
+    const program = accepted(compile(surface, name === "argument" ? contextualSource(body, "number") : body));
     actualDestinationEvidence(program, ["float64"], `independent generic ${name}`);
   });
   for (const [name, body] of [
@@ -583,22 +644,20 @@ for (const surface of ["native", "js"]) {
         return call(() => values, () => values); }`],
   ]) test(`${surface} same-call ${name} of one array cannot certify each other's rounding destination`, () => {
     const compiled = compile(surface, body);
-    assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
-    const issue = compiled.nativeStage.diagnostics[0];
-    const ast = compiled.nativeStage.source.ast;
-    const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
-    const text = range?.kind !== "authored" ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end);
-    assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH" &&
-      issue.message === "An inferred numeric union requires an exact canonical carrier for every authored integer literal." &&
-      text === '["text", 9007199254740993]', true, `checked aliases of the same native construction supply no independent rounding authority; ${diagnosticLabel(compiled)}`);
-    assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
-      "the original precise rejection occurs before sealing, without an alias-induced floating conversion");
+    const program = accepted(compiled);
+    const arms = getCsharpRuntimeUnionArms(arrays(program).get("values"), program.typeDefinitions);
+    assert.equal(arms?.length === 2 && arms.some(arm => arm.kind === "source-primitive" && arm.name === "int64") &&
+      arms.some(arm => isCsharpStringTargetType(arm) || isCsharpJsStringTargetType(arm)), true,
+    "the same-call aliases retain the earlier exact string/int64 construction and provide no floating rounding authority");
+    assert.equal(/\.ToArray\(|\.Clone\(|Convert\.ToDouble/u.test([...compiled.artifacts.values()].join("\n")), false,
+      "native generic alias transport does not copy or repair the array");
   });
   test(`${surface} incompatible actual native destinations refuse one physical array before sealing`, () => {
-    const compiled = compile(surface, `function single(values: float32[]): void {}
+    const originalSource = `function single(values: float32[]): void {}
       function double(values: number[]): void {}
       export function run(narrow: float32, signed: int32): void {
-        const values = [narrow, signed]; single(values); double(values); }`);
+        const values = [narrow, signed]; single(values); double(values); }`;
+    const compiled = compile(surface, originalSource);
     assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
     const issue = compiled.nativeStage.diagnostics[0];
     const ast = compiled.nativeStage.source.ast;
@@ -608,14 +667,19 @@ for (const surface of ["native", "js"]) {
     const ownerRange = owner === undefined ? undefined : ast.authoredRange(owner);
     const ownerText = ownerRange?.kind !== "authored" ? undefined
       : ast.getSourceText(ast.getSourceFile(owner)).slice(ownerRange.start, ownerRange.end);
-    const expected = surface === "native"
-      ? "No exact C# implicit conversion relates 'array:1:source:float32' to 'array:1:source:float64'."
-      : "No exact C# implicit conversion relates 'target:Tsonic.CSharp.Js.JSArray`1<source:float32>' to 'target:Tsonic.CSharp.Js.JSArray`1<source:float64>'.";
-    assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "CSHARP_UNSUPPORTED_AST" &&
-      issue.message === expected && text === "values" && ownerText === "double(values)", true,
+    assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH" &&
+      issue.message === numericCommonReason && text === "[narrow, signed]" && ownerText === "values = [narrow, signed]", true,
       `the incompatible native use is refused without retyping the earlier literal, copying its array or repairing storage; ${diagnosticLabel(compiled)}`);
     assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
       "one physical construction is either closed or precisely refused before publication");
+    const declaredSource = contextualSource(originalSource, "float32");
+    const declared = compile(surface, declaredSource);
+    const wrap = element => surface === "native" ? { kind: "array", element } : csharpJsArrayTargetType(element);
+    refused(declared, [{ code: "CSHARP_UNSUPPORTED_AST", message:
+      `No exact C# implicit conversion relates '${targetTypeRefKey(wrap(csharpSourcePrimitiveTargetType("float32")))}' to '${targetTypeRefKey(wrap(csharpSourcePrimitiveTargetType("float64")))}'.`, text: "values" }]);
+    const permitted = accepted(compile(surface, declaredSource.replace(" double(values);", "")));
+    assert.equal(arrays(permitted).get("values")?.name, "float32",
+      "the matching own-declared native destination remains supported without changing its storage for the second call");
   });
   test(`${surface} an erased callable does not admit or reject its numeric body`, () => {
     accepted(compile(surface, `export function run(narrow: float32, signed: int32): number {
@@ -636,18 +700,22 @@ for (const surface of ["native", "js"]) {
       "the stored numeric body is rejected before publication and emission");
   });
   test(`${surface} an authored integer outside the canonical floating arm is refused without a native-integer cap`, () => {
-    const compiled = compile(surface, `export function run(signed: int32, unsigned: uint32): number {
-      const values = [signed, unsigned, 9007199254740993]; return values[0]; }`);
-    assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
-    assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0 && compiled.targetDiagnostics.length === 1 &&
-      compiled.targetDiagnostics[0].code === "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH" &&
-      compiled.targetDiagnostics[0].message === "An inferred numeric union requires an exact canonical carrier for every authored integer literal.", true,
-    `the actual f64 union arm cannot round the authored integer; exact native int64 values remain separately admitted; ${diagnosticLabel(compiled)}`);
+    const originalSource = `export function run(signed: int32, unsigned: uint32): number {
+      const values = [signed, unsigned, 9007199254740993]; return values[0]; }`;
+    const compiled = compile(surface, originalSource);
+    const inferred = combineCsharpTargetUnionMembers([csharpSourcePrimitiveTargetType("int32"),
+      csharpSourcePrimitiveTargetType("uint32"), csharpSourcePrimitiveTargetType("int64")]);
+    refused(compiled, [{ code: "CSHARP_UNSUPPORTED_AST", message:
+      `No exact C# implicit conversion relates '${targetTypeRefKey(inferred)}' to 'source:float64'.`, text: "values[0]" }]);
+    const declared = accepted(compile(surface, contextualSource(originalSource, "number")));
+    assert.equal(arrays(declared).get("values")?.name, "float64",
+      "a genuine own number[] declaration requests the native floating conversion rather than an inferred precision cap");
     const program = accepted(compile(surface, `export function run(signed: int32, unsigned: uint32) {
       const values = [signed, unsigned, 9007199254740992]; return values; }`));
     const arms = getCsharpRuntimeUnionArms(arrays(program).get("values"), program.typeDefinitions);
-    assert.equal(arms?.length === 3 && arms.some(arm => arm.kind === "source-primitive" && arm.name === "float64"), true,
-      "the neighboring exact floating value retains all approved native arms");
+    assert.equal(arms?.length === 3 && ["int32", "uint32", "int64"].every(name => arms.some(arm =>
+      arm.kind === "source-primitive" && arm.name === name)), true,
+      "the neighboring exact integer retains all approved native arms without a floating precision cap");
   });
   for (const [name, elements] of [
     ["single fixed peer", "signed, 9007199254740993"],
@@ -666,29 +734,50 @@ for (const surface of ["native", "js"]) {
     ["Boolean storage cannot authorize a floating default", "false, 1e100"],
   ]) test(`${surface} every inferred union fallback proves exact canonical integers (${name})`, () => {
     const compiled = compile(surface, `export function run(signed: int32, unsigned: uint32) { const values = [${elements}]; return values; }`);
-    assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
-    const issues = compiled.nativeStage.diagnostics;
-    const issue = issues[0];
-    const ast = compiled.nativeStage.source.ast;
-    const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
-    const text = range?.kind !== "authored" ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end);
-    assert.equal(issues.length === 1 && issue.code === "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH" &&
-      issue.message === "An inferred numeric union requires an exact canonical carrier for every authored integer literal." &&
-      text === `[${elements}]`, true, "one exact diagnostic identifies the actual array construction, never a compiler invariant");
-    assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
-      "a refused physical union has no sealed program or generated artifacts");
+    const program = accepted(compiled);
+    const carrier = arrays(program).get("values");
+    assert.equal(carrier !== undefined, true, "the original source construction publishes its actual native element carrier");
+    const present = getCsharpNullableElementTargetType(carrier) ?? carrier;
+    const arms = getCsharpRuntimeUnionArms(present, program.typeDefinitions) ?? [present];
+    const expected = {
+      "single fixed peer": ["int64"],
+      "single fixed peer reversed": ["int64"],
+      "negative token": ["int64"],
+      "fraction cannot conceal inexact integer": ["int32", "uint32", "int64", "float64"],
+      "unmaterialized integral token": ["float64"],
+      "unmaterialized token cannot erase incompatible peers": ["float64"],
+      "absence cannot conceal an inexact canonical integer": ["int32", "int64"],
+      "nonnumeric arms cannot conceal an inexact canonical integer": ["int32", "int64", "string"],
+      "text cannot authorize a floating default": ["string", "int64"],
+      "text reversed cannot authorize a floating default": ["int64", "string"],
+      "text and a fraction cannot authorize a floating default": ["string", "int64", "float64"],
+      "native absence cannot authorize a floating default": ["int64"],
+      "native absence reversed cannot authorize a floating default": ["int64"],
+      "Boolean storage cannot authorize a floating default": ["bool", "float64"],
+    }[name];
+    const selected = arms.map(arm => arm?.kind === "source-primitive" ? arm.name
+      : isCsharpStringTargetType(arm) || isCsharpJsStringTargetType(arm) ? "string" : "UNKNOWN");
+    assert.deepEqual(selected.sort(), [...expected].sort(),
+      "every original physical contribution has exactly its lawful native arm, without a phantom or missing payload");
+    assert.equal(getCsharpNullableElementTargetType(carrier) !== undefined, elements.includes("undefined"),
+      "only the original absent inputs retain the one native absence alongside their exact payloads");
+    assert.equal(/\.ToArray\(|\.Clone\(|Convert\.ToDouble/u.test([...compiled.artifacts.values()].join("\n")), false,
+      "admitting the original exact native integer creates no array-copy or floating repair path");
   });
   test(`${surface} exact integers beyond2^53 and bounded materialization retain actual native representations`, () => {
-    const program = accepted(compile(surface, `export function run(signed: int32, unsigned: uint32) {
+    const originalSource = `export function run(signed: int32, unsigned: uint32) {
       const exact = [signed, 9007199254740994];
       const huge = [signed, unsigned, 1606938044258990275541962092341162602522202993782792835301376];
       const rounded: number[] = [signed, 9007199254740993];
-      return exact[0] === signed && huge[0] === signed && rounded[0] === signed; }`));
+      return exact[0] === signed && huge[0] === signed && rounded[0] === signed; }`;
+    refused(compile(surface, originalSource), [arrayRefusal(numericRangeReason,
+      "[signed, unsigned, 1606938044258990275541962092341162602522202993782792835301376]")]);
+    const program = accepted(compile(surface, originalSource.replace("const huge = [", "const huge: (int32 | uint32 | number)[] = [")));
     const selected = arrays(program);
-    assert.equal(selected.get("exact")?.name === "float64" && selected.get("rounded")?.name === "float64", true,
-      "inferred exact f64 and explicitly rounded f64 remain distinct admitted contracts");
+    assert.equal(selected.get("exact")?.name === "int64" && selected.get("rounded")?.name === "float64", true,
+      "inferred exact int64 and explicitly rounded f64 remain distinct admitted contracts");
     const arms = getCsharpRuntimeUnionArms(selected.get("huge"), program.typeDefinitions);
     assert.equal(arms?.length === 3 && ["int32", "uint32", "float64"].every(kind => arms.some(arm => arm.name === kind)), true,
-      "the exact2^200 token is a flexible canonical arm, not an inferred reason to erase native integer peers");
+      "the explicitly declared floating2^200 arm does not erase either original native integer peer");
   });
 }

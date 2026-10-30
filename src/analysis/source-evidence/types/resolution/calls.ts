@@ -78,8 +78,7 @@ export function resolveSourceCallInstantiation(
   const inferredParameterIdentities = new Set(
     selectedArguments.flatMap((argument, index) => argument.explicitTypeNode === undefined ? [parameterIdentities[index]!] : []),
   );
-  const inferredTargetArguments = inferredParameterIdentities.size === 0 ||
-      callable === undefined && excludedSourceArgumentIndexes === undefined
+  const inferredTargetArguments = inferredParameterIdentities.size === 0
     ? new Map<string, TargetTypeRef>()
     : inferSourceCallTargetTypeArguments(
         source,

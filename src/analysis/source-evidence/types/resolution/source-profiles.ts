@@ -19,7 +19,7 @@ import { csharpRuntimeParameterDefault } from "../../../../policy/types/storage/
 import { resolveCsharpCallableTypeParameters } from "./callable-type-parameters.js";
 import type { SourceStorageSubject } from "@tsonic/target-api/analysis";
 import { csharpSourceStorageContext } from "./source-storage-projection.js";
-import { resolveCsharpNativeParameterCarrier, selectCsharpContextualParameterCarrier } from "./source-references.js";
+import { selectCsharpContextualParameterCarrier } from "./source-references.js";
 
 import { selectCsharpSourceProfileCarrier } from "../../../../policy/operations/source-profiles/type-carriers.js";
 import type { CsharpProviderRelationResolver } from "../../../../providers/model/relation-resolver.js";
@@ -239,11 +239,7 @@ export function resolveSignatureParameterEvidence(
   const carrier = runtimeDefault?.parameterType ?? (resolved === undefined || !nullable
     ? resolved
     : csharpNullableTargetType(resolved));
-  const declaration = parameter.declaration;
-  if (use !== "callable" || declaration === undefined) return carrier;
-  const owner = host.ast.parent(declaration);
-  return owner !== undefined && host.ast.body(owner) !== undefined
-    ? resolveCsharpNativeParameterCarrier(scope, declaration, carrier, state) : carrier;
+  return carrier;
 }
 
 export function resolveSourceTypeComponentEvidence(

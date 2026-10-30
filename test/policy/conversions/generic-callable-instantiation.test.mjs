@@ -61,6 +61,25 @@ test("one native method instantiation owns exact callback signatures, constraint
 });
 
 for (const surface of ["native", "js"]) {
+  test(`inferred generic union inputs retain completed native integer bindings on ${surface}`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+function nested<Value>(values: (string | Value)[]): (string | Value)[] { return values; }
+function fromCallback<Value>(make: () => (string | Value)[]): (string | Value)[] { return make(); }
+export function run(): boolean {
+  const values = ["text", 9007199254740993];
+  const direct = nested(values);
+  const called = fromCallback(() => values);
+  const before = direct[1];
+  direct[1] = 9007199254740995;
+  return direct === values && called === values && before === 9007199254740993 &&
+    called[1] === 9007199254740995 && called[0] === "text";
+}` });
+    assertCsharpCompilationSucceeded(compiled);
+    const generated = [...compiled.artifacts.values()].join("\n");
+    assert.equal(/\.ToArray\(|\.Clone\(|Convert\.ToDouble/u.test(generated), false,
+      "the existing generic body consumes the original exact native array without copying or floating repair");
+    executeCsharpConstruction(compiled, `generic-inferred-integer-union-${surface}`);
+  });
   test(`a bare quantified input retains its native carrier rather than its implemented views on ${surface}`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
 import type { int64 } from "@tsonic/core/types.js";
