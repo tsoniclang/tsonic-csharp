@@ -59,11 +59,12 @@ for (const surface of [undefined, "js"]) {
       assertCsharpCompilationSucceeded(compiled);
       const arrow = originalArrow(compiled);
       const records = compiled.result.program.records;
-      const creation = records.lambdaCreation.get(arrow);
+      const creation = records.callableCreation.get(arrow);
+      assert.equal(creation?.kind, "selected", "the original arrow requires its single completed native creation");
       const target = records.callableTarget.get(arrow);
       const signature = getCsharpLambdaSignature(target);
-      assert.equal(creation.kind, "quotation", "original arrow has one native quotation creation");
-      assert.equal(creation.staticBody, false, "quotation does not acquire an ordinary delegate cache");
+      assert.equal(creation.allocation.kind, "quotation", "original arrow has one native quotation creation");
+      assert.equal(creation.allocation.staticBody, false, "quotation does not acquire an ordinary delegate cache");
       assert.equal(getCsharpExpressionTreeDelegateType(target) !== undefined, true, "selected carrier retains native quotation metadata");
       assert.equal(signature?.parameters.length === 1 && signature.parameters[0].kind === "source-primitive" &&
         signature.parameters[0].name === "int32" && signature.returnType.kind === "source-primitive" && signature.returnType.name === "int32",
@@ -118,7 +119,9 @@ test("a non-quotation native callable demand keeps an ordinary delegate", () => 
   `);
   assertCsharpCompilationSucceeded(compiled);
   const arrow = originalArrow(compiled);
-  assert.equal(compiled.result.program.records.lambdaCreation.get(arrow).kind !== "quotation", true,
+  const creation = compiled.result.program.records.callableCreation.get(arrow);
+  assert.equal(creation?.kind, "selected", "the ordinary arrow requires its single completed native creation");
+  assert.equal(creation.allocation.kind !== "quotation", true,
     "a callable's spelling or initializer does not manufacture native quotation metadata");
   assert.equal(getCsharpExpressionTreeDelegateType(compiled.result.program.records.callableTarget.get(arrow)) === undefined,
     true, "ordinary native callable carrier remains a delegate");

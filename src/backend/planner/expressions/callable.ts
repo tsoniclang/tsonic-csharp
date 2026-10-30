@@ -79,23 +79,8 @@ export function planArrowFunctionExpression(node: Node, sourceFile: SourceFile, 
       if (expression.async === true || expression.body.kind === "Block") failCsharpPlannerInvariant("An admitted native quotation requires its expression-only synchronous body.", node);
       return planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, expression, targetContext?.carrier);
     }
-    if (input.scope.nativeCallableBody?.declaration === node ||
-      creationPolicy.kind === "inline") {
-      const planned = planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, expression, carrier);
-      return planned === undefined ? undefined : { ...planned, callable: { kind: "lambda", expression } };
-    }
-    const body: CsharpBlock = expression.body.kind === "Block" ? expression.body : {
-      kind: "Block", statements: targetContext?.signature.returnTargetType !== undefined &&
-        input.program.records.typeEmission.get(targetContext.signature.returnTargetType)?.completion === "void"
-        ? [{ kind: "ExpressionStatement", expression: expression.body }]
-        : [{ kind: "ReturnStatement", expression: expression.body }],
-    };
-    const creation = planCsharpLocalLambdaCreation(node, input, diagnostics, targetContext,
-      input.names.temporaryName(`__tsonic_callable_${input.program.source.ast.pos(node)}`),
-      expression.parameters, body, expression.async === true, creationPolicy);
-    if (creation === undefined) return undefined;
-    const planned = planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, creation.value, carrier, [creation.method]);
-    return planned === undefined || creationPolicy.kind !== "direct" ? planned : { ...planned, callable: { kind: "method" } };
+    const planned = planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, expression, carrier);
+    return planned === undefined ? undefined : { ...planned, callable: { kind: "lambda", expression } };
   };
   if (closure !== undefined) {
     const reference = planCsharpFrameClosureReference(node, input, diagnostics, state);
@@ -235,7 +220,7 @@ export function planFunctionExpression(
     for (const reference of self.values) plannerState.expressionOverrides.set(reference, { kind: "IdentifierName", name: valueName! });
   }
   const completeBody = (body: CsharpBlock, async = false): CsharpPlannedValue | undefined => {
-    if (self === undefined && (input.scope.nativeCallableBody?.declaration === node || creationPolicy.kind === "inline")) {
+    if (self === undefined && !generatorSyntax) {
       const expression = { kind: "LambdaExpression" as const, ...(async ? { async: true } : {}), parameters, body };
       const planned = complete(expression);
       return planned === undefined ? undefined : { ...planned, callable: { kind: "lambda", expression } };

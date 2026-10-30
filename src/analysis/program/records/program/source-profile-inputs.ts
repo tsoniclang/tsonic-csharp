@@ -7,6 +7,8 @@ import type { CsharpSourceProfileInputFacts, CsharpSourceProfileInputRequirement
 import { csharpSourceHasNumericConstraint } from "../../../source-evidence/types/resolution/numeric-constraint-evidence.js";
 import { isCsharpThrowableType } from "../../../project-types/throwable-types.js";
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
+import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/carriers/runtime-carriers.js";
+import { getCsharpDelegateSignature } from "../../../../target-model/types/carriers/delegates.js";
 import { analyzeCsharpCustomRegExpProtocol } from "../../../operations/source-profiles/js/regexp-protocol.js";
 export function createCsharpSourceProfileInputs(
   host: CsharpProviderCallSelectionHost, file: SourceFile,
@@ -64,8 +66,25 @@ export function createCsharpSourceProfileInputs(
   const resultType = host.types.resolveType(result, file);
   if (result !== undefined) types.set(result, resultType);
   const callTypeArguments = source === undefined ? undefined : host.types.resolveSourceCallTypeArguments(source, file);
-  const parameters = source === undefined ? [] : source.sourceSelectedSignatureParameters.map((_parameter, index) =>
-    host.types.resolveSourceCallParameter(source, index, file));
+  const parameters = source === undefined ? [] : source.sourceSelectedSignatureParameters.map((parameter, index) => {
+    const declared = host.types.resolveSourceCallParameter(source, index, file, "declared");
+    const present = getCsharpNullableElementTargetType(declared) ?? declared;
+    const arms = getCsharpRuntimeUnionArms(present, host.typeDefinitions);
+    if (arms === undefined) return declared;
+    const bindings = source.sourceArgumentBindings.filter(binding => binding.sourceParameterIndex === index);
+    if (bindings.length === 0) return declared;
+    const binding = bindings.length === 1 ? bindings[0] : undefined;
+    const argument = binding === undefined ? undefined : source.sourceArguments[binding.sourceArgumentIndex];
+    if (binding === undefined || argument === undefined || binding.sourceForm !== "value" ||
+        parameter.parameterIndex !== index || !Number.isInteger(binding.sourceArgumentIndex) || binding.sourceArgumentIndex < 0 ||
+        !Number.isInteger(binding.effectiveArgumentIndex) || binding.effectiveArgumentIndex < 0 ||
+        source.sourceArgumentBindings.filter(candidate => candidate.effectiveArgumentIndex === binding.effectiveArgumentIndex).length !== 1 ||
+        !sourceValues.some(value => value.expression === argument.expression && value.type === argument.type)) return undefined;
+    if (sourceTypes.callable(argument.type) === undefined) return declared;
+    const callable = arms.map(arm => getCsharpNullableElementTargetType(arm) ?? arm)
+      .filter(arm => getCsharpDelegateSignature(arm) !== undefined);
+    return callable.length === 1 ? callable[0] : undefined;
+  });
   const regexp = new Map<number, Map<CustomRegExpProtocolKind, CsharpCustomRegExpProtocol>>();
   const inputs: CsharpSourceProfileInputFacts = Object.freeze({
     values, numberLikeTypes, identicalTypes, nativeRegExpReceivers, types: Object.freeze({ get: (type: Type | undefined) => type === undefined ? undefined : types.get(type) }),

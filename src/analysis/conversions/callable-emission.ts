@@ -55,7 +55,7 @@ export function admitCsharpDelegateOperand(ast: AstReader, captures: CsharpCaptu
     const creation = creations.callableCreation.get(node);
     if (creation?.kind !== "selected") return failTargetAnalysisInvariant("tsonic-csharp",
       "An admitted delegate operand requires its exact native callable creation.", node);
-    lambda = creation.allocation.kind === "inline";
+    lambda = creation.allocation.kind !== "quotation";
   }
   if (lambda && selection.strategy === "native-binding" && (contract.sourceSignature.returnPassing !== undefined ||
     contract.sourceSignature.parameterPassingModes.some(mode => mode !== "by-value")))

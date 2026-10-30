@@ -290,8 +290,9 @@ test("the late producers and the assembly receive the stable attempt's list", ()
 
 test("callable contracts and forwarding consume the actual attempt's mandatory finite shape view", () => {
   const contracts = composedCall("analyzeCsharpCallableContracts", iteration, "callable input");
-  const conversionArgument = ast.arguments(contracts).at(-1);
+  const conversionArgument = ast.arguments(contracts).at(-2);
   assert.equal(ast.arguments(contracts).length, 8, "the existing callable owner takes its mandatory conversion input");
+  assert.equal(text(ast.arguments(contracts).at(-1)), "operations", "one required completed operation input");
   assert.equal(conversionArgument !== undefined && ast.is.IsCallExpression(conversionArgument) &&
     text(ast.as.AsCallExpression(conversionArgument).Expression) === "Object.freeze", true,
     "the actual conversion input is frozen before it is handed to callable contracts");
@@ -300,7 +301,9 @@ test("callable contracts and forwarding consume the actual attempt's mandatory f
   assert.equal(shape !== undefined && ast.is.IsShorthandPropertyAssignment(shape), true,
     "early callable admission receives the same open actual shape owner, not policy.objectShapes");
   assert.equal(ast.properties(conversion).map(candidate => text(ast.name(candidate))).join(),
-    "typeDefinitions,projectTypes,providers,target,objectShapes", "the actual view exposes only finite native conversion inputs");
+    "typeDefinitions,projectTypes,providers,target,objectShapes,conversion", "the actual view exposes only finite native conversion inputs");
+  assert.equal(text(ast.as.AsPropertyAssignment(property(conversion, "conversion")).Initializer),
+    "conversionAnalysis.classifications.conversion", "the existing prepared conversion owner supplies the mandatory pair lookup");
   const declarations = programStatements.map(statement => ownDeclaration(statement, "callablePolicy")).filter(node => node !== undefined);
   assert.equal(declarations.length, 1, "stable callable and structural forwarding admission share one finite actual input");
   const initializer = ast.as.AsVariableDeclaration(declarations[0]).Initializer;

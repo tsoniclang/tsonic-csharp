@@ -8,7 +8,7 @@ import type { CsharpSourceCallContractSelection } from "./call-contracts.js";
 import type { CsharpPointerReturnContract } from "../../../../target-model/records/calls/pointer-return.js";
 import type { CsharpSourceTypedLocationOperation } from "../../../../source/extension/typed-locations.js";
 import type { CsharpTypePolicyHost, CsharpScopedTypePolicyResult, CsharpTypePolicy, CsharpTypeResolutionState } from "./model.js";
-import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
+import type { CsharpSourceCallParameterReadDomain, ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
 import type { CsharpSourceTargetTypeBinding } from "../../../../target-model/types/model.js";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { classifyCsharpSourceProfileType } from "../../../../policy/identities/source-types.js";
@@ -93,6 +93,7 @@ export interface CsharpTypeResolutionScope {
   source: ResolvedSourceCallInfo,
   parameterIndex: number,
   sourceFile: SourceFile,
+  domain: CsharpSourceCallParameterReadDomain,
 ): TargetTypeRef | undefined;
   resolveSourceCallParameters(
   source: ResolvedSourceCallInfo,

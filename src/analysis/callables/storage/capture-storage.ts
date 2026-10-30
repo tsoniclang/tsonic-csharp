@@ -22,6 +22,8 @@ import { createCsharpTypeParameterEnvironment } from "../../source-evidence/type
 import { csharpCapturedMemberAccess } from "../values/captured-member-access.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { csharpConstructorCapturedPlaces } from "../emission/constructor-entry.js";
+import type { CsharpCallableContractIndex } from "../../../target-model/records/callables/callable-values.js";
+import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations/operations.js";
 
 export function analyzeCsharpCaptureStorage(
   source: TargetSourceProgram,
@@ -29,6 +31,8 @@ export function analyzeCsharpCaptureStorage(
   storage: CsharpCaptureStorageQueries,
   evidence: CsharpSourceEvidenceIndex,
   classCaptures: readonly import("../../../target-model/records/objects/class-factories.js").CsharpClassCapture[],
+  callables: Pick<CsharpCallableContractIndex, "get" | "closedInputType">,
+  erasedStatement: CsharpTargetOperationClassifications["erasedStatement"],
 ): CsharpCaptureStorage {
   const environment = createCsharpTypeParameterEnvironment(source.ast, declaration => evidence.typeParameterConstraints.get(declaration));
   const groups = new Map<Node, Map<Node, TargetTypeRef>>();
@@ -106,7 +110,7 @@ export function analyzeCsharpCaptureStorage(
   const creationDemandValues = new Map<Node, boolean>();
   const constructors: Node[] = [];
   const collectCreationDemand = (node: Node): void => {
-    if (evidence.compileTimeMetadata.get(node)) return;
+    if (evidence.compileTimeMetadata.get(node) || erasedStatement.get(node)) return;
     if (source.ast.is.IsConstructorDeclaration(node)) constructors.push(node);
     if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) {
       const discarded = sourceCallableDefinitionIsDiscarded(node, source.ast, source.navigation);
@@ -117,7 +121,7 @@ export function analyzeCsharpCaptureStorage(
   };
   source.navigation.sourceFiles.forEach(collectCreationDemand);
   const creationDemand = Object.freeze({ get: (declaration: Node) => creationDemandValues.get(declaration) });
-  const nativeCaptures = analyzeCsharpNativeCaptures(source, evidence, physicalType, issues, creationDemand);
+  const nativeCaptures = analyzeCsharpNativeCaptures(source, evidence, physicalType, issues, creationDemand, callables, erasedStatement);
   const constructorPlaces = new Map<Node, Omit<CsharpConstructorCaptureProtocol, "frame">>();
   const constructorMethods = new Map<Node, readonly CsharpFrameClosure[]>();
   for (const constructor of constructors) {

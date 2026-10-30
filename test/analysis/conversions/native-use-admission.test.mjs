@@ -471,7 +471,8 @@ for (const surface of ["native", "js"]) {
     const selected = actual.callableCreation.get(expression);
     assert.equal(selected?.kind === "selected", true, "the completed callable has one selected creation");
     assert.equal(actual.callableTarget.get(expression) === selected.carrier, true, "publication reads the canonical creation object");
-    const missingStorage = nativeCreations(value, { storage: { lambdaParameterType: { get: () => undefined } } });
+    const missingStorage = nativeCreations(value, { storage: { storageType: value.program.records.storageType,
+      lambdaParameterType: { get: () => undefined } } });
     assert.equal(missingStorage.callableCreation.get(expression)?.kind === "pending" && missingStorage.callableTarget.get(expression) === undefined,
       true, "a callable contract cannot replace the exact parameter storage that native emission consumes");
     assert.equal(Object.isFrozen(selected) && Object.isFrozen(actual), true, "creation evidence is immutable");
@@ -480,7 +481,8 @@ for (const surface of ["native", "js"]) {
     const mismatched = nativeCreations(value, { expectedTypes: { callableTarget: { get: () => unrelated } } });
     assert.equal(mismatched.callableCreation.get(expression)?.kind, "selected", "actual native creation remains available independently of an unrelated destination");
     assert.equal(mismatched.callableTarget.get(expression) !== unrelated, true, "an unproved requested carrier never replaces actual creation");
-    const unproven = nativeCreations(value, { contracts: { get: () => undefined, closedInputType: () => undefined }, storage: { lambdaParameterType: { get: () => undefined } } });
+    const unproven = nativeCreations(value, { contracts: { get: () => undefined, closedInputType: () => undefined },
+      storage: { storageType: value.program.records.storageType, lambdaParameterType: { get: () => undefined } } });
     assert.equal(unproven.callableCreation.get(expression)?.kind, "pending", "known contextual demand alone is not physical creation proof");
   });
 }

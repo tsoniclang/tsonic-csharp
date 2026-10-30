@@ -7,7 +7,7 @@ import { createCsharpProjectTypeCatalog } from "../../../../dist/analysis/projec
 import { analyzeCsharpClassFactories } from "../../../../dist/analysis/project-types/class-factories.js";
 import { analyzeCsharpStorage } from "../../../../dist/analysis/storage/analyze.js";
 import { createCsharpSourceProfileStorageEffects } from "../../../../dist/analysis/operations/source-profiles/source-storage-effects.js";
-import { targetTypeRefEquals } from "../../../../dist/target-model/types/equality.js";
+import { targetTypeRefEquals, targetTypeRefKey } from "../../../../dist/target-model/types/equality.js";
 import { compileCsharpRequiredRecordSource, csharpRequiredRecordFailure } from "../../../helpers/required-records.mjs";
 import { createExpectedNativeUseOwner } from "../../../helpers/expected-native-uses.mjs";
 import { getCsharpLambdaSignature } from "../../../../dist/target-model/types/carriers/delegates.js";
@@ -121,17 +121,13 @@ for (const surface of ["native", "js"]) {
     const declarations = new Map(nodes.filter(node => ast.is.IsArrowFunction(node)).map(declaration => {
       const signature = getCsharpLambdaSignature(records.callableTarget.get(declaration));
       assert.equal(signature !== undefined, true, "each adapted lambda has its exact published signature");
-      const parameters = records.callableDeclaration.get(declaration).contract.parameters;
-      const nativeParameters = Object.freeze(parameters.map((parameter, index) => {
-        const type = records.lambdaParameterType.get(parameter);
+      const contract = records.callableDeclaration.get(declaration).contract;
+      contract.nativeParameters.forEach((parameter, index) => {
+        const type = records.lambdaParameterType.get(parameter.sourceParameter);
         assert.equal(type !== undefined && targetTypeRefEquals(type, signature.parameters[index]), true,
           "the callable contract carries the published parameter correspondence");
-        return Object.freeze({ sourceParameter: parameter,
-          targetParameter: Object.freeze({ type, passingMode: signature.parameterPassingModes[index] }) });
-      }));
-      return [declaration, Object.freeze({ kind: "source", sourceDeclaration: declaration,
-        nativeSignature: Object.freeze({ methodTypeParameterIdentities: Object.freeze([]), methodAllowsRefLikeTypeArguments: Object.freeze([]) }),
-        parameters, nativeParameters, returnType: signature.returnType })];
+      });
+      return [declaration, contract];
     }));
     const callables = Object.freeze({ contracts: Object.freeze([...declarations.values()]),
       declarationContracts: Object.freeze([...declarations.values()]), closedInputType: () => undefined,
@@ -143,9 +139,16 @@ for (const surface of ["native", "js"]) {
     const storage = analyzeCsharpStorage(policy, records, operations, program.objectShapes, expected, records, records,
       callables, records, rows);
     assert.equal(storage.issues.length === 0, true, "the owner closes this source without issues");
-    assert.equal(nodes.every(node => sameType(storage.lambdaParameterType.get(node), records.lambdaParameterType.get(node)) &&
-      sameType(storage.requiredStorageType.get(node), records.requiredStorageType.get(node))), true,
-      "the owner selects the published adaptations and required storage again");
+    const sameStorage = node => sameType(storage.lambdaParameterType.get(node), records.lambdaParameterType.get(node)) &&
+      sameType(storage.requiredStorageType.get(node), records.requiredStorageType.get(node));
+    const key = value => value === undefined ? "<missing>" : targetTypeRefKey(value).slice(0, 512);
+    const differences = nodes.filter(node => !sameStorage(node)).slice(0, 6).map(node => ({
+      kind: ast.kindName(node), name: ast.name(node) === undefined ? undefined : ast.text(ast.name(node)).slice(0, 128),
+      incomingBefore: key(records.lambdaParameterType.get(node)), incomingCurrent: key(storage.lambdaParameterType.get(node)),
+      storageBefore: key(records.requiredStorageType.get(node)), storageCurrent: key(storage.requiredStorageType.get(node)),
+    }));
+    assert.equal(nodes.every(sameStorage), true,
+      `the owner selects the published adaptations and required storage again: ${JSON.stringify(differences)}`);
     const adapted = nodes.filter(node => storage.lambdaParameterType.get(node) !== undefined);
     assert.equal(adapted.length === 2 && adapted.every(node => ast.is.IsParameterDeclaration(node) && ast.is.IsArrowFunction(ast.parent(node))),
       true, "the two lambda parameters are adapted");

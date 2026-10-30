@@ -8,7 +8,7 @@ import type { TargetTypeRef } from "../../target-model/types/model.js";
 
 import type { CsharpArrayLiteralSelection } from "../../target-model/records/operations/array-literals.js";
 
-import type { ResolvedSourceCallInfo } from "../../target-model/records/calls/source-calls.js";
+import type { CsharpSourceCallParameterReadDomain, ResolvedSourceCallInfo } from "../../target-model/records/calls/source-calls.js";
 import type { CsharpSourceCallResult } from "../../target-model/operations/source-call-results.js";
 import type { CsharpNativeSourceCarrierSelection } from "../../target-model/records/objects/object-shapes.js";
 
@@ -61,6 +61,7 @@ export interface CsharpTypeQueries {
     source: ResolvedSourceCallInfo,
     parameterIndex: number,
     sourceFile: SourceFile,
+    domain: CsharpSourceCallParameterReadDomain,
   ): TargetTypeRef | undefined;
   resolveSourceCallParameters(
     source: ResolvedSourceCallInfo,

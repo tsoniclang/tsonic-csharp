@@ -56,7 +56,9 @@ export function analyzeCsharpLambdaEmission(input: { readonly source: TargetSour
         refuse(name ?? parameter, "Lambda parameter binding is outside the current C# planning surface.");
       const selected = input.storage.lambdaParameterType.get(parameter);
       const width = entry.incoming.kind === "tuple" ? entry.incoming.parameters.length : 1;
-      const expected = contract.bodyInputs !== undefined ? contract.bodyInputs.parameters[parameterIndex]?.targetParameter.type
+      const adapter = contract.bodyInputs?.adapters[parameterIndex];
+      const expected = contract.bodyInputs !== undefined ? adapter?.kind === "value" ? adapter.adapter.source
+        : contract.bodyInputs.parameters[parameterIndex]?.targetParameter.type
         : entry.incoming.kind === "tuple"
         ? { kind: "tuple" as const, elements: signature.parameters.slice(nativeIndex, nativeIndex + width) }
         : signature.parameters[nativeIndex]!;

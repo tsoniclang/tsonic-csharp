@@ -34,18 +34,31 @@ function fixture(body, quotation = false) {
     source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
   };
   visit(file);
+  const target = quotation ? { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Fixture::Quotation", csharpExpressionTreeDelegateType: callable } : undefined;
   const operations = new Map(calls.map(call => {
     const checkedCall = source.semantics.forNode(call).operations.call(call);
     const callee = source.ast.as.AsCallExpression(call)?.Expression;
     const declaration = callee === undefined ? undefined : source.navigation.sourceReferenceFor(callee)?.declaration;
-    const parameter = { type: callable, passingMode: "by-value" };
+    const parameter = { type: target ?? callable, passingMode: "by-value" };
+    const arguments_ = checkedCall.sourceArgumentBindings.map(binding => ({
+      sourceArgumentIndex: binding.sourceArgumentIndex, effectiveArgumentIndex: binding.effectiveArgumentIndex,
+      sourceForm: binding.sourceForm, spreadElementIndex: binding.spreadElementIndex, targetParameter: parameter,
+    }));
     const selected = declaration === declarations.get("invoke") ? { origin: "source-profile",
       invocationOnlyCallableArgumentIndexes: Object.freeze([0]),
-      arguments: [{ sourceArgumentIndex: 0, sourceForm: "value", targetParameter: parameter }],
+      arguments: arguments_,
     } : { origin: "provider", invocationOnlyCallableArgumentIndexes: Object.freeze([0]),
-      arguments: [{ sourceArgumentIndex: 0, sourceForm: "value", targetParameter: parameter }],
+      arguments: arguments_,
     };
-    return [call, { source: checkedCall, target: { kind: "resolved", call: Object.freeze(selected) } }];
+    const sourceArgumentParameterTypes = checkedCall.sourceArgumentBindings.map(binding => {
+      const arguments_ = selected.arguments.filter(argument => argument.sourceArgumentIndex === binding.sourceArgumentIndex &&
+        argument.effectiveArgumentIndex === binding.effectiveArgumentIndex && argument.sourceForm === binding.sourceForm &&
+        argument.spreadElementIndex === binding.spreadElementIndex);
+      assert.equal(arguments_.length, 1, "one same selected native parameter per original checked binding");
+      return arguments_[0].targetParameter.type;
+    });
+    return [call, { source: checkedCall, target: { kind: "resolved", call: Object.freeze(selected) },
+      sourceArgumentParameterTypes: Object.freeze(sourceArgumentParameterTypes) }];
   }));
   const evidence = { compileTimeMetadata: { get: () => false },
     typeParameterConstraints: { get: () => [] },
@@ -59,10 +72,6 @@ function fixture(body, quotation = false) {
     nativeArray: { get: () => undefined },
     storageType: { get: () => undefined },
     typedLocationIdentity: { get: () => false } };
-  const target = quotation ? { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Fixture::Quotation", csharpExpressionTreeDelegateType: callable } : undefined;
-  const selected = analyzeCsharpCaptureStorage(source, { knownShapes: () => [] }, storage, evidence,
-    []);
-  assert.equal(selected.issues.length === 0, true, "closed capture storage");
   assert.equal(lambdas.length, 1, "one exact authored callable");
   const lambda = lambdas[0];
   const parameters = source.ast.parameters(lambda);
@@ -71,10 +80,15 @@ function fixture(body, quotation = false) {
     parameters, nativeParameters: parameters.map(parameter => ({ sourceParameter: parameter,
       targetParameter: { name: source.ast.text(source.ast.name(parameter)), type: scalar, passingMode: "by-value" } })),
     returnType: scalar });
+  const contracts = { get: identity => identity.declaration === lambda ? contract : undefined, closedInputType: () => undefined };
+  const selected = analyzeCsharpCaptureStorage(source, { knownShapes: () => [] }, storage, evidence,
+    [], contracts, { get: () => false });
+  assert.equal(selected.issues.length === 0, true, "closed capture storage");
   const creations = analyzeCsharpCallableCreations({ source, nodes, captures: selected,
-    contracts: { get: identity => identity.declaration === lambda ? contract : undefined, closedInputType: () => undefined },
+    contracts,
     operations: { selectedCall: { get: node => operations.get(node) }, selectedConstruction: { get: () => undefined } },
-    storage: { lambdaParameterType: { get: parameter => parameters.includes(parameter) ? scalar : undefined } },
+    storage: { lambdaParameterType: { get: parameter => parameters.includes(parameter) ? scalar : undefined },
+      storageType: { get: declaration => source.ast.is.IsVariableDeclaration(declaration) ? callable : undefined } },
     evidence, conversions: { conversion: { get: (input, output) => targetTypeRefEquals(input, output) ? { kind: "identity" } : undefined } },
     literals: { literalValue: { get: () => undefined } } });
   return { selected: creations, captures: selected, lambda, operations, source, nodes, evidence };

@@ -337,7 +337,7 @@ export interface CsharpTargetParameter extends TargetParameter {
 }
 
 export interface CsharpSourceArgumentAdapter {
-  readonly kind: "ecmascript-argument-vector-callback";
+  readonly kind: "ecmascript-argument-vector-callback" | "native-binding";
   readonly sourceCallableType: TargetTypeRef;
 }
 

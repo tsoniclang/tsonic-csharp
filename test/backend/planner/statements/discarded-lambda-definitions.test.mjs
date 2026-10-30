@@ -23,7 +23,7 @@ for (const asynchronous of [false, true]) for (const explicit of [false, true]) 
     visit(compiled.source.getSourceFile("/project/index.ts"));
     const definition = nodes.find(node => ast.is.IsArrowFunction(node));
     assert.equal(definition !== undefined, true, "the checked source definition is retained for admission");
-    assert.equal(compiled.result.program.records.lambdaCreation.get(definition).kind, "discarded",
+    assert.equal(compiled.result.program.records.callableCreation.get(definition).kind, "discarded",
       "one pre-seal source-use owner erases only the uninvoked definition");
     const generated = [...compiled.artifacts].filter(([path]) => path.endsWith(".cs")).map(([, text]) => text).join("\n");
     assert.equal([...generated.matchAll(/\beffect\s*\(/gu)].length, 2,

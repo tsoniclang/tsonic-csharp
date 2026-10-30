@@ -571,6 +571,47 @@ function rejected(compiled, text, kind, declarationName) {
   return issue;
 }
 
+function supportedAdoption(compiled, text, kind, declarationName) {
+  assert.equal(compiled.result.diagnostics.length, 0, JSON.stringify(compiled.result.diagnostics.slice(0, 8)
+    .map(({ code, message }) => ({ code, message: message.slice(0, 1024) }))));
+  const program = compiled.result.program;
+  assert.equal(program !== undefined && compiled.result.artifacts.length > 0, true,
+    "approved C1439: the same original supported contract publishes native output");
+  const { ast } = compiled.source;
+  const nodes = [];
+  const visit = node => { nodes.push(node); ast.forEachChild(node, child => { if (child !== undefined) visit(child); }); };
+  compiled.source.sourceFiles.filter(file => file !== undefined && !ast.isDeclarationFile(file)).forEach(visit);
+  const calls = nodes.filter(node => ast.kindName(node) === kind && (() => {
+    const file = ast.getSourceFile(node);
+    return file !== undefined && Buffer.from(ast.getSourceText(file)).subarray(ast.pos(node), ast.end(node))
+      .toString("utf8").trim() === text;
+  })());
+  assert.equal(calls.length, 1, "one exact original checked instantiation, not a copied or outer node");
+  const call = calls[0];
+  const file = ast.getSourceFile(call);
+  assert.equal(file !== undefined && compiled.source.sourceFiles.includes(file), true, "original checked source identity");
+  const checked = program.source.semantics.forNode(call).operations.call(call);
+  const selected = program.records.selectedCall.get(call)?.source;
+  assert.equal(selected?.sourceSelectedSignatureKind === "resolved" && selected.call === call &&
+    selected.selectedSignature === checked?.selectedSignature, true, "same exact checked and selected native signature");
+  const declaration = program.source.semantics.forNode(call).declarations.signatureDeclaration(selected.selectedSignature);
+  assert.equal(declaration !== undefined && ast.text(ast.name(declaration)) === declarationName &&
+    ast.typeParameters(declaration).length > 0, true, "same selected declaration and original generic binder");
+  assert.equal(selected.sourceSelectedMethodTypeArguments?.length > 0 && selected.sourceArgumentBindings.length > 0 &&
+    selected.sourceArgumentBindings.every((binding, index) =>
+      binding === checked.sourceArgumentBindings[index] &&
+      selected.sourceSelectedSignatureParameters.some(parameter => parameter.parameterIndex === binding.sourceParameterIndex &&
+        parameter.parameterDeclaration !== undefined) &&
+      selected.sourceArguments[binding.sourceArgumentIndex]?.expression === checked.sourceArguments[binding.sourceArgumentIndex]?.expression), true,
+  "the original formal, argument and effective binding identities stay complete");
+  const bytes = Buffer.from(ast.getSourceText(file));
+  const leading = /^\s*/u.exec(bytes.subarray(ast.pos(call), ast.end(call)).toString("utf8"))[0];
+  const start = ast.pos(call) + Buffer.byteLength(leading);
+  assert.equal(start === bytes.indexOf(text) && bytes.subarray(start, ast.end(call)).toString("utf8") === text &&
+    ast.end(call) - start === Buffer.byteLength(text), true, "exact original source span");
+  return call;
+}
+
 function declaredNativePromiseCall(compiled, text) {
   assert.equal(compiled.result.diagnostics.length, 0,
     JSON.stringify(compiled.result.diagnostics.map(({ code, message }) => ({ code, message }))));
@@ -593,4 +634,4 @@ function declaredNativePromiseCall(compiled, text) {
     "the declared Task<Task<T>> output is preserved without adoption or flattening");
 }
 
-export { code, identity, nativeEntryCases, nativeEntryInverses, nativeOpaquePayloadCases, nativeConstructorCases, nativeConstructorInverses, sourcePosition, sourceSpan, cases, rejected, declaredNativePromiseCall };
+export { code, identity, nativeEntryCases, nativeEntryInverses, nativeOpaquePayloadCases, nativeConstructorCases, nativeConstructorInverses, sourcePosition, sourceSpan, cases, rejected, supportedAdoption, declaredNativePromiseCall };

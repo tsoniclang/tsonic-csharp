@@ -2,14 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
-import { code, identity, nativeEntryCases, nativeEntryInverses, nativeOpaquePayloadCases, nativeConstructorCases, nativeConstructorInverses, sourcePosition, sourceSpan, cases, rejected } from "./generic-adoption-admission.fixtures.mjs";
+import { code, identity, nativeEntryCases, nativeEntryInverses, nativeOpaquePayloadCases, nativeConstructorCases, nativeConstructorInverses, sourcePosition, sourceSpan, cases, rejected, supportedAdoption } from "./generic-adoption-admission.fixtures.mjs";
 
 for (const [name, sourceText] of Array.from(nativeEntryInverses).slice(5, 13)) {
 test("C# native callback non-adoption inverse: " + name, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText });
     if (name === "required-native-input-excludes-this-default") {
-      rejected(compiled, "wrap(Promise.resolve(5))", "KindCallExpression", "wrap");
-      return;
+      supportedAdoption(compiled, "wrap(Promise.resolve(5))", "KindCallExpression", "wrap");
     }
     assert.equal(compiled.result.diagnostics.length, 0,
       JSON.stringify(compiled.result.diagnostics.map(({ code, message }) => ({ code, message }))));

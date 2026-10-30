@@ -36,12 +36,13 @@ export function admitCsharpCallableResultAdapter(
 }
 
 export function admitCsharpCallableParameterAdapters(
-  policy: CsharpCallableConversionPolicy,
+  admitValue: (source: TargetTypeRef, target: TargetTypeRef) => CsharpCallableValueAdapter | undefined,
   source: readonly CsharpTargetParameter[],
   target: readonly CsharpTargetParameter[],
 ): readonly CsharpCallableParameterAdapter[] | undefined {
+  if (typeof admitValue !== "function") return undefined;
   const admitted = csharpCallableParameterConversionRequests(source, target).flatMap(request => {
-    const adapter = admitCsharpCallableValueAdapter(policy, request.source, request.target);
+    const adapter = admitValue(request.source, request.target);
     return adapter === undefined ? [] : [adapter];
   });
   return selectCsharpCallableParameterAdapters(source, target, Object.freeze(admitted));

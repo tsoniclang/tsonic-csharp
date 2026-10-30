@@ -2,6 +2,7 @@ import type { Node } from "@tsonic/tsts";
 import type { CsharpCallArtifactRequirement, CsharpObjectShapeProjectionKind, CsharpTargetInvocation, CsharpTargetMember, TargetTypeRef } from "../../../types/index.js";
 import { csharpObjectTargetType, csharpQualifiedTypeRenderShape, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTsValueTargetType, csharpTargetNamedType, csharpTaskTargetType, getCsharpTaskResultTargetType, getCsharpDelegateSignature, isCsharpRecordDictionaryTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/index.js";
 import { csharpJsArrayTargetType } from "../../../../target-model/types/carriers/js.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import type { CsharpSourceProfileCallPolicy } from "../../../model/source-profiles.js";
 import { csharpSourceProfileDiagnostic, resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
 import { closedObjectParameter, jsCallIdentity, jsCallPolicy, jsConstructIdentity, jsMemberIdentity, jsRuntimeTargetType, jsUnsupportedCallPolicy, receiverHelperMethod, staticMethod, targetParameter } from "./common.js";
@@ -370,12 +371,14 @@ function jsonStringifyMember(
     context,
     context.source.sourceArguments[0],
   );
-  const selectedReplacerType = resolveCsharpSelectedSourceValue(
+  const declaredReplacer = context.inputs.parameters[1];
+  const callback = getCsharpDelegateSignature(getCsharpNullableElementTargetType(declaredReplacer) ?? declaredReplacer) !== undefined;
+  const selectedReplacerType = callback ? undefined : resolveCsharpSelectedSourceValue(
     context,
     context.source.sourceArguments[1],
   );
-  const replacerType = selectedReplacerType !== undefined &&
-      getCsharpDelegateSignature(selectedReplacerType) !== undefined
+  if (!callback && getCsharpDelegateSignature(selectedReplacerType) !== undefined) return undefined;
+  const replacerType = callback
     ? jsonReplacerType
     : selectedReplacerType ?? objectType;
   return valueType === undefined
@@ -389,12 +392,14 @@ function jsonStringifyMember(
           targetParameter("value", valueType, {
             csharpAcceptsClosedSourceArgument: true,
           }),
-          targetParameter("replacer", replacerType, {
+          Object.freeze({ ...targetParameter("replacer", callback ? csharpNullableTargetType(objectType) : replacerType, {
             optional: true,
             ...(replacerType === jsonReplacerType
               ? { csharpAcceptsCheckedSourceArgument: true as const }
               : {}),
-          }),
+          }), ...(callback ? { csharpSourceArgumentAdapter: Object.freeze({
+            kind: "native-binding" as const, sourceCallableType: jsonReplacerType,
+          }) } : {}) }),
           targetParameter("space", jsonValueType, {
             optional: true,
             csharpAcceptsCheckedSourceArgument: true,

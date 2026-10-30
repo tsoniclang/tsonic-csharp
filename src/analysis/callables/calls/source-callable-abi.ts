@@ -16,6 +16,10 @@ import type { CsharpSourceNameResolver } from "../../names/index.js";
 import { csharpSourceTypeParameter } from "../../../source/extension/type-parameters.js";
 import { csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { selectCsharpSourceParameterVector } from "../../../policy/types/callables/parameter-vector.js";
+import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations/operations.js";
+import { completeCsharpContextualInputs } from "./contextual-inputs.js";
+import type { CsharpConversionClassifications } from "../../../target-model/records/operations/conversions.js";
+import { csharpTargetParameterValueType } from "../../../target-model/types/member-facts.js";
 
 export function selectCsharpSourceCallableGenericAbi(
   ast: AstReader,
@@ -44,15 +48,36 @@ export function selectCsharpSourceCallableAbi(
   declaration: Node,
   sourceFile: SourceFile,
   projections: CsharpGenericProjectionIndex,
+  operations: Pick<CsharpTargetOperationClassifications, "selectedCall" | "selectedConstruction">,
+  conversions: Pick<CsharpConversionClassifications, "conversion">,
 ): SourceCallableSourceContract | undefined {
   const checked = policy.semantics(sourceFile).types.declarationSignatureInfo(declaration);
   const valueParameters = sourceCallableValueParameters(policy.ast, declaration, policy.semantics(sourceFile));
+  const contextual = evidence.contextualType.get(declaration);
+  let inputType = contextual?.targetType;
+  const quantified = policy.ast.typeParameters(declaration).length !== 0;
+  let hasInput = inputType !== undefined && !quantified;
+  const call = contextual?.contextualCall;
+  if (call !== undefined) {
+    const bindings = call.sourceArgumentBindings.filter(binding => {
+      let expression = call.sourceArguments[binding.sourceArgumentIndex]?.expression;
+      if (expression === undefined) return false;
+      for (let inner = sourceTransparentExpressionOperand(policy.ast, expression); inner !== undefined;
+        inner = sourceTransparentExpressionOperand(policy.ast, expression)) expression = inner;
+      return expression === declaration;
+    });
+    if (bindings.length !== 1) return undefined;
+    const operation = policy.ast.is.IsNewExpression(call.call)
+      ? operations.selectedConstruction.get(call.call) : operations.selectedCall.get(call.call);
+    inputType = operation?.sourceArgumentParameterTypes?.[call.sourceArgumentBindings.indexOf(bindings[0]!)];
+    hasInput = !quantified;
+  }
   if (checked === undefined || valueParameters === undefined) return undefined;
   const accessor = policy.ast.is.IsGetAccessorDeclaration(declaration) || policy.ast.is.IsSetAccessorDeclaration(declaration);
   const returnContract = declarations.returnContract.get(declaration);
   const returnType = policy.ast.is.IsSetAccessorDeclaration(declaration) ? csharpVoidTargetType() : evidence.generatorTargetType.get(declaration) ??
     (returnContract?.kind === "resolved" ? returnContract.type : undefined) ??
-    getCsharpCallableValueSignature(evidence.contextualType.get(declaration)?.targetType)
+    getCsharpCallableValueSignature(inputType)
       ?.returnType ??
     constructorReturnType(policy, declaration, sourceFile) ??
     (accessor || policy.ast.body(declaration) === undefined ? policy.types.resolveType(checked.returnType, sourceFile) : undefined);
@@ -69,6 +94,8 @@ export function selectCsharpSourceCallableAbi(
       parameterNode,
       index,
       checked.parameters.find(parameter => parameter.declaration === parameterNode)?.acceptsOmission,
+      inputType,
+      hasInput,
     );
     if (parameters === undefined) {
       return undefined;
@@ -78,7 +105,7 @@ export function selectCsharpSourceCallableAbi(
   const genericAbi = selectCsharpSourceCallableGenericAbi(policy.ast, declaration);
   if (genericAbi === undefined) return undefined;
   const owner = sourceCallableReceiverTypeOwner(policy, declaration);
-  return Object.freeze({
+  return completeCsharpContextualInputs(policy, inputType, conversions, Object.freeze({
     kind: "source",
     sourceDeclaration: declaration,
     nativeSignature: Object.freeze({ methodTypeParameterIdentities: Object.freeze(
@@ -91,7 +118,7 @@ export function selectCsharpSourceCallableAbi(
     parameters: valueParameters,
     nativeParameters: Object.freeze(nativeParameters),
     returnType,
-  });
+  }));
 }
 
 function sourceParameterContracts(
@@ -102,6 +129,8 @@ function sourceParameterContracts(
   parameterNode: Node | undefined,
   parameterIndex: number,
   acceptsOmission: boolean | undefined,
+  inputType: TargetTypeRef | undefined,
+  hasInput: boolean,
 ): readonly CsharpSourceCallableParameterContract[] | undefined {
   if (parameterNode === undefined) {
     return undefined;
@@ -113,25 +142,19 @@ function sourceParameterContracts(
   if (parameter.DotDotDotToken === undefined && acceptsOmission === undefined) return undefined;
   const declaration = policy.ast.parent(parameterNode);
   if (declaration === undefined) return undefined;
-  const call = parameter.Type === undefined ? evidence.contextualType.get(declaration)?.contextualCall : undefined;
-  let nativeInput: TargetTypeRef | undefined;
-  if (call !== undefined) {
-    const bindings = call.sourceArgumentBindings.filter(binding => {
-      let expression = call.sourceArguments[binding.sourceArgumentIndex]?.expression;
-      if (expression === undefined) return false;
-      for (let inner = sourceTransparentExpressionOperand(policy.ast, expression); inner !== undefined;
-        inner = sourceTransparentExpressionOperand(policy.ast, expression)) expression = inner;
-      return expression === declaration;
-    });
-    if (bindings.length !== 1) return undefined;
-    const binding = bindings[0]!;
-    const context = policy.types.resolveSourceCallArgumentParameter(call, binding,
-      policy.semanticsFor(declaration).sourceFile, new Set([binding.sourceArgumentIndex]));
-    nativeInput = getCsharpLambdaSignature(context)?.parameters[parameterIndex];
-    if (nativeInput === undefined) return undefined;
-  }
-  const typeSubject = parameter.Type ?? parameter.name;
-  const selectedType = call !== undefined ? nativeInput : typeSubject === undefined
+  const signature = parameter.Type === undefined && hasInput ? getCsharpLambdaSignature(inputType) : undefined;
+  const restIndex = signature?.restParameterIndex;
+  const selectedIndex = restIndex !== undefined && parameterIndex >= restIndex ? restIndex : parameterIndex;
+  const selectedInput = signature?.parameters[selectedIndex];
+  const nativeInput = parameter.DotDotDotToken !== undefined
+    ? restIndex === undefined && signature !== undefined
+      ? Object.freeze({ kind: "tuple" as const, elements: Object.freeze(signature.parameters.slice(parameterIndex)) })
+      : parameterIndex === restIndex ? selectedInput : undefined
+    : restIndex !== undefined && parameterIndex >= restIndex && selectedInput !== undefined
+      ? csharpTargetParameterValueType({ name: "", type: selectedInput, passingMode: "by-value", paramsArray: true }, "value")
+      : selectedInput;
+  const typeSubject = parameter.Type ?? parameterNode;
+  const selectedType = parameter.Type === undefined && hasInput ? nativeInput : typeSubject === undefined
     ? undefined
     : evidence.nodeTargetType.get(typeSubject);
   if (selectedType === undefined) {

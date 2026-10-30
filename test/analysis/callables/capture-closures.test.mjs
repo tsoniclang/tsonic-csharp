@@ -3,11 +3,13 @@ import test from "node:test";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
 import { createTargetSourceProgram, sourceCallableDefinitionIsDiscarded } from "@tsonic/target-api/source";
 import { analyzeCsharpNativeCaptures } from "../../../dist/analysis/callables/values/capture-closures.js";
+import { createCaptureContractFixture } from "../../helpers/capture-contracts.mjs";
+import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 
 import { sealCsharpCaptureStorage } from "../../../dist/analysis/program/records/callables/capture-storage.js";
 
 const scalar = Object.freeze({ kind: "source-primitive", name: "float64" });
-const callable = Object.freeze({ kind: "target-named", csharpAllowsRefLikeTypeArguments: [true], id: "System.Func", typeArguments: [scalar] });
+const callable = csharpDelegateTargetType("System.Func", [], scalar);
 
 function fixture(text) {
   const checked = createCompilerSessionFromFiles({
@@ -60,7 +62,8 @@ function fixture(text) {
   const select = (physicalType = (_declaration, type) => type) => {
     const issues = [];
     const selected = analyzeCsharpNativeCaptures(source, evidence, physicalType, issues,
-      Object.freeze({ get: node => creationDemand.get(node) }));
+      Object.freeze({ get: node => creationDemand.get(node) }), createCaptureContractFixture(source, node => types.get(node)),
+      { get: () => false });
     assert.equal(Object.hasOwn(selected, "groups"), false, "no ordinary physical grouping publication");
     assert.equal(Object.hasOwn(selected, "closures"), false, "no ordinary synthetic frame-method publication");
     return { ...selected, issues,

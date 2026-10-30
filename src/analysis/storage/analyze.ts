@@ -2,7 +2,7 @@ import type { Node } from "@tsonic/tsts";
 import { IsTypeSyntaxNode, sourceCallableValueParameters } from "@tsonic/target-api/source";
 
 import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
-import { getCsharpCallableValueSignature, getCsharpLambdaSignature, getCsharpNullableElementTargetType, csharpNullableReferenceTargetType, csharpNullableTargetType, csharpTargetStorageIdentityEquals, csharpDelegateSignaturesMatchNativeBinding, targetTypeRefEquals, targetTypeRefKey } from "../../policy/types/index.js";
+import { getCsharpCallableValueSignature, getCsharpNullableElementTargetType, csharpNullableReferenceTargetType, csharpNullableTargetType, csharpTargetStorageIdentityEquals, csharpDelegateSignaturesMatchNativeBinding, targetTypeRefEquals, targetTypeRefKey } from "../../policy/types/index.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpDeclarationClassifications } from "../../target-model/records/program/declarations.js";
 import type { CsharpCallableContractIndex } from "../../target-model/records/callables/callable-values.js";
@@ -172,25 +172,18 @@ export function analyzeCsharpStorage(
     const objectLiteralMethod = policy.ast.is.IsMethodDeclaration(node) &&
       policy.ast.is.IsObjectLiteralExpression(policy.ast.parent(node));
     const contextual = policy.ast.is.IsArrowFunction(node) || policy.ast.is.IsFunctionExpression(node) || objectLiteralMethod;
-    if (!contextual && !policy.ast.is.IsFunctionDeclaration(node) &&
-      !policy.ast.is.IsMethodDeclaration(node) && !policy.ast.is.IsConstructorDeclaration(node)) {
+    if (!contextual) {
       return;
     }
     const parameters = sourceCallableValueParameters(policy.ast, node, policy.semanticsFor(node));
     if (parameters === undefined) return;
-    const callableContext = contextual ? evidence.contextualType.get(node) : undefined;
-    const callableTarget = callableContext?.targetType;
-    const selectedSignature = callableTarget === undefined
-      ? undefined
-      : getCsharpLambdaSignature(callableTarget);
-    const declarationContract = contextual && !objectLiteralMethod ? callables.get({ kind: "declaration", declaration: node }) : undefined;
-    const nativeContract = contextual && !objectLiteralMethod && callableTarget === undefined
-      ? callables.get({ kind: "declaration", declaration: node })
-      : undefined;
+    const declarationContract = callables.get({ kind: "declaration", declaration: node });
     const parameterTypes = declarationContract?.bodyInputs !== undefined
-      ? declarationContract.bodyInputs.parameters.map(parameter => parameter.targetParameter.type) : selectedSignature === undefined
-      ? nativeContract?.nativeParameters.map(parameter => parameter.targetParameter.type)
-      : selectedSignature.parameters;
+      ? declarationContract.bodyInputs.parameters.map((parameter, index) => {
+        const adapter = declarationContract.bodyInputs!.adapters[index];
+        return adapter?.kind === "value" ? adapter.adapter.source : parameter.targetParameter.type;
+      })
+      : declarationContract?.nativeParameters.map(parameter => parameter.targetParameter.type);
     if (parameterTypes !== undefined) {
       let nativeIndex = 0;
       for (let index = 0; index < parameters.length; index += 1) {
@@ -208,18 +201,8 @@ export function analyzeCsharpStorage(
             "The source lambda declares more parameters than its exact selected C# delegate representation."));
           return;
         }
-        let targetType: TargetTypeRef = tupleRest === undefined ? parameterTypes[nativeIndex]!
+        const targetType: TargetTypeRef = tupleRest === undefined ? parameterTypes[nativeIndex]!
           : Object.freeze({ kind: "tuple", elements: Object.freeze(parameterTypes.slice(nativeIndex, nativeIndex + width)) });
-        if (declaration?.Type === undefined && callableContext?.contextualCall !== undefined && declarationContract?.bodyInputs === undefined) {
-          const native = declarationContract?.nativeParameters.filter(selected => selected.sourceParameter === parameter);
-          if (native === undefined || native.length !== width) {
-            issues.push(issue(parameter, "CSHARP_LAMBDA_PARAMETER_ARITY_CONFLICT",
-              "An immediate callback requires its exact completed native parameter vector."));
-            return;
-          }
-          targetType = tupleRest === undefined ? native[0]!.targetParameter.type
-            : Object.freeze({ kind: "tuple", elements: Object.freeze(native.map(selected => selected.targetParameter.type)) });
-        }
         nativeIndex += width;
         const types = policy.semanticsFor(parameter).types;
         const authoredType = declaration?.Type === undefined ? undefined : types.authoredType(declaration.Type);

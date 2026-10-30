@@ -21,9 +21,10 @@ test("floor policy retains every native integer carrier supplied by exact provid
       ast: { kindName: () => "KindMethodSignature", is: { IsSpreadElement: () => false } },
     });
     const host = { ...fixture.host, types: { ...fixture.host.types, resolveSourceCallTypeArguments: () => [],
-      resolveSourceCallParameter: (source, index, file) => {
+      resolveSourceCallParameter: (source, index, file, domain) => {
         assert.equal(source === call.evidence && index === 0 && file === fixture.sourceFile, true,
           "the exact selected signature owns its single checked parameter");
+        assert.equal(domain, "declared", "native provider evidence is read without source-callee admission");
         return fixture.host.types.resolveType(source.sourceSelectedSignatureParameters[index].selectedType, file);
       },
     } };
