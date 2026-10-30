@@ -5,7 +5,8 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 import { code, identity, nativeEntryCases, nativeEntryInverses, nativeOpaquePayloadCases, nativeConstructorCases, nativeConstructorInverses, sourcePosition, sourceSpan, cases, rejected } from "./generic-adoption-admission.fixtures.mjs";
 
 function supportedOpaque(compiled) {
-  assert.deepEqual(compiled.result.diagnostics, [], "approved C-1373: the declared opaque callback Promise result is supported");
+  assert.equal(compiled.result.diagnostics.length, 0, JSON.stringify(compiled.result.diagnostics.slice(0, 8)
+    .map(({ code, message }) => ({ code, message: message.slice(0, 1024) }))));
   assert.equal(compiled.result.program !== undefined && compiled.result.artifacts.length > 0, true,
     "the same original supported program publishes native output");
   const { ast } = compiled.source;

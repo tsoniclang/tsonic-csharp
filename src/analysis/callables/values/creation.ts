@@ -51,24 +51,33 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
     const closure = input.captures.captureClosure.get(node);
     const observedSelf = (input.captures.namedSelf.get(node)?.values.length ?? 0) !== 0;
     const sourceCarrier = input.evidence.nodeTargetType.get(node);
-    const contextualCarrier = input.evidence.contextualType.get(node)?.targetType;
+    const argument = sourceExpressionCallArgument(node, input.source);
+    const operation = argument === undefined ? undefined : ast.is.IsNewExpression(argument.call)
+      ? input.operations.selectedConstruction.get(argument.call) : input.operations.selectedCall.get(argument.call);
+    const nativeArguments = operation?.sourceArgumentParameterTypes;
+    const grouping = operation?.sourceArgumentGrouping;
+    const nativeBindings = argument === undefined || grouping?.kind !== "grouped" ? []
+      : grouping.arguments.filter(binding => binding.sourceArgumentIndex === argument.argumentIndex &&
+        binding.expression === argument.argument && binding.sourceForm === "value");
+    const contextualCarrier = nativeArguments === undefined ? input.evidence.contextualType.get(node)?.targetType
+      : nativeBindings.length === 1 ? nativeArguments[nativeBindings[0]!.effectiveArgumentIndex] : undefined;
     const contract = input.contracts.get({ kind: "declaration", declaration: node });
     const closed = input.contracts.closedInputType(node);
     const native = contract === undefined ? undefined : closed ?? csharpCallableValueType(contract);
+    const asynchronous = HasSyntacticModifier(ast, node, ModifierFlagsAsync);
     const carrier = closure !== undefined ? closure.method.type
       : closed !== undefined && (contract?.bodyInputs !== undefined || contract?.nativeParameters.some(parameter => parameter.targetParameter.optional === true)) ? closed
       : observedSelf || getCsharpMethodValue(sourceCarrier) !== undefined ? sourceCarrier
-      : contextualCarrier !== undefined && matches(contextualCarrier) ? contextualCarrier : native;
+      : contextualCarrier !== undefined && (!asynchronous ||
+        getCsharpTaskResultTargetType(getCsharpLambdaSignature(contextualCarrier)?.returnType) !== undefined) &&
+        matches(contextualCarrier) ? contextualCarrier : native;
     if (carrier === undefined || contract === undefined) {
       producer.publish(node, Object.freeze({ kind: "pending" }));
       continue;
     }
     const valid = getCsharpMethodValue(sourceCarrier) !== undefined && carrier === sourceCarrier || matches(carrier);
     const staticBody = captures.values.length === 0 && captures.receivers.length === 0 && !observedSelf;
-    const argument = sourceExpressionCallArgument(node, input.source);
-    const selectedArgument = argument === undefined ? undefined : ast.is.IsNewExpression(argument.call)
-      ? input.operations.selectedConstruction.get(argument.call)?.target
-      : input.operations.selectedCall.get(argument.call)?.target;
+    const selectedArgument = operation?.target;
     const invocationOnly = argument !== undefined && selectedArgument?.kind === "resolved" &&
       selectedArgument.call.origin === "source-profile" &&
       selectedArgument.call.invocationOnlyCallableArgumentIndexes?.includes(argument.argumentIndex) === true &&
@@ -109,16 +118,15 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
       const completion = input.conversions.conversion.get(contract.returnType, signature.returnType, "implicit");
       // An async body completes the delegate's task with each returned value, so Func<long, Task<long>> matches the
       // contextual Func<long, Task<long?>> when its result converts implicitly.
-      const async = HasSyntacticModifier(ast, node, ModifierFlagsAsync);
-      const bodyResult = async ? getCsharpTaskResultTargetType(contract.returnType) : undefined;
-      const delegateResult = async ? getCsharpTaskResultTargetType(signature.returnType) : undefined;
+      const bodyResult = asynchronous ? getCsharpTaskResultTargetType(contract.returnType) : undefined;
+      const delegateResult = asynchronous ? getCsharpTaskResultTargetType(signature.returnType) : undefined;
       const awaited = bodyResult === undefined || delegateResult === undefined ? undefined
         : input.conversions.conversion.get(bodyResult, delegateResult, "implicit");
       // A literal-only body returns through the delegate's own return context, so `() => 9n` matches Func<long>.
       return csharpArgumentVectorCallbackResultMatches(contract.returnType, signature.returnType) ||
         completion !== undefined && csharpConversionIsApplicable(completion, "implicit") ||
         awaited !== undefined && csharpConversionIsApplicable(awaited, "implicit") ||
-        csharpLiteralReturnsFit(ast, input.literals, node, signature.returnType);
+        csharpLiteralReturnsFit(ast, input.literals, node, signature.returnType, expression => input.source.semantics.forNode(expression));
     }
   }
   return producer.seal();

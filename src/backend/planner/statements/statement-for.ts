@@ -9,7 +9,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpStatement } from "../../target-ast/syntax/index.js";
+import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import type {
   DestructuringPlannerState,
 } from "../bindings/index.js";
@@ -24,8 +24,11 @@ import type {
   NestedStatementPlanner,
 } from "./model.js";
 import { planResourceScopeStatements } from "./resource-management.js";
-import { planCsharpCaptureFrame, planCsharpCaptureFrameRotation } from "../bindings/capture-storage.js";
-import { sourceExpressionSequence } from "@tsonic/target-api/source";
+import { planCsharpCaptureFrame, planCsharpProtocolFrameRotation } from "../bindings/capture-storage.js";
+import { allocateExpressionTemp, getCsharpLocalBindingName } from "../bindings/binding-state.js";
+import { sourceBindingIterationScope, sourceExpressionSequence } from "@tsonic/target-api/source";
+import { csharpTypeFromTargetTypeRef } from "../types/render.js";
+import { planCsharpNativeMemoryCall } from "../expressions/native-memory.js";
 import { expressionStatement, planCsharpPlannedDiscard, planDiscardedExpression } from "./statement-output.js";
 import { csharpLoopContinuationLabel, planCsharpLoopContinuation } from "./loop-regions.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
@@ -96,11 +99,15 @@ function planForStatementCore(
   if (incrementors.some(expression => expression === undefined) || conditionPrelude.some(expression => expression === undefined)) {
     failCsharpPlannerInvariant("An admitted for continuation requires its native expression plans.", node);
   }
-  const rotation = frame === undefined ? undefined : planCsharpCaptureFrameRotation(frame, input, diagnostics, state);
+  const nativeBindings = frame === undefined && initializer?.preludeScope !== "enclosing" &&
+    initializer?.bindings?.some(binding => input.program.records.capturedPlace.get(binding.declaration) !== undefined &&
+      sourceBindingIterationScope(binding.declaration, input.program.source.ast) === node)
+    ? initializer.bindings : undefined;
+  const rotation = frame === undefined ? undefined : planCsharpProtocolFrameRotation(frame, input, diagnostics, state);
   const iterationPrelude = conditionPrelude.flatMap(expression => planCsharpPlannedDiscard(expression!));
   const expandedIncrement = incrementors.some(expression => expression!.prelude.length !== 0 || expression!.completion.kind !== "value");
   const expandedCondition = iterationPrelude.length !== 0 || (condition?.prelude.length ?? 0) !== 0;
-  const label = expandedIncrement ? planCsharpLoopContinuation(node, state) : undefined;
+  const label = expandedIncrement || nativeBindings !== undefined ? planCsharpLoopContinuation(node, state) : undefined;
   const body = condition?.completion.kind === "never" ? [] : planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state);
   const continuationExits = input.program.records.loopContinuationExit.get(node);
   if (continuationExits === undefined) failCsharpPlannerInvariant("An admitted for body requires its sealed continuation completion.", node);
@@ -116,6 +123,10 @@ function planForStatementCore(
     }] : []),
   ];
   const continuation = label === undefined ? [] : csharpLoopContinuationLabel(node, label, state);
+  if (nativeBindings !== undefined) {
+    return planNativeIterationPlaces(nativeBindings, initializer!.prelude, incrementStatements,
+      conditionTest, body, continuation, state, input);
+  }
   const plannedFor: CsharpStatement = expandedIncrement ? {
     kind: "WhileStatement",
     condition: !expandedCondition && condition?.completion.kind === "value" ? condition.completion.expression : { kind: "LiteralExpression", value: true },
@@ -160,6 +171,53 @@ function planForStatementCore(
 interface PlannedForInitializer {
   readonly prelude: readonly CsharpStatement[];
   readonly preludeScope?: "loop" | "enclosing";
+  readonly bindings?: readonly NativeIterationBinding[];
+}
+
+interface NativeIterationBinding {
+  readonly declaration: Node;
+  readonly name: string;
+  readonly type: CsharpTypeNode;
+}
+
+function planNativeIterationPlaces(
+  bindings: readonly NativeIterationBinding[], initialization: readonly CsharpStatement[],
+  increment: readonly CsharpStatement[], condition: readonly CsharpStatement[],
+  body: readonly CsharpStatement[], continuation: readonly CsharpStatement[], state: DestructuringPlannerState,
+  input: CsharpPlanningContext,
+): readonly CsharpStatement[] {
+  const slots = bindings.map(binding => {
+    const backing = input.program.records.nativeBacking.get(binding.declaration);
+    const carryType = backing === undefined ? binding.type : csharpTypeFromTargetTypeRef(backing.pointeeType, input.scope.typeParameterNames);
+    if (carryType === undefined) failCsharpPlannerInvariant("A native iteration place requires its exact carried value type.", binding.declaration);
+    return { ...binding, carry: allocateExpressionTemp(state), carryType, backing };
+  });
+  const first = allocateExpressionTemp(state);
+  const identifier = (name: string): CsharpExpression => ({ kind: "IdentifierName", name });
+  const assign = (name: string, value: CsharpExpression): CsharpStatement => ({ kind: "ExpressionStatement",
+    expression: { kind: "AssignmentExpression", left: identifier(name), operatorToken: { kind: "EqualsToken" }, right: value } });
+  const carriedValue = (slot: typeof slots[number]): CsharpExpression => slot.backing === undefined ? identifier(slot.name)
+    : { kind: "SimpleMemberAccessExpression", receiver: identifier(slot.name), name: "Value" };
+  return [{ kind: "Block", body: { kind: "Block", statements: [
+    ...slots.map((slot): CsharpStatement => ({ kind: "LocalDeclarationStatement", name: slot.carry, type: slot.carryType,
+      initializer: { kind: "DefaultExpression", type: slot.carryType, nullForgiving: true } })),
+    { kind: "Block", body: { kind: "Block", statements: [...initialization,
+      ...slots.map(slot => assign(slot.carry, carriedValue(slot)))] } },
+    { kind: "LocalDeclarationStatement", name: first, type: { kind: "PredefinedType", name: "bool" },
+      initializer: { kind: "LiteralExpression", value: true } },
+    { kind: "WhileStatement", condition: { kind: "LiteralExpression", value: true }, body: { kind: "Block", statements: [
+      ...slots.map((slot): CsharpStatement => ({ kind: "LocalDeclarationStatement", name: slot.name, type: slot.type,
+        initializer: slot.backing === undefined ? identifier(slot.carry)
+          : planCsharpNativeMemoryCall(input.scope.typeParameterNames, "Allocate", identifier(slot.carry), slot.backing, input.program.records) })),
+      { kind: "IfStatement", condition: identifier(first),
+        thenBody: { kind: "Block", statements: [assign(first, { kind: "LiteralExpression", value: false })] },
+        elseBody: { kind: "Block", statements: increment } },
+      ...condition,
+      { kind: "TryStatement", tryBody: { kind: "Block", statements: [
+        { kind: "Block", body: { kind: "Block", statements: body } }, ...continuation,
+      ] }, finallyBody: { kind: "Block", statements: slots.map(slot => assign(slot.carry, carriedValue(slot))) } },
+    ] } },
+  ] } }];
 }
 
 function planForInitializer(
@@ -173,8 +231,21 @@ function planForInitializer(
     const concreteDeclarations = input.program.source.ast.children(node)
       .filter((declaration): declaration is Node => declaration !== undefined && input.program.source.ast.is.IsVariableDeclaration(declaration));
     const declarationKind = input.program.source.ast.variableDeclarationKind(node);
+    const bindings: NativeIterationBinding[] = [];
+    const prelude = concreteDeclarations.flatMap(declaration => {
+      const planned = planLocalDeclarationStatements(declaration, sourceFile, input, diagnostics, state,
+        (binding, original) => bindings.push({ declaration: original, name: binding.name, type: binding.type }));
+      const sourceName = input.program.source.ast.name(declaration);
+      const name = sourceName === undefined || !input.program.source.ast.is.IsIdentifier(sourceName)
+        ? undefined : getCsharpLocalBindingName(sourceName, input, state);
+      if (name !== undefined) {
+        const local = planned.find(statement => statement.kind === "LocalDeclarationStatement" && statement.name === name);
+        if (local?.kind === "LocalDeclarationStatement") bindings.push({ declaration, name, type: local.type });
+      }
+      return planned;
+    });
     return {
-      prelude: concreteDeclarations.flatMap(declaration => planLocalDeclarationStatements(declaration, sourceFile, input, diagnostics, state)),
+      prelude, bindings,
       ...(declarationKind === "var" ? { preludeScope: "enclosing" as const } : {}),
     };
   }

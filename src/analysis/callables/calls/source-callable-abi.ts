@@ -1,5 +1,5 @@
 import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
-import { AsParameterDeclaration, HasSourceKind, KindIdentifier, sourceCallableValueParameters } from "@tsonic/target-api/source";
+import { AsParameterDeclaration, HasSourceKind, KindIdentifier, sourceCallableValueParameters, sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
 import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
 import { csharpNullableTargetType, getCsharpCallableValueSignature } from "../../../policy/types/index.js";
@@ -7,7 +7,7 @@ import type { CsharpTargetParameter, TargetTypeRef } from "../../../target-model
 import type { CsharpProjectForwardingConstructor } from "../../../target-model/records/types/project-types.js";
 import type { SourceCallableSourceContract, CsharpSourceCallableParameterContract, SourceCallableContract, CsharpSourceCallParameterContract, CsharpSourceCallableNativeSignature } from "../../../target-model/records/callables/source-callable-contract.js";
 import type { ResolvedSourceCallInfo } from "../../../target-model/records/calls/source-calls.js";
-import { csharpDelegateSignatureHasSupportedPassingModes } from "../../../target-model/types/carriers/delegates.js";
+import { csharpDelegateSignatureHasSupportedPassingModes, getCsharpLambdaSignature } from "../../../target-model/types/carriers/delegates.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import type { CsharpDeclarationClassifications } from "../../../target-model/records/program/declarations.js";
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";
@@ -111,8 +111,27 @@ function sourceParameterContracts(
     return undefined;
   }
   if (parameter.DotDotDotToken === undefined && acceptsOmission === undefined) return undefined;
+  const declaration = policy.ast.parent(parameterNode);
+  if (declaration === undefined) return undefined;
+  const call = parameter.Type === undefined ? evidence.contextualType.get(declaration)?.contextualCall : undefined;
+  let nativeInput: TargetTypeRef | undefined;
+  if (call !== undefined) {
+    const bindings = call.sourceArgumentBindings.filter(binding => {
+      let expression = call.sourceArguments[binding.sourceArgumentIndex]?.expression;
+      if (expression === undefined) return false;
+      for (let inner = sourceTransparentExpressionOperand(policy.ast, expression); inner !== undefined;
+        inner = sourceTransparentExpressionOperand(policy.ast, expression)) expression = inner;
+      return expression === declaration;
+    });
+    if (bindings.length !== 1) return undefined;
+    const binding = bindings[0]!;
+    const context = policy.types.resolveSourceCallArgumentParameter(call, binding,
+      policy.semanticsFor(declaration).sourceFile, new Set([binding.sourceArgumentIndex]));
+    nativeInput = getCsharpLambdaSignature(context)?.parameters[parameterIndex];
+    if (nativeInput === undefined) return undefined;
+  }
   const typeSubject = parameter.Type ?? parameter.name;
-  const selectedType = typeSubject === undefined
+  const selectedType = call !== undefined ? nativeInput : typeSubject === undefined
     ? undefined
     : evidence.nodeTargetType.get(typeSubject);
   if (selectedType === undefined) {
@@ -122,8 +141,6 @@ function sourceParameterContracts(
   const runtimeDefault = declarations.runtimeDefault.get(parameterNode);
   const incomingType: TargetTypeRef = runtimeDefault?.parameterType ??
     (questionToken === undefined ? selectedType : csharpNullableTargetType(selectedType));
-  const declaration = policy.ast.parent(parameterNode);
-  if (declaration === undefined) return undefined;
   const native = policy.objectShapes.resolveNativeParameter(declaration, parameterNode, incomingType);
   if (native.kind === "rejected") return undefined;
   const targetType = native.type;

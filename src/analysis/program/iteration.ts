@@ -208,6 +208,7 @@ export function analyzeCsharpRepresentationIteration(
     operations, storage: storageRepresentations, evidence: sourceEvidence, conversions: preparedConversions,
     literals: typeHost.literalValues,
   });
+  expectedTypes.completeReturns(callableCreations.callableCreation);
   const participation = analyzeCsharpNativeParticipation({
     ast: source.ast, storage: sourceStorage, navigation: source.navigation,
     captureClosure: captureStorage.captureClosure, callableCreation: callableCreations.callableCreation,

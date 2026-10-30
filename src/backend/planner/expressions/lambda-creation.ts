@@ -6,13 +6,13 @@ import type { LambdaTargetContext } from "./callable.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { withCsharpSafetyModifiers } from "../safety/explicit-safety.js";
-import type { CsharpLambdaCreation } from "../../../target-model/records/callables/capture-storage.js";
+import type { CsharpNativeCallableAllocation } from "../../../target-model/records/native/native-demand.js";
 
 export function planCsharpLocalLambdaCreation(
   node: Node, input: CsharpPlanningContext, _diagnostics: TargetDiagnostic[],
   target: LambdaTargetContext | undefined, name: string,
   parameters: readonly CsharpLambdaParameter[], body: CsharpBlock,
-  asynchronous: boolean, creation: CsharpLambdaCreation,
+  asynchronous: boolean, creation: CsharpNativeCallableAllocation,
 ): { readonly method: CsharpStatement; readonly value: CsharpExpression } | undefined {
   const returnType = target?.signature.returnTargetType === undefined ? undefined
     : csharpTypeFromTargetTypeRef(target.signature.returnTargetType, input.scope.typeParameterNames);

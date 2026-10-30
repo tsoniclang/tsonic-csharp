@@ -5,7 +5,7 @@ import type { CsharpCaptureStorage } from "../../../target-model/records/callabl
 import type { CsharpValueReadClassifications } from "../../../target-model/records/operations/conversions.js";
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";
 import type { CsharpLexicalValueDeclaration } from "../../../target-model/records/storage/lexical-values.js";
-import { getCsharpDelegateSignature } from "../../../target-model/types/carriers/delegates.js";
+import { getCsharpCallableValueSignature } from "../../../target-model/types/carriers/delegates.js";
 import { createCsharpLexicalValueRecords } from "../../program/records/storage/lexical-values.js";
 
 export function analyzeCsharpLexicalValues(input: {
@@ -27,7 +27,7 @@ export function analyzeCsharpLexicalValues(input: {
         input.metadata.compileTimeMetadata.get(use.reference) !== true).map(use => use.reference);
       if (references.length === 0) continue;
       const carrier = input.values.valueRead.get(declaration)?.value;
-      if (carrier === undefined || getCsharpDelegateSignature(carrier) === undefined) {
+      if (carrier === undefined || getCsharpCallableValueSignature(carrier) === undefined) {
         reject(declaration, "A lexical function requires one exact checked native delegate contract.");
         continue;
       }

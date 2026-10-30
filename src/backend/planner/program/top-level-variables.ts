@@ -23,7 +23,6 @@ import { planStatements } from "../statements/index.js";
 import { planValueTypeDeclaration } from "../declarations/value-types.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import { planCsharpModuleCallable } from "./module-callables.js";
 import { planResourceRegistrationStatement } from "../statements/resource-management.js";
 import { planCsharpNativeMemberHiding } from "../declarations/modifiers.js";
 
@@ -76,13 +75,6 @@ export function planTopLevelVariableStatement(
     if (destructured !== undefined) {
       moduleMembers.push(...retainedFields);
       topLevelStatements.push(...destructured);
-      continue;
-    }
-    const callableVisibility = input.program.records.callableVisibility.get(declaration);
-    if (callableVisibility !== undefined) {
-      const callable = input.program.records.moduleCallable.get(declaration);
-      if (callable === undefined) failCsharpPlannerInvariant("An admitted native module callable requires its exact declaration plan.", declaration);
-      moduleMembers.push(planCsharpModuleCallable(callable, sourceFile, input, diagnostics));
       continue;
     }
     const planned = planLocalDeclaration(declaration, sourceFile, input, diagnostics, state);

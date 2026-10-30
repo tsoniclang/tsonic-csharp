@@ -36,9 +36,11 @@ export function analyzeCsharpConstructorArguments(
     if (emission?.bottom !== undefined || use.completion.kind === "never") return true;
     if (ast.is.IsArrowFunction(node) || ast.is.IsFunctionExpression(node)) {
       if (records.captureStorage.captureClosure.get(node) !== undefined) return false;
-      const creation = records.captureStorage.lambdaCreation.get(node);
-      return creation.kind !== "discarded" && creation.kind !== "quotation" &&
-        (creation.kind !== "inline" || ast.is.IsFunctionExpression(node) && records.captureStorage.namedSelf.get(node) !== undefined);
+      const creation = records.callableCreations.callableCreation.get(node);
+      if (creation?.kind === "discarded") return false;
+      if (creation?.kind !== "selected") failTargetAnalysisInvariant("tsonic-csharp", "A constructor callable argument requires its completed native creation fact.", node);
+      return creation.allocation.kind !== "quotation" &&
+        (creation.allocation.kind !== "inline" || ast.is.IsFunctionExpression(node) && records.captureStorage.namedSelf.get(node) !== undefined);
     }
     if (use.kind === "converted" && emission?.physical !== undefined && emission.physical !== use) {
       return sequence(emission.physical) || use.completion.kind === "void" && emission.physical.completion.kind === "value";

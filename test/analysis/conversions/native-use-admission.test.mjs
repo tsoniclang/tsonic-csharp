@@ -497,7 +497,7 @@ test("frame callable creation retains the selected implementation carrier before
   const expression = captures.owner;
   const place = captures.values[0];
   const declaration = value.ast.as.AsVariableDeclaration(place.declaration);
-  assert.equal(declaration !== undefined && value.ast.text(declaration.Name) === "index" &&
+  assert.equal(declaration !== undefined && value.ast.text(value.ast.name(place.declaration)) === "index" &&
     records.capturedPlace.get(place.declaration) === place && place.mutable &&
     records.physicalStorageType.get(place.declaration, place.type) === place.type, true,
     "the loop index retains the same original mutable place and exact physical type");

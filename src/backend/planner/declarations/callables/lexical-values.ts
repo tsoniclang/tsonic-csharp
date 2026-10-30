@@ -11,8 +11,8 @@ import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 export function planCsharpLexicalFunctionValues(
   children: readonly Node[], _sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[], state: DestructuringPlannerState,
-): ReadonlyMap<Node, readonly CsharpStatement[]> {
-  const statements = new Map<Node, CsharpStatement[]>();
+): readonly CsharpStatement[] {
+  const statements: CsharpStatement[] = [];
   for (const statement of children) for (const selected of input.program.records.lexicalValues.get(statement) ?? []) {
     const { declaration, references } = selected;
     const type = csharpTypeFromTargetTypeRef(selected.carrier, input.scope.typeParameterNames);
@@ -20,22 +20,19 @@ export function planCsharpLexicalFunctionValues(
     const methodName = functionName === undefined ? undefined : getCsharpLocalBindingName(functionName, input, state);
     if (type === undefined || methodName === undefined)
       failCsharpPlannerInvariant("An admitted lexical function requires its native delegate type and method name.", declaration);
-    const expression = input.program.records.captureClosure.get(declaration) === undefined
+    const closure = input.program.records.captureClosure.get(declaration);
+    const expression = closure === undefined
       ? { kind: "IdentifierName" as const, name: methodName }
       : planCsharpFrameClosureReference(declaration, input, diagnostics, state)?.expression;
     if (expression === undefined) failCsharpPlannerInvariant("An admitted lexical function requires its native closure expression.", declaration);
-    const initializer: CsharpExpression = { kind: "ObjectCreationExpression", type,
-      arguments: [{ kind: "Argument", expression }] };
-    if (selected.storage.kind === "inline") {
-      state.expressionOverrides.set(selected.storage.reference, initializer);
-      continue;
-    }
-    const { name } = selected.storage;
-    for (const reference of references) state.expressionOverrides.set(reference, { kind: "IdentifierName", name });
-    const scheduled = statements.get(statement) ?? [];
-    scheduled.push({ kind: "LocalDeclarationStatement", type, name,
-      initializer });
-    statements.set(statement, scheduled);
+    const initializer: CsharpExpression = closure === undefined ? { kind: "ObjectCreationExpression", type,
+      arguments: [{ kind: "Argument", expression }] } : expression;
+    const name = input.names.temporaryName(`__tsonic_function_value_${input.program.source.ast.pos(declaration)}`);
+    const value: CsharpExpression = { kind: "AssignmentExpression", operatorToken: { kind: "QuestionQuestionEqualsToken" },
+      left: { kind: "IdentifierName", name }, right: initializer };
+    for (const reference of references) state.expressionOverrides.set(reference, value);
+    statements.push({ kind: "LocalDeclarationStatement", type: { kind: "NullableType", inner: type }, name,
+      initializer: { kind: "LiteralExpression", value: null } });
   }
-  return statements;
+  return Object.freeze(statements);
 }

@@ -32,6 +32,7 @@ export interface CsharpExpectedUseCollection {
   readonly quotationBinding: (declaration: Node) => CsharpQuotationBindingSelection | undefined;
   readonly contextualCallables: ReadonlySet<Node>;
   readonly issues: readonly CsharpExpectedTypeIssue[];
+  readonly snapshot: () => CsharpExpectedUseProjection;
   readonly seal: () => CsharpExpectedUseProjection;
 }
 
@@ -161,26 +162,34 @@ export function createCsharpExpectedUseCollection(policy: Pick<CsharpPolicyConte
       }
       return undefined;
     },
+    snapshot() {
+      open();
+      return project();
+    },
     seal() {
       open();
       sealed = true;
-      const views = new WeakMap<Node, { readonly all: readonly TargetTypeRef[]; readonly required: readonly TargetTypeRef[];
-        readonly storage: readonly TargetTypeRef[] }>();
-      for (const expression of expectedExpressions) {
-        const uses = [...(byExpression.get(expression)?.entries() ?? [])].sort(([left], [right]) => left.localeCompare(right)).map(([, value]) => value);
-        const all = Object.freeze(uses.map(value => value.targetType));
-        const required = Object.freeze(uses.filter(value => value.strength === "required").map(value => value.targetType));
-        views.set(expression, Object.freeze({ all, required, storage: required.length > 0 ? required : all }));
-      }
       Object.freeze(issues);
-      return Object.freeze({ targetTypes: Object.freeze([...targetTypes.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([, value]) => value)),
-        expectedType: (expression: Node) => views.get(expression)?.all ?? noExpectedTypes,
-        requiredExpectedType: (expression: Node) => views.get(expression)?.required ?? noExpectedTypes,
-        storageExpectedType: (expression: Node) => views.get(expression)?.storage ?? noExpectedTypes,
-        quotationBinding: (declaration: Node) => quotationBindings.get(declaration),
-        exactIntegerConversion: (expression: Node, targetType: TargetTypeRef) => byExpression.get(expression)?.get(targetTypeRefKey(targetType))?.exactInteger === true,
-        requests: Object.freeze(sites.flatMap(entry => [...entry.requests.values()])),
-      });
+      return project();
     },
   });
+
+  function project(): CsharpExpectedUseProjection {
+    const views = new WeakMap<Node, { readonly all: readonly TargetTypeRef[]; readonly required: readonly TargetTypeRef[];
+      readonly storage: readonly TargetTypeRef[] }>();
+    for (const expression of expectedExpressions) {
+      const uses = [...(byExpression.get(expression)?.entries() ?? [])].sort(([left], [right]) => left.localeCompare(right)).map(([, value]) => value);
+      const all = Object.freeze(uses.map(value => value.targetType));
+      const required = Object.freeze(uses.filter(value => value.strength === "required").map(value => value.targetType));
+      views.set(expression, Object.freeze({ all, required, storage: required.length > 0 ? required : all }));
+    }
+    return Object.freeze({ targetTypes: Object.freeze([...targetTypes.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([, value]) => value)),
+      expectedType: (expression: Node) => views.get(expression)?.all ?? noExpectedTypes,
+      requiredExpectedType: (expression: Node) => views.get(expression)?.required ?? noExpectedTypes,
+      storageExpectedType: (expression: Node) => views.get(expression)?.storage ?? noExpectedTypes,
+      quotationBinding: (declaration: Node) => quotationBindings.get(declaration),
+      exactIntegerConversion: (expression: Node, targetType: TargetTypeRef) => byExpression.get(expression)?.get(targetTypeRefKey(targetType))?.exactInteger === true,
+      requests: Object.freeze(sites.flatMap(entry => [...entry.requests.values()])),
+    });
+  }
 }

@@ -116,7 +116,7 @@ export function completeLocalClassConstructor(
   }
   return { ...constructor, parameters: [{ name: factory.environmentName, type }, ...constructor.parameters],
     body: { kind: "Block", statements: [
-      ...(factory.retainsEnvironment ? [assignment({ kind: "IdentifierName", name: "this" }, factory.environmentName, environment)] : []),
+      assignment({ kind: "IdentifierName", name: "this" }, factory.environmentName, environment),
       ...initializers, ...constructor.body.statements,
     ] } };
 }
@@ -144,8 +144,7 @@ export function planClassFactoryDeclaration(
       ...staticRegion.statements,
     ] } });
   const instance = csharpTypeFromTargetTypeRef(factory.contract.instance, input.scope.typeParameterNames)!;
-  if (factory.requiresInstanceTest) {
-    members.push({ kind: "MethodDeclaration", name: factory.contract.instanceTestMethodName, modifiers: ["public", "static"],
+  members.push({ kind: "MethodDeclaration", name: factory.contract.instanceTestMethodName, modifiers: ["public", "static"],
       returnType: { kind: "PredefinedType", name: "bool" }, parameters: [
         { name: "value", type: { kind: "NullableType", inner: { kind: "PredefinedType", name: "object" } } },
         { name: "factory", type: csharpTypeFromTargetTypeRef(factory.factoryType, input.scope.typeParameterNames)! },
@@ -159,7 +158,6 @@ export function planClassFactoryDeclaration(
           { kind: "Argument", expression: { kind: "IdentifierName", name: "factory" } },
         ] },
       } }] } });
-  }
   members.push({ kind: "MethodDeclaration", name: factory.contract.createMethodName, modifiers: ["public"], returnType: instance, parameters,
     typeParameters: planTypeParameters(input.program.source.ast.typeParameters(factory.declaration), input, diagnostics, factory.declaration),
     body: { kind: "Block", statements: [{ kind: "ReturnStatement", expression: { kind: "ObjectCreationExpression", type: instance,

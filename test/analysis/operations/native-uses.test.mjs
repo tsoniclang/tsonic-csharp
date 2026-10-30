@@ -130,7 +130,7 @@ test("erased and frame-body participation are consumed as recorded, not rescanne
     return total;
   }`);
   const nested = value.nodes.find(node => value.ast.is.IsFunctionDeclaration(node) && value.ast.text(value.ast.name(node)) === "add");
-  assert.equal(value.records.nativeParticipation.get(nested), "frame-body", "native-uses:98: value.records.nativeParticipation.get(nested)");
+  assert.equal(value.records.nativeParticipation.get(nested), "body", "approved C-1432: the original non-generic local function has an ordinary native body");
   const demand = analyzeCsharpNativeDemand(value.input, []);
   assert.equal(demand.nativeUse.order(nested) !== undefined, true, "frame methods still compile their body");
   const erased = analyzeCsharpNativeDemand({ ...value.input, participation: { get: node => node === nested ? "erased" : value.records.nativeParticipation.get(node) } }, []);

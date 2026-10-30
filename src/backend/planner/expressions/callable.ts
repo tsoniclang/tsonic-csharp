@@ -66,8 +66,10 @@ export interface LambdaTargetContext {
 
 export function planArrowFunctionExpression(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner, state?: DestructuringPlannerState
 ): CsharpPlannedValue | undefined {
-  const creationPolicy = input.program.records.lambdaCreation.get(node);
-  if (creationPolicy.kind === "discarded") return csharpPlannedEffect(csharpVoidTargetType(), []);
+  const creation = input.program.records.callableCreation.get(node);
+  if (creation?.kind === "discarded") return csharpPlannedEffect(csharpVoidTargetType(), []);
+  if (creation?.kind !== "selected") failCsharpPlannerInvariant("An admitted lambda requires its completed native creation fact.", node);
+  const creationPolicy = creation.allocation;
   const targetContext = getLambdaTargetContext(node, input);
   const closure = input.scope.nativeCallableBody?.declaration === node ? undefined : input.program.records.captureClosure.get(node);
   const complete = (expression: Extract<CsharpExpression, { readonly kind: "LambdaExpression" }> | undefined): CsharpPlannedValue | undefined => {
@@ -107,7 +109,9 @@ export function planCsharpArrowLambdaSyntax(
   node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner, state?: DestructuringPlannerState,
 ): Extract<CsharpExpression, { readonly kind: "LambdaExpression" }> | undefined {
-  const creationPolicy = input.program.records.lambdaCreation.get(node);
+  const creation = input.program.records.callableCreation.get(node);
+  if (creation?.kind !== "selected") failCsharpPlannerInvariant("An admitted lambda body requires its completed native creation fact.", node);
+  const creationPolicy = creation.allocation;
   const targetContext = getLambdaTargetContext(node, input);
   const expression = AsArrowFunction(input.program.source.ast, node)!;
   const returnContext = getLambdaReturnContext(node, targetContext, input);
@@ -190,8 +194,10 @@ export function planFunctionExpression(
   diagnostics: TargetDiagnostic[],
   state?: DestructuringPlannerState,
 ): CsharpPlannedValue | undefined {
-  const creationPolicy = input.program.records.lambdaCreation.get(node);
-  if (creationPolicy.kind === "discarded") return csharpPlannedEffect(csharpVoidTargetType(), []);
+  const creation = input.program.records.callableCreation.get(node);
+  if (creation?.kind === "discarded") return csharpPlannedEffect(csharpVoidTargetType(), []);
+  if (creation?.kind !== "selected") failCsharpPlannerInvariant("An admitted function expression requires its completed native creation fact.", node);
+  const creationPolicy = creation.allocation;
   if (creationPolicy.kind === "quotation") {
     return failCsharpPlannerInvariant("An admitted native quotation cannot be a function-expression statement body.", node);
   }

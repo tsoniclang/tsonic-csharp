@@ -172,7 +172,7 @@ for (const surface of ["native", "js"]) test(`${surface} generic setter absence 
   const compiled = compileCsharpSource({ sourceText: nativeAbsenceSource, surface });
   assert.equal(compiled.sourceDiagnosticsText === "", true, `${surface}: the original absence fixture remains checked`);
   const program = compiled.result.program;
-  assert.equal(program !== undefined, true, `${surface}: the original absence program is admitted`);
+  assert.equal(program !== undefined, true, `${surface}: the original absence program is admitted: ${JSON.stringify(compiled.result.diagnostics.map(({ code, message }) => ({ code, message })))}`);
   const ast = program.source.ast;
   const records = program.records;
   const nodes = [];

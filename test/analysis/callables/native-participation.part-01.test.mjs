@@ -156,6 +156,9 @@ test(`${surface} a local function that owns a capture frame keeps a frame body`,
         return total;
       }
     `, surface);
-    assert.deepEqual(labels(value), ["KindFunctionDeclaration:f:body", "KindFunctionDeclaration:add:frame-body"]);
+    assert.deepEqual(labels(value), ["KindFunctionDeclaration:f:body", "KindFunctionDeclaration:add:body"]);
+    const declaration = value.nodes.find(node => value.ast.is.IsFunctionDeclaration(node) && value.ast.text(value.ast.name(node)) === "add");
+    assert.equal(declaration !== undefined && value.program.records.captureClosure.get(declaration) === undefined, true,
+      "approved C-1420: the same original native body has no ordinary protocol frame");
   });
 }

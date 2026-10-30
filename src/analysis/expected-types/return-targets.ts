@@ -9,6 +9,7 @@ import type { CsharpReturnContext } from "../../target-model/records/calls/retur
 import { selectCsharpAccessorReturnContext, selectCsharpCallableReturnContext } from "../../policy/types/callables/return-contexts.js";
 import type { CsharpExpectedUseCollection } from "./collection.js";
 import type { CsharpExpectedTypeAnalysisInput } from "./model.js";
+import type { CsharpCallableCreationIndex } from "../../target-model/records/callables/callable-values.js";
 
 interface ReturnTarget {
   readonly expression: Node;
@@ -17,6 +18,7 @@ interface ReturnTarget {
 }
 
 export interface CsharpExpectedReturnTargets {
+  readonly recordCreationReturnContexts: (creations: CsharpCallableCreationIndex["callableCreation"]) => void;
   readonly recordAccessorReturnContext: (node: Node) => void;
   readonly recordReturnExpression: (node: Node) => void;
   readonly recordExpressionBodyReturn: (node: Node) => void;
@@ -35,6 +37,7 @@ export function createCsharpExpectedReturnTargets(
   const returnOwners = new Set<Node>();
 
   for (const callable of callables.declarationContracts) {
+    if (policy.ast.is.IsArrowFunction(callable.sourceDeclaration) || policy.ast.is.IsFunctionExpression(callable.sourceDeclaration)) continue;
     const context = selectCsharpCallableReturnContext(policy, evidence, callable);
     if (context !== undefined) {
       returnContexts.set(callable.sourceDeclaration, context);
@@ -42,6 +45,16 @@ export function createCsharpExpectedReturnTargets(
   }
 
   return Object.freeze({
+    recordCreationReturnContexts(creations: CsharpCallableCreationIndex["callableCreation"]) {
+      for (const callable of callables.declarationContracts) {
+        const declaration = callable.sourceDeclaration;
+        if (!policy.ast.is.IsArrowFunction(declaration) && !policy.ast.is.IsFunctionExpression(declaration)) continue;
+        const creation = creations.get(declaration);
+        if (creation?.kind !== "selected") continue;
+        const context = selectCsharpCallableReturnContext(policy, evidence, callable, creation.carrier);
+        if (context !== undefined) returnContexts.set(declaration, context);
+      }
+    },
     recordAccessorReturnContext,
     recordReturnExpression,
     recordExpressionBodyReturn,
@@ -60,17 +73,17 @@ export function createCsharpExpectedReturnTargets(
   }
 
   function recordReturnExpression(node: Node): void {
+    if (policy.ast.is.IsReturnStatement(node)) returnOwners.add(node);
     const expression = returnExpressionTarget(node);
     if (expression !== undefined) {
-      returnOwners.add(node);
       collection.record(expression.expression, expression.targetType, "required", undefined);
     }
   }
 
   function recordExpressionBodyReturn(node: Node): void {
+    if (policy.ast.is.IsArrowFunction(node)) returnOwners.add(node);
     const body = expressionBodyTarget(node);
     if (body !== undefined) {
-      returnOwners.add(node);
       collection.record(body.expression, body.targetType, "required", undefined);
     }
   }

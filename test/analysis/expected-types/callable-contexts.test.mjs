@@ -124,7 +124,7 @@ function declaredCreation(selected) {
   assert.equal(selected.contract.sourceDeclaration === selected.lambda, true, "the checked original declaration owns the native contract");
   assert.equal(selected.contract.parameters.length, selected.source.ast.parameters(selected.lambda).length,
     "no unused destination parameter is manufactured in the source contract");
-  const optional = selected.source.ast.questionToken(selected.contract.parameters[0]) === true;
+  const optional = selected.source.ast.questionToken(selected.contract.parameters[0]) !== undefined;
   const input = selected.contract.nativeParameters[0].targetParameter.type;
   assert.equal(targetTypeRefEquals(input, optional ? csharpNullableTargetType(selected.sourceParameter) : selected.sourceParameter), true,
   "the original native input, optional or rest contract stays exact");
@@ -191,7 +191,7 @@ for (const [name, body] of [
     const selected = fixture(body);
     declaredCreation(selected);
     const parameter = selected.contract.parameters[name === "source optional parameter" ? 0 : 1];
-    assert.equal(name === "source optional parameter" ? selected.source.ast.questionToken(parameter) === true
+    assert.equal(name === "source optional parameter" ? selected.source.ast.questionToken(parameter) !== undefined
       : selected.source.ast.as.AsParameterDeclaration(parameter)?.DotDotDotToken !== undefined, true,
     name + ": the original authored parameter remains");
   });

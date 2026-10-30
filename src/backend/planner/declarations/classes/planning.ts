@@ -107,10 +107,10 @@ export function planClassDeclaration(
       ...implicitConstructors.map(constructor => completeConstructor(constructor, instanceRegion.statements)),
       ...[...safetyDefaultConstructors, ...defaultInitializationConstructor].map(member => member.kind === "ConstructorDeclaration"
         ? completeConstructor(member, instanceRegion.statements) : member),
-      ...(factory?.retainsEnvironment ? [{ kind: "FieldDeclaration" as const, name: factory.environmentName,
+      ...(factory === undefined ? [] : [{ kind: "FieldDeclaration" as const, name: factory.environmentName,
         type: csharpTypeFromTargetTypeRef(factory.factoryType, input.scope.typeParameterNames)!,
-        modifiers: [factory.requiresInstanceTest ? "internal" as const : "private" as const, "readonly" as const,
-          ...planCsharpNativeMemberHiding(input.program.records.nativeMemberHiding, { kind: "source", declaration: node, role: "storage" })] }] : []),
+        modifiers: ["internal" as const, "readonly" as const,
+          ...planCsharpNativeMemberHiding(input.program.records.nativeMemberHiding, { kind: "source", declaration: node, role: "storage" })] }]),
       ...(factory?.identity === undefined ? [] : [{ kind: "PropertyDeclaration" as const,
         name: factory.environmentName, explicitInterface: csharpTypeFromTargetTypeRef(factory.identity.type, input.scope.typeParameterNames)!, modifiers: [],
         type: csharpTypeFromTargetTypeRef(factory.factoryType, input.scope.typeParameterNames)!,

@@ -41,6 +41,7 @@ import { planExpression } from "../expressions/index.js";
 import { planClassFactoryExpression } from "../declarations/classes/factories.js";
 import { planLocalFunctionDeclaration } from "../declarations/callables/functions.js";
 import { planCsharpLexicalFunctionValues } from "../declarations/callables/lexical-values.js";
+import { planCsharpDeferredOriginalPlaces, planCsharpDeferredInitialization } from "../objects/deferred-captures.js";
 import { withCsharpDelegateAdapterDeclarations, planCsharpDelegateAdapterDeclarations } from "../declarations/callables/delegate-identities.js";
 import { consumeCsharpPlannedValue } from "./statement-output.js";
 import { planIdentifierName } from "../names/source-identifiers.js";
@@ -104,29 +105,35 @@ export function planBlockStatements(
     }
   }
   const captures = planCsharpCaptureFrame(blockNode, input, diagnostics, state);
+  const deferred = planCsharpDeferredOriginalPlaces(blockNode, statements, input, state);
   const values = planCsharpLexicalFunctionValues(statements, sourceFile, input, diagnostics, state);
   const functions = statements.filter(statement => input.program.source.ast.is.IsFunctionDeclaration(statement));
   const executable = (explicitUnsafe ? statements.slice(1) : statements)
     .filter(statement => !input.program.source.ast.is.IsFunctionDeclaration(statement));
-  const plan = () => [...captures, ...entryPrelude, ...planCsharpCaptureEntryBindings(blockNode, input, state), ...planResourceManagedBlockStatements(
+  const plan = () => [...captures, ...entryPrelude, ...deferred, ...values, ...planCsharpCaptureEntryBindings(blockNode, input, state), ...planResourceManagedBlockStatements(
     blockNode,
     input,
     state,
     () => [...executable.flatMap(
-      (statement) => [...(values.get(statement) ?? []), ...planStatements(
+      (statement) => [...planCsharpDeferredInitialization(planStatements(
         statement,
         sourceFile,
         input,
         diagnostics,
         state,
-      )],
+      ), input, state)],
     ), ...functions.flatMap(statement => planLocalFunctionDeclaration(statement, sourceFile, input, diagnostics, state)),
       ...planCsharpDelegateAdapterDeclarations(blockNode, sourceFile, input, diagnostics, state)],
   )];
+  const ordered = (): readonly CsharpStatement[] => {
+    const statements = plan();
+    return [...statements.filter(statement => statement.kind !== "LocalFunctionStatement"),
+      ...statements.filter(statement => statement.kind === "LocalFunctionStatement")];
+  };
   if (!explicitUnsafe) {
-    return plan();
+    return ordered();
   }
-  const planned = withExplicitUnsafeContext(state, plan);
+  const planned = withExplicitUnsafeContext(state, ordered);
   return [{
     kind: "UnsafeStatement",
     body: { kind: "Block", statements: planned },
