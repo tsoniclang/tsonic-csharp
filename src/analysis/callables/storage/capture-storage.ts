@@ -16,6 +16,7 @@ import { type CsharpFrameClosure } from "../../../target-model/records/callables
 import { csharpTargetNamedType } from "../../../target-model/types/factories.js";
 import { selectCsharpGenericFrameClosures } from "../generics/generic-closures.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
+import { getCsharpExpressionTreeDelegateType } from "../../../target-model/types/carriers/delegates.js";
 import { createCsharpTypeParameterEnvironment } from "../../source-evidence/types/resolution/type-parameter-environment.js";
 
 import { csharpCapturedMemberAccess } from "../values/captured-member-access.js";
@@ -118,6 +119,7 @@ export function analyzeCsharpCaptureStorage(
   const creationDemand = Object.freeze({ get: (declaration: Node) => creationDemandValues.get(declaration) });
   const nativeCaptures = analyzeCsharpNativeCaptures(source, evidence, physicalType, issues, creationDemand);
   const constructorPlaces = new Map<Node, Omit<CsharpConstructorCaptureProtocol, "frame">>();
+  const constructorMethods = new Map<Node, readonly CsharpFrameClosure[]>();
   for (const constructor of constructors) {
     const places = csharpConstructorCapturedPlaces(source.ast, constructor, nativeCaptures);
     const required = places.filter(place => storage.nativeBacking.get(place.declaration) === undefined);
@@ -139,6 +141,28 @@ export function analyzeCsharpCaptureStorage(
     groups.set(scope, bindings);
     retainProtocol(scope, { kind: "class", declaration: owner });
     constructorPlaces.set(constructor, Object.freeze({ declaration: constructor, owner, scope, places }));
+    const declarations = new Set(required.map(place => place.declaration));
+    const methods: CsharpFrameClosure[] = [];
+    for (const capture of nativeCaptures.lexicalCaptures) {
+      const context = evidence.contextualType.get(capture.owner)?.targetType ?? capture.type;
+      if (capture.values.length === 0 || !capture.values.every(place => declarations.has(place.declaration)) ||
+          source.ast.typeParameters(capture.owner).length !== 0 ||
+          getCsharpMethodValue(context) !== undefined || getCsharpExpressionTreeDelegateType(context) !== undefined ||
+          nativeCaptures.namedSelfBindings.some(self => self.declaration === capture.owner && self.values.length !== 0)) continue;
+      let enclosing = source.ast.parent(capture.owner);
+      while (enclosing !== undefined && enclosing !== constructor) {
+        if (source.ast.is.IsArrowFunction(enclosing) || source.ast.is.IsFunctionExpression(enclosing) ||
+            source.ast.is.IsFunctionDeclaration(enclosing) || source.ast.is.IsMethodDeclaration(enclosing) ||
+            source.ast.is.IsConstructorDeclaration(enclosing) || source.ast.is.IsGetAccessorDeclaration(enclosing) ||
+            source.ast.is.IsSetAccessorDeclaration(enclosing) || source.ast.is.IsClassDeclaration(enclosing) ||
+            source.ast.is.IsClassExpression(enclosing)) break;
+        enclosing = source.ast.parent(enclosing);
+      }
+      if (enclosing !== constructor) continue;
+      methods.push(Object.freeze({ declaration: capture.owner, scope, methodName: `invoke${methods.length}`,
+        type: capture.type, captures: Object.freeze(capture.values.map(place => place.declaration)), receivers: capture.receivers }));
+    }
+    constructorMethods.set(scope, Object.freeze(methods));
   }
   const genericClosures = selectCsharpGenericFrameClosures(source, evidence, nativeCaptures.lexicalCaptures, groups, issues);
   for (const closure of genericClosures) for (const capture of closure.captures) {
@@ -159,13 +183,20 @@ export function analyzeCsharpCaptureStorage(
     const previous = byScope.get(scope);
     if (previous !== undefined) return previous;
     const group = groups.get(scope)!;
-    const methods: readonly CsharpFrameClosure[] = Object.freeze([]);
+    const methods: readonly CsharpFrameClosure[] = constructorMethods.get(scope) ?? Object.freeze([]);
     const requiredProtocols = protocols.get(scope);
     if (requiredProtocols === undefined || requiredProtocols.length === 0) {
       failTargetAnalysisInvariant("tsonic-csharp", "A capture environment requires its actual class or quantified native protocol.", scope);
     }
     const parents = Object.freeze([]);
-    const receivers = Object.freeze([]);
+    const receiverValues = new Map<Node, CsharpFrameClosure["receivers"][number]>();
+    for (const method of methods) for (const receiver of method.receivers) {
+      const previous = receiverValues.get(receiver.owner);
+      receiverValues.set(receiver.owner, Object.freeze({ ...receiver,
+        references: Object.freeze([...new Set([...(previous?.references ?? []), ...receiver.references])]) }));
+    }
+    const receivers = Object.freeze([...receiverValues.values()].map((receiver, index) =>
+      Object.freeze({ ...receiver, fieldName: `receiver${index}` })));
     const bindings = Object.freeze([...group].map(([declaration, type], index) => Object.freeze({
       declaration, type, fieldName: `value${index}`,
       // A binding captured before its initializer or, without one, before its first write is stored in the frame before it
@@ -173,7 +204,7 @@ export function analyzeCsharpCaptureStorage(
       ...(sourceBindingCapturedBeforeInitialization(declaration, source.ast, source.navigation) ||
         sourceBindingCapturedBeforeFirstWrite(declaration, source.ast, source.navigation) ? { initialization: "deferred" as const } : {}),
     })));
-    const fields = bindings;
+    const fields = [...bindings, ...receivers];
     const members: readonly CsharpObjectShapeMemberFact[] = Object.freeze(fields.map(field => Object.freeze({
       sourceKey: { kind: "property" as const, name: field.fieldName }, sourceName: field.fieldName,
       targetName: field.fieldName, type: field.type, memberKind: "property" as const,
