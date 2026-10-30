@@ -312,10 +312,10 @@ function analyzeCsharpTargetProgramBeforeSeal(
   if (analysis.refLikeDiagnostics.length > 0) return rejectedTargetStage(analysis.refLikeDiagnostics);
   const promiseResults = analyzeCsharpPromiseResults({ source, projectRoot: input.paths.projectRoot,
     nodes: sourceNodes,
-    records: { valueRead: analysis.valueReads.valueRead, selectedCall: analysis.operations.selectedCall,
+    records: { valueRead: analysis.valueReads.valueRead, nativeUse: nativeDemand.nativeUse,
+      storageType: analysis.storage.storageType, selectedCall: analysis.operations.selectedCall,
       selectedConstruction: analysis.operations.selectedConstruction },
-    definitions: analysis.typeDefinitions, nativePlacement: analysis.refLikeDiagnostics,
-    sourceCarrier: (type, file) => analysis.policy.types.resolveType(type, file) });
+    definitions: analysis.typeDefinitions, nativePlacement: analysis.refLikeDiagnostics });
   if (promiseResults.diagnostics.length > 0) return rejectedTargetStage(promiseResults.diagnostics);
   const providerFailures = providers.failures();
   if (providerFailures.length !== 0) return rejectedTargetStage(providerFailures.map(diagnostic =>
