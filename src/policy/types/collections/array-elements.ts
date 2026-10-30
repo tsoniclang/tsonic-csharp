@@ -35,6 +35,13 @@ export function selectCsharpInferredNumericArrayElement(
       (contribution.literal?.numeric?.kind !== "authored" || csharpLiteralIsRepresentableAs(contribution.literal, originalFloating)))) {
     return Object.freeze({ kind: "resolved", carrier: originalFloating });
   }
+  if (contributions.every(contribution => contribution.literal?.numeric?.kind === "authored")) {
+    if (!numeric(checkedElement) || contributions.some(contribution => contribution.literalDefault === undefined ||
+      !targetTypeRefEquals(contribution.literalDefault, checkedElement))) return unavailable();
+    if (contributions.every(contribution => csharpLiteralIsRepresentableAs(contribution.literal, checkedElement!))) {
+      return Object.freeze({ kind: "resolved", carrier: checkedElement! });
+    }
+  }
   const allNumeric = contributions.every(contribution => numeric(contribution.carrier));
   const fixed = [...new Map(contributions.filter(contribution => !flexibleInteger(contribution)).map(contribution =>
     [targetTypeRefKey(contribution.carrier), contribution.carrier])).values()];

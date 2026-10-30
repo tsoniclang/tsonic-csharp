@@ -19,6 +19,63 @@ const select = (contributions, destination, checked = primitive("float64")) =>
 const selected = (selection, name, label) => assert.equal(selection.kind === "resolved" &&
   selection.carrier.kind === "source-primitive" && selection.carrier.name === name, true, label);
 
+test("pure authored numeric construction uses its own checked default before storage", () => {
+  const authored = (coefficient, exponent, integer, negative = false) => {
+    const input = literal(coefficient, exponent, integer, "int32", negative);
+    const magnitude = Number(input.literal.numeric.token.decimalText);
+    return Object.freeze({ ...input, literal: Object.freeze({ ...input.literal,
+      number: negative ? -magnitude : magnitude }) });
+  };
+  const one = authored(1n, 0n, 1n);
+  const two = authored(2n, 0n, 2n);
+  const fraction = authored(15n, -1n);
+  const negativeZero = authored(0n, 0n, 0n, true);
+  for (const inputs of [[one], [one, two], [two, one], [one, fraction], [negativeZero, two]]) {
+    const checked = primitive("float64");
+    const actual = select(inputs, undefined, checked);
+    assert.equal(actual.kind === "resolved" && actual.carrier === checked, true,
+      "the same checked construction default wins without any caller or use population input");
+  }
+  assert.equal(Object.is(negativeZero.literal.number, -0) && one.carrier.name === "int32" &&
+    one.literal.numeric.token.coefficient === 1n && Object.isFrozen(one.literal.numeric.token), true,
+  "carrier selection retains immutable authored tokens, native negative zero and original input evidence");
+});
+
+test("pure authored default selection requires matching checked and literal-base evidence", () => {
+  const input = literal(1n, 0n, 1n, "int32");
+  const authored = Object.freeze({ ...input, literal: Object.freeze({ ...input.literal, number: 1 }) });
+  for (const [contributions, checked] of [
+    [[authored], undefined],
+    [[authored], csharpStringTargetType()],
+    [[authored], primitive("int64")],
+    [[Object.freeze({ ...authored, literalDefault: undefined })], primitive("float64")],
+    [[Object.freeze({ ...authored, literalDefault: csharpStringTargetType() })], primitive("float64")],
+  ]) {
+    const selection = selectCsharpInferredNumericArrayElement(contributions, checked, undefined);
+    assert.equal(selection.kind === "unavailable" && selection.carriers[0] === contributions[0].carrier, true,
+      "missing or foreign default evidence cannot publish a guessed construction carrier");
+  }
+});
+
+test("actual native peers and immediate destinations outrank authored numeric defaults", () => {
+  const input = literal(1n, 0n, 1n, "int32");
+  const authored = Object.freeze({ ...input, literal: Object.freeze({ ...input.literal, number: 1 }) });
+  for (const name of ["int32", "int64", "uint64", "native-int", "native-uint"]) {
+    const peer = fixed(name);
+    for (const inputs of [[peer, authored], [authored, peer]]) {
+      selected(select(inputs), name, "a completed native peer is not an unannotated authored default");
+    }
+    const destination = primitive(name);
+    const actual = select([authored], destination);
+    assert.equal(actual.kind === "resolved" && actual.carrier === destination, true,
+      "the genuine immediate explicit native destination retains its original authority");
+  }
+  const exact = fixed("uint64");
+  const original = select([exact, exact]);
+  assert.equal(original.kind === "resolved" && original.carrier === exact.carrier, true,
+    "metadata-backed native values are never replaced by the checked erased number default");
+});
+
 test("homogeneous native floating contributions retain their already-selected carrier", () => {
   const authored = literal(1n, 100n);
   const huge = Object.freeze({ ...authored, literal: Object.freeze({ ...authored.literal, number: 1e100 }) });
