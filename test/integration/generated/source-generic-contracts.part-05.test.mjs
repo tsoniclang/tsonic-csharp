@@ -21,16 +21,17 @@ import { bigintTruncationSource } from "../../../../tsonic/test/fixtures/bigint-
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
-for (const surface of Array.from(Array.from([undefined, "js"]).slice(0, 2)).slice(1, 2)){
-const profile = surface ?? "native";
+test("bigint switches preserve wide equality, evaluation order and fallthrough", { timeout: 300_000 }, () => {
+  executeCsharpConstruction(compileCsharpSource({ surface: "js", sourceText: bigintSwitchSource }), "bigint-switch");
+});
 
-test(`nested structural storage preserves compound aliases and shared mutation (${profile})`, { timeout: 300_000 }, () => {
-    const options = surface === undefined ? {} : { surface };
-    executeCsharpConstruction(compileCsharpSource({ ...options, files: nestedStructuralStorageFiles,
-      sourceText: nestedStructuralStorageFiles["index.ts"] }), `nested-structural-storage-${profile}`);
-    for (const files of invalidNestedStructuralStorageFiles) {
-      const invalid = checkCsharpSource({ ...options, files, sourceText: files["index.ts"] });
-      assert.match(invalid.sourceDiagnosticsText, /error TS(?:2322|2345)/u);
-    }
-  });
-}
+test("native params preserve array-valued arguments and nested storage identity", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: nestedArrayRestSource });
+  executeCsharpConstruction(compiled, "nested-array-rest");
+  assert.match(compiled.artifacts.get("src/Index.cs"), /values\.push\(first\);/u);
+});
+
+test("native optional array equality preserves identity, repeated reads and mutation snapshots", { timeout: 300_000 }, () => {
+  executeCsharpConstruction(compileCsharpSource({ surface: "js", sourceText: optionalArrayComparisonSource }),
+    "optional-array-comparisons");
+});

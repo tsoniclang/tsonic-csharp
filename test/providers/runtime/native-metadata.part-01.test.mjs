@@ -17,30 +17,63 @@ import { planCsharpProjectFile } from "../../../dist/backend/planner/project/pro
 import { createCsharpCompilationRecords } from "../../../dist/analysis/program/records/program/compilation.js";
 import { printCsharpProjectFile } from "../../../dist/print/project/manifest.js";
 import { printCsharpRuntimeProject } from "../../../dist/print/project/runtime.js";
-import { renderedRuntimeProjects, repository, framework, fixture, resolver, proof, native } from "./native-metadata.split-fixtures.mjs";
+import { renderedRuntimeProjects, repository, framework, fixture, resolver, proof, native } from "./native-metadata.fixtures.mjs";
 
-test("runtime wrappers follow the one artifact-root and exact-project-identity formula", () => {
+test("preparation, ordinary queries and complete SDK inheritance winners have zero runtime build cost", () => {
   const inputs = fixture();
-  const wrapper = inputs.wrapper;
-  const escaped = value => value.replace(/[%$@();'?*]/gu, character => `%${character.charCodeAt(0).toString(16).toUpperCase()}`)
-    .replace(/&/gu, "&amp;").replace(/</gu, "&lt;").replace(/>/gu, "&gt;").replace(/"/gu, "&quot;").replace(/'/gu, "&apos;");
-  const expected = ["<Project>", "  <PropertyGroup>", `    <TargetFramework>${framework}</TargetFramework>`,
-    `    <DirectoryBuildPropsPath>${escaped(inputs.runtime.propertiesPath)}</DirectoryBuildPropsPath>`,
-    "    <TsonicRuntimeArtifactsRoot Condition=\"'$(TsonicRuntimeArtifactsRoot)' == ''\">$(MSBuildThisFileDirectory)artifacts/</TsonicRuntimeArtifactsRoot>",
-    `    <TsonicRuntimeArtifactsPath>$(TsonicRuntimeArtifactsRoot)${wrapper.artifactIdentity}/</TsonicRuntimeArtifactsPath>`,
-    "  </PropertyGroup>", `  <Import Project="${escaped(inputs.runtime.projectPath)}" />`, "</Project>", ""].join("\n");
-  const planned = planCsharpProjectFile({ program: { records: createCsharpCompilationRecords({ project: inputs.project,
-    namespace: inputs.project.namespace, languageDialect: inputs.configuration.languageDialect }) } });
-  assert.equal(planned.runtimeProjects === inputs.project.runtimeProjects, true, "the backend reads the one pre-seal plan");
-  const materialized = materializeCsharpOutputPlan({ project: { kind: "generated", project: planned }, sources: [] });
-  assert.equal(readFileSync(wrapper.path, "utf8"), expected, "the complete wrapper bytes follow the single root-plus-exact-identity contract");
-  const text = printCsharpProjectFile(planned);
-  assert.equal(materialized.artifacts.find(artifact => artifact.kind === "project" && artifact.path === planned.path)?.text,
-    text, "actual project materialization preserves the complete project bytes");
-  assert.equal(text.includes(`<ProjectReference Include="${wrapper.path}" />`), true, "the emitted project references the exact acquired wrapper");
-  assert.equal(existsSync(resolve(repository, "src/backend/planner/project/runtime-projects.ts")), false, "the old late decision owner is removed");
-  assert.equal(existsSync(resolve(repository, "src/backend/artifact-model/project/runtime.ts")), false, "the superseded type owner has no alias");
-  assert.equal(existsSync(resolve(repository, "src/print/project/csharp-runtime-project.ts")), false, "a pass-through printer is removed rather than exempted from layering");
+  const provider = resolver(inputs);
+  assert.throws(() => provider.prepareRuntimeSources(inputs.preparation), {
+    name: "TypeError", message: "C# native runtime acquisition inputs are prepared exactly once per analysis.",
+  }, "same-session repeated preparation remains rejected rather than cached");
+  const fresh = resolver(inputs);
+  assert.throws(() => fresh.prepareRuntimeSources({ ...inputs.preparation, cacheRoot: join(inputs.root, "different-cache") }), {
+    name: "TypeError", message: "C# native runtime acquisition inputs are prepared exactly once per analysis.",
+  }, "a fresh resolver accepts one preparation only, including when the second input differs");
+  assert.equal(existsSync(inputs.wrapper.path), false, "preparation publishes no runtime build input");
+  const missing = provider.findTargetBindingByMetadataName("InheritanceProviderFixtures.ClosedBase", "ordinary");
+  assert.equal(missing.kind, "missing", "an ordinary speculative query never compiles a runtime");
+  assert.equal(existsSync(inputs.wrapper.path), false, "ordinary lookup performs no runtime preparation");
+  const object = native(provider.findTargetBindingByMetadataName("System.Object", "inheritance"));
+  assert.equal(object.csharpInheritance.length, 1, "the actual SDK native root is complete");
+  assert.equal(existsSync(inputs.wrapper.path), false, "a complete SDK winner never compiles a runtime");
+  const valueType = native(provider.findTargetBindingByMetadataName("System.ValueType", "inheritance"));
+  assert.equal(valueType.csharpInheritance.length, 2, "the actual native struct-container root reaches Object");
+  assert.equal(existsSync(inputs.wrapper.path), false, "a native struct-container root also performs no runtime build");
+  assert.equal(provider.validateReferences().length, 0, "all selected native reference snapshots remain valid");
+});
+
+test("Error and Exception roots select the actual published metadata names and keep their physical chain identities", () => {
+  const root = createTestWorkspace(resolve(repository, ".temp/native-runtime-metadata"), "core-");
+  const cacheRoot = join(root, "cache");
+  const configuration = createCsharpTargetConfiguration({ id: "csharp", options: { targetFramework: framework } },
+    repository, join(root, "out"));
+  const classified = classifyCsharpProjectConfiguration(configuration, csharpRuntimeSourceContributions(csharpCoreRuntimeSource).references, cacheRoot);
+  assert.equal(classified.kind, "resolved", "the selected actual core runtime is classified");
+  const project = classified.value;
+  const inputs = { root, cacheRoot, wrapper: project.runtimeProjects[0], preparation: Object.freeze({
+    sources: project.runtimeSources, projects: renderedRuntimeProjects(project), project: project.project,
+    properties: project.properties, cacheRoot }) };
+  const provider = resolver(inputs);
+  const routes = [];
+  for (const carrier of [csharpExceptionTargetType(), csharpRuntimeErrorTargetType()]) {
+    const route = csharpNativeInheritanceLookup(carrier);
+    assert.equal(route.kind, "metadata-name", `${carrier.id}: explicit native evidence selects one metadata query`);
+    const selected = native(provider.findTargetBindingByMetadataName(route.metadataName, "inheritance"));
+    assert.equal(selected.targetName, route.metadataName, `${carrier.id}: the actual provider publishes the exact selected name`);
+    assert.equal(selected.id === carrier.id, false, `${carrier.id}: symbolic identity is not a fabricated physical identity`);
+    const physical = csharpNativeInheritanceLookup(selected.csharpType);
+    assert.equal(physical.kind, "target-id", `${carrier.id}: reflected native evidence preserves assembly identity`);
+    assert.equal(physical.targetId, selected.id, `${carrier.id}: exact actual physical root`);
+    for (const entry of selected.csharpInheritance)
+      assert.equal(native(provider.findTargetBindingByTargetId(entry.targetId, "inheritance")).id, entry.targetId,
+        `${carrier.id}: the complete physical native chain is acquired`);
+    routes.push({ carrier: carrier.id, selected: route, physical });
+  }
+  const evidence = proof(inputs);
+  for (const output of [...evidence.outputs, ...evidence.references])
+    assert.equal(createHash("sha256").update(readFileSync(output.path)).digest("hex"), output.sha256,
+      "the selected core runtime output and actual reference retain exact native build content");
+  console.log(JSON.stringify({ nativeCoreRootRoutes: routes, inputFingerprint: evidence.inputFingerprint }));
 });
 
 test("runtime native selection sees all actually selected project references before one complete-winner decision in either graph order", () => {

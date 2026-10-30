@@ -62,7 +62,3 @@ test("generic class statics share one native owner across closed instance types"
   assert.match(generated, /static class Box\b/u);
   assert.equal((generated.match(/static int count\s*(?:=|;)/gu) ?? []).length, 1);
 });
-
-test("bigint switches preserve wide equality, evaluation order and fallthrough", { timeout: 300_000 }, () => {
-  executeCsharpConstruction(compileCsharpSource({ surface: "js", sourceText: bigintSwitchSource }), "bigint-switch");
-});

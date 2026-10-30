@@ -21,7 +21,7 @@ import { bigintTruncationSource } from "../../../../tsonic/test/fixtures/bigint-
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
-for (const surface of Array.from(Array.from([undefined, "js"]).slice(0, 2)).slice(0, 1)){
+for (const surface of Array.from([undefined, "js"]).slice(0, 2)){
 const profile = surface ?? "native";
 
 test(`nested structural storage preserves compound aliases and shared mutation (${profile})`, { timeout: 300_000 }, () => {

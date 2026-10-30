@@ -21,17 +21,6 @@ import { bigintTruncationSource } from "../../../../tsonic/test/fixtures/bigint-
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
-test("native params preserve array-valued arguments and nested storage identity", { timeout: 300_000 }, () => {
-  const compiled = compileCsharpSource({ surface: "js", sourceText: nestedArrayRestSource });
-  executeCsharpConstruction(compiled, "nested-array-rest");
-  assert.match(compiled.artifacts.get("src/Index.cs"), /values\.push\(first\);/u);
-});
-
-test("native optional array equality preserves identity, repeated reads and mutation snapshots", { timeout: 300_000 }, () => {
-  executeCsharpConstruction(compileCsharpSource({ surface: "js", sourceText: optionalArrayComparisonSource }),
-    "optional-array-comparisons");
-});
-
 test("generic object methods retain native binders, independent bodies and shared captures", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", files: genericObjectMethodFiles,
     sourceText: genericObjectMethodFiles["index.ts"] });
