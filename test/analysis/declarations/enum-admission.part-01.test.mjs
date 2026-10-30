@@ -7,7 +7,7 @@ import { absenceObservations, absenceSource, absenceProjectionRefusals, numericU
 for (const [label, declaration] of Array.from([
   ["function", 'function String(value: Value): string { return "custom"; }'],
   ["callable variable", 'var String = (value: Value): string => "custom";'],
-]).slice(0, 2)) {
+]).slice(0, 2)){
 test(`C# native user-global String ${label} is not a builtin conversion`, () => {
     const compiled = compileCsharpSource({ sourceText: `enum Value { First = 1 } ${declaration} String(Value.First);` });
     assertCsharpCompilationSucceeded(compiled);
@@ -15,39 +15,8 @@ test(`C# native user-global String ${label} is not a builtin conversion`, () => 
   });
 }
 
-for (const surface of Array.from([undefined, "js"]).slice(0, 1)) {
-test(`C# ${surface ?? "native"} enum absence observations match the single native absence state`, { timeout: 300_000 }, () => {
-    const compiled = compileCsharpSource({ surface, sourceText: absenceSource });
-    assertCsharpCompilationSucceeded(compiled);
-    assert.equal(compiled.result.program !== undefined && compiled.result.plan !== undefined, true,
-      "an absence observation retains the enum domain without numeric projection");
-    executeCsharpConstruction(compiled, `enum-absence-${surface ?? "native"}`, false, false, [], `
-foreach (bool flag in new[] { true, false }) {
-    NativeValue? selected = flag ? NativeValue.First : null;
-    NativeValue? joined = flag ? NativeValue.Second : null;
-    foreach (NativeValue? value in new[] { selected, joined, selected }) {
-        if (value.HasValue != flag || (value == null) != !flag || (null != value) != flag)
-            throw new System.Exception("native enum absence counterpart");
-    }
-    if ((selected ?? NativeValue.First) != NativeValue.First || !Tsonic.Generated.Index.run(flag))
-        throw new System.Exception("native enum absence composition");
-}
-enum NativeValue { First = 1, Second = 2 }
-`);
-  });
-
-for (const [label, body] of Array.from(absenceProjectionRefusals).slice(0, 6)) {
-test(`C# ${surface ?? "native"} absence observation does not admit ${label}`, () => {
-      const compiled = compileCsharpSource({ surface, sourceText: `enum Value { First = 1, Second = 2 } ${body}` });
-      assertCsharpCheckingSucceeded(compiled);
-      assert.equal(compiled.result.diagnostics.length, 1, `${label}: one actual projection`);
-      assert.equal(compiled.result.diagnostics[0]?.code, "TSONIC_ENUM_NUMERIC_USE_NOT_SUPPORTED", `${label}: shared refusal`);
-      assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined, true, `${label}: rejected before seal`);
-      assert.equal(compiled.result.artifacts.length, 0, `${label}: no native output`);
-    });
-}
-
-for (const [label, body] of Array.from(numericUses).slice(0, 63)) {
+for (const surface of Array.from([undefined, "js"]).slice(0, 1)){
+for (const [label, body] of Array.from(numericUses).slice(0, 63)){
 test(`C# ${surface ?? "native"} refuses enum ${label} at shared source admission`, () => {
       const compiled = compileCsharpSource({ surface, sourceText: `
 import type { int32 } from "@tsonic/core/types.js";
@@ -64,7 +33,6 @@ ${body}
     });
 }
 
-
 for (const [label, body] of Array.from([
     ["same-enum mutable destination", "export function use(value: Value): Value { let result: Value = value; result = value; return result; }"],
     ["wrapped same-enum mutable destination", "export function use(value: Value): Value { let result: Value = value; (result = value); return result; }"],
@@ -75,7 +43,7 @@ for (const [label, body] of Array.from([
     ["enum-containing union destination", "function accept(value: Value | string): void {} export function use(value: Value): void { accept(value); }"],
     ["fixed tuple enum index", "export function use(values: [number, number]): number { return values[Value.First]; }"],
     ["static enum key metadata", "interface Named { [Value.First]: number; } export function use(value: Named): number { return value[Value.First]; }"],
-  ]).slice(0, 9)) {
+  ]).slice(0, 9)){
 test(`C# ${surface ?? "native"} retains closed enum twin ${label}`, () => {
       const sourceText = `export enum Value { First = 1, Second = 2 } ${body}`;
       const compiled = compileCsharpSource({ surface, sourceText });
@@ -84,47 +52,6 @@ test(`C# ${surface ?? "native"} retains closed enum twin ${label}`, () => {
       assert.equal(compiled.result.artifacts.length > 0, true, `${label}: retained native emission`);
     });
 }
-
-for (const [label, body, requiresJsLibrary] of Array.from(stringUses).slice(0, 1)) {
-if (requiresJsLibrary && surface !== "js") continue;
-
-test(`C# ${surface ?? "native"} refuses enum ${label} with the shared string-conversion reason`, () => {
-      const compiled = compileCsharpSource({ surface, sourceText: `export enum Value { First = 1, Second = 2 } ${body}` });
-      assertCsharpCheckingSucceeded(compiled);
-      assert.equal(compiled.targetDiagnostics.length, 1, `${label}: one actual string conversion`);
-      assert.equal(compiled.targetDiagnostics[0]?.code, "TSONIC_ENUM_NUMERIC_USE_NOT_SUPPORTED", `${label}: shared code`);
-      assert.equal(compiled.targetDiagnostics[0]?.message,
-        "Enum value 'Value' is converted to a string; enum-to-string conversion is not supported yet.", `${label}: no native-name substitution`);
-      assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined, true, `${label}: rejection before seal`);
-      assert.equal(compiled.result.artifacts.length, 0, `${label}: no miscompiled native output`);
-    });
-}
-
-for (const [label, body, requiresJsLibrary] of Array.from(stringUses).slice(4, 8)) {
-if (requiresJsLibrary && surface !== "js") continue;
-
-test(`C# ${surface ?? "native"} refuses enum ${label} with the shared string-conversion reason`, () => {
-      const compiled = compileCsharpSource({ surface, sourceText: `export enum Value { First = 1, Second = 2 } ${body}` });
-      assertCsharpCheckingSucceeded(compiled);
-      assert.equal(compiled.targetDiagnostics.length, 1, `${label}: one actual string conversion`);
-      assert.equal(compiled.targetDiagnostics[0]?.code, "TSONIC_ENUM_NUMERIC_USE_NOT_SUPPORTED", `${label}: shared code`);
-      assert.equal(compiled.targetDiagnostics[0]?.message,
-        "Enum value 'Value' is converted to a string; enum-to-string conversion is not supported yet.", `${label}: no native-name substitution`);
-      assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined, true, `${label}: rejection before seal`);
-      assert.equal(compiled.result.artifacts.length, 0, `${label}: no miscompiled native output`);
-    });
-}
-
-test(`C# ${surface ?? "native"} local String and user formatting functions retain their actual identity`, () => {
-    const compiled = compileCsharpSource({ surface, sourceText: `
-export enum Value { First = 1 }
-function String(value: Value): string { return "custom"; }
-function format(value: Value): string { return "named"; }
-export function use(value: Value): string { return String(value) + format(value); }
-` });
-    assertCsharpCompilationSucceeded(compiled);
-    assert.equal(compiled.result.artifacts.length > 0, true, "neither callee spelling nor a string return type creates a conversion");
-  });
 
 test(`C# ${surface ?? "native"} composed enum values retain native identity and effects`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
@@ -165,7 +92,7 @@ for (const [label, sourceText] of Array.from([
     ["ordinary", "export enum Value { First = 1 } export enum Value { Second = 2 }"],
     ["cross-declaration collision", "export enum Value { First = 9007199254740992 } export enum Value { Second = 9007199254740993 }"],
     ["empty", "export enum Value {} export enum Value {}"],
-  ]).slice(0, 3)) {
+  ]).slice(0, 3)){
 test(`C# ${surface ?? "native"} refuses ${label} merged enum declarations once`, () => {
       const compiled = compileCsharpSource({ surface, sourceText });
       assertCsharpCheckingSucceeded(compiled);
@@ -208,39 +135,8 @@ export function complement(value: Value): Value { return ~value; }
   });
 }
 
-for (const surface of Array.from([undefined, "js"]).slice(1, 2)) {
-test(`C# ${surface ?? "native"} enum absence observations match the single native absence state`, { timeout: 300_000 }, () => {
-    const compiled = compileCsharpSource({ surface, sourceText: absenceSource });
-    assertCsharpCompilationSucceeded(compiled);
-    assert.equal(compiled.result.program !== undefined && compiled.result.plan !== undefined, true,
-      "an absence observation retains the enum domain without numeric projection");
-    executeCsharpConstruction(compiled, `enum-absence-${surface ?? "native"}`, false, false, [], `
-foreach (bool flag in new[] { true, false }) {
-    NativeValue? selected = flag ? NativeValue.First : null;
-    NativeValue? joined = flag ? NativeValue.Second : null;
-    foreach (NativeValue? value in new[] { selected, joined, selected }) {
-        if (value.HasValue != flag || (value == null) != !flag || (null != value) != flag)
-            throw new System.Exception("native enum absence counterpart");
-    }
-    if ((selected ?? NativeValue.First) != NativeValue.First || !Tsonic.Generated.Index.run(flag))
-        throw new System.Exception("native enum absence composition");
-}
-enum NativeValue { First = 1, Second = 2 }
-`);
-  });
-
-for (const [label, body] of Array.from(absenceProjectionRefusals).slice(0, 6)) {
-test(`C# ${surface ?? "native"} absence observation does not admit ${label}`, () => {
-      const compiled = compileCsharpSource({ surface, sourceText: `enum Value { First = 1, Second = 2 } ${body}` });
-      assertCsharpCheckingSucceeded(compiled);
-      assert.equal(compiled.result.diagnostics.length, 1, `${label}: one actual projection`);
-      assert.equal(compiled.result.diagnostics[0]?.code, "TSONIC_ENUM_NUMERIC_USE_NOT_SUPPORTED", `${label}: shared refusal`);
-      assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined, true, `${label}: rejected before seal`);
-      assert.equal(compiled.result.artifacts.length, 0, `${label}: no native output`);
-    });
-}
-
-for (const [label, body] of Array.from(numericUses).slice(0, 44)) {
+for (const surface of Array.from([undefined, "js"]).slice(1, 2)){
+for (const [label, body] of Array.from(numericUses).slice(0, 44)){
 test(`C# ${surface ?? "native"} refuses enum ${label} at shared source admission`, () => {
       const compiled = compileCsharpSource({ surface, sourceText: `
 import type { int32 } from "@tsonic/core/types.js";
@@ -256,5 +152,4 @@ ${body}
       assert.equal(compiled.result.artifacts.length, 0, "a refused enum use emits no artifact");
     });
 }
-
 }

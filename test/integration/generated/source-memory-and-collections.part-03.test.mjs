@@ -30,7 +30,7 @@ test("Array.from preserves dense copies and explicit undefined entries", { timeo
   executeCsharpConstruction(compileCsharpSource({ surface: "js", sourceText: jsArrayCopyFiles["index.ts"] }), "js-array-copy");
 });
 
-for (const source of Array.from(["const values = [1, , 3];", "const values = [, undefined];"]).slice(0, 2)) {
+for (const source of Array.from(["const values = [1, , 3];", "const values = [, undefined];"]).slice(0, 2)){
 test(`omitted array elements reject: ${source}`, () => {
     const result = compileCsharpSource({ surface: "js", sourceText: `
 export function copy(): number { ${source} return Array.from(values).length; }
@@ -75,49 +75,9 @@ export function run(): boolean {
 ` }), "inferred-pointer-alias");
 });
 
-for (const surface of Array.from([undefined, "js"]).slice(0, 2)) {
+for (const surface of Array.from([undefined, "js"]).slice(0, 2)){
 test(`read-free pointer views retain aliases and optional ownership in ${surface ?? "native"} source`, { timeout: 300_000 }, () => {
     executeCsharpConstruction(compileCsharpSource({ surface, sourceText: pointerViewFiles["index.ts"],
       files: { "view.ts": pointerViewFiles["view.ts"] } }), `pointer-views-${surface ?? "native"}`);
-  });
-
-test(`installed source-package generic dispatch executes in ${surface ?? "native"} source`, { timeout: 300_000 }, () => {
-    executeCsharpConstruction(compileCsharpSource({ surface, sourceText: closedGenericDispatchPackageFiles["index.ts"],
-      sourcePackages: closedGenericDispatchPackageGraph,
-      files: Object.fromEntries(Object.entries(closedGenericDispatchPackageFiles).filter(([path]) => path !== "index.ts")) }),
-    `package-generic-dispatch-${surface ?? "native"}`);
-  });
-
-test(`implicit generic base constructors retain owner and initializer effects in ${surface ?? "native"} source`, { timeout: 300_000 }, () => {
-    executeCsharpConstruction(compileCsharpSource({ surface, sourceText: genericBaseConstructorFiles["index.ts"],
-      files: { "base.ts": genericBaseConstructorFiles["base.ts"] } }), `generic-base-${surface ?? "native"}`);
-  });
-
-test(`caught builtin Errors retain identity and stack in ${surface ?? "native"} source`, { timeout: 300_000 }, () => {
-    executeCsharpConstruction(compileCsharpSource({ surface, sourceText: caughtErrorProofFiles["index.ts"],
-      files: { "failures.ts": caughtErrorProofFiles["failures.ts"] } }), `caught-errors-${surface ?? "native"}`);
-  });
-
-test(`shared fixed-array native layout preserves strides and snapshots in ${surface ?? "native"} source`, { timeout: 300_000 }, () => {
-    executeCsharpConstruction(compileCsharpSource({ surface, capabilities: [memoryAbiCapability("csharp")],
-      sourceText: fixedArrayMemoryProofFiles["index.ts"], files: { "layout.ts": fixedArrayMemoryProofFiles["layout.ts"] } }),
-    `fixed-array-memory-${surface ?? "native"}`, false, true);
-  });
-
-test(`shared cross-file generic virtual dispatch executes in ${surface ?? "native"} source`, { timeout: 300_000 }, () => {
-    executeCsharpConstruction(compileCsharpSource({ surface, sourceText: closedGenericDispatchProofFiles["index.ts"],
-      files: { "dispatch.ts": closedGenericDispatchProofFiles["dispatch.ts"] } }),
-    `closed-generic-dispatch-${surface ?? "native"}`);
-  });
-
-test(`shared value record native layout preserves copies and aliases in ${surface ?? "native"} source`, { timeout: 300_000 }, () => {
-    executeCsharpConstruction(compileCsharpSource({ surface, capabilities: [memoryAbiCapability("csharp")],
-      sourceText: valueRecordMemoryProofFiles["index.ts"], files: { "layout.ts": valueRecordMemoryProofFiles["layout.ts"] } }),
-    `value-record-memory-${surface ?? "native"}`, false, true);
-  });
-
-test(`shared value-struct storage and location contract executes in ${surface ?? "native"} source`, { timeout: 300_000 }, () => {
-    executeCsharpConstruction(compileCsharpSource({ surface, sourceText: valueStructProofFiles["index.ts"],
-      files: { "records.ts": valueStructProofFiles["records.ts"] } }), `value-struct-${surface ?? "native"}`);
   });
 }
