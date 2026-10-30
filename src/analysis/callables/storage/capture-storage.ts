@@ -1,4 +1,4 @@
-import type { CsharpCaptureFrame, CsharpCaptureStorage, CsharpCapturedBinding, CsharpCaptureProtocol } from "../../../target-model/records/callables/capture-storage.js";
+import type { CsharpCaptureFrame, CsharpCaptureStorage, CsharpCapturedBinding, CsharpCaptureProtocol, CsharpConstructorCaptureProtocol } from "../../../target-model/records/callables/capture-storage.js";
 import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import { sourceCallableDefinitionIsDiscarded, sourceBindingScope, sourceNodeIdentity, sourceBindingCapturedBeforeInitialization, sourceBindingCapturedBeforeFirstWrite } from "@tsonic/target-api/source";
@@ -20,6 +20,7 @@ import { createCsharpTypeParameterEnvironment } from "../../source-evidence/type
 
 import { csharpCapturedMemberAccess } from "../values/captured-member-access.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import { csharpConstructorCapturedPlaces } from "../emission/constructor-entry.js";
 
 export function analyzeCsharpCaptureStorage(
   source: TargetSourceProgram,
@@ -102,8 +103,10 @@ export function analyzeCsharpCaptureStorage(
     groups.set(scope, bindings);
   }
   const creationDemandValues = new Map<Node, boolean>();
+  const constructors: Node[] = [];
   const collectCreationDemand = (node: Node): void => {
     if (evidence.compileTimeMetadata.get(node)) return;
+    if (source.ast.is.IsConstructorDeclaration(node)) constructors.push(node);
     if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) {
       const discarded = sourceCallableDefinitionIsDiscarded(node, source.ast, source.navigation);
       creationDemandValues.set(node, discarded);
@@ -114,6 +117,29 @@ export function analyzeCsharpCaptureStorage(
   source.navigation.sourceFiles.forEach(collectCreationDemand);
   const creationDemand = Object.freeze({ get: (declaration: Node) => creationDemandValues.get(declaration) });
   const nativeCaptures = analyzeCsharpNativeCaptures(source, evidence, physicalType, issues, creationDemand);
+  const constructorPlaces = new Map<Node, Omit<CsharpConstructorCaptureProtocol, "frame">>();
+  for (const constructor of constructors) {
+    const places = csharpConstructorCapturedPlaces(source.ast, constructor, nativeCaptures);
+    const required = places.filter(place => storage.nativeBacking.get(place.declaration) === undefined);
+    if (required.length === 0) continue;
+    const scope = source.ast.body(constructor);
+    const owner = source.ast.parent(constructor);
+    if (scope === undefined || owner === undefined ||
+        !source.ast.is.IsClassDeclaration(owner) && !source.ast.is.IsClassExpression(owner)) {
+      failTargetAnalysisInvariant("tsonic-csharp", "Constructor entry capture requires its actual class declaration and body.", constructor);
+    }
+    const bindings = groups.get(scope) ?? new Map<Node, TargetTypeRef>();
+    for (const place of required) {
+      const previous = bindings.get(place.declaration);
+      if (previous !== undefined && !targetTypeRefEquals(previous, place.type)) {
+        failTargetAnalysisInvariant("tsonic-csharp", "Constructor entry capture requires the same original physical place.", place.declaration);
+      }
+      bindings.set(place.declaration, place.type);
+    }
+    groups.set(scope, bindings);
+    retainProtocol(scope, { kind: "class", declaration: owner });
+    constructorPlaces.set(constructor, Object.freeze({ declaration: constructor, owner, scope, places }));
+  }
   const genericClosures = selectCsharpGenericFrameClosures(source, evidence, nativeCaptures.lexicalCaptures, groups, issues);
   for (const closure of genericClosures) for (const capture of closure.captures) {
     const scope = sourceBindingScope(capture, source.ast);
@@ -169,6 +195,12 @@ export function analyzeCsharpCaptureStorage(
     return frame;
   };
   for (const scope of groups.keys()) buildFrame(scope);
+  const constructorCaptures = new Map<Node, CsharpConstructorCaptureProtocol>();
+  for (const [declaration, protocol] of constructorPlaces) {
+    const frame = byScope.get(protocol.scope);
+    if (frame === undefined) failTargetAnalysisInvariant("tsonic-csharp", "Constructor entry capture requires its completed class protocol storage.", declaration);
+    constructorCaptures.set(declaration, Object.freeze({ ...protocol, frame }));
+  }
   const valueFrames: CsharpCaptureFrame[] = [];
   const valueMethods = genericClosures;
   for (const method of valueMethods) {
@@ -212,7 +244,7 @@ export function analyzeCsharpCaptureStorage(
   const helperMembers = csharpCapturedMemberAccess(source, frames);
   return sealCsharpCaptureStorage({ issues, frames, lexicalCaptures: nativeCaptures.lexicalCaptures,
     byScope, byBinding, byClosure, byShape, physicalTypes, namedSelfBindings,
-    helperMembers, lexicalDeclarations });
+    helperMembers, lexicalDeclarations, constructorCaptures });
 }
 
 import { sealCsharpCaptureStorage } from "../../program/records/callables/capture-storage.js";
