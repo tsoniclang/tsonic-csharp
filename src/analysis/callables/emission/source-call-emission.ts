@@ -121,8 +121,8 @@ export function analyzeCsharpSourceCallEmission(input: { readonly source: Target
       if (reference?.kind === "frame") {
         const closure = input.captures.captureClosure.get(reference.declaration);
         if (closure === undefined) { refuse(node, "A captured source callee requires its completed native closure acquisition contract."); continue; }
-        methodValue = closure.reference === "frame" ? getCsharpMethodValue(closure.method.type) : undefined;
-        if (closure.reference === "frame" && methodValue === undefined) {
+        methodValue = getCsharpMethodValue(closure.method.type);
+        if (methodValue === undefined) {
           refuse(node, "A captured invocation handle requires its completed native method-value contract."); continue;
         }
       }

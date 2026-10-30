@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { selectCsharpSourceCallResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
+import { completeCsharpSourceCallAdoption, selectCsharpSourceCallResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import { csharpTsValueTargetType, csharpEmptyObjectTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { csharpTaskTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
+import { selectCsharpAwaitCompletion } from "../../../dist/policy/operations/control-flow/await-completions.js";
+import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 
 const base = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "fixture.Base" };
 const child = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "fixture.Child" };
@@ -12,6 +16,36 @@ const host = {
   projectTypes: () => ({ directSupertypes: carrier => carrier === child ? [base] : [] }),
   providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) },
 };
+
+test("a completed declared source call records exactly one native Task unwrapping", () => {
+  const payload = csharpTaskTargetType(scalar);
+  const nativeType = csharpTaskTargetType(payload);
+  const raw = selectCsharpSourceCallResult(host, nativeType, () => assert.fail("raw native signature is exact"));
+  assert.equal(raw.selectedType === nativeType && raw.completion === undefined, true,
+    "a native signature does not gain source adoption merely from its Task shape");
+  const selected = completeCsharpSourceCallAdoption(host, raw);
+  assert.equal(selected.nativeType === nativeType && selected.selectedType === payload &&
+    selected.completion.form === "direct" && selected.completion.result === scalar, true,
+  "the source boundary records its one missing native Unwrap with original ABI and payload identity");
+  assert.equal(selectCsharpAwaitCompletion(nativeType).result === payload, true,
+    "the generic native await remains exactly one layer");
+});
+
+test("a declared source Task union records its own post-await arm completion without changing the physical ABI", () => {
+  const payload = csharpRuntimeUnionTargetType([csharpTaskTargetType(scalar), scalar]);
+  const nativeType = csharpTaskTargetType(payload);
+  const raw = selectCsharpSourceCallResult(host, nativeType, () => assert.fail("raw native signature is exact"));
+  const selected = completeCsharpSourceCallAdoption(host, raw);
+  assert.equal(selected.nativeType === nativeType && targetTypeRefEquals(selected.selectedType, nativeType), true,
+    "the real returned Task and its union payload are not copied or coerced");
+  const awaited = selectCsharpAwaitCompletion(selected.selectedType);
+  assert.equal(awaited.adoption.native.result === payload && awaited.adoption.continuation === selected.completion &&
+    targetTypeRefEquals(awaited.result, scalar), true,
+  "the same immutable declaration-owned operation supplies the native outer await and selected arm await");
+  assert.equal(selectCsharpAwaitCompletion(nativeType).result === payload, true,
+    "an undecorated native Task preserves its exact union TResult");
+  assert.equal(Object.isFrozen(selected) && Object.isFrozen(selected.completion) && Object.isFrozen(awaited.adoption), true);
+});
 
 test("source result selection retains exact native and checked nominal carriers", () => {
   const result = selectCsharpSourceCallResult(host, base, () => child);

@@ -244,6 +244,7 @@ export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "
     readonly allowsRefLikeTypeArguments: readonly boolean[];
   };
   readonly csharpTaskResultType?: TargetTypeRef;
+  readonly csharpAwaitContinuation?: import("./await-completions.js").CsharpAwaitCompletion;
   readonly csharpGeneratorProtocol?: CsharpGeneratorProtocol;
   readonly csharpIteratorResultProtocol?: CsharpIteratorResultProtocol;
   readonly csharpFlowRefinementRepresentation?: "identity";

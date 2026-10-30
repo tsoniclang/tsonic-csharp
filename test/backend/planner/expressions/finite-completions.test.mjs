@@ -10,6 +10,24 @@ function generated(sourceText) {
   return [...compiled.artifacts.values()].join("\n");
 }
 
+test("discarded bare generic awaits emit one native Task test without a result adapter", () => {
+  const source = generated(`
+    export async function discard<Value>(input: Value): Promise<void> { await input; }
+  `);
+  assert.match(source, /\bis\s+(?:global::)?System\.Threading\.Tasks\.Task\s+__tsonic_await_task_/u);
+  assert.match(source, /await __tsonic_await_task_/u);
+  assert.doesNotMatch(source, /Task\.CompletedTask|Task\.FromResult|Task\.Run|ContinueWith|async .*=>/u);
+});
+
+test("declared generic value-or-Promise awaits keep one native arm test and selected payload", () => {
+  const source = generated(`
+    export async function completed<Value>(input: Value | Promise<Value>): Promise<Value> { return await input; }
+  `);
+  assert.match(source, /switch/u);
+  assert.match(source, /await [^;]*\.As[12]\(\)/u);
+  assert.doesNotMatch(source, /Task\.Run|Task\.FromResult|ContinueWith|new (?:System\.)?Func/u);
+});
+
 test("literal absence in native void positions needs no fabricated value or effect", () => {
   const source = generated(`
     export function direct(): void { return undefined; }

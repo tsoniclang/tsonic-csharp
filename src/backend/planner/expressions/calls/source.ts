@@ -15,6 +15,7 @@ import { composeCsharpPlannedValues, planCsharpExpressionCompletion, planCsharpO
 import { composeCsharpPlannedCall, csharpPlannedArgumentSyntax, type CsharpPlannedCallArguments } from "./planned-arguments.js";
 import { planCsharpNativeFunctionCallee, planCsharpNativeMethodCallee } from "./native-callees.js";
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
+import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 
 export function translateSourceOwnedCall(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner, planCallArgument: CallArgumentPlanner, state?: DestructuringPlannerState): CsharpPlannedValue | undefined {
@@ -34,7 +35,24 @@ export function translateSourceOwnedCall(node: Node, sourceFile: SourceFile, inp
     const generic = applyCalleeTypeArguments(input.scope.typeParameterNames, member, selected.typeArguments, node, diagnostics);
     const invocation = generic === undefined ? undefined : planCsharpExpressionCompletion(node, sourceFile, input, diagnostics,
       { kind: "InvocationExpression", callee: generic, arguments: args }, selected.result.nativeType);
-    return invocation === undefined ? undefined : convertCsharpPlannedValue(node, sourceFile, input, diagnostics, invocation, selected.result.selectedType, "explicit");
+    if (invocation === undefined) return undefined;
+    if (selected.result.completion !== undefined) {
+      if (invocation.completion.kind !== "value") failCsharpPlannerInvariant("A completed source Promise adoption requires its native Task value.", node);
+      const value = invocation.completion.expression;
+      if (selected.result.completion.form === "direct") return csharpPlannedValue(selected.result.selectedType, {
+        kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression", receiver: {
+          kind: "SimpleMemberAccessExpression", receiver: {
+            kind: "AliasQualifiedName", alias: "global", name: { kind: "QualifiedName", left: {
+              kind: "QualifiedName", left: { kind: "IdentifierName", name: "System" }, name: "Threading",
+            }, name: "Tasks" },
+          }, name: "TaskExtensions",
+        }, name: "Unwrap" }, arguments: [{ kind: "Argument", expression: value }],
+      }, invocation.prelude);
+      if (!targetTypeRefEquals(selected.result.nativeType, selected.result.selectedType))
+        failCsharpPlannerInvariant("A deferred source Promise completion must retain its exact physical Task carrier.", node);
+      return csharpPlannedValue(selected.result.selectedType, value, invocation.prelude);
+    }
+    return convertCsharpPlannedValue(node, sourceFile, input, diagnostics, invocation, selected.result.selectedType, "explicit");
   };
   if (callee.kind === "function") {
     const expression = planCsharpNativeFunctionCallee(callee, sourceFile, input, diagnostics, state);

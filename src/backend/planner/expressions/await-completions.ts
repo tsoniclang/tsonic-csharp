@@ -9,7 +9,7 @@ import type { CsharpPlanningContext } from "../context.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { planCsharpUnionPattern } from "./union-patterns.js";
 import { planCsharpUnionMapping } from "./union-mappings.js";
-import { csharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
+import { csharpPlannedEffect, csharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { captureCsharpPlannedValue, planCsharpExpressionCompletion } from "./planned-value-composition.js";
 import { planCsharpAbsentValue } from "./optional-storage.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
@@ -23,6 +23,11 @@ export function planCsharpAwaitCompletion(
   diagnostics: TargetDiagnostic[],
 ): CsharpPlannedValue | undefined {
   if (planned.completion.kind === "never") return planned;
+  if (completion.adoption !== undefined) {
+    const native = planCsharpAwaitCompletion(node, carrier, completion.adoption.native, planned, input, diagnostics);
+    return native === undefined ? undefined : planCsharpAwaitCompletion(node,
+      completion.adoption.native.result, completion.adoption.continuation, native, input, diagnostics);
+  }
   if (completion.form === "identity") return planned;
   if (planned.completion.kind !== "value") failCsharpPlannerInvariant("An admitted await requires its native value operand.", node);
   const expression = planned.completion.expression;
@@ -30,6 +35,15 @@ export function planCsharpAwaitCompletion(
   const resultType = csharpTypeFromTargetTypeRef(completion.result, input.scope.typeParameterNames);
   const taskType = csharpTypeFromTargetTypeRef(csharpTaskTargetType(csharpVoidTargetType()), input.scope.typeParameterNames);
   if (taskType === undefined || !discard && resultType === undefined) failCsharpPlannerInvariant("An admitted await requires its native Task and completion types.", node);
+  if (completion.form === "task-test") {
+    const name = input.names.temporaryName(`__tsonic_await_task_${input.program.source.ast.pos(node)}`);
+    return csharpPlannedEffect(completion.result, [...planned.prelude, {
+      kind: "IfStatement", condition: { kind: "IsPatternExpression", expression, type: taskType, designation: name },
+      thenBody: { kind: "Block", statements: [{ kind: "ExpressionStatement", expression: {
+        kind: "AwaitExpression", expression: { kind: "IdentifierName", name },
+      } }] },
+    }]);
+  }
   const completedTask: CsharpExpression = { kind: "SimpleMemberAccessExpression", receiver: taskType, name: "CompletedTask" };
   const projectResult = (alternative: CsharpAwaitAlternative, value: CsharpExpression): CsharpExpression | undefined => {
     if (discard) return alternative.task ? { kind: "CastExpression", type: taskType, expression: value } : completedTask;

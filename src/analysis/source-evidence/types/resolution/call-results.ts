@@ -8,6 +8,8 @@ import { getCsharpRuntimeUnionArms, isCsharpJsValueTargetType } from "../../../.
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import { retainCsharpBroadValueCarrier } from "../../../../policy/types/resolution/selected-type-evidence.js";
+import { getCsharpTaskResultTargetType } from "../../../../target-model/types/carriers/delegates.js";
+import { selectCsharpAwaitCompletion } from "../../../../policy/operations/control-flow/await-completions.js";
 
 export function selectCsharpSourceCallResult(
   host: CsharpTypePolicyHost,
@@ -47,4 +49,25 @@ export function selectCsharpSourceCallResult(
       csharpConversionIsApplicable(conversion, "explicit") ? selectedType : nativeType });
   }
   return Object.freeze({ nativeType, selectedType: related ? selectedType : nativeType });
+}
+
+export function completeCsharpSourceCallAdoption(
+  host: Pick<CsharpTypePolicyHost, "typeDefinitions">,
+  selected: CsharpSourceCallResult | undefined,
+): CsharpSourceCallResult | undefined {
+  if (selected === undefined) return undefined;
+  const payload = getCsharpTaskResultTargetType(selected.nativeType);
+  if (payload === undefined) return selected;
+  if (getCsharpTaskResultTargetType(payload) === undefined &&
+    getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(payload) ?? payload, host.typeDefinitions) === undefined)
+    return selected;
+  const native = selectCsharpAwaitCompletion(selected.nativeType, host.typeDefinitions);
+  const completion = native === undefined ? undefined : selectCsharpAwaitCompletion(native.result, host.typeDefinitions);
+  if (completion === undefined) return undefined;
+  if (!completion.alternatives.some(alternative => alternative.task)) return selected;
+  if (getCsharpTaskResultTargetType(payload) !== undefined && completion.form === "direct")
+    return Object.freeze({ nativeType: selected.nativeType, selectedType: payload, completion });
+  if (selected.nativeType.kind !== "target-named") return undefined;
+  return Object.freeze({ nativeType: selected.nativeType,
+    selectedType: Object.freeze({ ...selected.nativeType, csharpAwaitContinuation: completion }), completion });
 }

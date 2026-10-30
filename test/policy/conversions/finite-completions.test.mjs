@@ -18,6 +18,28 @@ const integer = csharpSourcePrimitiveTargetType("int32");
 const string = csharpStringTargetType();
 const unit = csharpVoidTargetType();
 
+test("an unused bare generic await has one native Task type-test completion", () => {
+  const parameter = { kind: "type-parameter", name: "Value", identity: "fixture.Value" };
+  assert.equal(selectCsharpAwaitCompletion(parameter), undefined, "a consumed bare generic result remains F4");
+  const completion = selectCsharpAwaitCompletion(parameter, undefined, "discarded");
+  assert.equal(completion?.form === "task-test" && completion.discard && targetTypeRefEquals(completion.result, unit), true,
+    "discarded F3 has no fabricated Awaited<Value> result");
+  assert.equal(completion.alternatives.length, 0, "a runtime Task test does not invent a native payload");
+  assert.equal(Object.isFrozen(completion) && Object.isFrozen(completion.alternatives), true);
+});
+
+test("a declared generic value-or-Task await retains its native T result and both exact arms", () => {
+  const parameter = { kind: "type-parameter", name: "Value", identity: "fixture.Value" };
+  const task = csharpTaskTargetType(parameter);
+  const carrier = csharpRuntimeUnionTargetType([parameter, task]);
+  const completion = selectCsharpAwaitCompletion(carrier);
+  assert.equal(completion?.result === parameter && completion.form === "branches", true,
+    "F2 is native T, not a guessed or erased Awaited<T>");
+  assert.equal(completion.alternatives[0].carrier === parameter && completion.alternatives[0].task === false &&
+    completion.alternatives[1].carrier === task && completion.alternatives[1].task === true, true,
+  "the original value and Task arms remain distinct");
+});
+
 test("finite Task results enter exact union arms without changing Task identity or arity", () => {
   const task = csharpTaskTargetType(integer);
   const union = csharpRuntimeUnionTargetType([task, string]);
