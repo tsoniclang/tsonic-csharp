@@ -30,12 +30,18 @@ export function planCsharpDelegateAdapter(node: Node, sourceFile: SourceFile, in
   const method = getCsharpMethodValue(contract.sourceType)?.method;
   if (selection.strategy === "native-binding") {
     if (operand?.kind === "lambda") return operand.expression;
-    if (contract.nativeExtraction !== undefined) return { kind: "SimpleMemberAccessExpression",
-      receiver: operand?.kind === "captured-method" ? operand.receiver : expression,
-      name: contract.nativeExtraction.name };
+    if (method !== undefined) {
+      const extraction = contract.nativeExtraction
+        ?? failCsharpPlannerInvariant("An admitted native method binding requires its completed native extraction.", node);
+      return { kind: "SimpleMemberAccessExpression",
+        receiver: operand?.kind === "captured-method" ? operand.receiver : expression,
+        name: extraction.name };
+    }
+    if (contract.nativeExtraction !== undefined)
+      failCsharpPlannerInvariant("An admitted delegate value cannot carry a native method extraction.", node);
     return { kind: "ObjectCreationExpression", type: contract.targetDelegateType, arguments: [{ kind: "Argument",
       expression: instantiatedCallee(operand?.kind === "method" || operand?.kind === "captured-method" ? expression
-        : { kind: "SimpleMemberAccessExpression", receiver: expression, name: method ?? "Invoke" }, contract, input, node),
+        : { kind: "SimpleMemberAccessExpression", receiver: expression, name: "Invoke" }, contract, input, node),
     }] };
   }
   const identity = input.scope.delegateAdapters === undefined ? undefined : input.program.records.delegateAdapter.get(node, contract.sourceType, targetType!);

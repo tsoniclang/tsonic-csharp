@@ -12,6 +12,7 @@ import { createCsharpDelegateContractProducer } from "../../../dist/analysis/pro
 import { csharpMethodValueType } from "../../../dist/target-model/types/method-values.js";
 import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
 import { substituteObjectShapeFactTargetTypeParameters, substituteTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
+import { planCsharpDelegateAdapter } from "../../../dist/backend/planner/expressions/callable-conversions.js";
 
 test("declared structural method signatures retain their own fixed native contract without origin replay", () => {
   const declaration = Object.freeze({});
@@ -105,6 +106,36 @@ test("native delegate extraction facts distinguish selected members, destination
     csharpDelegateTargetType("System.Func", [], scalar), { kind: "delegate-adapter", strategy: "native-binding",
       instantiation: { contract: scalarTarget, typeArguments: [scalar] }, parameterConversions: [], returnConversion: { kind: "identity" } }, shapes),
   /immutable after sealing/u, "the sealed owner does not accept later conversion or planner publication");
+});
+
+test("native method binding requires its sealed getter instead of falling back to per-read allocation", () => {
+  const scalar = { kind: "source-primitive", name: "float64" };
+  const signature = csharpDelegateTargetType("System.Func", [scalar], scalar);
+  const owner = csharpTargetNamedType("Fixture.NativeMethodOwner", undefined,
+    { kind: "named", name: "NativeMethodOwner", usingNamespace: ["Fixture"] }, { allowsRefLikeTypeArguments: [] });
+  const handle = csharpMethodValueType(owner, "run", "original-native-run", signature, []);
+  assert.equal(handle !== undefined, true, "the exact monomorphic owner has its native method handle");
+  const selection = { kind: "delegate-adapter", strategy: "native-binding",
+    parameterConversions: [{ kind: "identity" }], returnConversion: { kind: "identity" } };
+  const producer = createCsharpDelegateContractProducer();
+  admitCsharpDelegateEmission(producer, handle, signature, selection, { resolveTarget: () => undefined });
+  producer.seal();
+  const contract = producer.records.delegateContract.get(handle, signature);
+  assert.equal(contract.nativeExtraction !== undefined, true, "admission owns the completed exact getter");
+  const receiver = { kind: "IdentifierName", name: "originalNativeOwner" };
+  const diagnostics = [];
+  const context = selected => ({ scope: {}, program: { records: { delegateContract: { get: () => selected } } } });
+  const convert = () => assert.fail("an exact native binding performs no conversion or reconstruction");
+  const actual = planCsharpDelegateAdapter({}, {}, context(contract), diagnostics, handle, signature,
+    selection, receiver, convert);
+  assert.equal(actual.kind === "SimpleMemberAccessExpression" && actual.receiver === receiver &&
+    actual.name === contract.nativeExtraction.name, true, "planning consumes only the original owner's selected getter");
+  for (const [source, selected] of [[handle, { ...contract, nativeExtraction: undefined }], [signature, contract]]) {
+    assert.throws(() => planCsharpDelegateAdapter({}, {}, context(selected), diagnostics, source, signature,
+      selection, receiver, convert), error => error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT",
+    "a missing or foreign getter cannot silently choose the old delegate-allocation path");
+  }
+  assert.equal(diagnostics.length, 0, "a broken sealed record is an invariant, never a source refusal or hidden adapter");
 });
 
 test("generic native extraction retains declared binder roles when actual native arguments are equal", () => {
