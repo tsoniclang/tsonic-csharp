@@ -1,6 +1,13 @@
 // Carrier registry rows (producers): test and audit data for this compiler only; product code never reads it.
 export const producersCarrierRegistry = Object.freeze([
   {
+    id: "src/analysis/source-evidence/types/resolution/source-references.ts#selectCsharpErrorObservationView",
+    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
+    declaration: { module: "src/analysis/source-evidence/types/resolution/source-references.ts", symbol: "selectCsharpErrorObservationView" },
+    responsibility: "producers/checked-error-observation-view",
+    frozen: false,
+  },
+  {
     id: "src/policy/types/storage/optional-storage.ts#resolveCsharpOptionalStorage",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/policy/types/storage/optional-storage.ts", symbol: "resolveCsharpOptionalStorage" },
