@@ -3,7 +3,7 @@ import type { SourceFile } from "@tsonic/tsts";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
-import { selectCsharpSourceCallResult } from "./call-results.js";
+import { completeCsharpSourceCallAdoption, selectCsharpSourceCallResult } from "./call-results.js";
 
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { combineCsharpTargetUnionMembers, csharpAbsenceTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
@@ -213,6 +213,9 @@ export function resolveSourceCallResultWithState(
   const declaration = sourceCallSelectedDeclaration(source);
   const queries = host.semantics(sourceFile);
   const result = queries.operations.callResult(source);
+  const complete = (selected: CsharpSourceCallResult | undefined): CsharpSourceCallResult | undefined =>
+    declaration !== undefined && host.navigation.isProjectDeclaration(declaration) && host.ast.body(declaration) !== undefined
+      ? completeCsharpSourceCallAdoption(host, selected) : selected;
   const retain = (nativeType: TargetTypeRef | undefined): CsharpSourceCallResult | undefined => {
     const selected = selectCsharpSourceCallResult(host, nativeType, () => {
       const checked = result === undefined ? undefined : resolveSourceCallSelectedType(source, declaration,
@@ -222,7 +225,7 @@ export function resolveSourceCallResultWithState(
     });
     return selected;
   };
-  if (nativeType !== undefined) return retain(nativeType);
+  if (nativeType !== undefined) return complete(retain(nativeType));
   const selection = resolveSourceCallContract(source, sourceFile, state, "implementation");
   if (selection.kind === "rejected") return undefined;
   const callable = selection.contract;
@@ -234,26 +237,26 @@ export function resolveSourceCallResultWithState(
       const nativeType = resolveSourceCallableContractType(source, callable, callable.returnType, sourceFile, state);
       const selected = retain(resolveSourceCallableContractType(source, callable, callable.nativeSignature.sourceReturnType, sourceFile, state));
       return nativeType === undefined || selected === undefined ? undefined
-        : Object.freeze({ nativeType, selectedType: selected.selectedType });
+        : complete(Object.freeze({ nativeType, selectedType: selected.selectedType }));
     }
-    return retain(resolveSourceCallableContractType(
+    return complete(retain(resolveSourceCallableContractType(
       source,
       callable,
       callable.returnType,
       sourceFile,
       state,
-    ));
+    )));
   }
   if (selection.kind === "value") return undefined;
   if (result === undefined) {
     return undefined;
   }
-  return retain(resolveSourceCallSelectedType(
+  return complete(retain(resolveSourceCallSelectedType(
     source,
     declaration,
     result.authoredTypeNode,
     result.selectedReturnType,
     sourceFile,
     state,
-  ));
+  )));
 }
