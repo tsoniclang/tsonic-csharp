@@ -1,10 +1,11 @@
 import { sourceNumericLiteralIsExactlyRepresentableAsBinaryFloat, type SourceLiteralValue } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
-import { isCsharpIntegralTargetType } from "../../../target-model/types/carriers/scalar-types.js";
+import { csharpSourcePrimitiveTargetType, isCsharpIntegralTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpBigIntFitsSourcePrimitive } from "../../conversions/literal-range.js";
 import { csharpLiteralIsRepresentableAs } from "../../conversions/literals.js";
 import { sourcePrimitiveImplicitlyConverts } from "../../conversions/source-primitives.js";
+import { resolveCsharpSourceLiteralTargetType } from "../../conversions/source-literals.js";
 
 export interface CsharpNumericArrayContribution {
   readonly carrier: TargetTypeRef;
@@ -28,20 +29,25 @@ export function selectCsharpInferredNumericArrayElement(
   if (contributions.length === 0) return unavailable();
   if (destination !== undefined) return numeric(destination)
     ? Object.freeze({ kind: "resolved", carrier: destination }) : unavailable();
+  if (contributions.every(contribution => contribution.literal?.numeric?.kind === "authored")) {
+    if (checkedElement === undefined || !numeric(checkedElement) || contributions.some(contribution =>
+      !numeric(contribution.carrier) || contribution.literalDefault === undefined ||
+      !targetTypeRefEquals(contribution.literalDefault, checkedElement))) return unavailable();
+    const defaults = contributions.map(contribution => resolveCsharpSourceLiteralTargetType(contribution.literal));
+    const carrier = checkedElement.kind === "source-primitive" && checkedElement.name === "float64"
+      ? csharpSourcePrimitiveTargetType(defaults.some(value => value?.kind === "source-primitive" && value.name === "float64")
+        ? "float64" : "int64") : checkedElement;
+    return contributions.every(contribution => csharpLiteralIsRepresentableAs(contribution.literal, carrier))
+      ? Object.freeze({ kind: "resolved", carrier: contributions.every(contribution => targetTypeRefEquals(contribution.carrier, carrier))
+        ? contributions[0]!.carrier : carrier })
+      : Object.freeze({ kind: "rejected", reason: "An inferred numeric array literal is outside its declared or default native element range." });
+  }
   const originalFloating = contributions[0]!.carrier;
   if (originalFloating.kind === "source-primitive" &&
     (originalFloating.name === "float32" || originalFloating.name === "float64") &&
     contributions.every(contribution => targetTypeRefEquals(contribution.carrier, originalFloating) &&
       (contribution.literal?.numeric?.kind !== "authored" || csharpLiteralIsRepresentableAs(contribution.literal, originalFloating)))) {
     return Object.freeze({ kind: "resolved", carrier: originalFloating });
-  }
-  if (contributions.every(contribution => contribution.literal?.numeric?.kind === "authored")) {
-    if (checkedElement === undefined || !numeric(checkedElement) || contributions.some(contribution =>
-      !numeric(contribution.carrier) || contribution.literalDefault === undefined ||
-      !targetTypeRefEquals(contribution.literalDefault, checkedElement))) return unavailable();
-    if (contributions.every(contribution => csharpLiteralIsRepresentableAs(contribution.literal, checkedElement))) {
-      return Object.freeze({ kind: "resolved", carrier: checkedElement });
-    }
   }
   const allNumeric = contributions.every(contribution => numeric(contribution.carrier));
   const fixed = [...new Map(contributions.filter(contribution => !flexibleInteger(contribution)).map(contribution =>

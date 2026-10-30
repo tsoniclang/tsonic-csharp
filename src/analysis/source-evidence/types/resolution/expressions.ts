@@ -116,7 +116,7 @@ export function resolveSelectedExpressionType(
   ) {
     const literal = host.literalValues.literalValue.get(node);
     const literalType = literal?.numeric?.kind === "authored"
-      ? resolveCsharpSourceLiteralTargetType(host, literal) : undefined;
+      ? resolveCsharpSourceLiteralTargetType(literal) : undefined;
     if (literalType !== undefined) return literalType;
     const operand = host.ast.is.IsPrefixUnaryExpression(node)
       ? host.ast.as.AsPrefixUnaryExpression(node)?.Operand

@@ -1,30 +1,14 @@
-import type { TargetSelection } from "@tsonic/target-api";
 import type { SourceLiteralValue } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpSourcePrimitiveTargetType } from "../../target-model/types/carriers/scalar-types.js";
-import { selectedCsharpSourceProfileOwner } from "../identities/source-types.js";
-import { csharpTargetId } from "../../target-model/identities/target.js";
-
-export interface CsharpSourceLiteralPolicyHost {
-  readonly target: TargetSelection;
-}
 
 export function resolveCsharpSourceLiteralTargetType(
-  host: CsharpSourceLiteralPolicyHost,
   literal: SourceLiteralValue | undefined,
 ): TargetTypeRef | undefined {
-  const value = literal?.number;
-  if (value === undefined) {
-    return undefined;
-  }
-  if (
-    selectedCsharpSourceProfileOwner(host.target) === csharpTargetId &&
-    Number.isInteger(value) &&
-    !Object.is(value, -0) &&
-    value >= -2147483648 &&
-    value <= 2147483647
-  ) {
-    return csharpSourcePrimitiveTargetType("int32");
-  }
-  return csharpSourcePrimitiveTargetType("float64");
+  const numeric = literal?.numeric;
+  if (numeric === undefined) return literal?.number === undefined
+    ? undefined : csharpSourcePrimitiveTargetType("float64");
+  if (numeric.kind !== "authored" || numeric.token.negative && numeric.token.coefficient === 0n ||
+    /[.eE]/u.test(numeric.token.decimalText)) return csharpSourcePrimitiveTargetType("float64");
+  return csharpSourcePrimitiveTargetType("int64");
 }

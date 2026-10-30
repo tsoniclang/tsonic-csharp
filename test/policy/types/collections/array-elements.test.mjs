@@ -12,14 +12,14 @@ const literal = (coefficient, exponent, integer, carrier = "float64", negative =
   carrier: primitive(carrier), literalDefault: primitive("float64"),
   literal: Object.freeze({ form: "numeric", ...(integer === undefined ? {} : { integer }),
     numeric: Object.freeze({ kind: "authored", token: Object.freeze({ coefficient, exponent, negative,
-      decimalText: `${coefficient}e${exponent}` }) }) }),
+      decimalText: exponent === 0n ? coefficient.toString() : `${coefficient}e${exponent}` }) }) }),
 });
 const select = (contributions, destination, checked = primitive("float64")) =>
   selectCsharpInferredNumericArrayElement(Object.freeze(contributions), checked, destination);
 const selected = (selection, name, label) => assert.equal(selection.kind === "resolved" &&
   selection.carrier.kind === "source-primitive" && selection.carrier.name === name, true, label);
 
-test("pure authored numeric construction uses its own checked default before storage", () => {
+test("pure authored integer construction selects int64 before storage on every surface", () => {
   const authored = (coefficient, exponent, integer, negative = false) => {
     const input = literal(coefficient, exponent, integer, "int32", negative);
     const magnitude = Number(input.literal.numeric.token.decimalText);
@@ -30,15 +30,30 @@ test("pure authored numeric construction uses its own checked default before sto
   const two = authored(2n, 0n, 2n);
   const fraction = authored(15n, -1n);
   const negativeZero = authored(0n, 0n, 0n, true);
-  for (const inputs of [[one], [one, two], [two, one], [one, fraction], [negativeZero, two]]) {
-    const checked = primitive("float64");
-    const actual = select(inputs, undefined, checked);
-    assert.equal(actual.kind === "resolved" && actual.carrier === checked, true,
-      "the same checked construction default wins without any caller or use population input");
+  for (const inputs of [[one], [one, two], [two, one]]) {
+    selected(select(inputs), "int64", "authored integers keep the same native default without caller evidence");
+  }
+  for (const inputs of [[one, fraction], [negativeZero, two]]) {
+    selected(select(inputs), "float64", "written floating syntax and negative zero preserve their native contract");
   }
   assert.equal(Object.is(negativeZero.literal.number, -0) && one.carrier.name === "int32" &&
     one.literal.numeric.token.coefficient === 1n && Object.isFrozen(one.literal.numeric.token), true,
   "carrier selection retains immutable authored tokens, native negative zero and original input evidence");
+});
+
+test("integer construction preserves the full int64 range and rejects overflow without floating rescue", () => {
+  for (const input of [literal(9007199254740993n, 0n, 9007199254740993n),
+    literal(9223372036854775807n, 0n, 9223372036854775807n),
+    literal(9223372036854775808n, 0n, -9223372036854775808n, "float64", true)]) {
+    selected(select([input]), "int64", "exact authored magnitude is not rounded through double");
+  }
+  for (const input of [literal(9223372036854775808n, 0n, 9223372036854775808n),
+    literal(9223372036854775809n, 0n, -9223372036854775809n, "float64", true)]) {
+    const actual = select([input]);
+    assert.equal(actual.kind === "rejected" && actual.reason.includes("native element range"), true,
+      "an unannotated native integer cannot silently become floating or BigInteger");
+  }
+  selected(select([literal(1n, 1n, 10n)]), "float64", "exponent notation remains authored floating even when integral");
 });
 
 test("pure authored default selection requires matching checked and literal-base evidence", () => {

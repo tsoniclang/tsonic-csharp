@@ -103,7 +103,7 @@ function resolveNodeCarrierWithState(
   if (direct !== undefined) {
     return direct;
   }
-  const literal = resolveCsharpSourceLiteralTargetType(host, host.literalValues.literalValue.get(node));
+  const literal = resolveCsharpSourceLiteralTargetType(host.literalValues.literalValue.get(node));
   if (literal !== undefined) {
     return literal;
   }
