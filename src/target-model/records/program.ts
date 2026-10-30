@@ -137,6 +137,7 @@ export interface CsharpProgramRecords extends CsharpSourceNameRecords, CsharpSta
   readonly captureFrame: CsharpCaptureStorage["captureFrame"];
   readonly capturedBinding: CsharpCaptureStorage["capturedBinding"];
   readonly capturedPlace: CsharpCaptureStorage["capturedPlace"];
+  readonly constructorCapture: CsharpCaptureStorage["constructorCapture"];
   readonly lexicalCaptures: CsharpCaptureStorage["lexicalCaptures"];
   readonly physicalStorageType: CsharpCaptureStorage["physicalStorageType"];
   readonly captureClosure: CsharpCaptureStorage["captureClosure"];
