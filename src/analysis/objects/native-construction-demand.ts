@@ -1,6 +1,6 @@
 import { providerVirtualDeclarationFactKey, type Node, type SourceFile, type Type } from "@tsonic/tsts";
 import { sourceDeclarationIsModuleScoped, sourceEnclosingCallable,
-  type SourceFileSemantics, type SourceTypeComponentEvidence } from "@tsonic/target-api/source";
+  type SourceFileSemantics, type SourceStructuralMember, type SourceTypeComponentEvidence } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { csharpNullableTargetType } from "../../target-model/types/carriers/nullable.js";
@@ -20,6 +20,10 @@ export interface CsharpLiteralContext {
   readonly declarations: readonly Node[];
   readonly source: Node;
   readonly returnedFrom?: Node;
+  readonly container?: {
+    readonly context: CsharpLiteralContext;
+    readonly member: SourceStructuralMember;
+  };
 }
 
 export function selectCsharpLiteralDeclarationContext(
@@ -77,7 +81,25 @@ export function selectCsharpLiteralDeclarationContext(
     if (selected !== undefined) return selected;
   }
   const direct = queries.types.contextualValueSelection(expression);
-  if (direct.kind === "selected") return { component: direct.component, declarations, source: expression };
+  if (direct.kind === "selected") {
+    const context: CsharpLiteralContext = { component: direct.component, declarations, source: expression };
+    if (direct.component.authoredTypeNode !== undefined || direct.component.contextualCall !== undefined ||
+      declaration === undefined || !ast.is.IsPropertyAssignment(declaration) ||
+      ast.as.AsPropertyAssignment(declaration)?.Initializer !== current) return context;
+    const literal = ast.parent(declaration);
+    if (literal === undefined || !ast.is.IsObjectLiteralExpression(literal)) return context;
+    const container = selectCsharpLiteralDeclarationContext(literal, queries, host);
+    const actual = queries.types.expressionType(literal);
+    if (container === undefined || actual === undefined) return context;
+    const selected = queries.types.structuralMembers(actual, container.component.selectedType, "correspondence");
+    if (selected.kind !== "available") return context;
+    const matching = selected.members.filter(pair => pair.kind === "present" &&
+      pair.source.receiverType === actual && pair.source.declarations.includes(declaration) &&
+      pair.destination.receiverType === container.component.selectedType &&
+      pair.destination.property.type === direct.component.selectedType);
+    return matching.length !== 1 ? context : { ...context,
+      container: { context: container, member: matching[0]!.destination } };
+  }
   if (direct.kind === "ambiguous") {
     const actual = queries.types.expressionType(expression);
     if (actual === undefined) return undefined;

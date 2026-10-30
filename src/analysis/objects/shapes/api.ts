@@ -578,28 +578,7 @@ export function createCsharpObjectShapePolicy(
           const templateState = csharpSourceTemplateState(parameters, nextState(state));
           const declared = resolveTypeWithState(declaredType, sourceFile, application.typeNode, templateState);
           if (declared?.sourceType !== declaredType) return undefined;
-          const component = literalContext!.component;
-          let native: TargetTypeRef | undefined;
-          if (component.authoredTypeNode !== undefined) {
-            native = host.typeResolver.resolveSelectedType(component.authoredTypeNode, type, queries.sourceFile, nextState(state));
-          } else if (component.contextualCall !== undefined) {
-            const call = component.contextualCall;
-            const bindings = call.sourceArgumentBindings.filter(binding => binding.sourceForm === "value" &&
-              call.sourceArguments[binding.sourceArgumentIndex]?.expression === literalContext!.source);
-            const parameter = bindings.length !== 1 ? undefined
-              : call.sourceSelectedSignatureParameters[bindings[0]!.sourceParameterIndex];
-            if (call.sourceSelectedSignatureKind !== "resolved" || !host.ast.is.IsNewExpression(call.call) ||
-              parameter?.parameterDeclaration === undefined || parameter.selectedType !== type ||
-              bindings[0]!.selectedParameterType !== type) return undefined;
-            const contract = host.representations.sourceCallable(call, queries.sourceFile, "checked");
-            const declaration = queries.declarations.signatureDeclaration(call.selectedSignature);
-            const slots = contract?.nativeParameters.filter(slot => slot.sourceParameter === parameter.parameterDeclaration);
-            if (contract?.sourceDeclaration !== declaration || declaration === undefined || slots?.length !== 1) return undefined;
-            const receiver = host.typeResolver.resolveNode(call.call, queries.sourceFile, nextState(state));
-            const selected = host.projectTypes().instantiateMemberType(parameter.parameterDeclaration, receiver, slots[0]!.targetParameter.type);
-            if (selected.kind !== "resolved") return undefined;
-            native = selected.type;
-          }
+          const native = resolveLiteralContextTarget(literalContext!, state);
           if (native === undefined || !nativeTargets!.some(target => targetTypeRefEquals(target, native!))) return undefined;
           const selected = instantiateCsharpObjectShape(declared.declarationTemplate ?? declared, native);
           if (selected === undefined) return undefined;
@@ -724,6 +703,49 @@ export function createCsharpObjectShapePolicy(
     } finally {
       activeTypes.delete(type);
     }
+  }
+
+  function resolveLiteralContextTarget(
+    context: CsharpLiteralContext,
+    state: CsharpTypeResolutionState,
+  ): TargetTypeRef | undefined {
+    const queries = host.semanticsFor(context.source);
+    const component = context.component;
+    if (context.container !== undefined) {
+      const container = context.container;
+      const native = resolveLiteralContextTarget(container.context, nextState(state));
+      if (native === undefined) return undefined;
+      const parent = resolveTypeWithState(container.context.component.selectedType, queries.sourceFile,
+        container.context.component.authoredTypeNode, nextState(state), [native], container.context);
+      if (parent?.sourceType !== container.context.component.selectedType ||
+        container.member.receiverType !== parent.sourceType || container.member.property.type !== component.selectedType) return undefined;
+      const matching = parent.members.filter(member => member.sourceMemberEvidence?.some(evidence =>
+        evidence.sourceType === parent.sourceType && evidence.correspondence.kind === "present" &&
+        evidence.correspondence.source.receiverType === parent.sourceType &&
+        evidence.correspondence.source.property.symbol === container.member.property.symbol &&
+        evidence.correspondence.source.property.type === component.selectedType) === true);
+      return matching.length === 1 ? matching[0]!.type : undefined;
+    }
+    if (component.authoredTypeNode !== undefined) {
+      return host.typeResolver.resolveSelectedType(component.authoredTypeNode, component.selectedType,
+        queries.sourceFile, nextState(state));
+    }
+    const call = component.contextualCall;
+    if (call === undefined) return undefined;
+    const bindings = call.sourceArgumentBindings.filter(binding => binding.sourceForm === "value" &&
+      call.sourceArguments[binding.sourceArgumentIndex]?.expression === context.source);
+    const parameter = bindings.length !== 1 ? undefined
+      : call.sourceSelectedSignatureParameters[bindings[0]!.sourceParameterIndex];
+    if (call.sourceSelectedSignatureKind !== "resolved" || !host.ast.is.IsNewExpression(call.call) ||
+      parameter?.parameterDeclaration === undefined || parameter.selectedType !== component.selectedType ||
+      bindings[0]!.selectedParameterType !== component.selectedType) return undefined;
+    const contract = host.representations.sourceCallable(call, queries.sourceFile, "checked");
+    const declaration = queries.declarations.signatureDeclaration(call.selectedSignature);
+    const slots = contract?.nativeParameters.filter(slot => slot.sourceParameter === parameter.parameterDeclaration);
+    if (contract?.sourceDeclaration !== declaration || declaration === undefined || slots?.length !== 1) return undefined;
+    const receiver = host.typeResolver.resolveNode(call.call, queries.sourceFile, nextState(state));
+    const selected = host.projectTypes().instantiateMemberType(parameter.parameterDeclaration, receiver, slots[0]!.targetParameter.type);
+    return selected.kind === "resolved" ? selected.type : undefined;
   }
 
   function resolveProjectInterfaceShape(

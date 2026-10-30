@@ -99,6 +99,7 @@ function fixture() {
       is: {
         IsObjectLiteralExpression: selected => selected?.kind === "literal",
         IsVariableDeclaration: selected => selected?.kind === "variable",
+        IsPropertyAssignment: () => false,
         IsVariableDeclarationList: () => false,
         IsVariableStatement: () => false,
         IsParenthesizedExpression: () => false,
@@ -637,6 +638,24 @@ test("ambiguous optional declaration owners never choose a first matching proof"
 });
 
 for (const surface of ["native", "js"]) {
+  test(`nested constructor literals retain their checked member-native context (${surface})`, () => {
+    executeCsharpConstruction(compileCsharpSource({ surface, sourceText: `
+      import type { int32 } from "@tsonic/core/types.js";
+      type Cell<Value> = { value: Value };
+      type State<Value> = { cell: Cell<Value> };
+      class Holder<Value> {
+        state: State<Value>;
+        constructor(state: State<Value>) { this.state = state; }
+      }
+      export function run(): boolean {
+        const holder = new Holder<int32>({ cell: { value: 7 as int32 } });
+        const alias = holder.state.cell;
+        alias.value = 11 as int32;
+        return holder.state.cell === alias && holder.state.cell.value === 11;
+      }
+    ` }), `nested-constructor-literal-native-context-${surface}`);
+  });
+
   test(`distinct checked literal arms retain their own evidence on one native layout (${surface})`, () => {
     executeCsharpConstruction(compileCsharpSource({ surface, sourceText: `
       type Found = { kind: "found"; value: number };
