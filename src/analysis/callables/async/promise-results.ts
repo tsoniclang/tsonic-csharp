@@ -1,7 +1,7 @@
-import type { Node, SourceFile, Type } from "@tsonic/tsts";
+import type { Node, Type } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { analyzeSourceDeclarationGenericAdoption, sourceGenericAdoptionDiagnosticCode,
-  sourceGenericAdoptionDiagnosticMessage, createSourceDeclarationOwnershipQuery,
+  createSourceDeclarationOwnershipQuery,
   createSourceDeclarationOwnershipBudget, defaultSourceDeclarationOwnershipLimits,
   type SourceDeclarationOwnershipBudget, type SourceDeclarationOwnershipPremises,
   type SourceDeclarationOwnershipUnresolved } from "@tsonic/target-api/analysis";
@@ -9,6 +9,8 @@ import { sourceExpressionResultDisposition, type TargetSourceProgram } from "@ts
 import { classifyCsharpSourceProfileType } from "../../../policy/identities/source-types.js";
 import type { CsharpValueReadClassifications } from "../../../target-model/records/operations/conversions.js";
 import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations/operations.js";
+import type { CsharpNativeUseClassifications } from "../../../target-model/records/native/native-demand.js";
+import type { CsharpStorageRepresentationClassifications } from "../../../target-model/records/storage/storage.js";
 import type { CsharpPromiseDiscard, CsharpPromiseResult, CsharpPromiseResults } from "../../../target-model/records/callables/promise-results.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
@@ -36,16 +38,17 @@ export function analyzeCsharpGenericAdoption(input: {
   return Object.freeze(adoption.kind === "unresolved" ? [ownershipDiagnostic(adoption)]
     : adoption.issues.map(issue => Object.freeze({ code: sourceGenericAdoptionDiagnosticCode,
       category: "error" as const, source: "tsonic-csharp", sourceNode: issue.site, sourceSpan: issue.sourceSpan,
-      message: sourceGenericAdoptionDiagnosticMessage, evidence: issue.evidence })));
+      message: issue.message, evidence: issue.evidence })));
 }
 
 export function analyzeCsharpPromiseResults(input: {
   readonly source: TargetSourceProgram;
   readonly projectRoot: string;
   readonly nodes: readonly Node[];
-  readonly records: CsharpValueReadClassifications & Pick<CsharpTargetOperationClassifications, "selectedCall" | "selectedConstruction">;
+  readonly records: CsharpValueReadClassifications & CsharpNativeUseClassifications &
+    Pick<CsharpStorageRepresentationClassifications, "storageType"> &
+    Pick<CsharpTargetOperationClassifications, "selectedCall" | "selectedConstruction">;
   readonly definitions: CsharpTypeDefinitions;
-  readonly sourceCarrier: (type: Type, file: SourceFile) => TargetTypeRef | undefined;
   readonly nativePlacement: readonly TargetDiagnostic[];
 }): { readonly results: CsharpPromiseResults; readonly diagnostics: readonly TargetDiagnostic[] } {
   const results = new Map<Node, CsharpPromiseResult>();
@@ -56,6 +59,32 @@ export function analyzeCsharpPromiseResults(input: {
   const root = input.nodes[0] ?? source.sourceFiles[0];
   if (root === undefined) return Object.freeze({ results, diagnostics: Object.freeze([]) });
   const budget = createSourceDeclarationOwnershipBudget(root, defaultSourceDeclarationOwnershipLimits);
+  const nativeCarrier = (node: Node): TargetTypeRef | undefined => {
+    const native = input.records.nativeUse.expression(node)?.use;
+    if (native !== undefined) return native.kind === "erased" ? undefined
+      : native.completion.kind === "value" ? native.completion.type : native.carrier;
+    return input.records.storageType.get(node) ?? input.records.valueRead.get(node)?.value;
+  };
+  const runtimeNode = (node: Node): boolean => {
+    if (!ast.is.IsIdentifier(node)) return true;
+    const call = ast.parent(node);
+    if (call === undefined || !ast.is.IsCallExpression(call) && !ast.is.IsNewExpression(call)) return true;
+    const native = input.records.nativeUse.expression(call)?.use;
+    if (native === undefined || native.kind === "erased" || input.records.nativeUse.expression(node) !== undefined) return true;
+    if (ast.is.IsCallExpression(call)) {
+      const selected = input.records.selectedCall.get(call);
+      return selected?.sourceCall?.kind !== "function" || selected.source?.sourceCallee.expression !== node;
+    }
+    const selected = input.records.selectedConstruction.get(call)?.target;
+    return selected?.kind !== "resolved" && selected?.kind !== "source-owned" ||
+      selected.source.sourceCallee.expression !== node;
+  };
+  const nodes: Node[] = [];
+  for (const node of input.nodes) {
+    if (!budget.step(node)) return Object.freeze({ results,
+      diagnostics: Object.freeze([ownershipDiagnostic(budget.failure()!)]) });
+    if (runtimeNode(node)) nodes.push(node);
+  }
   const unresolved = (at: Node, reason: string): SourceDeclarationOwnershipUnresolved =>
     Object.freeze({ kind: "unresolved", at, reason, cause: Object.freeze({ kind: "required-fact" }) });
   const refused = new WeakSet<Node>();
@@ -93,7 +122,7 @@ export function analyzeCsharpPromiseResults(input: {
       };
       inspect(selected.sourceResultType);
       if (incomplete !== undefined) return incomplete;
-      const output = input.records.valueRead.get(node)?.value;
+      const output = nativeCarrier(node);
       if (output === undefined) return native || js
         ? unresolved(node, "The selected asynchronous operation has no completed native output carrier.")
         : Object.freeze({ kind: "not-async" });
@@ -107,10 +136,7 @@ export function analyzeCsharpPromiseResults(input: {
     },
     retentionFor(request) {
       const { value } = request;
-      const file = ast.getSourceFile(value.node);
-      const operation = ast.is.IsCallExpression(value.node) || ast.is.IsNewExpression(value.node);
-      const carrier = operation || request.kind === "read-value" ? input.records.valueRead.get(value.node)?.value
-        : file === undefined ? undefined : input.sourceCarrier(value.component.selectedType, file);
+      const carrier = nativeCarrier(value.node);
       if (carrier === undefined || carrier.kind === "opaque" || isCsharpRefLikeTargetType(carrier))
         return unresolved(value.node, "Continuation retention requires this exact value's completed native CLR placement and carrier.");
       return Object.freeze({ kind: "resolved", premises: Object.freeze([Object.freeze({ kind: "retained", value,
@@ -119,10 +145,7 @@ export function analyzeCsharpPromiseResults(input: {
     },
     suspensionFor(value) {
       const call = ast.is.IsCallExpression(value.node) || ast.is.IsNewExpression(value.node);
-      const file = ast.getSourceFile(value.node);
-      const carrier = call ? input.records.valueRead.get(value.node)?.value
-        : input.records.valueRead.get(value.node)?.value ??
-          (file === undefined ? undefined : input.sourceCarrier(value.component.selectedType, file));
+      const carrier = nativeCarrier(value.node);
       if (carrier === undefined) return undefined;
       const task = selectCsharpPromiseDiscard(carrier, input.definitions);
       if (task.kind === "unsupported") return unresolved(value.node, task.reason);
@@ -132,12 +155,12 @@ export function analyzeCsharpPromiseResults(input: {
         contract: Object.freeze({ kind: "expression", expression: value.node, component: value.component }) });
     },
   };
-  diagnostics.push(...analyzeCsharpGenericAdoption({ source, projectRoot: input.projectRoot, nodes: input.nodes, premises, budget }));
+  diagnostics.push(...analyzeCsharpGenericAdoption({ source, projectRoot: input.projectRoot, nodes, premises, budget }));
   if (diagnostics.length !== 0) return Object.freeze({ results, diagnostics: Object.freeze(diagnostics) });
-  const ownership = createSourceDeclarationOwnershipQuery({ source, nodes: input.nodes, budget, premises });
-  for (const node of input.nodes) {
+  const ownership = createSourceDeclarationOwnershipQuery({ source, nodes, budget, premises });
+  for (const node of nodes) {
     if (!ast.is.IsCallExpression(node) && !ast.is.IsNewExpression(node)) continue;
-    const carrier = input.records.valueRead.get(node)?.value;
+    const carrier = nativeCarrier(node);
     const selection = carrier === undefined ? undefined : select(carrier, node);
     if (selection === undefined) continue;
     const disposition = sourceExpressionResultDisposition(ast, node);
