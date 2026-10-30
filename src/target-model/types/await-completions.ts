@@ -13,7 +13,7 @@ export interface CsharpAwaitAlternative {
 }
 
 export interface CsharpAwaitCompletion {
-  readonly form: "identity" | "direct" | "void-branches" | "branches";
+  readonly form: "identity" | "direct" | "void-branches" | "branches" | "task-test";
   readonly discard: boolean;
   readonly excludeUnmatched: boolean;
   readonly result: TargetTypeRef;
