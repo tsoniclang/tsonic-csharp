@@ -40,11 +40,20 @@ export interface CsharpCapturedBinding {
   readonly fieldName: string;
 }
 
+export interface CsharpConstructorCaptureProtocol {
+  readonly declaration: Node;
+  readonly owner: Node;
+  readonly scope: Node;
+  readonly places: readonly CsharpOriginalCapturedPlace[];
+  readonly frame: CsharpCaptureFrame;
+}
+
 export interface CsharpCaptureStorage {
   readonly issues: readonly CsharpStorageIssue[];
   readonly frames: readonly CsharpCaptureFrame[];
   readonly lexicalCaptures: readonly CsharpNativeClosureCapture[];
   readonly capturedPlace: { readonly get: (declaration: Node) => CsharpOriginalCapturedPlace | undefined };
+  readonly constructorCapture: { readonly get: (constructor: Node) => CsharpConstructorCaptureProtocol | undefined };
   readonly captureFrame: { readonly get: (scope: Node) => CsharpCaptureFrame | undefined };
   readonly capturedBinding: { readonly get: (declaration: Node) => CsharpCapturedBinding | undefined };
   readonly physicalStorageType: { readonly get: (declaration: Node, logicalType: TargetTypeRef) => TargetTypeRef };
@@ -89,4 +98,5 @@ export interface CsharpCaptureStoragePublication {
   readonly namedSelfBindings: ReadonlyMap<Node, CsharpNamedSelfBinding>;
   readonly helperMembers: ReadonlySet<Node>;
   readonly lexicalDeclarations: ReadonlySet<Node>;
+  readonly constructorCaptures: ReadonlyMap<Node, CsharpConstructorCaptureProtocol>;
 }
