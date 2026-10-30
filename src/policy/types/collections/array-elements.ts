@@ -110,8 +110,9 @@ function flexibleInteger(contribution: CsharpNumericArrayContribution): boolean 
 
 function numericLiteralDefault(contribution: CsharpNumericArrayContribution): TargetTypeRef | undefined {
   const declared = contribution.literalDefault;
-  return declared?.kind === "source-primitive" && declared.name === "float64"
+  const selected = declared?.kind === "source-primitive" && declared.name === "float64"
     ? resolveCsharpSourceLiteralTargetType(contribution.literal) : declared;
+  return selected !== undefined && targetTypeRefEquals(selected, contribution.carrier) ? contribution.carrier : selected;
 }
 
 function fits(candidate: TargetTypeRef, contribution: CsharpNumericArrayContribution): boolean {

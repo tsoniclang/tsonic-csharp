@@ -332,6 +332,8 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
         const declarations = [...new Set([property.symbol, ...property.rootSymbols].flatMap(symbol =>
           queries.declarations.symbolDeclarations(symbol)))];
         const carriers = declarations.map(declaration => {
+          if (host.ast.is.IsPropertyDeclaration(declaration)) return host.typeResolver.resolveNode(declaration,
+            host.ast.getSourceFile(declaration) ?? queries.sourceFile, nextState(state));
           const value = host.ast.is.IsPropertyAssignment(declaration) || host.ast.is.IsShorthandPropertyAssignment(declaration)
             ? ObjectLiteralProperty_Value(host.ast, declaration) : undefined;
           return value === undefined || host.literalValues.literalValue.get(value)?.number !== undefined

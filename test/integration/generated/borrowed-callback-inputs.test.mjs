@@ -109,4 +109,21 @@ for (const surface of [undefined, "js"]) {
     assert.equal(/\.Clone\(|\.ToArray\(|Convert\.ToDouble/u.test(generated), false,
       "declaration-owned member identity and native widths require no copied receiver or conversion helper");
   });
+
+  test(`a direct array argument retains its own declared floating context on ${surface ?? "native"}`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      let calls = 0;
+      function select(values: number[]): number[] { calls += 1; return values; }
+      export function run(): boolean {
+        const direct = select([1, 2]);
+        const alias = direct;
+        direct[0] = 1.5;
+        return calls === 1 && alias === direct && alias[0] === 1.5 && direct[1] === 2;
+      }
+    ` });
+    executeCsharpConstruction(compiled, `direct-declared-array-${surface ?? "native"}`);
+    const generated = [...compiled.artifacts.values()].join("\n");
+    assert.equal(/\.ToArray\(|\.ToList\(|Array\.Copy\(|\.Clone\(/u.test(generated), false,
+      "direct declaration context keeps the original one construction and native alias without a later-use conversion");
+  });
 }
