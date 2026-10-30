@@ -14,7 +14,7 @@ import type { CsharpTypeResolutionState } from "../../source-evidence/types/reso
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { nextState } from "../../source-evidence/types/resolution/state.js";
 import { csharpSourceTemplateState } from "../../source-evidence/types/resolution/type-bindings.js";
-import { substituteObjectShapeMemberTargetTypeParameters } from "../../../policy/types/resolution/substitution.js";
+import { inferCsharpTargetTypeParameterBindings, substituteObjectShapeFactTargetTypeParameters, substituteObjectShapeMemberTargetTypeParameters } from "../../../policy/types/resolution/substitution.js";
 import { isCsharpJsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpPropertySourceMemberKey, csharpSourceMemberKeysEqual } from "../../../target-model/types/source-member-keys.js";
 import { resolveProviderObjectLiteralShape } from "./provider-construction.js";
@@ -343,12 +343,14 @@ export function createCsharpObjectShapePolicy(
     type: Type | undefined,
     sourceFile: SourceFile,
     authoredTypeRoot?: Node,
+    nativeTargets?: readonly TargetTypeRef[],
   ): CsharpObjectShapeFact | undefined {
     return resolveTypeWithState(
       type,
       sourceFile,
       authoredTypeRoot,
       { depth: 0 },
+      nativeTargets,
     );
   }
 
@@ -357,6 +359,7 @@ export function createCsharpObjectShapePolicy(
     sourceFile: SourceFile,
     authoredTypeRoot: Node | undefined,
     state: CsharpTypeResolutionState,
+    nativeTargets?: readonly TargetTypeRef[],
   ): CsharpObjectShapeFact | undefined {
     if (type === undefined) {
       return undefined;
@@ -376,6 +379,7 @@ export function createCsharpObjectShapePolicy(
       undefined,
       authoredLiteral === undefined ? authoredTypeRoot : undefined,
       authoredLiteral === undefined ? undefined : type,
+      nativeTargets,
     );
     return shape === undefined ? undefined : rememberTargetShape(shape);
   }
@@ -531,6 +535,7 @@ export function createCsharpObjectShapePolicy(
     selectedTarget?: TargetTypeRef,
     authoredTypeRoot?: Node,
     literalSourceType?: Type,
+    nativeTargets?: readonly TargetTypeRef[],
   ): CsharpObjectShapeFact | undefined {
     if (
       type === undefined ||
@@ -551,6 +556,39 @@ export function createCsharpObjectShapePolicy(
         const members = native?.sourceType === undefined ? undefined
           : instantiateMemberEvidence(native.members, type, queries, native.sourceType);
         return native === undefined || members === undefined ? undefined : { ...native, sourceType: type, members };
+      }
+      const application = nativeTargets === undefined ? undefined : queries.types.aliasApplication(type);
+      if (application?.kind === "direct" && application.result === type &&
+        host.navigation.isProjectDeclaration(application.declaration) &&
+        host.ast.typeNode(application.declaration) === application.typeNode) {
+        const parameters = host.ast.typeParameters(application.declaration);
+        const declaredType = queries.declarations.declaredType(application.declaration);
+        if (declaredType !== undefined && declaredType !== type && parameters.length === application.bindings.length &&
+          application.bindings.every((binding, index) => binding.declaration === parameters[index] &&
+            host.ast.parent(binding.declaration) === application.declaration)) {
+          const sourceFile = host.ast.getSourceFile(application.declaration);
+          if (sourceFile === undefined) return undefined;
+          const templateState = csharpSourceTemplateState(parameters, nextState(state));
+          const declared = resolveTypeWithState(declaredType, sourceFile, application.typeNode, templateState);
+          const nativeParameters = application.bindings.map(binding =>
+            host.typeResolver.resolveType(binding.parameter, sourceFile, templateState));
+          if (declared?.sourceType !== declaredType || nativeParameters.some(parameter => parameter?.kind !== "type-parameter")) {
+            return undefined;
+          }
+          const identities = new Set(nativeParameters.map(parameter =>
+            (parameter as Extract<TargetTypeRef, { kind: "type-parameter" }>).identity));
+          const targets = nativeTargets!.filter((target, index, all) =>
+            all.findIndex(candidate => targetTypeRefEquals(candidate, target)) === index);
+          const candidates = targets.flatMap(target => {
+            const bindings = inferCsharpTargetTypeParameterBindings(declared.targetType, target, identities);
+            const selected = bindings === undefined ? undefined : substituteObjectShapeFactTargetTypeParameters(declared, bindings);
+            return selected !== undefined && targetTypeRefEquals(selected.targetType, target) ? [selected] : [];
+          });
+          if (candidates.length !== 1) return undefined;
+          const selected = candidates[0]!;
+          const members = instantiateMemberEvidence(selected.members, type, queries, declaredType);
+          return members === undefined ? undefined : { ...selected, sourceType: type, members };
+        }
       }
       const selectedType = selectedTarget ?? (authoredTypeRoot === undefined
         ? host.typeResolver.resolveType(

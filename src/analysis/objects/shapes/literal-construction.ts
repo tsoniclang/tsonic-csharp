@@ -4,7 +4,7 @@ import { createStructuralObjectShapeTarget } from "./construction.js";
 
 import { selectSourceObjectLiteralAccessors, AsSpreadAssignment } from "@tsonic/target-api/source";
 
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 
 import { csharpSourceMemberKeysEqual } from "../../../target-model/types/source-member-keys.js";
@@ -29,7 +29,8 @@ export function createCsharpLiteralShapeResolver(
   host: CsharpObjectShapePolicyHost,
   dependencies: {
     readonly resolveNode: CsharpRecursiveObjectShapePolicy["resolveNode"];
-    readonly resolveType: CsharpRecursiveObjectShapePolicy["resolveType"];
+    readonly resolveType: (type: Type | undefined, sourceFile: SourceFile, authoredTypeRoot?: Node,
+      nativeTargets?: readonly TargetTypeRef[]) => CsharpObjectShapeFact | undefined;
     readonly literalSourceType: (node: Node) => Type | undefined;
     readonly retainLiteralMemberEvidence: ReturnType<typeof createCsharpObjectShapeMemberResolver>["retainLiteralMemberEvidence"];
     readonly instantiateMemberEvidence: ReturnType<typeof createCsharpObjectShapeMemberResolver>["instantiateMemberEvidence"];
@@ -48,7 +49,8 @@ export function createCsharpLiteralShapeResolver(
     const targets = [expected.targetType, ...(expected.implements ?? [])]
       .filter((target, index, all) => all.findIndex(candidate => targetTypeRefEquals(candidate, target)) === index);
     const candidates = targets.flatMap(target => {
-      const selected = instantiateCsharpObjectShape(declared.declarationTemplate ?? declared, target);
+      const selected = instantiateCsharpObjectShape(targetTypeRefEquals(declared.targetType, target)
+        ? declared : declared.declarationTemplate ?? declared, target);
       return selected === undefined || selected.members.length !== expected.members.length ? [] : [selected];
     }).filter(selected => expected.members.every(member => selected.members.filter(candidate =>
       csharpObjectShapeMemberContractKey(candidate) === csharpObjectShapeMemberContractKey(member) &&
@@ -110,11 +112,12 @@ export function createCsharpLiteralShapeResolver(
     const sourceType = selectedSourceType ?? literalSourceType(objectLiteral);
     const actualShape = selectedSourceType !== undefined && expectedShape.sourceType === sourceType ? expectedShape
       : sourceType === undefined ? undefined : resolveType(sourceType, sourceFile, objectLiteral);
-    const ownInput = selectedSourceType !== undefined && expectedShape.sourceType === selectedSourceType;
+    const ownInput = sourceType !== undefined && expectedShape.sourceType === sourceType;
     const context = ownInput ? undefined : selectCsharpLiteralDeclarationContext(objectLiteral, queries, host);
     const declaredType = context?.component.selectedType ?? expectedShape.sourceType;
     const declaredShape = declaredType === undefined || declaredType === expectedShape.sourceType ? undefined
-      : resolveType(declaredType, sourceFile, context?.component.authoredTypeNode);
+      : resolveType(declaredType, sourceFile, context?.component.authoredTypeNode,
+          [expectedShape.targetType, ...(expectedShape.implements ?? [])]);
     const declaredMembers = declaredType === undefined ? undefined : declaredType === expectedShape.sourceType
       ? expectedShape.members.map(member => ({ ...member,
           sourceMemberEvidence: member.sourceMemberEvidence?.filter(evidence => evidence.sourceType === declaredType),
