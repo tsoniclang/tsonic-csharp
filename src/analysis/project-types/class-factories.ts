@@ -20,16 +20,6 @@ export function analyzeCsharpClassFactories(
 ): CsharpClassFactoryIndex {
   const factories: CsharpClassFactory[] = [];
   const issues: CsharpStorageIssue[] = [];
-  const identityDemands = new Set<Node>();
-  const collectIdentityDemands = (node: Node): void => {
-    if (source.ast.is.IsBinaryExpression(node) && source.ast.operatorKindName(node) === "KindInstanceOfKeyword") {
-      const right = source.ast.as.AsBinaryExpression(node)?.Right;
-      const factory = right === undefined ? undefined : getCsharpClassFactory(evidence.nodeTargetType.get(right));
-      if (factory !== undefined) identityDemands.add(factory.declaration);
-    }
-    source.ast.forEachChild(node, child => { if (child !== undefined) collectIdentityDemands(child); });
-  };
-  source.navigation.sourceFiles.forEach(collectIdentityDemands);
   for (const definition of catalog.definitions) {
     if (!definition.local) continue;
     const declaration = definition.declaration;
@@ -58,10 +48,7 @@ export function analyzeCsharpClassFactories(
         ].join(", ")}.` });
       continue;
     }
-    const retainedReferences = [...selected.captures.flatMap(capture => capture.references),
-      ...source.navigation.declarationUses(declaration).filter(use => use.kind !== "type-only").map(use => use.reference)];
-    const requiresInstanceTest = identityDemands.has(declaration);
-    const retainsEnvironment = requiresInstanceTest || retainedReferences.some(reference => {
+    const hasInstanceCaptures = selected.captures.flatMap(capture => capture.references).some(reference => {
       for (let owner = source.ast.parent(reference); owner !== undefined && owner !== declaration; owner = source.ast.parent(owner)) {
         if (source.ast.is.IsMethodDeclaration(owner) || source.ast.is.IsGetAccessorDeclaration(owner) || source.ast.is.IsSetAccessorDeclaration(owner)) {
           return source.ast.parent(owner) === declaration && !source.ast.hasModifierKind(owner, "static");
@@ -74,8 +61,8 @@ export function analyzeCsharpClassFactories(
       instanceName: definition.sourceName, instanceScope: definition.scopeName,
       factoryName: definition.factoryName!, factoryType: type,
       environmentName: names.temporaryName("environment"),
-      contract, captures: Object.freeze(captures as CsharpClassCapture[]), retainsEnvironment, requiresInstanceTest,
-      ...(requiresInstanceTest && definition.sourceTypeParameterCount > 0 ? { identity: Object.freeze({
+      contract, captures: Object.freeze(captures as CsharpClassCapture[]), hasInstanceCaptures,
+      ...(definition.sourceTypeParameterCount > 0 ? { identity: Object.freeze({
         name: definition.factoryIdentityName!,
         type: csharpTargetNamedType(`${definition.id}:factory-identity`, type.typeArguments, { kind: "named", name: definition.factoryIdentityName! }, { allowsRefLikeTypeArguments: (type.typeArguments ?? []).map(() => false),}),
       }) } : {}),

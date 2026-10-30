@@ -53,6 +53,45 @@ test("local class catalogs require exact outer type-parameter evidence", () => {
 });
 
 for (const surface of ["native", "js"]) {
+  test(`local factory identity is declaration-owned without captured storage on ${surface}`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      function make() {
+        class Item { constructor() {} }
+        return { Item, value: new Item() };
+      }
+      function makeGeneric() {
+        class Item<Value> {
+          value: Value;
+          constructor(value: Value) { this.value = value; }
+        }
+        return { Item, value: new Item<number>(1) };
+      }
+      export function run(): boolean {
+        const first = make();
+        const second = make();
+        const genericFirst = makeGeneric();
+        const genericSecond = makeGeneric();
+        return first.value instanceof first.Item && !(first.value instanceof second.Item) &&
+          genericFirst.value instanceof genericFirst.Item && !(genericFirst.value instanceof genericSecond.Item);
+      }
+    ` });
+    assertCsharpCompilationSucceeded(compiled);
+    const program = compiled.result.program;
+    assert.equal(program.classFactories.length, 2, "the two actual local declarations have canonical factory records");
+    for (const factory of program.classFactories) {
+      assert.equal(factory.captures.length === 0 && factory.hasInstanceCaptures === false, true,
+        "factory identity is independent of an invented capture environment");
+      assert.equal(Object.hasOwn(factory, "requiresInstanceTest") || Object.hasOwn(factory, "retainsEnvironment"), false,
+        "the removed whole-use selectors have no compatibility fields");
+      const generic = program.source.ast.typeParameters(factory.declaration).length !== 0;
+      assert.equal((factory.identity !== undefined) === generic, true,
+        "the existing generic identity contract comes from its own declared type parameters");
+    }
+    executeCsharpConstruction(compiled, `declared-factory-identity-${surface}`, false, false, [], `
+if (!Tsonic.Generated.Index.run()) throw new System.Exception("distinct native factory evaluations retain identity");
+`);
+  });
+
   test(`local class native captures and one complete constructor entry remain unchanged on ${surface}`, () => {
     const compiled = compileCsharpSource({ surface, sourceText: `
       function make(seed: number) {
