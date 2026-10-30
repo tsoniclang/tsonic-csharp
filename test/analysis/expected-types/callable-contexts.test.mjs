@@ -66,15 +66,6 @@ function fixture(body, overrides = {}) {
     } } };
   } } };
   const objectShapes = Object.freeze({
-    resolveNativeParameter(declaration, parameter, type) {
-      assert.equal(source.ast.is.IsParameterDeclaration(parameter), true, "checked native value parameter");
-      assert.equal(source.ast.parent(parameter) === declaration, true, "original implementation owns its parameter");
-      const present = getCsharpNullableElementTargetType(type) ?? type;
-      assert.equal(present.kind !== "target-named" ||
-        present.csharpStructuralContract !== true && present.csharpSourceDeclarationKind !== "interface", true,
-        "this fixture has no structural native parameter selection");
-      return Object.freeze({ kind: "resolved", type });
-    },
     resolveNode: () => undefined,
     resolveTarget: () => undefined,
   });
@@ -95,7 +86,16 @@ function fixture(body, overrides = {}) {
   const analyzed = analyzeCsharpCallableContracts(policy, evidence, declarations, names, { genericProjection: Object.freeze({ get: () => [] }) }, source, operations,
     Object.freeze({ typeDefinitions: undefined, projectTypes: policy.projectTypes, providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) }, target: {},
       objectShapes }));
-  return { context, scopedType, type: analyzed.closedInputType(lambda), contract: analyzed.get({ kind: "declaration", declaration: lambda }),
+  const contract = analyzed.get({ kind: "declaration", declaration: lambda });
+  if (contract !== undefined) for (const parameter of contract.parameters) {
+    assert.equal(source.ast.is.IsParameterDeclaration(parameter.sourceParameter), true, "checked native value parameter");
+    assert.equal(source.ast.parent(parameter.sourceParameter) === lambda, true, "original implementation owns its parameter");
+    const present = getCsharpNullableElementTargetType(parameter.targetParameter.type) ?? parameter.targetParameter.type;
+    assert.equal(present.kind !== "target-named" ||
+      present.csharpStructuralContract !== true && present.csharpSourceDeclarationKind !== "interface", true,
+    "this fixture has no structural native parameter selection");
+  }
+  return { context, scopedType, type: analyzed.closedInputType(lambda), contract,
     aliasTypes: source.navigation.expressionValueFlow(lambda).aliasDeclarations.map(alias => analyzed.closedInputType(alias)),
   };
 }

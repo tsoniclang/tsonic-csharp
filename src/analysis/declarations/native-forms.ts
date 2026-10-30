@@ -4,11 +4,14 @@ import type { CsharpProjectTypeClassifications, CsharpProjectTypeHeritage } from
 import type { CsharpNativeDeclarationForm } from "../../target-model/records/native/native-declaration-forms.js";
 import { createCsharpNativeDeclarationRecords } from "../program/records/native/native-declarations.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/objects/required-records.js";
+import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
+import { targetTypeRefKey } from "../../target-model/types/equality.js";
 
 export function analyzeCsharpNativeDeclarationForms(input: {
   readonly ast: AstReader;
   readonly nodes: readonly Node[];
   readonly projectTypes: CsharpProjectTypeClassifications;
+  readonly shapes: Pick<CsharpObjectShapeClassifications, "resolveNode" | "structuralImplementations">;
   readonly required: CsharpRequiredRecord[];
 }) {
   const values = new Map<Node, CsharpNativeDeclarationForm>();
@@ -16,7 +19,13 @@ export function analyzeCsharpNativeDeclarationForms(input: {
   for (const node of input.nodes) {
     if (input.ast.is.IsClassDeclaration(node) || input.ast.is.IsClassExpression(node) || input.ast.is.IsInterfaceDeclaration(node)) {
       const selected = input.projectTypes.heritageForDeclaration(node);
-      if (selected !== undefined) heritage.set(node, selected);
+      if (selected !== undefined) {
+        const shape = input.ast.is.IsInterfaceDeclaration(node) ? undefined : input.shapes.resolveNode(node);
+        const implementations = shape === undefined ? [] : input.shapes.structuralImplementations(shape.targetType);
+        heritage.set(node, implementations.length === 0 ? selected : Object.freeze({ ...selected,
+          interfaces: Object.freeze([...new Map([...selected.interfaces,
+            ...implementations.map(implementation => implementation.interfaceType)].map(type => [targetTypeRefKey(type), type])).values()]) }));
+      }
     }
     if (input.ast.is.IsClassDeclaration(node) || input.ast.is.IsClassExpression(node)) {
       const definition = input.projectTypes.definitionContainingDeclaration(node);

@@ -15,6 +15,7 @@ import { withCsharpSafetyModifiers } from "../safety/explicit-safety.js";
 import { planCsharpArtifactMemberHiding } from "../declarations/modifiers.js";
 import type { CsharpPlannedAddressOperand } from "../expressions/planned-values.js";
 import type { CsharpCaptureMethodEmission } from "../../../target-model/records/callables/capture-methods.js";
+import { renderCsharpNativeDelegateExtractions } from "./authored-methods.js";
 
 export function renderCsharpCaptureFrameMethods(
   shape: CsharpObjectShapeFact, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
@@ -43,6 +44,7 @@ export function renderCsharpCaptureFrameMethods(
   if (methods === undefined) failCsharpPlannerInvariant("An admitted capture frame requires its sealed native method inventory.", frame.scope);
   const publish = (method: CsharpMethodDeclaration, selected: CsharpCaptureMethodEmission): void => {
     members.push(method);
+    members.push(...renderCsharpNativeDelegateExtractions(shape, selected.nativeExtractions, method.name, input, selected.method.declaration));
     for (const contract of selected.protocolMethods) {
       const explicitInterface = csharpTypeFromTargetTypeRef(contract.interface, input.scope.typeParameterNames);
       if (explicitInterface === undefined) failCsharpPlannerInvariant("An admitted captured body requires its renderable native invocation protocol.", selected.method.declaration);

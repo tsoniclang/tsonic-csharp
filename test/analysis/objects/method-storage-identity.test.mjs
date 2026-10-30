@@ -34,16 +34,25 @@ test("selected structural method storage participates in the sole published carr
   });
   const selected = retainCsharpMethodValueContracts({ targetType, members: [member] },
     shape => shape, environment, storage);
-  assert.equal(selected.members[0].methodValueStorage?.kind, "delegate",
-    "the actual first-class method use selects delegate storage");
-  assert.equal(targetTypeRefEquals(selected.targetType, targetType), false,
-    "a physical delegate slot cannot reuse the native method-only carrier identity");
+  assert.equal(selected.members[0].methodValueStorage === undefined, true,
+    "first-class use does not turn a declared native method into a replaceable delegate slot");
+  assert.equal(targetTypeRefEquals(selected.members[0].methodValueContract, targetType), true,
+    "the method signature owns its exact immutable invocation protocol");
+  assert.equal(selected.members[0].sourceDeclarations.length === 1 &&
+    selected.members[0].sourceDeclarations[0] === declaration && selected.members[0].sourceKey === member.sourceKey &&
+    selected.members[0].type === member.type, true,
+  "native method publication retains the exact declaration, member identity and callable signature");
+  assert.equal(targetTypeRefEquals(selected.targetType, targetType), true,
+    "a first-class method use does not replace the declaration-owned native carrier");
   const expected = createStructuralObjectShapeTarget(selected.members, selected.implements, environment, true);
   assert.equal(targetTypeRefEquals(selected.targetType, expected), true,
     "the published carrier is constructed from its final physical members");
   const repeated = retainCsharpMethodValueContracts(selected, shape => shape, environment, storage);
   assert.equal(repeated.targetType === selected.targetType, true,
-    "already selected storage keeps one exact published carrier without another identity path");
+    "repeated publication keeps one exact native carrier without another identity path");
+  assert.equal(targetTypeRefEquals(repeated.members[0].methodValueContract, selected.members[0].methodValueContract) &&
+    repeated.members[0].methodValueStorage === undefined, true,
+  "repeated publication preserves the same immutable invocation contract without a physical slot");
 });
 
 for (const surface of ["native", "js"]) {
@@ -95,13 +104,14 @@ test("a closed readonly method signature retains the same native invocation cont
       members: [removed, member], methodImplementation: implementation };
     const selected = retainCsharpMethodValueContracts(shape, value => value, environment, storage);
     const method = selected.members.find(value => value.sourceName === "run");
-    assert.equal(method.methodValueStorage === undefined, !replacement,
-      "first-class copying cannot manufacture a writable delegate slot for a proven readonly native method view");
-    assert.equal(method.methodValueContract !== undefined, !replacement,
-      "the checked readonly signature retains its exact existing native protocol; actual replacement retains delegate storage");
+    assert.equal(method.methodValueStorage === undefined, true,
+      "source-write history does not turn a declared METHOD into replaceable delegate storage");
+    assert.equal(method.methodValueContract !== undefined, true,
+      "the exact declared method signature owns its immutable native invocation contract");
     assert.equal(selected.methodImplementation === implementation, true, "the exact checked native body provenance is retained, never fabricated");
-    if (replacement) assert.equal(targetTypeRefEquals(method.methodValueStorage.type, member.type), true,
-      "a real writable method keeps its exact selected delegate representation");
+    assert.equal(targetTypeRefEquals(method.type, member.type) && method.sourceDeclarations[0] === declaration &&
+      method.sourceKey === member.sourceKey && selected.members.find(value => value.sourceName === "removed") === removed, true,
+    "both original write histories retain the exact declaration, native callable ABI and ordinary field identities");
   }
 });
 
@@ -136,12 +146,21 @@ test("a nonphysical checked method signature publishes neither physical writes n
   const removed = { sourceKey: { kind: "property", name: "removed" }, sourceName: "removed", targetName: "removed",
     memberKind: "property", type: number };
   const environment = () => assert.fail("the checked monomorphic signature has no generic constraints");
+  const protocols = [];
   const selected = retainCsharpMethodValueContracts({
     targetType: createStructuralObjectShapeTarget([removed, member], undefined, environment, true), members: [removed, member],
-  }, () => assert.fail("an abstract signature cannot manufacture a native method protocol"), environment, storage);
+  }, protocol => { protocols.push(protocol); return protocol; }, environment, storage);
   const method = selected.members.find(value => value.sourceName === "run");
   assert.equal(selected.methodImplementation === undefined, true, "an abstract signature never fabricates a native body");
-  assert.equal(method.methodValueContract === undefined, true, "no physical native protocol is inferred from the signature alone");
-  assert.equal(method.methodValueStorage?.kind, "delegate", "the actual first-class signature retains its selected value storage");
-  assert.equal(targetTypeRefEquals(method.methodValueStorage.type, member.type), true, "the native delegate signature is unchanged");
+  assert.equal(method.methodValueStorage === undefined, true, "the logical method has no replaceable physical slot");
+  assert.equal(method.sourceDeclarations.length === 1 && method.sourceDeclarations[0] === declaration &&
+    method.sourceKey === member.sourceKey && selected.members.find(value => value.sourceName === "removed") === removed, true,
+  "the exact checked method declaration and ordinary field identities are retained");
+  assert.equal(protocols.length === 1 && targetTypeRefEquals(protocols[0].targetType, method.methodValueContract) &&
+    protocols[0].methodImplementation === undefined && protocols[0].members.length === 1 &&
+    protocols[0].members[0].sourceDeclarations[0] === declaration, true,
+  "one abstract invocation protocol retains the exact declaration without inventing an authored body");
+  assert.equal(targetTypeRefEquals(method.type, member.type) &&
+    targetTypeRefEquals(protocols[0].members[0].type, member.type), true,
+  "the complete native argument and result signature is unchanged");
 });

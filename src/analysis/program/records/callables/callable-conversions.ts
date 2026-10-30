@@ -7,10 +7,15 @@ export function createCsharpDelegateContractProducer() {
   const values = new Map<string, Map<string, CsharpDelegateContract>>();
   const records: CsharpDelegateContractRecords = Object.freeze({ delegateContract: Object.freeze({
     get: (source: TargetTypeRef, target: TargetTypeRef) => values.get(targetTypeRefKey(source))?.get(targetTypeRefKey(target)),
+    nativeExtractions: () => Object.freeze([...values.values()].flatMap(targets => [...targets.values()]
+      .flatMap(value => value.nativeExtraction === undefined ? [] : [value.nativeExtraction]))),
   }) });
   let open = true;
-  return Object.freeze({ records, publish(source: TargetTypeRef, target: TargetTypeRef, value: CsharpDelegateContract): void {
+  const requireOpen = (): void => {
     if (!open) failTargetAnalysisInvariant("tsonic-csharp", "Native delegate contracts are immutable after sealing.");
+  };
+  return Object.freeze({ records, requireOpen, publish(source: TargetTypeRef, target: TargetTypeRef, value: CsharpDelegateContract): void {
+    requireOpen();
     const sourceKey = targetTypeRefKey(source);
     const targets = values.get(sourceKey) ?? new Map<string, CsharpDelegateContract>();
     const targetKey = targetTypeRefKey(target);

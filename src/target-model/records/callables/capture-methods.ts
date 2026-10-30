@@ -1,11 +1,13 @@
 import type { CsharpFrameClosure } from "./capture-storage.js";
 import type { CsharpDelegateSignatureShape, CsharpObjectShapeFact, TargetTypeRef } from "../../types/model.js";
 import type { CsharpExplicitImplementationConstraint } from "../../types/generic-constraints.js";
+import type { CsharpNativeDelegateExtraction } from "./callable-conversions.js";
 
 export interface CsharpCaptureMethodEmission {
   readonly method: CsharpFrameClosure;
   readonly form: "declaration" | "arrow" | "function";
   readonly quotation: boolean;
+  readonly nativeExtractions: readonly CsharpNativeDelegateExtraction[];
   readonly returnsVoid: boolean;
   readonly returnType: TargetTypeRef;
   readonly signature: CsharpDelegateSignatureShape & { readonly returnPassing?: undefined };

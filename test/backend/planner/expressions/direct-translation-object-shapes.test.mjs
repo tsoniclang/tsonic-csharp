@@ -6,6 +6,9 @@ import {
   compileCsharpSource,
 } from "../../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../../helpers/native-construction.mjs";
+import { targetTypeRefEquals } from "../../../../dist/target-model/types/equality.js";
+import { getCsharpDelegateSignature } from "../../../../dist/target-model/types/carriers/delegates.js";
+import { csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
 
 test("nullable structural returns preserve exact authored member carriers", () => {
   const compiled = compileCsharpSource({
@@ -272,8 +275,15 @@ for (const surface of [undefined, "js"]) {
       const members = compiled.result.program.objectShapes.knownShapes().flatMap(shape => shape.members)
         .filter(member => member.memberKind === "method" && member.sourceDeclarations?.includes(method));
       assert.equal(members.length > 0, true, "selected shapes retain the exact original method identity");
-      assert.equal(members.every(member => (member.methodValueStorage?.kind === "delegate") === external), true,
-        "only the externally supplied method needs value storage");
+      assert.equal(members.every(member => member.methodValueContract !== undefined &&
+        (member.methodValueStorage === undefined || member.methodValueStorage.kind === "protocol" &&
+          targetTypeRefEquals(member.methodValueStorage.type, member.methodValueContract))), true,
+      "external and closed METHOD declarations retain the same immutable invocation protocol, never replaceable delegate storage");
+      assert.equal(members.every(member => {
+        const signature = getCsharpDelegateSignature(member.type);
+        return signature !== undefined && signature.parameters.length === 0 &&
+          targetTypeRefEquals(signature.returnType, csharpSourcePrimitiveTargetType("float64"));
+      }), true, "the original exact declaration retains its native double result and zero-argument ABI");
       if (!external) {
         const shapes = compiled.artifacts.get("generated/TsonicObjectShapes.cs") ?? "";
         assert.match(shapes, /public double read\(\)/u);

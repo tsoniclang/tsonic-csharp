@@ -113,13 +113,8 @@ function sourceParameterContracts(
   }
   const questionToken = policy.ast.questionToken(parameterNode);
   const runtimeDefault = declarations.runtimeDefault.get(parameterNode);
-  const incomingType: TargetTypeRef = runtimeDefault?.parameterType ??
+  const targetType: TargetTypeRef = runtimeDefault?.parameterType ??
     (questionToken === undefined ? selectedType : csharpNullableTargetType(selectedType));
-  const declaration = policy.ast.parent(parameterNode);
-  if (declaration === undefined) return undefined;
-  const native = policy.objectShapes.resolveNativeParameter(declaration, parameterNode, incomingType);
-  if (native.kind === "rejected") return undefined;
-  const targetType = native.type;
   const resolvedName = HasSourceKind(
       policy.ast,
       parameter.name,

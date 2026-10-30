@@ -14,12 +14,15 @@ import { objectShapeMethodInvocationName, objectShapeStorageMemberName } from ".
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 import { createCsharpStructuralObjectEmissionRecords } from "../program/records/objects/structural-object-emission.js";
 import { selectCsharpObjectMethodSignature } from "../../policy/types/objects/object-members.js";
+import type { CsharpDelegateContractRecords, CsharpNativeDelegateExtraction } from "../../target-model/records/callables/callable-conversions.js";
+import { csharpNativeDelegateExtractionsForOwner, selectCsharpNativeDelegateExtractions } from "../conversions/callable-emission.js";
 
 export function analyzeCsharpStructuralObjectEmission(input: {
   readonly shapes: CsharpObjectShapeClassifications;
   readonly demand: CsharpObjectShapeDemand;
   readonly storage: Pick<CsharpStorageClassifications, "nativeField">;
   readonly captureMethods: CsharpCaptureMethodRecords["captureMethods"];
+  readonly delegateContract: CsharpDelegateContractRecords["delegateContract"];
 }) {
   const values = new Map<string, CsharpStructuralObjectEmission>();
   const issues: TargetDiagnostic[] = [];
@@ -48,6 +51,7 @@ export function analyzeCsharpStructuralObjectEmission(input: {
     const methodValues: CsharpStructuralPropertyEmission[] = [];
     const methods = new Map<CsharpObjectShapeMemberFact, CsharpStructuralMethodEmission>();
     const contracts: CsharpMethodValueContractEmission[] = [];
+    const nativeExtractions = new Map<CsharpObjectShapeMemberFact, readonly CsharpNativeDelegateExtraction[]>();
     const refuse = (message: string, member?: CsharpObjectShapeMemberFact): void => {
       if (artifact === undefined) return;
       issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp",
@@ -59,6 +63,10 @@ export function analyzeCsharpStructuralObjectEmission(input: {
       refuse(`The exact C# structural member has no native type syntax (${reason.reason}).`, member);
       return false;
     };
+    if (structural) for (const extraction of csharpNativeDelegateExtractionsForOwner(shape.targetType, input.delegateContract)) {
+      if (admit(extraction.targetCarrier)) interfaceMembers.push(Object.freeze({ kind: "property",
+        property: Object.freeze({ name: extraction.name, type: extraction.targetCarrier, writable: false }) }));
+    }
     for (const member of shape.members) {
       if (member.memberKind !== "method") {
         if (!structural) continue;
@@ -74,6 +82,8 @@ export function analyzeCsharpStructuralObjectEmission(input: {
         continue;
       }
       let handle: CsharpStructuralPropertyEmission | undefined;
+      const extractions = selectCsharpNativeDelegateExtractions(shape, member, input.delegateContract);
+      nativeExtractions.set(member, extractions);
       if (!handleIsInherited(shape, member)) {
         const valueType = member.methodValueContract ?? member.type;
         const type = member.optional === true ? csharpNullableTargetType(valueType) : valueType;
@@ -162,7 +172,7 @@ export function analyzeCsharpStructuralObjectEmission(input: {
       }
     }
     values.set(key, Object.freeze({ members: Object.freeze(interfaceMembers), methodValues: Object.freeze(methodValues), methods,
-      contracts: Object.freeze(contracts) }));
+      contracts: Object.freeze(contracts), nativeExtractions }));
   }
   return Object.freeze({ records: createCsharpStructuralObjectEmissionRecords(values), issues: Object.freeze(issues) });
 }

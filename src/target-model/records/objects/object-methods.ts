@@ -2,6 +2,7 @@ import type { Node } from "@tsonic/tsts";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../types/model.js";
 import type { CsharpObjectMemberDeclaration } from "./object-members.js";
 import type { CsharpExplicitImplementationConstraint } from "../../types/generic-constraints.js";
+import type { CsharpNativeDelegateExtraction } from "../callables/callable-conversions.js";
 
 export interface CsharpObjectCaptureField {
   readonly name: string;
@@ -14,6 +15,7 @@ export interface CsharpAuthoredObjectMethod {
   readonly declaration: Node;
   readonly name: string;
   readonly handleName: string | undefined;
+  readonly nativeExtractions: readonly CsharpNativeDelegateExtraction[];
   readonly bodyInvocation: { readonly interface: TargetTypeRef; readonly name: string;
     readonly explicitConstraints: readonly CsharpExplicitImplementationConstraint[] } | undefined;
   readonly emission: Extract<CsharpObjectMemberDeclaration, { readonly kind: "authored" }>;

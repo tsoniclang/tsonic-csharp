@@ -5,6 +5,8 @@ import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 import { csharpObjectMethodValueIsExtracted } from "../../../dist/analysis/objects/shapes/method-values.js";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
+import { csharpSourceMemberKeysEqual } from "../../../dist/target-model/types/source-member-keys.js";
 
 for (const [label, operation, extracted] of [
   ["direct native method", "", false],
@@ -71,13 +73,19 @@ test("a holder passed to a declared external mutator retains its extracted metho
     !source.navigation.declarationUseSummary(boundary.exposure).exported), true,
   "the declared external call is not only an exported-function boundary");
   assert.equal(csharpObjectMethodValueIsExtracted(storage, method), true,
-    "a declared external mutator must retain the replaceable method value, not a fixed native method");
+    "a declared external boundary retains the actual method extraction observation");
   assert.equal(storage.failureReason(), undefined, "the external-mutator proof uses the existing storage budget");
   const compiled = compileCsharpSource({ sourceText });
   assertCsharpCompilationSucceeded(compiled);
   const members = compiled.result.program.objectShapes.knownShapes()
     .flatMap(shape => shape.members.filter(member => member.sourceName === "run"));
   assert.equal(members.length > 0, true, "the actual checked method reaches C# shape selection");
-  assert.equal(members.every(member => member.methodValueStorage !== undefined), true,
-    "every emitted view of the externally mutable method retains its physical callable slot");
+  assert.equal(members.every(member => member.methodValueContract !== undefined &&
+    (member.methodValueStorage === undefined || member.methodValueStorage.kind === "protocol" &&
+      targetTypeRefEquals(member.methodValueStorage.type, member.methodValueContract)) &&
+    csharpSourceMemberKeysEqual(member.sourceKey, members[0].sourceKey) &&
+    targetTypeRefEquals(member.type, members[0].type) &&
+    targetTypeRefEquals(member.methodValueContract, members[0].methodValueContract) &&
+    (member.sourceDeclarations?.length ?? 0) > 0), true,
+  "each exact source member retains one declaration-owned immutable native invocation protocol or original-handle forwarding, not a replaceable delegate slot");
 });

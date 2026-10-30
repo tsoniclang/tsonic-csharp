@@ -17,6 +17,7 @@ import { selectCsharpObjectMemberEmission, selectCsharpObjectMethodSignature } f
 import { csharpOptionalStorageProjection, csharpProjectedType } from "../../../dist/target-model/types/projections.js";
 import { createStructuralObjectShapeTarget } from "../../../dist/analysis/objects/shapes/construction.js";
 import { analyzeCsharpStructuralObjectEmission } from "../../../dist/analysis/objects/structural-emission.js";
+import { csharpDelegateContractRecord } from "../../helpers/planning-records.mjs";
 import { renderObjectShapeMembers } from "../../../dist/backend/planner/objects/members.js";
 import { renderCsharpStructuralInterfaceMembers } from "../../../dist/backend/planner/objects/structural-interfaces.js";
 import { renderCsharpMethodValueContracts } from "../../../dist/backend/planner/objects/method-values.js";
@@ -80,6 +81,7 @@ test("inherited optional method handles retain every original native interface o
     members: [count, method], implements: [derived.targetType] };
   const shapes = [base, derived, producer];
   const selected = analyzeCsharpStructuralObjectEmission({
+    delegateContract: csharpDelegateContractRecord([]),
     captureMethods: { get: () => undefined },
     shapes: { knownShapes: () => shapes, resolveTarget: type => shapes.find(shape => targetTypeRefEquals(shape.targetType, type)) },
     demand: { artifacts: [], get: key => key === objectShapeArtifactKey(base) ? undefined
@@ -105,6 +107,7 @@ test("inherited optional method handles retain every original native interface o
   const dataProducer = { ...producer, members: [optionalData, required], implements: [dataBase.targetType] };
   const dataShapes = [dataBase, dataProducer];
   const dataEmission = analyzeCsharpStructuralObjectEmission({
+    delegateContract: csharpDelegateContractRecord([]),
     captureMethods: { get: () => undefined },
     shapes: { knownShapes: () => dataShapes, resolveTarget: type => dataShapes.find(shape => targetTypeRefEquals(shape.targetType, type)) },
     demand: { artifacts: [], get: key => key === objectShapeArtifactKey(dataProducer)
@@ -129,6 +132,7 @@ test("native write-consuming interfaces require real producer slots and emit rea
     const producer = makeProducer(current);
     const shapes = [base, writable, producer];
     const selected = analyzeCsharpStructuralObjectEmission({
+      delegateContract: csharpDelegateContractRecord([]),
       captureMethods: { get: () => undefined },
       shapes: { knownShapes: () => shapes, resolveTarget: type => shapes.find(shape => targetTypeRefEquals(shape.targetType, type)) },
       demand: { artifacts: [], get: key => ({ capabilities: ["method-values"], receiverBoundMethodKeys: [],
@@ -178,6 +182,7 @@ test("an optional native method keeps its immutable present body distinct from i
     methodImplementation: { declaration: {}, methods: [declaration], captures: [] } };
   const shapes = [protocolShape, base, writable, producer];
   const selected = analyzeCsharpStructuralObjectEmission({
+    delegateContract: csharpDelegateContractRecord([]),
     captureMethods: { get: () => undefined },
     shapes: { knownShapes: () => shapes, resolveTarget: type => shapes.find(shape => targetTypeRefEquals(shape.targetType, type)) },
     demand: { artifacts: [], get: key => ({ capabilities: ["method-values"], receiverBoundMethodKeys: [],
@@ -214,7 +219,7 @@ test("a captured invocation handle requires its single completed original native
     nativeParameters: [{ sourceParameter: {}, targetParameter: { type: scalar, passingMode: "by-value" } }] };
   const completed = analyzeCsharpCaptureMethods({ getSourceFile: () => ({}), is: {
     IsFunctionDeclaration: () => false, IsArrowFunction: () => true,
-  } }, { frames: [frame] }, shapes, { get: () => body });
+  } }, { frames: [frame] }, shapes, { get: () => body }, csharpDelegateContractRecord([]));
   assert.equal(completed.issues.length, 0, "the existing body owner validates the complete native signature first");
   const record = completed.records.captureMethods.get(shape)[0];
   assert.equal(record.method === method && record.protocolMethods.length === 1, true,
@@ -224,6 +229,7 @@ test("a captured invocation handle requires its single completed original native
     : key === objectShapeArtifactKey(protocolShape)
       ? { capabilities: ["method-values"], receiverBoundMethodKeys: [], materialization: "declared" } : undefined };
   const classify = captureMethods => analyzeCsharpStructuralObjectEmission({ shapes, demand,
+    delegateContract: csharpDelegateContractRecord([]),
     captureMethods, storage: { nativeField: { get: () => undefined } } });
   const selected = classify(completed.records.captureMethods);
   assert.equal(selected.issues.length, 0, "an actually completed body needs no invented data member or delegate");
@@ -255,7 +261,7 @@ test("a captured source body cannot acquire reference-return or parameter semant
       csharpDelegateSignature: signature };
     const method = { declaration, methodName: "invoke", type, captures: [], receivers: [] };
     return analyzeCsharpCaptureMethods(ast, { frames: [{ shape, methods: [method] }] },
-      { resolveTarget: () => undefined }, { get: () => admittedBody });
+      { resolveTarget: () => undefined }, { get: () => admittedBody }, csharpDelegateContractRecord([]));
   };
   const ordinaryResult = observe(ordinary.csharpDelegateSignature);
   assert.equal(ordinaryResult.issues.length, 0, "the actual ordinary value body remains admitted");
@@ -522,7 +528,8 @@ for (const returnPassing of [undefined, "byref-readwrite", "byref-readonly"]) {
       assert.equal(signature.parameters.every((parameter, index) => parameter.passingMode === modes[index]) &&
         signature.returnPassing === returnPassing, true, "object member publication retains every exact native passing mode");
       const shapes = [shape, protocolShape];
-      const structural = analyzeCsharpStructuralObjectEmission({ captureMethods: { get: () => undefined }, shapes: { knownShapes: () => shapes,
+      const structural = analyzeCsharpStructuralObjectEmission({ delegateContract: csharpDelegateContractRecord([]),
+        captureMethods: { get: () => undefined }, shapes: { knownShapes: () => shapes,
         resolveTarget: type => shapes.find(candidate => targetTypeRefEquals(candidate.targetType, type)) },
       demand: { artifacts: [], get: () => undefined }, storage: { nativeField: { get: () => undefined } } });
       assert.equal(structural.issues.length, 0, "complete native signature evidence is admitted before syntax rendering");

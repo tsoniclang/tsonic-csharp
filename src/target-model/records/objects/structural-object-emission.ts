@@ -2,6 +2,7 @@ import type { Node } from "@tsonic/tsts";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../types/model.js";
 import type { CsharpTypeParameterConstraint } from "../../types/generic-constraints.js";
 import type { CsharpObjectMethodSignature } from "./object-members.js";
+import type { CsharpNativeDelegateExtraction } from "../callables/callable-conversions.js";
 
 export interface CsharpStructuralMethodEmission extends Omit<CsharpObjectMethodSignature, "returnsVoid"> {
   readonly name: string;
@@ -36,6 +37,7 @@ export interface CsharpStructuralObjectEmission {
   readonly methodValues: readonly CsharpStructuralPropertyEmission[];
   readonly methods: ReadonlyMap<CsharpObjectShapeMemberFact, CsharpStructuralMethodEmission>;
   readonly contracts: readonly CsharpMethodValueContractEmission[];
+  readonly nativeExtractions: ReadonlyMap<CsharpObjectShapeMemberFact, readonly CsharpNativeDelegateExtraction[]>;
 }
 
 export interface CsharpStructuralObjectEmissionRecords {

@@ -20,15 +20,14 @@ import { resolveCsharpProviderIndexedAccess } from "./indexed-access.js";
 import { csharpSourceStorageContext, csharpSourceStorageComponentContext } from "./source-storage-projection.js";
 
 import { selectCsharpParameterListCarrier } from "../../../../policy/types/callables/parameter-list.js";
-import { resolveCsharpNativeParameterCarrier, selectCsharpContextualParameterCarrier } from "./source-references.js";
+import { selectCsharpContextualParameterCarrier } from "./source-references.js";
 export function resolveNodeWithState(
   scope: CsharpTypeResolutionScope,
   node: Node | undefined,
   sourceFile: SourceFile | undefined,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
-  const selected = resolveNodeCarrierWithState(scope, node, sourceFile, state);
-  return node === undefined ? selected : resolveCsharpNativeParameterCarrier(scope, node, selected, state);
+  return resolveNodeCarrierWithState(scope, node, sourceFile, state);
 }
 
 function resolveNodeCarrierWithState(

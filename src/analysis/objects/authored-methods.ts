@@ -10,6 +10,8 @@ import { csharpObjectShapeMethodDeclaration } from "../../target-model/types/met
 import { objectShapeMethodInvocationName, objectShapeStorageMemberName } from "../../target-model/names/object-members.js";
 import { createCsharpObjectMethodRecords } from "../program/records/objects/object-methods.js";
 import { selectCsharpExplicitImplementationConstraints } from "../../policy/constraints/type-parameter-constraints.js";
+import type { CsharpDelegateContractRecords } from "../../target-model/records/callables/callable-conversions.js";
+import { selectCsharpNativeDelegateExtractions } from "../conversions/callable-emission.js";
 
 export function analyzeCsharpAuthoredObjectMethods(input: {
   readonly ast: AstReader;
@@ -17,6 +19,7 @@ export function analyzeCsharpAuthoredObjectMethods(input: {
   readonly shapes: CsharpObjectShapeClassifications;
   readonly captures: CsharpCaptureStorage;
   readonly members: CsharpObjectMemberRecords;
+  readonly delegateContract: CsharpDelegateContractRecords["delegateContract"];
 }) {
   const captures = new Map<string, readonly CsharpObjectCaptureField[]>();
   const methods = new Map<string, readonly CsharpAuthoredObjectMethod[]>();
@@ -60,6 +63,7 @@ export function analyzeCsharpAuthoredObjectMethods(input: {
         const emission = input.members.objectMember.get(shape, member)?.declaration;
         if (emission?.kind !== "authored") failTargetAnalysisInvariant("tsonic-csharp", "A native object method requires its single admitted body and callable-value layout.", declaration);
         declarations.push(Object.freeze({ declaration, name: member.targetName,
+          nativeExtractions: selectCsharpNativeDelegateExtractions(shape, member, input.delegateContract),
           bodyInvocation: member.methodValueContract === undefined ? undefined
             : Object.freeze({ interface: member.methodValueContract, name: objectShapeMethodInvocationName(member),
               explicitConstraints: selectCsharpExplicitImplementationConstraints(member.typeParameters ?? [],

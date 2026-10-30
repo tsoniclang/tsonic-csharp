@@ -98,7 +98,7 @@ test("mutated native-binding selections and unsupported byref lambdas fail close
     const refSource = nativeDelegate("RefSource", "byref-readwrite");
     const refTarget = nativeDelegate("RefTarget", "byref-readwrite");
     const producer = createCsharpDelegateContractProducer();
-    admitCsharpDelegateEmission(producer, refSource, refTarget, selected);
+    admitCsharpDelegateEmission(producer, refSource, refTarget, selected, { resolveTarget: () => undefined });
     const issues = admitCsharpDelegateOperand({ is: { IsArrowFunction: node => node === lambda, IsFunctionExpression: () => false } },
       { captureClosure: { get: () => undefined }, lambdaCreation: { get: () => ({ kind: "inline" }) } },
       producer, lambda, refSource, refTarget, selected);

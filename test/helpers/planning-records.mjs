@@ -22,7 +22,8 @@ export function csharpTypeEmissionRecord({ targetShapes = {}, languageDialect = 
 // records.delegateContract for exactly the admitted [source, target, selection] conversions.
 export function csharpDelegateContractRecord(conversions) {
   const producer = createCsharpDelegateContractProducer();
-  for (const [source, target, selection] of conversions) admitCsharpDelegateEmission(producer, source, target, selection);
+  for (const [source, target, selection] of conversions)
+    admitCsharpDelegateEmission(producer, source, target, selection, { resolveTarget: () => undefined });
   producer.seal();
   return producer.records.delegateContract;
 }

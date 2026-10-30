@@ -98,7 +98,13 @@ function renderMember(
         typeArguments: (member.typeParameters ?? []).map(parameter => render({ kind: "type-parameter", identity: parameter.identity, name: parameter.name })) },
         arguments: method.parameters.map(parameter => ({ kind: "Argument", expression: { kind: "IdentifierName", name: parameter.name },
           ...(parameter.passing === undefined ? {} : { passing: parameter.passing }) })) };
-      return [{ kind: "FieldDeclaration", name, type: render(selected.storage), modifiers: publicModifiers(name, true) },
+      const extractions = records.structuralObject.get(shape)?.nativeExtractions.get(member);
+      if (extractions === undefined) failCsharpPlannerInvariant("An admitted copied method requires its completed native extraction inventory.", subject);
+      return [...extractions.map((extraction): CsharpTypeMember => ({ kind: "PropertyDeclaration", name: extraction.name,
+        type: render(extraction.targetCarrier), modifiers: publicModifiers(extraction.name),
+        getter: { kind: "Block", statements: [{ kind: "ReturnStatement", expression: { kind: "SimpleMemberAccessExpression",
+          receiver: { kind: "IdentifierName", name }, name: extraction.name } }] } })),
+        { kind: "FieldDeclaration", name, type: render(selected.storage), modifiers: publicModifiers(name, true) },
         { ...method, modifiers: publicModifiers(member.targetName), body: { kind: "Block", statements: [
           selected.signature.returnsVoid ? { kind: "ExpressionStatement", expression: call }
             : { kind: "ReturnStatement", expression: call, ...(method.returnPassing === undefined ? {} : { ref: true as const }) },
