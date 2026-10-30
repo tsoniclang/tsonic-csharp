@@ -7,6 +7,8 @@ import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import { planCsharpGeneratedMethodCall } from "../../declarations/generated-methods.js";
 import { renderCsharpTargetTypeArguments } from "./helpers.js";
 import { runtimeUnionArmProjection, runtimeUnionArmTest } from "../union-access.js";
+import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
+import { applyCsharpConversionSelection } from "../conversions.js";
 
 export function planCsharpUnionDispatcherCall(
   node: Node,
@@ -31,6 +33,8 @@ export function planCsharpUnionDispatcherCall(
     kind: "Argument", expression: { kind: "IdentifierName", name: `argument${index}` },
   }));
   const statements: CsharpStatement[] = [];
+  const sourceFile = input.program.source.ast.getSourceFile(node);
+  if (sourceFile === undefined) failCsharpPlannerInvariant("An admitted union dispatcher requires its original checked source owner.", node);
   for (const [index, method] of union.methods.entries()) {
     const invocation: CsharpExpression = {
       kind: "InvocationExpression",
@@ -42,9 +46,26 @@ export function planCsharpUnionDispatcherCall(
       },
       arguments: forwarded,
     };
+    const result = method.result;
+    if (result.completion !== undefined && result.completion.form !== "direct" &&
+      !targetTypeRefEquals(result.nativeType, result.selectedType)) {
+      failCsharpPlannerInvariant("A deferred union-arm Promise completion must retain its exact physical Task carrier.", node);
+    }
+    const completed: CsharpExpression = result.completion?.form === "direct" ? {
+      kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression", receiver: {
+        kind: "SimpleMemberAccessExpression", receiver: {
+          kind: "AliasQualifiedName", alias: "global", name: { kind: "QualifiedName", left: {
+            kind: "QualifiedName", left: { kind: "IdentifierName", name: "System" }, name: "Threading",
+          }, name: "Tasks" },
+        }, name: "TaskExtensions",
+      }, name: "Unwrap" }, arguments: [{ kind: "Argument", expression: invocation }],
+    } : invocation;
+    const converted = applyCsharpConversionSelection(node, sourceFile, input, diagnostics,
+      result.selectedType, union.resultType, method.conversion, completed);
+    if (converted === undefined) return undefined;
     const branch: readonly CsharpStatement[] = selected.void
-      ? [{ kind: "ExpressionStatement", expression: invocation }, { kind: "ReturnStatement" }]
-      : [{ kind: "ReturnStatement", expression: invocation }];
+      ? [{ kind: "ExpressionStatement", expression: converted }, { kind: "ReturnStatement" }]
+      : [{ kind: "ReturnStatement", expression: converted }];
     if (index === union.methods.length - 1) statements.push(...branch);
     else statements.push({
       kind: "IfStatement",
