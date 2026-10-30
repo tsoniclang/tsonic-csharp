@@ -63,7 +63,7 @@ test("a checked native nominal view preserves nonunion storage when the checked 
     const view = csharpRuntimeErrorTargetType();
     const foreign = { ...storage, id: "ForeignOwner::Writable" };
     const guardDeclaration = source.ast.statements(file).find(node => source.ast.is.IsFunctionDeclaration(node) &&
-      source.ast.text(source.ast.as.AsFunctionDeclaration(node)?.Name) === "isWritable");
+      source.ast.text(source.ast.name(node)) === "isWritable");
     const host = {
       ast: source.ast, navigation: source.navigation, sourceFacts: source.sourceFacts,
       semantics: selectedFile => source.semantics.forFile(selectedFile), semanticsFor: node => source.semantics.forNode(node),
