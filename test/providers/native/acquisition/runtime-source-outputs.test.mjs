@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
@@ -66,6 +66,43 @@ test("a dependency-coherent metadata build still refuses invalid native source",
   assert.equal(acquired.diagnostic.extensionCode, "DOTNET_RUNTIME_METADATA_BUILD_FAILED", "the native owner keeps its exact refusal");
   assert.equal(acquired.diagnostic.evidence.some(entry => typeof entry.details?.status === "number" && entry.details.status !== 0 &&
     String(entry.details?.stdout).includes("MissingValue")), true, "the actual native failure evidence remains available");
+});
+
+test("runtime proofs ignore HTTP-cache relocation but retain every other NuGet environment input", { timeout: 300_000 }, () => {
+  const current = fixture();
+  const previousHttpCache = process.env.NUGET_HTTP_CACHE_PATH;
+  const previousXmlMode = process.env.NUGET_XMLDOC_MODE;
+  try {
+    process.env.NUGET_HTTP_CACHE_PATH = join(current.root, "http-cache-first");
+    const first = acquireCsharpRuntimeSources(current.preparation, current.toolchain);
+    assert.equal(first.kind, "resolved", "the original native outputs acquire with the first private HTTP cache");
+    const metadataRoot = join(current.preparation.cacheRoot, "csharp", "runtime-metadata");
+    const proofs = readdirSync(metadataRoot).map(name => join(metadataRoot, name, "proof.json")).filter(existsSync);
+    assert.equal(proofs.length, 2, "both actual native projects publish their own proof");
+    const original = proofs.map(path => ({ path, text: readFileSync(path, "utf8"), modified: statSync(path, { bigint: true }).mtimeNs }));
+    const outputs = original.flatMap(proof => JSON.parse(proof.text).outputs).map(output => ({
+      path: output.path, modified: statSync(output.path, { bigint: true }).mtimeNs,
+    }));
+    process.env.NUGET_HTTP_CACHE_PATH = join(current.root, "http-cache-second");
+    const relocated = acquireCsharpRuntimeSources(current.preparation, current.toolchain);
+    assert.equal(relocated.kind, "resolved", "relocating only the HTTP cache retains valid native references");
+    assert.deepEqual(relocated.references, first.references, "the complete exact reference inventory is unchanged");
+    assert.equal(original.every(proof => readFileSync(proof.path, "utf8") === proof.text &&
+      statSync(proof.path, { bigint: true }).mtimeNs === proof.modified), true,
+    "the published proofs are reused without a rebuild or replacement");
+    assert.equal(outputs.every(output => statSync(output.path, { bigint: true }).mtimeNs === output.modified), true,
+      "no implementation or reference assembly is rewritten while another compiler may be reading it");
+    process.env.NUGET_XMLDOC_MODE = previousXmlMode === "skip" ? "none" : "skip";
+    const changed = acquireCsharpRuntimeSources(current.preparation, current.toolchain);
+    assert.equal(changed.kind, "resolved", "the remaining NuGet input still permits a fresh verified native build");
+    assert.equal(original.every(proof => JSON.parse(readFileSync(proof.path, "utf8")).inputFingerprint !==
+      JSON.parse(proof.text).inputFingerprint), true, "other NuGet environment inputs still invalidate every affected proof");
+  } finally {
+    if (previousHttpCache === undefined) delete process.env.NUGET_HTTP_CACHE_PATH;
+    else process.env.NUGET_HTTP_CACHE_PATH = previousHttpCache;
+    if (previousXmlMode === undefined) delete process.env.NUGET_XMLDOC_MODE;
+    else process.env.NUGET_XMLDOC_MODE = previousXmlMode;
+  }
 });
 
 test("equal native project basenames keep their exact distinct output and intermediate identities", { timeout: 300_000 }, () => {
