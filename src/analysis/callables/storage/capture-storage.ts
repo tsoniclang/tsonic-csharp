@@ -1,11 +1,9 @@
-import type { CsharpCaptureFrame, CsharpCaptureStorage, CsharpCapturedBinding, CsharpLambdaCreation } from "../../../target-model/records/callables/capture-storage.js";
+import type { CsharpCaptureFrame, CsharpCaptureStorage, CsharpCapturedBinding, CsharpCaptureProtocol } from "../../../target-model/records/callables/capture-storage.js";
 import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import { sourceCallableDefinitionIsDiscarded, sourceBindingScope, sourceBindingHasSingleCaptureOwner, sourceNodeIdentity, sourceBindingCapturedBeforeInitialization, sourceBindingCapturedBeforeFirstWrite, sourceLexicalFunctionValueCreation, sourceLexicalFunctionValueOrder } from "@tsonic/target-api/source";
-import { sourceClosedCallableArguments, sourceExpressionCallArgument } from "@tsonic/target-api/source";
-import type { SourceLexicalValueCreation } from "@tsonic/target-api/source";
+import { sourceCallableDefinitionIsDiscarded, sourceBindingScope, sourceNodeIdentity, sourceBindingCapturedBeforeInitialization, sourceBindingCapturedBeforeFirstWrite } from "@tsonic/target-api/source";
 import { createHash } from "node:crypto";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpObjectShapeClassifications } from "../../../target-model/records/objects/object-shapes.js";
 import type { CsharpStorageIssue } from "../../../target-model/records/storage/storage.js";
 import type { CsharpCaptureStorageQueries } from "../../storage/index.js";
@@ -13,22 +11,15 @@ import { createStructuralObjectShapeTarget } from "../../objects/shapes/construc
 import { csharpRuntimeLocationTargetType, csharpRuntimeNativeArrayTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";
-import { selectCsharpFrameClosures } from "../values/capture-closures.js";
+import { analyzeCsharpNativeCaptures } from "../values/capture-closures.js";
 import { type CsharpFrameClosure } from "../../../target-model/records/callables/capture-storage.js";
 import { csharpTargetNamedType } from "../../../target-model/types/factories.js";
 import { selectCsharpGenericFrameClosures } from "../generics/generic-closures.js";
-import { getCsharpMethodValue, csharpObjectShapeMethodDeclaration } from "../../../target-model/types/method-values.js";
-import type { CsharpSourceNameResolver } from "../../names/plan.js";
+import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import { createCsharpTypeParameterEnvironment } from "../../source-evidence/types/resolution/type-parameter-environment.js";
 
 import { csharpCapturedMemberAccess } from "../values/captured-member-access.js";
-import type { CsharpDeclarationClassifications } from "../../../target-model/records/program/declarations.js";
-import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations/operations.js";
-import type { CsharpExpectedTypeClassifications } from "../../../target-model/records/types/expected-types.js";
-import { getCsharpExpressionTreeDelegateType } from "../../../target-model/types/carriers/delegates.js";
-import { HasSyntacticModifier, ModifierFlagsAsync } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import type { CsharpPreparedConversionClassifications } from "../../conversions/model.js";
 
 export function analyzeCsharpCaptureStorage(
   source: TargetSourceProgram,
@@ -36,14 +27,17 @@ export function analyzeCsharpCaptureStorage(
   storage: CsharpCaptureStorageQueries,
   evidence: CsharpSourceEvidenceIndex,
   classCaptures: readonly import("../../../target-model/records/objects/class-factories.js").CsharpClassCapture[],
-  names: CsharpSourceNameResolver,
-  declarations: CsharpDeclarationClassifications,
-  operations: CsharpTargetOperationClassifications,
-  expectedTypes: Pick<CsharpExpectedTypeClassifications, "callableTarget" | "expectedType">,
-  conversions: Pick<CsharpPreparedConversionClassifications, "expressionConversion">,
 ): CsharpCaptureStorage {
   const environment = createCsharpTypeParameterEnvironment(source.ast, declaration => evidence.typeParameterConstraints.get(declaration));
   const groups = new Map<Node, Map<Node, TargetTypeRef>>();
+  const protocols = new Map<Node, CsharpCaptureProtocol[]>();
+  const retainProtocol = (scope: Node, protocol: CsharpCaptureProtocol): void => {
+    const previous = protocols.get(scope) ?? [];
+    if (!previous.some(selected => selected.kind === protocol.kind && selected.declaration === protocol.declaration)) {
+      previous.push(Object.freeze(protocol));
+      protocols.set(scope, previous);
+    }
+  };
   const issues: CsharpStorageIssue[] = [];
   const physicalTypes = new WeakMap<Node, TargetTypeRef | null>();
   const physicalType = (declaration: Node, logicalType: TargetTypeRef): TargetTypeRef => {
@@ -60,7 +54,6 @@ export function analyzeCsharpCaptureStorage(
     for (const capture of (shape.declarationTemplate ?? shape).methodImplementation?.captures ?? []) {
       physicalType(capture.declaration, capture.type);
       if (!capture.mutable || storage.nativeBacking.get(capture.declaration) !== undefined) continue;
-      if (!shapes.methodImplementationHasCopies(shape) && hasSingleCaptureOwner(source, capture.declaration, shape.declarationTemplate ?? shape)) continue;
       const scope = sourceBindingScope(capture.declaration, source.ast);
       if (scope === undefined || source.ast.is.IsSourceFile(scope)) {
         issues.push({ node: capture.declaration, code: "CSHARP_CAPTURE_SCOPE_NOT_CLOSED",
@@ -76,6 +69,7 @@ export function analyzeCsharpCaptureStorage(
       }
       bindings.set(capture.declaration, type);
       groups.set(scope, bindings);
+      retainProtocol(scope, { kind: "method", declaration: (shape.declarationTemplate ?? shape).methodImplementation!.declaration });
     }
   }
   for (const capture of classCaptures) {
@@ -87,6 +81,16 @@ export function analyzeCsharpCaptureStorage(
         message: "A mutable class capture requires its exact lexical activation scope." });
       continue;
     }
+    let owner: Node | undefined = capture.reference;
+    while (owner !== undefined && !source.ast.is.IsClassDeclaration(owner) && !source.ast.is.IsClassExpression(owner)) {
+      owner = source.ast.parent(owner);
+    }
+    if (owner === undefined) {
+      issues.push({ node: capture.declaration, code: "CSHARP_CAPTURE_SCOPE_NOT_CLOSED",
+        message: "A mutable class capture requires its actual checked class declaration." });
+      continue;
+    }
+    retainProtocol(scope, { kind: "class", declaration: owner });
     const bindings = groups.get(scope) ?? new Map<Node, TargetTypeRef>();
     const type = physicalType(capture.declaration, capture.type);
     const existing = bindings.get(capture.declaration);
@@ -109,43 +113,33 @@ export function analyzeCsharpCaptureStorage(
   };
   source.navigation.sourceFiles.forEach(collectCreationDemand);
   const creationDemand = Object.freeze({ get: (declaration: Node) => creationDemandValues.get(declaration) });
-  const genericClosures = selectCsharpGenericFrameClosures(source, evidence, groups, physicalType, issues, creationDemand, expectedTypes);
-  const genericDeclarations = new Set(genericClosures.map(closure => closure.declaration));
-  const frameClosures = selectCsharpFrameClosures(source, evidence, groups, physicalType, issues, genericDeclarations,
-    { declarations, storage, expectedTypes }, creationDemand);
-  const namedSelfBindings = new Map(frameClosures.namedSelfBindings.map(binding => [binding.declaration, binding]));
-  const captureFreeDeclarations = new Set(frameClosures.captureFreeDeclarations);
-  const lambdaCreations = new Map<Node, CsharpLambdaCreation>();
-  const closures = [...frameClosures.closures,
-    ...genericClosures.filter(closure => closure.scope !== closure.declaration)];
+  const nativeCaptures = analyzeCsharpNativeCaptures(source, evidence, physicalType, issues, creationDemand);
+  const genericClosures = selectCsharpGenericFrameClosures(source, evidence, nativeCaptures.lexicalCaptures, groups, issues);
+  for (const closure of genericClosures) for (const capture of closure.captures) {
+    const scope = sourceBindingScope(capture, source.ast);
+    if (scope !== undefined && groups.get(scope)?.has(capture)) {
+      retainProtocol(scope, { kind: "quantified", declaration: closure.declaration });
+    }
+  }
+  const namedSelfBindings = new Map(nativeCaptures.namedSelfBindings.map(binding => [binding.declaration, binding]));
   const byScope = new Map<Node, CsharpCaptureFrame>();
   const byBinding = new Map<Node, CsharpCapturedBinding>();
   const byClosure = new Map<Node, import("../../../target-model/records/callables/capture-storage.js").CsharpCaptureClosure>();
   const retainClosure = (frame: CsharpCaptureFrame, method: CsharpFrameClosure): void => {
-    byClosure.set(method.declaration, Object.freeze({ frame, method,
-      reference: frame.ownership === "value" || getCsharpMethodValue(method.type) !== undefined &&
-        !source.ast.is.IsFunctionDeclaration(method.declaration) ? "frame"
-        : getCsharpExpressionTreeDelegateType(method.type) === undefined ? "method" : "quotation" }));
+    byClosure.set(method.declaration, Object.freeze({ frame, method }));
   };
   const byShape = new Map<string, CsharpCaptureFrame>();
   const buildFrame = (scope: Node): CsharpCaptureFrame => {
     const previous = byScope.get(scope);
     if (previous !== undefined) return previous;
     const group = groups.get(scope)!;
-    const methods = Object.freeze(closures.filter(closure => closure.scope === scope));
-    const parentScopes = new Set(methods.flatMap(method => method.captures.flatMap(declaration => {
-      const parentScope = sourceBindingScope(declaration, source.ast);
-      return parentScope === undefined || parentScope === scope ? [] : [parentScope];
-    })));
-    const parents = Object.freeze([...parentScopes].map((parent, index) => Object.freeze({ frame: buildFrame(parent), fieldName: `parent${index}` })));
-    const receiverMap = new Map<Node, CsharpFrameClosure["receivers"][number]>();
-    for (const method of methods) for (const receiver of method.receivers) {
-      const previous = receiverMap.get(receiver.owner);
-      receiverMap.set(receiver.owner, { ...receiver, references: Object.freeze([
-        ...new Set([...(previous?.references ?? []), ...receiver.references]),
-      ]) });
+    const methods: readonly CsharpFrameClosure[] = Object.freeze([]);
+    const requiredProtocols = protocols.get(scope);
+    if (requiredProtocols === undefined || requiredProtocols.length === 0) {
+      failTargetAnalysisInvariant("tsonic-csharp", "A capture environment requires its actual class or quantified native protocol.", scope);
     }
-    const receivers = Object.freeze([...receiverMap.values()].map((receiver, index) => Object.freeze({ ...receiver, fieldName: `receiver${index}` })));
+    const parents = Object.freeze([]);
+    const receivers = Object.freeze([]);
     const bindings = Object.freeze([...group].map(([declaration, type], index) => Object.freeze({
       declaration, type, fieldName: `value${index}`,
       // A binding captured before its initializer or, without one, before its first write is stored in the frame before it
@@ -153,21 +147,18 @@ export function analyzeCsharpCaptureStorage(
       ...(sourceBindingCapturedBeforeInitialization(declaration, source.ast, source.navigation) ||
         sourceBindingCapturedBeforeFirstWrite(declaration, source.ast, source.navigation) ? { initialization: "deferred" as const } : {}),
     })));
-    const fields = [...bindings, ...parents.map(parent => ({ fieldName: parent.fieldName, type: parent.frame.shape.targetType })), ...receivers];
+    const fields = bindings;
     const members: readonly CsharpObjectShapeMemberFact[] = Object.freeze(fields.map(field => Object.freeze({
       sourceKey: { kind: "property" as const, name: field.fieldName }, sourceName: field.fieldName,
       targetName: field.fieldName, type: field.type, memberKind: "property" as const,
     })));
-    const implementations = Object.freeze(methods.flatMap(method => {
-      const protocol = getCsharpMethodValue(method.type);
-      return protocol === undefined ? [] : [protocol.owner];
-    }));
+    const implementations = Object.freeze([]);
     const selectedType = createStructuralObjectShapeTarget(members, implementations, environment);
     const identity = sourceNodeIdentity(source.ast, scope);
     if (identity === undefined || selectedType.kind !== "target-named") failTargetAnalysisInvariant("tsonic-csharp", "A native capture frame requires an exact named source identity.", scope);
     const digest = createHash("sha256").update(identity).digest("hex");
     const type = csharpTargetNamedType(`tsonic.shape:capture_${digest}`, selectedType.typeArguments, { kind: "named", name: `__TsonicCapture_${digest}` }, { allowsRefLikeTypeArguments: (selectedType.typeArguments ?? []).map(() => false),});
-    const frame: CsharpCaptureFrame = Object.freeze({ scope, ownership: "activation", bindings, parents, methods, receivers, shape: Object.freeze({
+    const frame: CsharpCaptureFrame = Object.freeze({ scope, protocols: Object.freeze(requiredProtocols), ownership: "activation", bindings, parents, methods, receivers, shape: Object.freeze({
       targetType: type, members,
       implements: implementations,
     }) });
@@ -179,12 +170,11 @@ export function analyzeCsharpCaptureStorage(
   };
   for (const scope of groups.keys()) buildFrame(scope);
   const valueFrames: CsharpCaptureFrame[] = [];
-  const valueMethods = genericClosures.filter(method => method.scope === method.declaration);
+  const valueMethods = genericClosures;
   for (const method of valueMethods) {
-    const captured = method.captures.map(declaration => {
-      const type = evidence.storageTargetType.get(declaration) ?? evidence.nodeTargetType.get(declaration);
-      return type === undefined ? undefined : { declaration, type: physicalType(declaration, type), shared: byBinding.get(declaration) };
-    });
+    const lexical = nativeCaptures.lexicalCaptures.find(capture => capture.owner === method.declaration);
+    if (lexical === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A quantified environment requires its completed original-place capture facts.", method.declaration);
+    const captured = lexical.values.map(place => ({ declaration: place.declaration, type: place.type, shared: byBinding.get(place.declaration) }));
     const contract = getCsharpMethodValue(method.type)?.owner;
     const identity = sourceNodeIdentity(source.ast, method.declaration);
     if (contract === undefined || identity === undefined || captured.some(binding => binding === undefined)) {
@@ -205,147 +195,24 @@ export function analyzeCsharpCaptureStorage(
     const selectedType = createStructuralObjectShapeTarget(members, [contract], environment);
     const digest = createHash("sha256").update(identity).digest("hex");
     const type = csharpTargetNamedType(`tsonic.shape:callable_${digest}`, selectedType.kind === "target-named" ? selectedType.typeArguments : undefined, { kind: "named", name: `__TsonicCallable_${digest}` }, { allowsRefLikeTypeArguments: ((selectedType.kind === "target-named" ? selectedType.typeArguments : undefined) ?? []).map(() => false), typeofRuntimeKind: "function" });
-    const frame: CsharpCaptureFrame = Object.freeze({ scope: method.declaration, ownership: "value", bindings, parents, methods: Object.freeze([method]), receivers,
+    const frame: CsharpCaptureFrame = Object.freeze({ scope: method.declaration,
+      protocols: Object.freeze([Object.freeze({ kind: "quantified" as const, declaration: method.declaration })]), ownership: "value", bindings, parents, methods: Object.freeze([method]), receivers,
       shape: Object.freeze({ targetType: type, members, implements: Object.freeze([contract]) }),
     });
     retainClosure(frame, method);
     byShape.set(targetTypeRefKey(type), frame);
     valueFrames.push(frame);
   }
-  const valueDeclarations = new Map<Node, Node[]>();
-  const valueCreations = new Map<Node, SourceLexicalValueCreation>();
-  const valueNames = new Map<Node, string>();
-  // A function value inside compile-time metadata or inside a discarded function value is never created at runtime.
-  const discardedCreation: CsharpLambdaCreation = Object.freeze({ kind: "discarded", staticBody: true });
-  const discardSubtree = (node: Node): void => {
-    if ((source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) && !lambdaCreations.has(node))
-      lambdaCreations.set(node, discardedCreation);
-    source.ast.forEachChild(node, child => { if (child !== undefined) discardSubtree(child); });
-  };
-  const visitValues = (node: Node): void => {
-    if (evidence.compileTimeMetadata.get(node)) { discardSubtree(node); return; }
-    if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) {
-      const discarded = creationDemand.get(node);
-      if (discarded === undefined) failTargetAnalysisInvariant("tsonic-csharp",
-        "Lambda creation requires its original pre-seal checked source demand.", node);
-      if (discarded) {
-        discardSubtree(node);
-        return;
-      }
-      if (getCsharpExpressionTreeDelegateType(expectedTypes.callableTarget.get(node)) !== undefined) {
-        if (HasSyntacticModifier(source.ast, node, ModifierFlagsAsync)) {
-          issues.push({ node, code: "CSHARP_EXPRESSION_TREE_ASYNC_UNSUPPORTED",
-            message: "A native expression-tree quotation cannot contain an asynchronous lambda." });
-        }
-        lambdaCreations.set(node, Object.freeze({ kind: "quotation", staticBody: false }));
-      } else {
-        const flow = source.navigation.expressionValueFlow(node);
-        const invocationOnly = flow.passedAsArgument && hasOnlyInvocationArguments(node, source, operations);
-        const selfIdentityObserved = (namedSelfBindings.get(node)?.values.length ?? 0) > 0;
-        const fresh = flow.identityCompared || flow.captured || flow.returned || flow.yielded ||
-          flow.storedOutsideBinding || flow.exported || flow.hasUnclassifiedUse || flow.memberWritten ||
-          flow.receiverUsed || flow.passedAsArgument && !invocationOnly || selfIdentityObserved;
-        const staticBody = captureFreeDeclarations.has(node) && !selfIdentityObserved;
-        const directlyInvoked = !fresh && flow.aliasDeclarations.length === 0 && flow.uses.length > 0 &&
-          flow.uses.every(use => use.kind === "direct-call" && use.role === "call-target");
-        const creation: CsharpLambdaCreation = fresh ? { kind: "fresh", staticBody }
-          : directlyInvoked ? { kind: "direct", staticBody }
-          : invocationOnly && staticBody ? { kind: "cached", staticBody: true } : { kind: "inline", staticBody };
-        lambdaCreations.set(node, Object.freeze(creation));
-      }
-    }
-    if (source.ast.is.IsFunctionDeclaration(node) && source.ast.body(node) !== undefined &&
-      !evidence.compileTimeMetadata.get(node)) {
-      const nativeBindings = new Set<Node>();
-      if (source.ast.typeParameters(node).length > 0) {
-        for (const use of source.navigation.declarationUseSummary(node).uses) {
-          if (use.kind !== "first-class" || evidence.compileTimeMetadata.get(use.reference)) continue;
-          const type = evidence.nodeTargetType.get(use.reference);
-          const targets = expectedTypes.expectedType.get(use.reference);
-          if (type === undefined || targets.length === 0) continue;
-          if (targets.every(target => {
-            const selected = conversions.expressionConversion.get(use.reference, type, target, "implicit");
-            return selected?.kind === "delegate-adapter" && selected.instantiation !== undefined;
-          })) nativeBindings.add(use.reference);
-        }
-      }
-      const quantifiedUse = source.ast.typeParameters(node).length === 0 ? undefined
-        : source.navigation.declarationUseSummary(node).uses.find(use => use.kind === "first-class" &&
-          !evidence.compileTimeMetadata.get(use.reference) &&
-          !nativeBindings.has(use.reference) &&
-          (getCsharpMethodValue(evidence.nodeTargetType.get(use.reference))?.typeParameters.length ?? 0) > 0);
-      if (quantifiedUse !== undefined) {
-        issues.push({ node: quantifiedUse.reference, code: "CSHARP_QUANTIFIED_NAMED_CALLABLE_NOT_SUPPORTED",
-          message: "A named quantified function has no supported native callable-value owner." });
-      }
-      if (source.ast.is.IsSourceFile(source.ast.parent(node))) {
-        source.ast.forEachChild(node, child => { if (child !== undefined) visitValues(child); });
-        return;
-      }
-      const creation = sourceLexicalFunctionValueCreation(node, source.ast, source.navigation,
-        use => !evidence.compileTimeMetadata.get(use.reference) && !nativeBindings.has(use.reference));
-      valueCreations.set(node, creation);
-      if (creation.kind === "unresolved") issues.push({ node, code: "CSHARP_LEXICAL_VALUE_ACTIVATION_NOT_CLOSED", message: creation.reason });
-      if (creation.kind === "resolved") {
-        if (creation.inlineReference === undefined) {
-          const selectedName = names.resolve(source.ast.name(node), node);
-          if (selectedName.kind !== "resolved") {
-            issues.push({ node, code: "CSHARP_LEXICAL_VALUE_ACTIVATION_NOT_CLOSED",
-              message: "A lexical function value requires an exact stable declaration identity." });
-          } else valueNames.set(node, names.temporaryName(`${selectedName.name}Callable`));
-        }
-        const values = valueDeclarations.get(creation.statement) ?? [];
-        values.push(node);
-        valueDeclarations.set(creation.statement, values);
-      }
-    }
-    source.ast.forEachChild(node, child => { if (child !== undefined) visitValues(child); });
-  };
-  source.navigation.sourceFiles.forEach(visitValues);
-  const scheduledValues = new Map<Node, readonly Node[]>();
-  for (const [statement, values] of valueDeclarations) {
-    const ordered = sourceLexicalFunctionValueOrder(values, source.ast, source.navigation, "source",
-      use => !evidence.compileTimeMetadata.get(use.reference));
-    if (ordered.kind === "resolved") scheduledValues.set(statement, ordered.declarations);
-    else issues.push({ node: statement, code: "CSHARP_LEXICAL_VALUE_ACTIVATION_NOT_CLOSED", message: ordered.reason });
+  const lexicalDeclarations = new Set<Node>();
+  for (const capture of nativeCaptures.lexicalCaptures) {
+    if (source.ast.is.IsFunctionDeclaration(capture.owner) &&
+        !source.ast.is.IsSourceFile(source.ast.parent(capture.owner))) lexicalDeclarations.add(capture.owner);
   }
   const frames = Object.freeze([...byScope.values(), ...valueFrames]);
   const helperMembers = csharpCapturedMemberAccess(source, frames);
-  return sealCsharpCaptureStorage({ issues, frames, lexicalCaptures: frameClosures.lexicalCaptures,
-    byScope, byBinding, byClosure, byShape, physicalTypes, namedSelfBindings, lambdaCreations,
-    helperMembers, scheduledValues, valueCreations, valueNames });
-}
-
-function hasOnlyInvocationArguments(
-  expression: Node,
-  source: TargetSourceProgram,
-  operations: CsharpTargetOperationClassifications,
-): boolean {
-  const flow = source.navigation.expressionValueFlow(expression);
-  let arguments_ = sourceClosedCallableArguments(expression, source);
-  if (arguments_ === undefined && flow.aliasDeclarations.length === 0 && flow.uses.length === 1) {
-    const use = flow.uses[0]!;
-    if (use.role !== "argument" || use.throughMember) return false;
-    const argument = sourceExpressionCallArgument(use.reference, source);
-    if (argument === undefined) return false;
-    arguments_ = [argument];
-  }
-  return arguments_ !== undefined && arguments_.every(argument => {
-    const selected = operations.selectedCall.get(argument.call)?.target;
-    if (selected?.kind !== "resolved" || selected.call.origin !== "source-profile" ||
-      !selected.call.invocationOnlyCallableArgumentIndexes?.includes(argument.argumentIndex)) return false;
-    const bindings = selected.call.arguments.filter(binding => binding.sourceArgumentIndex === argument.argumentIndex);
-    return bindings.length === 1 && bindings[0]?.sourceForm === "value";
-  });
-}
-
-function hasSingleCaptureOwner(source: TargetSourceProgram, declaration: Node, shape: CsharpObjectShapeFact): boolean {
-  const implementation = shape.methodImplementation;
-  if (implementation === undefined) return false;
-  const methods = shape.members.flatMap(member => member.memberKind !== "method" ? [] :
-    csharpObjectShapeMethodDeclaration(shape, member) ?? []);
-  return sourceBindingHasSingleCaptureOwner(declaration, implementation.declaration,
-    methods, source.ast, source.navigation, use => use.role !== "value");
+  return sealCsharpCaptureStorage({ issues, frames, lexicalCaptures: nativeCaptures.lexicalCaptures,
+    byScope, byBinding, byClosure, byShape, physicalTypes, namedSelfBindings,
+    helperMembers, lexicalDeclarations });
 }
 
 import { sealCsharpCaptureStorage } from "../../program/records/callables/capture-storage.js";
