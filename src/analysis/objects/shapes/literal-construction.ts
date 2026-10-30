@@ -114,7 +114,7 @@ export function createCsharpLiteralShapeResolver(
       : sourceType === undefined ? undefined : resolveType(sourceType, sourceFile, objectLiteral);
     const ownInput = sourceType !== undefined && expectedShape.sourceType === sourceType;
     const context = ownInput ? undefined : selectCsharpLiteralDeclarationContext(objectLiteral, queries, host);
-    const declaredType = context?.component.selectedType ?? expectedShape.sourceType;
+    const declaredType = expectedShape.sourceType ?? context?.component.selectedType;
     const declaredShape = declaredType === undefined || declaredType === expectedShape.sourceType ? undefined
       : resolveType(declaredType, sourceFile, context?.component.authoredTypeNode,
           [expectedShape.targetType, ...(expectedShape.implements ?? [])]);
