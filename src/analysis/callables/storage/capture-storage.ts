@@ -145,7 +145,8 @@ export function analyzeCsharpCaptureStorage(
     const methods: CsharpFrameClosure[] = [];
     for (const capture of nativeCaptures.lexicalCaptures) {
       const context = evidence.contextualType.get(capture.owner)?.targetType ?? capture.type;
-      if (capture.values.length === 0 || !capture.values.every(place => declarations.has(place.declaration)) ||
+      if (source.ast.is.IsFunctionDeclaration(capture.owner) || capture.values.length === 0 ||
+          !capture.values.every(place => declarations.has(place.declaration)) ||
           source.ast.typeParameters(capture.owner).length !== 0 ||
           getCsharpMethodValue(context) !== undefined || getCsharpExpressionTreeDelegateType(context) !== undefined ||
           nativeCaptures.namedSelfBindings.some(self => self.declaration === capture.owner && self.values.length !== 0)) continue;

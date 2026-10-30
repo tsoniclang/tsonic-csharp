@@ -21,9 +21,13 @@ export function selectCsharpGenericFrameClosures(
   let capturesCount = 0;
   for (const capture of captures) {
     const node = capture.owner;
-    if (!source.ast.is.IsArrowFunction(node) && !source.ast.is.IsFunctionExpression(node)) continue;
+    const declaration = source.ast.is.IsFunctionDeclaration(node);
+    if (!source.ast.is.IsArrowFunction(node) && !source.ast.is.IsFunctionExpression(node) && !declaration) continue;
+    if (declaration && (source.ast.typeParameters(node).length === 0 ||
+        capture.values.length === 0 && capture.receivers.length === 0)) continue;
     const type = evidence.contextualType.get(node)?.targetType ?? capture.type;
     const method = getCsharpMethodValue(type);
+    if (declaration && (method === undefined || method.typeParameters.length === 0)) continue;
     if (source.ast.typeParameters(node).length === 0 && method === undefined) continue;
     if (method === undefined) {
       issues.push({ node, code: "CSHARP_GENERIC_CALLABLE_CONTRACT_NOT_CLOSED",
