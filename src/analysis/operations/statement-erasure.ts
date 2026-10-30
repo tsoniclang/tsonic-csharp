@@ -8,6 +8,7 @@ import type { CsharpSafetyApplicationFactIndex } from "../../target-model/record
 export interface CsharpOperationErasureIndexes {
   readonly attributeApplications: TsonicAttributeApplicationFactIndex;
   readonly safetyApplications: Pick<CsharpSafetyApplicationFactIndex, "safetyOperation">;
+  readonly nativeErrorNameInitializations: ReadonlySet<Node>;
 }
 
 export interface CsharpOperationErasure extends CsharpOperationErasureIndexes {
@@ -34,6 +35,7 @@ export function csharpErasedExpressionStatement(
   statement: Node,
   indexes: CsharpOperationErasureIndexes,
 ): boolean {
+  if (indexes.nativeErrorNameInitializations.has(statement)) return true;
   const expression = ast.as.AsExpressionStatement(statement)?.Expression;
   if (expression === undefined) return false;
   if (indexes.attributeApplications.forSubject(expression) !== undefined) return true;

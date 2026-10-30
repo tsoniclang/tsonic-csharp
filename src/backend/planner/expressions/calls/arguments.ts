@@ -2,7 +2,7 @@ import { applyCsharpConversionSelection } from "../conversions.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import { planCsharpRestSequence } from "./rest-sequences.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
-import type { CsharpSelectedCallArgument, CsharpProviderArgumentMapping } from "../../../../target-model/records/objects/members.js";
+import type { CsharpSelectedCallArgument, CsharpProviderArgumentMapping, CsharpCallArgumentProjection } from "../../../../target-model/records/objects/members.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../expression-planner-types.js";
 import type { CsharpArgument, CsharpExpression } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
@@ -11,7 +11,8 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpPlannedArgument } from "../planned-values.js";
 import { csharpPlannedValue, mapCsharpPlannedValue } from "../planned-values.js";
-import { captureCsharpPlannedValue } from "../planned-value-composition.js";
+import { captureCsharpPlannedValue, composeCsharpPlannedValues, planCsharpOptionalReceiverValue, projectCsharpPlannedValue } from "../planned-value-composition.js";
+import { planCsharpDiscardedOperand } from "../../statements/statement-output.js";
 import { csharpPlannedArgumentSyntax, type CsharpPlannedCallArguments } from "./planned-arguments.js";
 
 export function translateSelectedTargetArguments(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
@@ -20,7 +21,8 @@ export function translateSelectedTargetArguments(node: Node, sourceFile: SourceF
   if (selected === undefined) failCsharpPlannerInvariant("Admitted target arguments require their exact source order and native positional plan.", node);
   const operands: CsharpPlannedArgument[] = [];
   for (const entry of selected.operands) {
-    const argument = entry.kind === "sequence" ? planCsharpRestSequence(entry.sequence, sourceFile, input, diagnostics, planExpression) :
+    const argument = entry.kind === "projection" ? planProjectedArgument(entry.projection, sourceFile, input, diagnostics, planExpression)
+      : entry.kind === "sequence" ? planCsharpRestSequence(entry.sequence, sourceFile, input, diagnostics, planExpression) :
       translateCallArgument(entry.expression, entry.parameter, entry.form, sourceFile, input, diagnostics, planExpression, planCallArgument, entry.mapping);
     if (argument === undefined) return undefined;
     operands.push(argument);
@@ -33,6 +35,26 @@ export function translateSelectedTargetArguments(node: Node, sourceFile: SourceF
       })) },
     };
   }) };
+}
+
+export function planProjectedArgument(projection: CsharpCallArgumentProjection, sourceFile: SourceFile, input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner): CsharpPlannedArgument | undefined {
+  const operands = projection.values.map((value, index) => {
+    let planned = planExpression(value.expression, sourceFile, input, diagnostics);
+    if (value.member !== undefined) {
+      const member = value.member;
+      const read = (receiver: CsharpExpression) => csharpPlannedValue(member.type,
+        { kind: "SimpleMemberAccessExpression", receiver, name: member.targetName });
+      planned = value.optional ? planCsharpOptionalReceiverValue(value.expression, sourceFile, input, diagnostics, planned,
+        read, projection.target) : projectCsharpPlannedValue(value.expression, sourceFile, input, diagnostics, planned,
+          receiver => ({ kind: "SimpleMemberAccessExpression", receiver, name: member.targetName }), member.type);
+    }
+    return index === projection.resultIndex ? planned : planCsharpDiscardedOperand(planned);
+  });
+  return composeCsharpPlannedValues(projection.source, sourceFile, input, diagnostics, operands, expressions =>
+    csharpPlannedValue(projection.target, projection.resultIndex === undefined ? { kind: "LiteralExpression", value: null }
+      : expressions[0] ?? failCsharpPlannerInvariant("A native member argument requires its selected projection value.", projection.source),
+    [], projection.resultIndex === undefined, projection.resultIndex === undefined));
 }
 
 export function translateCallArgument(expression: Node, parameter: CsharpTargetParameter, sourceForm: CsharpSelectedCallArgument["sourceForm"],

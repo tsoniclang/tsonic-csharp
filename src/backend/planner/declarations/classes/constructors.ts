@@ -35,6 +35,8 @@ import type { DestructuringPlannerState } from "../../bindings/index.js";
 import { planCsharpPreparedConstructor, type CsharpConstructorArgumentPlan } from "./constructor-entry.js";
 import { planCsharpParameterPropertyAssignments } from "./parameter-properties.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
+import { planProjectedArgument } from "../../expressions/calls/arguments.js";
+import { planExpression } from "../../expressions/index.js";
 
 export function planClassStaticBlockDeclaration(
   node: Node,
@@ -135,6 +137,15 @@ function planBaseConstructorArguments(
   for (const [index, argument] of (call.Arguments?.Nodes ?? []).entries()) {
     if (argument === undefined) {
       failCsharpPlannerInvariant("An admitted base constructor requires a dense source argument list.", callNode);
+    }
+    const target = selection?.target;
+    const projection = target?.kind === "resolved" ? target.call.arguments.find(entry => entry.sourceArgumentIndex === index)?.projection : undefined;
+    if (projection !== undefined) {
+      const value = planProjectedArgument(projection, sourceFile, input, diagnostics,
+        (expression, file, context, issues) => planExpression(expression, file, context, issues, state));
+      if (value === undefined) failCsharpPlannerInvariant("An admitted native base argument requires its sealed member projection.", argument);
+      planned.push({ node: argument, value, expectedCarrier: projection.target });
+      continue;
     }
     const carrier = selection?.sourceArgumentParameterTypes?.[index];
     // A direct entry forwards each argument in its sealed source passing mode; a missing mode is never read as by-value.

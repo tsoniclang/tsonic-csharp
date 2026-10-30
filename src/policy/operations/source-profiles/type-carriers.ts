@@ -8,7 +8,7 @@ import { classifyCsharpSourceProfileType } from "../../identities/source-types.j
 import { csharpTaskTargetType } from "../../../target-model/types/carriers/delegates.js";
 import { csharpEnumerableTargetType } from "../../../target-model/types/carriers/collections.js";
 
-import { csharpRuntimeErrorTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../target-model/types/carriers/scalar-types.js";
+import { csharpSourceErrorTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 
 export function selectCsharpSourceProfileCarrier(
   data: { readonly dictionaryCarrier: TargetTypeRef | undefined },
@@ -32,7 +32,7 @@ export function selectCsharpSourceProfileCarrier(
         ? csharpStringTargetType()
         : undefined;
     case "error": {
-      return typeArguments.length === 0 ? csharpRuntimeErrorTargetType(identity.errorName) : undefined;
+      return typeArguments.length === 0 ? csharpSourceErrorTargetType(identity.errorName) : undefined;
     }
     case "array":
     case "readonly-array": {

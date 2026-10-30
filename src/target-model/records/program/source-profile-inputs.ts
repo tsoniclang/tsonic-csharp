@@ -8,12 +8,15 @@ export interface CsharpCustomRegExpProtocol {
   readonly signature: CsharpDelegateSignatureShape;
 }
 export interface CsharpSourceProfileInputRequirements {
+  readonly errorCause?: true;
   readonly regexpProtocol?: true;
   readonly regexpExecution?: true;
   readonly sourceTypeRelations?: true;
   readonly objectShapes?: true;
 }
 export interface CsharpSourceProfileInputFacts {
+  readonly errorCause: { readonly kind: "not-applicable" } | { readonly kind: "unresolved"; readonly reason: string }
+    | { readonly kind: "resolved"; readonly projection: import("../objects/members.js").CsharpCallArgumentProjection };
   readonly numberLikeTypes: ReadonlySet<Type>;
   readonly identicalTypes: ReadonlyMap<Type, ReadonlySet<Type>>;
   readonly nativeRegExpReceivers: ReadonlySet<Node>;

@@ -17,7 +17,7 @@ import { csharpNativeInheritanceLookup } from "../../../target-model/types/nativ
 import { findUniqueTargetBinding, isCsharpProviderTargetBinding } from "../acquisition/target-binding-index.js";
 import { createCsharpProviderIdentityPublication } from "./native-identity-publication.js";
 import type { CsharpProviderIdentityPublication } from "../../model/relation-resolver.js";
-import { csharpExceptionTargetType, csharpRuntimeErrorTargetType } from "../../../target-model/types/carriers/scalar-types.js";
+import { csharpSourceErrorTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpSourceErrorNames } from "../../../target-model/identities/source-errors.js";
 
 export interface CsharpProviderRelationResolverInputs {
@@ -56,8 +56,8 @@ export function createCsharpProviderRelationResolver(
   const staticBindings = uniqueStaticBindings(
     staticCatalogs.flatMap(entry => entry.targetBindings),
   );
-  const sourceErrorReferences: readonly CsharpTargetBindingFact[] = [csharpExceptionTargetType(),
-    ...csharpSourceErrorNames.map(name => csharpRuntimeErrorTargetType(name))].map<CsharpTargetBindingFact>(type => Object.freeze({
+  const sourceErrorReferences: readonly CsharpTargetBindingFact[] = csharpSourceErrorNames
+    .map(name => csharpSourceErrorTargetType(name)).map<CsharpTargetBindingFact>(type => Object.freeze({
       id: type.id, target: "csharp", kind: "class", sourceName: type.id, targetName: type.id, csharpType: type,
     }));
   const sourceErrorIds = new Set(sourceErrorReferences.map(reference => reference.id));

@@ -2,7 +2,7 @@ import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContex
 import type { CsharpSourceProfilePropertyPolicyResult } from "../../../target-model/records/program/source-profile-invocations.js";
 import { csharpSourceProfileCall, csharpSourceProfileDiagnostic } from "./source-profile-policy.js";
 import type { CsharpSourceProfileDeclarationIdentity, CsharpSourceProfileOwner } from "../../identities/selected-source.js";
-import { csharpRuntimeErrorTargetType, csharpExceptionTargetType, csharpStringTargetType, csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
+import { csharpSourceErrorTargetType, csharpExceptionTargetType, csharpStringTargetType, csharpObjectTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { csharpTargetNamedType } from "../../../target-model/types/factories.js";
 import { csharpQualifiedTypeRenderShape } from "../../../target-model/types/render-shapes.js";
@@ -12,9 +12,11 @@ import { csharpSourceErrorNames, type CsharpSourceErrorName } from "../../../tar
 import { snapshotCsharpMetadata } from "../../../target-model/metadata/immutable.js";
 import { namedTargetTypeImplicitlyAccepts } from "../../conversions/carriers.js";
 
-const errorType = csharpRuntimeErrorTargetType();
+const errorType = csharpExceptionTargetType();
 const exceptionType = csharpExceptionTargetType();
-const observationType = csharpTargetNamedType("Tsonic.CSharp.Runtime.ErrorObject", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "ErrorObject"), { allowsRefLikeTypeArguments: [],});
+const nativeType = csharpTargetNamedType("System.Type", undefined, csharpQualifiedTypeRenderShape("System", "Type"), { allowsRefLikeTypeArguments: [] });
+const stackCaptureType = csharpTargetNamedType("System.Runtime.ExceptionServices.ExceptionDispatchInfo", undefined,
+  csharpQualifiedTypeRenderShape("System.Runtime.ExceptionServices", "ExceptionDispatchInfo"), { allowsRefLikeTypeArguments: [] });
 const stringType = csharpStringTargetType();
 const instanceReceiver = { kind: "instance" } as const;
 const noReceiver = { kind: "none" } as const;
@@ -24,9 +26,9 @@ const owners: readonly CsharpSourceProfileOwner[] = Object.freeze([
 ]);
 
 const errorConstructor: CsharpTargetMember = Object.freeze({
-  id: "Tsonic.CSharp.Runtime.Error..ctor",
+  id: "System.Exception..ctor",
   sourceName: "constructor",
-  targetName: "Error",
+  targetName: "Exception",
   kind: "constructor",
   declaringType: errorType,
   parameters: Object.freeze([{
@@ -35,35 +37,31 @@ const errorConstructor: CsharpTargetMember = Object.freeze({
     passingMode: "by-value" as const,
     optional: true,
     csharpOmittableOptionalArgument: true as const,
+  }, {
+    name: "innerException", type: csharpNullableTargetType(exceptionType), passingMode: "by-value" as const,
+    optional: true, csharpOmittableOptionalArgument: true as const,
   }]),
   returnType: errorType,
 });
 
 const errorProperties: readonly {
-  readonly sourceName: "name" | "message" | "stack";
-  readonly targetId: string;
-  readonly targetName: "name" | "message" | "stack";
-  readonly targetType: TargetTypeRef;
+  readonly sourceName: "name" | "message" | "stack" | "cause";
   readonly native: Extract<CsharpSourceProfilePropertyPolicyResult, { readonly kind: "resolved" }>;
 }[] = snapshotCsharpMetadata([
   {
     sourceName: "name",
-    targetId: "Tsonic.CSharp.Runtime.Error.name",
-    targetName: "name",
-    targetType: stringType,
     native: {
       kind: "resolved",
-      targetMember: { id: "Tsonic.CSharp.Runtime.ErrorObject.name", sourceName: "name", targetName: "name",
-        kind: "method", static: true, declaringType: observationType,
-        parameters: [{ name: "error", type: exceptionType, passingMode: "by-value" }], returnType: stringType },
-      receiver: { kind: "target-parameter", targetParameterIndex: 0 }, invocation: { kind: "receiver-call" },
+      targetMember: { id: "System.Type.Name", sourceName: "name", targetName: "Name",
+        kind: "property", readonly: true, declaringType: nativeType, parameters: [], returnType: stringType },
+      receiver: instanceReceiver, invocation: { kind: "receiver-call", call: {
+        id: "System.Object.GetType", sourceName: "GetType", targetName: "GetType", kind: "method",
+        declaringType: csharpObjectTargetType(), parameters: [], returnType: nativeType,
+      } },
     },
   },
   {
     sourceName: "message",
-    targetId: "Tsonic.CSharp.Runtime.Error.message",
-    targetName: "message",
-    targetType: stringType,
     native: {
       kind: "resolved",
       targetMember: { id: "System.Exception.Message", sourceName: "message", targetName: "Message", kind: "property",
@@ -73,16 +71,22 @@ const errorProperties: readonly {
   },
   {
     sourceName: "stack",
-    targetId: "Tsonic.CSharp.Runtime.Error.stack",
-    targetName: "stack",
-    targetType: csharpNullableTargetType(stringType),
     native: {
       kind: "resolved",
-      targetMember: { id: "Tsonic.CSharp.Runtime.ErrorObject.stack", sourceName: "stack", targetName: "stack",
-        kind: "method", static: true, declaringType: observationType,
-        parameters: [{ name: "error", type: exceptionType, passingMode: "by-value" }],
+      targetMember: { id: "System.Exception.StackTrace", sourceName: "stack", targetName: "StackTrace",
+        kind: "property", readonly: true, declaringType: exceptionType, parameters: [],
         returnType: csharpNullableTargetType(stringType) },
-      receiver: { kind: "target-parameter", targetParameterIndex: 0 }, invocation: { kind: "receiver-call" },
+      receiver: instanceReceiver, invocation: { kind: "member" },
+    },
+  },
+  {
+    sourceName: "cause",
+    native: {
+      kind: "resolved",
+      targetMember: { id: "System.Exception.InnerException", sourceName: "cause", targetName: "InnerException",
+        kind: "property", readonly: true, declaringType: exceptionType, parameters: [],
+        returnType: csharpNullableTargetType(exceptionType) },
+      receiver: instanceReceiver, invocation: { kind: "member" },
     },
   },
 ]);
@@ -101,14 +105,14 @@ function errorCapturePolicy(owner: CsharpSourceProfileOwner): CsharpSourceProfil
     source: { owner, kind: "member" as const, declaringName: "ErrorConstructor", name: "captureStackTrace" },
     select(context: CsharpSourceProfileCallPolicyContext): CsharpSourceProfileCallPolicyResult {
       const member = context.host.providers.publishNativeIdentities<CsharpTargetMember>({
-        id: "Tsonic.CSharp.Runtime.Error.captureStackTrace",
+        id: "System.Runtime.ExceptionServices.ExceptionDispatchInfo.SetCurrentStackTrace",
         sourceName: "captureStackTrace",
-        targetName: "captureStackTrace",
+        targetName: "SetCurrentStackTrace",
         kind: "method",
         static: true,
-        declaringType: errorType,
+        declaringType: stackCaptureType,
         parameters: [{ name: "error", type: errorType, passingMode: "by-value" }],
-        returnType: csharpVoidTargetType(),
+        returnType: exceptionType,
       });
       if (member.kind === "rejected") return member;
       const call = member.kind === "resolved" ? csharpSourceProfileCall(context.source, member.value, noReceiver) : undefined;
@@ -116,7 +120,7 @@ function errorCapturePolicy(owner: CsharpSourceProfileOwner): CsharpSourceProfil
         kind: "rejected",
         diagnostic: csharpSourceProfileDiagnostic("CSHARP_ERROR_CAPTURE_CONTRACT", 9100952,
           "Error.captureStackTrace requires the exact selected Error parameter contract.", []),
-      } : { kind: "resolved", call };
+      } : { kind: "resolved", call: Object.freeze({ ...call, discardResult: true as const }) };
     },
   });
 }
@@ -148,43 +152,23 @@ function selectNativeErrorProperty(
   receiverType: TargetTypeRef | undefined,
   accessMode: CsharpSourceProfilePropertyPolicyContext["source"]["accessMode"],
 ): CsharpSourceProfilePropertyPolicyResult | undefined {
-  const { sourceName, targetId, targetName, targetType, native } = property;
+  const { native } = property;
   const exception = host.providers.publishNativeIdentities(exceptionType);
   if (exception.kind === "rejected") return exception;
   if (exception.kind !== "resolved") return undefined;
   const receiver = getCsharpNullableElementTargetType(receiverType) ?? receiverType;
-  const writable = host.providers.publishNativeIdentities(errorType);
-  if (writable.kind === "rejected") return writable;
-  if (writable.kind !== "resolved" || receiver === undefined) return undefined;
-  const hasWritableFields = namedTargetTypeImplicitlyAccepts(host, receiver, writable.value, new Set());
-  if (!hasWritableFields) {
-    if (!namedTargetTypeImplicitlyAccepts(host, receiver, exception.value, new Set())) return {
-      kind: "rejected",
-      diagnostic: csharpSourceProfileDiagnostic("CSHARP_ERROR_NATIVE_STORAGE_NOT_PROVEN", 9100954,
-        "The selected Error field requires its exact native Exception or writable Error hierarchy.", []),
-    };
-    if (accessMode !== "read") return {
-      kind: "rejected",
-      diagnostic: csharpSourceProfileDiagnostic("CSHARP_ERROR_READONLY_STORAGE", 9100953,
-        "The selected native Exception storage does not admit source Error field mutation.", []),
-    };
-    const published = host.providers.publishNativeIdentities(native);
-    return published.kind === "resolved" ? published.value : published.kind === "rejected" ? published : undefined;
-  }
-  const published = host.providers.publishNativeIdentities({
-    kind: "resolved" as const,
-    targetMember: Object.freeze({
-      id: targetId,
-      sourceName,
-      targetName,
-      kind: "property" as const,
-      declaringType: errorType,
-      parameters: Object.freeze([]),
-      returnType: targetType,
-    }),
-    receiver: instanceReceiver,
-    invocation: { kind: "member" as const },
-  });
+  if (receiver === undefined) return undefined;
+  if (!namedTargetTypeImplicitlyAccepts(host, receiver, exception.value, new Set())) return {
+    kind: "rejected",
+    diagnostic: csharpSourceProfileDiagnostic("CSHARP_ERROR_NATIVE_STORAGE_NOT_PROVEN", 9100954,
+      "The selected Error field requires its exact native Exception hierarchy.", []),
+  };
+  if (accessMode !== "read") return {
+    kind: "rejected",
+    diagnostic: csharpSourceProfileDiagnostic("CSHARP_ERROR_READONLY_STORAGE", 9100953,
+      "C# exceptions are immutable after construction; create a new Error or pass the message to super instead.", []),
+  };
+  const published = host.providers.publishNativeIdentities(native);
   return published.kind === "resolved" ? published.value : published.kind === "rejected" ? published : undefined;
 }
 
@@ -194,11 +178,12 @@ function errorCallPolicy(
   name: CsharpSourceErrorName,
 ): CsharpSourceProfileCallPolicy {
   const source = { ...errorIdentity(owner, kind), declaringName: `${name}Constructor` };
-  const type = csharpRuntimeErrorTargetType(name);
-  const constructor = { ...errorConstructor, id: `Tsonic.CSharp.Runtime.${name}..ctor`, targetName: name,
+  const type = csharpSourceErrorTargetType(name);
+  const constructor = { ...errorConstructor, id: `${type.id}..ctor`, targetName: name === "Error" ? "Exception" : name,
     declaringType: type, returnType: type };
   return Object.freeze({
     source,
+    inputRequirements: { errorCause: true as const, objectShapes: true as const },
     ...(kind === "construct" ? { inheritableConstructor: constructor } : {}),
     select(
       context: CsharpSourceProfileCallPolicyContext,
@@ -210,7 +195,12 @@ function errorCallPolicy(
         member.value,
         noReceiver,
       );
-      return call === undefined
+      const withOptions = context.source.sourceArguments[1] !== undefined;
+      const cause = context.inputs.errorCause;
+      const projected = call === undefined || withOptions && cause?.kind !== "resolved" ? undefined : withOptions && cause?.kind === "resolved"
+        ? Object.freeze({ ...call, arguments: Object.freeze(call.arguments.map(argument => argument.sourceArgumentIndex === 1
+          ? Object.freeze({ ...argument, projection: cause.projection }) : argument)) }) : call;
+      return projected === undefined
         ? {
             kind: "rejected",
             diagnostic: csharpSourceProfileDiagnostic(
@@ -223,7 +213,7 @@ function errorCallPolicy(
               ],
             ),
           }
-        : { kind: "resolved", call };
+        : { kind: "resolved", call: projected };
     },
   });
 }

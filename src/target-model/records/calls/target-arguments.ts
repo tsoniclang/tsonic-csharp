@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { CsharpTargetParameter, TargetTypeRef } from "../../types/model.js";
-import type { CsharpProviderArgumentMapping, CsharpSelectedCallArgument } from "../objects/members.js";
+import type { CsharpProviderArgumentMapping, CsharpSelectedCallArgument, CsharpCallArgumentProjection } from "../objects/members.js";
 import type { CsharpRestSequence } from "../objects/rest-sequences.js";
 import type { CsharpConversionSelection } from "../../conversions/selection.js";
 
@@ -13,6 +13,7 @@ export type CsharpCallArgumentEmission =
       readonly parameters: readonly { readonly type: TargetTypeRef; readonly rest: boolean }[] };
 
 export type CsharpTargetArgumentOperand =
+  | { readonly kind: "projection"; readonly projection: CsharpCallArgumentProjection; readonly parameter: CsharpTargetParameter }
   | { readonly kind: "sequence"; readonly sequence: CsharpRestSequence }
   | { readonly kind: "argument"; readonly expression: Node; readonly parameter: CsharpTargetParameter; readonly form: CsharpCallArgumentForm;
       readonly mapping: CsharpProviderArgumentMapping | undefined };

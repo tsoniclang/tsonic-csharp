@@ -24,7 +24,7 @@ import { analyzeCsharpSourceModuleConstructions } from "../source-modules/index.
 import { composeCsharpBinaryExecutionDriver } from "../../target-model/metadata/binary-execution-drivers.js";
 import { analyzeCsharpModuleInitialization } from "../module-initialization/index.js";
 import { createCsharpSourceProfileCallableAliasQuery } from "../operations/source-profiles/callable-aliases.js";
-import { createCsharpErrorDeclarationQuery } from "../objects/error-storage-demands.js";
+import { createCsharpErrorDeclarationQuery, analyzeCsharpNativeErrorAdmission } from "../objects/error-storage-demands.js";
 import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 import { createCsharpSourceProfileStorageEffects } from "../operations/source-profiles/source-storage-effects.js";
 import { analyzeCsharpGenericAdoption, analyzeCsharpPromiseResults } from "../callables/async/promise-results.js";
@@ -81,7 +81,10 @@ function analyzeCsharpTargetProgramBeforeSeal(
     sourceFacts: source.sourceFacts,
     navigation: source.navigation,
   });
-  const statementErasure = Object.freeze({ attributeApplications: sourceAttributeApplications, safetyApplications });
+  const nativeErrorAdmission = analyzeCsharpNativeErrorAdmission(source);
+  if (nativeErrorAdmission.issues.length !== 0) return rejectedTargetStage(nativeErrorAdmission.issues);
+  const statementErasure = Object.freeze({ attributeApplications: sourceAttributeApplications, safetyApplications,
+    nativeErrorNameInitializations: nativeErrorAdmission.nameInitializations });
   const sourceFiles = Object.freeze([...source.navigation.sourceFiles]);
   const sourceNodes = source.navigation.nodesForFiles(sourceFiles);
   const literalValues = analyzeSourceLiteralValues(source.ast, sourceFiles);

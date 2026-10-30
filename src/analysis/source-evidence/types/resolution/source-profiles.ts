@@ -9,7 +9,7 @@ import { classifyCsharpSourceProfileType } from "../../../../policy/identities/s
 import { csharpDelegateTargetType } from "../../../../target-model/types/carriers/delegates.js";
 
 import { csharpNullableTargetType } from "../../../../target-model/types/carriers/nullable.js";
-import { csharpRuntimeErrorTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
+import { csharpSourceErrorTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
 import { csharpTargetTypeFromBinding } from "../../../../policy/types/storage/bindings.js";
 import { definedValues } from "./source-evidence.js";
 import { nextState } from "./state.js";
@@ -31,7 +31,7 @@ export function resolveCsharpSourceProfileBaseType(
 ): TargetTypeRef | undefined {
   const identity = classifyCsharpSourceProfileType(type, queries, ast);
   if (identity?.kind !== "error") return undefined;
-  const selected = providers.publishNativeIdentities(csharpRuntimeErrorTargetType(identity.errorName));
+  const selected = providers.publishNativeIdentities(csharpSourceErrorTargetType(identity.errorName));
   return selected.kind === "resolved" ? selected.value : undefined;
 }
 

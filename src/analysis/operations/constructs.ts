@@ -71,6 +71,10 @@ export function analyzeCsharpOperationConstruct(
     return;
   }
   const { ast } = policy;
+  if (erasure.nativeErrorNameInitializations.has(node)) {
+    producer.erasedStatement.selected(node, true);
+    return;
+  }
   if (sourceClassFieldIsTypeOnly(ast, node)) return;
   const issues = erasure.demandedInvocations.has(node) ? erasure.issues : scopeIssues;
   const erased = ast.is.IsExpressionStatement(node) && csharpErasedExpressionStatement(ast, node, erasure);

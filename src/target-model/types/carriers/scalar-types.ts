@@ -137,6 +137,10 @@ export function csharpRuntimeErrorTargetType(name: CsharpSourceErrorName = "Erro
   );
 }
 
+export function csharpSourceErrorTargetType(name: CsharpSourceErrorName): CsharpTargetNamedTypeRef {
+  return name === "Error" ? csharpExceptionTargetType() : csharpRuntimeErrorTargetType(name);
+}
+
 export function csharpSourcePrimitiveTargetType(kind: SourcePrimitiveKind): TargetTypeRef {
   return { kind: "source-primitive", name: kind };
 }

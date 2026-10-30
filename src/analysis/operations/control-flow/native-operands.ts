@@ -476,6 +476,15 @@ export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, n
       const expression = source.sourceArguments[binding.sourceArgumentIndex]?.expression;
       if (argument === undefined || expression === undefined || argument.spreadElementIndex !== undefined && !binding.sequence) return Object.freeze({
         reason: "argument-expression-unresolved", message: "A selected native argument requires its exact source expression and sequence contract." });
+      if (argument.projection !== undefined) {
+        const projection = argument.projection;
+        if (projection.source !== expression || binding.sequence) return Object.freeze({ reason: "argument-inconsistent",
+          message: "A native member argument requires its original checked source and non-spread slot." });
+        for (const [index, value] of projection.values.entries()) uses.push(...csharpNativeChildUses(projection.source,
+          value.expression, { kind: "member", index }, value.member !== undefined ? value.type
+            : projection.resultIndex === index ? projection.target : value.type));
+        continue;
+      }
       const underlying = binding.sequence && ast.is.IsSpreadElement(expression) ? ast.as.AsSpreadElement(expression)?.Expression : expression;
       uses.push(...use(underlying, binding.slot, binding.sequence ? undefined
         : csharpProviderArgumentSourceCarrier(mappings?.get(argument.effectiveArgumentIndex)) ?? argument.targetParameter.type));

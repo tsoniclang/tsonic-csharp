@@ -17,9 +17,15 @@ test("native binding projections preserve one exact member and reject malformed 
     declaringType: { kind: "target-named", id: "Tsonic.CSharp.Runtime.ErrorObject", csharpAllowsRefLikeTypeArguments: [] },
     parameters: [{ name: "error", type: carrier, passingMode: "by-value" }] },
     receiver: { kind: "target-parameter", targetParameterIndex: 0 }, invocation: { kind: "receiver-call" } };
-  const receiverCall = selectCsharpBindingPatternProjection({ kind: "native-member", property: helper });
+  const nativeType = { kind: "target-named", id: "System.Type", csharpAllowsRefLikeTypeArguments: [] };
+  const computed = { ...property, member: { ...property.member, id: "System.Type.Name", targetName: "Name", declaringType: nativeType },
+    invocation: { kind: "receiver-call", call: { id: "System.Object.GetType", sourceName: "GetType", targetName: "GetType", kind: "method",
+      declaringType: carrier, parameters: [], returnType: nativeType } } };
+  const receiverCall = selectCsharpBindingPatternProjection({ kind: "native-member", property: computed });
   assert.equal(receiverCall.kind === "element" && receiverCall.element.kind === "native-member" &&
-    receiverCall.element.property.member === helper.member, true, "the static native helper retains its exact declaring type and receiver slot");
+    receiverCall.element.property.member === computed.member, true, "the native receiver call retains its exact declaring type and checked result relation");
+  assert.equal(selectCsharpBindingPatternProjection({ kind: "native-member", property: helper }).kind, "unresolved",
+    "the deleted static ErrorObject route is not an alternate binding contract");
   for (const [label, altered] of [
     ["missing declaration", { ...property, declaration: undefined }],
     ["missing native declaring type", { ...property, member: { ...property.member, declaringType: undefined } }],
@@ -27,6 +33,9 @@ test("native binding projections preserve one exact member and reject malformed 
     ["wrong receiver", { ...property, receiver: { kind: "none" } }],
     ["wrong native arity", { ...property, member: { ...property.member, parameters: [{ name: "extra", type: string, passingMode: "by-value" }] } }],
     ["missing static receiver slot", { ...property, invocation: { kind: "receiver-call" } }],
+    ["wrong receiver call result", { ...computed, invocation: { ...computed.invocation, call: { ...computed.invocation.call, returnType: carrier } } }],
+    ["wrong receiver call arity", { ...computed, invocation: { ...computed.invocation, call: { ...computed.invocation.call,
+      parameters: [{ name: "extra", type: string, passingMode: "by-value" }] } } }],
   ]) assert.equal(selectCsharpBindingPatternProjection({ kind: "native-member", property: altered }).kind, "unresolved",
     `${label}: no fabricated native binding contract`);
 });

@@ -18,7 +18,6 @@ import type { CsharpSourceNameResolver } from "../../names/index.js";
 import { csharpSourceTypeParameter } from "../../../source/extension/type-parameters.js";
 import { csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { selectCsharpSourceParameterVector } from "../../../policy/types/callables/parameter-vector.js";
-import { csharpExceptionTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { classifyCsharpSourceProfileType } from "../../../policy/identities/source-types.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
@@ -37,7 +36,7 @@ export function createCsharpSourceParameterProducer(
   errors: SourceErrorDeclarationQueries,
 ) {
   const registered = new Map<Node, { readonly declaration: Node; readonly index: number; readonly type: import("@tsonic/tsts").Type;
-    readonly acceptsOmission: boolean; readonly baseException: boolean }>();
+    readonly acceptsOmission: boolean }>();
   const published = new Map<Node, CsharpSourceParameterPublication>();
   const active = new Set<Node>();
   let closed = false;
@@ -59,8 +58,7 @@ export function createCsharpSourceParameterProducer(
       if (identity?.kind !== "error") continue;
       if (checked === undefined || type === undefined) failTargetAnalysisInvariant("tsonic-csharp",
         "A source Error parameter requires its original checked declaration signature slot.", parameter);
-      registered.set(parameter, { declaration, index, type, acceptsOmission: checked.acceptsOmission,
-        baseException: identity.baseException });
+      registered.set(parameter, { declaration, index, type, acceptsOmission: checked.acceptsOmission });
     }
   }
   const records: CsharpSourceParameterClassifications = Object.freeze({ get(parameter: Node) {
@@ -77,23 +75,7 @@ export function createCsharpSourceParameterProducer(
       const requirement = errors.parameterFor(parameter);
       if (selected === undefined || requirement.kind !== "resolved") return failTargetAnalysisInvariant("tsonic-csharp",
         requirement.kind === "unresolved" ? requirement.reason : "The checked Error parameter has no native declaration contract.", parameter);
-      const implementation = policy.ast.body(registration.declaration) !== undefined ? undefined
-        : source.navigation.callableImplementation(registration.declaration);
-      const implementationDeclaration = implementation?.kind === "resolved" ? implementation.implementation.declaration : undefined;
-      const implementationParameter = implementationDeclaration === undefined || implementationDeclaration === registration.declaration
-        ? undefined : sourceCallableValueParameters(policy.ast, implementationDeclaration, source.semantics.forNode(implementationDeclaration))?.[registration.index];
-      const implementationRegistration = implementationParameter === undefined ? undefined : registered.get(implementationParameter);
-      const implementationInput = implementationParameter !== undefined && registration.baseException &&
-        implementationRegistration?.baseException === true && queries.types.isIdentical(registration.type, implementationRegistration.type)
-        ? records.get(implementationParameter) : undefined;
-      const context = selectCsharpParameterDefaultContext(policy, declarations, registration.declaration);
-      const contextualInput = context === undefined || context.restParameterIndex !== undefined && registration.index >= context.restParameterIndex
-        ? undefined : context.parameters[registration.index];
-      const exception = registration.baseException && requirement.value.access === "read-only" && contextualInput === undefined
-        ? policy.providers.publishNativeIdentities(csharpExceptionTargetType()) : undefined;
-      if (exception !== undefined && exception.kind !== "resolved") return failTargetAnalysisInvariant("tsonic-csharp",
-        "A readonly Error parameter requires its exact native Exception metadata owner.", parameter);
-      const declared = contextualInput ?? implementationInput?.bodyType ?? (exception?.kind === "resolved" ? exception.value : selected);
+      const declared = selected;
       const nullable = getCsharpNullableElementTargetType(selected) !== undefined || policy.ast.questionToken(parameter) !== undefined;
       const valueType = nullable && getCsharpNullableElementTargetType(declared) === undefined ? csharpNullableTargetType(declared) : declared;
       const runtimeDefault = selectCsharpSourceParameterDefault(policy, declarations, parameter, valueType);

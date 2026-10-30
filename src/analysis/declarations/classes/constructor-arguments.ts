@@ -95,6 +95,10 @@ export function analyzeCsharpConstructorArguments(
       const arguments_ = records.targetArguments.targetArgumentsEmission.get(node);
       if (arguments_ !== undefined) for (const operand of arguments_.operands) {
         if (operand.kind === "sequence") continue;
+        if (operand.kind === "projection") {
+          if (operand.projection.values.some(value => sequence(expression(value.expression)))) return true;
+          continue;
+        }
         const selected = records.targetArguments.callArgumentEmission.get(operand.expression, operand.parameter, operand.form, operand.mapping);
         if (selected?.kind === "argument-vector") return true;
         if (arguments_.reordered) {
@@ -113,6 +117,16 @@ export function analyzeCsharpConstructorArguments(
     const selected = records.operations.selectedCall.get(baseCall);
     for (const [index, argument] of ast.arguments(baseCall).entries()) {
       if (argument === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A base constructor requires dense authored arguments.", baseCall);
+      const target = selected?.target;
+      const projection = target?.kind === "resolved" ? target.call.arguments.find(entry => entry.sourceArgumentIndex === index)?.projection : undefined;
+      if (projection !== undefined) {
+        const values = projection.values.map(value => expression(value.expression));
+        arguments_.set(argument, Object.freeze({ carrier: projection.target,
+          completion: values.some(value => value.kind !== "erased" && value.completion.kind === "never") ? "never" : "value",
+          passing: undefined, sequenced: projection.values.some((value, position) =>
+            sequence(values[position]!) || value.optional || position !== projection.resultIndex && values[position]!.kind !== "erased") }));
+        continue;
+      }
       const use = expression(argument);
       const passing = records.argumentPassing.argumentPassing.get(argument);
       if (passing === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A base constructor requires its source argument-passing admission.", argument);

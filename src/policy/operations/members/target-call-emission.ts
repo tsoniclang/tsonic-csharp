@@ -19,7 +19,10 @@ export function selectCsharpTargetCallEmission(input: CsharpTargetCallEmissionIn
     return refuse(`Checked call selected C# ${member.kind} '${member.id}', not an invocable method.`);
   const instance = selection.receiver.kind === "instance";
   if (instance && source.sourceReceiver === undefined) return refuse("Selected instance call requires its exact native receiver acquisition.");
-  const result = member.kind === "constructor" ? member.declaringType : member.returnType;
+  const physicalResult = member.kind === "constructor" ? member.declaringType : member.returnType;
+  const result = selection.discardResult === true ? csharpVoidTargetType() : physicalResult;
+  if (selection.discardResult === true && (selection.origin !== "source-profile" || member.kind !== "method" || physicalResult === undefined))
+    return refuse("A discarded native result requires its exact selected source-profile method and physical return contract.");
   if (result === undefined) return refuse("Selected native call requires its exact physical completion carrier.");
   const selected = member.csharpInvocation;
   let invocation: CsharpTargetInvocationEmission;

@@ -225,6 +225,13 @@ export const nativeCarrierRegistry = Object.freeze([
     frozen: false,
   },
   {
+    id: "src/target-model/types/carriers/scalar-types.ts#csharpSourceErrorTargetType",
+    kinds: ["target-named"],
+    declaration: { module: "src/target-model/types/carriers/scalar-types.ts", symbol: "csharpSourceErrorTargetType" },
+    responsibility: "vocabulary/source-error-native-identity",
+    frozen: false,
+  },
+  {
     id: "src/target-model/types/carriers/scalar-types.ts#csharpSourcePrimitiveTargetType",
     kinds: ["source-primitive"],
     declaration: { module: "src/target-model/types/carriers/scalar-types.ts", symbol: "csharpSourcePrimitiveTargetType" },

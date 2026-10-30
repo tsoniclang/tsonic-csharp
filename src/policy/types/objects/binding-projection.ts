@@ -97,8 +97,11 @@ export function selectCsharpBindingPatternProjection(input: BindingPatternProjec
         return unresolved("A native binding requires its exact checked member and receiver relation.");
       const valid = invocation.kind === "member"
         ? member.kind === "property" && member.static !== true && member.parameters.length === 0 && receiver.kind === "instance"
-        : member.kind === "method" && member.static === true && member.parameters.length === 1 &&
-          member.parameters[0]?.passingMode === "by-value" && receiver.kind === "target-parameter" && receiver.targetParameterIndex === 0;
+        : member.kind === "property" && member.readonly === true && member.static !== true && member.parameters.length === 0 &&
+          receiver.kind === "instance" && invocation.call !== undefined && invocation.call.kind === "method" &&
+          invocation.call.static !== true && invocation.call.declaringType !== undefined && invocation.call.parameters.length === 0 &&
+          (invocation.call.typeParameters?.length ?? 0) === 0 && invocation.call.returnType !== undefined &&
+          targetTypeRefEquals(invocation.call.returnType, member.declaringType);
       return valid ? element({ kind: "native-member", property: Object.freeze({ ...input.property, member }) })
         : unresolved("A native binding requires its exact checked member and receiver relation.");
     }

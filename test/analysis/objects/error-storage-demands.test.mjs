@@ -3,7 +3,7 @@ import test from "node:test";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { collectTargetSourceProfileContributions } from "../../../../tsonic/packages/host/dist/target/source-profile.js";
-import { createCsharpErrorDeclarationQuery } from "../../../dist/analysis/objects/error-storage-demands.js";
+import { createCsharpErrorDeclarationQuery, analyzeCsharpNativeErrorAdmission } from "../../../dist/analysis/objects/error-storage-demands.js";
 import { resolveSourceProfileType } from "../../../dist/analysis/source-evidence/types/resolution/source-profiles.js";
 import { selectCsharpErrorObservationView } from "../../../dist/analysis/source-evidence/types/resolution/source-references.js";
 import { createSourceErrorProviderFixture } from "../../fixtures/dotnet-provider/source-error-bindings.mjs";
@@ -68,18 +68,34 @@ for (const jsEnabled of [false, true]) {
       const declaration = declarations.get(name);
       assert.equal(declaration !== undefined, true, name);
       const carrier = resolveSourceProfileType({ host: { providers } }, identity, []);
-      assert.equal(carrier?.id, "Tsonic.CSharp.Runtime.Error", `${name}: a declared stored Error never varies with distant writes`);
+      assert.equal(carrier?.id, "System.Exception", `${name}: a declared stored Error never varies with distant writes`);
     }
     for (const constructor of constructors) assert.equal(constructor.value.result.node === constructor.value.node, true,
       "construction retains its original checked expression");
     assert.equal(demand.constructorFor(source.ast.as.AsVariableDeclaration(declarations.get("record")).Initializer).kind,
       "not-applicable", "same-named record fields are not native Error declarations");
     assert.equal(demand.constructorFor({}).kind, "unresolved", "foreign nodes cannot manufacture checked constructors");
+    const admission = analyzeCsharpNativeErrorAdmission(source);
+    assert.equal(admission.issues.length, 1, "the original nested Error write is refused without reclassifying the independent record field");
+    assert.equal(admission.issues[0].code, "CSHARP_ERROR_READONLY_STORAGE");
+    assert.equal(admission.issues[0].sourceNode === writes[0].field.node, true, "the refusal points to the original selected field write");
     assert.equal(Object.isFrozen(demand), true);
     assert.equal(Object.isFrozen(constructors[0].value.result.component), true);
     assert.equal("storageFor" in demand || "closedStorageOriginsFor" in demand, false,
       "the C# declaration owner publishes no origin query or compatibility path");
   });
+}
+
+
+function assertImmutableErrorRefusal(compiled) {
+  assert.equal(compiled.sourceDiagnosticsText, "", "the original TypeScript program still checks");
+  assert.equal(compiled.result.diagnostics.length, 1, "one local immutable-native Error write is refused");
+  const issue = compiled.result.diagnostics[0];
+  assert.equal(issue.code, "CSHARP_ERROR_READONLY_STORAGE");
+  assert.match(issue.message, /immutable after construction.*new Error.*super/u);
+  assert.equal(issue.sourceNode !== undefined, true, "the original write owns its diagnostic");
+  assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+    "refusal is before native publication, not silent omission");
 }
 
 for (const surface of ["native", "js"]) {
@@ -102,39 +118,7 @@ for (const surface of ["native", "js"]) {
         return returned === original && cast(original) === original && detail(original) === 7 && original.message === "original!";
       }
     ` });
-    assertCsharpCompilationSucceeded(compiled);
-    const program = compiled.result.program;
-    const { source } = program;
-    const { ast } = source;
-    const update = source.navigation.nodes.find(node => ast.is.IsFunctionDeclaration(node) && ast.text(ast.name(node)) === "update");
-    assert.equal(update !== undefined, true, "the writable declaration is original checked syntax");
-    const parameter = ast.parameters(update)[0];
-    const formal = program.records.callableDeclaration.get(update)?.contract.nativeParameters[0].targetParameter.type;
-    assert.equal(formal?.kind === "target-named" && (formal.id === "Tsonic.CSharp.Runtime.Error" ||
-      formal.id.endsWith("::Tsonic.CSharp.Runtime.Error")), true, "a readonly read never removes the adjacent writable formal capability");
-    const fields = source.navigation.declarationUses(parameter).map(use => ast.parent(use.reference))
-      .filter(node => node !== undefined && ast.is.IsPropertyAccessExpression(node));
-    assert.equal(fields.length, 2, "the same native input has one immediate read and one write");
-    const demand = createCsharpErrorDeclarationQuery(source);
-    const read = fields.find(node => demand.fieldFor(node).value?.accessMode === "read");
-    const write = fields.find(node => demand.fieldFor(node).value?.accessMode === "write");
-    assert.equal(read !== undefined && write !== undefined, true, "checked access modes remain separate");
-    const selected = node => program.records.nodeTargetType.get(ast.as.AsPropertyAccessExpression(node).Expression);
-    const view = selected(read);
-    assert.equal(view?.kind === "target-named" && (view.id === "System.Exception" || view.id.endsWith("::System.Exception")), true,
-      "only the readonly occurrence takes the real native Exception upcast");
-    assert.equal(targetTypeRefEquals(selected(write), formal), true, "the neighboring setter retains its actual writable identity");
-    const assertion = source.navigation.nodes.find(node => ast.is.IsAsExpression(node));
-    assert.equal(assertion !== undefined && targetTypeRefEquals(program.records.nodeTargetType.get(assertion), formal), true,
-      "an explicit checked native cast is not converted into a readonly observation");
-    const providers = createSourceErrorProviderFixture();
-    const scope = { host: { ast, providers, errorDeclarations: demand, projectTypes: () => ({ directSupertypes: () => [] }) } };
-    const receiver = ast.as.AsPropertyAccessExpression(read).Expression;
-    const queries = source.semantics.forNode(receiver);
-    const foreign = { ...formal, id: "ForeignOwner::Unrelated", csharpBaseType: undefined };
-    assert.throws(() => selectCsharpErrorObservationView(scope, receiver, queries, foreign),
-      /native reference relation to Exception/u, "foreign same-shaped evidence cannot manufacture a native observation view");
-    executeCsharpConstruction(compiled, `error-immediate-native-view-${surface}`);
+    assertImmutableErrorRefusal(compiled);
   });
 
   test(`C# ${surface} Error formals share one declaration-owned native input across bodies, defaults and emission`, () => {
@@ -144,57 +128,195 @@ for (const surface of ["native", "js"]) {
       export function defaulted(error: Error = new Error("fallback")): string { return error.message; }
       export function optional(error?: Error): string | undefined { return error?.message; }
     ` });
+    assertImmutableErrorRefusal(compiled);
+  });
+
+  test(`C# ${surface} native Error readonly identity retains exact casts, subclass members and foreign-view rejection`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      class DetailedError extends Error {
+        readonly code: number = 7;
+        constructor() { super("original"); this.name = "DetailedError"; }
+      }
+      export function observe(error: Error): Error { const before = error.message; return error; }
+      export function cast(error: unknown): Error { return error as Error; }
+      export function detail(error: DetailedError): number { return error.code; }
+      export function run(): boolean {
+        const original = new DetailedError();
+        const returned = observe(original);
+        return returned === original && cast(original) === original && detail(original) === 7 &&
+          original.message === "original" && original.name === "DetailedError";
+      }
+    ` });
     assertCsharpCompilationSucceeded(compiled);
     const program = compiled.result.program;
     const { source } = program;
-    for (const name of ["read", "write", "defaulted", "optional"]) {
+    const { ast } = source;
+    const observe = source.navigation.nodes.find(node => ast.is.IsFunctionDeclaration(node) && ast.text(ast.name(node)) === "observe");
+    assert.equal(observe !== undefined, true, "the native observer is original checked syntax");
+    const parameter = ast.parameters(observe)[0];
+    const formal = program.records.callableDeclaration.get(observe)?.contract.nativeParameters[0].targetParameter.type;
+    assert.equal(formal?.kind === "target-named" && (formal.id === "System.Exception" || formal.id.endsWith("::System.Exception")), true,
+      "the same native Exception identity owns storage, formal and result");
+    const fields = source.navigation.declarationUses(parameter).map(use => ast.parent(use.reference))
+      .filter(node => node !== undefined && ast.is.IsPropertyAccessExpression(node));
+    assert.equal(fields.length, 1, "the exact original native readonly field access is retained");
+    const demand = createCsharpErrorDeclarationQuery(source);
+    const read = fields.find(node => demand.fieldFor(node).value?.accessMode === "read");
+    assert.equal(read !== undefined, true);
+    const receiver = ast.as.AsPropertyAccessExpression(read).Expression;
+    const selected = program.records.nodeTargetType.get(receiver);
+    assert.equal(selected !== undefined && targetTypeRefEquals(selected, formal), true, "no secondary writable carrier or copied view");
+    const assertion = source.navigation.nodes.find(node => ast.is.IsAsExpression(node));
+    assert.equal(assertion !== undefined && targetTypeRefEquals(program.records.nodeTargetType.get(assertion), formal), true,
+      "the exact checked cast preserves native reference identity");
+    const providers = createSourceErrorProviderFixture();
+    const scope = { host: { ast, providers, errorDeclarations: demand, projectTypes: () => ({ directSupertypes: () => [] }) } };
+    const foreign = { ...formal, id: "ForeignOwner::Unrelated", csharpBaseType: undefined };
+    assert.throws(() => selectCsharpErrorObservationView(scope, receiver, source.semantics.forNode(receiver), foreign),
+      /native reference relation to Exception/u, "foreign evidence cannot manufacture native Exception identity");
+    const emitted = [...compiled.artifacts.values()].join("\n");
+    assert.doesNotMatch(emitted, /Tsonic\.CSharp\.Runtime\.Error|ErrorObject/u);
+    executeCsharpConstruction(compiled, `error-native-readonly-identity-${surface}`);
+  });
+
+  test(`C# ${surface} native Error formals preserve defaults, omission and identical immutable published slots`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      export function read(error: Error): string { return error.message; }
+      export function identity(error: Error): Error { return error; }
+      export function defaulted(error: Error = new Error("fallback")): string { return error.message; }
+      export function optional(error?: Error): string | undefined { return error?.message; }
+    ` });
+    assertCsharpCompilationSucceeded(compiled);
+    const program = compiled.result.program;
+    const { source } = program;
+    for (const name of ["read", "identity", "defaulted", "optional"]) {
       const declaration = source.navigation.nodes.find(node => source.ast.is.IsFunctionDeclaration(node) &&
         source.ast.text(source.ast.name(node)) === name);
       assert.equal(declaration !== undefined, true, `${name}: original declaration`);
       const parameter = source.ast.parameters(declaration)[0];
       const contract = program.records.callableDeclaration.get(declaration)?.contract;
-      assert.equal(contract?.nativeParameters.length, 1, `${name}: exactly one native parameter is published`);
+      assert.equal(contract?.nativeParameters.length, 1, `${name}: exactly one native parameter`);
       assert.equal(contract.nativeParameters[0].sourceParameter === parameter, true, `${name}: the original checked slot survives`);
       const native = contract.nativeParameters[0].targetParameter.type;
       const value = getCsharpNullableElementTargetType(native) ?? native;
-      assert.equal(value.kind, "target-named", `${name}: actual native reference carrier`);
-      const expected = name === "write" ? "Tsonic.CSharp.Runtime.Error" : "System.Exception";
-      assert.equal(value.id === expected || value.id.endsWith(`::${expected}`), true, `${name}: exact native capability, not a stored-value guess`);
+      assert.equal(value.kind === "target-named" && (value.id === "System.Exception" || value.id.endsWith("::System.Exception")), true,
+        `${name}: immutable native declaration, not origin-selected capability`);
       const runtimeDefault = program.records.runtimeDefault.get(parameter);
-      if (name === "defaulted") {
-        assert.equal(runtimeDefault !== undefined && targetTypeRefEquals(runtimeDefault.parameterType, native), true,
-          "the initializer uses the same published incoming native contract");
-      }
+      if (name === "defaulted") assert.equal(runtimeDefault !== undefined && targetTypeRefEquals(runtimeDefault.parameterType, native), true,
+        "the default initializer consumes the same published native input");
       const body = runtimeDefault?.valueType ?? native;
       assert.equal(targetTypeRefEquals(program.records.callableParameter.get(parameter)?.carrier, body), true,
-        `${name}: native parameter emission reads the same body/default contract`);
+        `${name}: body/default and native emission agree`);
       for (const use of source.navigation.declarationUses(parameter)) {
         const parent = source.ast.parent(use.reference);
         if (parent === undefined || !source.ast.is.IsPropertyAccessExpression(parent) ||
-            source.ast.as.AsPropertyAccessExpression(parent).Expression !== use.reference) continue;
-        const actual = program.records.nodeTargetType.get(use.reference);
-        const present = getCsharpNullableElementTargetType(body) ?? body;
-        const readonly = source.semantics.forNode(parent).operations.propertyAccess(parent)?.accessMode === "read";
-        const selected = getCsharpNullableElementTargetType(actual) ?? actual;
-        assert.equal(readonly ? selected?.kind === "target-named" &&
-          (selected.id === "System.Exception" || selected.id.endsWith("::System.Exception")) :
-          actual !== undefined && (targetTypeRefEquals(actual, body) || targetTypeRefEquals(actual, present)), true,
-        `${name}: the published body input admits only the immediate readonly native observation view`);
+          source.ast.as.AsPropertyAccessExpression(parent).Expression !== use.reference) continue;
+        const selected = program.records.nodeTargetType.get(use.reference);
+        const present = getCsharpNullableElementTargetType(selected) ?? selected;
+        assert.equal(present?.kind === "target-named" && (present.id === "System.Exception" || present.id.endsWith("::System.Exception")), true,
+          `${name}: one exact native body input`);
       }
       assert.equal(Object.isFrozen(contract.nativeParameters[0]) && Object.isFrozen(contract.nativeParameters[0].targetParameter), true,
-        `${name}: the native slot is immutable before body publication`);
+        `${name}: the slot is immutable before publication`);
     }
-    executeCsharpConstruction(compiled, `error-formal-default-contract-${surface}`, false, false, [], `
+    executeCsharpConstruction(compiled, `error-native-formal-defaults-${surface}`, false, false, [], `
 using System;
 using Generated = Tsonic.Generated.Index;
-var original = new Tsonic.CSharp.Runtime.Error("original");
+var original = new Exception("original");
 Exception native = new InvalidOperationException("native");
 if (Generated.read(native) != "native" || Generated.defaulted() != "fallback" || Generated.defaulted(native) != "native")
     throw new Exception("native readonly/default contract");
 if (Generated.optional(null) is not null || Generated.optional(native) != "native")
     throw new Exception("native optional contract");
-if (Generated.write(original) != "changed" || original.message != "changed")
-    throw new Exception("writable native identity");
+if (!ReferenceEquals(Generated.identity(original), original) || original.Message != "original")
+    throw new Exception("native immutable identity");
 `);
+  });
+
+  test(`C# ${surface} native Error constructors project cause once in source order without options storage`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      let order: string = "";
+      function message(): string { order += "message;"; return "outer"; }
+      function cause(value: Error): Error { order += "cause;"; return value; }
+      class HttpError extends Error {
+        readonly status: number = 400;
+        constructor(message: string, cause: Error) { super(message, { cause }); this.name = "HttpError"; }
+      }
+      class DetailedHttpError extends HttpError {
+        constructor(cause: Error) { super("derived", cause); }
+      }
+      export function make(value: Error): Error { order = ""; return new Error(message(), { cause: cause(value) }); }
+      export function direct(message: string, value: Error): Error { return new Error(message, { cause: value }); }
+      export function options(value: ErrorOptions | undefined): Error { return new Error("optional", value); }
+      export function orderValue(): string { return order; }
+      export function identity(value: Error): Error { return value; }
+      export function label(value: Error): string { const { name, message } = value; return name + ":" + message; }
+      export function run(): boolean {
+        const inner = new Error("inner");
+        const outer = make(inner);
+        const detailed = new DetailedHttpError(inner);
+        return outer.cause === inner && outer.message === "outer" && order === "message;cause;" &&
+          detailed instanceof Error && detailed instanceof HttpError && detailed.cause === inner &&
+          detailed.status === 400 && detailed.name === "DetailedHttpError" && identity(inner) === inner;
+      }
+    ` });
+    assertCsharpCompilationSucceeded(compiled);
+    const emitted = [...compiled.artifacts.values()].join("\n");
+    assert.match(emitted, /new (?:System\.)?Exception\(/u);
+    assert.match(emitted, /\.InnerException/u);
+    assert.match(emitted, /\.GetType\(\)\.Name/u);
+    assert.doesNotMatch(emitted, /Tsonic\.CSharp\.Runtime\.Error|ErrorObject|new ErrorOptions/u);
+    const selections = compiled.result.program.source.navigation.nodes.map(node =>
+      compiled.result.program.records.selectedConstruction.get(node)?.target)
+      .filter(selection => selection?.kind === "resolved" && selection.call.arguments.some(argument => argument.projection !== undefined));
+    assert.equal(selections.length >= 2, true, "both source construction and native base invocation retain checked cause projections");
+    for (const selection of selections) {
+      const projection = selection.call.arguments.find(argument => argument.projection !== undefined).projection;
+      assert.equal(Object.isFrozen(projection) && Object.isFrozen(projection.values), true, "checked cause projection is immutable");
+      assert.equal(projection.declaration !== undefined && projection.source !== undefined, true, "cause retains its exact selected declaration and original input");
+    }
+    executeCsharpConstruction(compiled, `error-native-cause-order-${surface}`, false, false, [], `
+using System;
+using Generated = Tsonic.Generated.Index;
+if (!Generated.run()) throw new Exception("native cause, inheritance or identity");
+var inner = new Exception("inner");
+var outer = Generated.make(inner);
+if (!ReferenceEquals(outer.InnerException, inner) || Generated.orderValue() != "message;cause;" ||
+    !ReferenceEquals(Generated.identity(inner), inner) || Generated.label(inner) != "Exception:inner")
+    throw new Exception("native direct identity and ordered cause");
+if (Generated.options(null).InnerException is not null) throw new Exception("native optional cause absence");
+NativeBytes(inner); GeneratedBytes(inner);
+for (var replay = 0; replay < 3; replay++)
+    if (GeneratedBytes(inner) != NativeBytes(inner)) throw new Exception("hidden options allocation or wrapper");
+
+static long NativeBytes(Exception inner) {
+    var before = GC.GetAllocatedBytesForCurrentThread();
+    for (var index = 0; index < 1_000; index++) GC.KeepAlive(new Exception("message", inner));
+    return GC.GetAllocatedBytesForCurrentThread() - before;
+}
+static long GeneratedBytes(Exception inner) {
+    var before = GC.GetAllocatedBytesForCurrentThread();
+    for (var index = 0; index < 1_000; index++) GC.KeepAlive(Generated.direct("message", inner));
+    return GC.GetAllocatedBytesForCurrentThread() - before;
+}
+`);
+  });
+
+  for (const [label, sourceText, code] of [
+    ["plain message", `export function update(value: Error): void { value.message = "changed"; }`, "CSHARP_ERROR_READONLY_STORAGE"],
+    ["plain stack", `export function update(value: Error): void { value.stack = "changed"; }`, "CSHARP_ERROR_READONLY_STORAGE"],
+    ["plain name", `export function update(value: Error): void { value.name = "Changed"; }`, "CSHARP_ERROR_READONLY_STORAGE"],
+    ["subclass message", `class HttpError extends Error {} export function update(value: HttpError): void { value.message = "changed"; }`, "CSHARP_ERROR_READONLY_STORAGE"],
+    ["wrong subclass name", `class HttpError extends Error { constructor() { super("original"); this.name = "Wrong"; } } export function make(): Error { return new HttpError(); }`, "CSHARP_ERROR_READONLY_STORAGE"],
+    ["structural Error", `export const value: Error = { name: "Error", message: "not native" };`, "CSHARP_ERROR_OBJECT_LITERAL_UNSUPPORTED"],
+  ]) test(`C# ${surface} native Error admission refuses ${label} at its original local source`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText });
+    assert.equal(compiled.sourceDiagnosticsText, "", "the original checked program is retained as a native refusal");
+    assert.equal(compiled.result.diagnostics.length, 1, "one local immutable-native Error refusal");
+    const diagnostic = compiled.result.diagnostics[0];
+    assert.equal(diagnostic.code, code);
+    assert.equal(diagnostic.sourceNode !== undefined, true, "the exact write or object literal owns the refusal");
+    assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+      "no partial program or generated source is published after native admission fails");
   });
 }

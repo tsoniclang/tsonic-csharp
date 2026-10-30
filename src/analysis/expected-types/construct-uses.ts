@@ -195,6 +195,13 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
     const mappings = call.origin === "provider" ? new Map(call.argumentMappings.map(mapping => [mapping.effectiveArgumentIndex, mapping])) : undefined;
     const recordedSequences = new Set<number>();
     for (const argument of call.arguments) {
+      if (argument.projection !== undefined) {
+        const projection = argument.projection;
+        for (const [index, value] of projection.values.entries()) record(value.expression,
+          value.member !== undefined ? value.type : projection.resultIndex === index ? projection.target : value.type,
+          "required", at(projection.source, { kind: "member", index }));
+        continue;
+      }
       const sequence = sequences.get(argument.sourceArgumentIndex);
       if (sequence !== undefined && recordedSequences.has(argument.sourceArgumentIndex)) continue;
       if (sequence !== undefined) recordedSequences.add(argument.sourceArgumentIndex);

@@ -6,7 +6,6 @@ import type { DestructuringPlannerState } from "./binding-state.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { ExpressionPlanner } from "../expressions/expression-planner-types.js";
-import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { planCsharpBindingDefaultValue } from "./optional-values.js";
 import { consumeCsharpPlannedValue } from "../statements/statement-output.js";
 
@@ -29,11 +28,10 @@ export function planObjectBindingElement(
     let value: CsharpExpression;
     if (invocation.kind === "member" && receiver.kind === "instance") {
       value = { kind: "SimpleMemberAccessExpression", receiver: sourceExpression, name: member.targetName };
-    } else if (invocation.kind === "receiver-call" && receiver.kind === "target-parameter" && receiver.targetParameterIndex === 0) {
-      const owner = csharpTypeFromTargetTypeRef(member.declaringType, input.scope.typeParameterNames);
-      if (owner === undefined) failCsharpPlannerInvariant("An admitted native binding requires its exact renderable declaring type.", elementNode);
-      value = { kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression", receiver: owner, name: member.targetName },
-        arguments: [{ kind: "Argument", expression: sourceExpression }] };
+    } else if (invocation.kind === "receiver-call" && receiver.kind === "instance") {
+      value = { kind: "SimpleMemberAccessExpression", receiver: { kind: "InvocationExpression",
+        callee: { kind: "SimpleMemberAccessExpression", receiver: sourceExpression, name: invocation.call.targetName },
+        arguments: [] }, name: member.targetName };
     } else return failCsharpPlannerInvariant("An admitted native binding requires its exact receiver relation.", elementNode);
     if (element.Initializer === undefined) return planBindingNameFromProjection(element.name, value,
       elementNode, sourceFile, input, diagnostics, state);
