@@ -1,5 +1,6 @@
 import { createCsharpIntegerRangeIndex } from "./records/operations/integer-ranges.js";
 import { analyzeCsharpSourceAliasReexports } from "../source-modules/alias-reexports.js";
+import { analyzeCsharpSourceAnyAdmission } from "../source-evidence/source-any-admission.js";
 import type { CsharpTargetProgram } from "../../target-model/records/target-program.js";
 import { analyzeCsharpRepresentationIteration, representationContractsEqual, type CsharpRepresentationContract } from "./iteration.js";
 import { rejectCsharpAnalysisIssues } from "./issues.js";
@@ -72,6 +73,8 @@ function analyzeCsharpTargetProgramBeforeSeal(
   if (aliasIssues.length !== 0) return rejectedTargetStage(aliasIssues.map(diagnostic => ({
     ...targetDiagnosticFromExtension(diagnostic.nodeOrSpan, diagnostic), code: diagnostic.publicCode,
   })));
+  const anyIssues = analyzeCsharpSourceAnyAdmission(source);
+  if (anyIssues.length !== 0) return rejectedTargetStage(anyIssues);
   if (source.semantics.enumConstants.issues.length !== 0) return rejectedTargetStage(source.semantics.enumConstants.issues);
   const memoryBindings = createTsonicMemoryBindingIndex(source);
   const sourceAttributeApplications = createCsharpSourceAttributeApplicationIndex(source, source.navigation.sourceFiles);

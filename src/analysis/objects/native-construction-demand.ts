@@ -284,10 +284,6 @@ export function createCsharpNativeConstructionDemandQuery(
     const contextual = context?.component.selectedType;
     const asynchronous = context?.returnedFrom !== undefined && host.ast.hasModifierKind(context.returnedFrom, "async");
     const selected = contextual !== undefined && asynchronous ? queries.types.typeArguments(contextual)[0] : contextual;
-    if (selected !== undefined && queries.types.isAny(selected)) {
-      issue(node, "TSONIC_ANY_UNSUPPORTED", "'any' has no native representation. Declare the type, or use 'unknown' and narrow it.");
-      return;
-    }
     if (host.ast.properties(node).length === 0 && selected === undefined) {
       issues.push(csharpUntypedObjectLiteralIssue(node));
       return;
