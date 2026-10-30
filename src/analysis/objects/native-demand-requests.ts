@@ -6,7 +6,6 @@ import type {
   TargetTypeRef,
 } from "../../target-model/types/index.js";
 import type { CsharpObjectShapeDemandScope } from "./native-demand-batches.js";
-import type { CsharpJsonObjectShapeContractResult } from "../../target-model/records/objects/json-object-shapes.js";
 import { selectCsharpJsonObjectShapeContract } from "../../policy/types/objects/json-object-shapes.js";
 import type { CsharpArtifactRequestResult, CsharpObjectShapeProjectionRequestResult } from "./native-demand-batches.js";
 import type { CsharpObjectShapeArtifactClosure, CsharpObjectShapeDeclarationNaming, CsharpObjectShapeDemandClosure, CsharpPreparedObjectShapeProjection } from "../../target-model/records/objects/object-shape-demand.js";
@@ -18,6 +17,7 @@ import {
   resolveCsharpObjectShapeMemberBySourceContract,
   resolveCsharpObjectShapeMemberBySourceKey,
   targetTypeRefEquals,
+  csharpObjectShapesEqual,
   isCsharpEmptyObjectTargetType,
   isSourceDeclaredNominalShape,
 } from "../../target-model/types/index.js";
@@ -30,6 +30,8 @@ import type { CsharpObjectShapeProjectionAdmission } from "../../target-model/re
 import { objectShapeProjectionConversions,
   prepareCsharpObjectShapeProjectionDeclaration } from "./native-demand-declarations.js";
 import { prepareCsharpObjectShapeDeclarationNames } from "../names/object-shapes.js";
+import { csharpJsonValueProjectionMethodName, csharpJsonValueWriterMethodName } from "../../target-model/names/object-members.js";
+import { isCsharpRefLikeTargetType } from "../../target-model/types/ref-like.js";
 import {
   collectShapeDependencies,
   prepareObjectShapeBatch,
@@ -430,7 +432,51 @@ export function requireObjectShapeMethodReceiver(
 
 export function closeObjectShapeArtifacts(
   { records, host, jsonContracts }: CsharpObjectShapeDemandScope,
+  generalJsonRoots: ReadonlySet<string>,
 ): readonly CsharpObjectShapeArtifactClosure[] {
+  const generalJsonDeclarations = new Set<string>();
+  const implementations = new Map<string, string[]>();
+  if (generalJsonRoots.size > 0) for (const [key, record] of records) {
+    for (const implemented of record.fact.implements ?? []) {
+      const typeKey = targetTypeRefKey(implemented);
+      const entries = implementations.get(typeKey) ?? [];
+      entries.push(key);
+      implementations.set(typeKey, entries);
+    }
+  }
+  const pending = [...generalJsonRoots];
+  const visited = new Set<string>();
+  for (let index = 0; index < pending.length; index++) {
+    const key = pending[index]!;
+    if (visited.has(key)) continue;
+    visited.add(key);
+    const record = records.get(key);
+    if (record === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+      "A general JSON writer requires every declared native artifact dependency.");
+    const declaration = record.fact.declarationTemplate ?? record.fact;
+    const declarationKey = objectShapeArtifactKey(declaration);
+    const owner = records.get(declarationKey);
+    if (owner === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
+      "A general JSON writer requires its canonical native declaration artifact.");
+    if (owner.fact.members.some(member => member.targetName === csharpJsonValueProjectionMethodName ||
+      member.targetName === csharpJsonValueWriterMethodName)) continue;
+    let contract = jsonContracts.get(owner.fact);
+    if (contract === undefined) {
+      contract = selectCsharpJsonObjectShapeContract({ shape: owner.fact });
+      jsonContracts.set(owner.fact, contract);
+    }
+    if (contract.kind !== "resolved") continue;
+    const canPassToWriter = (type: TargetTypeRef): boolean =>
+      type.kind !== "pointer" && type.kind !== "function-pointer" && !isCsharpRefLikeTargetType(type);
+    if (contract.contract.kind === "to-json"
+      ? !canPassToWriter(contract.contract.returnType)
+      : owner.fact.members.some(member => member.memberKind !== "method" && !canPassToWriter(member.type))) continue;
+    generalJsonDeclarations.add(declarationKey);
+    for (const dependency of record.dependencies) if (!visited.has(dependency)) pending.push(dependency);
+    for (const implemented of implementations.get(targetTypeRefKey(record.fact.targetType)) ?? []) {
+      if (!visited.has(implemented)) pending.push(implemented);
+    }
+  }
   const declarations = new Map<string, {
     readonly capabilities: Set<CsharpObjectShapeCapability>;
     readonly projections: Map<string, CsharpPreparedObjectShapeProjection>;
@@ -473,18 +519,20 @@ export function closeObjectShapeArtifacts(
         receivers.add(csharpObjectShapeMemberContractKey(selected.member));
       }
       let jsonContract = jsonContracts.get(record.fact);
-      if (surface.capabilities.has("json-serialization") && jsonContract === undefined) {
+      const capabilities = new Set(surface.capabilities);
+      if (generalJsonDeclarations.has(objectShapeArtifactKey(owner.fact))) capabilities.add("json-serialization");
+      if (capabilities.has("json-serialization") && jsonContract === undefined) {
         jsonContract = selectCsharpJsonObjectShapeContract({ shape: record.fact });
         jsonContracts.set(record.fact, jsonContract);
       }
-      if (jsonContract?.kind === "rejected" && surface.capabilities.has("json-serialization"))
+      if (jsonContract?.kind === "rejected" && capabilities.has("json-serialization"))
         return failTargetAnalysisInvariant("tsonic-csharp", "An admitted JSON declaration requires its exact native template contract.", record.fact.methodImplementation?.declaration);
       return Object.freeze({
-        jsonContract: surface.capabilities.has("json-serialization") && jsonContract?.kind === "resolved" ? jsonContract.contract : undefined,
+        jsonContract: capabilities.has("json-serialization") && jsonContract?.kind === "resolved" ? jsonContract.contract : undefined,
         key,
         fact: record.fact,
         materialization: record.materialization,
-        capabilities: Object.freeze([...surface.capabilities].sort()),
+        capabilities: Object.freeze([...capabilities].sort()),
         projections: Object.freeze(
           [...surface.projections.values()].sort((left, right) =>
             left.methodName.localeCompare(right.methodName)
@@ -519,11 +567,12 @@ export function connect(
 export function createCsharpObjectShapeDemandEngine(host: CsharpObjectShapeDemandHost):
   Pick<CsharpObjectShapeDemandScope, "registerObjectShape" | "requireObjectShapeCapability" |
     "requireObjectShapeProjection" | "requireObjectShapeMethodReceiver"> & {
-      readonly jsonContract: (fact: CsharpObjectShapeFact) => CsharpJsonObjectShapeContractResult | undefined;
+      readonly registerGeneralJsonWriter: (fact: CsharpObjectShapeFact) => void;
       readonly close: () => CsharpObjectShapeDemandClosure;
     } {
   let scope: CsharpObjectShapeDemandScope;
   let sealed = false;
+  const generalJsonDeclarations = new Set<string>();
   const requireOpen = (): void => {
     if (sealed) throw new Error("C# object-shape artifact demand is sealed.");
   };
@@ -544,7 +593,7 @@ export function createCsharpObjectShapeDemandEngine(host: CsharpObjectShapeDeman
       requireOpen();
       return requireObjectShapeMethodReceiver(scope, fact, member);
     },
-    closeObjectShapeArtifacts: () => closeObjectShapeArtifacts(scope),
+    closeObjectShapeArtifacts: () => closeObjectShapeArtifacts(scope, generalJsonDeclarations),
     connect: (owner, dependency) => connect(scope, owner, dependency),
     collectShapeDependencies: root => collectShapeDependencies(scope, root),
     prepareObjectShapeBatch: roots => prepareObjectShapeBatch(scope, roots),
@@ -569,7 +618,14 @@ export function createCsharpObjectShapeDemandEngine(host: CsharpObjectShapeDeman
     requireObjectShapeCapability: operations.requireObjectShapeCapability,
     requireObjectShapeProjection: operations.requireObjectShapeProjection,
     requireObjectShapeMethodReceiver: operations.requireObjectShapeMethodReceiver,
-    jsonContract: (fact: CsharpObjectShapeFact) => scope.jsonContracts.get(fact),
+    registerGeneralJsonWriter(fact: CsharpObjectShapeFact): void {
+      requireOpen();
+      const registered = scope.records.get(objectShapeArtifactKey(fact));
+      if (registered === undefined || !csharpObjectShapesEqual(registered.fact, fact)) {
+        return failTargetAnalysisInvariant("tsonic-csharp", "A general JSON writer requires its exact admitted native shape.");
+      }
+      generalJsonDeclarations.add(objectShapeArtifactKey(registered.fact));
+    },
     close(): CsharpObjectShapeDemandClosure {
       requireOpen();
       const targetShapes = host.objectShapes.targetShapes;

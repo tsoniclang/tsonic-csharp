@@ -13,7 +13,7 @@ import { selectCsharpObjectShapeDisplayNames } from "../../../dist/analysis/name
 import { createStructuralObjectShapeTarget } from "../../../dist/analysis/objects/shapes/construction.js";
 import { header, payload, boxing, nativeCostProgram, originalPrograms, originalNativeProgram } from "./native-demand-boxing.fixtures.mjs";
 
-test("explicit JSON demand follows native boxed payload origins without changing unrelated broad storage", () => {
+test("general native value declarations publish JSON writers without tracing later uses or changing broad storage", () => {
   const { program, nodes, source } = compileCsharpRequiredRecordSource(`
     import type { int64 } from "@tsonic/core/types.js";
     function stringify(value: unknown): string { return JSON.stringify(value) ?? "null"; }
@@ -36,17 +36,17 @@ test("explicit JSON demand follows native boxed payload origins without changing
     const artifact = program.records.objectShapeArtifact.get(objectShapeArtifactKey(shape));
     assert.equal(artifact !== undefined, true, "every boxed native shape has its artifact");
     if (shape.members.some(member => member.sourceName === "unrelated")) {
-      assert.equal(artifact.capabilities.includes("json-serialization"), false, "an unrelated box does not acquire a JSON protocol");
+      assert.equal(artifact.capabilities.includes("json-serialization"), true, "the unrelated native declaration owns its writer independently of later JSON calls");
       assert.equal(artifact.capabilities.includes("reference-identity"), true, "unrelated native identity remains intact");
       untouched++;
     } else {
-      assert.equal(artifact.capabilities.includes("json-serialization"), true, "known aliases, array elements and broad fields retain their actual native JSON payloads");
+      assert.equal(artifact.capabilities.includes("json-serialization"), true, "the selected native declarations own their actual JSON payload writers without caller tracing");
       assert.equal(artifact.capabilities.includes("reference-identity"), true, "serialization demand does not replace the native identity carrier");
       demanded++;
     }
   }
-  assert.equal(demanded, 2, "both actual JSON-reachable native shapes receive the existing protocol");
-  assert.equal(untouched, 1, "only the actual selected JSON roots drive the demand");
+  assert.equal(demanded, 2, "both original selected native shapes retain the existing protocol");
+  assert.equal(untouched, 1, "the one unrelated original native shape remains distinct and unchanged");
 });
 
 for (const surface of Array.from(["native", "js"]).slice(0, 2)) {
@@ -133,3 +133,35 @@ test(`${surface}: actual ${name} boxes only admitted references and preserves na
   });
 }
 }
+
+test("general unknown JSON preserves native identity and allocation while unrelated non-JSON storage stays legal", { timeout: 300_000 }, () => {
+  const sourceText = header + [
+    "import type { int64 } from \"@tsonic/core/types.js\";",
+    "const child: unknown = { count: 9007199254740993n as int64 };",
+    "const value: unknown = { child: child };",
+    "const alias = value;",
+    "const unrelated: unknown = { toJSON(key: int32): int32 { return key; } };",
+    "function stringify(input: unknown): string { return JSON.stringify(input) ?? \"null\"; }",
+    "export function identity(): boolean { return alias === value; }",
+    "export function run(): boolean {",
+    "  return stringify(alias) === '{\"child\":{\"count\":9007199254740993}}' && identity() && typeof unrelated === \"object\";",
+    "}",
+  ].join("\n");
+  const compiled = compileCsharpSource({ surface: "js", sourceText });
+  const nativeProgram = [
+    "using System;",
+    "using Index = Tsonic.Generated.Index;",
+    "Index.__tsonic_module_init();",
+    "if (!Index.run()) throw new Exception(\"general native JSON value/identity\");",
+    "for (int iteration = 0; iteration < 1024; iteration++) if (!Index.identity()) throw new Exception(\"native alias warmup\");",
+    "long before = GC.GetAllocatedBytesForCurrentThread();",
+    "bool same = true;",
+    "for (int iteration = 0; iteration < 4096; iteration++) same &= Index.identity();",
+    "long allocated = GC.GetAllocatedBytesForCurrentThread() - before;",
+    "if (!same || allocated != 0) throw new Exception($\"native alias allocation {allocated}\");",
+    "Console.WriteLine($\"json-native-identity:{same}:{allocated}\");",
+  ].join("\n");
+  const output = executeCsharpConstruction(compiled, "json-declared-native-identity", false, false, [], nativeProgram);
+  assert.match(output, /^json-native-identity:True:0\s*$/u,
+    "the original native references retain identity with no per-read delegate, copy or extra allocation");
+});
