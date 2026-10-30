@@ -230,7 +230,7 @@ test("compile-time metadata excludes the whole subtree without a participation r
 });
 
 for (const surface of Array.from(["native", "js"]).slice(0, 2)) {
-test(`${surface} malformed or budget-exhausted participation domains reject precisely before classification`, () => {
+test(`${surface} canonical participation ignores unrelated storage exhaustion and malformed domains reject before classification`, () => {
   const value = analyze("export function run(): number { const callback = () => 1; return callback(); }", surface);
   const root = value.nodes.find(node => value.ast.is.IsSourceFile(node));
   assert.equal(root !== undefined, true, "the actual checked finite domain has its original source-file root");
@@ -240,9 +240,15 @@ test(`${surface} malformed or budget-exhausted participation domains reject prec
   assert.equal(limited.failureReason(), "Source storage transport exceeds its finite source-node budget.",
     "the budget control uses a real bounded source-storage failure, not an invented empty domain");
   assert.equal(limited.nodes.length < value.nodes.length, true, "the resource-exhausted checked domain is actually partial");
+  const canonical = analyzeCsharpNativeParticipation({ ast: value.ast,
+    nodes: value.source.navigation.nodesForFiles(value.source.navigation.sourceFiles),
+    navigation: value.source.navigation, captureClosure: records.captureClosure, lambdaCreation: records.lambdaCreation,
+    objectShapes: value.program.objectShapes, compileTimeMetadata: records.compileTimeMetadata, requiredRecords: [] });
+  assert.equal(canonical.kind, "resolved", "unrelated history exhaustion does not reject the complete canonical inventory");
+  assert.equal(value.nodes.every(node => canonical.value.participation.get(node) === records.nativeParticipation.get(node)), true,
+    "the complete canonical inventory publishes every original participation decision despite history exhaustion");
   const cyclic = { ...value.ast, parent: node => node === root ? root : value.ast.parent(node) };
   for (const [label, ast, nodes, reason] of [
-    ["stored budget failure", value.ast, limited.nodes, limited.failureReason()],
     ["missing parent", value.ast, value.nodes.filter(node => node !== root),
       "Source participation requires every checked parent in its finite source domain."],
     ["duplicate source identity", value.ast, [...value.nodes, root],
