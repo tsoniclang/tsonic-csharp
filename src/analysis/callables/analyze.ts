@@ -88,7 +88,6 @@ export function analyzeCsharpCallableContracts(
         node,
         sourceFile,
         projections,
-        context?.inputTypes,
       );
       const contract = selected === undefined ? undefined : closeCsharpContextualRestInputs(policy, evidence, conversions, selected);
       if (contract !== undefined) {

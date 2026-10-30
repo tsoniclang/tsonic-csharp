@@ -105,21 +105,44 @@ test("C# refuses a known Promise wrapper with a still-free inner payload before 
   "identity(Promise.resolve(value))", "KindCallExpression", "identity");
 });
 
-for (const [name, extra, receiver] of Array.from([
+for (const [name, extra, receiver, unsupportedHeritage] of Array.from([
   ["incoming", "", "Holder<Promise<number>>"],
   ["alias", "type Alias<Part> = Holder<Part>;", "Alias<Promise<number>>"],
   ["union", "", "Holder<number> | Holder<Promise<number>>"],
   ["inherited", "class Derived<Part> extends Holder<Part> {}", "Derived<Promise<number>>"],
   ["fixed-inherited", "class Derived extends Holder<Promise<number>> {}", "Derived"],
-  ["indexed-inherited", "class Derived<Parts extends unknown[]> extends Holder<Parts[0]> {}", "Derived<[Promise<number>]>"],
+  ["indexed-inherited", "class Derived<Parts extends unknown[]> extends Holder<Parts[0]> {}", "Derived<[Promise<number>]>", "Holder<Parts[0]>"],
   ["wrapped-inherited", "class Derived<Part> extends Holder<Promise<Part>> {}", "Derived<number>"],
-  ["conditional-inherited", "class Derived<Part> extends Holder<Part extends number ? number : Promise<number>> {}", "Derived<string>"],
+  ["conditional-inherited", "class Derived<Part> extends Holder<Part extends number ? number : Promise<number>> {}", "Derived<string>", "Holder<Part extends number ? number : Promise<number>>"],
 ]).slice(0, 8)) {
 test(`C# generic adoption refuses the actual ${name} class receiver`, () => {
-    rejected(compileCsharpSource({ surface: "js", sourceText: `
+    const compiled = compileCsharpSource({ surface: "js", sourceText: `
       class Holder<Value> { constructor(readonly value: Value) {} async get(): Promise<Value> { return this.value; } }
       ${extra} export function reject(holder: ${receiver}) { return holder.get(); }
-    ` }), "holder.get()", "KindCallExpression");
+    ` });
+    if (unsupportedHeritage === undefined) {
+      rejected(compiled, "holder.get()", "KindCallExpression");
+      return;
+    }
+    assert.deepEqual(compiled.result.diagnostics.map(issue => issue.code),
+      ["CSHARP_PROJECT_HERITAGE_TARGET_UNRESOLVED"],
+      "approved C-1386: dependent base types retain their precise v1 heritage refusal");
+    const issue = compiled.result.diagnostics[0];
+    const { ast } = compiled.source;
+    assert.equal(ast.kindName(issue.sourceNode), "KindExpressionWithTypeArguments",
+      "the original dependent heritage clause owns the refusal, not the receiver call");
+    const sourceFile = ast.getSourceFile(issue.sourceNode);
+    assert.equal(sourceFile !== undefined && compiled.source.sourceFiles.includes(sourceFile), true,
+      "approved C-1389: the heritage subject retains its original checked source owner");
+    assert.equal(Buffer.from(ast.getSourceText(sourceFile))
+      .subarray(ast.pos(issue.sourceNode), ast.end(issue.sourceNode)).toString("utf8").trim(),
+    unsupportedHeritage, "the unchanged authored base type is retained exactly");
+    const column = 7 + extra.indexOf(unsupportedHeritage);
+    assert.deepEqual(sourceSpan(ast, issue.sourceNode), { fileName: "index.ts", line: 3, column,
+      endLine: 3, endColumn: column + unsupportedHeritage.length },
+    "the diagnostic's original checked heritage node keeps its exact source span");
+    assert.equal(compiled.result.program === undefined && compiled.result.artifacts.length === 0, true,
+      "unsupported dependent heritage publishes no program or artifact");
   });
 }
 
