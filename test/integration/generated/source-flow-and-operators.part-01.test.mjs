@@ -66,7 +66,8 @@ for (const surface of Array.from([undefined, "js"]).slice(0, 2)) {
       ["written", sourceText.replace("const values = [2, 3];", "const values = [2.0, 3.0];")],
     ]) test(`${variant} floating rest arguments preserve native expansion and direct sequence transport (${surface ?? "native"})`,
     { timeout: 300_000 }, () => {
-      const compiled = compileCsharpSource({ surface, sourceText: supportedSource });
+      const compiled = compileCsharpSource({ surface,
+        sourceText: supportedSource.replace("let total = 0;", "let total: number = 0;") });
       executeCsharpConstruction(compiled, `native-rest-boundary-${variant}-${surface ?? "native"}`);
       const source = compiled.artifacts.get("src/Index.cs");
       assert.match(source, /sum\(1L, 2L, 3L\)/u);

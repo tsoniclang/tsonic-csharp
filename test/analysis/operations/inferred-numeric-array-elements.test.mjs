@@ -318,7 +318,7 @@ for (const surface of ["native", "js"]) {
       : "No exact C# implicit conversion relates 'target:Tsonic.CSharp.Js.JSArray`1<source:int64>' to 'target:Tsonic.CSharp.Js.JSArray`1<source:float64>'.";
     assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "CSHARP_UNSUPPORTED_AST" &&
       issue.message === expected && range?.kind === "authored" && source.slice(range.start, range.end) === "demandedValues", true,
-      "the original later number[] call is refused at its exact int64-array argument, without retargeting storage");
+      `the original later number[] call is refused at its exact int64-array argument, without retargeting storage; ${diagnosticLabel(compiled)}`);
     assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
       "the incompatible array conversion publishes no partial program or copied construction");
   });
