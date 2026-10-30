@@ -15,7 +15,7 @@ import { createCsharpNativeConstructionRecords } from "../program/records/native
 
 type LiteralContextHost = Pick<CsharpTypePolicyBaseHost, "ast" | "navigation" | "semanticsFor">;
 
-interface CsharpLiteralContext {
+export interface CsharpLiteralContext {
   readonly component: SourceTypeComponentEvidence;
   readonly declarations: readonly Node[];
   readonly source: Node;

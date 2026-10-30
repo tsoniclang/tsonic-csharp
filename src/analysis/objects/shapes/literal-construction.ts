@@ -20,7 +20,7 @@ import type { CsharpObjectShapePolicyHost, CsharpRecursiveObjectShapePolicy } fr
 import type { CsharpObjectLiteralTargetShapeResolution } from "../../../target-model/records/objects/object-shapes.js";
 
 import type { createCsharpObjectShapeMemberResolver } from "./member-evidence.js";
-import { selectCsharpLiteralDeclarationContext } from "../native-construction-demand.js";
+import { selectCsharpLiteralDeclarationContext, type CsharpLiteralContext } from "../native-construction-demand.js";
 import { instantiateCsharpObjectShape } from "../../../policy/types/objects/instantiation.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { csharpObjectShapeMemberContractKey } from "../../../target-model/types/object-shape-identity.js";
@@ -30,7 +30,7 @@ export function createCsharpLiteralShapeResolver(
   dependencies: {
     readonly resolveNode: CsharpRecursiveObjectShapePolicy["resolveNode"];
     readonly resolveType: (type: Type | undefined, sourceFile: SourceFile, authoredTypeRoot?: Node,
-      nativeTargets?: readonly TargetTypeRef[]) => CsharpObjectShapeFact | undefined;
+      nativeTargets?: readonly TargetTypeRef[], literalContext?: CsharpLiteralContext) => CsharpObjectShapeFact | undefined;
     readonly literalSourceType: (node: Node) => Type | undefined;
     readonly retainLiteralMemberEvidence: ReturnType<typeof createCsharpObjectShapeMemberResolver>["retainLiteralMemberEvidence"];
     readonly instantiateMemberEvidence: ReturnType<typeof createCsharpObjectShapeMemberResolver>["instantiateMemberEvidence"];
@@ -117,7 +117,7 @@ export function createCsharpLiteralShapeResolver(
     const declaredType = expectedShape.sourceType ?? context?.component.selectedType;
     const declaredShape = declaredType === undefined || declaredType === expectedShape.sourceType ? undefined
       : resolveType(declaredType, sourceFile, context?.component.authoredTypeNode,
-          [expectedShape.targetType, ...(expectedShape.implements ?? [])]);
+          [expectedShape.targetType, ...(expectedShape.implements ?? [])], context);
     const declaredMembers = declaredType === undefined ? undefined : declaredType === expectedShape.sourceType
       ? expectedShape.members.map(member => ({ ...member,
           sourceMemberEvidence: member.sourceMemberEvidence?.filter(evidence => evidence.sourceType === declaredType),
