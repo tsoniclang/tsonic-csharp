@@ -25,7 +25,7 @@ import { selectCsharpMemoryBinding } from "./memory-bindings.js";
 
 import { selectCsharpElementDeletion } from "./collections/element-deletion.js";
 import { selectCsharpSwitch } from "./control-flow/switch.js";
-import { AsForInOrOfStatement, sourceClassFieldIsTypeOnly } from "@tsonic/target-api/source";
+import { AsForInOrOfStatement, sourceClassFieldIsTypeOnly, sourceExpressionResultDisposition } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { selectCsharpJsValueCallOperation, selectCsharpJsValueBinaryOperation, selectCsharpJsValueReceiverExpressionOperation, selectCsharpJsValueUnaryOperation, selectCsharpJsTypeofOperation, selectCsharpJsValueCondition, selectCsharpJsValueVoidOperation } from "./js-values.js";
 import { selectCsharpProviderValue } from "./members/values.js";
@@ -79,7 +79,8 @@ export function analyzeCsharpOperationConstruct(
     const expression = ast.as.AsAwaitExpression(node)?.Expression;
     const completion = selectCsharpAwaitCompletion(
       expression === undefined ? undefined : policy.types.resolveNode(expression, sourceFile)?.type,
-      policy.typeDefinitions);
+      policy.typeDefinitions,
+      sourceExpressionResultDisposition(ast, node).kind === "discarded" ? "discarded" : "consumed");
     const rejection = awaitResultMappingRejection(policy, completion);
     if (rejection !== undefined) {
       issues?.push(Object.freeze({ node, code: "CSHARP_AWAIT_RESULT_MAPPING_NOT_PROVEN", message: rejection }));
