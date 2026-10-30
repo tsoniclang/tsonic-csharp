@@ -158,7 +158,6 @@ export function analyzeCsharpRepresentationIteration(
     names,
     typeProjections,
     input.source,
-    operations,
     Object.freeze({ typeDefinitions: policy.typeDefinitions, projectTypes: policy.projectTypes,
       providers: policy.providers, target: policy.target, objectShapes }),
   );
@@ -203,15 +202,16 @@ export function analyzeCsharpRepresentationIteration(
   const classFactories = analyzeCsharpClassFactories(source, typeSystem.projectTypes.catalog, sourceEvidence,
     storagePreparation.captures, names, requiredRecords);
   const captureStorage = analyzeCsharpCaptureStorage(source, objectShapes, storagePreparation.captures, sourceEvidence,
-    classFactories.factories.flatMap(factory => factory.captures), names, declarations, operations, expectedTypes, preparedConversions);
+    classFactories.factories.flatMap(factory => factory.captures));
   const callableCreations = analyzeCsharpCallableCreations({
-    ast: source.ast, nodes: sourceStorage.nodes, captures: captureStorage, contracts: callables,
-    expectedTypes, storage: storageRepresentations, evidence: sourceEvidence, conversions: preparedConversions,
+    source, nodes: sourceStorage.nodes, captures: captureStorage, contracts: callables,
+    operations, storage: storageRepresentations, evidence: sourceEvidence, conversions: preparedConversions,
     literals: typeHost.literalValues,
   });
+  expectedTypes.completeReturns(callableCreations.callableCreation);
   const participation = analyzeCsharpNativeParticipation({
     ast: source.ast, storage: sourceStorage, navigation: source.navigation,
-    captureClosure: captureStorage.captureClosure, lambdaCreation: captureStorage.lambdaCreation,
+    captureClosure: captureStorage.captureClosure, callableCreation: callableCreations.callableCreation,
     objectShapes, compileTimeMetadata: sourceEvidence.compileTimeMetadata, requiredRecords,
   });
   if (participation.kind === "rejected") return participation;
@@ -285,7 +285,7 @@ export function analyzeCsharpRepresentationIteration(
     use.kind === "source-refusal" && sourceResolutionIssues.has(use.diagnostic) ? [use.diagnostic] : []);
   if (requiredSourceRefusals.length !== 0) return rejectedTargetStage<never>(requiredSourceRefusals);
   const bindingPatterns = admitCsharpBindingPatterns(bindingCandidates, nativeDemand.requiredBindingRoots, requiredRecords);
-  conversionAnalysis.close(nativeDemand, requiredRecords, captureStorage);
+  conversionAnalysis.close(nativeDemand, requiredRecords, captureStorage, callableCreations);
   const conversions = conversionAnalysis.seal();
   const refLikeDiagnostics = analyzeCsharpRefLikePlacements({
     source, nodes: sourceStorage.nodes, callables, captureStorage,

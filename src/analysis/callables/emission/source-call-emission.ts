@@ -19,6 +19,7 @@ import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpCaptureStorage } from "../../../target-model/records/callables/capture-storage.js";
 import type { CsharpSourceReferenceRecords } from "../../../target-model/records/program/source-references.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
+import { getCsharpDelegateSignature } from "../../../target-model/types/carriers/delegates.js";
 
 export function analyzeCsharpSourceCallEmission(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];
   readonly operations: CsharpTargetOperationClassifications; readonly evidence: CsharpSourceEvidenceIndex;
@@ -120,10 +121,25 @@ export function analyzeCsharpSourceCallEmission(input: { readonly source: Target
       const reference = input.references.identifierEmission.get(selected.expression);
       if (reference?.kind === "frame") {
         const closure = input.captures.captureClosure.get(reference.declaration);
-        if (closure === undefined) { refuse(node, "A captured source callee requires its completed native closure acquisition contract."); continue; }
-        methodValue = getCsharpMethodValue(closure.method.type);
-        if (methodValue === undefined) {
-          refuse(node, "A captured invocation handle requires its completed native method-value contract."); continue;
+        if (closure === undefined || closure.method.declaration !== reference.declaration || !closure.frame.methods.includes(closure.method)) {
+          refuse(node, "A captured source callee requires its completed native closure acquisition contract."); continue;
+        }
+        if (closure.frame.ownership === "activation") {
+          const constructor = ast.parent(closure.frame.scope);
+          const owner = constructor === undefined ? undefined : ast.parent(constructor);
+          if (owner === undefined || !input.source.navigation.isProjectDeclaration(owner) ||
+              !closure.frame.protocols.some(protocol => protocol.kind === "class" && protocol.declaration === owner) ||
+              getCsharpDelegateSignature(closure.method.type) === undefined) {
+            refuse(node, "A captured native method requires its exact class construction protocol and signature."); continue;
+          }
+          methodValue = undefined;
+        } else {
+          methodValue = getCsharpMethodValue(closure.method.type);
+          if (closure.frame.ownership !== "value" ||
+              !closure.frame.protocols.some(protocol => protocol.kind === "quantified" && protocol.declaration === reference.declaration) ||
+              methodValue === undefined) {
+            refuse(node, "A captured invocation handle requires its completed native method-value contract."); continue;
+          }
         }
       }
     }

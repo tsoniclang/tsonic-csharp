@@ -35,6 +35,9 @@ test("source calls retain the completed physical capture invocation instead of t
   const protocol = { kind: "target-named", id: "tsonic.shape:self", csharpRender: { kind: "named", name: "Self" } };
   const physical = csharpMethodValueType(protocol, "__tsonic_invoke_body_read", "original-self", signature, []);
   const declaration = {};
+  const classOwner = {};
+  const constructor = {};
+  const constructorBody = {};
   const expression = {};
   const call = {};
   const source = { selectedSignature: {}, sourceCallee: { expression, selectedDeclaration: declaration } };
@@ -43,8 +46,9 @@ test("source calls retain the completed physical capture invocation instead of t
     sourceCall: selected, sourceTypeArguments: [], sourceResult: { selectedType: scalar, nativeType: scalar },
     sourceArgumentGrouping: { kind: "grouped", arguments: [], groups: [] } };
   const classify = (reference, closure) => analyzeCsharpSourceCallEmission({
-    source: { ast: { parent: () => undefined, as: { AsPropertyAccessExpression: () => undefined } },
-      navigation: { isProjectDeclaration: node => node === declaration } },
+    source: { ast: { parent: node => node === constructorBody ? constructor : node === constructor ? classOwner : undefined,
+      as: { AsPropertyAccessExpression: () => undefined } },
+      navigation: { isProjectDeclaration: node => node === declaration || node === classOwner } },
     nodes: [call], admitted: () => true,
     operations: { selectedCall: { get: node => node === call ? classification : undefined },
       selectedConstruction: { get: () => undefined }, nativeHandler: { get: () => undefined } },
@@ -54,19 +58,26 @@ test("source calls retain the completed physical capture invocation instead of t
     captures: { captureClosure: { get: node => node === declaration ? closure : undefined } },
   });
   const frame = { kind: "frame", declaration };
-  const actual = classify(frame, { reference: "frame", method: { type: physical } });
+  const nativeClosure = (type, ownership, protocols, scope) => {
+    const method = { declaration, scope, methodName: "__tsonic_invoke_body_read", type, captures: [], receivers: [] };
+    return { method, frame: { scope, ownership, protocols, methods: [method], bindings: [], parents: [], receivers: [], shape: protocol } };
+  };
+  const quantified = type => nativeClosure(type, "value", [{ kind: "quantified", declaration }], declaration);
+  const actual = classify(frame, quantified(physical));
   assert.equal(actual.issues.length, 0, "the checked logical self and completed native body have distinct representations");
   assert.equal(actual.records.sourceCallEmission.get(call).callee === selected, true, "the exact original selected call is retained");
   assert.equal(actual.records.sourceCallEmission.get(call).methodValue, "__tsonic_invoke_body_read",
     "the native frame invokes its already-selected body rather than invoking this as a delegate");
   for (const [label, closure] of [
     ["missing closure", undefined],
-    ["logical delegate is not a native frame protocol", { reference: "frame", method: { type: signature } }],
+    ["logical delegate is not a native frame protocol", quantified(signature)],
+    ["missing quantified protocol", nativeClosure(physical, "value", [], declaration)],
+    ["foreign class protocol", nativeClosure(signature, "activation", [{ kind: "class", declaration: {} }], constructorBody)],
   ]) {
     const rejected = classify(frame, closure);
     assert.equal(rejected.issues.length === 1 && rejected.records.sourceCallEmission.get(call) === undefined, true, label);
   }
-  const method = classify(frame, { reference: "method", method: { type: signature } });
+  const method = classify(frame, nativeClosure(signature, "activation", [{ kind: "class", declaration: classOwner }], constructorBody));
   assert.equal(method.issues.length === 0 && method.records.sourceCallEmission.get(call).methodValue === undefined, true,
     "an actual captured native method group is already directly invocable");
   const ordinary = classify({ kind: "local", declaration, backing: false }, undefined);

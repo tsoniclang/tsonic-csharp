@@ -92,7 +92,7 @@ for (const surface of ["native", "js"]) {
     const rows = [];
     const admitted = analyzeCsharpNativeParticipation({
       ast, storage, navigation: source.navigation,
-      captureClosure: records.captureClosure, lambdaCreation: records.lambdaCreation,
+      captureClosure: records.captureClosure, callableCreation: records.callableCreation,
       objectShapes: program.objectShapes, compileTimeMetadata: records.compileTimeMetadata, requiredRecords: rows,
     });
     assert.equal(admitted.kind, "resolved", "the participation domain is closed before its records can be consumed");

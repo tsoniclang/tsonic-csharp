@@ -295,7 +295,7 @@ function classifyReturnContract(
   if (contract.kind === "resolved" && !asynchronous && contextualReturn !== undefined &&
     !targetTypeRefEquals(contract.type, contextualReturn) &&
     !csharpConversionIsApplicable(selectCsharpConversion(policy, contract.type, contextualReturn, "implicit"), "implicit") &&
-    csharpLiteralReturnsFit(policy.ast, policy.literalValues, declaration, contextualReturn)) {
+    csharpLiteralReturnsFit(policy.ast, policy.literalValues, declaration, contextualReturn, expression => policy.semanticsFor(expression))) {
     return { kind: "resolved", type: contextualReturn };
   }
   return contract.kind !== "resolved" || pointer === undefined ? contract

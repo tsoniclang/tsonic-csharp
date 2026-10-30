@@ -30,7 +30,7 @@ export function analyzeCsharpTypeofEmission(input: { readonly ast: AstReader; re
       const factory = getCsharpClassFactory(binary?.instanceFactory);
       if (factory !== undefined && binary?.instanceFactory !== undefined) {
         const selected = input.factories.classFactory.get(factory.declaration);
-        if (selected?.requiresInstanceTest !== true || !selectCsharpTypeEmission({ carrier: binary.instanceFactory })) {
+        if (selected === undefined || !selectCsharpTypeEmission({ carrier: binary.instanceFactory })) {
           refuse(node, "A local class identity test requires its sealed per-evaluation environment."); continue;
         }
         producer.predicate(node, { kind: "factory", left, right, carrier: binary.instanceFactory, method: factory.instanceTestMethodName });

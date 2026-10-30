@@ -13,7 +13,7 @@ import type { CsharpValueReadClassifications } from "../../target-model/records/
 import type { CsharpNativeRepresentationPending } from "../../target-model/records/native/native-representation.js";
 import type { CsharpExpectedTypeClassifications } from "../../target-model/records/types/expected-types.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
-import type { CsharpCallableContractIndex } from "../../target-model/records/callables/callable-values.js";
+import type { CsharpCallableContractIndex, CsharpCallableCreationIndex } from "../../target-model/records/callables/callable-values.js";
 import type { CsharpGenericProjectionIndex } from "../../target-model/records/types/type-projections.js";
 import type { CsharpExpectedNativeUseSites } from "./native-uses.js";
 import type { CsharpExpectedTypePropagation } from "./propagation.js";
@@ -32,6 +32,7 @@ export interface CsharpExpectedTypeAnalysisInput {
 }
 
 export interface CsharpExpectedTypeAnalysis extends CsharpExpectedTypeClassifications {
+  readonly completeReturns: (creations: CsharpCallableCreationIndex["callableCreation"]) => void;
   readonly nativeUseSites: CsharpExpectedNativeUseSites;
   readonly constructions: ReturnType<CsharpExpectedTypePropagation["seal"]>;
 }

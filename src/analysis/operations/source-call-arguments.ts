@@ -22,8 +22,11 @@ export function classifyCsharpSourceCallArguments(
     (policy.ast.is.IsVariableDeclaration(declaration) || policy.ast.is.IsParameterDeclaration(declaration) ||
       policy.ast.is.IsPropertyDeclaration(declaration) || policy.ast.is.IsPropertySignatureDeclaration(declaration) ||
       policy.ast.is.IsBindingElement(declaration) || policy.ast.is.IsArrowFunction(declaration) || policy.ast.is.IsFunctionExpression(declaration)));
+  const grouping = selectCsharpSourceArgumentGrouping(source, sourceNativeParameters, sourceArgumentParameterTypes,
+    policy.semantics(sourceFile).operations.callParameterSlots(source), exactArity);
+  const callee = source.sourceCallee.expression;
+  const label = policy.ast.is.IsIdentifier(callee) ? policy.ast.text(callee).slice(0, 96) : policy.ast.kindName(callee);
   return Object.freeze({ sourceParameterTypes, sourceArgumentParameterTypes,
-    sourceArgumentGrouping: selectCsharpSourceArgumentGrouping(source, sourceNativeParameters, sourceArgumentParameterTypes,
-      policy.semantics(sourceFile).operations.callParameterSlots(source), exactArity),
+    sourceArgumentGrouping: grouping.kind === "unresolved" ? Object.freeze({ ...grouping, reason: `${grouping.reason} Callee '${label}'.` }) : grouping,
   });
 }

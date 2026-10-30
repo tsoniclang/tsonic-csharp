@@ -21,7 +21,6 @@ import {
   KindTypeAliasDeclaration,
   KindVariableStatement,
   SourceFile_FileName,
-  sourceMayReadBeforeInitialization,
 } from "@tsonic/target-api/source";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { CsharpModuleInitializationAnalysis, CsharpModuleInitializationIssue } from "../../target-model/records/program/module-initialization.js";
@@ -59,14 +58,6 @@ export function analyzeCsharpModuleInitialization(
         const initializer = variable?.Initializer;
         producer.binding(declaration, initializer === undefined ? "declaration" : "value");
         if (initializer !== undefined && variable?.name !== undefined) recordPatternBindings(variable.name);
-        if (input.source.ast.variableDeclarationKind(declarations) !== "const") continue;
-        if (initializer === undefined || !input.source.ast.is.IsArrowFunction(initializer) ||
-          input.source.ast.typeParameters(initializer).length !== 0) continue;
-        const summary = input.source.navigation.declarationUseSummary(declaration);
-        if (summary.bindingWritten || summary.memberWritten ||
-          summary.uses.some(use => use.role !== "call-target" && use.kind !== "type-only" && use.kind !== "source-linkage") ||
-          sourceMayReadBeforeInitialization(declaration, input.source.ast, input.source.navigation)) continue;
-        producer.callable(declaration, summary.exported ? "public" : "internal");
       }
     }
     entries.set(normalizedFileName(input, sourceFile), Object.freeze({

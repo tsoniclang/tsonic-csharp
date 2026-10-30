@@ -3,18 +3,12 @@ import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpModuleInitializationIndex } from "../../../../target-model/records/program/module-initialization.js";
 
 export function createCsharpModuleInitializationProducer() {
-  const callables = new WeakMap<Node, "public" | "internal">();
   const bindings = new WeakMap<Node, "declaration" | "value">();
   let closed = false;
   const assertOpen = (node?: Node): void => {
     if (closed) failTargetAnalysisInvariant("tsonic-csharp", "Module initialization records cannot change after sealing.", node);
   };
   return Object.freeze({
-    callable(node: Node, visibility: "public" | "internal"): void {
-      assertOpen(node);
-      if (callables.has(node)) failTargetAnalysisInvariant("tsonic-csharp", "A module callable is published once.", node);
-      callables.set(node, visibility);
-    },
     binding(node: Node, initialization: "declaration" | "value"): void {
       assertOpen(node);
       if (bindings.has(node)) failTargetAnalysisInvariant("tsonic-csharp", "A module binding is published once.", node);
@@ -39,7 +33,6 @@ export function createCsharpModuleInitializationProducer() {
         requiresModuleInitializer: Object.freeze({ get: (sourceFile: SourceFile) => moduleFor(sourceFile).required }),
         asyncModuleInitializer: Object.freeze({ get: (sourceFile: SourceFile) => moduleFor(sourceFile).async }),
         entrypointInitializer: () => entry,
-        callableVisibility: Object.freeze({ get: (node: Node) => callables.get(node) }),
         moduleBindingInitialization: Object.freeze({ get: (node: Node) => bindings.get(node) }),
       });
     },

@@ -35,6 +35,11 @@ export function planCsharpPreparedConstructor(
 ): readonly CsharpConstructorDeclaration[] {
   if (bodyNode === undefined) failCsharpPlannerInvariant("An admitted prepared constructor requires its checked body.", node);
   const frame = input.program.records.captureFrame.get(bodyNode);
+  const protocol = input.program.records.constructorCapture.get(node);
+  if (protocol !== undefined && (protocol.declaration !== node || protocol.owner !== input.program.source.ast.parent(node) ||
+      protocol.scope !== bodyNode || protocol.frame !== frame)) {
+    failCsharpPlannerInvariant("Constructor preparation requires the same original class construction protocol.", node);
+  }
   const bindings: CsharpEntryBinding[] = [...parameters.entryBindings];
   const receivers = new Map<Node, CsharpExpression>();
   if (frame !== undefined) {

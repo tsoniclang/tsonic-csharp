@@ -178,7 +178,8 @@ export function analyzeCsharpStorage(
     }
     const parameters = sourceCallableValueParameters(policy.ast, node, policy.semanticsFor(node));
     if (parameters === undefined) return;
-    const callableTarget = contextual ? expectedTypes.callableTarget.get(node) : undefined;
+    const callableContext = contextual ? evidence.contextualType.get(node) : undefined;
+    const callableTarget = callableContext?.targetType;
     const selectedSignature = callableTarget === undefined
       ? undefined
       : getCsharpLambdaSignature(callableTarget);
@@ -207,8 +208,18 @@ export function analyzeCsharpStorage(
             "The source lambda declares more parameters than its exact selected C# delegate representation."));
           return;
         }
-        const targetType: TargetTypeRef = tupleRest === undefined ? parameterTypes[nativeIndex]!
+        let targetType: TargetTypeRef = tupleRest === undefined ? parameterTypes[nativeIndex]!
           : Object.freeze({ kind: "tuple", elements: Object.freeze(parameterTypes.slice(nativeIndex, nativeIndex + width)) });
+        if (declaration?.Type === undefined && callableContext?.contextualCall !== undefined && declarationContract?.bodyInputs === undefined) {
+          const native = declarationContract?.nativeParameters.filter(selected => selected.sourceParameter === parameter);
+          if (native === undefined || native.length !== width) {
+            issues.push(issue(parameter, "CSHARP_LAMBDA_PARAMETER_ARITY_CONFLICT",
+              "An immediate callback requires its exact completed native parameter vector."));
+            return;
+          }
+          targetType = tupleRest === undefined ? native[0]!.targetParameter.type
+            : Object.freeze({ kind: "tuple", elements: Object.freeze(native.map(selected => selected.targetParameter.type)) });
+        }
         nativeIndex += width;
         const types = policy.semanticsFor(parameter).types;
         const authoredType = declaration?.Type === undefined ? undefined : types.authoredType(declaration.Type);

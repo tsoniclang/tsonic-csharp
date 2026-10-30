@@ -4,7 +4,9 @@ import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts"
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 import { analyzeCsharpCallableContracts } from "../../../dist/analysis/callables/analyze.js";
-import { selectCsharpClosedCallableContext } from "../../../dist/analysis/expected-types/callable-contexts.js";
+import { analyzeCsharpCallableCreations } from "../../../dist/analysis/callables/values/creation.js";
+import { csharpCallableValueType } from "../../../dist/policy/types/callables/value-type.js";
+import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { csharpSourceTypeParameter } from "../../../dist/source/extension/type-parameters.js";
@@ -36,7 +38,9 @@ function fixture(body, overrides = {}) {
   const file = checked.getSourceFile("/project/index.ts");
   const lambdas = [];
   const calls = [];
+  const nodes = [];
   const visit = node => {
+    nodes.push(node);
     if (source.ast.is.IsArrowFunction(node)) lambdas.push(node);
     if (source.ast.is.IsCallExpression(node)) calls.push(node);
     source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
@@ -54,7 +58,9 @@ function fixture(body, overrides = {}) {
     const trailing = overrides.foreignTrailing ? { ...scopedBinder, identity: "foreign:same-name" } : scopedBinder;
     scopedType = csharpDelegateTargetType("System.Func", [scopedBinder, scalar, csharpJsArrayTargetType(trailing)], scopedBinder);
   }
-  const operations = { selectedCall: { get(node) {
+  let destinationReads = 0;
+  const operations = { selectedConstruction: { get: () => undefined }, selectedCall: { get(node) {
+    destinationReads++;
     const target = source.ast.text(source.ast.as.AsCallExpression(node).Expression);
     const type = target === "other" ? overrides.otherType ?? scopedType ?? selectedType : overrides.type ?? scopedType ?? selectedType;
     return { target: { kind: "resolved", call: {
@@ -87,28 +93,51 @@ function fixture(body, overrides = {}) {
   const evidence = { compileTimeMetadata: { get: () => false },
     generatorTargetType: { get: () => undefined },
     contextualType: { get: () => undefined },
-    nodeTargetType: { get: () => overrides.sourceParameter ?? scopedBinder ?? scalar } };
+    nodeTargetType: { get: node => source.ast.is.IsArrayTypeNode(node)
+      ? csharpJsArrayTargetType(scalar) : overrides.sourceParameter ?? scopedBinder ?? scalar } };
   const declarations = { runtimeDefault: { get: () => undefined },
     returnContract: { get: node => ({ kind: "resolved", type: node === lambda ? overrides.sourceReturn ?? scopedBinder ?? scalar : scalar }) } };
   const names = { resolve: node => ({ kind: "resolved", name: source.ast.text(node) }) };
-  const context = selectCsharpClosedCallableContext(source, policy, operations, lambda);
-  const analyzed = analyzeCsharpCallableContracts(policy, evidence, declarations, names, { genericProjection: Object.freeze({ get: () => [] }) }, source, operations,
+  const analyzed = analyzeCsharpCallableContracts(policy, evidence, declarations, names, { genericProjection: Object.freeze({ get: () => [] }) }, source,
     Object.freeze({ typeDefinitions: undefined, projectTypes: policy.projectTypes, providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) }, target: {},
       objectShapes }));
-  return { context, scopedType, type: analyzed.closedInputType(lambda), contract: analyzed.get({ kind: "declaration", declaration: lambda }),
+  const contract = analyzed.get({ kind: "declaration", declaration: lambda });
+  assert.equal(contract !== undefined, true, "the original declaration has its completed native ABI");
+  const nativeCarrier = csharpCallableValueType(contract);
+  const creations = analyzeCsharpCallableCreations({ source, nodes, contracts: analyzed, operations,
+    captures: { captureClosure: { get: () => undefined }, namedSelf: { get: () => undefined },
+      lexicalCaptures: [{ owner: lambda, values: [], receivers: [] }] },
+    storage: { lambdaParameterType: { get: parameter => contract.nativeParameters.find(entry => entry.sourceParameter === parameter)?.targetParameter.type } },
+    evidence, conversions: { conversion: { get: (sourceType, targetType) => targetTypeRefEquals(sourceType, targetType) ? { kind: "identity" } : undefined } },
+    literals: { literalValue: { get: () => undefined } } });
+  return { scopedType, creation: creations.callableCreation.get(lambda), nativeCarrier, contract, lambda, source,
+    destinationReads, sourceParameter: overrides.sourceParameter ?? scopedBinder ?? scalar,
+    sourceReturn: overrides.sourceReturn ?? scopedBinder ?? scalar,
     aliasTypes: source.navigation.expressionValueFlow(lambda).aliasDeclarations.map(alias => analyzed.closedInputType(alias)),
   };
 }
 
+function declaredCreation(selected) {
+  assert.equal(selected.creation?.kind, "selected", "approved C-1394: the actual declaration owns one completed creation");
+  assert.equal(targetTypeRefEquals(selected.creation.carrier, selected.nativeCarrier), true,
+    "the original declaration's native contract, never a later destination, selects the carrier");
+  assert.equal(selected.contract.sourceDeclaration === selected.lambda, true, "the checked original declaration owns the native contract");
+  assert.equal(selected.contract.parameters.length, selected.source.ast.parameters(selected.lambda).length,
+    "no unused destination parameter is manufactured in the source contract");
+  const optional = selected.source.ast.questionToken(selected.contract.parameters[0]) !== undefined;
+  const input = selected.contract.nativeParameters[0].targetParameter.type;
+  assert.equal(targetTypeRefEquals(input, optional ? csharpNullableTargetType(selected.sourceParameter) : selected.sourceParameter), true,
+  "the original native input, optional or rest contract stays exact");
+  assert.equal(targetTypeRefEquals(selected.contract.returnType, selected.sourceReturn), true, "native return width, absence and binder stay exact");
+  assert.equal(selected.aliasTypes.every(type => type === undefined), true, "no origin or alias receives a copied physical ABI");
+  assert.equal(selected.destinationReads, 0, "later native destinations are not read to retype this declaration");
+  assert.equal(Object.isFrozen(selected.creation) && Object.isFrozen(selected.creation.allocation), true, "one immutable creation and native form");
+}
+
 test("a single exact selected invocation ABI survives strict immutable aliases without changing the authored contract", () => {
   const selected = fixture("const mapper = (value: number): number => value + 1; const alias = mapper; invoke(alias); return invoke(mapper);");
-  assert.equal(selected.context?.invocationType === selectedType, true, "one physical native ABI");
-  assert.equal(selected.context.inputTypes.every(type => type === undefined), true, "authored inputs retained");
-  assert.equal(Object.isFrozen(selected.context), true);
-  assert.equal(Object.isFrozen(selected.context.inputTypes), true);
-  assert.equal(selected.type === selectedType, true, "the origin carries the selected ABI before alias storage");
+  declaredCreation(selected);
   assert.equal(selected.aliasTypes.length, 2, "exact origin and const alias declarations");
-  assert.equal(selected.aliasTypes.every(type => type === selectedType), true, "one sealed physical ABI for all proven storage");
   assert.equal(selected.contract.parameters.length, 1, "no extra authored source parameter");
 });
 
@@ -135,9 +164,8 @@ for (const [name, body, overrides] of [
 ]) {
   test(`${name} does not close a different physical invocation ABI`, () => {
     const selected = fixture(body, overrides);
-    assert.equal(selected.context === undefined, true, name);
-    assert.equal(selected.type === undefined, true, name);
-    assert.equal(selected.aliasTypes.every(type => type === undefined), true, "unproved aliases have no promoted storage ABI");
+    declaredCreation(selected);
+    assert.equal(selected.creation.allocation.kind, "fresh", name + ": the written value is not history-cached");
   });
 }
 
@@ -148,9 +176,10 @@ for (const [name, overrides] of [
 ]) {
   test(`selected invocation ABI cannot erase exact ${name}`, () => {
     const selected = fixture("const mapper = (value: number): number => value; return invoke(mapper);", overrides);
-    assert.equal(selected.context !== undefined, true, "closed source flow alone is insufficient");
-    assert.equal(selected.type === undefined, true, name);
-    assert.equal(selected.aliasTypes.every(type => type === undefined), true, "native carriers are not erased by alias storage");
+    declaredCreation(selected);
+    assert.equal(targetTypeRefEquals(selected.contract.nativeParameters[0].targetParameter.type,
+      overrides.sourceParameter ?? scalar), true, "exact native parameter width");
+    assert.equal(targetTypeRefEquals(selected.contract.returnType, overrides.sourceReturn ?? scalar), true, name);
   });
 }
 
@@ -160,26 +189,27 @@ for (const [name, body] of [
 ]) {
   test(`selected invocation ABI does not replace a ${name} contract`, () => {
     const selected = fixture(body);
-    assert.equal(selected.context !== undefined, true, "closed source flow alone is insufficient");
-    assert.equal(selected.type === undefined, true, name);
+    declaredCreation(selected);
+    const parameter = selected.contract.parameters[name === "source optional parameter" ? 0 : 1];
+    assert.equal(name === "source optional parameter" ? selected.source.ast.questionToken(parameter) !== undefined
+      : selected.source.ast.as.AsParameterDeclaration(parameter)?.DotDotDotToken !== undefined, true,
+    name + ": the original authored parameter remains");
   });
 }
 
 test("existing broad-input closure is preserved independently of invocation-only allocation policy", () => {
   const selected = fixture("const mapper = (value: unknown): number => 1; return invoke(mapper);", { origin: "provider" });
-  assert.equal(selected.context?.inputTypes[0] === scalar, true, "exact existing inferred input");
-  assert.equal(selected.context.invocationType === undefined, true, "no invented provider effect");
-  assert.equal(selected.type?.csharpDelegateSignature.parameters.length, 1, "existing intrinsic closed ABI");
+  declaredCreation(selected);
   assert.equal(selected.contract.nativeParameters[0].targetParameter.type === scalar, true);
-  assert.equal(selected.aliasTypes.every(type => type === undefined), true, "old broad inference does not force alias storage");
 });
 
 test("exact enclosing generic binder identities close one native ABI without changing source parameters", () => {
   const type = csharpDelegateTargetType("System.Func", [firstBinder, scalar], firstBinder);
   const selected = fixture("const mapper = (value: T): T => value; const alias = mapper; return invoke(alias);",
     { generic: true, type, sourceParameter: firstBinder, sourceReturn: firstBinder });
-  assert.equal(selected.type === type, true, "exact inherited binder identity");
-  assert.equal(selected.aliasTypes.every(aliasType => aliasType === type), true, "one exact generic storage ABI");
+  declaredCreation(selected);
+  assert.equal(selected.contract.nativeParameters[0].targetParameter.type === firstBinder &&
+    selected.contract.returnType === firstBinder, true, "exact inherited binder identity, without a destination parameter");
   assert.equal(selected.contract.parameters.length, 1, "authored parameter ABI retained");
 });
 
@@ -193,8 +223,9 @@ for (const [name, parameters, result] of [
       generic: true, type: csharpDelegateTargetType("System.Func", parameters, result),
       sourceParameter: firstBinder, sourceReturn: firstBinder,
     });
-    assert.equal(selected.type === undefined, true, name);
-    assert.equal(selected.aliasTypes.every(type => type === undefined), true, name);
+    declaredCreation(selected);
+    assert.equal(selected.contract.nativeParameters[0].targetParameter.type === firstBinder &&
+      selected.contract.returnType === firstBinder, true, name + ": foreign destination binders never enter the declaration");
   });
 }
 
@@ -203,18 +234,18 @@ test("broad inference still cannot invent an enclosing generic binder", () => {
     generic: true, type: csharpDelegateTargetType("System.Func", [firstBinder, scalar], firstBinder),
     sourceParameter: firstBinder, sourceReturn: firstBinder,
   });
-  assert.equal(selected.context === undefined, true, "existing broad-input rejection");
-  assert.equal(selected.type === undefined, true);
-  assert.equal(selected.aliasTypes.every(type => type === undefined), true);
+  declaredCreation(selected);
+  assert.equal(selected.contract.nativeParameters[0].targetParameter.type === firstBinder, true,
+    "the fixture's exact declared native input is not inferred from its later destination");
 });
 
 test("unused native receiver parameters retain exact available enclosing generic binders through aliases", () => {
   const selected = fixture("const mapper = (value: T): T => value; const alias = mapper; return invoke(alias);", {
     generic: true, scopedTrailing: true,
   });
-  assert.equal(selected.context?.invocationType === selected.scopedType, true, "same exact T in the omitted array argument");
-  assert.equal(selected.type === selected.scopedType, true, "no physical ABI adapter at origin");
-  assert.equal(selected.aliasTypes.every(type => type === selected.scopedType), true, "one complete ABI at every const alias");
+  declaredCreation(selected);
+  assert.equal(selected.contract.nativeParameters[0].targetParameter.type === selected.sourceParameter &&
+    selected.contract.returnType === selected.sourceReturn, true, "the exact checked enclosing binder remains available");
   assert.equal(selected.contract.parameters.length, 1, "authored parameters are not manufactured");
 });
 
@@ -222,15 +253,16 @@ test("an unused same-named foreign generic receiver parameter does not become av
   const selected = fixture("const mapper = (value: T): T => value; const alias = mapper; return invoke(alias);", {
     generic: true, scopedTrailing: true, foreignTrailing: true,
   });
-  assert.equal(selected.context === undefined, true, "foreign declaration identity cannot be named in the enclosing native scope");
-  assert.equal(selected.type === undefined, true);
-  assert.equal(selected.aliasTypes.every(type => type === undefined), true);
+  declaredCreation(selected);
+  assert.equal(selected.contract.nativeParameters[0].targetParameter.type === selected.sourceParameter &&
+    selected.contract.returnType === selected.sourceReturn, true,
+  "the foreign same-named destination binder is not the source's checked enclosing binder");
 });
 
 test("available enclosing trailing binders do not weaken unknown-input inference", () => {
   const selected = fixture("const mapper = (value: unknown): T => { throw value; }; return invoke<T>(mapper);", {
     generic: true, scopedTrailing: true,
   });
-  assert.equal(selected.context === undefined, true, "broad native input remains independent of omitted receiver ABI");
-  assert.equal(selected.type === undefined, true);
+  declaredCreation(selected);
+  assert.equal(selected.contract.nativeParameters.length, 1, "no trailing destination input narrows the original declaration");
 });

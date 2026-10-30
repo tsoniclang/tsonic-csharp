@@ -121,14 +121,14 @@ export function analyzeCsharpConversions(
       preparedClassifications = Object.freeze({ ...classifications, exactLiteralRequests: literalRequests.seal() });
       return preparedClassifications;
     },
-    close(nativeDemand, requiredRecords, captures) {
+    close(nativeDemand, requiredRecords, captures, creations) {
       if (closed) return failTargetAnalysisInvariant("tsonic-csharp", "Native conversion preparation closes exactly once.");
       if (preparedClassifications === undefined || preparedOperations === undefined || preparedValueReads === undefined) failTargetAnalysisInvariant("tsonic-csharp", "Native conversion uses require completed preparation.");
       const admitted = sealCsharpConversionUses(nativeDemand, preparedOperations, (expression, source, target, mode, exactInteger, boundary, sourceCompletion) => {
         const selected = boundary === undefined ? classifyExpression(expression, source, target, mode, exactInteger, sourceCompletion) : boundary.selection;
         if (selected === undefined) return undefined;
         admitCsharpDelegateEmission(delegateContracts, source, target, selected);
-        issues.push(...admitCsharpDelegateOperand(policy.ast, captures, delegateContracts, expression, source, target, selected));
+        issues.push(...admitCsharpDelegateOperand(policy.ast, captures, creations, delegateContracts, expression, source, target, selected));
         collectCsharpGeneratedHelpers(selected, requiredHelpers);
         if (boundary === undefined && sourceCompletion?.kind !== "void") classifyPair(source, target, mode, expression);
         const key = csharpConversionKey(source, target, mode);

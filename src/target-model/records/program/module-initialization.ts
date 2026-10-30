@@ -5,7 +5,6 @@ export interface CsharpModuleInitializationIndex {
   readonly requiresModuleInitializer: { readonly get: (sourceFile: SourceFile) => boolean };
   readonly asyncModuleInitializer: { readonly get: (sourceFile: SourceFile) => boolean };
   entrypointInitializer(): SourceFile | undefined;
-  readonly callableVisibility: { readonly get: (declaration: Node) => "public" | "internal" | undefined };
   readonly moduleBindingInitialization: { readonly get: (declaration: Node) => "declaration" | "value" | undefined };
 }
 

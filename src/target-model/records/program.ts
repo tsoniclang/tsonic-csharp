@@ -8,6 +8,7 @@ import type { CsharpConversionClassifications, CsharpValueReadClassifications } 
 import type { CsharpExactLiteralSelectionIndex } from "../conversions/exact-literals.js";
 import type { CsharpDeclarationClassifications } from "./program/declarations.js";
 import type { CsharpExpectedTypeClassifications } from "./types/expected-types.js";
+import type { CsharpCallableCreationIndex } from "./callables/callable-values.js";
 import type { CsharpModuleInitializationIndex } from "./program/module-initialization.js";
 import type { CsharpNativeParticipationInput } from "./native/native-demand.js";
 import type { CsharpNativeUseRecords } from "./native/native-demand.js";
@@ -114,7 +115,6 @@ export interface CsharpProgramRecords extends CsharpSourceNameRecords, CsharpSta
   readonly enumerableKeys: CsharpObjectShapeEmissionRecords["enumerableKeys"];
   readonly compilation: CsharpCompilationRecords["compilation"];
   readonly moduleFactories: import("./program/source-file-emission.js").CsharpSourceFileEmissionRecords["moduleFactories"];
-  readonly moduleCallable: import("./program/source-file-emission.js").CsharpSourceFileEmissionRecords["moduleCallable"];
   readonly sourceUnions: CsharpSourceUnionEmissionRecords["sourceUnions"];
   readonly classFieldDefault: CsharpClassFieldInitializationRecords["classFieldDefault"];
   readonly callableParameter: CsharpCallableParameterRecords["callableParameter"];
@@ -136,15 +136,15 @@ export interface CsharpProgramRecords extends CsharpSourceNameRecords, CsharpSta
   readonly callableDispatch: CsharpProjectCallableAdapters["callableDispatch"];
   readonly captureFrame: CsharpCaptureStorage["captureFrame"];
   readonly capturedBinding: CsharpCaptureStorage["capturedBinding"];
+  readonly capturedPlace: CsharpCaptureStorage["capturedPlace"];
+  readonly constructorCapture: CsharpCaptureStorage["constructorCapture"];
+  readonly lexicalCaptures: CsharpCaptureStorage["lexicalCaptures"];
   readonly physicalStorageType: CsharpCaptureStorage["physicalStorageType"];
   readonly captureClosure: CsharpCaptureStorage["captureClosure"];
   readonly namedSelf: CsharpCaptureStorage["namedSelf"];
-  readonly lambdaCreation: CsharpCaptureStorage["lambdaCreation"];
   readonly helperAccess: CsharpCaptureStorage["helperAccess"];
   readonly captureFrameShape: CsharpCaptureStorage["captureFrameShape"];
   readonly lexicalValueDeclarations: CsharpCaptureStorage["lexicalValueDeclarations"];
-  readonly lexicalValueCreation: CsharpCaptureStorage["lexicalValueCreation"];
-  readonly lexicalValueName: CsharpCaptureStorage["lexicalValueName"];
   readonly classFactory: CsharpClassFactoryIndex["classFactory"];
   readonly requiresClassConstructor: CsharpClassInitializationIndex["requiresClassConstructor"];
   readonly relocatedClassField: CsharpClassInitializationIndex["relocatedClassField"];
@@ -164,11 +164,11 @@ export interface CsharpProgramRecords extends CsharpSourceNameRecords, CsharpSta
   readonly runtimeDefault: CsharpDeclarationClassifications["runtimeDefault"];
   readonly methodWrite: CsharpDeclarationClassifications["methodWrite"];
   readonly returnContext: CsharpExpectedTypeClassifications["returnContext"];
-  readonly callableTarget: CsharpExpectedTypeClassifications["callableTarget"];
+  readonly callableTarget: CsharpCallableCreationIndex["callableTarget"];
+  readonly callableCreation: CsharpCallableCreationIndex["callableCreation"];
   readonly moduleInitializationDependencies: CsharpModuleInitializationIndex["moduleInitializationDependencies"];
   readonly requiresModuleInitializer: CsharpModuleInitializationIndex["requiresModuleInitializer"];
   readonly asyncModuleInitializer: CsharpModuleInitializationIndex["asyncModuleInitializer"];
-  readonly callableVisibility: CsharpModuleInitializationIndex["callableVisibility"];
   readonly moduleBindingInitialization: CsharpModuleInitializationIndex["moduleBindingInitialization"];
   readonly int32Remainder: CsharpNumericRepresentations["int32Remainder"];
   readonly awaitCompletion: CsharpTargetOperationClassifications["awaitCompletion"];

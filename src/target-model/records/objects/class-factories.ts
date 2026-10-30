@@ -20,8 +20,7 @@ export interface CsharpClassFactory {
   readonly factoryType: CsharpTargetNamedTypeRef;
   readonly contract: CsharpClassFactoryType;
   readonly captures: readonly CsharpClassCapture[];
-  readonly retainsEnvironment: boolean;
-  readonly requiresInstanceTest: boolean;
+  readonly hasInstanceCaptures: boolean;
   readonly environmentName: string;
   readonly identity?: { readonly name: string; readonly type: CsharpTargetNamedTypeRef };
 }

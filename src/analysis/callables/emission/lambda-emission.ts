@@ -30,9 +30,10 @@ export function analyzeCsharpLambdaEmission(input: { readonly source: TargetSour
   const refuse = (node: Node, message: string): void => { issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message }); };
   for (const node of input.nodes) {
     if (!input.admitted(node) || !ast.is.IsArrowFunction(node) && !ast.is.IsFunctionExpression(node)) continue;
-    const creation = input.captures.lambdaCreation.get(node);
-    if (creation.kind === "discarded") continue;
-    const carrier = input.creations.callableTarget.get(node);
+    const creation = input.creations.callableCreation.get(node);
+    if (creation?.kind === "discarded") continue;
+    if (creation?.kind !== "selected") { refuse(node, "Lambda emission requires its completed native creation fact."); continue; }
+    const carrier = creation.carrier;
     const signature = carrier === undefined ? undefined : input.types.typeEmission.get(carrier)?.lambda;
     if (signature === undefined) { refuse(node, "Lambda emission requires a contextual function/delegate type from TSTS or provider facts before C# emission."); continue; }
     const declaration = ast.as.AsArrowFunction(node) ?? ast.as.AsFunctionExpression(node);
@@ -75,7 +76,7 @@ export function analyzeCsharpLambdaEmission(input: { readonly source: TargetSour
     const completion = body === undefined || ast.is.IsBlock(body) ? undefined
       : csharpVoidReturnCompletion(input.values.valueRead.get(body)?.value, returnTarget);
     values.set(node, { completion });
-    if (creation.kind !== "quotation") continue;
+    if (creation.allocation.kind !== "quotation") continue;
     if (ast.is.IsFunctionExpression(node)) { refuse(node, "A native expression-tree quotation requires expression-bodied arrow syntax, not a function-expression statement body."); continue; }
     let prepared = body === undefined || ast.is.IsBlock(body) || HasSyntacticModifier(ast, node, ModifierFlagsAsync);
     const pending = body === undefined ? [] : [body];
@@ -84,11 +85,12 @@ export function analyzeCsharpLambdaEmission(input: { readonly source: TargetSour
       const call = input.arguments.targetArgumentsEmission.get(expression);
       const use = input.demand.nativeUse.expression(expression)?.use;
       const signature = use === undefined || use.kind === "erased" ? undefined : input.types.typeEmission.get(use.carrier)?.lambda;
-      const nestedCreation = ast.is.IsArrowFunction(expression) || ast.is.IsFunctionExpression(expression) ? input.captures.lambdaCreation.get(expression) : undefined;
+      const nestedCreation = ast.is.IsArrowFunction(expression) || ast.is.IsFunctionExpression(expression) ? input.creations.callableCreation.get(expression) : undefined;
       prepared ||= input.captures.captureFrame.get(expression) !== undefined || ast.is.IsClassExpression(expression) || ast.is.IsAwaitExpression(expression) ||
         ast.is.IsSpreadElement(expression) || ast.is.IsSpreadAssignment(expression) ||
         ast.is.IsPostfixUnaryExpression(expression) || use !== undefined && use.kind !== "erased" && use.completion.kind === "never" ||
-        nestedCreation !== undefined && nestedCreation.kind !== "inline" && nestedCreation.kind !== "quotation" ||
+        nestedCreation !== undefined && nestedCreation.kind !== "discarded" && (nestedCreation.kind !== "selected" ||
+          nestedCreation.allocation.kind !== "inline" && nestedCreation.allocation.kind !== "quotation") ||
         signature !== undefined && nestedCreation !== undefined && ast.is.IsBlock((ast.as.AsArrowFunction(expression) ?? ast.as.AsFunctionExpression(expression))?.Body) ||
         call?.reordered === true && call.operands.some(operand => operand.kind !== "argument" ||
           input.constants.nativeConstant.get(operand.expression, operand.parameter.type) !== true);

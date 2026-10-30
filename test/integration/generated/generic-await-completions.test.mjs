@@ -74,6 +74,8 @@ try {
 for (const surface of [undefined, "js"]) {
   test(`declared generic Promise calls and discarded awaits keep native values and safety on ${surface ?? "native"}`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface, sourceText });
+    assert.equal(compiled.result.diagnostics.length, 0, JSON.stringify(compiled.result.diagnostics.slice(0, 8)
+      .map(({ code, message }) => ({ code, message: message.slice(0, 1024) }))));
     const source = [...compiled.artifacts.values()].join("\n");
     assert.match(source, /TaskExtensions\.Unwrap/u);
     assert.match(source, /switch/u);

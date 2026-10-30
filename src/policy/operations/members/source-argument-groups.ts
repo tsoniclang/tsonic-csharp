@@ -10,9 +10,12 @@ export function selectCsharpSourceArgumentGrouping(
   parameterSlots: ReturnType<SourceFileSemantics["operations"]["callParameterSlots"]>,
   exactArity = false,
 ): CsharpSourceArgumentGrouping {
-  if (source.sourceSelectedSignatureKind !== "resolved" || parameters === undefined || parameterSlots === undefined) {
-    return Object.freeze({ kind: "unresolved", reason: "Source arguments require their finalized checked and native parameter contracts." });
-  }
+  if (source.sourceSelectedSignatureKind !== "resolved") return Object.freeze({ kind: "unresolved",
+    reason: "Source arguments require their finalized checked signature." });
+  if (parameters === undefined) return Object.freeze({ kind: "unresolved",
+    reason: "Source arguments require their finalized native parameter vector." });
+  if (parameterSlots === undefined) return Object.freeze({ kind: "unresolved",
+    reason: "Source arguments require their finalized checked parameter slots." });
   const bindings = source.sourceArgumentBindings;
   if (argumentParameterTypes !== undefined && argumentParameterTypes.length !== bindings.length) {
     return Object.freeze({ kind: "inconsistent", reason: "Argument parameter types must correspond to every checked binding." });

@@ -13,7 +13,7 @@ import { nextState } from "./state.js";
 
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 
-import { Node_Expression, Node_Type, ObjectLiteralProperty_Value, sourceCallableValueParameters } from "@tsonic/target-api/source";
+import { Node_Expression, ObjectLiteralProperty_Value, sourceCallableValueParameters } from "@tsonic/target-api/source";
 import { getCsharpCallableValueSignature } from "../../../../target-model/types/carriers/delegates.js";
 import { selectCsharpObjectLiteralUnionCarrier, csharpObjectLiteralDestinationDeclarations } from "../../../objects/shapes/union-construction.js";
 import { getCsharpArrayLiteralElementTargetType } from "../../../../target-model/types/carriers/collections.js";
@@ -319,13 +319,16 @@ export function inferSourceCallTargetTypeArguments(
   excludedSourceArgumentIndexes?: ReadonlySet<number>,
 ): ReadonlyMap<string, TargetTypeRef> | undefined {
   const inferred = new Map<string, TargetTypeRef>();
-  const contextual = (index: number): boolean => {
-    const argument = source.sourceArguments[index]?.expression;
-    return argument !== undefined && (scope.host.ast.is.IsArrowFunction(argument) || scope.host.ast.is.IsFunctionExpression(argument));
+  const contextual = (binding: ResolvedSourceCallInfo["sourceArgumentBindings"][number]): boolean => {
+    const argument = source.sourceArguments[binding.sourceArgumentIndex]?.expression;
+    const parameter = callable === undefined ? undefined
+      : csharpSourceCallArgumentParameter(callable, binding.effectiveArgumentIndex)?.targetParameter;
+    return parameter !== undefined && getCsharpCallableValueSignature(csharpTargetParameterValueType(parameter, binding.sourceForm)) !== undefined ||
+      argument !== undefined && (scope.host.ast.is.IsArrowFunction(argument) || scope.host.ast.is.IsFunctionExpression(argument));
   };
   const bindings = source.sourceArgumentBindings.filter(binding =>
     excludedSourceArgumentIndexes?.has(binding.sourceArgumentIndex) !== true).sort((left, right) =>
-    Number(contextual(left.sourceArgumentIndex)) - Number(contextual(right.sourceArgumentIndex)));
+    Number(contextual(left)) - Number(contextual(right)));
   for (const binding of bindings) {
     let parameter = callable === undefined ? undefined
       : csharpSourceCallArgumentParameter(callable, binding.effectiveArgumentIndex)?.targetParameter;
@@ -376,17 +379,16 @@ function sourceArgumentInferencePairs(
     const inner = Node_Expression(host.ast, literal);
     return inner === undefined ? undefined : sourceArgumentInferencePairs(scope, inner, pattern, sourceFile, nextState(state));
   }
-  if (host.ast.is.IsArrowFunction(literal) || host.ast.is.IsFunctionExpression(literal)) {
+  const expected = getCsharpCallableValueSignature(pattern);
+  const inline = host.ast.is.IsArrowFunction(literal) || host.ast.is.IsFunctionExpression(literal);
+  if (inline || expected !== undefined) {
     const type = host.semantics(sourceFile).types.expressionType(literal);
     const actual = type === undefined ? undefined : resolveSelectedValueWithState(literal, type, sourceFile, nextState(state));
-    const expected = getCsharpCallableValueSignature(pattern);
     const selected = getCsharpCallableValueSignature(actual);
-    const parameters = sourceCallableValueParameters(host.ast, literal, host.semantics(sourceFile));
+    const parameters = inline ? sourceCallableValueParameters(host.ast, literal, host.semantics(sourceFile)) : undefined;
     if (expected === undefined || selected === undefined || expected.parameters.length !== selected.parameters.length ||
-      parameters === undefined || parameters.some(parameter => parameter === undefined)) return undefined;
-    return [{ pattern: expected.returnType, actual: selected.returnType }, ...parameters.flatMap((parameter, index) =>
-      Node_Type(host.ast, parameter) === undefined || expected.parameters[index] === undefined ? []
-        : [{ pattern: expected.parameters[index]!, actual: selected.parameters[index]! }])];
+      inline && (parameters === undefined || parameters.some(parameter => parameter === undefined))) return undefined;
+    return [{ pattern: expected.returnType, actual: selected.returnType }];
   }
   if (host.ast.is.IsArrayLiteralExpression(literal)) {
     const element = getCsharpArrayLiteralElementTargetType(pattern);

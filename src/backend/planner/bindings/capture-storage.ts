@@ -94,9 +94,10 @@ export function planCsharpParameterCapture(
     { kind: "IdentifierName", name: localName }, input, state);
 }
 
-export function planCsharpCaptureFrameRotation(
+export function planCsharpProtocolFrameRotation(
   frame: CsharpCaptureFrame, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], state: DestructuringPlannerState,
 ): CsharpExpression | undefined {
+  if (frame.protocols.length === 0) failCsharpPlannerInvariant("A rotated native place requires its completed class or quantified protocol.", frame.scope);
   const type = csharpTypeFromObjectShapeFact(input, frame.shape, diagnostics, frame.scope);
   if (type === undefined) failCsharpPlannerInvariant("An admitted capture activation requires its native rotation storage.", frame.scope);
   const receiver: CsharpExpression = { kind: "IdentifierName", name: csharpCaptureFrameName(frame.scope, state) };

@@ -46,7 +46,18 @@ export function planCsharpFrameClosureReference(
 ): CsharpPlannedCallableReference | undefined {
   const selected = input.program.records.captureClosure.get(node);
   if (selected === undefined) return undefined;
-  if (selected.frame.ownership === "value") {
+  if (selected.frame.ownership === "activation") {
+    if (!selected.frame.protocols.some(protocol => protocol.kind === "class")) {
+      failCsharpPlannerInvariant("An admitted captured method requires its completed class construction protocol.", node);
+    }
+    const receiver = csharpCaptureFrameExpression(selected.frame.scope, input, state);
+    if (receiver === undefined || csharpTypeFromObjectShapeFact(input, selected.frame.shape, diagnostics, node) === undefined) {
+      failCsharpPlannerInvariant("A class construction callback requires its exact shared native place.", node);
+    }
+    return { expression: { kind: "SimpleMemberAccessExpression", receiver, name: selected.method.methodName },
+      callable: { kind: "captured-method", receiver, name: selected.method.methodName } };
+  }
+  {
     const retained = input.scope.captureFrames?.get(selected.frame.scope);
     if (retained !== undefined) return { expression: retained };
     const type = csharpTypeFromObjectShapeFact(input, selected.frame.shape, diagnostics, node);
@@ -81,12 +92,4 @@ export function planCsharpFrameClosureReference(
     }
     return { expression: { kind: "ObjectCreationExpression", type, assignments } };
   }
-  const receiver = csharpCaptureFrameExpression(selected.frame.scope, input, state);
-  if (receiver === undefined || csharpTypeFromObjectShapeFact(input, selected.frame.shape, diagnostics, node) === undefined) {
-    failCsharpPlannerInvariant("A native captured callable has no exact activation frame.", node);
-  }
-  if (selected.reference === "frame") return { expression: receiver };
-  const method: CsharpExpression = { kind: "SimpleMemberAccessExpression", receiver, name: selected.method.methodName };
-  return selected.reference === "method" ? { expression: method, callable: { kind: "captured-method", receiver, name: selected.method.methodName } }
-    : { expression: { kind: "InvocationExpression", callee: method, arguments: [] } };
 }

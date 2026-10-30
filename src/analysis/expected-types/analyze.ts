@@ -17,6 +17,7 @@ import { createCsharpExpectedConstructUses } from "./construct-uses.js";
 import { createCsharpExpectedTypePropagation, type CsharpExpectedBinarySelection } from "./propagation.js";
 import { collectCsharpExpectedNativeUseSites } from "./native-uses.js";
 import type { CsharpExpectedTypeAnalysis, CsharpExpectedTypeAnalysisInput } from "./model.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 
 export function analyzeCsharpExpectedTypes(
   policy: CsharpPolicyContext,
@@ -37,33 +38,36 @@ export function analyzeCsharpExpectedTypes(
   const propagation = createCsharpExpectedTypePropagation(input, collection, classifyExpectedBinary);
   for (const sourceFile of policy.sourceFiles) visit(sourceFile, sourceFile);
   recordInitializers();
-  let changed = true;
-  while (changed) {
-    drainPending();
-    changed = returnTargets.refreshCallableTargets();
-    if (changed) {
-      for (const sourceFile of policy.sourceFiles) visit(sourceFile, sourceFile);
-      recordInitializers();
-    }
-  }
+  drainPending();
   returnTargets.recordReturnDemands();
   drainPending();
-  const projection = collection.seal();
+  let projection = collection.snapshot();
   const returns = returnTargets.seal();
-  const constructions = propagation.seal();
+  let constructions = propagation.seal();
+  let nativeUseSites = collectCsharpExpectedNativeUseSites(projection.requests);
+  let completed = false;
   return Object.freeze({
-    nativeUseSites: collectCsharpExpectedNativeUseSites(projection.requests),
-    constructions,
-    issues: Object.freeze([...collection.issues, ...constructions.issues]),
-    targetTypes: projection.targetTypes,
-    expectedType: Object.freeze({ get: projection.expectedType }),
-    requiredExpectedType: Object.freeze({ get: projection.requiredExpectedType }),
+    completeReturns(creations: Parameters<CsharpExpectedTypeAnalysis["completeReturns"]>[0]) {
+      if (completed) failTargetAnalysisInvariant("tsonic-csharp", "Native callable return uses complete exactly once.");
+      returnTargets.recordCreationReturnContexts(creations);
+      returnTargets.recordReturnDemands();
+      drainPending();
+      projection = collection.seal();
+      constructions = propagation.seal();
+      nativeUseSites = collectCsharpExpectedNativeUseSites(projection.requests);
+      completed = true;
+    },
+    get nativeUseSites() { return nativeUseSites; },
+    get constructions() { return constructions; },
+    get issues() { return Object.freeze([...collection.issues, ...constructions.issues]); },
+    get targetTypes() { return projection.targetTypes; },
+    expectedType: Object.freeze({ get: (expression: Node) => projection.expectedType(expression) }),
+    requiredExpectedType: Object.freeze({ get: (expression: Node) => projection.requiredExpectedType(expression) }),
     returnContext: Object.freeze({ get: returns.returnContext }),
-    exactIntegerConversion: Object.freeze({ get: projection.exactIntegerConversion }),
-    storageExpectedType: Object.freeze({ get: projection.storageExpectedType }),
-    quotationBinding: Object.freeze({ get: projection.quotationBinding }),
-    callableTarget: Object.freeze({ get: returns.callableTarget }),
-    arrayLiteralCarrier: Object.freeze({ get: constructions.arrayLiteralCarrier }),
+    exactIntegerConversion: Object.freeze({ get: (expression: Node, target: TargetTypeRef) => projection.exactIntegerConversion(expression, target) }),
+    storageExpectedType: Object.freeze({ get: (expression: Node) => projection.storageExpectedType(expression) }),
+    quotationBinding: Object.freeze({ get: (declaration: Node) => projection.quotationBinding(declaration) }),
+    arrayLiteralCarrier: Object.freeze({ get: (expression: Node, target: TargetTypeRef) => constructions.arrayLiteralCarrier(expression, target) }),
     expectedBinary: Object.freeze({ get: (expression: Node, targetType: TargetTypeRef) =>
       expectedBinaries.get(expression)?.get(targetTypeRefKey(targetType)) }),
   });
@@ -78,7 +82,6 @@ export function analyzeCsharpExpectedTypes(
 
   function visit(node: Node, sourceFile: SourceFile): void {
     if (evidence.compileTimeMetadata.get(node) || operations.nativeUnreachable.get(node)) return;
-    returnTargets.recordTypeParameter(node);
     returnTargets.recordAccessorReturnContext(node);
     if (policy.ast.is.IsVariableDeclaration(node) || policy.ast.is.IsParameterDeclaration(node) ||
       policy.ast.is.IsPropertyDeclaration(node) || policy.ast.is.IsBindingElement(node) || policy.ast.is.IsEnumMember(node)) initializers.add(node);

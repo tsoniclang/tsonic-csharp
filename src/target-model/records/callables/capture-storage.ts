@@ -1,16 +1,31 @@
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../types/model.js";
 import type { CsharpStorageIssue } from "../storage/storage.js";
-import type { SourceLexicalValueCreation } from "@tsonic/target-api/source";
 import type { Node } from "@tsonic/tsts";
 
-export type CsharpLambdaCreation =
-  | { readonly kind: "discarded"; readonly staticBody: true }
-  | { readonly kind: "cached"; readonly staticBody: true }
-  | { readonly kind: "quotation"; readonly staticBody: false }
-  | { readonly kind: "inline" | "direct" | "fresh"; readonly staticBody: boolean };
+export interface CsharpOriginalCapturedPlace {
+  readonly declaration: Node;
+  readonly scope: Node;
+  readonly type: TargetTypeRef;
+  readonly references: readonly Node[];
+  readonly mutable: boolean;
+  readonly initialization: "initialized" | "deferred";
+}
+
+export interface CsharpNativeClosureCapture {
+  readonly owner: Node;
+  readonly type: TargetTypeRef;
+  readonly values: readonly CsharpOriginalCapturedPlace[];
+  readonly receivers: readonly { readonly owner: Node; readonly references: readonly Node[]; readonly type: TargetTypeRef }[];
+}
+
+export interface CsharpCaptureProtocol {
+  readonly kind: "class" | "method" | "quantified";
+  readonly declaration: Node;
+}
 
 export interface CsharpCaptureFrame {
   readonly scope: Node;
+  readonly protocols: readonly CsharpCaptureProtocol[];
   readonly ownership: "activation" | "value";
   readonly shape: CsharpObjectShapeFact;
   readonly bindings: readonly { readonly declaration: Node; readonly fieldName: string; readonly type: TargetTypeRef;
@@ -25,25 +40,28 @@ export interface CsharpCapturedBinding {
   readonly fieldName: string;
 }
 
+export interface CsharpConstructorCaptureProtocol {
+  readonly declaration: Node;
+  readonly owner: Node;
+  readonly scope: Node;
+  readonly places: readonly CsharpOriginalCapturedPlace[];
+  readonly frame: CsharpCaptureFrame;
+}
+
 export interface CsharpCaptureStorage {
   readonly issues: readonly CsharpStorageIssue[];
   readonly frames: readonly CsharpCaptureFrame[];
-  readonly lexicalCaptures: readonly {
-    readonly owner: Node;
-    readonly values: readonly { readonly declaration: Node; readonly type: TargetTypeRef | undefined }[];
-    readonly receivers: readonly { readonly owner: Node; readonly type: TargetTypeRef | undefined }[];
-  }[];
+  readonly lexicalCaptures: readonly CsharpNativeClosureCapture[];
+  readonly capturedPlace: { readonly get: (declaration: Node) => CsharpOriginalCapturedPlace | undefined };
+  readonly constructorCapture: { readonly get: (constructor: Node) => CsharpConstructorCaptureProtocol | undefined };
   readonly captureFrame: { readonly get: (scope: Node) => CsharpCaptureFrame | undefined };
   readonly capturedBinding: { readonly get: (declaration: Node) => CsharpCapturedBinding | undefined };
   readonly physicalStorageType: { readonly get: (declaration: Node, logicalType: TargetTypeRef) => TargetTypeRef };
   readonly captureClosure: { readonly get: (declaration: Node) => CsharpCaptureClosure | undefined };
   readonly namedSelf: { readonly get: (declaration: Node) => CsharpNamedSelfBinding | undefined };
-  readonly lambdaCreation: { readonly get: (declaration: Node) => CsharpLambdaCreation };
   readonly helperAccess: { readonly get: (declaration: Node) => boolean };
   readonly captureFrameShape: { readonly get: (type: TargetTypeRef) => CsharpCaptureFrame | undefined };
   readonly lexicalValueDeclarations: { readonly get: (statement: Node) => readonly Node[] };
-  readonly lexicalValueCreation: { readonly get: (declaration: Node) => SourceLexicalValueCreation | undefined };
-  readonly lexicalValueName: { readonly get: (declaration: Node) => string | undefined };
 }
 
 export interface CsharpFrameClosure {
@@ -58,7 +76,6 @@ export interface CsharpFrameClosure {
 export interface CsharpCaptureClosure {
   readonly frame: CsharpCaptureFrame;
   readonly method: CsharpFrameClosure;
-  readonly reference: "frame" | "method" | "quotation";
 }
 
 export interface CsharpNamedSelfBinding {
@@ -79,9 +96,7 @@ export interface CsharpCaptureStoragePublication {
   readonly byShape: ReadonlyMap<string, CsharpCaptureFrame>;
   readonly physicalTypes: Pick<WeakMap<Node, TargetTypeRef | null>, "get">;
   readonly namedSelfBindings: ReadonlyMap<Node, CsharpNamedSelfBinding>;
-  readonly lambdaCreations: ReadonlyMap<Node, CsharpLambdaCreation>;
   readonly helperMembers: ReadonlySet<Node>;
-  readonly scheduledValues: ReadonlyMap<Node, readonly Node[]>;
-  readonly valueCreations: ReadonlyMap<Node, SourceLexicalValueCreation>;
-  readonly valueNames: ReadonlyMap<Node, string>;
+  readonly lexicalDeclarations: ReadonlySet<Node>;
+  readonly constructorCaptures: ReadonlyMap<Node, CsharpConstructorCaptureProtocol>;
 }
