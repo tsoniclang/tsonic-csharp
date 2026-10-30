@@ -1,7 +1,7 @@
 import { createCsharpObjectShapeMemberResolver } from "./member-evidence.js";
 import { objectShapeMemberTargetName } from "../../../policy/identities/source-member-names.js";
 import { createStructuralObjectShapeTarget, mergeCsharpObjectShapeSubjects } from "./construction.js";
-import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { csharpObjectShapesEqual } from "../../../target-model/types/object-shape-equality.js";
 import { csharpObjectShapeContractKey } from "../../../target-model/types/object-shape-identity.js";
 import { isProjectSourceTargetType, projectClassIsObjectInitializable, requiresUnresolvedStructuralProjection, selectedObjectShapeSource, sourceSubjects, typeHasProjectOwnedShapeDeclaration, typeIsExcludedFromObjectShape } from "./source-evidence.js";
