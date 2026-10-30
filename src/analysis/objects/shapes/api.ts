@@ -563,7 +563,9 @@ export function createCsharpObjectShapePolicy(
           : instantiateMemberEvidence(native.members, type, queries, native.sourceType);
         return native === undefined || members === undefined ? undefined : { ...native, sourceType: type, members };
       }
-      const application = nativeTargets === undefined || literalContext?.component.selectedType !== type
+      const selectedNative = node !== undefined && !host.ast.is.IsObjectLiteralExpression(node) ? selectedTarget : undefined;
+      const application = selectedNative === undefined &&
+        (nativeTargets === undefined || literalContext?.component.selectedType !== type)
         ? undefined : queries.types.aliasApplication(type);
       if (application?.kind === "direct" && application.result === type &&
         host.navigation.isProjectDeclaration(application.declaration) &&
@@ -578,8 +580,10 @@ export function createCsharpObjectShapePolicy(
           const templateState = csharpSourceTemplateState(parameters, nextState(state));
           const declared = resolveTypeWithState(declaredType, sourceFile, application.typeNode, templateState);
           if (declared?.sourceType !== declaredType) return undefined;
-          const native = resolveCsharpLiteralContextTarget(literalContext!, host, state, resolveLiteralContextShape);
-          if (native === undefined || !nativeTargets!.some(target => targetTypeRefEquals(target, native!))) return undefined;
+          const native = selectedNative ?? (literalContext === undefined ? undefined
+            : resolveCsharpLiteralContextTarget(literalContext, host, state, resolveLiteralContextShape));
+          if (native === undefined || nativeTargets !== undefined &&
+            !nativeTargets.some(target => targetTypeRefEquals(target, native))) return undefined;
           const selected = instantiateCsharpObjectShape(declared.declarationTemplate ?? declared, native);
           if (selected === undefined) return undefined;
           const members = instantiateMemberEvidence(selected.members, type, queries, declaredType);
