@@ -14,7 +14,7 @@ export function copy(value: Payload): Payload { return { ...value }; }
 ` }, request => {
       const source = request.input.source;
       const nodes = source.navigation.nodes;
-      const parameters = nodes.filter(node => source.ast.is.IsParameter(node) && source.ast.text(source.ast.name(node)) === "extra");
+      const parameters = nodes.filter(node => source.ast.is.IsParameterDeclaration(node) && source.ast.text(source.ast.name(node)) === "extra");
       const shorthands = nodes.filter(node => source.ast.is.IsShorthandPropertyAssignment(node));
       assert.equal(parameters.length, 1, "the original native int32 parameter is unique");
       assert.equal(shorthands.length, 1, "the original shorthand value read is unique");
