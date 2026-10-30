@@ -27,7 +27,7 @@ import { createCsharpSourceProfileCallableAliasQuery } from "../operations/sourc
 import { createCsharpErrorStorageDemandQuery } from "../objects/error-storage-demands.js";
 import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 import { createCsharpSourceProfileStorageEffects } from "../operations/source-profiles/source-storage-effects.js";
-import { analyzeCsharpGenericAdoption, analyzeCsharpPromiseResults } from "../callables/async/promise-results.js";
+import { analyzeCsharpPromiseResults } from "../callables/async/promise-results.js";
 
 import { analyzeCsharpFlowReadProjections } from "../conversions/flow-read-projections.js";
 
@@ -83,14 +83,13 @@ function analyzeCsharpTargetProgramBeforeSeal(
   });
   const statementErasure = Object.freeze({ attributeApplications: sourceAttributeApplications, safetyApplications });
   const sourceFiles = Object.freeze([...source.navigation.sourceFiles]);
+  const sourceNodes = source.navigation.nodesForFiles(sourceFiles);
   const literalValues = analyzeSourceLiteralValues(source.ast, sourceFiles);
   const sourceStorage = createSourceStorageQuery(source, sourceFiles, undefined, createCsharpSourceProfileStorageEffects(source, providers));
   const sourceStorageFailure = sourceStorage.failureReason();
   if (sourceStorageFailure !== undefined) return rejectedTargetStage([{
     code: "CSHARP_SOURCE_STORAGE_NOT_PROVEN", category: "error", source: "tsonic-csharp", message: sourceStorageFailure,
   }]);
-  const genericAdoption = analyzeCsharpGenericAdoption({ source, projectRoot: input.paths.projectRoot, storage: sourceStorage });
-  if (genericAdoption.length !== 0) return rejectedTargetStage(genericAdoption);
   const sourceIdentities = createCsharpSourceIdentityPolicy(
     source.ast,
     input.paths.projectRoot,
@@ -105,13 +104,13 @@ function analyzeCsharpTargetProgramBeforeSeal(
   });
   const callOnlyAlias = createCsharpSourceProfileCallableAliasQuery(source);
   const typeHost = {
-    integerRanges: createCsharpIntegerRangeIndex(source, sourceStorage.nodes),
+    integerRanges: createCsharpIntegerRangeIndex(source, sourceNodes),
     enumConstants: source.semantics.enumConstants,
     literalValues,
     sourceStorage,
     errorStorageDemands: createCsharpErrorStorageDemandQuery(source, sourceStorage),
     callOnlyAlias,
-    objectMethodSources: analyzeCsharpObjectMethodSources(source.ast, sourceStorage.nodes, source.navigation, callOnlyAlias),
+    objectMethodSources: analyzeCsharpObjectMethodSources(source.ast, sourceNodes, source.navigation, callOnlyAlias),
     ast: source.ast,
     sourceFiles,
     sourceFacts: source.sourceFacts,
@@ -311,8 +310,8 @@ function analyzeCsharpTargetProgramBeforeSeal(
   if (nativeValueCarriers.issues.length > 0) return rejectCsharpAnalysisIssues(nativeValueCarriers.issues);
   if (bindingPatterns.issues.length > 0) return rejectCsharpAnalysisIssues(bindingPatterns.issues);
   if (analysis.refLikeDiagnostics.length > 0) return rejectedTargetStage(analysis.refLikeDiagnostics);
-  const promiseResults = analyzeCsharpPromiseResults({ source, genericAdoption,
-    storage: sourceStorage, nodes: sourceStorage.nodes,
+  const promiseResults = analyzeCsharpPromiseResults({ source, projectRoot: input.paths.projectRoot,
+    nodes: sourceNodes,
     records: { valueRead: analysis.valueReads.valueRead, selectedCall: analysis.operations.selectedCall,
       selectedConstruction: analysis.operations.selectedConstruction },
     definitions: analysis.typeDefinitions, nativePlacement: analysis.refLikeDiagnostics,
