@@ -23,6 +23,11 @@ export function planCsharpAwaitCompletion(
   diagnostics: TargetDiagnostic[],
 ): CsharpPlannedValue | undefined {
   if (planned.completion.kind === "never") return planned;
+  if (completion.adoption !== undefined) {
+    const native = planCsharpAwaitCompletion(node, carrier, completion.adoption.native, planned, input, diagnostics);
+    return native === undefined ? undefined : planCsharpAwaitCompletion(node,
+      completion.adoption.native.result, completion.adoption.continuation, native, input, diagnostics);
+  }
   if (completion.form === "identity") return planned;
   if (planned.completion.kind !== "value") failCsharpPlannerInvariant("An admitted await requires its native value operand.", node);
   const expression = planned.completion.expression;

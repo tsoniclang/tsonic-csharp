@@ -1,5 +1,5 @@
 import type { CsharpAwaitAlternative, CsharpAwaitCompletion } from "../../../target-model/types/await-completions.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
 import { csharpUnionLeaves } from "../../../target-model/types/union-relations.js";
 import { csharpUnionProjectionPath, selectCsharpUnionArmMapping } from "../../conversions/union-relations.js";
@@ -61,7 +61,8 @@ export function selectCsharpAwaitCompletion(
     return arms === undefined ? undefined : Object.freeze({ ...alternative, resultPath: [],
       resultMapping: Object.freeze({ kind: "union-map" as const, coverage: "source" as const, arms }) });
   });
-  return selected.some(alternative => alternative === undefined) ? undefined : Object.freeze({
+  if (selected.some(alternative => alternative === undefined)) return undefined;
+  const native: CsharpAwaitCompletion = Object.freeze({
     form: identity ? "identity"
       : alternatives.length === 1 && present === undefined && alternatives[0]!.sourcePath.length === 0 ? "direct"
       : !isCsharpVoidTargetType(result) && alternatives.some(alternative => alternative.task && alternative.resultForm === "void") ? "void-branches" : "branches",
@@ -69,6 +70,12 @@ export function selectCsharpAwaitCompletion(
     excludeUnmatched: alternatives.some(alternative => alternative.sourcePath.length > 0),
     result, alternatives: Object.freeze(selected as readonly CsharpAwaitAlternative[]),
     optional: present !== undefined,
+  });
+  const task = present ?? carrier;
+  const continuation = task.kind === "target-named" ? (task as CsharpTargetNamedTypeRef).csharpAwaitContinuation : undefined;
+  return continuation === undefined ? native : Object.freeze({ ...native,
+    result: continuation.result, discard: continuation.discard,
+    adoption: Object.freeze({ native, continuation }),
   });
 }
 
