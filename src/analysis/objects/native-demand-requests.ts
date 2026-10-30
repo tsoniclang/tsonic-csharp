@@ -17,6 +17,7 @@ import {
   resolveCsharpObjectShapeMemberBySourceContract,
   resolveCsharpObjectShapeMemberBySourceKey,
   targetTypeRefEquals,
+  targetTypeRefKey,
   csharpObjectShapesEqual,
   isCsharpEmptyObjectTargetType,
   isSourceDeclaredNominalShape,
