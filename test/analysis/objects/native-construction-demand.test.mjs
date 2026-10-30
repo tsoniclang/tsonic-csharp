@@ -642,6 +642,7 @@ for (const surface of ["native", "js"]) {
       type Found = { kind: "found"; value: number };
       type Missing = { kind: "missing"; value: number };
       type Lookup = Found | Missing;
+      function same(left: Lookup, right: Lookup): boolean { return left === right; }
       function score(result: Lookup): number {
         if (result.kind === "found") {
           const found: Found = result;
@@ -653,7 +654,7 @@ for (const surface of ["native", "js"]) {
       export function run(): boolean {
         const found: Lookup = { kind: "found", value: 10 };
         const missing: Lookup = { kind: "missing", value: 10 };
-        return score(found) === 11 && score(missing) === 9 && found !== missing;
+        return score(found) === 11 && score(missing) === 9 && !same(found, missing);
       }
     ` }), `distinct-literal-arm-owners-${surface}`);
   });
