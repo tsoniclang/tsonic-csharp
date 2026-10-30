@@ -152,6 +152,11 @@ for (const destructured of [false, true]) {
     assert.equal(protocol.frame === result.frames[0], true);
     assert.equal(protocol.frame.protocols.some(selected => selected.kind === "class" && selected.declaration === protocol.owner), true);
     assert.equal(result.capturedBinding.get(declaration)?.frame === protocol.frame, true);
+    assert.equal(protocol.frame.methods.length, 2, "default and body callbacks use the SAME required class protocol");
+    assert.equal(protocol.frame.methods.every(method => method.captures[0] === declaration &&
+      result.captureClosure.get(method.declaration)?.frame === protocol.frame &&
+      result.captureClosure.get(method.declaration)?.method === method), true,
+      "C1415 class activation callbacks publish the SAME native protocol and exact signature");
     assert.equal(result.lexicalCaptures.filter(capture => capture.values.some(value => value.declaration === declaration)).length, 2);
   });
 }
