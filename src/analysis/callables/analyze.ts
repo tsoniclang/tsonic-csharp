@@ -49,7 +49,7 @@ export function analyzeCsharpCallableContracts(
     contracts[index] = contract;
   }
   for (const { declaration, sourceFile } of checkedDeclarations) {
-    const selected = selectCsharpSourceCallableAbi(policy, evidence, declarations, names, declaration, sourceFile, projections, undefined);
+    const selected = selectCsharpSourceCallableAbi(policy, evidence, declarations, names, declaration, sourceFile, projections);
     const contract = selected === undefined ? undefined : closeCsharpContextualRestInputs(policy, evidence, conversions, selected);
     if (contract !== undefined) {
       byDeclaration.set(declaration, contract);
@@ -124,7 +124,6 @@ export function analyzeCsharpCallableContracts(
         node,
         sourceFile,
         projections,
-        context?.inputTypes,
       );
       const contract = selected === undefined ? undefined : closeCsharpContextualRestInputs(policy, evidence, conversions, selected);
       if (contract !== undefined) {
