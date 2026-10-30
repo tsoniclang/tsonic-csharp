@@ -74,7 +74,13 @@ export function selectCsharpInferredNumericArrayElement(
     reason: "Inferred array elements require an exact common native numeric carrier; an explicit native array destination is required for a rounding conversion." });
   const carriers: TargetTypeRef[] = [];
   for (const contribution of contributions) {
-    if (!flexibleInteger(contribution)) { carriers.push(contribution.carrier); continue; }
+    if (!flexibleInteger(contribution)) {
+      if (contribution.literal?.numeric?.kind === "authored" && numeric(contribution.carrier) &&
+        !csharpLiteralIsRepresentableAs(contribution.literal, contribution.carrier)) return Object.freeze({ kind: "rejected",
+        reason: "An inferred numeric array literal is outside its declared or default native element range." });
+      carriers.push(contribution.carrier);
+      continue;
+    }
     const canonical = incompatibleIntegers ? numericLiteralDefault(contribution) : contribution.carrier;
     if (canonical === undefined || contribution.literal?.numeric?.kind !== "authored" ||
       (canonical.kind === "source-primitive" && (canonical.name === "float32" || canonical.name === "float64")
@@ -105,6 +111,8 @@ function numericLiteralDefault(contribution: CsharpNumericArrayContribution): Ta
 
 function fits(candidate: TargetTypeRef, contribution: CsharpNumericArrayContribution): boolean {
   const { carrier, literal } = contribution;
+  if (literal?.numeric?.kind === "authored" && numeric(candidate) &&
+    !csharpLiteralIsRepresentableAs(literal, candidate)) return false;
   if (flexibleInteger(contribution) && candidate.kind === "source-primitive" &&
     (candidate.name === "float32" || candidate.name === "float64") && literal?.numeric?.kind === "authored" &&
     !sourceNumericLiteralIsExactlyRepresentableAsBinaryFloat(literal.numeric.token, candidate.name)) return false;

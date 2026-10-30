@@ -10,7 +10,8 @@ const primitive = csharpSourcePrimitiveTargetType;
 const fixed = name => Object.freeze({ carrier: primitive(name), literal: undefined, literalDefault: undefined });
 const literal = (coefficient, exponent, integer, carrier = "float64", negative = false) => Object.freeze({
   carrier: primitive(carrier), literalDefault: primitive("float64"),
-  literal: Object.freeze({ form: "numeric", ...(integer === undefined ? {} : { integer }),
+  literal: Object.freeze({ form: "numeric", number: Number(`${negative ? "-" : ""}${coefficient}e${exponent}`),
+    ...(integer === undefined ? {} : { integer }),
     numeric: Object.freeze({ kind: "authored", token: Object.freeze({ coefficient, exponent, negative,
       decimalText: exponent === 0n ? coefficient.toString() : `${coefficient}e${exponent}` }) }) }),
 });

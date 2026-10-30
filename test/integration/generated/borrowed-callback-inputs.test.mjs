@@ -43,7 +43,8 @@ for (const surface of [undefined, "js"]) {
     ` });
     executeCsharpConstruction(compiled, `integer-defaults-${surface ?? "native"}`);
     const source = compiled.artifacts.get("src/Index.cs");
-    assert.equal(/long\s+wide\s*=\s*9007199254740993L/u.test(source) && /long\s+count\s*=/u.test(source), true,
+    assert.equal(/long\s+wide\s*=\s*9007199254740993L/u.test(source) && /long\s+count\s*=/u.test(source) &&
+      /long\s+local\s*=\s*42L/u.test(source) && /long\s+quotient\s*=\s*5L\s*\/\s*2L/u.test(source), true,
       "local and property integer defaults use the exact native int64 carrier, not double or int32");
   });
 }
