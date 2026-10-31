@@ -228,6 +228,16 @@ export function resolveSourceCallResultWithState(
   const declaration = sourceCallSelectedDeclaration(source);
   const queries = host.semantics(sourceFile);
   const result = queries.operations.callResult(source);
+  const complete = (
+    selectedDeclaration: Node | undefined,
+    selected: CsharpSourceCallResult | undefined,
+  ): CsharpSourceCallResult | undefined => {
+    if (selectedDeclaration === undefined || !host.navigation.isProjectDeclaration(selectedDeclaration)) return selected;
+    for (let context: Node | undefined = selectedDeclaration; context !== undefined; context = host.ast.parent(context)) {
+      if (host.ast.hasModifierKind(context, "ambient")) return selected;
+    }
+    return completeCsharpSourceCallAdoption(host, selected);
+  };
   const access = source.sourceCalleeAccess;
   if (nativeType === undefined && access?.kind === "property") {
     const receiver = resolveSelectedValueWithState(access.receiver.expression, access.receiver.type, sourceFile, nextState(state));
@@ -281,7 +291,7 @@ export function resolveSourceCallResultWithState(
           substituteTargetTypeParameters(signature.returnType, substitutions));
         if (native.kind !== "resolved") return undefined;
         const selected = Object.freeze({ nativeType: native.type, selectedType: native.type });
-        const completed = host.ast.body(member) === undefined ? selected : completeCsharpSourceCallAdoption(host, selected);
+        const completed = complete(member, selected);
         if (completed === undefined) return undefined;
         results.push(completed);
       }
@@ -293,9 +303,6 @@ export function resolveSourceCallResultWithState(
       return Object.freeze({ nativeType: raw, selectedType: selected });
     }
   }
-  const complete = (selected: CsharpSourceCallResult | undefined): CsharpSourceCallResult | undefined =>
-    declaration !== undefined && host.navigation.isProjectDeclaration(declaration) && host.ast.body(declaration) !== undefined
-      ? completeCsharpSourceCallAdoption(host, selected) : selected;
   const retain = (nativeType: TargetTypeRef | undefined): CsharpSourceCallResult | undefined => {
     const selected = selectCsharpSourceCallResult(host, nativeType, () => {
       const checked = result === undefined ? undefined : resolveSourceCallSelectedType(source, declaration,
@@ -305,7 +312,7 @@ export function resolveSourceCallResultWithState(
     });
     return selected;
   };
-  if (nativeType !== undefined) return complete(retain(nativeType));
+  if (nativeType !== undefined) return complete(declaration, retain(nativeType));
   const selection = resolveSourceCallContract(source, sourceFile, state, "implementation");
   if (selection.kind === "rejected") return undefined;
   const callable = selection.contract;
@@ -317,9 +324,9 @@ export function resolveSourceCallResultWithState(
       const nativeType = resolveSourceCallableContractType(source, callable, callable.returnType, sourceFile, state);
       const selected = retain(resolveSourceCallableContractType(source, callable, callable.nativeSignature.sourceReturnType, sourceFile, state));
       return nativeType === undefined || selected === undefined ? undefined
-        : complete(Object.freeze({ nativeType, selectedType: selected.selectedType }));
+        : complete(declaration, Object.freeze({ nativeType, selectedType: selected.selectedType }));
     }
-    return complete(retain(resolveSourceCallableContractType(
+    return complete(declaration, retain(resolveSourceCallableContractType(
       source,
       callable,
       callable.returnType,
@@ -331,7 +338,7 @@ export function resolveSourceCallResultWithState(
   if (result === undefined) {
     return undefined;
   }
-  return complete(retain(resolveSourceCallSelectedType(
+  return complete(declaration, retain(resolveSourceCallSelectedType(
     source,
     declaration,
     result.authoredTypeNode,

@@ -612,7 +612,7 @@ function supportedAdoption(compiled, text, kind, declarationName) {
   return call;
 }
 
-function declaredNativePromiseCall(compiled, text) {
+function selectedPromiseCall(compiled, text) {
   assert.equal(compiled.result.diagnostics.length, 0,
     JSON.stringify(compiled.result.diagnostics.map(({ code, message }) => ({ code, message }))));
   const program = compiled.result.program;
@@ -628,10 +628,28 @@ function declaredNativePromiseCall(compiled, text) {
   assert.equal(calls.length, 1, "the exact original checked call has one selected native signature");
   assert.equal(program.records.selectedCall.get(calls[0]) !== undefined, true,
     "the native call record belongs to the same original checked call");
-  const output = program.records.valueRead.get(calls[0])?.value;
+  return { program, call: calls[0], output: program.records.valueRead.get(calls[0])?.value };
+}
+
+function declaredNativePromiseCall(compiled, text) {
+  const { output } = selectedPromiseCall(compiled, text);
   const inner = getCsharpTaskResultTargetType(output);
   assert.equal(inner !== undefined && getCsharpTaskResultTargetType(inner) !== undefined, true,
     "the declared Task<Task<T>> output is preserved without adoption or flattening");
+}
+
+function completedProjectPromiseCall(compiled, text) {
+  const { program, call, output } = selectedPromiseCall(compiled, text);
+  const inner = getCsharpTaskResultTargetType(output);
+  assert.equal(inner !== undefined && getCsharpTaskResultTargetType(inner) === undefined, true,
+    "the non-ambient project signature completes its Promise-valued instantiation at the call");
+  const result = program.records.selectedCall.get(call)?.sourceResult;
+  assert.equal(result !== undefined, true, "the same selected source call owns its result relation");
+  const nativeInner = getCsharpTaskResultTargetType(result.nativeType);
+  assert.equal(nativeInner !== undefined && getCsharpTaskResultTargetType(nativeInner) !== undefined, true,
+    "completion preserves the physical declared Task<Task<T>> signature");
+  assert.equal(result.completion !== undefined && Object.isFrozen(result), true,
+    "the existing frozen result record owns the native completion");
 }
 
 function executePromiseAdoption(compiled, label, expected) {
@@ -647,7 +665,11 @@ function genericAdoptionExecution(name, invoked) {
     return { source: prefix + `await ${invoked}(actual); console.log("completed");`, expected: "completed" };
   if (name === "forward-local")
     return { source: prefix + `console.log(await ${invoked}(actual));`, expected: "0" };
+  if (name === "nested-return")
+    return { source: prefix + `console.log(await ${invoked}(actual).read());`, expected: "5" };
+  if (name === "returned-arrow")
+    return { source: prefix + `console.log(await ${invoked}(actual)());`, expected: "5" };
   return { source: prefix + `console.log(await ${invoked}(actual));`, expected: "5" };
 }
 
-export { executePromiseAdoption, genericAdoptionExecution, code, identity, nativeEntryCases, nativeEntryInverses, nativeOpaquePayloadCases, nativeConstructorCases, nativeConstructorInverses, sourcePosition, sourceSpan, cases, rejected, supportedAdoption, declaredNativePromiseCall };
+export { executePromiseAdoption, genericAdoptionExecution, code, identity, nativeEntryCases, nativeEntryInverses, nativeOpaquePayloadCases, nativeConstructorCases, nativeConstructorInverses, sourcePosition, sourceSpan, cases, rejected, supportedAdoption, declaredNativePromiseCall, completedProjectPromiseCall };
