@@ -1,3 +1,8 @@
+import { fileURLToPath } from "node:url";
+import { currentProofs } from "../../../tsonic/test/scripts/proof-paths.mjs";
+
+const repositoryRoot = fileURLToPath(new URL("../../", import.meta.url));
+
 export const replacementContracts = Object.freeze({
   "provider-relations": contract(
     `import { Console } from "@tsonic/dotnet/System.js";\nConsole.WriteLine("ready");`,
@@ -200,7 +205,7 @@ export const obsoleteTargetFactTests = Object.freeze([
 ]);
 
 function contract(example, proofs) {
-  return Object.freeze({ example, proofs: Object.freeze([...proofs]) });
+  return Object.freeze({ example, proofs: currentProofs.paths(repositoryRoot, proofs) });
 }
 
 function row(path, testCount, sha256, contracts) {
