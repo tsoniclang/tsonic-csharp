@@ -8,6 +8,7 @@ import { captureCsharpPlannedValue } from "../planned-value-composition.js";
 import { csharpPlannedValue } from "../planned-values.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { captureCsharpPlannedLocation } from "../planned-locations.js";
+import { castCsharpCallableOperand, unparenthesizeCsharpCallable } from "./callable-syntax.js";
 
 export interface CsharpPlannedCallArguments {
   readonly operands: readonly CsharpPlannedArgument[];
@@ -63,13 +64,11 @@ export function csharpPlannedArgumentSyntax(
   argument: CsharpPlannedArgument,
   expression: CsharpExpression,
 ): CsharpArgument {
-  let operand = expression;
-  while (operand.kind === "ParenthesizedExpression") operand = operand.expression;
-  let original = argument.completion.kind === "value" ? argument.completion.expression : undefined;
-  while (original?.kind === "ParenthesizedExpression") original = original.expression;
+  const operand = unparenthesizeCsharpCallable(expression);
+  const original = argument.completion.kind === "value" ? unparenthesizeCsharpCallable(argument.completion.expression) : undefined;
   const unanchored = operand.kind === "LambdaExpression" || operand === original &&
     (argument.callable?.kind === "method" || argument.callable?.kind === "captured-method");
   const value: CsharpExpression = argument.nativeBinding !== undefined && unanchored && operand.kind !== "CastExpression"
-    ? { kind: "CastExpression", type: argument.nativeBinding, expression: operand } : expression;
+    ? castCsharpCallableOperand(operand, argument.nativeBinding) : expression;
   return { kind: "Argument", expression: value, ...(argument.passing === undefined ? {} : { passing: argument.passing }) };
 }
