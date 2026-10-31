@@ -1,6 +1,6 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import { TryStatement_FinallyBlock, sourceEnclosingCallable,
+import { TryStatement_FinallyBlock, sourceBindingIterationScope, sourceEnclosingCallable,
   type TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpNativeParticipationInput, CsharpNativeUseClassifications } from "../../target-model/records/native/native-demand.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
@@ -22,6 +22,7 @@ import { directCsharpSourceYieldExpression } from "../../target-model/syntax/yie
 import { csharpDestructuringAssignmentSyntax } from "../../target-model/syntax/operators.js";
 import type { CsharpStatementCompletionRecords } from "../../target-model/records/operations/statement-completion.js";
 import { createCsharpAdmittedIterationProducer } from "../program/records/operations/iteration.js";
+import type { CsharpCaptureStorage } from "../../target-model/records/callables/capture-storage.js";
 
 export function admitCsharpIterationBindings(
   policy: CsharpPolicyContext,
@@ -86,6 +87,7 @@ export function analyzeCsharpNativeControlFlow(
   source: TargetSourceProgram,
   controlExit: CsharpStatementCompletionRecords["controlExit"],
   admitted: (node: Node) => boolean,
+  captures: Pick<CsharpCaptureStorage, "lexicalCaptures" | "frames">,
 ): readonly TargetDiagnostic[] {
   const issues: TargetDiagnostic[] = [];
   const ast = source.ast;
@@ -101,6 +103,21 @@ export function analyzeCsharpNativeControlFlow(
     if (cleanup !== undefined && sourceEnclosingCallable(node, ast) !== sourceEnclosingCallable(cleanup, ast))
       cleanup = undefined;
     const kind = ast.kindName(node);
+    if (admitted(node) && ast.is.IsForStatement(node)) {
+      const statement = ast.as.AsForStatement(node)!;
+      for (const header of [statement.Initializer, statement.Condition, statement.Incrementor]) {
+        if (header === undefined) continue;
+        const captured = captures.lexicalCaptures.some(capture => within(capture.owner, header) &&
+          capture.values.some(place => sourceBindingIterationScope(place.declaration, ast) === node)) ||
+          captures.frames.some(frame => frame.scope === node &&
+            frame.bindings.some(binding => sourceBindingIterationScope(binding.declaration, ast) === node) &&
+            frame.protocols.some(protocol => within(protocol.declaration, header)));
+        if (captured) issues.push(Object.freeze({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp",
+          sourceNode: header,
+          message: "The loop-header expression captures a per-iteration loop binding; move the callback into the loop body.",
+        }));
+      }
+    }
     if (admitted(node) && cleanup !== undefined && (kind === "KindReturnStatement" || kind === "KindBreakStatement" ||
       kind === "KindContinueStatement")) {
       const target = kind === "KindReturnStatement" ? undefined : controlExit.get(node)?.target;

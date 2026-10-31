@@ -33,7 +33,7 @@ import { objectShapeArtifactKey } from "../../target-model/records/objects/objec
 import { objectShapeStorageMemberName, objectShapeBoundStorageMemberName,
   objectShapeAccessorGetterStorageMemberName, objectShapeAccessorSetterStorageMemberName,
   objectShapeMethodBodyName, objectShapeMethodInvocationName, objectShapeMethodValueStorageNames,
-  csharpDeferredCaptureStorageNames, csharpJsonValueProjectionMethodName,
+  csharpJsonValueProjectionMethodName,
   csharpJsonValueWriterMethodName, csharpEnumerableKeysMethodName, csharpEnumerableKeysStorageName } from "../../target-model/names/object-members.js";
 
 export interface CsharpNativeMemberNameInput {
@@ -446,12 +446,6 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
         if (member.bound === true) field(objectShapeBoundStorageMemberName(shape, member));
         const backing = input.storage.nativeField.get(shape.targetType, member.targetName);
         if (backing !== undefined) field(backing.storageName, "property");
-      }
-      for (const binding of artifact.materialization === "synthetic" ? frame?.bindings ?? [] : []) {
-        if (binding.initialization !== "deferred") continue;
-        const names = csharpDeferredCaptureStorageNames(binding.fieldName);
-        field(names.valueName);
-        field(names.initializedName);
       }
       const capturedFrames = new Set<Node>();
       for (const capture of artifact.materialization === "synthetic" ? shape.methodImplementation?.captures ?? [] : []) {

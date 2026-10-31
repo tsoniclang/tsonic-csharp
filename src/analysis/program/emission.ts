@@ -265,7 +265,7 @@ export function finalizeCsharpNativeEmission(
       guardResult: node => admittedOperations.nativeGuardResult.get(node),
       switchCoversDiscriminant,
     } });
-  const nativeControlIssues = analyzeCsharpNativeControlFlow(source, statementCompletions.controlExit, admittedControlNode);
+  const nativeControlIssues = analyzeCsharpNativeControlFlow(source, statementCompletions.controlExit, admittedControlNode, captureStorage);
   if (nativeControlIssues.length !== 0) return rejectedTargetStage(nativeControlIssues);
   const statementExits = analyzeCsharpStatementExits({ ast: source.ast, nodes: sourceStorage.nodes,
     operations: admittedOperations, metadata: analysis.sourceEvidence.compileTimeMetadata,

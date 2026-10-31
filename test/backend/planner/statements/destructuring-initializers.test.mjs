@@ -39,6 +39,10 @@ for (const surface of ["native", "js"]) {
       assert.equal(/\bdynamic\b|Activator\.|Unsafe\./u.test(source), false);
       assert.equal(/\bfor\s*\(/u.test(source), true);
       assert.equal(/\b__tsonic_destructure\d+\b/u.test(source), true);
+      executeCsharpConstruction(compiled, `native-counted-destructuring-${surface}-${name.replaceAll(" ", "-")}`, false, false, [], `
+if (Tsonic.Generated.Index.local() != 0) throw new System.Exception("native local destructuring value");
+if (Tsonic.Generated.Index.counted() != 5) throw new System.Exception("native counted binding mutation and captured value");
+`);
     });
   }
 }

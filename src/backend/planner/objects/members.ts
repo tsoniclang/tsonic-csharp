@@ -13,7 +13,6 @@ import {
   objectShapeStorageMemberName, objectShapeBoundStorageMemberName,
 } from "../../../target-model/names/object-members.js";
 import { renderCsharpStructuralMethod } from "./structural-interfaces.js";
-import { renderCsharpDeferredCaptureMember } from "./deferred-captures.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { nullableCsharpType } from "../types/primitives.js";
 import { renderCsharpExplicitImplementationTypeParameters } from "../types/type-parameters.js";
@@ -114,7 +113,11 @@ function renderMember(
       const name = objectShapeStorageMemberName(shape, member);
       return [{ kind: "FieldDeclaration", name, type: render(selected.type), modifiers: publicModifiers(name) }];
     }
-    case "deferred": return renderCsharpDeferredCaptureMember(member.targetName, render(selected.type), shape, records.nativeMemberHiding);
+    case "deferred": {
+      const type = render(selected.type);
+      return [{ kind: "FieldDeclaration", name: member.targetName, type, modifiers: publicModifiers(member.targetName),
+        initializer: { kind: "DefaultExpression", type, nullForgiving: true } }];
+    }
     case "method": {
       const name = objectShapeStorageMemberName(shape, member);
       const parameters = renderParameters(selected.signature, typeParameterNames, subject);

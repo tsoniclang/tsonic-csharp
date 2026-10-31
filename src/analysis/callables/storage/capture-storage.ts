@@ -56,10 +56,13 @@ export function analyzeCsharpCaptureStorage(
     physicalTypes.set(declaration, selected ?? null);
     return selected ?? logicalType;
   };
+  const deferredBinding = (declaration: Node): boolean =>
+    sourceBindingCapturedBeforeInitialization(declaration, source.ast, source.navigation) ||
+    sourceBindingCapturedBeforeFirstWrite(declaration, source.ast, source.navigation);
   for (const shape of shapes.knownShapes()) {
     for (const capture of (shape.declarationTemplate ?? shape).methodImplementation?.captures ?? []) {
       physicalType(capture.declaration, capture.type);
-      if (!capture.mutable || storage.nativeBacking.get(capture.declaration) !== undefined) continue;
+      if (!capture.mutable && !deferredBinding(capture.declaration) || storage.nativeBacking.get(capture.declaration) !== undefined) continue;
       const scope = sourceBindingScope(capture.declaration, source.ast);
       if (scope === undefined || source.ast.is.IsSourceFile(scope)) {
         issues.push({ node: capture.declaration, code: "CSHARP_CAPTURE_SCOPE_NOT_CLOSED",
@@ -80,7 +83,7 @@ export function analyzeCsharpCaptureStorage(
   }
   for (const capture of classCaptures) {
     physicalType(capture.declaration, capture.type);
-    if (!capture.mutable || storage.nativeBacking.get(capture.declaration) !== undefined) continue;
+    if (!capture.mutable && !deferredBinding(capture.declaration) || storage.nativeBacking.get(capture.declaration) !== undefined) continue;
     const scope = sourceBindingScope(capture.declaration, source.ast);
     if (scope === undefined || source.ast.is.IsSourceFile(scope)) {
       issues.push({ node: capture.declaration, code: "CSHARP_CAPTURE_SCOPE_NOT_CLOSED",
@@ -206,8 +209,7 @@ export function analyzeCsharpCaptureStorage(
       declaration, type, fieldName: `value${index}`,
       // A binding captured before its initializer or, without one, before its first write is stored in the frame before it
       // holds a value.
-      ...(sourceBindingCapturedBeforeInitialization(declaration, source.ast, source.navigation) ||
-        sourceBindingCapturedBeforeFirstWrite(declaration, source.ast, source.navigation) ? { initialization: "deferred" as const } : {}),
+      ...(deferredBinding(declaration) ? { initialization: "deferred" as const } : {}),
     })));
     const fields = [...bindings, ...receivers];
     const members: readonly CsharpObjectShapeMemberFact[] = Object.freeze(fields.map(field => Object.freeze({
