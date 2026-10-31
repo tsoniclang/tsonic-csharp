@@ -18,7 +18,10 @@ test("floor policy retains every native integer carrier supplied by exact provid
         memberName: "floor",
         memberKey: { kind: "property-key", name: "floor" },
       }))],
-      ast: { kindName: () => "KindMethodSignature", is: { IsSpreadElement: () => false } },
+      ast: { kindName: () => "KindMethodSignature", is: { IsSpreadElement: () => false }, arguments: node => {
+        assert.equal(node === call.evidence.call, true, "only the original checked floor call owns these arguments");
+        return [call.evidence.sourceArguments[0].expression];
+      } },
     });
     const host = { ...fixture.host, types: { ...fixture.host.types, resolveSourceCallTypeArguments: () => [],
       resolveSourceCallParameter: (source, index, file, domain) => {

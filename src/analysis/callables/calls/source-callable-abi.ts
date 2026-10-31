@@ -1,5 +1,6 @@
 import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
-import { AsParameterDeclaration, HasSourceKind, KindIdentifier, sourceCallableValueParameters, sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
+import { AsParameterDeclaration, HasSourceKind, KindIdentifier, sourceCallableValueParameters, sourceTransparentExpressionOperand,
+  sourceCallArgumentCorrespondences } from "@tsonic/target-api/source";
 import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
 import { csharpNullableTargetType, getCsharpCallableValueSignature } from "../../../policy/types/index.js";
@@ -63,17 +64,16 @@ export function selectCsharpSourceCallableAbi(
   const quantified = policy.ast.typeParameters(declaration).length !== 0;
   const call = contextual?.contextualCall;
   if (call !== undefined) {
-    const bindings = call.sourceArgumentBindings.filter(binding => {
-      let expression = call.sourceArguments[binding.sourceArgumentIndex]?.expression;
-      if (expression === undefined) return false;
+    const bindings = sourceCallArgumentCorrespondences(policy.ast, call)?.filter(binding => {
+      let expression = binding.argument.expression;
       for (let inner = sourceTransparentExpressionOperand(policy.ast, expression); inner !== undefined;
         inner = sourceTransparentExpressionOperand(policy.ast, expression)) expression = inner;
       return expression === declaration;
     });
-    if (bindings.length !== 1) return undefined;
+    if (bindings?.length !== 1) return undefined;
     const operation = policy.ast.is.IsNewExpression(call.call)
       ? operations.selectedConstruction.get(call.call) : operations.selectedCall.get(call.call);
-    inputType = operation?.sourceArgumentParameterTypes?.[call.sourceArgumentBindings.indexOf(bindings[0]!)];
+    inputType = operation?.sourceArgumentParameterTypes?.[bindings[0]!.bindingIndex];
     if (inputType === undefined) return undefined;
   }
   const presentInput = getCsharpNullableElementTargetType(inputType) ?? inputType;

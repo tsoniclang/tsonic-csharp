@@ -1,5 +1,6 @@
 import { csharpRegExpReceiverHasNativeExecution } from "../../../operations/source-profiles/js/regexp-execution.js";
 import type { Node, Type, SourceFile } from "@tsonic/tsts";
+import { sourceCallArgumentCorrespondences } from "@tsonic/target-api/source";
 import type { CsharpProviderCallSelectionHost } from "../../../../policy/model/provider-calls.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
@@ -66,19 +67,18 @@ export function createCsharpSourceProfileInputs(
   const resultType = host.types.resolveType(result, file);
   if (result !== undefined) types.set(result, resultType);
   const callTypeArguments = source === undefined ? undefined : host.types.resolveSourceCallTypeArguments(source, file);
+  const correspondence = source === undefined ? undefined : sourceCallArgumentCorrespondences(host.ast, source);
   const parameters = source === undefined ? [] : source.sourceSelectedSignatureParameters.map((parameter, index) => {
     const declared = host.types.resolveSourceCallParameter(source, index, file, "declared");
     const present = getCsharpNullableElementTargetType(declared) ?? declared;
     const arms = getCsharpRuntimeUnionArms(present, host.typeDefinitions);
     if (arms === undefined) return declared;
-    const bindings = source.sourceArgumentBindings.filter(binding => binding.sourceParameterIndex === index);
+    const bindings = correspondence?.filter(row => row.parameter === parameter);
+    if (bindings === undefined) return undefined;
     if (bindings.length === 0) return declared;
     const binding = bindings.length === 1 ? bindings[0] : undefined;
-    const argument = binding === undefined ? undefined : source.sourceArguments[binding.sourceArgumentIndex];
-    if (binding === undefined || argument === undefined || binding.sourceForm !== "value" ||
-        parameter.parameterIndex !== index || !Number.isInteger(binding.sourceArgumentIndex) || binding.sourceArgumentIndex < 0 ||
-        !Number.isInteger(binding.effectiveArgumentIndex) || binding.effectiveArgumentIndex < 0 ||
-        source.sourceArgumentBindings.filter(candidate => candidate.effectiveArgumentIndex === binding.effectiveArgumentIndex).length !== 1 ||
+    const argument = binding?.argument;
+    if (binding === undefined || argument === undefined || binding.binding.sourceForm !== "value" ||
         !sourceValues.some(value => value.expression === argument.expression && value.type === argument.type)) return undefined;
     if (sourceTypes.callable(argument.type) === undefined) return declared;
     const callable = arms.map(arm => getCsharpNullableElementTargetType(arm) ?? arm)

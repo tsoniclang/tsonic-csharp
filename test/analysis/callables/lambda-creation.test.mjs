@@ -147,7 +147,12 @@ test("invocation-only captured callbacks use their native activation without sta
 
 test("missing callable creation evidence is an invariant, not a default allocation", () => {
   const input = fixture("return invoke((entry: number) => entry + 1);");
-  assert.equal(input.selected.callableCreation.get({}) === undefined, true, "a foreign node has no fabricated native creation");
+  assert.throws(() => input.selected.callableCreation.get({}), error => error instanceof Error &&
+    error.message === "Callable creation reads require their admitted source-node domain.");
+  assert.throws(() => input.selected.callableTarget.get({}), error => error instanceof Error &&
+    error.message === "Callable creation reads require their admitted source-node domain.");
+  assert.equal(input.selected.callableCreation.get(input.nodes[0]) === undefined, true,
+    "a known non-callable source node has no fabricated creation");
   assert.throws(() => analyzeCsharpNativeParticipation({ ast: input.source.ast,
     storage: { nodes: input.nodes, failureReason: () => undefined }, navigation: input.source.navigation,
     captureClosure: input.captures.captureClosure, callableCreation: { get: () => undefined },
