@@ -67,7 +67,12 @@ export function classifyCsharpSourceCallee(
     if (type === undefined || getCsharpCallableValueSignature(getCsharpNullableElementTargetType(type) ?? type) === undefined) {
       return reject("A source callee requires its exact selected declaration or native callable storage contract.");
     }
-  } else if (getCsharpNullableElementTargetType(type) === undefined && (getCsharpMethodValue(type) === undefined ||
+  } else if ((getCsharpNullableElementTargetType(type) === undefined ||
+      source.optionalChain && source.sourceReceiver !== undefined && policy.ast.is.IsCallExpression(source.call) &&
+      policy.ast.as.AsCallExpression(source.call)?.QuestionDotToken === undefined &&
+      policy.ast.is.IsClassDeclaration(policy.ast.parent(declaration)) &&
+      policy.ast.questionToken(declaration) === undefined && policy.ast.questionToken(selected) === undefined) &&
+      (getCsharpMethodValue(type) === undefined ||
       policy.ast.is.IsClassDeclaration(policy.ast.parent(declaration))) &&
       (source.sourceCalleeAccess?.kind === "property" || source.sourceCalleeAccess?.kind === "element") &&
       (policy.ast.is.IsMethodDeclaration(declaration) || policy.ast.kindName(declaration) === "KindMethodSignature") &&
