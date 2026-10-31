@@ -100,6 +100,7 @@ export function selectCsharpObjectMemberEmission(input: CsharpObjectMemberPolicy
     const selected = selectCsharpObjectMethodSignature(member.type);
     if (selected === undefined || methodStorage === undefined || !renderable([methodStorage, selected.returnType, ...selected.parameters.map(parameter => parameter.type)]))
       return reject(`Object-shape method '${member.sourceName}' must carry a Func/Action delegate target type with explicit return facts before C# emission.`);
+    if (member.optional === true) return emit({ kind: "optional-method", type: csharpNullableTargetType(methodStorage) });
     return emit({ kind: "method", signature: selected, storage: methodStorage });
   }
   if (member.accessor !== undefined) {

@@ -1,4 +1,6 @@
 import type { CsharpTypePolicyHost } from "./model.js";
+import type { Node } from "@tsonic/tsts";
+import type { CsharpPolicyContext } from "../../../../policy/model/context.js";
 import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { namedTargetTypeImplicitlyAccepts } from "../../../../policy/conversions/carriers.js";
@@ -63,6 +65,18 @@ export function refineCsharpSourceValueResult(
   if (selected === undefined || type === undefined) return undefined;
   return selected.selectedType === type ? selected : targetTypeRefEquals(selected.selectedType, type)
     ? Object.freeze({ ...selected, selectedType: type }) : csharpSourceValueResult(type);
+}
+
+export function completeCsharpSourceDeclarationCallAdoption(
+  host: Pick<CsharpPolicyContext, "ast" | "navigation" | "typeDefinitions">,
+  declaration: Node | undefined,
+  selected: CsharpSourceCallResult | undefined,
+): CsharpSourceCallResult | undefined {
+  if (declaration === undefined || !host.navigation.isProjectDeclaration(declaration)) return selected;
+  for (let context: Node | undefined = declaration; context !== undefined; context = host.ast.parent(context)) {
+    if (host.ast.hasModifierKind(context, "ambient")) return selected;
+  }
+  return completeCsharpSourceCallAdoption(host, selected);
 }
 
 export function completeCsharpSourceCallAdoption(

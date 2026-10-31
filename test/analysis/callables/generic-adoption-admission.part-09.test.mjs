@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
-import { code, identity, nativeEntryCases, nativeEntryInverses, nativeOpaquePayloadCases, nativeConstructorCases, nativeConstructorInverses, sourcePosition, sourceSpan, cases, rejected, declaredNativePromiseCall } from "./generic-adoption-admission.fixtures.mjs";
+import { code, identity, nativeEntryCases, nativeEntryInverses, nativeOpaquePayloadCases, nativeConstructorCases, nativeConstructorInverses, sourcePosition, sourceSpan, cases, rejected, completedProjectPromiseCall, declaredNativePromiseCall } from "./generic-adoption-admission.fixtures.mjs";
 
 for (const [name, body] of Array.from([
   ["unused-named", "async function unused() { return value; } return 1;"],
@@ -26,14 +26,14 @@ for (const declaration of Array.from([
   "abstract class Contract { abstract identity<Value>(value: Value): Promise<Value>; }",
 ]).slice(0, 2)) {
 test(`C# generic adoption keeps its unknown ${declaration.startsWith("interface") ? "interface" : "abstract"} signature`, () => {
-    declaredNativePromiseCall(compileCsharpSource({ surface: "js", sourceText: `${declaration}
+    completedProjectPromiseCall(compileCsharpSource({ surface: "js", sourceText: `${declaration}
       export function reject(contract: Contract, promised: Promise<number>): void { void contract.identity(promised); }` }),
     "contract.identity(promised)");
   });
 }
 
 test("C# unknown source generic bodies fail closed at their actual instantiation", () => {
-  declaredNativePromiseCall(compileCsharpSource({ surface: "js", sourceText: `
+  completedProjectPromiseCall(compileCsharpSource({ surface: "js", sourceText: `
     export function reject(callback: <Value>(value: Value) => Promise<Value>, promised: Promise<number>): void {
       void callback(promised);
     }
@@ -57,4 +57,11 @@ test("C# ordinary library generics and constrained native values do not acquire 
     assert.equal(result.diagnostics.filter(issue => issue.code === code).length, 0,
       "ambient library binders keep their existing lowering outcome, not the source-generic boundary");
   }
+});
+
+test("C# declared native generic Promise signature preserves its selected native layer", () => {
+  declaredNativePromiseCall(compileCsharpSource({ surface: "js", sourceText: `
+    declare function nativeRead<Value>(value: Value): Promise<Value>;
+    export function keepNative(promised: Promise<number>): void { void nativeRead(promised); }
+  ` }), "nativeRead(promised)");
 });

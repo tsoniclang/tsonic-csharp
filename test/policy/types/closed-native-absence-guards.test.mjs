@@ -30,13 +30,14 @@ test("absence folding requires native absence admission, not an object runtime c
   const shaped = csharpNullableTargetType(csharpTargetNamedType("closed-record", undefined,
     { kind: "named", name: "Payload" }, { allowsRefLikeTypeArguments: [], typeofRuntimeKind: "object" }));
   for (const carrier of [value, shaped, csharpNullableTargetType(csharpSourcePrimitiveTargetType("int64"))]) {
-    assert.deepEqual(expressions.map(expression => selectCsharpNativeGuardResult(context, expression, () => carrier)),
+    assert.deepEqual(expressions.map(expression => selectCsharpNativeGuardResult(context, expression, () => carrier,
+      () => assert.fail("this fixture has no nominal guards"))),
       [undefined, undefined, undefined, undefined]);
   }
   assert.deepEqual(expressions.map(expression => selectCsharpNativeGuardResult(context, expression,
-    () => csharpAbsenceTargetType())), [true, false, true, false]);
+    () => csharpAbsenceTargetType(), () => assert.fail("this fixture has no nominal guards"))), [true, false, true, false]);
   assert.deepEqual(expressions.map(expression => selectCsharpNativeGuardResult(context, expression,
-    () => csharpSourcePrimitiveTargetType("int64"))), [false, true, false, true]);
+    () => csharpSourcePrimitiveTargetType("int64"), () => assert.fail("this fixture has no nominal guards"))), [false, true, false, true]);
 });
 
 test("closed unknown-valued fields retain native structural storage and native absence", () => {

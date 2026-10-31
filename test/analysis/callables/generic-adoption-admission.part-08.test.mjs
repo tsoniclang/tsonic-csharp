@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
-import { code, identity, nativeEntryCases, nativeEntryInverses, nativeOpaquePayloadCases, nativeConstructorCases, nativeConstructorInverses, sourcePosition, sourceSpan, cases, declaredNativePromiseCall, executePromiseAdoption, genericAdoptionExecution } from "./generic-adoption-admission.fixtures.mjs";
+import { code, identity, nativeEntryCases, nativeEntryInverses, nativeOpaquePayloadCases, nativeConstructorCases, nativeConstructorInverses, sourcePosition, sourceSpan, cases, completedProjectPromiseCall, executePromiseAdoption, genericAdoptionExecution } from "./generic-adoption-admission.fixtures.mjs";
 
 function admitted(compiled, text, kind, declarationName) {
   assert.deepEqual(compiled.result.diagnostics.map(issue => issue.code), [],
@@ -103,15 +103,13 @@ test("C# official native constructor inverse: " + name, { timeout: 300_000 }, ()
 
 for (const [name, declarations, invoked] of Array.from(cases).slice(0, 19)) {
 test(`C# generic adoption refuses the actual Promise-valued ${name} site before sealing`, { timeout: 300_000 }, () => {
-    const boundary = ["nested-return", "returned-arrow", "overloaded"].includes(name);
-    const execution = boundary ? undefined : genericAdoptionExecution(name, invoked);
+    const execution = genericAdoptionExecution(name, invoked);
     const sourceText = `${declarations}
       export function reject(promised: Promise<number>): void { void ${invoked}(promised); }`;
-    const compiled = compileCsharpSource({ surface: "js",
-      ...(execution === undefined ? {} : { targetOptions: { outputType: "Exe" } }),
-      sourceText: execution === undefined ? sourceText : sourceText + "\n" + execution.source });
+    const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" },
+      sourceText: sourceText + "\n" + execution.source });
     admitted(compiled, `${invoked}(promised)`, "KindCallExpression", invoked);
-    if (execution !== undefined) executePromiseAdoption(compiled, "promise-generic-" + name, execution.expected);
+    executePromiseAdoption(compiled, "promise-generic-" + name, execution.expected);
   });
 
 test(`C# generic adoption keeps the ordinary actual for ${name}`, () => {
@@ -225,7 +223,7 @@ for (const [name, declaration] of Array.from([
     constructor(read: () => Promise<Value>) { this.read = read; } }`],
 ]).slice(0, 4)) {
 test(`C# generic adoption keeps the unknown ${name} receiver contract`, () => {
-    declaredNativePromiseCall(compileCsharpSource({ surface: "js", sourceText: `${declaration}
+    completedProjectPromiseCall(compileCsharpSource({ surface: "js", sourceText: `${declaration}
       export function reject(value: Contract<Promise<number>>) { return value.read(); }` }),
     "value.read()");
   });

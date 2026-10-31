@@ -136,11 +136,14 @@ test("advanced .NET API contracts close through provider selection and C# syntax
   assert.match(output, /return value\[2, 3\]/);
   assert.match(output, /ref int slot = ref value\.ValueRef\(\)/);
   assert.match(output, /slot = 9/);
-  const eventAdapters = [...output.matchAll(/value\.Changed [+-]= new System\.Action<int>\((__tsonic_adapter\w*)\)/gu)]
+  const eventAdapters = [...output.matchAll(/value\.Changed [+-]= (__+tsonic_adapter\w*);/gu)]
     .map(match => match[1]);
   assert.equal(eventAdapters.length, 2);
   assert.equal(eventAdapters[0], eventAdapters[1], "native add/remove share the exact retained adapter");
-  assert.match(output, new RegExp(`void ${eventAdapters[0]}\\(int __tsonic_arg0\\)\\s*\\{\\s*callback\\(__tsonic_arg0\\)`));
+  const retainedAdapters = [...output.matchAll(/System\.Action<int> (__+tsonic_adapter\w*) = \(int __tsonic_arg0\) =>\s*\{\s*callback\(__tsonic_arg0\);\s*return;\s*\};/gu)];
+  assert.equal(retainedAdapters.length, 1, "one typed retained native adapter value");
+  assert.equal(retainedAdapters[0][1], eventAdapters[0], "both events read the declared adapter");
+  assert.doesNotMatch(output, /new System\.Action<int>/u);
   assert.match(output, /events\([^)]*Action<double> callback\)/);
   assert.match(output, /return left \+ right/);
   assert.match(output, /StaticInterfaceImplementation\.Create\(\)/);
