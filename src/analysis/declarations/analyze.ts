@@ -1,6 +1,6 @@
 import type { Node, Type } from "@tsonic/tsts";
 import { selectCsharpContextualAsyncReturn } from "../../policy/conversions/contextual-async-return.js";
-import { getCsharpAwaitResultTargetType } from "../../policy/operations/control-flow/await-completions.js";
+import { selectCsharpSourceCallAwaitCompletion } from "../../policy/operations/control-flow/await-completions.js";
 import { csharpTaskTargetType } from "../../target-model/types/carriers/delegates.js";
 import { csharpMethodValueCoversContract } from "../../target-model/types/method-values.js";
 import {
@@ -251,7 +251,9 @@ function classifyReturnContract(
           targetTypeRefEquals(result.selectedType, type)) inferredBaseline = result.selectedType;
       }
       if (asynchronous) {
-        const awaited = getCsharpAwaitResultTargetType(type, policy.typeDefinitions);
+        const selected = policy.types.resolveNode(expression, policy.ast.getSourceFile(expression))?.sourceResult;
+        const awaited = selectCsharpSourceCallAwaitCompletion(selected === undefined ? undefined
+          : Object.freeze({ ...selected, selectedType: type }), policy.typeDefinitions)?.result;
         if (awaited !== undefined) observed.push(awaited);
         else if (targetTypeRefEquals(type, observedBaseline)) observed.push(type);
         else incomplete = true;

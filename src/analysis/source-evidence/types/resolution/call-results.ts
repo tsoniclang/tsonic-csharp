@@ -52,6 +52,19 @@ export function selectCsharpSourceCallResult(
   return Object.freeze({ nativeType, selectedType: related ? selectedType : nativeType });
 }
 
+export function csharpSourceValueResult(type: TargetTypeRef | undefined): CsharpSourceCallResult | undefined {
+  return type === undefined ? undefined : Object.freeze({ nativeType: type, selectedType: type });
+}
+
+export function refineCsharpSourceValueResult(
+  selected: CsharpSourceCallResult | undefined,
+  type: TargetTypeRef | undefined,
+): CsharpSourceCallResult | undefined {
+  if (selected === undefined || type === undefined) return undefined;
+  return selected.selectedType === type ? selected : targetTypeRefEquals(selected.selectedType, type)
+    ? Object.freeze({ ...selected, selectedType: type }) : csharpSourceValueResult(type);
+}
+
 export function completeCsharpSourceCallAdoption(
   host: { readonly typeDefinitions?: CsharpTypeDefinitions },
   selected: CsharpSourceCallResult | undefined,
@@ -68,7 +81,5 @@ export function completeCsharpSourceCallAdoption(
   if (!completion.alternatives.some(alternative => alternative.task)) return selected;
   if (getCsharpTaskResultTargetType(payload) !== undefined && completion.form === "direct")
     return Object.freeze({ nativeType: selected.nativeType, selectedType: payload, completion });
-  if (selected.nativeType.kind !== "target-named") return undefined;
-  return Object.freeze({ nativeType: selected.nativeType,
-    selectedType: Object.freeze({ ...selected.nativeType, csharpAwaitContinuation: completion }), completion });
+  return Object.freeze({ nativeType: selected.nativeType, selectedType: selected.nativeType, completion });
 }

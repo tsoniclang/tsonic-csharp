@@ -12,7 +12,13 @@ import type { CsharpSourceCallParameterReadDomain, ResolvedSourceCallInfo } from
 import type { CsharpSourceCallResult } from "../../target-model/operations/source-call-results.js";
 import type { CsharpNativeSourceCarrierSelection } from "../../target-model/records/objects/object-shapes.js";
 
-export type CsharpNodeTypeResolution = CsharpNativeSourceCarrierSelection;
+export type CsharpNodeTypeResolution = (Extract<CsharpNativeSourceCarrierSelection, { readonly kind: "rejected" }> & {
+  readonly sourceResult?: never;
+}) | {
+  readonly kind: "resolved";
+  readonly type: TargetTypeRef;
+  readonly sourceResult: CsharpSourceCallResult;
+};
 
 export interface CsharpTypeQueries {
   resolveArrayLiteral(node: Node, sourceFile: SourceFile): CsharpArrayLiteralSelection;

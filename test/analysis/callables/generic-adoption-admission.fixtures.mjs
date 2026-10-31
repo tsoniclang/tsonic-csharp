@@ -634,4 +634,24 @@ function declaredNativePromiseCall(compiled, text) {
     "the declared Task<Task<T>> output is preserved without adoption or flattening");
 }
 
-export { code, identity, nativeEntryCases, nativeEntryInverses, nativeOpaquePayloadCases, nativeConstructorCases, nativeConstructorInverses, sourcePosition, sourceSpan, cases, rejected, supportedAdoption, declaredNativePromiseCall };
+function executePromiseAdoption(compiled, label, expected) {
+  const output = executeCsharpConstruction(compiled, label, false, false, [], "");
+  assert.equal(output.trim(), expected, "the original Promise-valued instantiation executes with its exact native result");
+}
+
+function genericAdoptionExecution(name, invoked) {
+  const prefix = "const actual = Promise.resolve(5); reject(actual); ";
+  if (["forward-discard", "resolve", "promise-like-reaction", "stored-arrow"].includes(name))
+    return { source: prefix + `${invoked}(actual); console.log("completed");`, expected: "completed" };
+  if (["forward-await", "forward-pending"].includes(name))
+    return { source: prefix + `await ${invoked}(actual); console.log("completed");`, expected: "completed" };
+  if (name === "forward-local")
+    return { source: prefix + `console.log(await ${invoked}(actual));`, expected: "0" };
+  if (name === "nested-return")
+    return { source: prefix + `console.log(await ${invoked}(actual).read());`, expected: "5" };
+  if (name === "returned-arrow")
+    return { source: prefix + `console.log(await ${invoked}(actual)());`, expected: "5" };
+  return { source: prefix + `console.log(await ${invoked}(actual));`, expected: "5" };
+}
+
+export { executePromiseAdoption, genericAdoptionExecution, code, identity, nativeEntryCases, nativeEntryInverses, nativeOpaquePayloadCases, nativeConstructorCases, nativeConstructorInverses, sourcePosition, sourceSpan, cases, rejected, supportedAdoption, declaredNativePromiseCall };

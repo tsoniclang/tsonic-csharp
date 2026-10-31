@@ -19,7 +19,16 @@ import { type CsharpArrayLiteralSelection } from "../../../../target-model/recor
 
 import type { createCsharpTypePolicy } from "./engine.js";
 import type { CsharpNodeTypeResolution } from "../../../../policy/model/type-resolution.js";
+import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
 export interface CsharpTypeResolutionScope {
+  resolveNodeValueWithState(node: Node | undefined, sourceFile: SourceFile | undefined,
+    state: CsharpTypeResolutionState): CsharpSourceCallResult | undefined;
+  resolveSelectedExpressionResult(node: Node, queries: SourceFileSemantics,
+    state: CsharpTypeResolutionState): CsharpSourceCallResult | undefined;
+  resolveSelectedValueResultWithState(node: Node, selectedType: Type, sourceFile: SourceFile,
+    state: CsharpTypeResolutionState): CsharpSourceCallResult | undefined;
+  resolveSourceValueResult(node: Node, queries: SourceFileSemantics, state: CsharpTypeResolutionState,
+    selectedType?: Type): CsharpSourceCallResult | undefined;
   resolveArrayLiteralWithState(node: Node, queries: SourceFileSemantics, state: CsharpTypeResolutionState): CsharpArrayLiteralSelection;
   resolvePointerReturn(
     declaration: Node,
