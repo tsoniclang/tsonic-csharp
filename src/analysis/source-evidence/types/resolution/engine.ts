@@ -278,9 +278,9 @@ export function createCsharpTypeResolutionServices(
       guard.sourceConstructor, type => methods.resolveType(type, file));
   };
   const policy: CsharpTypePolicy = Object.freeze({
-    nativeGuardResult: (expression: Node) => selectCsharpNativeGuardResult(host, expression, methods.resolveStorage),
+    nativeGuardResult: (expression: Node) => selectCsharpNativeGuardResult(host, expression, methods.resolveStorage, resolveNominal),
     nativeUnreachable: (node: Node) => sourceNodeIsNativeUnreachable(host.ast, node,
-      expression => selectCsharpNativeGuardResult(host, expression, methods.resolveStorage)),
+      expression => selectCsharpNativeGuardResult(host, expression, methods.resolveStorage, resolveNominal)),
     nativeFlowMembers: (reference: Node, sourceCarrier: TargetTypeRef) => selectCsharpNativeFlowMembers(host, reference, sourceCarrier, resolveNominal),
     nativeFlowTypes: (reference: Node, sourceType: Type) => {
       const file = host.ast.getSourceFile(reference);
