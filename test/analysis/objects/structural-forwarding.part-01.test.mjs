@@ -100,9 +100,13 @@ for (int index = 0; index < 4096; index++) {
     _ = nativeWarm.Run(7);
     _ = nativeWarm.Extract();
 }
-var value = Tsonic.Generated.Index.make(4);
-var native = new NativeMethod(4);
 long before = System.GC.GetAllocatedBytesForCurrentThread();
+var value = Tsonic.Generated.Index.make(4);
+long construction = System.GC.GetAllocatedBytesForCurrentThread() - before;
+before = System.GC.GetAllocatedBytesForCurrentThread();
+var native = new NativeMethod(4);
+long nativeConstruction = System.GC.GetAllocatedBytesForCurrentThread() - before;
+before = System.GC.GetAllocatedBytesForCurrentThread();
 int checksum = 0;
 for (int index = 0; index < 4096; index++) checksum += Tsonic.Generated.Index.call(value, 7);
 long direct = System.GC.GetAllocatedBytesForCurrentThread() - before;
@@ -127,20 +131,20 @@ copy.extra = 90;
 value.extra = 11;
 if (!object.ReferenceEquals(first, copied) || first(3) != 14 || Tsonic.Generated.Index.call(copy, 3) != 14 || copy.extra != 90)
     throw new System.Exception("rest preserves the original callable, receiver and body");
-if (direct != 0 || nativeDirect != 0 || extraction <= 0 || extraction != nativeExtraction || repeated != 0 || copiedExtraction != 0 || checksum != 0)
-    throw new System.Exception($"native allocation mismatch {direct}/{nativeDirect}/{extraction}/{nativeExtraction}/{repeated}/{copiedExtraction}/{checksum}");
-System.Console.Write($"direct={direct};first={extraction};nativeFirst={nativeExtraction};repeat={repeated};copy={copiedExtraction}");
+if (construction <= 0 || construction != nativeConstruction || direct != 0 || nativeDirect != 0 || extraction != 0 || nativeExtraction != 0 || repeated != 0 || copiedExtraction != 0 || checksum != 0)
+    throw new System.Exception($"native allocation mismatch {construction}/{nativeConstruction}/{direct}/{nativeDirect}/{extraction}/{nativeExtraction}/{repeated}/{copiedExtraction}/{checksum}");
+System.Console.Write($"construct={construction};nativeConstruct={nativeConstruction};direct={direct};first={extraction};nativeFirst={nativeExtraction};repeat={repeated};copy={copiedExtraction}");
 System.GC.KeepAlive(nativeFirst);
 sealed class NativeMethod {
     private readonly int extra;
-    private System.Func<int, int>? value;
-    public NativeMethod(int extra) { this.extra = extra; }
+    private System.Func<int, int> value;
+    public NativeMethod(int extra) { this.extra = extra; value = Run; }
     public int Run(int input) => extra + input;
-    public System.Func<int, int> Extract() => value ??= Run;
+    public System.Func<int, int> Extract() => value;
 }
 `);
-    assert.equal(/^direct=0;first=\d+;nativeFirst=\d+;repeat=0;copy=0$/u.test(output), true,
-      "native execution measures one baseline-sized cached delegate, no direct-call/repeated-read allocation and exact copied identity");
+    assert.equal(/^construct=\d+;nativeConstruct=\d+;direct=0;first=0;nativeFirst=0;repeat=0;copy=0$/u.test(output), true,
+      "native execution measures equal construction, zero extraction/direct-call/repeated-read allocation and exact copied identity");
     process.stdout.write(`${surface}: ${output}\n`);
   });
 }
