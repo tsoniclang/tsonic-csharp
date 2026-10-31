@@ -1,6 +1,6 @@
 import type { AstReader, ExtensionDiagnostic, Node } from "@tsonic/tsts";
-import type { TargetPlanningSourceNavigation } from "@tsonic/target-api/analysis";
-import { sourceDeclarationIsModuleScoped, sourceNodesEqual, sourceExpressionResultDisposition, sourceExpressionValueInputs } from "@tsonic/target-api/source";
+import type { SourceProgramNavigation } from "@tsonic/target-api/source";
+import { sourceDeclarationIsModuleScoped, sourceNodesEqual, sourceExpressionValueInputs } from "@tsonic/target-api/source";
 import type { CsharpNativeCallableCreation, CsharpNativeChildUse, CsharpNativeUseSlot, CsharpNativeDiscardedGuard } from "../../../target-model/records/native/native-demand.js";
 import type { CsharpTargetOperationClassifications, CsharpSourceArgumentGrouping } from "../../../target-model/records/operations/operations.js";
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";
@@ -21,7 +21,7 @@ import type { CsharpOptionalLocalOperation } from "../../../target-model/records
 
 export interface CsharpNativeOperandInput {
   readonly ast: AstReader;
-  readonly navigation: Pick<TargetPlanningSourceNavigation, "isProjectDeclaration" | "referenceFor" | "sourceReferenceFor">;
+  readonly navigation: Pick<SourceProgramNavigation, "isProjectDeclaration" | "referenceFor" | "sourceReferenceFor" | "expressionResultUse">;
   readonly evidence: Pick<CsharpSourceEvidenceIndex, "compileTimeMetadata" | "sourceArgument" | "sourceDefaultValue" | "sourceField" | "sourceStruct">;
   readonly operations: Pick<CsharpTargetOperationClassifications, "nativeHandler" | "selectedCall" | "selectedConstruction" |
     "selectedProperty" | "selectedElement" | "operatorForm" | "binaryOperation" | "unaryOperation" | "jsArrayMutation" |
@@ -109,7 +109,7 @@ export function selectCsharpNativeSourceRefusal(
 
 export function selectCsharpNativeOperandUses(input: CsharpNativeOperandInput, node: Node, access?: "location"): CsharpNativeOperandSelection {
   const { ast, operations, evidence } = input;
-  const resultUse = sourceExpressionResultDisposition(ast, node).kind === "discarded" ? "discarded" : "consumed";
+  const resultUse = input.navigation.expressionResultUse(node);
   const read = input.valueReads.valueRead.get(node);
   const carrier = access === "location" ? read?.flowReadStorage : read?.value;
   const use = (expression: Node | undefined, slot: CsharpNativeUseSlot, target?: TargetTypeRef, access?: "location") =>

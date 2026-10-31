@@ -3,7 +3,7 @@ import type { Node } from "@tsonic/tsts";
 import type { CsharpTargetNamedTypeRef } from "../../target-model/types/model.js";
 import { targetUseSiteIdentity, type SourceStorageSubject, type TargetUseSiteRef } from "@tsonic/target-api/analysis";
 import { failTargetAnalysisInvariant, targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
-import { sourceExpressionResultDisposition, sourceExpressionValueInputs, sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
+import { sourceExpressionValueInputs, sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
 import { csharpNativeConstructIsErased, selectCsharpNativeConstructSteps } from "./control-flow/native-constructs.js";
 import { selectCsharpNativeOperandUses, selectCsharpNativeSourceRefusal, type CsharpNativeOperandSelection, type CsharpNativeOperandStep } from "./control-flow/native-operands.js";
 import { selectCsharpNativeCompletion, type CsharpNativeCompletionFlow } from "../../policy/operations/control-flow/native-completion.js";
@@ -349,7 +349,7 @@ export function analyzeCsharpNativeDemand(
     const selected: CsharpNativeOperandSelection = expected?.literal === undefined
       ? selectCsharpNativeOperandUses(policyInput, expression, child.access)
       : Object.freeze({ runtime: Object.freeze([]), planning: Object.freeze([]), flow: "sequence", carrier: expected.carrier,
-        resultUse: sourceExpressionResultDisposition(ast, expression).kind === "discarded" ? "discarded" : "consumed" });
+        resultUse: input.navigation.expressionResultUse(expression) });
     const expectedChildren = new Map<string, TargetUseSiteRef[]>();
     for (const reference of expected?.construction?.children ?? expected?.children ?? []) {
       const matching = expectedChildren.get(reference.role) ?? [];

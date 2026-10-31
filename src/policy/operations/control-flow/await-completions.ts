@@ -1,5 +1,6 @@
 import type { CsharpAwaitAlternative, CsharpAwaitCompletion } from "../../../target-model/types/await-completions.js";
-import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpSourceCallResult } from "../../../target-model/operations/source-call-results.js";
 import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
 import { csharpUnionLeaves } from "../../../target-model/types/union-relations.js";
 import { csharpUnionProjectionPath, selectCsharpUnionArmMapping } from "../../conversions/union-relations.js";
@@ -7,6 +8,7 @@ import { combineCsharpTargetUnionMembers, csharpAbsenceTargetType, getCsharpRunt
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { isCsharpVoidTargetType } from "../../../target-model/types/identity.js";
 import { csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
+import { getCsharpTaskResultTargetType } from "../../../target-model/types/carriers/delegates.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 
 export function selectCsharpAwaitCompletion(
@@ -71,8 +73,19 @@ export function selectCsharpAwaitCompletion(
     result, alternatives: Object.freeze(selected as readonly CsharpAwaitAlternative[]),
     optional: present !== undefined,
   });
-  const task = present ?? carrier;
-  const continuation = task.kind === "target-named" ? (task as CsharpTargetNamedTypeRef).csharpAwaitContinuation : undefined;
+  return native;
+}
+
+export function selectCsharpSourceCallAwaitCompletion(
+  selected: CsharpSourceCallResult | undefined,
+  definitions?: CsharpTypeDefinitions,
+  resultUse: "consumed" | "discarded" = "consumed",
+): CsharpAwaitCompletion | undefined {
+  if (selected === undefined) return undefined;
+  const native = selectCsharpAwaitCompletion(selected.selectedType, definitions, resultUse);
+  if (native === undefined) return undefined;
+  const continuation = getCsharpTaskResultTargetType(selected.nativeType) !== undefined &&
+    targetTypeRefEquals(selected.nativeType, selected.selectedType) ? selected.completion : undefined;
   return continuation === undefined ? native : Object.freeze({ ...native,
     result: continuation.result, discard: continuation.discard,
     adoption: Object.freeze({ native, continuation }),

@@ -71,7 +71,8 @@ function createCsharpTypeSystem(
           depth: 0, sourceBindings: new Map([[declaration, { sourceType, targetType: parameter }]]),
           rejectNativeResolution: rejection => { rejected ??= rejection; },
         });
-        return rejected ?? (type === undefined ? undefined : Object.freeze({ kind: "resolved" as const, type }));
+        return rejected ?? (type === undefined ? undefined : Object.freeze({ kind: "resolved" as const, type,
+          sourceResult: Object.freeze({ nativeType: type, selectedType: type }) }));
       } },
     });
     if (resolution.kind !== "resolved") return resolution;

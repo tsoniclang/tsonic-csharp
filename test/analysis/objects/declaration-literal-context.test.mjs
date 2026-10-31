@@ -166,7 +166,9 @@ for (const [label, body, literal] of [
   const sourceText = `import type { MakeDirectoryOptions } from "node:fs";
     export function make(): MakeDirectoryOptions { ${body} }`;
   const compiled = compile(sourceText);
-  const issue = compiled.result.diagnostics.find(diagnostic => diagnostic.code === "TSONIC_UNTYPED_OBJECT_LITERAL");
+  const issues = compiled.result.diagnostics.filter(diagnostic => diagnostic.code === "TSONIC_UNTYPED_OBJECT_LITERAL");
+  assert.equal(issues.length, 1, `${label}: one canonical literal owner publishes the refusal`);
+  const issue = issues[0];
   const ast = compiled.source.ast;
   const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
   const text = range?.kind !== "authored" ? undefined

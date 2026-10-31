@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
-import { code, identity, nativeEntryCases, nativeEntryInverses, nativeOpaquePayloadCases, nativeConstructorCases, nativeConstructorInverses, sourcePosition, sourceSpan, cases, declaredNativePromiseCall } from "./generic-adoption-admission.fixtures.mjs";
+import { code, identity, nativeEntryCases, nativeEntryInverses, nativeOpaquePayloadCases, nativeConstructorCases, nativeConstructorInverses, sourcePosition, sourceSpan, cases, declaredNativePromiseCall, executePromiseAdoption, genericAdoptionExecution } from "./generic-adoption-admission.fixtures.mjs";
 
 function admitted(compiled, text, kind, declarationName) {
   assert.deepEqual(compiled.result.diagnostics.map(issue => issue.code), [],
@@ -50,15 +50,17 @@ test("C# ordinary opaque callable input keeps its native value: " + name, { time
 }
 
 for (const [name, declarations, expression] of Array.from(nativeOpaquePayloadCases).slice(13, 18)) {
-test("C# native opaque callable input is unresolved, not safe empty: " + name, () => {
-    const compiled = compileCsharpSource({ surface: "js", sourceText: declarations +
-      "\nexport function reject(value: Promise<number>): void { void wrap(value); }" });
+test("C# native opaque callable input is unresolved, not safe empty: " + name, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText: declarations +
+      "\nexport function reject(value: Promise<number>): void { void wrap(value); }" +
+      "\nconst actual = Promise.resolve(5); reject(actual); const pending = wrap(actual); console.log(await pending);" });
     const { ast, sourceNode } = admitted(compiled, "wrap(value)", "KindCallExpression", "wrap");
     assert.equal(ast.kindName(sourceNode), "KindCallExpression", "the original resolving operation owns the native contract");
     assert.equal(Buffer.from(ast.getSourceText(ast.getSourceFile(sourceNode))).subarray(ast.pos(sourceNode), ast.end(sourceNode))
       .toString("utf8").trim(), "wrap(value)", "approved C-1348: the declared instantiation owns adoption");
     assert.equal(compiled.result.program !== undefined && compiled.result.artifacts.length > 0, true,
       "approved C-1399: the declared native adoption publishes its complete program and artifacts");
+    executePromiseAdoption(compiled, "promise-native-opaque-" + name, "5");
   });
 
 test("C# ordinary opaque callable input keeps its native value: " + name, { timeout: 300_000 }, () => {
@@ -71,10 +73,12 @@ test("C# ordinary opaque callable input keeps its native value: " + name, { time
 }
 
 for (const [name, declarations] of Array.from(nativeConstructorCases).slice(0, 3)) {
-test("C# official native constructor keeps exact generic adoption: " + name, () => {
-    const compiled = compileCsharpSource({ surface: "native", sourceText: declarations +
-      "\nexport function reject(promised: Promise<number>): void { void wrap(promised); }" });
+test("C# official native constructor keeps exact generic adoption: " + name, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface: "native", targetOptions: { outputType: "Exe" }, sourceText: declarations +
+      "\nexport function reject(promised: Promise<number>): void { void wrap(promised); }" +
+      "\nconst actual = Promise.resolve<number>(5); reject(actual); if ((await wrap(actual)) !== 5) throw new Error(\"adopted native payload\");" });
     admitted(compiled, "wrap(promised)", "KindCallExpression", "wrap");
+    executePromiseAdoption(compiled, "promise-native-constructor-" + name, "");
   });
 
 test("C# official native constructor preserves its ordinary native value: " + name, { timeout: 300_000 }, () => {
@@ -98,10 +102,16 @@ test("C# official native constructor inverse: " + name, { timeout: 300_000 }, ()
 }
 
 for (const [name, declarations, invoked] of Array.from(cases).slice(0, 19)) {
-test(`C# generic adoption refuses the actual Promise-valued ${name} site before sealing`, () => {
-    admitted(compileCsharpSource({ surface: "js", sourceText: `${declarations}
-      export function reject(promised: Promise<number>): void { void ${invoked}(promised); }` }),
-    `${invoked}(promised)`, "KindCallExpression", invoked);
+test(`C# generic adoption refuses the actual Promise-valued ${name} site before sealing`, { timeout: 300_000 }, () => {
+    const boundary = ["nested-return", "returned-arrow", "overloaded"].includes(name);
+    const execution = boundary ? undefined : genericAdoptionExecution(name, invoked);
+    const sourceText = `${declarations}
+      export function reject(promised: Promise<number>): void { void ${invoked}(promised); }`;
+    const compiled = compileCsharpSource({ surface: "js",
+      ...(execution === undefined ? {} : { targetOptions: { outputType: "Exe" } }),
+      sourceText: execution === undefined ? sourceText : sourceText + "\n" + execution.source });
+    admitted(compiled, `${invoked}(promised)`, "KindCallExpression", invoked);
+    if (execution !== undefined) executePromiseAdoption(compiled, "promise-generic-" + name, execution.expected);
   });
 
 test(`C# generic adoption keeps the ordinary actual for ${name}`, () => {
@@ -114,10 +124,11 @@ test(`C# generic adoption keeps the ordinary actual for ${name}`, () => {
   });
 }
 
-test("adoption provenance carries its fixed Unicode/CRLF payload independent of the project root", () => {
+test("adoption provenance carries its fixed Unicode/CRLF payload independent of the project root", { timeout: 300_000 }, () => {
   const sourceText = 'const marker = "界😀";\r\nasync function identity<Value>(value: Value) {\r\n\treturn value;\r\n}\r\n' +
     "export function reject(promised: Promise<number>): void {\r\n\tvoid identity(promised);\r\n}";
-  const compiled = compileCsharpSource({ surface: "js", projectRoot: "/another/csharp/src", sourceText });
+  const compiled = compileCsharpSource({ surface: "js", projectRoot: "/another/csharp/src", targetOptions: { outputType: "Exe" },
+    sourceText: sourceText + "\r\nconst actual = Promise.resolve(5); reject(actual); console.log(await identity(actual));" });
   const { ast, sourceNode, declaration, nodes } = admitted(compiled, "identity(promised)", "KindCallExpression", "identity");
   assert.deepEqual(sourceSpan(ast, sourceNode), { fileName: "index.ts", line: 6, column: 7, endLine: 6, endColumn: 25 },
     "exact actual instantiation coordinates, not the related declaration");
@@ -126,20 +137,24 @@ test("adoption provenance carries its fixed Unicode/CRLF payload independent of 
   assert.equal(nodes.some(node => ast.is.IsReturnStatement(node) &&
     sourcePosition(ast, node).line === 3 && sourcePosition(ast, node).column === 2), true,
   "the original own-body return coordinates stay byte-identical without becoming adoption authority");
+  executePromiseAdoption(compiled, "promise-unicode-crlf", "5");
 });
 
-test("C# generic class adoption is refused at the checked constructor", () => {
-  admitted(compileCsharpSource({ surface: "js", sourceText: `
+test("C# generic class adoption is refused at the checked constructor", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText: `
     class Holder<Value> { constructor(readonly value: Value) {} async get(): Promise<Value> { return this.value; } }
     export function reject(promised: Promise<number>): void { void new Holder(promised); }
-  ` }), "new Holder(promised)", "KindNewExpression", "Holder");
+  ` + "\nconst actual = Promise.resolve(5); reject(actual); console.log(await new Holder(actual).get());" });
+  admitted(compiled, "new Holder(promised)", "KindNewExpression", "Holder");
+  executePromiseAdoption(compiled, "promise-generic-constructor", "5");
 });
 
-test("C# refuses a known Promise wrapper with a still-free inner payload before physical analysis", () => {
-  admitted(compileCsharpSource({ surface: "js", sourceText: `${identity}
+test("C# refuses a known Promise wrapper with a still-free inner payload before physical analysis", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText: `${identity}
     function wrap<Value>(value: Value) { return identity(Promise.resolve(value)); }
-    export function run(): void { void wrap(7); }` }),
-  "identity(Promise.resolve(value))", "KindCallExpression", "identity");
+    export function run(): void { void wrap(7); }` + "\nrun(); console.log(await wrap(7));" });
+  admitted(compiled, "identity(Promise.resolve(value))", "KindCallExpression", "identity");
+  executePromiseAdoption(compiled, "promise-free-inner-payload", "7");
 });
 
 for (const [name, extra, receiver, unsupportedHeritage] of Array.from([
@@ -152,13 +167,20 @@ for (const [name, extra, receiver, unsupportedHeritage] of Array.from([
   ["wrapped-inherited", "class Derived<Part> extends Holder<Promise<Part>> {}", "Derived<number>"],
   ["conditional-inherited", "class Derived<Part> extends Holder<Part extends number ? number : Promise<number>> {}", "Derived<string>", "Holder<Part extends number ? number : Promise<number>>"],
 ]).slice(0, 8)) {
-test(`C# generic adoption refuses the actual ${name} class receiver`, () => {
-    const compiled = compileCsharpSource({ surface: "js", sourceText: `
+test(`C# generic adoption refuses the actual ${name} class receiver`, { timeout: 300_000 }, () => {
+    const sourceText = `
       class Holder<Value> { constructor(readonly value: Value) {} async get(): Promise<Value> { return this.value; } }
       ${extra} export function reject(holder: ${receiver}) { return holder.get(); }
-    ` });
+    `;
+    const constructor = ["incoming", "alias", "union"].includes(name) ? "Holder" : "Derived";
+    const compiled = compileCsharpSource({ surface: "js",
+      ...(unsupportedHeritage === undefined ? { targetOptions: { outputType: "Exe" } } : {}),
+      sourceText: unsupportedHeritage === undefined ? sourceText + (name === "union"
+        ? "\nconsole.log(await reject(new Holder(Promise.resolve(5))));"
+        : `\nconst selected: ${receiver} = new ${constructor}(Promise.resolve(5)); console.log(await reject(selected));`) : sourceText });
     if (unsupportedHeritage === undefined) {
       admitted(compiled, "holder.get()", "KindCallExpression");
+      executePromiseAdoption(compiled, "promise-generic-receiver-" + name, "5");
       return;
     }
     assert.deepEqual(compiled.result.diagnostics.map(issue => issue.code),
@@ -240,11 +262,13 @@ test(`C# retains ${recursive ? "recursive" : "direct"} resolver/value correlatio
     assert.equal(output.trim(), "7", "the Promise-valued actual reaches only the ordinary callback");
   });
 
-test(`C# refuses the matching ${recursive ? "recursive" : "direct"} adopting resolver row`, () => {
-    admitted(compileCsharpSource({ surface: "js", sourceText: `${helper}
+test(`C# refuses the matching ${recursive ? "recursive" : "direct"} adopting resolver row`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText: `${helper}
       function wrap<Value>(value: Value): Promise<Value> { return new Promise<Value>(resolve => deliver(resolve, value, 2)); }
-      export function reject(promised: Promise<number>): void { void wrap(promised); }` }),
-    "wrap(promised)", "KindCallExpression", "wrap");
+      export function reject(promised: Promise<number>): void { void wrap(promised); }` +
+      "\nconst actual = Promise.resolve(5); reject(actual); const pending = wrap(actual); console.log(await pending);" });
+    admitted(compiled, "wrap(promised)", "KindCallExpression", "wrap");
+    executePromiseAdoption(compiled, `promise-resolver-${recursive ? "recursive" : "direct"}`, "5");
   });
 }
 

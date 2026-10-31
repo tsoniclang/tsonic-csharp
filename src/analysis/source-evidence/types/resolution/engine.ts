@@ -21,7 +21,11 @@ import type { SourceNativeValueGuard } from "@tsonic/target-api/source";
 
 import { resolveSourceCallTypeArguments as resolveSourceCallTypeArgumentsImplementation, resolveSourceCallParameter as resolveSourceCallParameterImplementation, resolveSourceCallParameters as resolveSourceCallParametersImplementation, resolveSourceCallArgumentParameter as resolveSourceCallArgumentParameterImplementation, resolveSourceCallResult as resolveSourceCallResultImplementation, resolveSourceCallResultWithState as resolveSourceCallResultWithStateImplementation } from "./call-api.js";
 import { resolveNode as resolveNodeImplementation, resolveType as resolveTypeImplementation, resolveStorage as resolveStorageImplementation, resolveReadStorage as resolveReadStorageImplementation, catchVariableStorageCarrier as catchVariableStorageCarrierImplementation, resolveValue as resolveValueImplementation, resolveSelectedValue as resolveSelectedValueImplementation, resolveSelectedValueWithState as resolveSelectedValueWithStateImplementation, resolveSelectedType as resolveSelectedTypeImplementation, resolveSelectedResult as resolveSelectedResultImplementation, resolveTypedLocationOperationPointee as resolveTypedLocationOperationPointeeImplementation, resolveTypedLocationOperationPointeeWithState as resolveTypedLocationOperationPointeeWithStateImplementation, withSourceTargetBindings as withSourceTargetBindingsImplementation } from "./public-api.js";
-import { resolveNodeWithState as resolveNodeWithStateImplementation, resolveTupleTypeNode as resolveTupleTypeNodeImplementation, tupleElementIsRest as tupleElementIsRestImplementation } from "./nodes.js";
+import { resolveNodeValueWithState as resolveNodeValueWithStateImplementation, resolveTupleTypeNode as resolveTupleTypeNodeImplementation, tupleElementIsRest as tupleElementIsRestImplementation } from "./nodes.js";
+import { csharpSourceValueResult } from "./call-results.js";
+import { resolveSelectedValueResultWithState } from "./public-api.js";
+import { resolveSelectedExpressionResult } from "./expressions.js";
+import { resolveSourceValueResult } from "./source-references.js";
 import { optionalAccessTargetType as optionalAccessTargetTypeImplementation } from "../../../../policy/types/storage/optional-access.js";
 import { resolveSelectedExpressionType as resolveSelectedExpressionTypeImplementation, resolveMemberAccessTargetType as resolveMemberAccessTargetTypeImplementation, resolveNonNullExpressionType as resolveNonNullExpressionTypeImplementation, resolveProjectThisTargetType as resolveProjectThisTargetTypeImplementation, resolveSourceOwnedCallResult as resolveSourceOwnedCallResultImplementation, resolveSelectedReceiverTargetType as resolveSelectedReceiverTargetTypeImplementation, resolveSourceOwnedConstructionResult as resolveSourceOwnedConstructionResultImplementation } from "./expressions.js";
 import { resolveSelectedDeclarationResult as resolveSelectedDeclarationResultImplementation, resolveProjectEnumMemberTarget as resolveProjectEnumMemberTargetImplementation, declarationResultTypeNode as declarationResultTypeNodeImplementation } from "./declarations.js";
@@ -93,6 +97,12 @@ export function createCsharpTypeResolutionServices(
       resolveSelectedValueImplementation(scope, ...args),
     resolveSelectedValueWithState: (...args: DropScope<Parameters<typeof resolveSelectedValueWithStateImplementation>>) =>
       resolveSelectedValueWithStateImplementation(scope, ...args),
+    resolveSelectedValueResultWithState: (...args: DropScope<Parameters<typeof resolveSelectedValueResultWithState>>) =>
+      resolveSelectedValueResultWithState(scope, ...args),
+    resolveSelectedExpressionResult: (...args: DropScope<Parameters<typeof resolveSelectedExpressionResult>>) =>
+      resolveSelectedExpressionResult(scope, ...args),
+    resolveSourceValueResult: (...args: DropScope<Parameters<typeof resolveSourceValueResult>>) =>
+      resolveSourceValueResult(scope, ...args),
     resolveSelectedType: (...args: DropScope<Parameters<typeof resolveSelectedTypeImplementation>>) =>
       resolveSelectedTypeImplementation(scope, ...args),
     resolveSelectedResult: (...args: DropScope<Parameters<typeof resolveSelectedResultImplementation>>) =>
@@ -121,6 +131,11 @@ export function createCsharpTypeResolutionServices(
       node: Node | undefined,
       sourceFile: SourceFile | undefined,
       state: CsharpTypeResolutionState,
+    ) => methods.resolveNodeValueWithState(node, sourceFile, state)?.selectedType,
+    resolveNodeValueWithState: (
+      node: Node | undefined,
+      sourceFile: SourceFile | undefined,
+      state: CsharpTypeResolutionState,
     ) => {
       if (node === undefined) {
         return undefined;
@@ -130,12 +145,12 @@ export function createCsharpTypeResolutionServices(
         if (!host.ast.is.IsTypeReferenceNode(root) && !host.ast.is.IsUnionTypeNode(root) && !host.ast.is.IsTypeLiteralNode(root)) return undefined;
         const queries = sourceFile === undefined ? host.semanticsFor(node) : host.semantics(sourceFile);
         const type = queries.types.authoredType(node);
-        return type === undefined ? undefined
-          : scope.sourceUnionDefinitions.reference(type) ?? host.structuralTypes.resolveReference(type);
+        return type === undefined ? undefined : csharpSourceValueResult(
+          scope.sourceUnionDefinitions.reference(type) ?? host.structuralTypes.resolveReference(type));
       }
       scope.activeNodes.add(node);
       try {
-        return resolveNodeWithStateImplementation(
+        return resolveNodeValueWithStateImplementation(
           scope,
           node,
           sourceFile,

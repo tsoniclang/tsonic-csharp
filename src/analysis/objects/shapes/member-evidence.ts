@@ -267,11 +267,13 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       types: { resolveNode: (node, sourceFile) => {
         const declared = host.typeResolver.resolveNode(node, sourceFile, nextState(state));
         if (declared === undefined) return undefined;
-        if (receiver === undefined) return Object.freeze({ kind: "resolved" as const, type: declared });
+        if (receiver === undefined) return Object.freeze({ kind: "resolved" as const, type: declared,
+          sourceResult: Object.freeze({ nativeType: declared, selectedType: declared }) });
         const selected = host.projectTypes().instantiateMemberType(methodDeclaration, receiver, declared);
         const type = selected.kind === "resolved" ? selected.type
           : selected.kind === "not-project-member" ? declared : undefined;
-        return type === undefined ? undefined : Object.freeze({ kind: "resolved" as const, type });
+        return type === undefined ? undefined : Object.freeze({ kind: "resolved" as const, type,
+          sourceResult: Object.freeze({ nativeType: type, selectedType: type }) });
       } },
     });
     if (typeParameters === undefined) return undefined;
