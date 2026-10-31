@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { classifyCsharpUnionCall } from "../../../dist/analysis/operations/union-calls.js";
+import { selectCsharpUnionCallMethods } from "../../../dist/analysis/source-evidence/types/resolution/union-call-methods.js";
+import { resolveSourceCallResultWithState } from "../../../dist/analysis/source-evidence/types/resolution/call-api.js";
+import { csharpTaskTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
+import { getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpTargetNamedType } from "../../../dist/target-model/types/factories.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
@@ -133,4 +137,115 @@ test("native rest and optional contracts remain independent from initializer syn
     delete signature.csharpDelegateSignature.optionalParameterIndexes;
   }
   assert.equal(input.select().kind, "resolved");
+});
+
+function sharedMethods(input, typeArguments) {
+  const property = input.policy.semantics(input.sourceFile).operations.propertyAccess(input.source.sourceCallee.expression);
+  const receiver = input.policy.types.resolveSelectedValue(property.receiver.expression, property.receiver.type, input.sourceFile);
+  return selectCsharpUnionCallMethods(input.policy, property, getCsharpRuntimeUnionArms(receiver), typeArguments,
+    (declaration, file) => {
+      assert.equal(file === input.sourceFile && input.declarations.includes(declaration), true,
+        "only the actual selected member and its own file resolve");
+      return input.policy.types.resolveNode(declaration, file)?.type;
+    });
+}
+
+test("one early union method owner supplies the same checked members and results to operation admission", () => {
+  const input = fixture();
+  const selected = sharedMethods(input, []);
+  assert.equal(selected.kind, "resolved");
+  assert.equal(Object.isFrozen(selected) && Object.isFrozen(selected.methods), true);
+  for (const [index, method] of selected.methods.entries()) {
+    assert.equal(method.declaration === input.declarations[index] && method.parameters[0] === input.parameters[index], true);
+    assert.equal(method.nativeParameters[0] === input.incoming && method.result.nativeType === input.integer, true);
+    assert.equal(Object.isFrozen(method) && Object.isFrozen(method.nativeParameters) && Object.isFrozen(method.result), true);
+  }
+  const property = input.policy.semantics(input.sourceFile).operations.propertyAccess(input.source.sourceCallee.expression);
+  input.source.sourceCalleeAccess = { kind: "property", expression: input.source.sourceCallee.expression, receiver: property.receiver };
+  input.source.sourceSelectedSignatureKind = "resolved";
+  const semantics = input.policy.semantics(input.sourceFile);
+  semantics.operations.callResult = () => undefined;
+  const scope = { host: { ...input.policy, projectTypes: () => input.policy.projectTypes },
+    sourceCallSelectedDeclaration: () => input.declarations[0],
+    resolveSelectedValueWithState: (...arguments_) => input.policy.types.resolveSelectedValue(...arguments_),
+    resolveSourceCallInstantiation: () => ({ arguments: [] }),
+    resolveNodeWithState: (declaration, file) => input.policy.types.resolveNode(declaration, file)?.type };
+  const early = resolveSourceCallResultWithState(scope, input.source, input.sourceFile, { depth: 0 }, undefined);
+  const operation = input.select();
+  assert.equal(early.nativeType === input.integer && early.selectedType === input.integer, true);
+  assert.equal(operation.kind === "resolved" && operation.resultType === early.selectedType, true);
+  assert.equal(operation.methods.every((method, index) => method.declaration === selected.methods[index].declaration &&
+    method.result.nativeType === selected.methods[index].result.nativeType), true);
+});
+
+test("shared union discovery deduplicates checked roots and terminates repeated ancestry", () => {
+  const input = fixture();
+  input.policy.semantics(input.sourceFile).facts.selectedSubjects = () => [...input.declarations, ...input.declarations];
+  input.policy.projectTypes.directSupertypes = arm => [arm];
+  const selected = sharedMethods(input, []);
+  assert.equal(selected.kind === "resolved" && selected.methods.length === 2, true);
+  assert.equal(input.select().kind, "resolved");
+});
+
+test("shared union discovery reads only selected checked symbol roots", () => {
+  const input = fixture();
+  const semantics = input.policy.semantics(input.sourceFile);
+  const property = semantics.operations.propertyAccess(input.source.sourceCallee.expression);
+  const root = {};
+  const foreignRoot = {};
+  semantics.facts.selectedSubjects = () => [];
+  semantics.types.propertyInfos = () => [{ symbol: {}, rootSymbols: [foreignRoot] },
+    { symbol: property.selectedSymbol, rootSymbols: [root] }];
+  semantics.declarations.symbolDeclarations = symbol => {
+    assert.equal(symbol === root, true, "an unselected root is never queried");
+    return input.declarations;
+  };
+  assert.equal(sharedMethods(input, []).kind, "resolved");
+  assert.equal(input.select().kind, "resolved");
+  input.policy.navigation.isProjectDeclaration = () => false;
+  assert.equal(sharedMethods(input, []).kind, "rejected");
+  assert.equal(input.select().kind, "rejected");
+});
+
+test("shared union discovery rejects multiple actual methods for one ancestor owner", () => {
+  const input = fixture();
+  const extra = {};
+  const containing = input.policy.projectTypes.catalog.definitionContainingDeclaration;
+  input.policy.projectTypes.catalog.definitionContainingDeclaration = declaration =>
+    containing(declaration === extra ? input.declarations[0] : declaration);
+  input.policy.semantics(input.sourceFile).facts.selectedSubjects = () => [...input.declarations, extra];
+  const selected = sharedMethods(input, []);
+  const operation = input.select();
+  assert.equal(selected.kind === "rejected" && selected.reason.includes("cardinality is 2"), true);
+  assert.equal(operation.kind === "rejected" && operation.reason === selected.reason, true);
+});
+
+test("shared union discovery preserves exact selected generic argument counts", () => {
+  const input = fixture();
+  const selected = sharedMethods(input, [input.integer]);
+  assert.equal(selected.kind === "rejected" && selected.reason.includes("selected count is 1"), true);
+  input.policy.types.resolveSourceCallTypeArguments = () => [input.integer];
+  assert.equal(input.select().kind, "rejected");
+});
+
+test("shared union discovery retains physical tasks and one source-bodied adoption completion", () => {
+  const input = fixture();
+  const inner = csharpTaskTargetType(input.integer);
+  const physical = csharpTaskTargetType(inner);
+  for (const signature of input.signatures) signature.csharpDelegateSignature.returnType = physical;
+  input.policy.ast.body = () => ({});
+  input.policy.types.resolveSourceCallResult = () => ({ nativeType: physical, selectedType: inner });
+  const selected = sharedMethods(input, []);
+  assert.equal(selected.kind, "resolved");
+  assert.equal(selected.methods.every(method => method.result.nativeType === physical && method.result.selectedType === inner &&
+    method.result.completion !== undefined && Object.isFrozen(method.result)), true);
+  assert.equal(input.select().kind, "resolved");
+});
+
+test("shared union discovery refuses missing native result instantiation without another selector", () => {
+  const input = fixture();
+  input.policy.projectTypes.instantiateMemberType = () => ({ kind: "unavailable" });
+  const selected = sharedMethods(input, []);
+  assert.equal(selected.kind === "rejected" && selected.reason.includes("exact instantiated native result"), true);
+  assert.equal(input.select().kind, "rejected");
 });
