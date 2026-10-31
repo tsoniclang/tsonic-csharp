@@ -1,5 +1,5 @@
 import type { AstReader, ExtensionDiagnostic, Node } from "@tsonic/tsts";
-import type { TargetPlanningSourceNavigation } from "@tsonic/target-api/analysis";
+import type { SourceProgramNavigation } from "@tsonic/target-api/source";
 import { sourceDeclarationIsModuleScoped, sourceNodesEqual, sourceExpressionValueInputs } from "@tsonic/target-api/source";
 import type { CsharpNativeCallableCreation, CsharpNativeChildUse, CsharpNativeUseSlot, CsharpNativeDiscardedGuard } from "../../../target-model/records/native/native-demand.js";
 import type { CsharpTargetOperationClassifications, CsharpSourceArgumentGrouping } from "../../../target-model/records/operations/operations.js";
@@ -21,7 +21,7 @@ import type { CsharpOptionalLocalOperation } from "../../../target-model/records
 
 export interface CsharpNativeOperandInput {
   readonly ast: AstReader;
-  readonly navigation: Pick<TargetPlanningSourceNavigation, "isProjectDeclaration" | "referenceFor" | "sourceReferenceFor" | "expressionResultUse">;
+  readonly navigation: Pick<SourceProgramNavigation, "isProjectDeclaration" | "referenceFor" | "sourceReferenceFor" | "expressionResultUse">;
   readonly evidence: Pick<CsharpSourceEvidenceIndex, "compileTimeMetadata" | "sourceArgument" | "sourceDefaultValue" | "sourceField" | "sourceStruct">;
   readonly operations: Pick<CsharpTargetOperationClassifications, "nativeHandler" | "selectedCall" | "selectedConstruction" |
     "selectedProperty" | "selectedElement" | "operatorForm" | "binaryOperation" | "unaryOperation" | "jsArrayMutation" |
