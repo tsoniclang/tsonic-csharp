@@ -29,7 +29,7 @@ function fixture() {
   const analysis = analyze(projected);
   const input = { program: { source: { ast: { pos: () => 1 } },
     records: { propertyValueProjection: analysis.records.propertyValueProjection,
-      nativeExpression: { get: subject => subject === node ? { use: { kind: "value", expression: node,
+      nativeExpression: { get: subject => subject === node ? { discardEvaluation: "evaluate", use: { kind: "value", expression: node,
         carrier: source, completion: { kind: "value", type: source }, children: [], evaluation: { kind: "creation" } } } : undefined } } }, scope: {},
     names: { temporaryName: value => value },
     artifacts: Object.freeze({}),

@@ -576,11 +576,10 @@ namespace Tsonic.Generated
         public static int run()
         {
             int result = 0;
-            void __tsonic_callable_227(int value)
+            global::Tsonic.Generated.Index.visit((int value) =>
             {
                 result = value + 1;
-            }
-            global::Tsonic.Generated.Index.visit(new Action<int>(__tsonic_callable_227));
+            });
             return result;
         }
     }

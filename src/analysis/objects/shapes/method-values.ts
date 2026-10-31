@@ -103,9 +103,10 @@ export function selectCsharpWritableMethodContract(
   if (writtenMembers.every(member => member.methodValueStorage !== undefined)) return shape;
   const members = shape.members.map(member => {
     if (!writtenMembers.includes(member) || member.methodValueStorage !== undefined) return member;
-    if ((member.typeParameters?.length ?? 0) === 0 && member.optional !== true) {
+    if ((member.typeParameters?.length ?? 0) === 0) {
       const { methodValueContract: _contract, ...value } = member;
-      return Object.freeze({ ...value, methodValueStorage: Object.freeze({ kind: "delegate" as const, type: member.type }) });
+      return Object.freeze({ ...value, methodValueStorage: Object.freeze({ kind: "delegate" as const,
+        type: member.optional === true ? csharpNullableTargetType(member.type) : member.type }) });
     }
     const contract = member.methodValueContract;
     const storage = contract === undefined
@@ -191,16 +192,17 @@ export function retainCsharpMethodValueContracts(
     const declaration = csharpObjectShapeMethodDeclaration(shape, member);
     const subject = declaration === undefined ? undefined : sourceStorage.memberSubjectFor(declaration);
     const writes = subject?.kind === "resolved" ? sourceStorage.memberWritesFor(subject.subject) : undefined;
-    const requiresProtocol = (member.typeParameters?.length ?? 0) > 0 || member.optional === true ||
-      member.methodValueContract !== undefined;
+    const quantified = (member.typeParameters?.length ?? 0) > 0;
+    const requiresProtocol = quantified || member.methodValueContract !== undefined;
     const nativeMethod = csharpObjectMethodHasFixedNativeExposure(writes);
     const valueUses = !nativeInterface && !requiresProtocol && !nativeMethod && (member.sourceDeclarations?.length ?? 0) > 0
       ? selectMethodValueUses(sourceStorage).retained : undefined;
     const needsValue = member.methodValueStorage?.kind === "delegate" ||
       member.sourceDeclarations?.some(source => valueUses?.has(source) === true) === true;
-    if (!requiresProtocol && !nativeMethod && (needsValue || declaration !== undefined)) {
+    if (!quantified && !nativeMethod && (member.optional === true || !requiresProtocol && (needsValue || declaration !== undefined))) {
       const { methodValueContract: _contract, ...value } = member;
-      return { ...value, methodValueStorage: Object.freeze({ kind: "delegate" as const, type: member.type }) };
+      return { ...value, methodValueStorage: Object.freeze({ kind: "delegate" as const,
+        type: member.optional === true ? csharpNullableTargetType(member.type) : member.type }) };
     }
     const selfContract = shape.members.length === 1 && shape.targetType.kind === "target-named" &&
       (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true;

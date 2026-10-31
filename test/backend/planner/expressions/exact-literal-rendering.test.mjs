@@ -153,8 +153,11 @@ test("sealed native constant proofs distinguish scalar recipes from source value
     assert.equal(analyzeConstant(node, target, selected), true, precision + ": signed scalar constant");
     const expression = plan(selected, target).result.expression;
     assert.equal(expression.operatorToken.kind, "MinusToken");
-    assert.equal(evaluatedConstant(expression, "number").kind, "SwitchExpression",
-      precision + ": the raw syntax builder does not rediscover constant semantics");
+    const prelude = [];
+    const result = evaluatedConstant(expression, target, "number", prelude, "omit");
+    assert.equal(result.kind === "LiteralExpression" && result.value === "number", true,
+      precision + ": a native constant result is not a switch-as-let");
+    assert.equal(prelude.length, 0, precision + ": the owned native scalar constant needs no discarded evaluation");
     for (const kind of ["identifier", "call", "update", "user-conversion"]) {
       assert.equal(analyzeConstant({ kind }, target, { kind: "not-applicable" }), false,
         precision + ": " + kind + " remains observable without source constant evidence");
@@ -173,4 +176,25 @@ test("sealed native constant proofs distinguish scalar recipes from source value
   const statements = planCsharpPlannedDiscard(csharpPlannedValue(primitive("float32"), effect));
   assert.equal(statements.length, 1);
   assert.equal(statements[0].expression === effect, true, "discard never erases an observable call");
+  const effects = [];
+  const observed = evaluatedConstant(effect, primitive("float32"), "number", effects, "evaluate");
+  assert.equal(observed.kind === "LiteralExpression" && observed.value === "number", true,
+    "the same native constant result preserves its observable source evaluation");
+  assert.equal(effects.length === 1 && effects[0].kind === "ExpressionStatement" && effects[0].expression === effect, true,
+    "the identical actual call is evaluated once in its owned prelude");
+  for (const pure of [
+    { kind: "IdentifierName", name: "local" },
+    { kind: "IdentifierName", name: "parameter" },
+    { kind: "LiteralExpression", value: 7 },
+    { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: "this" }, name: "readonlyValue" },
+  ]) {
+    const prelude = [];
+    const selected = evaluatedConstant(pure, primitive("float32"), "number", prelude, "omit");
+    assert.equal(selected.kind === "LiteralExpression" && selected.value === "number" && prelude.length === 0, true,
+      "a fixture-owned pure evaluation proof emits the literal alone without inspecting operand syntax");
+  }
+  for (const missing of [undefined, "unknown"]) {
+    assert.throws(() => evaluatedConstant(effect, primitive("float32"), "number", [], missing),
+      error => error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT", "an omitted or invalid effect authority cannot default");
+  }
 });

@@ -4,6 +4,9 @@ import type {
   CsharpStatement,
   CsharpTypeNode,
 } from "../../target-ast/syntax/index.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import { planCsharpDiscardedStatement } from "../statements/statement-output.js";
+import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function callStatic(type: CsharpTypeNode, name: string, args: readonly CsharpExpression[]): CsharpExpression {
   return {
@@ -64,9 +67,15 @@ export function literalNumber(value: number): CsharpExpression {
   };
 }
 
-export function evaluatedConstant(expression: CsharpExpression, value: string | number | boolean | null): CsharpExpression {
-  const literal: CsharpExpression = { kind: "LiteralExpression", value };
-  return { kind: "SwitchExpression", expression, arms: [{ pattern: { kind: "DiscardPattern" }, expression: literal }] };
+export function evaluatedConstant(expression: CsharpExpression, carrier: TargetTypeRef,
+  value: string | number | boolean | null, prelude: CsharpStatement[], evaluation: "evaluate" | "omit"): CsharpExpression {
+  if (evaluation !== "evaluate" && evaluation !== "omit")
+    failCsharpPlannerInvariant("A native constant result requires its exact operand evaluation fact.");
+  if (evaluation === "evaluate") {
+    const discarded = planCsharpDiscardedStatement(expression, carrier);
+    if (discarded !== undefined) prelude.push(discarded);
+  }
+  return { kind: "LiteralExpression", value };
 }
 
 function binary(left: CsharpExpression, operatorToken: CsharpBinaryOperatorToken, right: CsharpExpression): CsharpExpression {

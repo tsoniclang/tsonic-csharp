@@ -17,7 +17,7 @@ export function sealCsharpDelegateAdapterIdentities(
     readonly uses: Map<Node, string> }>>();
   for (const [expression, classifications] of expressions) for (const [key, classification] of classifications) {
     const selection = classification.selection;
-    if (selection.kind !== "delegate-adapter" || selection.strategy !== "adaptation") continue;
+    if (selection.kind !== "delegate-adapter" || selection.strategy !== "adaptation" || classification.operandStability !== "stable") continue;
     const declaration = stableSourceBinding(expression, policy, classification.source);
     const scope = declaration === undefined ? undefined : sourceBindingScope(declaration, policy.ast);
     if (declaration === undefined || scope === undefined || !policy.ast.is.IsBlock(scope) ||
@@ -34,7 +34,7 @@ export function sealCsharpDelegateAdapterIdentities(
   }
   const scopes = new Map<Node, CsharpDelegateAdapterIdentity[]>();
   for (const conversions of groups.values()) for (const group of conversions.values()) {
-    if (group.uses.size < 2) continue;
+    if (group.uses.size < 2 && ![...group.uses.keys()].some(expression => repeatedInActivation(expression, group.identity.scope, policy))) continue;
     const identities = scopes.get(group.identity.scope) ?? [];
     identities.push(group.identity);
     scopes.set(group.identity.scope, identities);
@@ -60,7 +60,7 @@ function stableSourceBinding(expression: Node, policy: CsharpPolicyContext,
   while (reference !== undefined && isSourceOwnedProjectReference(reference, policy)) {
     const declaration = reference.declaration;
     if (seen.has(declaration) || policy.ast.getSourceFile(declaration) !== reference.sourceFile ||
-      policy.navigation.declarationUseSummary(declaration).bindingWritten ||
+      seen.size !== 0 && policy.navigation.declarationUseSummary(declaration).bindingWritten ||
       !policy.ast.is.IsVariableDeclaration(declaration) && !policy.ast.is.IsParameterDeclaration(declaration)) return undefined;
     seen.add(declaration);
     const initializer = policy.ast.is.IsVariableDeclaration(declaration)
@@ -78,6 +78,15 @@ function stableSourceBinding(expression: Node, policy: CsharpPolicyContext,
 function withinActivation(expression: Node, scope: Node, policy: CsharpPolicyContext): boolean {
   for (let current: Node | undefined = expression; current !== undefined; current = policy.ast.parent(current)) {
     if (current === scope) return true;
+    if (policy.ast.body(current) !== undefined) return false;
+  }
+  return false;
+}
+
+function repeatedInActivation(expression: Node, scope: Node, policy: CsharpPolicyContext): boolean {
+  for (let current = policy.ast.parent(expression); current !== undefined && current !== scope; current = policy.ast.parent(current)) {
+    if (policy.ast.is.IsForStatement(current) || policy.ast.is.IsForOfStatement(current) ||
+      policy.ast.is.IsForInStatement(current) || policy.ast.is.IsWhileStatement(current) || policy.ast.is.IsDoStatement(current)) return true;
     if (policy.ast.body(current) !== undefined) return false;
   }
   return false;

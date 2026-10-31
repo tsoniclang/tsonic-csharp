@@ -25,37 +25,37 @@ type DelegateLambda = Extract<CsharpExpression, { readonly kind: "LambdaExpressi
 export function planCsharpDelegateAdapter(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[], sourceType: TargetTypeRef | undefined, targetType: TargetTypeRef | undefined,
   selection: DelegateSelection, expression: CsharpExpression, convert: typeof applyCsharpConversionSelection,
-  operand?: CsharpPlannedCallable): CsharpExpression | undefined {
+  prelude: CsharpStatement[], operandStability: "stable" | "snapshot", operand?: CsharpPlannedCallable): CsharpExpression | undefined {
+  if (operandStability !== "stable" && operandStability !== "snapshot")
+    failCsharpPlannerInvariant("A native delegate conversion requires its exact operand stability.", node);
   const contract = requiredContract(node, input, sourceType, targetType);
   const method = getCsharpMethodValue(contract.sourceType)?.method;
   if (selection.strategy === "native-binding") {
     if (operand?.kind === "lambda") return operand.expression;
-    return { kind: "ObjectCreationExpression", type: contract.targetDelegateType, arguments: [{ kind: "Argument",
-      expression: instantiatedCallee(operand?.kind === "method" || operand?.kind === "captured-method" ? expression
-        : { kind: "SimpleMemberAccessExpression", receiver: expression, name: method ?? "Invoke" }, contract, input, node),
-    }] };
+    return instantiatedCallee(operand?.kind === "method" || operand?.kind === "captured-method" ? expression
+      : { kind: "SimpleMemberAccessExpression", receiver: expression, name: method ?? "Invoke" }, contract, input, node);
   }
   const identity = input.scope.delegateAdapters === undefined ? undefined : input.program.records.delegateAdapter.get(node, contract.sourceType, targetType!);
   if (identity !== undefined) {
     const name = input.scope.delegateAdapters?.get(identity)
       ?? failCsharpPlannerInvariant("An admitted retained adapter requires its exact lexical native method.", node);
-    return { kind: "ObjectCreationExpression", type: contract.targetDelegateType,
-      arguments: [{ kind: "Argument", expression: { kind: "IdentifierName", name } }] };
+    return { kind: "IdentifierName", name };
   }
   const name = input.names.temporaryName("__tsonic_callable");
-  const direct = operand?.kind === "method" || operand?.kind === "stable-value" || operand?.kind === "lambda";
+  const intrinsic = operand?.kind === "method" || operand?.kind === "stable-value" || operand?.kind === "lambda";
+  const direct = intrinsic || operandStability === "stable";
+  if (!direct) prelude.push({ kind: "LocalDeclarationStatement", name,
+    type: operand?.kind === "captured-method" ? { kind: "IdentifierName", name: "var" } : contract.sourceDelegateType,
+    initializer: operand?.kind === "captured-method" ? operand.receiver : expression });
   const callee: CsharpExpression = operand?.kind === "lambda" ? { kind: "IdentifierName", name }
     : operand?.kind === "method" ? expression
-    : operand?.kind === "stable-value" ? method === undefined ? expression : { kind: "SimpleMemberAccessExpression", receiver: expression, name: method }
+    : direct ? operand?.kind === "captured-method" || method === undefined ? expression
+      : { kind: "SimpleMemberAccessExpression", receiver: expression, name: method }
     : operand?.kind === "captured-method" ? { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name }, name: operand.name }
     : method === undefined ? { kind: "IdentifierName", name }
     : { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name }, name: method };
-  const adapter = buildAdaptation(node, sourceFile, input, diagnostics, selection, contract, callee, convert,
+  return buildAdaptation(node, sourceFile, input, diagnostics, selection, contract, callee, convert,
     operand?.kind === "lambda" ? { name, expression: operand.expression } : undefined);
-  if (adapter === undefined || direct) return adapter;
-  return { kind: "SwitchExpression", expression: operand?.kind === "captured-method" ? operand.receiver
-    : { kind: "CastExpression", type: contract.sourceDelegateType, expression }, arms: [{ pattern: { kind: "VarPattern", designation: name },
-      expression: { kind: "CastExpression", type: contract.targetDelegateType, expression: adapter } }] };
 }
 
 export function planCsharpDelegateAdaptationBody(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
@@ -89,7 +89,8 @@ function buildAdaptation(node: Node, sourceFile: SourceFile, input: CsharpPlanni
   const arguments_: CsharpArgument[] = [];
   for (const [index, carrier] of sourceSignature.parameters.entries()) {
     const converted = convert(node, sourceFile, input, diagnostics, targetSignature.parameters[index], carrier,
-      selection.parameterConversions[index]!, { kind: "IdentifierName", name: parameters[index]!.name });
+      selection.parameterConversions[index]!, { kind: "IdentifierName", name: parameters[index]!.name }, statements,
+      "stable", false, { kind: "stable-value" });
     if (converted === undefined) return undefined;
     arguments_.push({ kind: "Argument", expression: converted });
   }
@@ -100,7 +101,8 @@ function buildAdaptation(node: Node, sourceFile: SourceFile, input: CsharpPlanni
     if (completion === undefined) return undefined;
     statements.push(...planCsharpVoidReturn(completion, contract.targetVoid ? "void" : "absence", targetSignature.returnType, input));
   } else {
-    const value = convert(node, sourceFile, input, diagnostics, sourceSignature.returnType, targetSignature.returnType, selection.returnConversion, invocation);
+    const value = convert(node, sourceFile, input, diagnostics, sourceSignature.returnType, targetSignature.returnType, selection.returnConversion,
+      invocation, statements, "snapshot");
     if (value === undefined) return undefined;
     statements.push(contract.targetVoid ? { kind: "ExpressionStatement", expression: value } : { kind: "ReturnStatement", expression: value });
   }

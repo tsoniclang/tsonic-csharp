@@ -5,6 +5,7 @@ import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { sealCsharpDelegateAdapterIdentities } from "../../../dist/analysis/conversions/delegate-identities.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/index.js";
+import { csharpConversionOperandStability } from "../../../dist/analysis/conversions/analyze.js";
 
 const sourceType = csharpDelegateTargetType("System.Action", [{ kind: "source-primitive", name: "float64" }]);
 const targetType = csharpDelegateTargetType("System.Action", [{ kind: "source-primitive", name: "int32" }]);
@@ -28,6 +29,7 @@ function fixture(text) {
       const argument = source.ast.as.AsCallExpression(node)?.Arguments?.Nodes?.[0];
       if (argument !== undefined) expressions.set(argument, new Map([["exact", Object.freeze({
         source: sourceType, target: targetType, selection: conversion, identityRequired: true,
+        operandStability: csharpConversionOperandStability(argument, policy, { selectedProperty: { get: () => undefined } }),
       })]]));
     }
     source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });

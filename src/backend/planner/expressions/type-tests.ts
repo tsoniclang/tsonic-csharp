@@ -1,6 +1,6 @@
 import type { CsharpClosedTypeTest } from "../../../target-model/operations/type-tests.js";
 import type { CsharpClosedTypeTestEmission } from "../../../target-model/records/types/type-tests.js";
-import type { CsharpExpression, CsharpSwitchExpressionArm } from "../../target-ast/syntax/index.js";
+import type { CsharpExpression, CsharpStatement, CsharpSwitchExpressionArm } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { allocateExpressionTemp, type DestructuringPlannerState } from "../bindings/binding-state.js";
 import { csharpTsValueTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
@@ -11,15 +11,16 @@ import { evaluatedConstant } from "./builders.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function planCsharpClosedTypeTest(expression: CsharpExpression, fact: CsharpClosedTypeTest,
-  input: CsharpPlanningContext, state: DestructuringPlannerState): CsharpExpression {
+  input: CsharpPlanningContext, state: DestructuringPlannerState, prelude: CsharpStatement[], evaluation: "evaluate" | "omit"): CsharpExpression {
   const selected = input.program.records.closedTypeTestEmission.get(fact)
     ?? failCsharpPlannerInvariant("An admitted type predicate requires its native emission plan.");
-  return planTest(expression, selected, input, state);
+  return selected.kind === "constant" ? evaluatedConstant(expression, fact.sourceCarrier, selected.value, prelude, evaluation)
+    : planTest(expression, selected, input, state);
 }
 
 function planTest(expression: CsharpExpression, test: CsharpClosedTypeTestEmission,
   input: CsharpPlanningContext, state: DestructuringPlannerState): CsharpExpression {
-  if (test.kind === "constant") return evaluatedConstant(expression, test.value);
+  if (test.kind === "constant") return { kind: "LiteralExpression", value: test.value };
   if (test.kind === "runtime-array") return test.dispatch === "instance" ? { kind: "InvocationExpression",
     callee: { kind: "SimpleMemberAccessExpression", receiver: expression, name: "IsArray" }, arguments: [] }
     : { kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression",

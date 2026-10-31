@@ -373,7 +373,7 @@ function owners(sourceText, surface) {
   const final = { ast, exactLiteral: exact.exactLiteral, callableCreation: { get: () => undefined }, valueRead: records.valueRead,
     absentValue: { get: () => false }, operations: records };
   const initializer = name => ast.as.AsVariableDeclaration(nodes.find(node => ast.is.IsVariableDeclaration(node) && ast.text(ast.name(node)) === name)).Initializer;
-  return { source, ast, nodes, program, expected, final, initializer };
+  return { source, ast, nodes, program, expected, final, initializer, literalValues };
 }
 
 for (const surface of ["native", "js"]) test(`${surface} real expected requests admit selected numeric carriers without integer-summary substitution`, () => {
@@ -459,7 +459,8 @@ function nativeCreations(value, overrides = {}) {
   return analyzeCsharpCallableCreations({ source: value.source, nodes: value.nodes,
     captures: records, contracts: { get: identity => contract(identity.declaration), closedInputType: () => undefined },
     operations: { selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined } },
-    storage: records, evidence: records, conversions: records, ...overrides });
+    storage: records, expectedTypes: value.expected, evidence: records, conversions: records,
+    literals: value.literalValues, ...overrides });
 }
 
 for (const surface of ["native", "js"]) {
@@ -478,7 +479,7 @@ for (const surface of ["native", "js"]) {
     assert.equal(Object.isFrozen(selected) && Object.isFrozen(actual), true, "creation evidence is immutable");
     const unrelated = csharpDelegateTargetType("System.Func", [csharpSourcePrimitiveTargetType("float64")],
       csharpSourcePrimitiveTargetType("float64"));
-    const mismatched = nativeCreations(value, { expectedTypes: { callableTarget: { get: () => unrelated } } });
+    const mismatched = nativeCreations(value, { expectedTypes: { requiredExpectedType: { get: () => [unrelated] } } });
     assert.equal(mismatched.callableCreation.get(expression)?.kind, "selected", "actual native creation remains available independently of an unrelated destination");
     assert.equal(mismatched.callableTarget.get(expression) !== unrelated, true, "an unproved requested carrier never replaces actual creation");
     const unproven = nativeCreations(value, { contracts: { get: () => undefined, closedInputType: () => undefined },
@@ -534,7 +535,7 @@ test("creation checks native passing modes and params shape before accepting a c
     ["params", { ...original.csharpDelegateSignature, restParameterIndex: 0 }],
   ]) {
     const mismatched = Object.freeze({ ...original, csharpDelegateSignature: Object.freeze(signature) });
-    const selected = nativeCreations(value, { expectedTypes: { callableTarget: { get: () => mismatched } } });
+    const selected = nativeCreations(value, { expectedTypes: { requiredExpectedType: { get: () => [mismatched] } } });
     assert.equal(selected.callableCreation.get(expression)?.kind, "selected", `${label}: actual native creation remains available`);
     assert.equal(selected.callableTarget.get(expression) !== mismatched, true,
       `${label}: a destination modifier cannot change the native parameter storage`);

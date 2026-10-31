@@ -17,6 +17,7 @@ import {
 } from "../../../target-model/types/index.js";
 import type {
   CsharpExpression,
+  CsharpStatement,
   CsharpTypeNode,
 } from "../../target-ast/syntax/index.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
@@ -77,18 +78,29 @@ export function readCsharpExpressionConversionClassification(
   targetType: TargetTypeRef | undefined,
   mode: CsharpConversionMode,
 ): CsharpConversionSelection | undefined {
-  const selection = input.program.records.expressionConversion.get(
+  const classification = input.program.records.expressionConversion.get(
     node,
     sourceType,
     targetType,
     mode,
   );
-  if (selection === undefined) {
+  if (classification === undefined) {
     return failCsharpPlannerInvariant(
       `C# planning requires a sealed ${mode} expression conversion from '${sourceType === undefined ? "<unresolved>" : targetTypeRefKey(sourceType)}' to '${targetType === undefined ? "<unresolved>" : targetTypeRefKey(targetType)}'.`,
       node);
   }
-  return selection;
+  return classification.selection;
+}
+
+export function readCsharpExpressionOperandStability(node: Node, input: CsharpPlanningContext,
+  sourceType: TargetTypeRef | undefined, targetType: TargetTypeRef | undefined, mode: CsharpConversionMode,
+  selection: CsharpConversionSelection): "stable" | "snapshot" {
+  if (selection.kind !== "delegate-adapter" || selection.strategy !== "adaptation") return "snapshot";
+  const classification = input.program.records.expressionConversion.get(node, sourceType, targetType, mode)
+    ?? failCsharpPlannerInvariant("An admitted delegate operand requires its sealed expression stability.", node);
+  if (classification.selection.kind !== "delegate-adapter" || classification.selection.strategy !== "adaptation")
+    failCsharpPlannerInvariant("An admitted delegate operand requires the same sealed adaptation relation.", node);
+  return classification.operandStability;
 }
 
 export function applyCsharpConversionSelection(
@@ -100,9 +112,13 @@ export function applyCsharpConversionSelection(
   targetType: TargetTypeRef | undefined,
   selection: CsharpConversionSelection,
   expression: CsharpExpression | undefined,
+  prelude: CsharpStatement[],
+  operandStability: "stable" | "snapshot",
   absenceConstant = false,
   callable?: CsharpPlannedCallable,
 ): CsharpExpression | undefined {
+  if (operandStability !== "stable" && operandStability !== "snapshot")
+    failCsharpPlannerInvariant("A native conversion requires its exact operand stability.", node);
   if (expression === undefined) {
     return undefined;
   }
@@ -147,10 +163,9 @@ export function applyCsharpConversionSelection(
         return failCsharpPlannerInvariant(
           "An admitted absence conversion requires its renderable source and destination storage contracts.", node);
       }
-      return absenceConstant ? absent : {
-          kind: "SwitchExpression", expression: { kind: "CastExpression", type: source, expression },
-          arms: [{ pattern: { kind: "DiscardPattern" }, expression: absent }],
-        };
+      if (!absenceConstant) prelude.push({ kind: "LocalDeclarationStatement", type: source,
+        name: input.names.temporaryName("__tsonic_absent"), initializer: expression });
+      return absent;
     }
     case "array-like-union": {
       const type = renderRequiredTargetType(input.scope.typeParameterNames, node, targetType, diagnostics);
@@ -199,6 +214,8 @@ export function applyCsharpConversionSelection(
             targetType,
             selection,
             expression,
+            prelude,
+            operandStability,
           )
         : expression;
     case "nullable-reference":
@@ -220,11 +237,25 @@ export function applyCsharpConversionSelection(
       const resultType = renderRequiredTargetType(input.scope.typeParameterNames, node, targetType, diagnostics);
       if (presentType === undefined || resultType === undefined) return undefined;
       const name = input.names.temporaryName(`__tsonic_present_${input.program.source.ast.pos(node)}_${input.program.source.ast.end(node)}`);
+      const presentPrelude: CsharpStatement[] = [];
       const present = applyCsharpConversionSelection(node, sourceFile, input, diagnostics,
-        sourceElement, targetElement, selection.conversion, { kind: "IdentifierName", name });
-      return present === undefined ? undefined : {
+        sourceElement, targetElement, selection.conversion, { kind: "IdentifierName", name }, presentPrelude, "stable",
+        false, { kind: "stable-value" });
+      if (present === undefined) return undefined;
+      const condition: CsharpExpression = { kind: "IsPatternExpression", expression, type: presentType, designation: name };
+      if (presentPrelude.length !== 0) {
+        const resultName = input.names.temporaryName("__tsonic_conversion");
+        prelude.push({ kind: "LocalDeclarationStatement", name: resultName, type: resultType,
+          initializer: { kind: "DefaultExpression", type: resultType } },
+        { kind: "IfStatement", condition, thenBody: { kind: "Block", statements: [...presentPrelude, {
+          kind: "ExpressionStatement", expression: { kind: "AssignmentExpression", left: { kind: "IdentifierName", name: resultName },
+            operatorToken: { kind: "EqualsToken" }, right: present },
+        }] } });
+        return { kind: "IdentifierName", name: resultName };
+      }
+      return {
         kind: "ConditionalExpression",
-        condition: { kind: "IsPatternExpression", expression, type: presentType, designation: name },
+        condition,
         whenTrue: present,
         whenFalse: { kind: "DefaultExpression", type: resultType },
       };
@@ -267,6 +298,8 @@ export function applyCsharpConversionSelection(
         selection,
         expression,
         applyCsharpConversionSelection,
+        prelude,
+        operandStability,
         callable,
       );
     case "provider-argument-adapter":
@@ -279,6 +312,8 @@ export function applyCsharpConversionSelection(
         targetType,
         selection,
         expression,
+        prelude,
+        operandStability,
       );
     case "lifted-provider-argument-adapter":
       return applyLiftedProviderArgumentAdapter(
@@ -375,6 +410,8 @@ function applyProviderArgumentAdapter(
     { readonly kind: "provider-argument-adapter" }
   >,
   expression: CsharpExpression,
+  prelude: CsharpStatement[],
+  operandStability: "stable" | "snapshot",
 ): CsharpExpression | undefined {
   const adapterInput = applyCsharpConversionSelection(
     node,
@@ -385,6 +422,7 @@ function applyProviderArgumentAdapter(
     selection.adapter.inputType,
     selection.sourceToInput,
     expression,
+    prelude, operandStability,
   );
   if (adapterInput === undefined) {
     return undefined;
@@ -415,6 +453,7 @@ function applyProviderArgumentAdapter(
     targetType,
     selection.resultToTarget,
     adapted,
+    prelude, "snapshot",
   );
 }
 
@@ -430,6 +469,8 @@ function applyRuntimeUnionArmConversion(
     { readonly kind: "implicit"; readonly proof: "runtime-union-arm" }
   >,
   expression: CsharpExpression,
+  prelude: CsharpStatement[],
+  operandStability: "stable" | "snapshot",
 ): CsharpExpression | undefined {
   const optional = targetType === undefined ? undefined : requiredTypeEmission(input, targetType, node).optionalStorage;
   const declaringType = optional === undefined
@@ -449,6 +490,7 @@ function applyRuntimeUnionArmConversion(
     selection.armType,
     selection.sourceToArm,
     expression,
+    prelude, operandStability,
   );
   if (convertedExpression === undefined) {
     return undefined;

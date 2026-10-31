@@ -104,9 +104,9 @@ test("sealed Array.from mappers match idiomatic native allocation without erasin
   assertCsharpCompilationSucceeded(compiled);
   const source = compiled.artifacts.get("src/Index.cs");
   assert.equal(typeof source, "string");
-  assert.equal(/static int __tsonic_callable_/u.test(source), true, "exact stateless local function");
-  assert.equal(/\(Func<int, int, int>\)__tsonic_callable_/u.test(source), true, "native method-group binding without a manual cache");
-  assert.equal(/new Func<int, int>\(__tsonic_callable_/u.test(source), true, "unknown consumers retain fresh delegate construction");
+  assert.match(source, /fromDense<int, int>\(values, \(int value, int \w+\) => value \+ 1\)/u,
+    "the native mapper is inline at the exact consumer slot");
+  assert.doesNotMatch(source, /__tsonic_callable_|new Func|new Action/u, "native lambda caching needs no outlined helper or explicit delegate construction");
   assert.equal(/Dictionary|Reflection|dynamic\b|Unsafe\./u.test(source), false, "no cache framework, reflection or unchecked adapter");
   executeCsharpConstruction(compiled, "stateless-callable-creation", false, false, [], `
 using Tsonic.CSharp.Js;
@@ -122,9 +122,9 @@ foreach (var factory in new System.Func<System.Func<int, int>>[] { Index.intoUnk
     var first = factory();
     var second = factory();
     var alias = first;
-    if (object.ReferenceEquals(first, second) || !object.ReferenceEquals(first, alias) || first(3) != 4) throw new System.Exception("unknown argument and alias identity");
+    if (!object.ReferenceEquals(first, second) || !object.ReferenceEquals(first, alias) || first(3) != 4) throw new System.Exception("native capture-free callback caching and retained alias identity");
 }
-if (object.ReferenceEquals(Index.returned(), Index.returned())) throw new System.Exception("returned stateless identity");
+if (!object.ReferenceEquals(Index.returned(), Index.returned())) throw new System.Exception("native returned stateless caching");
 var retained = Index.retained(3);
 var retainedOther = Index.retained(9);
 if (retained() != 4 || retained() != 5 || retainedOther() != 10 || object.ReferenceEquals(retained, retainedOther)) throw new System.Exception("retained capture identity");

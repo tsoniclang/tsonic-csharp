@@ -172,6 +172,6 @@ export function admitCsharpAttributeArguments(
     const sourceType = valueReads.valueRead.get(expression)?.value;
     const targetType = valueReads.valueRead.get(target)?.value;
     const selection = conversions.expressionConversion.get(expression, sourceType, targetType, mode);
-    return selection !== undefined && nativeConstantConversion(selection);
+    return selection !== undefined && nativeConstantConversion(selection.selection);
   }
 }

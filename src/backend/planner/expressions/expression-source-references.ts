@@ -1,7 +1,7 @@
 import type { CsharpPlanningContext } from "../context.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpExpression } from "../../target-ast/syntax/index.js";
+import type { CsharpExpression, CsharpStatement } from "../../target-ast/syntax/index.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { getCsharpLocalBindingName, type DestructuringPlannerState } from "../bindings/index.js";
 import { getCsharpExpressionOverride } from "../bindings/binding-state.js";
@@ -26,12 +26,15 @@ export function planCsharpIdentifierValue(identifier: Node, sourceFile: SourceFi
       readCsharpNativeExpressionCarrier(input, identifier));
     return planned === undefined ? undefined : { ...planned, callable: closure?.callable };
   }
-  const expression = planIdentifierExpression(identifier, sourceFile, input, diagnostics, state);
+  const prelude: CsharpStatement[] = [];
+  const expression = planIdentifierExpression(identifier, sourceFile, input, diagnostics, prelude, state);
   const planned = planCsharpExpressionCompletion(identifier, sourceFile, input, diagnostics, expression,
-    readCsharpNativeExpressionCarrier(input, identifier));
+    readCsharpNativeExpressionCarrier(input, identifier), prelude);
   if (planned === undefined || planned.completion.kind !== "value") return planned;
   if (getCsharpExpressionOverride(identifier, state) !== undefined) return { ...planned, address: { kind: "root" } };
   const selected = input.program.records.identifierEmission.get(identifier);
+  if (selected?.kind === "local" && selected.declaration !== undefined && input.program.source.ast.is.IsFunctionDeclaration(selected.declaration))
+    return { ...planned, address: { kind: "root" }, callable: { kind: "method" } };
   const owner = input.program.source.ast.parent(identifier);
   const writeOnly = owner !== undefined && input.program.source.ast.is.IsBinaryExpression(owner) &&
     input.program.source.ast.as.AsBinaryExpression(owner)?.Left === identifier &&
@@ -58,7 +61,7 @@ export function planCsharpIdentifierValue(identifier: Node, sourceFile: SourceFi
 }
 
 export function planIdentifierExpression(identifier: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[], state?: DestructuringPlannerState): CsharpExpression | undefined {
+  diagnostics: TargetDiagnostic[], prelude: CsharpStatement[], state?: DestructuringPlannerState): CsharpExpression | undefined {
   const override = getCsharpExpressionOverride(identifier, state);
   if (override !== undefined) return override;
   const selected = input.program.records.identifierEmission.get(identifier);
@@ -93,7 +96,7 @@ export function planIdentifierExpression(identifier: Node, sourceFile: SourceFil
         { kind: "IdentifierName" as const, name: getCsharpLocalBindingName(identifier, input, state) ?? requireSealedSourceReferenceName(identifier, input) };
       const value: CsharpExpression = selected.backing ? { kind: "SimpleMemberAccessExpression", receiver: expression, name: "Value" } : expression;
       return input.program.records.directCallableReference.get(identifier) === undefined
-        ? planFlowReadUseSiteProjection(identifier, value, sourceFile, input, diagnostics) : value;
+        ? planFlowReadUseSiteProjection(identifier, value, sourceFile, input, diagnostics, prelude) : value;
     }
   }
 }

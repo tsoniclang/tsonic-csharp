@@ -9,8 +9,9 @@ test("every confirmed eager JS callback family has handwritten-native allocation
   assertCsharpCompilationSucceeded(compiled);
   const source = compiled.artifacts.get("src/Index.cs");
   assert.equal(typeof source, "string");
-  assert.equal(/static T __tsonic_callable_[^\n]*\(T value, int [^,]+, Tsonic\.CSharp\.Js\.JSArray<T> /u.test(source), true, "exact inherited generic trailing ABI");
-  assert.equal(/new Func<int, int>\(__tsonic_callable_/u.test(source), true, "fresh unknown/observed destination identities");
+  assert.match(source, /Func<T, int, Tsonic\.CSharp\.Js\.JSArray<T>, T> mapper = \(T value, int \w+, Tsonic\.CSharp\.Js\.JSArray<T> \w+\) => value;/u,
+    "the original generic value has its exact native consumer slots");
+  assert.doesNotMatch(source, /__tsonic_callable_|new Func|new Action/u, "native callbacks need no outlined helper or explicit method delegate construction");
   assert.equal(/Dictionary|Reflection|dynamic\b|Unsafe\./u.test(source), false, "no manual caches or unchecked adapters");
   executeCsharpConstruction(compiled, "eager-callable-creation", false, false, [], eagerCallableCreationNativeProof);
 });

@@ -4,7 +4,7 @@ import type { CsharpPlanningContext } from "../context.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpConversionMode } from "../../../target-model/conversions/selection.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { applyCsharpConversionSelection, readCsharpConversionClassification } from "./conversions.js";
+import { applyCsharpConversionSelection, readCsharpExpressionOperandStability, readCsharpConversionClassification } from "./conversions.js";
 import { csharpPlannedValue, mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { planCsharpAbsentValue } from "./optional-storage.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
@@ -25,6 +25,8 @@ export function convertCsharpPlannedValue(node: Node, sourceFile: SourceFile, in
     }
   }
   const conversion = readCsharpConversionClassification(node, input, diagnostics, source, target, mode);
-  return conversion === undefined ? undefined : mapCsharpPlannedValue(planned, target, value =>
-    applyCsharpConversionSelection(node, sourceFile, input, diagnostics, source, target, conversion, value, planned.absent === true, planned.callable));
+  const converted = conversion === undefined ? undefined : mapCsharpPlannedValue(planned, target, (value, prelude) =>
+    applyCsharpConversionSelection(node, sourceFile, input, diagnostics, source, target, conversion, value, prelude, readCsharpExpressionOperandStability(node, input, source, target, mode, conversion), planned.absent === true, planned.callable));
+  return converted === undefined || conversion?.kind !== "delegate-adapter" || conversion.strategy !== "native-binding"
+    ? converted : { ...converted, callable: planned.callable?.kind === "lambda" ? planned.callable : { kind: "method" } };
 }

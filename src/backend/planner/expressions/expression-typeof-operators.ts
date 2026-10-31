@@ -10,7 +10,7 @@ import { planCsharpClosedTypeTest } from "./type-tests.js";
 import { translateCsharpJsValueInvocation } from "./js-value-operations.js";
 import type { CsharpPlannedValue } from "./planned-values.js";
 import { composeCsharpPlannedValues, planCsharpExpressionCompletion, projectCsharpPlannedValue } from "./planned-value-composition.js";
-import { readCsharpNativeExpressionCarrier } from "./native-uses.js";
+import { readCsharpNativeExpressionCarrier, readCsharpNativeDiscardEvaluation } from "./native-uses.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function planTypeofExpression(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
@@ -25,8 +25,9 @@ export function tryPlanTypeTestExpression(node: Node, sourceFile: SourceFile, in
   if (selected === undefined) return undefined;
   const planned = planExpression(selected.left, sourceFile, input, diagnostics, state)
     ?? failCsharpPlannerInvariant("An admitted type test requires its native subject.", selected.left);
-  if (selected.kind === "native") return projectCsharpPlannedValue(node, sourceFile, input, diagnostics, planned, value =>
-    planCsharpClosedTypeTest(value, selected.fact, input, state ?? createDestructuringPlannerState(sourceFile, input.program.source.ast)));
+  if (selected.kind === "native") return projectCsharpPlannedValue(node, sourceFile, input, diagnostics, planned, (value, prelude) =>
+    planCsharpClosedTypeTest(value, selected.fact, input, state ?? createDestructuringPlannerState(sourceFile, input.program.source.ast), prelude,
+      readCsharpNativeDiscardEvaluation(input, selected.left)));
   const receiver = planExpression(selected.right, sourceFile, input, diagnostics)
     ?? failCsharpPlannerInvariant("An admitted local class test requires its native factory receiver.", selected.right);
   const owner = csharpTypeFromTargetTypeRef(selected.carrier, input.scope.typeParameterNames)
@@ -50,10 +51,11 @@ function planTypeof(node: Node, sourceFile: SourceFile, input: CsharpPlanningCon
   const operand = planExpression(selected.operand, sourceFile, input, diagnostics)
     ?? failCsharpPlannerInvariant("An admitted typeof expression requires its native operand.", selected.operand);
   const operation = selected.operation;
-  return projectCsharpPlannedValue(node, sourceFile, input, diagnostics, operand, value => {
-    if (operation.kind === "constant") return evaluatedConstant(value, operation.value);
+  const evaluation = readCsharpNativeDiscardEvaluation(input, selected.operand);
+  return projectCsharpPlannedValue(node, sourceFile, input, diagnostics, operand, (value, prelude) => {
+    if (operation.kind === "constant") return evaluatedConstant(value, operand.completion.carrier, operation.value, prelude, evaluation);
     if (operation.kind === "category") return planCsharpRuntimeCategory(value, operation.carrier, operation.category, input,
-      state ?? createDestructuringPlannerState(sourceFile, input.program.source.ast), selected.comparison);
+      state ?? createDestructuringPlannerState(sourceFile, input.program.source.ast), prelude, evaluation, selected.comparison);
     const expression = translateCsharpJsValueInvocation(input.scope.typeParameterNames, operation.operation, undefined, [value])
       ?? failCsharpPlannerInvariant("An admitted typeof expression requires its native runtime invocation.", node);
     return selected.comparison === undefined ? expression : { kind: "BinaryExpression", left: expression,

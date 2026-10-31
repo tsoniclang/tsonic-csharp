@@ -213,7 +213,7 @@ test("optional native call completion admission retains the exact present-to-opt
   const admitted = sealCsharpConversionUses({ entries: [{ use }] }, {
     selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined },
   }, (node, source, target) => ({
-    key: "same-carrier", classification: { source, target, selection: selectCsharpConversion(policy, source, target, "implicit") },
+    key: "same-carrier", classification: { operandStability: "snapshot", source, target, selection: selectCsharpConversion(policy, source, target, "implicit") },
   }), (node, source, target) => {
     pairs.push({ node, source, target });
     return selectCsharpConversion(policy, source, target, "implicit");
@@ -239,7 +239,7 @@ test("authored absence into required native storage retains its exact refusal at
   const admitted = sealCsharpConversionUses({ entries: [{ use }] }, {
     selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined },
   }, (node, from, target) => ({
-    key: "authored-absence", classification: { source: from, target, selection: selected },
+    key: "authored-absence", classification: { operandStability: "snapshot", source: from, target, selection: selected },
   }), () => selected, requiredRecords, [], new Map(), { objectShapes: { resolveTarget: () => undefined } });
   assert.equal(selected.kind === "rejected" && admitted.issues.length === 1, true,
     "native declaration defaults never waive an authored incompatible absence conversion");
@@ -276,7 +276,7 @@ test("native call completion admission requires its exact pair only once across 
   const admitted = sealCsharpConversionUses({ entries: [{ use }, { use }] }, {
     selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined },
   }, (node, source, target) => ({ key: "same-carrier",
-    classification: { source, target, selection: selectCsharpConversion(policy, source, target, "implicit") },
+    classification: { operandStability: "snapshot", source, target, selection: selectCsharpConversion(policy, source, target, "implicit") },
   }), (node, source, target) => {
     presentConversions++;
     return selectCsharpConversion(policy, source, target, "implicit");
@@ -326,7 +326,7 @@ test("consumed native void completions require expression evidence without fabri
   const admitted = sealCsharpConversionUses({ entries: [{ use }] }, {
     selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined },
   }, (node, from, to, mode, exactInteger, boundary, completion) => ({ key: "void-completion",
-    classification: { source: from, target: to,
+    classification: { operandStability: "snapshot", source: from, target: to,
       selection: admitCsharpConversionSelection(policy, from, to, { kind: "absence" }, completion) },
   }), () => assert.fail("the native void completion has no generic value conversion"), requiredRecords, [], new Map(),
   { objectShapes: { resolveTarget: () => undefined } });
@@ -398,7 +398,7 @@ test("post-seal corruption pairs are source refusals at their actual conversion 
     const admitted = sealCsharpConversionUses({ entries: [{ use }] }, {
       selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined },
     }, (node, from, to) => ({ key: "exact-refused-pair",
-      classification: { source: from, target: to, selection: selectCsharpConversion(policy, from, to, "implicit") },
+      classification: { operandStability: "snapshot", source: from, target: to, selection: selectCsharpConversion(policy, from, to, "implicit") },
     }), () => assert.fail("a refused expression pair cannot need a separate native value"), requiredRecords, [], new Map(),
     { objectShapes: { resolveTarget: () => undefined } });
     assert.equal(admitted.issues.length === 1 && admitted.issues[0].node === expression &&

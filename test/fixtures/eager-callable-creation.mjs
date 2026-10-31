@@ -105,7 +105,7 @@ foreach (var factory in new System.Func<System.Func<int, int>>[] { () => Index.o
     var first = factory();
     var alias = first;
     var second = factory();
-    if (object.ReferenceEquals(first, second) || !object.ReferenceEquals(first, alias) || first(3) != 4) throw new System.Exception("observable/unknown callback identity");
+    if (!object.ReferenceEquals(first, second) || !object.ReferenceEquals(first, alias) || first(3) != 4) throw new System.Exception("native capture-free callback caching and retained alias identity");
 }
 var self = Index.selfValue(input);
 if (self[0] != 2 || self[1] != 3) throw new System.Exception("self identity");

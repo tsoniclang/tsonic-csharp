@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { admitCsharpConversionSelection } from "../../../dist/analysis/conversions/validation.js";
-import { applyCsharpConversionSelection } from "../../../dist/backend/planner/expressions/conversions.js";
+import { readCsharpExpressionOperandStability, applyCsharpConversionSelection } from "../../../dist/backend/planner/expressions/conversions.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
@@ -55,9 +55,11 @@ for (const [name, source] of [["reference", stringType], ["value", integerType]]
       "admission preserves the selected complete conversion");
     const expression = Object.freeze({ kind: "IdentifierName", name: "value" });
     const diagnostics = [];
-    assert.equal(applyCsharpConversionSelection({}, {}, {}, diagnostics, source, target, selected, expression) === expression,
+    const prelude = [];
+    assert.equal(applyCsharpConversionSelection({}, {}, {}, diagnostics, source, target, selected, expression, prelude, readCsharpExpressionOperandStability({}, {}, source, target, "implicit", selected)) === expression,
       true, "native implicit lifting emits the operand with no wrapper, call, copy or boxing");
     assert.equal(diagnostics.length, 0, "native lifting needs no planner diagnostic");
+    assert.equal(prelude.length, 0, "native nullable lifting has no statement prelude");
   });
 }
 
@@ -94,9 +96,11 @@ test("closed JsValue facets preserve their logical identities under an explicit 
       "the logical identity comparator remains strict for every faceted pair");
     const expression = Object.freeze({ kind: "IdentifierName", name: "value" });
     const diagnostics = [];
-    assert.equal(applyCsharpConversionSelection({}, {}, {}, diagnostics, source, target, selected, expression) === expression,
+    const prelude = [];
+    assert.equal(applyCsharpConversionSelection({}, {}, {}, diagnostics, source, target, selected, expression, prelude, readCsharpExpressionOperandStability({}, {}, source, target, "implicit", selected)) === expression,
       true, "the native representation proof adds no cast, wrapper, allocation, boxing or copy node");
     assert.equal(diagnostics.length, 0, "rendering makes no conversion decision");
+    assert.equal(prelude.length, 0, "the logical facet conversion has no statement prelude");
   }
 });
 

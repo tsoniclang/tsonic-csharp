@@ -4,7 +4,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
 import type { CsharpPlanningContext } from "../context.js";
 import type { CsharpMemberReceiverProjection } from "../../../target-model/records/operations/operations.js";
-import { applyCsharpConversionSelection } from "./conversions.js";
+import { applyCsharpConversionSelection, readCsharpExpressionOperandStability } from "./conversions.js";
 import { mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { getCsharpTypeFromProjectSourceReferenceNode } from "../types/project-source-types.js";
@@ -42,7 +42,7 @@ export function translateCsharpSelectedReceiver(receiver: CsharpSelectedReceiver
     return { kind: "value", value: expression };
   if (expression.completion.kind !== "value" || !targetTypeRefEquals(expression.completion.carrier, projection.source))
     failCsharpPlannerInvariant("An admitted receiver projection requires its exact native value completion.", receiver.expression);
-  const projected = mapCsharpPlannedValue(expression, projection.target, value => applyCsharpConversionSelection(receiver.expression,
-    sourceFile, input, diagnostics, projection.source, projection.target, projection.conversion, value));
+  const projected = mapCsharpPlannedValue(expression, projection.target, (value, prelude) => applyCsharpConversionSelection(receiver.expression,
+    sourceFile, input, diagnostics, projection.source, projection.target, projection.conversion, value, prelude, readCsharpExpressionOperandStability(receiver.expression, input, projection.source, projection.target, "implicit", projection.conversion)));
   return projected === undefined ? undefined : { kind: "value", value: projected };
 }

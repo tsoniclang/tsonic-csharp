@@ -247,11 +247,7 @@ namespace Tsonic.Generated
         }
         public static string main()
         {
-            static string __tsonic_callable_229(int value)
-            {
-                return "N=" + value;
-            }
-            return global::Tsonic.Generated.Index.transform<int, string>(7, new Func<int, string>(__tsonic_callable_229));
+            return global::Tsonic.Generated.Index.transform<int, string>(7, (int value) => "N=" + value);
         }
     }
 }
@@ -304,11 +300,7 @@ namespace Tsonic.Generated
         }
         public static string run()
         {
-            static string __tsonic_callable_129()
-            {
-                return "ready";
-            }
-            Func<string> next = new Func<string>(__tsonic_callable_129);
+            Func<string> next = () => "ready";
             return global::Tsonic.Generated.Index.invoke(next);
         }
     }

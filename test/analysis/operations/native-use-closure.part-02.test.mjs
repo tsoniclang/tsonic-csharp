@@ -245,7 +245,7 @@ test(`${surface} actual native delegate variance preserves identity and allocate
   const use = program.records.nativeExpression.get(returns[0])?.use;
   assert.equal(use?.kind === "converted" && use.input.kind === "value", true,
     "the exact consumed callable source and destination are retained");
-  const selected = program.records.expressionConversion.get(returns[0], use.input.type, use.target, use.mode);
+  const selected = program.records.expressionConversion.get(returns[0], use.input.type, use.target, use.mode)?.selection;
   assert.equal(selected?.kind === "implicit" && selected.proof === "reference", true,
     "the selected native relation has no adapter, captures, boxing or copy");
   executeCsharpConstruction(compiled, `native-delegate-variance-${surface}`, false, false, [], `

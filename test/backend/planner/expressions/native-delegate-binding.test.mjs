@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { planCsharpDelegateAdapter } from "../../../../dist/backend/planner/expressions/callable-conversions.js";
-import { applyCsharpConversionSelection } from "../../../../dist/backend/planner/expressions/conversions.js";
+import { readCsharpExpressionOperandStability, applyCsharpConversionSelection } from "../../../../dist/backend/planner/expressions/conversions.js";
 import { selectCsharpConversion } from "../../../../dist/policy/conversions/index.js";
 import { csharpDelegateTargetType } from "../../../../dist/target-model/types/carriers/delegates.js";
 import { csharpTargetNamedType } from "../../../../dist/target-model/types/factories.js";
@@ -41,6 +41,17 @@ test("nominal native arguments cast only an unanchored inline lambda at an objec
   }
   assert.equal(csharpPlannedArgumentSyntax(csharpPlannedValue(carrier, lambda), lambda).expression === lambda, true,
     "a genuinely delegate-typed parameter keeps its exact inline lambda");
+  const method = { kind: "IdentifierName", name: "selectedMethod" };
+  const group = { ...csharpPlannedValue(carrier, method), nativeBinding: type, callable: { kind: "method" } };
+  const anchoredMethod = csharpPlannedArgumentSyntax(group, method).expression;
+  assert.equal(anchoredMethod.kind === "CastExpression" && anchoredMethod.type === type && anchoredMethod.expression === method,
+    true, "an unanchored method group uses the same exact nominal delegate at the object slot");
+  for (const anchored of [anchoredMethod, { kind: "IdentifierName", name: "typedNativeTemporary" }]) {
+    assert.equal(csharpPlannedArgumentSyntax(group, anchored).expression === anchored, true,
+      "an existing nominal cast or sequenced typed temporary is already anchored");
+  }
+  assert.equal(csharpPlannedArgumentSyntax({ ...group, nativeBinding: undefined }, method).expression === method, true,
+    "a genuinely delegate-typed native slot keeps its method group directly");
 });
 
 test("nominal native binding admission owns the physical object slot and rejects delegate-typed or foreign inputs", () => {
@@ -85,8 +96,10 @@ function nativeBinding(source, target, expression, selected = selectCsharpConver
   assert.equal(selected.kind, "delegate-adapter");
   assert.equal(selected.strategy, "native-binding");
   const diagnostics = [];
-  const planned = planCsharpDelegateAdapter({}, {}, context([[source, target, selected]]), diagnostics, source, target, selected, expression, applyCsharpConversionSelection, operand);
+  const prelude = [];
+  const planned = planCsharpDelegateAdapter({}, {}, context([[source, target, selected]]), diagnostics, source, target, selected, expression, applyCsharpConversionSelection, prelude, readCsharpExpressionOperandStability({}, context([[source, target, selected]]), source, target, "implicit", selected), operand);
   assertNoTargetDiagnostics(diagnostics);
+  assert.equal(prelude.length, 0, "exact native binding has no wrapper prelude");
   assert.equal(planned !== undefined, true);
   return planned;
 }
@@ -102,9 +115,9 @@ test("exact native delegate values bind their Invoke method group and evaluate p
   const source = csharpDelegateTargetType("System.Func", [integer], integer);
   const factory = { kind: "InvocationExpression", callee: { kind: "IdentifierName", name: "make" }, arguments: [] };
   const planned = nativeBinding(source, nativeDelegate("Transform"), factory);
-  assert.equal(planned.kind, "ObjectCreationExpression");
-  assert.equal(planned.arguments[0].expression.receiver === factory, true);
-  assert.equal(planned.arguments[0].expression.name, "Invoke");
+  assert.equal(planned.kind, "SimpleMemberAccessExpression");
+  assert.equal(planned.receiver === factory, true);
+  assert.equal(planned.name, "Invoke");
   assert.equal(JSON.stringify(planned).match(/"name":"make"/gu)?.length, 1);
   assert.doesNotMatch(JSON.stringify(planned), /LambdaExpression|LocalFunctionStatement|SwitchExpression/u);
 });
@@ -114,8 +127,8 @@ test("exact ref, out, in and ref-return native bindings introduce no adapters", 
     for (const returnPassing of [undefined, "byref-readwrite", "byref-readonly"]) {
       const planned = nativeBinding(nativeDelegate("Source", mode, returnPassing), nativeDelegate("Destination", mode, returnPassing),
         { kind: "IdentifierName", name: "original" });
-      assert.equal(planned.kind, "ObjectCreationExpression");
-      assert.equal(planned.arguments[0].expression.name, "Invoke");
+      assert.equal(planned.kind, "SimpleMemberAccessExpression");
+      assert.equal(planned.name, "Invoke");
       assert.doesNotMatch(JSON.stringify(planned), /LambdaExpression|LocalFunctionStatement|SwitchExpression/u);
     }
   }
@@ -137,7 +150,7 @@ test("mutated native-binding selections and unsupported byref lambdas fail close
     assert.deepEqual(admitCsharpConversionSelection(policy, from, to, selection), { kind: "rejected", reason: message });
     const diagnostics = [];
     assert.throws(() => planCsharpDelegateAdapter({}, {}, context([]), diagnostics, from, to, selection,
-      { kind: "IdentifierName", name: "original" }, applyCsharpConversionSelection),
+      { kind: "IdentifierName", name: "original" }, applyCsharpConversionSelection, [], readCsharpExpressionOperandStability({}, context([]), from, to, "implicit", selection)),
     error => error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT", "no admitted conversion, no published contract");
     assert.equal(diagnostics.length, 0);
   }

@@ -108,20 +108,23 @@ function fixture(body, overrides = {}) {
     captures: { captureClosure: { get: () => undefined }, namedSelf: { get: () => undefined },
       lexicalCaptures: [{ owner: lambda, values: [], receivers: [] }] },
     storage: { lambdaParameterType: { get: parameter => contract.nativeParameters.find(entry => entry.sourceParameter === parameter)?.targetParameter.type },
-      storageType: { get: declaration => source.ast.is.IsVariableDeclaration(declaration) ? nativeCarrier : undefined } },
+      storageType: { get: declaration => source.ast.is.IsVariableDeclaration(declaration)
+        ? analyzed.closedInputType(declaration) ?? nativeCarrier : undefined } },
+    expectedTypes: { requiredExpectedType: { get: () => [] } },
     evidence, conversions: { conversion: { get: (sourceType, targetType) => targetTypeRefEquals(sourceType, targetType) ? { kind: "identity" } : undefined } },
     literals: { literalValue: { get: () => undefined } } });
   return { scopedType, creation: creations.callableCreation.get(lambda), nativeCarrier, contract, lambda, source,
+    closedType: analyzed.closedInputType(lambda),
     destinationReads, sourceParameter: overrides.sourceParameter ?? scopedBinder ?? scalar,
     sourceReturn: overrides.sourceReturn ?? scopedBinder ?? scalar,
     aliasTypes: source.navigation.expressionValueFlow(lambda).aliasDeclarations.map(alias => analyzed.closedInputType(alias)),
   };
 }
 
-function declaredCreation(selected) {
-  assert.equal(selected.creation?.kind, "selected", "approved C-1394: the actual declaration owns one completed creation");
-  assert.equal(targetTypeRefEquals(selected.creation.carrier, selected.nativeCarrier), true,
-    "the original declaration's native contract, never a later destination, selects the carrier");
+function nativeCreation(selected, closed) {
+  assert.equal(selected.creation?.kind, "selected", "the actual declaration owns one completed native creation");
+  assert.equal(targetTypeRefEquals(selected.creation.carrier, closed ?? selected.nativeCarrier), true,
+    "the exact closed consumer ABI or the original intrinsic contract owns the native carrier");
   assert.equal(selected.contract.sourceDeclaration === selected.lambda, true, "the checked original declaration owns the native contract");
   assert.equal(selected.contract.parameters.length, selected.source.ast.parameters(selected.lambda).length,
     "no unused destination parameter is manufactured in the source contract");
@@ -130,14 +133,17 @@ function declaredCreation(selected) {
   assert.equal(targetTypeRefEquals(input, optional ? csharpNullableTargetType(selected.sourceParameter) : selected.sourceParameter), true,
   "the original native input, optional or rest contract stays exact");
   assert.equal(targetTypeRefEquals(selected.contract.returnType, selected.sourceReturn), true, "native return width, absence and binder stay exact");
-  assert.equal(selected.aliasTypes.every(type => type === undefined), true, "no origin or alias receives a copied physical ABI");
-  assert.equal(selected.destinationReads, 0, "later native destinations are not read to retype this declaration");
+  assert.equal(closed === undefined ? selected.closedType === undefined : targetTypeRefEquals(selected.closedType, closed), true,
+    "only a proved native consumer closes the original callable input");
+  assert.equal(selected.aliasTypes.every(type => closed === undefined ? type === undefined : targetTypeRefEquals(type, closed)), true,
+    "every original storage alias keeps the same exact closed ABI or remains unpromoted");
+  if (closed !== undefined) assert.equal(selected.destinationReads > 0, true, "the exact checked native consumer supplies its slot shape");
   assert.equal(Object.isFrozen(selected.creation) && Object.isFrozen(selected.creation.allocation), true, "one immutable creation and native form");
 }
 
 test("a single exact selected invocation ABI survives strict immutable aliases without changing the authored contract", () => {
   const selected = fixture("const mapper = (value: number): number => value + 1; const alias = mapper; invoke(alias); return invoke(mapper);");
-  declaredCreation(selected);
+  nativeCreation(selected, selectedType);
   assert.equal(selected.aliasTypes.length, 2, "exact origin and const alias declarations");
   assert.equal(selected.contract.parameters.length, 1, "no extra authored source parameter");
 });
@@ -165,7 +171,7 @@ for (const [name, body, overrides] of [
 ]) {
   test(`${name} does not close a different physical invocation ABI`, () => {
     const selected = fixture(body, overrides);
-    declaredCreation(selected);
+    nativeCreation(selected, undefined);
     assert.equal(selected.creation.allocation.kind, "fresh", name + ": the written value is not history-cached");
   });
 }
@@ -177,7 +183,7 @@ for (const [name, overrides] of [
 ]) {
   test(`selected invocation ABI cannot erase exact ${name}`, () => {
     const selected = fixture("const mapper = (value: number): number => value; return invoke(mapper);", overrides);
-    declaredCreation(selected);
+    nativeCreation(selected, undefined);
     assert.equal(targetTypeRefEquals(selected.contract.nativeParameters[0].targetParameter.type,
       overrides.sourceParameter ?? scalar), true, "exact native parameter width");
     assert.equal(targetTypeRefEquals(selected.contract.returnType, overrides.sourceReturn ?? scalar), true, name);
@@ -190,7 +196,7 @@ for (const [name, body] of [
 ]) {
   test(`selected invocation ABI does not replace a ${name} contract`, () => {
     const selected = fixture(body);
-    declaredCreation(selected);
+    nativeCreation(selected, undefined);
     const parameter = selected.contract.parameters[name === "source optional parameter" ? 0 : 1];
     assert.equal(name === "source optional parameter" ? selected.source.ast.questionToken(parameter) !== undefined
       : selected.source.ast.as.AsParameterDeclaration(parameter)?.DotDotDotToken !== undefined, true,
@@ -200,7 +206,7 @@ for (const [name, body] of [
 
 test("existing broad-input closure is preserved independently of invocation-only allocation policy", () => {
   const selected = fixture("const mapper = (value: unknown): number => 1; return invoke(mapper);", { origin: "provider" });
-  declaredCreation(selected);
+  nativeCreation(selected, undefined);
   assert.equal(selected.contract.nativeParameters[0].targetParameter.type === scalar, true);
 });
 
@@ -208,7 +214,7 @@ test("exact enclosing generic binder identities close one native ABI without cha
   const type = csharpDelegateTargetType("System.Func", [firstBinder, scalar], firstBinder);
   const selected = fixture("const mapper = (value: T): T => value; const alias = mapper; return invoke(alias);",
     { generic: true, type, sourceParameter: firstBinder, sourceReturn: firstBinder });
-  declaredCreation(selected);
+  nativeCreation(selected, type);
   assert.equal(selected.contract.nativeParameters[0].targetParameter.type === firstBinder &&
     selected.contract.returnType === firstBinder, true, "exact inherited binder identity, without a destination parameter");
   assert.equal(selected.contract.parameters.length, 1, "authored parameter ABI retained");
@@ -224,7 +230,7 @@ for (const [name, parameters, result] of [
       generic: true, type: csharpDelegateTargetType("System.Func", parameters, result),
       sourceParameter: firstBinder, sourceReturn: firstBinder,
     });
-    declaredCreation(selected);
+    nativeCreation(selected, undefined);
     assert.equal(selected.contract.nativeParameters[0].targetParameter.type === firstBinder &&
       selected.contract.returnType === firstBinder, true, name + ": foreign destination binders never enter the declaration");
   });
@@ -235,7 +241,7 @@ test("broad inference still cannot invent an enclosing generic binder", () => {
     generic: true, type: csharpDelegateTargetType("System.Func", [firstBinder, scalar], firstBinder),
     sourceParameter: firstBinder, sourceReturn: firstBinder,
   });
-  declaredCreation(selected);
+  nativeCreation(selected, undefined);
   assert.equal(selected.contract.nativeParameters[0].targetParameter.type === firstBinder, true,
     "the fixture's exact declared native input is not inferred from its later destination");
 });
@@ -244,7 +250,7 @@ test("unused native receiver parameters retain exact available enclosing generic
   const selected = fixture("const mapper = (value: T): T => value; const alias = mapper; return invoke(alias);", {
     generic: true, scopedTrailing: true,
   });
-  declaredCreation(selected);
+  nativeCreation(selected, selected.scopedType);
   assert.equal(selected.contract.nativeParameters[0].targetParameter.type === selected.sourceParameter &&
     selected.contract.returnType === selected.sourceReturn, true, "the exact checked enclosing binder remains available");
   assert.equal(selected.contract.parameters.length, 1, "authored parameters are not manufactured");
@@ -254,7 +260,7 @@ test("an unused same-named foreign generic receiver parameter does not become av
   const selected = fixture("const mapper = (value: T): T => value; const alias = mapper; return invoke(alias);", {
     generic: true, scopedTrailing: true, foreignTrailing: true,
   });
-  declaredCreation(selected);
+  nativeCreation(selected, undefined);
   assert.equal(selected.contract.nativeParameters[0].targetParameter.type === selected.sourceParameter &&
     selected.contract.returnType === selected.sourceReturn, true,
   "the foreign same-named destination binder is not the source's checked enclosing binder");
@@ -264,6 +270,6 @@ test("available enclosing trailing binders do not weaken unknown-input inference
   const selected = fixture("const mapper = (value: unknown): T => { throw value; }; return invoke<T>(mapper);", {
     generic: true, scopedTrailing: true,
   });
-  declaredCreation(selected);
+  nativeCreation(selected, undefined);
   assert.equal(selected.contract.nativeParameters.length, 1, "no trailing destination input narrows the original declaration");
 });

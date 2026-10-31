@@ -5,7 +5,7 @@ import { translateCsharpSelectedReceiver } from "../receivers.js";
 import { translateSelectedTargetArguments } from "./arguments.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../expression-planner-types.js";
-import type { CsharpArgument, CsharpExpression, CsharpTypeNode } from "../../../target-ast/syntax/index.js";
+import type { CsharpArgument, CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../../target-ast/syntax/index.js";
 import { csharpBinaryOperatorTokenFromText, csharpPrefixUnaryOperatorTokenFromText } from "../../../target-ast/syntax/operator-tokens.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import type { CsharpTargetCallEmission, CsharpTargetInvocationEmission } from "../../../../target-model/records/calls/target-call-emission.js";
@@ -16,6 +16,8 @@ import { planCsharpExpressionCompletion } from "../planned-value-composition.js"
 import { composeCsharpPlannedCall } from "./planned-arguments.js";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { qualifiedCsharpType } from "../../types/index.js";
+import { planCsharpDiscardedStatement } from "../../statements/statement-output.js";
+import { readCsharpNativeDiscardEvaluation } from "../native-uses.js";
 
 export function translateSelectedTargetCall(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner, planCallArgument: CallArgumentPlanner): CsharpPlannedValue | undefined {
@@ -26,12 +28,16 @@ export function translateSelectedTargetCall(node: Node, sourceFile: SourceFile, 
   const receiver = !selected.instance || selected.source.sourceReceiver === undefined ? undefined :
     translateCsharpSelectedReceiver(selected.source.sourceReceiver, sourceFile, input, diagnostics, planExpression);
   if (selected.instance && receiver?.kind !== "value") failCsharpPlannerInvariant("An admitted instance call requires its exact native receiver acquisition.", node);
-  return composeCsharpPlannedCall(node, sourceFile, input, diagnostics, receiver?.kind === "value" ? receiver.value : undefined, arguments_, (value, args) =>
-    planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, buildSelectedTargetCall(node, selected, args, sourceFile, input, diagnostics, value), selected.result));
+  return composeCsharpPlannedCall(node, sourceFile, input, diagnostics, receiver?.kind === "value" ? receiver.value : undefined, arguments_, (value, args) => {
+    const prelude: CsharpStatement[] = [];
+    const expression = buildSelectedTargetCall(node, selected, args, sourceFile, input, diagnostics, value, prelude);
+    return planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, expression, selected.result, prelude);
+  });
 }
 
 function buildSelectedTargetCall(node: Node, selected: CsharpTargetCallEmission, arguments_: readonly CsharpArgument[],
-  sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], receiver: CsharpExpression | undefined): CsharpExpression {
+  sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], receiver: CsharpExpression | undefined,
+  prelude: CsharpStatement[]): CsharpExpression {
   const nativeType = (carrier: TargetTypeRef): CsharpTypeNode => csharpTypeFromTargetTypeRef(carrier, input.scope.typeParameterNames) ??
     failCsharpPlannerInvariant("An admitted target call requires its exact rendered native carrier.", node);
   const instance = (): CsharpExpression => receiver ?? failCsharpPlannerInvariant("An admitted instance operation requires its native receiver.", node);
@@ -43,13 +49,17 @@ function buildSelectedTargetCall(node: Node, selected: CsharpTargetCallEmission,
       const argument = arguments_[0]!.expression;
       if (invocation.form === "task") return argument;
       const owner = nativeType(invocation.owner);
-      if (invocation.form === "absence") return { kind: "SwitchExpression", expression: {
-        kind: "ParenthesizedExpression", expression: { kind: "CastExpression",
-          type: nativeType(selected.selection.targetMember.parameters[0]!.type), expression: argument },
-      },
-        arms: [{ pattern: { kind: "DiscardPattern" }, expression: {
-          kind: "SimpleMemberAccessExpression", receiver: owner, name: "CompletedTask",
-        } }] };
+      if (invocation.form === "absence") {
+        const source = selected.source.sourceArguments[0];
+        const evaluation = source === undefined && selected.source.sourceArguments.length === 0 ? "omit"
+          : readCsharpNativeDiscardEvaluation(input, source?.expression
+            ?? failCsharpPlannerInvariant("An admitted task resolution requires its exact original native argument.", node));
+        if (evaluation === "evaluate") {
+          const discarded = planCsharpDiscardedStatement(argument, selected.selection.targetMember.parameters[0]!.type);
+          if (discarded !== undefined) prelude.push(discarded);
+        }
+        return { kind: "SimpleMemberAccessExpression", receiver: owner, name: "CompletedTask" };
+      }
       return { kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression", receiver: owner,
         name: "FromResult", typeArguments: [nativeType(invocation.payload)] }, arguments: arguments_ };
     }

@@ -10,7 +10,8 @@ for (const surface of ["native", "js"]) {
     const source = compiled.artifacts.get("src/Index.cs");
     assert.equal(typeof source, "string");
     assert.match(source, /static double (__tsonic_self_\d+)\(double count\)[\s\S]*?return count == 0(?:\.0|D)? \? 1(?:\.0|D)? : \1\(count - 1(?:\.0|D)?\);/u);
-    assert.match(source, /new Func<double, double>\(__tsonic_self_\d+\)/u);
+    assert.match(source, /Func<double, double> selected = __tsonic_self_\d+;/u);
+    assert.doesNotMatch(source, /new Func<double, double>\(__tsonic_self_\d+\)/u);
     assert.doesNotMatch(source, /\boriginal\(/u);
   });
 
@@ -30,7 +31,8 @@ for (const surface of ["native", "js"]) {
     assert.match(source, /Func<double, double> (__tsonic_self_\d+Value) = default\(Func<double, double>\)!;/u);
     assert.match(source, /Func<double, double> before = __tsonic_self_\d+Value;/u);
     assert.match(source, /object\.ReferenceEquals\(before, __tsonic_self_\d+Value\)/u);
-    assert.equal((source.match(/new Func<double, double>/gu) ?? []).length, 1);
+    assert.equal((source.match(/__tsonic_self_\d+Value = __tsonic_self_\d+;/gu) ?? []).length === 1 &&
+      !/new Func<double, double>/u.test(source), true, "the same self slot binds its method group once");
     assert.doesNotMatch(source, /__TsonicCapture_/u);
   });
 
@@ -99,7 +101,7 @@ for (const surface of ["native", "js"]) {
     assert.equal(method !== null, true, "fixed native recursive method");
     assert.equal(method[1].includes(`${retained[1]}.value0`), true, "body reads the retained activation");
     assert.equal(method[1].includes(`${retained[2]}.value0`), false, "body never reads the rotating frame local");
-    assert.equal((source.match(/new Func<double, double>\(__tsonic_self_\d+\)/gu) ?? []).length, 1);
+    assert.equal((source.match(/__tsonic_self_\d+Value = __tsonic_self_\d+;/gu) ?? []).length === 1 && !/new Func<double, double>\(__tsonic_self_\d+\)/u.test(source), true);
     assert.match(method[1], /object\.ReferenceEquals\(same, __tsonic_self_\d+Value\)/u);
   });
 }

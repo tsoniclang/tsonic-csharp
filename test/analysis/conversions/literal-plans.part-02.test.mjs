@@ -3,7 +3,7 @@ import test from "node:test";
 import { analyzeCsharpConversions } from "../../../dist/analysis/conversions/analyze.js";
 import { analyzeCsharpExactLiteralSelections } from "../../../dist/analysis/conversions/literal-plans.js";
 import { createCsharpExactLiteralRequestCollector } from "../../../dist/analysis/conversions/literal-requests.js";
-import { applyCsharpConversionSelection } from "../../../dist/backend/planner/expressions/conversions.js";
+import { readCsharpExpressionOperandStability, applyCsharpConversionSelection } from "../../../dist/backend/planner/expressions/conversions.js";
 import { selectCsharpExactLiteralConversion, selectCsharpExactPropertyKeyConversion } from "../../../dist/policy/conversions/literals.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { csharpRuntimeUnionTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/index.js";
@@ -229,13 +229,17 @@ test("a provider argument adapter's literal input step is requested by the selec
     const exactLiteral = analyzeCsharpExactLiteralSelections(fixture.host.literalValues, requests, [fixture.literal]).exactLiteral;
     assert.deepEqual(exactLiteral.get(fixture.literal, primitive(inputName)), record, `${inputName}: the record at the adapter input`);
     const diagnostics = [];
+    const prelude = [];
     const rendered = applyCsharpConversionSelection(fixture.literal, fixture.sourceFile, {
       program: { records: { exactLiteral } }, scope: { typeParameterNames: undefined },
-    }, diagnostics, mapping.sourceType, mapping.targetType, mapping.conversion, planned);
+    }, diagnostics, mapping.sourceType, mapping.targetType, mapping.conversion, planned, prelude, readCsharpExpressionOperandStability(fixture.literal, {
+      program: { records: { exactLiteral } }, scope: { typeParameterNames: undefined },
+    }, mapping.sourceType, mapping.targetType, "implicit", mapping.conversion));
     assert.deepEqual(rendered, { kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression",
       receiver: { kind: "QualifiedName", left: { kind: "IdentifierName", name: "MyLib" }, name: "Counter" }, name: "From" },
     arguments: [{ kind: "Argument", expression: input }] }, `${inputName}: the planner renders the adapter call`);
     assert.equal(diagnostics.length, 0, `${inputName}: no planner diagnostics`);
+    assert.equal(prelude.length, 0, `${inputName}: the exact provider literal needs no statement prelude`);
   }
 });
 
@@ -302,7 +306,7 @@ test("actual literal uses prepare their selected union inner endpoint before the
   const count = requests.length;
   analysis.close({ entries: [{ site, use }] }, []);
   const sealed = analysis.seal();
-  const selected = sealed.expressionConversion.get(expression, source, target, "implicit");
+  const selected = sealed.expressionConversion.get(expression, source, target, "implicit")?.selection;
   assert.equal(selected?.kind === "implicit" && selected.proof === "runtime-union-arm" &&
     selected.sourceToArm.proof === "literal", true, "the actual consumed union conversion reuses the prepared correspondence");
   assert.equal(requests.length === count && Object.isFrozen(requests) && sealed.issues.length === 0, true,

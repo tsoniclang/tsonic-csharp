@@ -2,7 +2,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpPlanningContext } from "../../context.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
-import { applyCsharpConversionSelection } from "../conversions.js";
+import { applyCsharpConversionSelection, readCsharpExpressionOperandStability } from "../conversions.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../expression-planner-types.js";
 import { translateCsharpPropertyAccess } from "../selected-property.js";
 import { translateCsharpElementAccess } from "../selected-element.js";
@@ -38,8 +38,8 @@ export function planCsharpOptionalReceiverChain(node: Node, sourceFile: SourceFi
         if (subject !== entry.expression) return planCallArgument(subject, file, context, errors, target, mode, parameter);
         const argument = entry.argument;
         if (argument === undefined) failCsharpPlannerInvariant("An admitted optional receiver argument requires its sealed by-value conversion.", subject);
-        return mapCsharpPlannedValue(present, argument.type, value =>
-          applyCsharpConversionSelection(subject, file, context, errors, entry.type, argument.type, argument.conversion, value));
+        return mapCsharpPlannedValue(present, argument.type, (value, prelude) =>
+          applyCsharpConversionSelection(subject, file, context, errors, entry.type, argument.type, argument.conversion, value, prelude, entry.guard ? "stable" : readCsharpExpressionOperandStability(subject, context, entry.type, argument.type, "implicit", argument.conversion)));
       };
       const call = planCall(entry.node, presentContext, expressions, arguments_);
       return call === undefined ? undefined : step(index + 1, call);

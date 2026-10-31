@@ -118,21 +118,22 @@ function planAssignmentPatternFromExpression(
       "An admitted assignment projection lost its exact extraction, storage and conversion.", subject);
     const type = csharpTypeFromTargetTypeRef(binding.target, input.scope.typeParameterNames);
     if (type === undefined) return failCsharpPlannerInvariant("An admitted assignment projection requires a renderable carrier.", subject);
+    const prelude: CsharpStatement[] = [];
     const converted = applyCsharpConversionSelection(subject, sourceFile, input, diagnostics,
-      binding.source, binding.target, binding.conversion, value);
+      binding.source, binding.target, binding.conversion, value, prelude, "snapshot");
     if (converted === undefined) return failCsharpPlannerInvariant(
       "An admitted assignment conversion lost its selected native renderer.", subject);
     if (selected.kind === "node") {
       if (!input.program.source.ast.is.IsIdentifier(selected.node)) return failCsharpPlannerInvariant(
         "An admitted direct destructuring target requires native identifier storage.", selected.node);
       const left = planIdentifierExpression(selected.node, sourceFile,
-        { ...input, storageExpression: selected.node }, diagnostics, state);
+        { ...input, storageExpression: selected.node }, diagnostics, prelude, state);
       if (left === undefined) failCsharpPlannerInvariant("An admitted destructuring assignment requires its native destination expression.", selected.node);
-      return [{ kind: "ExpressionStatement", expression: { kind: "AssignmentExpression", operatorToken: { kind: "EqualsToken" },
+      return [...prelude, { kind: "ExpressionStatement", expression: { kind: "AssignmentExpression", operatorToken: { kind: "EqualsToken" },
         left, right: converted } }];
     }
     const name = allocateDestructuringTemp(state);
-    return [{ kind: "LocalDeclarationStatement", name, type, initializer: converted },
+    return [...prelude, { kind: "LocalDeclarationStatement", name, type, initializer: converted },
       ...planAssignmentPatternFromExpression(selected.pattern, { kind: "IdentifierName", name }, sourceFile,
         input, diagnostics, state, planExpression)];
   };

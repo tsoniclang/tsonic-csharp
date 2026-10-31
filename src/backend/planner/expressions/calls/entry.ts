@@ -6,6 +6,7 @@ import { translateSelectedTargetCall } from "./target.js";
 import { translateSourceOwnedCall } from "./source.js";
 import { planCsharpOptionalReceiverChain } from "./optional-chain.js";
 import { planCsharpClosedTypeTest } from "../type-tests.js";
+import { readCsharpNativeDiscardEvaluation } from "../native-uses.js";
 import { createDestructuringPlannerState, type DestructuringPlannerState } from "../../bindings/binding-state.js";
 import { convertCsharpPlannedValue } from "../planned-value-conversions.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../expression-planner-types.js";
@@ -32,7 +33,8 @@ function translateCsharpCallExpressionCore(node: Node, sourceFile: SourceFile, i
     if (argument === undefined) failCsharpPlannerInvariant("An admitted array predicate requires its exact native argument.", node);
     const value = planCallArgument(argument.expression, sourceFile, input, diagnostics, form.typeTest.sourceCarrier);
     return projectCsharpPlannedValue(node, sourceFile, input, diagnostics, value,
-      selected => planCsharpClosedTypeTest(selected, form.typeTest, input, createDestructuringPlannerState(sourceFile, input.program.source.ast)));
+      (selected, prelude) => planCsharpClosedTypeTest(selected, form.typeTest, input, createDestructuringPlannerState(sourceFile, input.program.source.ast), prelude,
+        readCsharpNativeDiscardEvaluation(input, argument.expression)));
   }
   if (form.kind === "keep-alive") {
     const value = planExpression(form.sourceFlow.valueExpression, sourceFile, input, diagnostics);

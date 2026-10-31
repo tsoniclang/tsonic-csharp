@@ -90,14 +90,15 @@ export function csharpPlannedEffect(
 export function mapCsharpPlannedValue(
   planned: CsharpPlannedValue | undefined,
   carrier: TargetTypeRef,
-  project: (expression: CsharpExpression) => CsharpExpression | undefined,
+  project: (expression: CsharpExpression, prelude: CsharpStatement[]) => CsharpExpression | undefined,
   constant = false,
 ): CsharpPlannedValue | undefined {
   if (planned === undefined) return undefined;
   if (planned.completion.kind === "never") return planned;
   if (planned.completion.kind === "void") return undefined;
-  const expression = project(planned.completion.expression);
-  return expression === undefined ? undefined : csharpPlannedValue(carrier, expression, planned.prelude, constant);
+  const prelude = [...planned.prelude];
+  const expression = project(planned.completion.expression, prelude);
+  return expression === undefined ? undefined : csharpPlannedValue(carrier, expression, prelude, constant);
 }
 
 export function sequenceCsharpPlannedValues(

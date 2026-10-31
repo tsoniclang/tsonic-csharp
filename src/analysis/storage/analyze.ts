@@ -314,7 +314,7 @@ export function analyzeCsharpStorage(
       expectedType,
       "implicit",
     );
-    if (conversion?.kind !== "rejected") {
+    if (conversion?.selection.kind !== "rejected") {
       const priorRequirement = previous?.requiredStorageType.get(expression);
       if (
         priorRequirement !== undefined &&

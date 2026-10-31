@@ -89,6 +89,7 @@ function fixture(body, quotation = false) {
     operations: { selectedCall: { get: node => operations.get(node) }, selectedConstruction: { get: () => undefined } },
     storage: { lambdaParameterType: { get: parameter => parameters.includes(parameter) ? scalar : undefined },
       storageType: { get: declaration => source.ast.is.IsVariableDeclaration(declaration) ? callable : undefined } },
+    expectedTypes: { requiredExpectedType: { get: () => [] } },
     evidence, conversions: { conversion: { get: (input, output) => targetTypeRefEquals(input, output) ? { kind: "identity" } : undefined } },
     literals: { literalValue: { get: () => undefined } } });
   return { selected: creations, captures: selected, lambda, operations, source, nodes, evidence };

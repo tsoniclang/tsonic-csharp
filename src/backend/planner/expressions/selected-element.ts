@@ -1,7 +1,7 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpElementRead } from "../../../target-model/records/objects/element-admission.js";
-import type { CsharpArgument, CsharpExpression } from "../../target-ast/syntax/index.js";
+import type { CsharpArgument, CsharpExpression, CsharpStatement } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "./expression-planner-types.js";
@@ -55,16 +55,16 @@ export function translateCsharpElementAccess(node: Node, sourceFile: SourceFile,
       present => access(csharpPlannedValue(selected.present, present))) : access(receiver.value);
   }
   if (receiver.kind !== "value") failCsharpPlannerInvariant("An admitted native indexer requires a native receiver value.", node);
-  return planElementOperands(node, sourceFile, input, diagnostics, receiver.value, argument, optional, (target, key) => {
-    const value = planElementRead(node, selected.read, target, key, sourceFile, input, diagnostics);
+  return planElementOperands(node, sourceFile, input, diagnostics, receiver.value, argument, optional, (target, key, prelude) => {
+    const value = planElementRead(node, selected.read, target, key, sourceFile, input, diagnostics, prelude);
     const conversion = selected.conversion;
     return value === undefined || conversion === undefined ? value : applyCsharpConversionSelection(node, sourceFile, input, diagnostics,
-      conversion.source, conversion.target, conversion.conversion, value);
+      conversion.source, conversion.target, conversion.conversion, value, prelude, "snapshot");
   }, selected.result, selected.read.kind === "index");
 }
 
 function planElementRead(node: Node, selected: CsharpElementRead, receiver: CsharpExpression, key: CsharpExpression,
-  sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[]): CsharpExpression | undefined {
+  sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], prelude: CsharpStatement[]): CsharpExpression | undefined {
   switch (selected.kind) {
     case "index": return { kind: "ElementAccessExpression", receiver, arguments: [key] };
     case "record-optional": return csharpRecordOptionalRead(node, receiver, key,
@@ -80,7 +80,7 @@ function planElementRead(node: Node, selected: CsharpElementRead, receiver: Csha
       if (owner === undefined) failCsharpPlannerInvariant("An admitted array-like index requires its exact native target owner.", node);
       const projection = selected.projection;
       const value = applyCsharpConversionSelection(node, sourceFile, input, diagnostics,
-        projection.source, projection.target, projection.conversion, receiver);
+        projection.source, projection.target, projection.conversion, receiver, prelude, "snapshot");
       return value === undefined ? undefined : { kind: "InvocationExpression",
         callee: { kind: "SimpleMemberAccessExpression", receiver: owner, name: selected.name },
         arguments: [{ kind: "Argument", expression: value }, { kind: "Argument", expression: key }] };
@@ -90,10 +90,11 @@ function planElementRead(node: Node, selected: CsharpElementRead, receiver: Csha
 
 function planElementOperands(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
   receiver: CsharpPlannedValue | undefined, argument: CsharpPlannedValue | undefined, optional: boolean,
-  build: (receiver: CsharpExpression, argument: CsharpExpression) => CsharpExpression | undefined, carrier: TargetTypeRef,
+  build: (receiver: CsharpExpression, argument: CsharpExpression, prelude: CsharpStatement[]) => CsharpExpression | undefined, carrier: TargetTypeRef,
   nativeIndex = false): CsharpPlannedValue | undefined {
   const complete = (target: CsharpExpression, key: CsharpExpression): CsharpPlannedValue | undefined => {
-    const planned = planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, build(target, key), carrier);
+    const prelude: CsharpStatement[] = [];
+    const planned = planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, build(target, key, prelude), carrier, prelude);
     return planned === undefined || !nativeIndex ? planned : { ...planned,
       address: { kind: "element", receiver: { expression: target }, arguments: [key] } };
   };

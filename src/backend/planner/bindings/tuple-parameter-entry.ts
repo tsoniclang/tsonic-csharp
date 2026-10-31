@@ -28,11 +28,12 @@ export function planCsharpTupleParameterEntry(node: Node, emission: CsharpCallab
     : allocateSyntheticParameter(state);
   const tuple = csharpTupleExpression(parameters.map(parameter => ({ kind: "IdentifierName", name: parameter.name })),
     csharpTupleType(parameters.map(parameter => parameter.type)));
+  const prelude: CsharpStatement[] = [];
   const initializer: CsharpExpression | undefined = entry.kind === "conversion"
-    ? applyCsharpConversionSelection(node, sourceFile, input, diagnostics, entry.source, entry.target, entry.conversion, tuple)
+    ? applyCsharpConversionSelection(node, sourceFile, input, diagnostics, entry.source, entry.target, entry.conversion, tuple, prelude, "stable")
     : tuple;
   if (initializer === undefined) failCsharpPlannerInvariant("An admitted tuple-rest entry requires its exact source conversion.", node);
-  const prelude: CsharpStatement[] = [{ kind: "LocalDeclarationStatement", name, type, initializer }];
+  prelude.push({ kind: "LocalDeclarationStatement", name, type, initializer });
   const entryBindings: CsharpEntryBinding[] = [];
   if (emission.binding === "pattern") {
     prelude.push(...planParameterBindingPrelude(binding, name, sourceFile, input, diagnostics, state, value => entryBindings.push(value)));

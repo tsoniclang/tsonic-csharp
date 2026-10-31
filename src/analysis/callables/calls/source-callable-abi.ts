@@ -20,6 +20,8 @@ import type { CsharpTargetOperationClassifications } from "../../../target-model
 import { completeCsharpContextualInputs } from "./contextual-inputs.js";
 import type { CsharpConversionClassifications } from "../../../target-model/records/operations/conversions.js";
 import { csharpTargetParameterValueType } from "../../../target-model/types/member-facts.js";
+import { getCsharpRuntimeUnionArms } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 
 export function selectCsharpSourceCallableGenericAbi(
   ast: AstReader,
@@ -56,7 +58,6 @@ export function selectCsharpSourceCallableAbi(
   const contextual = evidence.contextualType.get(declaration);
   let inputType = contextual?.targetType;
   const quantified = policy.ast.typeParameters(declaration).length !== 0;
-  let hasInput = inputType !== undefined && !quantified;
   const call = contextual?.contextualCall;
   if (call !== undefined) {
     const bindings = call.sourceArgumentBindings.filter(binding => {
@@ -70,8 +71,16 @@ export function selectCsharpSourceCallableAbi(
     const operation = policy.ast.is.IsNewExpression(call.call)
       ? operations.selectedConstruction.get(call.call) : operations.selectedCall.get(call.call);
     inputType = operation?.sourceArgumentParameterTypes?.[call.sourceArgumentBindings.indexOf(bindings[0]!)];
-    hasInput = !quantified;
+    if (inputType === undefined) return undefined;
   }
+  const presentInput = getCsharpNullableElementTargetType(inputType) ?? inputType;
+  const arms = presentInput === undefined ? undefined : getCsharpRuntimeUnionArms(presentInput, policy.typeDefinitions);
+  if (arms !== undefined) {
+    const callables = arms.filter(arm => getCsharpLambdaSignature(arm) !== undefined);
+    if (callables.length > 1) return undefined;
+    inputType = callables[0];
+  } else inputType = presentInput;
+  const hasInput = !quantified && getCsharpLambdaSignature(inputType) !== undefined;
   if (checked === undefined || valueParameters === undefined) return undefined;
   const accessor = policy.ast.is.IsGetAccessorDeclaration(declaration) || policy.ast.is.IsSetAccessorDeclaration(declaration);
   const returnContract = declarations.returnContract.get(declaration);

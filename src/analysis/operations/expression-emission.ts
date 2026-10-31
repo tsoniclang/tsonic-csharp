@@ -3,6 +3,11 @@ import type { TargetUseSiteRef } from "@tsonic/target-api/analysis";
 import { failTargetAnalysisInvariant, type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
 import type { CsharpNativeExpressionRecord, CsharpNativeDiscardEmission } from "../../target-model/records/native/native-demand.js";
+import type { CsharpSourceReferenceRecords } from "../../target-model/records/program/source-references.js";
+import type { CsharpPropertyAdmissionRecords } from "../../target-model/records/objects/property-admission.js";
+import type { CsharpTypeEmissionRecords } from "../../target-model/records/types/type-emission.js";
+import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
+import { sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
 import type { CsharpConversionClassifications } from "../../target-model/records/operations/conversions.js";
 import { KindEqualsToken, type TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
@@ -13,7 +18,10 @@ import { directCsharpSourceYieldExpression } from "../../target-model/syntax/yie
 
 export function analyzeCsharpExpressionEmission(input: { readonly source: TargetSourceProgram; readonly nodes: readonly Node[];
   readonly demand: CsharpNativeDemandAnalysis; readonly conversions: CsharpConversionClassifications;
-  readonly evidence: CsharpSourceEvidenceIndex; readonly factories: CsharpClassFactoryIndex; readonly operations: CsharpTargetOperationClassifications }) {
+  readonly evidence: CsharpSourceEvidenceIndex; readonly factories: CsharpClassFactoryIndex; readonly operations: CsharpTargetOperationClassifications;
+  readonly references: Pick<CsharpSourceReferenceRecords, "identifierEmission">;
+  readonly properties: Pick<CsharpPropertyAdmissionRecords, "selectedProperty" | "sourceMemberEmission">;
+  readonly types: CsharpTypeEmissionRecords }) {
   const { source, nodes, demand, conversions } = input;
   const expressions = new Map<Node, CsharpNativeExpressionRecord>();
   const discards = new Map<TargetUseSiteRef, CsharpNativeDiscardEmission>();
@@ -26,7 +34,7 @@ export function analyzeCsharpExpressionEmission(input: { readonly source: Target
     const selected = demand.nativeUse.expression(node);
     if (selected === undefined) continue;
     const use = selected.use;
-    if (use.kind === "erased") { expressions.set(node, { ...selected, physical: undefined, conversion: undefined, bottom: undefined, storage: undefined }); continue; }
+    if (use.kind === "erased") { expressions.set(node, { ...selected, discardEvaluation: "omit", physical: undefined, conversion: undefined, bottom: undefined, storage: undefined }); continue; }
     const construction = use.kind === "converted" && use.children.length === 1 && use.children[0]!.subject === node && use.children[0]!.role === "constructed-result"
       ? demand.nativeUse.get(use.children[0]!) ?? failTargetAnalysisInvariant("tsonic-csharp", "An admitted converted expression requires its physical construction use.", node) : use;
     if (construction.kind === "erased") failTargetAnalysisInvariant("tsonic-csharp", "An admitted native construction cannot have an erased physical use.", node);
@@ -42,7 +50,7 @@ export function analyzeCsharpExpressionEmission(input: { readonly source: Target
         expression: demand.nativeUse.get(steps[index]!.site)!.expression });
     }
     const conversionRequired = use.kind === "converted" && use.completion.kind !== "void" && construction.completion.kind !== "never";
-    const conversion = use.kind === "converted" && conversionRequired ? conversions.expressionConversion.get(node, use.carrier, use.target, use.mode) : undefined;
+    const conversion = use.kind === "converted" && conversionRequired ? conversions.expressionConversion.get(node, use.carrier, use.target, use.mode)?.selection : undefined;
     if (conversionRequired && conversion === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted converted expression requires its exact native conversion selection.", node);
     if (conversion?.kind === "rejected") {
       issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message: conversion.reason }); continue;
@@ -77,8 +85,70 @@ export function analyzeCsharpExpressionEmission(input: { readonly source: Target
       if (target?.kind !== "resolved" || target.source.sourceArguments.length !== 2)
         failTargetAnalysisInvariant("tsonic-csharp", "An admitted native integer truncation requires its exact two-argument target call.", node);
     }
-    expressions.set(node, { ...selected, physical: construction, conversion, bottom, storage, integerTruncation });
+    expressions.set(node, { ...selected, discardEvaluation: discardEvaluation(node), physical: construction, conversion, bottom, storage, integerTruncation });
   }
+  function discardEvaluation(expression: Node): "evaluate" | "omit" {
+    const seen = new Set<Node>();
+    let current = expression;
+    for (;;) {
+      if (seen.has(current)) return "evaluate";
+      seen.add(current);
+      const native = demand.nativeUse.expression(current)?.use;
+      if (native === undefined || native.kind === "erased") return "evaluate";
+      if (native.completion.kind === "never") return "evaluate";
+      if (native.kind === "converted" && native.input.kind === "value") {
+        const selected = conversions.expressionConversion.get(current, native.input.type, native.target, native.mode)?.selection;
+        if (selected === undefined || !effectFreeConversion(selected)) return "evaluate";
+      }
+      const transparent = sourceTransparentExpressionOperand(source.ast, current);
+      if (transparent !== undefined) { current = transparent; continue; }
+      const effects = source.navigation.expressionEffects(current);
+      if (!effects.invokes && !effects.mutates && !effects.suspends && !effects.mayThrow) {
+        const reference = input.references.identifierEmission.get(current);
+        const kind = source.ast.kindName(current);
+        if (reference?.kind === "absence" || reference?.kind === "local" && !reference.backing ||
+          native.literal !== undefined || kind === "KindThisKeyword" || kind === "KindNullKeyword" ||
+          kind === "KindTrueKeyword" || kind === "KindFalseKeyword" || kind === "KindStringLiteral" ||
+          kind === "KindNumericLiteral" || kind === "KindBigIntLiteral" || kind === "KindNoSubstitutionTemplateLiteral" ||
+          source.ast.is.IsArrowFunction(current) || source.ast.is.IsFunctionExpression(current)) return "omit";
+      }
+      const property = input.properties.selectedProperty.get(current);
+      const selection = property?.selection;
+      let receiver: Node | undefined;
+      if (selection?.kind === "resolved" && selection.targetMember.kind === "field" && selection.targetMember.readonly === true &&
+        selection.receiver.kind === "instance") receiver = selection.source.receiver.expression;
+      if (selection?.kind === "source-owned") {
+        const member = property?.sourceOwned?.shapeMember;
+        const emission = input.properties.sourceMemberEmission.get(current);
+        const declaration = selection.source.selectedDeclaration;
+        if (member?.kind === "resolved" && member.member.memberKind === "property" && member.member.readonly === true &&
+          member.member.accessor === undefined && emission?.kind === "member" && !emission.methodValue && !emission.static &&
+          declaration !== undefined && source.ast.is.IsPropertyDeclaration(declaration) && source.navigation.isProjectDeclaration(declaration))
+          receiver = selection.source.receiver.expression;
+      }
+      if (receiver === undefined) return "evaluate";
+      if (source.ast.kindName(receiver) === "KindThisKeyword") return "omit";
+      const receiverUse = demand.nativeUse.expression(receiver)?.use;
+      const receiverType = receiverUse === undefined || receiverUse.kind === "erased" || receiverUse.completion.kind !== "value"
+        ? undefined : input.types.typeEmission.get(receiverUse.completion.type);
+      if (receiverType?.valueType !== true || receiverType.nullable) return "evaluate";
+      current = receiver;
+    }
+  }
+
+  function effectFreeConversion(selection: CsharpConversionSelection): boolean {
+    const pending = [selection];
+    const seen = new Set<CsharpConversionSelection>();
+    for (const selected of pending) {
+      if (seen.has(selected)) return false;
+      seen.add(selected);
+      if (selected.kind === "identity" || selected.kind === "nullable-reference") continue;
+      if (selected.kind !== "implicit" || selected.proof === "provider-operator") return false;
+      if (selected.proof === "runtime-union-arm") pending.push(selected.sourceToArm);
+    }
+    return true;
+  }
+
   const complete = new Set<Node>();
   for (const node of expressions.keys()) {
     const path = new Set<Node>();

@@ -194,6 +194,7 @@ export function convertCsharpYieldResumeExpression(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
+  prelude: CsharpStatement[],
 ): CsharpExpression | undefined {
   const selection = readCsharpConversionClassification(
     yieldExpression,
@@ -215,6 +216,7 @@ export function convertCsharpYieldResumeExpression(
     targetType,
     selection,
     plan.resumeExpression,
+    prelude, "stable",
   );
 }
 

@@ -110,20 +110,20 @@ export function planBlockStatements(
   const functions = statements.filter(statement => input.program.source.ast.is.IsFunctionDeclaration(statement));
   const executable = (explicitUnsafe ? statements.slice(1) : statements)
     .filter(statement => !input.program.source.ast.is.IsFunctionDeclaration(statement));
-  const plan = () => [...captures, ...entryPrelude, ...deferred, ...values, ...planCsharpCaptureEntryBindings(blockNode, input, state), ...planResourceManagedBlockStatements(
+  const plan = () => [...captures, ...entryPrelude, ...deferred, ...planCsharpCaptureEntryBindings(blockNode, input, state),
+    ...planCsharpDelegateAdapterDeclarations(blockNode, sourceFile, input, diagnostics, state, blockNode), ...planResourceManagedBlockStatements(
     blockNode,
     input,
     state,
     () => [...executable.flatMap(
-      (statement) => [...planCsharpDeferredInitialization(planStatements(
+      (statement) => [...values.get(statement) ?? [], ...planCsharpDeferredInitialization(planStatements(
         statement,
         sourceFile,
         input,
         diagnostics,
         state,
-      ), input, state)],
-    ), ...functions.flatMap(statement => planLocalFunctionDeclaration(statement, sourceFile, input, diagnostics, state)),
-      ...planCsharpDelegateAdapterDeclarations(blockNode, sourceFile, input, diagnostics, state)],
+      ), input, state), ...planCsharpDelegateAdapterDeclarations(blockNode, sourceFile, input, diagnostics, state, statement)],
+    ), ...functions.flatMap(statement => planLocalFunctionDeclaration(statement, sourceFile, input, diagnostics, state))],
   )];
   const ordered = (): readonly CsharpStatement[] => {
     const statements = plan();

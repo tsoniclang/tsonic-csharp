@@ -14,13 +14,15 @@ export function selectCsharpMethodValue(
   const shape = host.structuralTypes.resolveTarget(owner);
   if (shape === undefined) return undefined;
   const member = resolveCsharpObjectShapeMemberBySelectedSubject(shape, subjects);
-  if (member.kind !== "resolved" || member.member.memberKind !== "method" || member.member.methodValueContract === undefined) return undefined;
+  if (member.kind !== "resolved" || member.member.memberKind !== "method") return undefined;
+  const environment = selectCsharpMethodValueEnvironment(shape, member.member);
+  if (environment?.kind === "delegate") return environment.storage.type;
+  if (member.member.methodValueContract === undefined) return undefined;
   if (role === "call" && member.member.optional !== true || role === "storage" && member.member.methodValueStorage === undefined) return undefined;
   if (member.member.methodValueStorage === undefined && shape.methodImplementation !== undefined) {
     if (csharpObjectShapeMethodDeclaration(shape, member.member) === undefined) return undefined;
   } else if (member.member.methodValueStorage === undefined && (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract !== true &&
     (shape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind !== "interface") return undefined;
-  const environment = selectCsharpMethodValueEnvironment(shape, member.member);
   if (environment?.kind !== "protocol") return undefined;
   const identity = JSON.stringify(csharpSourceMemberKeyParts(member.member.sourceKey));
   const signature = csharpPresentObjectShapeMethod(member.member);

@@ -1,6 +1,6 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpExpression, CsharpMethodDeclaration, CsharpParameter } from "../../../target-ast/syntax/index.js";
+import type { CsharpExpression, CsharpMethodDeclaration, CsharpParameter, CsharpStatement } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import { isCsharpVoidTargetType } from "../../../../target-model/types/index.js";
 import { planCsharpCallableArguments } from "../callables/parameter-adapters.js";
@@ -42,14 +42,15 @@ export function planCsharpProjectCallableAdapters(
       ...((method.typeParameters?.length ?? 0) === 0 ? {} : { typeArguments: method.typeParameters!.map(parameter => ({ kind: "IdentifierName" as const, name: parameter.name })) }),
     }, arguments: planned.arguments.map((expression, index) => ({ kind: "Argument", expression,
       passing: method.parameters[index]?.passing })) };
+    const statements: CsharpStatement[] = [...planned.statements];
     const value = applyCsharpConversionSelection(node, sourceFile, input, diagnostics, adapter.result.source,
-      adapter.result.target, adapter.result.conversion, call);
+      adapter.result.target, adapter.result.conversion, call, statements, "snapshot");
     if (value === undefined) failCsharpPlannerInvariant("An admitted native adapter requires its exact return conversion plan.", node);
     methods.push({ kind: "MethodDeclaration", name: method.name,
       modifiers: ["public", "override"],
       typeParameters: method.typeParameters?.map(parameter => ({ name: parameter.name })),
       returnType, parameters: rendered as CsharpParameter[],
-      body: { kind: "Block", statements: [...planned.statements, isCsharpVoidTargetType(adapter.contract.returnType)
+      body: { kind: "Block", statements: [...statements, isCsharpVoidTargetType(adapter.contract.returnType)
         ? { kind: "ExpressionStatement", expression: value } : { kind: "ReturnStatement", expression: value }] } });
   }
   return methods;

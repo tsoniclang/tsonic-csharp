@@ -59,11 +59,15 @@ for (const [name, expression, staticBody] of [
   test(`closed ${name} const aliases share the selected native storage ABI`, () => {
     const selected = fixture(`const mapper = (value: int): int => ${expression}; const alias = mapper; return Array.from(values, alias);`);
     const target = selected.program.records.callableTarget.get(selected.lambda);
-    assert.equal(getCsharpDelegateSignature(target)?.parameters.length, 1, "one declared native input, not a later destination's ABI");
+    const signature = getCsharpDelegateSignature(target);
+    assert.equal(signature?.parameters.length, 2, "one exact two-slot native consumer ABI");
+    assert.equal(signature.parameters.every(type => targetTypeRefEquals(type, { kind: "source-primitive", name: "int32" })), true,
+      "the original value and native index retain their exact integer carrier");
     for (const name of ["mapper", "alias"]) {
       const declaration = selected.variables.get(name);
       assert.equal(declaration !== undefined, true, name);
-      assert.equal(selected.program.records.requiredStorageType.get(declaration) === undefined, true, `${name}: no use-derived storage promotion`);
+      assert.equal(targetTypeRefEquals(selected.program.records.requiredStorageType.get(declaration), target), true,
+        `${name}: the same completed consumer ABI owns original storage`);
       assert.equal(targetTypeRefEquals(selected.program.records.storageType.get(declaration), target), true, name);
     }
     const completed = selected.program.records.callableCreation.get(selected.lambda);

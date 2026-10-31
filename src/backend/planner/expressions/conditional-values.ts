@@ -7,7 +7,7 @@ import type { ExpressionPlanner } from "./expression-planner-types.js";
 import { csharpPlannedValue, mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { planCsharpValueBranch } from "./planned-value-composition.js";
 import { planCsharpPlannedDiscard } from "../statements/statement-output.js";
-import { applyCsharpConversionSelection, readCsharpExpressionConversionClassification } from "./conversions.js";
+import { applyCsharpConversionSelection, readCsharpExpressionOperandStability, readCsharpExpressionConversionClassification } from "./conversions.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 
@@ -22,9 +22,9 @@ export function planCsharpConditionalValue(node: Node, selection: CsharpResolved
   if (operation.branch === "left") {
     const conversion = readCsharpExpressionConversionClassification(selection.left, input, diagnostics,
       selection.leftType, selection.resultType, "implicit");
-    return conversion === undefined ? undefined : mapCsharpPlannedValue(left, selection.resultType, value =>
+    return conversion === undefined ? undefined : mapCsharpPlannedValue(left, selection.resultType, (value, prelude) =>
       applyCsharpConversionSelection(selection.left, sourceFile, input, diagnostics,
-        selection.leftType, selection.resultType, conversion, value));
+        selection.leftType, selection.resultType, conversion, value, prelude, readCsharpExpressionOperandStability(selection.left, input, selection.leftType, selection.resultType, "implicit", conversion)));
   }
   const right = planExpression(selection.right, sourceFile, input, diagnostics, state);
   if (right === undefined) return undefined;
@@ -40,11 +40,12 @@ export function planCsharpConditionalValue(node: Node, selection: CsharpResolved
   }
   const conversion = readCsharpExpressionConversionClassification(selection.left, input, diagnostics,
     selection.leftType, selection.resultType, "implicit");
+  const prelude: import("../../target-ast/syntax/index.js").CsharpStatement[] = [];
   const expression = conversion === undefined ? undefined : applyCsharpConversionSelection(
     selection.left, sourceFile, input, diagnostics, selection.leftType, selection.resultType, conversion,
-    { kind: "LiteralExpression", value: operation.operator === "||" });
+    { kind: "LiteralExpression", value: operation.operator === "||" }, prelude, "stable");
   if (expression === undefined) return undefined;
-  const empty = csharpPlannedValue(selection.resultType, expression, [], emission.nativeBoolean);
+  const empty = csharpPlannedValue(selection.resultType, expression, prelude, emission.nativeBoolean);
   return planCsharpValueBranch(node, sourceFile, input, diagnostics, left,
     operation.operator === "&&" ? right : empty, operation.operator === "&&" ? empty : right, selection.resultType);
 }

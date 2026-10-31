@@ -1,4 +1,4 @@
-import { applyCsharpConversionSelection } from "../conversions.js";
+import { applyCsharpConversionSelection, readCsharpExpressionOperandStability } from "../conversions.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import { planCsharpRestSequence } from "./rest-sequences.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
@@ -50,8 +50,8 @@ export function translateCallArgument(expression: Node, parameter: CsharpTargetP
   if (selected.kind === "convert") {
     const source = selected.read === "expression" ? planExpression(expression, sourceFile, input, diagnostics) :
       planCallArgument(expression, sourceFile, input, diagnostics, selected.source, "by-value");
-    return mapCsharpPlannedValue(source, selected.target, value => applyCsharpConversionSelection(expression, sourceFile, input, diagnostics,
-      selected.source, selected.target, selected.conversion, value));
+    return mapCsharpPlannedValue(source, selected.target, (value, prelude) => applyCsharpConversionSelection(expression, sourceFile, input, diagnostics,
+      selected.source, selected.target, selected.conversion, value, prelude, readCsharpExpressionOperandStability(expression, input, selected.source, selected.target, "implicit", selected.conversion), source?.absent === true, source?.callable));
   }
   const source = planCallArgument(expression, sourceFile, input, diagnostics, selected.source, "by-value");
   if (source === undefined || source.completion.kind === "never") return source;

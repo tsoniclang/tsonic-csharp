@@ -38,6 +38,6 @@ export function translateCsharpSourceOwnedMember(node: Node, sourceFile: SourceF
   if (planned === undefined) failCsharpPlannerInvariant("An admitted source property requires its exact native read operation.", node);
   if (!selected.flow) return planned;
   const projected = projectCsharpPlannedValue(node, sourceFile, input, diagnostics, planned,
-    value => planFlowReadUseSiteProjection(node, value, sourceFile, input, diagnostics));
+    (value, prelude) => planFlowReadUseSiteProjection(node, value, sourceFile, input, diagnostics, prelude));
   return projected === undefined ? undefined : { ...projected, address: planned.address };
 }

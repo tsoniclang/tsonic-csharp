@@ -127,7 +127,7 @@ test("the one sealed native binary plans its operands in order with their select
   // The analysis's native binary emission for a plain int32 '+': binary syntax, no location, no suspension.
   const emission = { selection: selected, syntax: "binary", storage: left, location: undefined, rightSuspends: false,
     narrowedCoalescing: false, nativeBoolean: false, retainOther: true };
-  const records = { nativeExpression: { get: node => node === binary ? { use: native, physical: native, conversion: undefined } : undefined },
+  const records = { nativeExpression: { get: node => node === binary ? { discardEvaluation: "evaluate", use: native, physical: native, conversion: undefined } : undefined },
     nativeBinaryEmission: { get: (node, selection) => node === binary && selection === selected ? emission : undefined },
     int32Remainder: { get: () => false },
     nativeConstant: { get: () => false }, nativeAbsence: { get: () => false },

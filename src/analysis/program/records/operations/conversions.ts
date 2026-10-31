@@ -2,7 +2,7 @@ import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import { targetTypeRefKey } from "../../../../target-model/types/equality.js";
 import type { CsharpConversionMode } from "../../../../target-model/conversions/selection.js";
-import { csharpUnavailableConversion, type CsharpConversionClassifications, type CsharpConversionPublication } from "../../../../target-model/records/operations/conversions.js";
+import { csharpUnavailableConversion, csharpUnavailableExpressionConversion, type CsharpConversionClassifications, type CsharpConversionPublication } from "../../../../target-model/records/operations/conversions.js";
 
 export function sealCsharpConversionClassifications(input: CsharpConversionPublication): CsharpConversionClassifications {
   const pairs = new Map(input.pairSelections);
@@ -24,8 +24,8 @@ export function sealCsharpConversionClassifications(input: CsharpConversionPubli
         : pairs.get(csharpConversionKey(source, target, mode));
     } }),
     expressionConversion: Object.freeze({ get(expression: Node, source: TargetTypeRef | undefined, target: TargetTypeRef | undefined, mode: CsharpConversionMode) {
-      return source === undefined || target === undefined ? csharpUnavailableConversion
-        : expressions.get(expression)?.get(csharpConversionKey(source, target, mode))?.selection;
+      return source === undefined || target === undefined ? csharpUnavailableExpressionConversion
+        : expressions.get(expression)?.get(csharpConversionKey(source, target, mode));
     } }),
   });
 }

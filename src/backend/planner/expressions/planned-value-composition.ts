@@ -77,14 +77,15 @@ export function projectCsharpPlannedValue(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planned: CsharpPlannedValue | undefined,
-  project: (expression: CsharpExpression) => CsharpExpression | undefined,
+  project: (expression: CsharpExpression, prelude: CsharpStatement[]) => CsharpExpression | undefined,
   carrier = readCsharpNativeExpressionCarrier(input, node),
 ): CsharpPlannedValue | undefined {
   if (planned === undefined) return undefined;
   if (planned.completion.kind === "never") return planned;
   if (planned.completion.kind !== "value") return undefined;
+  const prelude = [...planned.prelude];
   return planCsharpExpressionCompletion(node, sourceFile, input, diagnostics,
-    project(planned.completion.expression), carrier, planned.prelude);
+    project(planned.completion.expression, prelude), carrier, prelude);
 }
 
 export function buildCsharpPlannedValue(

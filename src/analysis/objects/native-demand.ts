@@ -26,7 +26,6 @@ import type { CsharpTargetCallSelection } from "../../target-model/records/opera
 import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeCapability, CsharpRuntimeUnionTargetTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpObjectShapeMethodDeclaration } from "../../target-model/types/method-values.js";
-import { getCsharpDelegateSignature } from "../../target-model/types/carriers/delegates.js";
 import { csharpPropertySourceMemberKey, csharpWellKnownSymbolSourceMemberKey } from "../../target-model/types/source-member-keys.js";
 import { resolveCsharpObjectShapeMemberBySourceKey } from "../../target-model/types/object-shape-members.js";
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
@@ -251,17 +250,17 @@ export function analyzeCsharpNativeArtifactDemand(
       demandConversion(node, source, selection.armType, selection.sourceToArm);
     } else if (selection.kind === "delegate-adapter") {
       for (const argument of selection.instantiation?.typeArguments ?? []) demandType(argument, node);
-      const sourceSignature = getCsharpDelegateSignature(selection.instantiation?.contract ?? source);
-      const targetSignature = getCsharpDelegateSignature(target);
-      if (sourceSignature !== undefined && targetSignature !== undefined) {
-        for (const [index, conversion] of selection.parameterConversions.entries()) {
-          const from = targetSignature.parameters[index];
-          const to = sourceSignature.parameters[index];
-          if (from !== undefined && to !== undefined) demandConversion(node, from, to, conversion);
-        }
-        if (selection.returnConversion.kind !== "void-return") demandConversion(node,
-          sourceSignature.returnType, targetSignature.returnType, selection.returnConversion);
+      const contract = input.conversions.delegateContract.get(source, target)
+        ?? failTargetAnalysisInvariant("tsonic-csharp", "An admitted native conversion requires its sealed delegate demand contract.", node);
+      for (const [index, conversion] of selection.parameterConversions.entries()) {
+        const from = contract.targetSignature.parameters[index];
+        const to = contract.sourceSignature.parameters[index];
+        if (from === undefined || to === undefined)
+          failTargetAnalysisInvariant("tsonic-csharp", "An admitted native conversion requires its exact parameter demand vector.", node);
+        demandConversion(node, from, to, conversion);
       }
+      if (selection.returnConversion.kind !== "void-return") demandConversion(node,
+        contract.sourceSignature.returnType, contract.targetSignature.returnType, selection.returnConversion);
     } else if (selection.kind === "provider-argument-adapter") {
       demandConversion(node, source, selection.adapter.inputType, selection.sourceToInput);
       demandConversion(node, selection.adapter.resultType, target, selection.resultToTarget);
@@ -342,6 +341,7 @@ export function analyzeCsharpNativeArtifactDemand(
     if (callable !== undefined) {
       demandType(callable.returnType, node);
       for (const parameter of callable.nativeParameters) demandType(parameter.targetParameter.type, parameter.sourceParameter);
+      if (callable.bodyInputs !== undefined) demandParameters(node, callable.bodyInputs.adapters);
     }
     const returned = input.declarations.returnContract.get(node);
     if (returned?.kind === "resolved") demandType(returned.type, node);
@@ -436,7 +436,7 @@ export function analyzeCsharpNativeArtifactDemand(
     if (use.kind === "converted" && use.input.kind === "value") {
       demandType(use.input.type, use.expression); demandType(use.target, use.expression);
       demandConversion(use.expression, use.input.type, use.target,
-        input.conversions.expressionConversion.get(use.expression, use.input.type, use.target, use.mode));
+        input.conversions.expressionConversion.get(use.expression, use.input.type, use.target, use.mode)?.selection);
     }
     if (use.discardedPresence !== undefined) demandDiscarded(use.discardedPresence);
     demandUseArtifacts(use);

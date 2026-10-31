@@ -212,30 +212,32 @@ function planForOfBindingCore(
   const elementType = csharpTypeFromTargetTypeRef(selectedIteration.elementType, input.scope.typeParameterNames);
   if (storageType === undefined || elementType === undefined) return failCsharpPlannerInvariant(
     "An admitted for-of binding lost its exact native element or destination rendering.", selected.node);
-  const convert = (expression: CsharpExpression): CsharpExpression => {
+  const convert = (expression: CsharpExpression, prelude: CsharpStatement[]): CsharpExpression => {
     const converted = applyCsharpConversionSelection(selected.node, sourceFile, input, diagnostics,
-      selectedIteration.elementType, selected.storageType, selected.conversion, expression);
+      selectedIteration.elementType, selected.storageType, selected.conversion, expression, prelude, "snapshot");
     return converted ?? failCsharpPlannerInvariant("An admitted for-of binding lost its selected native conversion.", selected.node);
   };
   if (selected.kind === "assignment") {
+    const prelude: CsharpStatement[] = [];
     const target = planIdentifierExpression(selected.name, sourceFile,
-      { ...input, storageExpression: selected.name }, diagnostics, state);
+      { ...input, storageExpression: selected.name }, diagnostics, prelude, state);
     if (target === undefined) {
       failCsharpPlannerInvariant("An admitted iteration assignment requires its native destination.", selected.node);
     }
     const itemName = allocateForOfItem(state);
     const local: CsharpLocalDeclaration = { name: itemName, kind: "VariableDeclarator", type: elementType };
+    const converted = convert({ kind: "IdentifierName", name: itemName }, prelude);
     return {
       ...local,
       local,
       outerPrelude: [],
-      prelude: [{
+      prelude: [...prelude, {
         kind: "ExpressionStatement",
         expression: {
           kind: "AssignmentExpression",
           left: target,
           operatorToken: { kind: "EqualsToken" },
-          right: convert({ kind: "IdentifierName", name: itemName }),
+          right: converted,
         },
       }],
     };
@@ -243,8 +245,10 @@ function planForOfBindingCore(
   if (selected.kind === "pattern") {
     const itemName = allocateForOfItem(state);
     const local: CsharpLocalDeclaration = { kind: "VariableDeclarator", name: itemName, type: elementType };
-    return { ...local, local, outerPrelude: [], prelude: planBindingPatternFromExpression(selected.pattern,
-      convert({ kind: "IdentifierName", name: itemName }), sourceFile, input, diagnostics, state, planExpression) };
+    const prelude: CsharpStatement[] = [];
+    const converted = convert({ kind: "IdentifierName", name: itemName }, prelude);
+    return { ...local, local, outerPrelude: [], prelude: [...prelude, ...planBindingPatternFromExpression(selected.pattern,
+      converted, sourceFile, input, diagnostics, state, planExpression)] };
   }
   const local: CsharpLocalDeclaration = {
     kind: "VariableDeclarator",
@@ -256,9 +260,11 @@ function planForOfBindingCore(
     elementType, convert, state);
   if (selected.conversion.kind === "identity") return { ...local, local, outerPrelude: [], prelude: [] };
   const itemName = allocateForOfItem(state);
+  const prelude: CsharpStatement[] = [];
+  const converted = convert({ kind: "IdentifierName", name: itemName }, prelude);
   return { kind: "VariableDeclarator", name: itemName, type: elementType, local, outerPrelude: [],
-    prelude: [{ kind: "LocalDeclarationStatement", name: local.name, type: local.type,
-      initializer: convert({ kind: "IdentifierName", name: itemName }) }] };
+    prelude: [...prelude, { kind: "LocalDeclarationStatement", name: local.name, type: local.type,
+      initializer: converted }] };
 }
 
 function adaptSyncCollectionToAsync(
@@ -285,10 +291,12 @@ function mutableForOfLocationBinding(
   identity: CsharpStatement,
   declarationKind: ReturnType<CsharpPlanningContext["program"]["source"]["ast"]["variableDeclarationKind"]>,
   elementType: CsharpLocalDeclaration["type"],
-  convert: (expression: CsharpExpression) => CsharpExpression,
+  convert: (expression: CsharpExpression, prelude: CsharpStatement[]) => CsharpExpression,
   state: DestructuringPlannerState,
 ): PlannedForOfBinding {
   const iterationName = allocateForOfItem(state);
+  const prelude: CsharpStatement[] = [];
+  const converted = convert({ kind: "IdentifierName", name: iterationName }, prelude);
   if (declarationKind === "var") {
     return {
       ...binding,
@@ -303,13 +311,13 @@ function mutableForOfLocationBinding(
         },
         identity,
       ],
-      prelude: [{
+      prelude: [...prelude, {
         kind: "ExpressionStatement",
         expression: {
           kind: "AssignmentExpression",
           left: { kind: "IdentifierName", name: binding.name },
           operatorToken: { kind: "EqualsToken" },
-          right: convert({ kind: "IdentifierName", name: iterationName }),
+          right: converted,
         },
       }],
     };
@@ -321,11 +329,12 @@ function mutableForOfLocationBinding(
     local: binding,
     outerPrelude: [],
     prelude: [
+      ...prelude,
       {
         kind: "LocalDeclarationStatement",
         name: binding.name,
         type: binding.type,
-        initializer: convert({ kind: "IdentifierName", name: iterationName }),
+        initializer: converted,
       },
       identity,
     ],

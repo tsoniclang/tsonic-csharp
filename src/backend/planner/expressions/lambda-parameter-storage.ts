@@ -62,7 +62,7 @@ function planLambdaParameterEntries(nodes: readonly (Node | undefined)[], parame
       if (type === undefined) failCsharpPlannerInvariant("An admitted lambda parameter requires its exact native storage type syntax.", node);
       const name = allocateSyntheticParameter(state);
       const initializer = applyCsharpConversionSelection(node, sourceFile, input, diagnostics, selected.source, selected.target,
-        selected.conversion, { kind: "IdentifierName", name });
+        selected.conversion, { kind: "IdentifierName", name }, prelude, "stable");
       if (initializer === undefined) failCsharpPlannerInvariant("An admitted lambda parameter requires its selected native entry conversion.", node);
       nativeParameters[index] = { ...parameter, name };
       prelude.push({ kind: "LocalDeclarationStatement", name: parameter.name, type, initializer });

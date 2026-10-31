@@ -232,7 +232,7 @@ export function planFunctionExpression(
     const { method, value } = creation;
     if (valueName === undefined) {
       const planned = complete(value, [...captureContext?.prelude ?? [], method]);
-      return planned === undefined || creationPolicy.kind !== "direct" ? planned : { ...planned, callable: { kind: "method" } };
+      return planned === undefined ? undefined : { ...planned, callable: { kind: "method" } };
     }
     const planned = complete({ kind: "IdentifierName", name: valueName }, [
       ...captureContext?.prelude ?? [],

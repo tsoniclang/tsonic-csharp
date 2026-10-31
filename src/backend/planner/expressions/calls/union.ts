@@ -60,12 +60,13 @@ export function planCsharpUnionDispatcherCall(
         }, name: "TaskExtensions",
       }, name: "Unwrap" }, arguments: [{ kind: "Argument", expression: invocation }],
     } : invocation;
+    const prelude: CsharpStatement[] = [];
     const converted = applyCsharpConversionSelection(node, sourceFile, input, diagnostics,
-      result.selectedType, union.resultType, method.conversion, completed);
+      result.selectedType, union.resultType, method.conversion, completed, prelude, "snapshot");
     if (converted === undefined) return undefined;
     const branch: readonly CsharpStatement[] = selected.void
-      ? [{ kind: "ExpressionStatement", expression: converted }, { kind: "ReturnStatement" }]
-      : [{ kind: "ReturnStatement", expression: converted }];
+      ? [...prelude, { kind: "ExpressionStatement", expression: converted }, { kind: "ReturnStatement" }]
+      : [...prelude, { kind: "ReturnStatement", expression: converted }];
     if (index === union.methods.length - 1) statements.push(...branch);
     else statements.push({
       kind: "IfStatement",

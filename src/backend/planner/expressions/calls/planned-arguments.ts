@@ -65,7 +65,11 @@ export function csharpPlannedArgumentSyntax(
 ): CsharpArgument {
   let operand = expression;
   while (operand.kind === "ParenthesizedExpression") operand = operand.expression;
-  const value: CsharpExpression = argument.nativeBinding !== undefined && operand.kind === "LambdaExpression"
+  let original = argument.completion.kind === "value" ? argument.completion.expression : undefined;
+  while (original?.kind === "ParenthesizedExpression") original = original.expression;
+  const unanchored = operand.kind === "LambdaExpression" || operand === original &&
+    (argument.callable?.kind === "method" || argument.callable?.kind === "captured-method");
+  const value: CsharpExpression = argument.nativeBinding !== undefined && unanchored && operand.kind !== "CastExpression"
     ? { kind: "CastExpression", type: argument.nativeBinding, expression: operand } : expression;
   return { kind: "Argument", expression: value, ...(argument.passing === undefined ? {} : { passing: argument.passing }) };
 }

@@ -1,7 +1,7 @@
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpObjectShapeFact, CsharpTargetParameter } from "../../../../target-model/types/model.js";
 import { isCsharpVoidTargetType } from "../../../../target-model/types/identity.js";
-import type { CsharpExpression, CsharpParameter, CsharpTypeMember } from "../../../target-ast/syntax/index.js";
+import type { CsharpExpression, CsharpParameter, CsharpStatement, CsharpTypeMember } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
@@ -28,11 +28,12 @@ export function planCsharpStructuralInterfaceMembers(
       }
       const access: CsharpExpression = { kind: "SimpleMemberAccessExpression",
         receiver: { kind: "IdentifierName", name: "this" }, name: property.sourceName };
+      const prelude: CsharpStatement[] = [];
       const value = applyCsharpConversionSelection(implementation.sourceNode, sourceFile, input, diagnostics,
-        property.read.source, property.read.target, property.read.conversion, access);
+        property.read.source, property.read.target, property.read.conversion, access, prelude, "snapshot");
       if (value === undefined) failCsharpPlannerInvariant("An admitted structural property requires its native forwarding value.", implementation.sourceNode);
       result.push({ kind: "PropertyDeclaration", name: property.member.targetName, explicitInterface, modifiers: [], type,
-        getter: { kind: "Block", statements: [{ kind: "ReturnStatement", expression: value }] },
+        getter: { kind: "Block", statements: [...prelude, { kind: "ReturnStatement", expression: value }] },
         ...(property.member.readonly === true || property.member.accessor?.setter === false ? {} : {
           setter: { kind: "Block" as const, statements: [{ kind: "ExpressionStatement" as const, expression: {
             kind: "AssignmentExpression" as const, operatorToken: { kind: "EqualsToken" as const }, left: access,
@@ -84,13 +85,14 @@ export function planCsharpStructuralInterfaceMembers(
           ...(typeArguments.length === 0 ? {} : { typeArguments: typeArguments as NonNullable<typeof typeArguments[number]>[] }),
         }, arguments: planned.arguments.map((expression, index) => ({ kind: "Argument", expression,
           ...(incoming[index]?.passing === undefined ? {} : { passing: incoming[index]!.passing }) })) };
+        const statements: CsharpStatement[] = [...planned.statements];
         const value = applyCsharpConversionSelection(method.declaration, sourceFile, methodInput, diagnostics,
-          forwarding.result.source, forwarding.result.target, forwarding.result.conversion, call);
+          forwarding.result.source, forwarding.result.target, forwarding.result.conversion, call, statements, "snapshot");
         if (value === undefined) failCsharpPlannerInvariant("An admitted structural method requires its native forwarding result.", method.declaration);
         result.push({ kind: "MethodDeclaration", name: invocation.name, explicitInterface, modifiers: [], returnType,
           parameters: parameters as CsharpParameter[],
           ...(typeParameters.length === 0 ? {} : { typeParameters }),
-          body: { kind: "Block", statements: [...planned.statements, isCsharpVoidTargetType(forwarding.contract.returnType)
+          body: { kind: "Block", statements: [...statements, isCsharpVoidTargetType(forwarding.contract.returnType)
             ? { kind: "ExpressionStatement", expression: value } : { kind: "ReturnStatement", expression: value }] },
         });
       }

@@ -81,6 +81,7 @@ export function planReturnStatement(
           diagnostics,
           state,
         );
+    const resumePrelude: CsharpStatement[] = [];
     const expression = yieldPlan !== undefined && directYield !== undefined
       ? planCsharpExpressionCompletion(directYield, sourceFile, input, diagnostics, convertCsharpYieldResumeExpression(
           directYield,
@@ -89,7 +90,8 @@ export function planReturnStatement(
           sourceFile,
           input,
           diagnostics,
-        ), state.generator.protocol.returnType)
+          resumePrelude,
+        ), state.generator.protocol.returnType, resumePrelude)
       : statement.Expression === undefined
       ? planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, {
           kind: "DefaultExpression" as const,

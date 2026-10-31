@@ -6,7 +6,6 @@ import type { DestructuringPlannerState } from "../../bindings/binding-state.js"
 import { planIdentifierExpression } from "../../expressions/expression-source-references.js";
 import { planCsharpDelegateAdaptationBody } from "../../expressions/callable-conversions.js";
 import { applyCsharpConversionSelection } from "../../expressions/conversions.js";
-import { getCsharpDelegateSignature } from "../../../../target-model/types/carriers/delegates.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 
@@ -19,16 +18,19 @@ export function withCsharpDelegateAdapterDeclarations(block: Node, input: Csharp
 }
 
 export function planCsharpDelegateAdapterDeclarations(block: Node, sourceFile: SourceFile,
-  input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], state: DestructuringPlannerState): readonly CsharpStatement[] {
+  input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], state: DestructuringPlannerState, after: Node): readonly CsharpStatement[] {
   const statements: CsharpStatement[] = [];
   for (const identity of input.program.records.delegateAdapters.get(block)) {
+    const ast = input.program.source.ast;
+    const list = ast.parent(identity.declaration);
+    const statement = list === undefined ? undefined : ast.parent(list);
+    if (ast.is.IsParameterDeclaration(identity.declaration) ? after !== block : statement !== after) continue;
     const identifier = input.program.source.ast.name(identity.declaration);
     const name = input.scope.delegateAdapters?.get(identity);
-    const signature = getCsharpDelegateSignature(identity.target);
-    const returnType = signature === undefined ? undefined : csharpTypeFromTargetTypeRef(signature.returnType, input.scope.typeParameterNames);
+    const type = csharpTypeFromTargetTypeRef(identity.target, input.scope.typeParameterNames);
     const callee = identifier === undefined ? undefined : planIdentifierExpression(identifier, sourceFile,
-      { ...input, storageExpression: identifier }, diagnostics, state);
-    if (name === undefined || callee === undefined || returnType === undefined) {
+      { ...input, storageExpression: identifier }, diagnostics, statements, state);
+    if (name === undefined || callee === undefined || type === undefined) {
       failCsharpPlannerInvariant("An admitted retained delegate adapter requires its lexical binding, name and return signature.", identity.declaration);
     }
     const presentCallee: CsharpExpression = identity.assertPresent
@@ -37,9 +39,7 @@ export function planCsharpDelegateAdapterDeclarations(block: Node, sourceFile: S
       identity.source, identity.target, identity.selection, presentCallee, applyCsharpConversionSelection);
     if (method === undefined || method.body.kind !== "Block" || method.parameters.some(parameter => parameter.type === undefined))
       failCsharpPlannerInvariant("An admitted retained delegate adapter requires its native method body and typed parameters.", identity.declaration);
-    statements.push({ kind: "LocalFunctionStatement", name, returnType, modifiers: [],
-      parameters: method.parameters as NonNullable<Extract<CsharpStatement, { kind: "LocalFunctionStatement" }>["parameters"]>,
-      body: method.body });
+    statements.push({ kind: "LocalDeclarationStatement", name, type, initializer: method });
   }
   return statements;
 }

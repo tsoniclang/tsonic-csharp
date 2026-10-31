@@ -123,8 +123,9 @@ export function planForInBindingActivation(
   const declaration = binding.declaration;
   const sourceFile = input.program.source.ast.getSourceFile(binding.node);
   if (sourceFile === undefined) failCsharpPlannerInvariant("An admitted for-in binding lost its checked source file.", binding.node);
+  const prelude: CsharpStatement[] = [];
   const converted = applyCsharpConversionSelection(binding.node, sourceFile, input, diagnostics,
-    binding.sourceType, binding.storageType, binding.conversion, keyExpression);
+    binding.sourceType, binding.storageType, binding.conversion, keyExpression, prelude, "stable");
   if (converted === undefined) failCsharpPlannerInvariant("An admitted for-in key lost its selected native conversion.", binding.node);
   const captured = planCsharpCapturedInitialization(declaration, converted, input, state);
   if (captured !== undefined) {
@@ -134,13 +135,14 @@ export function planForInBindingActivation(
     const identity = planCsharpTypedLocationIdentityDeclaration(declaration!, input, state);
     return { outerPrelude: [], iterationPrelude: [
       ...(loop ? planCsharpCaptureFrame(scope, input, diagnostics, state) : []),
+      ...prelude,
       ...(identity === undefined ? [] : [identity]), captured,
     ] };
   }
   if (binding.kind === "assignment") {
     return {
       outerPrelude: [],
-      iterationPrelude: [expressionStatement({
+      iterationPrelude: [...prelude, expressionStatement({
         kind: "AssignmentExpression",
         left: { kind: "IdentifierName", name: binding.name },
         operatorToken: { kind: "EqualsToken" },
@@ -163,7 +165,7 @@ export function planForInBindingActivation(
         },
         ...(identity === undefined ? [] : [identity]),
       ],
-      iterationPrelude: [expressionStatement({
+      iterationPrelude: [...prelude, expressionStatement({
         kind: "AssignmentExpression",
         left: { kind: "IdentifierName", name: binding.name },
         operatorToken: { kind: "EqualsToken" },
@@ -174,6 +176,7 @@ export function planForInBindingActivation(
   return {
     outerPrelude: [],
     iterationPrelude: [
+      ...prelude,
       {
       kind: "LocalDeclarationStatement",
       name: binding.name,

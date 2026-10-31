@@ -8,10 +8,11 @@ import type {
   CsharpPlanningContext,
 } from "../context.js";
 import {
-  applyCsharpConversionSelection,
+  applyCsharpConversionSelection, readCsharpExpressionOperandStability,
 } from "./conversions.js";
 import type {
   CsharpExpression,
+  CsharpStatement,
 } from "../../target-ast/syntax/index.js";
 
 export function planFlowReadUseSiteProjection(
@@ -20,6 +21,7 @@ export function planFlowReadUseSiteProjection(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
+  prelude: CsharpStatement[],
 ): CsharpExpression | undefined {
   if (input.storageExpression === node) return baseExpression;
   const projection = input.program.records.flowReadProjection.get(node);
@@ -43,5 +45,6 @@ export function planFlowReadUseSiteProjection(
     projection.target,
     projection.selection,
     baseExpression,
+    prelude, readCsharpExpressionOperandStability(node, input, projection.source, projection.target, "implicit", projection.selection),
   );
 }

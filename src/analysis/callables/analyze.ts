@@ -11,8 +11,12 @@ import type { CsharpSourceEvidenceIndex } from "../../target-model/records/progr
 import type { CsharpCallableContractIndex, CsharpClosedCallableInput } from "../../target-model/records/callables/callable-values.js";
 import type { CsharpGenericProjectionIndex } from "../../target-model/records/types/type-projections.js";
 import { closeCsharpProjectCallableContracts } from "../project-types/callable-contracts.js";
-import { csharpCallableValueType } from "../../policy/types/callables/value-type.js";
-import type { TargetSourceProgram } from "@tsonic/target-api/source";
+import { csharpCallableValueType, csharpClosedInvocationMatches } from "../../policy/types/callables/value-type.js";
+import { sourceExpressionCallArgument, sourceTransparentExpressionOperand, type TargetSourceProgram } from "@tsonic/target-api/source";
+import { csharpDelegateSignatureHasSupportedPassingModes, getCsharpLambdaSignature, getCsharpExpressionTreeDelegateType } from "../../target-model/types/carriers/delegates.js";
+import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
+import { csharpFreeTypeParameterIdentities } from "../../target-model/types/generic-references.js";
+import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpCallableConversionPolicy } from "./native/adapters.js";
 import type { CsharpConversionClassifications } from "../../target-model/records/operations/conversions.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
@@ -69,6 +73,58 @@ export function analyzeCsharpCallableContracts(
   for (const [declaration, contract] of byDeclaration) {
     const nativeType = csharpCallableValueType(contract);
     if (nativeType === undefined) continue;
+    const immediate = sourceExpressionCallArgument(declaration, source);
+    const selected = immediate === undefined ? undefined : nativeInput(immediate, false);
+    const signature = getCsharpLambdaSignature(selected);
+    if (selected !== undefined && signature !== undefined && getCsharpExpressionTreeDelegateType(selected) === undefined &&
+      csharpDelegateSignatureHasSupportedPassingModes(signature) && signature.returnPassing === undefined &&
+      signature.parameterPassingModes.every(mode => mode === "by-value") &&
+      signature.restParameterIndex === undefined && (signature.optionalParameterIndexes?.length ?? 0) === 0 &&
+      contract.nativeParameters.every(parameter => parameter.targetParameter.paramsArray !== true && parameter.targetParameter.optional !== true) &&
+      contract.nativeParameters.length <= signature.parameters.length &&
+      contract.nativeParameters.every((parameter, index) => targetTypeRefEquals(parameter.targetParameter.type, signature.parameters[index]!)) &&
+      targetTypeRefEquals(contract.returnType, signature.returnType)) {
+      closedInputs.set(declaration, Object.freeze({ type: selected, source: contract }));
+      continue;
+    }
+    if (immediate === undefined && (policy.ast.is.IsArrowFunction(declaration) || policy.ast.is.IsFunctionExpression(declaration))) {
+      const flow = source.navigation.expressionValueFlow(declaration);
+      if (flow.aliasDeclarations.length > 0 && flow.aliasDeclarations.length <= 1024 && flow.uses.length <= 131072 &&
+        !flow.memberWritten && !flow.receiverUsed && !flow.identityCompared && !flow.captured && !flow.returned &&
+        !flow.yielded && !flow.storedOutsideBinding && !flow.exported && !flow.hasUnclassifiedUse &&
+        flow.aliasDeclarations.every(alias => policy.ast.is.IsVariableDeclaration(alias) &&
+          policy.ast.variableDeclarationKind(alias) === "const" && policy.ast.typeNode(alias) === undefined &&
+          !source.navigation.declarationUseSummary(alias).bindingWritten)) {
+        const uses = flow.uses.filter(use => use.kind !== "type-only" && use.role !== "storage");
+        let carrier: TargetTypeRef | undefined;
+        let consistent = uses.length !== 0 && !contract.nativeParameters.some(parameter => {
+          if (csharpFreeTypeParameterIdentities([parameter.targetParameter.type]).size === 0) return false;
+          const node = policy.ast.typeNode(parameter.sourceParameter);
+          const queries = policy.semanticsFor(parameter.sourceParameter);
+          const type = node === undefined ? undefined : queries.types.authoredType(node);
+          return type !== undefined && (queries.types.isUnknown(type) || queries.types.isAny(type));
+        });
+        const binders = csharpFreeTypeParameterIdentities([nativeType]);
+        for (const use of uses) {
+          if (!consistent) break;
+          const argument = use.role === "argument" ? sourceExpressionCallArgument(use.reference, source) : undefined;
+          const candidate = argument === undefined ? undefined : nativeInput(argument, true);
+          if (candidate === undefined || !csharpClosedInvocationMatches(nativeType, candidate) ||
+            [...csharpFreeTypeParameterIdentities([candidate])].some(identity => !binders.has(identity)) ||
+            carrier !== undefined && !targetTypeRefEquals(carrier, candidate)) {
+            consistent = false;
+            break;
+          }
+          carrier = candidate;
+        }
+        if (consistent && carrier !== undefined) {
+          const completed = Object.freeze({ type: carrier, source: contract });
+          closedInputs.set(declaration, completed);
+          for (const alias of flow.aliasDeclarations) closedInputs.set(alias, completed);
+          continue;
+        }
+      }
+    }
     if (contract.bodyInputs !== undefined || policy.ast.is.IsFunctionExpression(declaration) && policy.ast.name(declaration) !== undefined &&
       contract.parameters.some(parameter => declarations.runtimeDefault.get(parameter)?.acceptsOmission === true)) {
       closedInputs.set(declaration, Object.freeze({ type: nativeType, source: contract }));
@@ -76,6 +132,31 @@ export function analyzeCsharpCallableContracts(
   }
   return sealCsharpCallableContractIndex({ contracts, declarationContracts: nativeDeclarations, byDeclaration,
     byProjectConstructor, closedInputs });
+
+  function nativeInput(argument: NonNullable<ReturnType<typeof sourceExpressionCallArgument>>, invocationOnly: boolean): TargetTypeRef | undefined {
+    const operation = policy.ast.is.IsNewExpression(argument.call)
+      ? operations.selectedConstruction.get(argument.call) : operations.selectedCall.get(argument.call);
+    const selected = operation?.target;
+    if (selected?.kind !== "resolved") return undefined;
+    const call = selected.call;
+    if (invocationOnly && (call.origin !== "source-profile" ||
+      call.invocationOnlyCallableArgumentIndexes?.includes(argument.argumentIndex) !== true)) return undefined;
+    const bindings = call.arguments.filter(binding => binding.sourceArgumentIndex === argument.argumentIndex);
+    if (bindings.length !== 1 || bindings[0]!.sourceForm !== "value" ||
+      bindings[0]!.targetParameter.passingMode !== "by-value" || bindings[0]!.targetParameter.paramsArray === true) return undefined;
+    const checked = policy.semanticsFor(argument.call).operations.call(argument.call);
+    const original = checked?.sourceArguments[argument.argumentIndex]?.expression;
+    if (original === undefined) return undefined;
+    let expression = original;
+    for (let operand = sourceTransparentExpressionOperand(policy.ast, expression); operand !== undefined;
+      operand = sourceTransparentExpressionOperand(policy.ast, expression)) expression = operand;
+    let actual = argument.argument;
+    for (let operand = sourceTransparentExpressionOperand(policy.ast, actual); operand !== undefined;
+      operand = sourceTransparentExpressionOperand(policy.ast, actual)) actual = operand;
+    if (expression !== actual) return undefined;
+    const target = bindings[0]!.targetParameter.type;
+    return getCsharpNullableElementTargetType(target) === undefined ? target : undefined;
+  }
 
   function visit(node: Node, sourceFile: SourceFile): void {
     if (evidence.compileTimeMetadata.get(node)) return;

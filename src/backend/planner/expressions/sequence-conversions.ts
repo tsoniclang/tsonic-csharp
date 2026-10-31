@@ -155,27 +155,33 @@ export function planCsharpSequenceAppendStatements(
   elementTarget: TargetTypeRef,
   append: (value: CsharpExpression) => CsharpStatement,
 ): readonly CsharpStatement[] | undefined {
-  const convert = (value: CsharpExpression, index: number): CsharpExpression | undefined => {
+  const convert = (value: CsharpExpression, index: number, prelude: CsharpStatement[]): CsharpExpression | undefined => {
     const element = source.elements[index];
     return element === undefined ? undefined : applyCsharpConversionSelection(node, sourceFile, input, diagnostics,
-      element.carrier, elementTarget, element.conversion, value);
+      element.carrier, elementTarget, element.conversion, value, prelude, "snapshot");
   };
   if (source.sequence.iteration === "tuple") {
-    const values = source.elements.map((_, index) => convert({ kind: "SimpleMemberAccessExpression",
-      receiver, name: source.sequence.tupleMembers[index]! }, index));
-    return values.some(value => value === undefined) ? undefined : values.map(value => append(value!));
+    const statements: CsharpStatement[] = [];
+    for (const [index] of source.elements.entries()) {
+      const value = convert({ kind: "SimpleMemberAccessExpression", receiver, name: source.sequence.tupleMembers[index]! }, index, statements);
+      if (value === undefined) return undefined;
+      statements.push(append(value));
+    }
+    return statements;
   }
   if (source.sequence.iteration === "indexed") {
     const indexName = input.names.temporaryName("__tsonic_sequence_index");
     const loop = planCsharpCollectionIndexedIteration(source.carrier, receiver, indexName, read => {
-      const value = convert(read, 0);
-      return value === undefined ? undefined : [append(value)];
+      const statements: CsharpStatement[] = [];
+      const value = convert(read, 0, statements);
+      return value === undefined ? undefined : [...statements, append(value)];
     }, input);
     return loop === undefined ? reject(node, diagnostics, "Native sequence read lost its finalized indexed member contract.") : [loop];
   }
-  const value = convert(identifier("value"), 0);
+  const statements: CsharpStatement[] = [];
+  const value = convert(identifier("value"), 0, statements);
   return value === undefined ? undefined : [{ kind: "ForEachStatement", itemType: source.elements[0]!.type,
-    itemName: "value", collection: receiver, body: { kind: "Block", statements: [append(value)] } }];
+    itemName: "value", collection: receiver, body: { kind: "Block", statements: [...statements, append(value)] } }];
 }
 
 export function planCsharpSequenceLength(source: Omit<CsharpArraySpreadInput, "expression">, receiver: CsharpExpression): CsharpExpression | undefined {

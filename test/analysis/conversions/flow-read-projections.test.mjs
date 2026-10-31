@@ -266,9 +266,11 @@ test("deferred generic constructor fields are analyzed once and reconstructed wi
       resolveReadStorage() { throw new Error("planner cannot reselect a storage carrier"); },
     } } };
   const diagnostics = [];
-  const planned = planFlowReadUseSiteProjection(deferred[0], expression, {}, input, diagnostics);
+  const prelude = [];
+  const planned = planFlowReadUseSiteProjection(deferred[0], expression, {}, input, diagnostics, prelude);
   assert.equal(planned?.kind, "PostfixUnaryExpression");
   assert.equal(planned.operand === expression, true);
+  assert.equal(prelude.length, 0, "the original deferred non-null read has no statement prelude");
   assert.equal(diagnostics.length, 0);
 });
 
@@ -453,12 +455,13 @@ test("missing or malformed sealed flow projections fail only through the interna
   for (const [label, projection] of malformed) {
     let materialized = 0;
     const diagnostics = [];
+    const prelude = [];
     const result = runTargetCompilationStages({
       analyze: () => resolvedTargetStage({ ...value.program, records: { ...value.program.records,
         flowReadProjection: { get(node) { assert.equal(node === read, true, label); return projection; } },
       } }),
       plan(program) {
-        return resolvedTargetStage(planFlowReadUseSiteProjection(read, expression, {}, { program }, diagnostics));
+        return resolvedTargetStage(planFlowReadUseSiteProjection(read, expression, {}, { program }, diagnostics, prelude));
       },
       materialize() { materialized += 1; throw new Error("an internal invariant must not publish artifacts"); },
     });
@@ -469,10 +472,13 @@ test("missing or malformed sealed flow projections fail only through the interna
     assert.equal(result.diagnostics[0].source, "tsonic-csharp", label);
     assert.equal(diagnostics.length, 0, "the planner never appends a user-source rejection");
     assert.equal(materialized, 0, label);
+    assert.equal(prelude.length, 0, label + ": rejected evidence emits no conversion prelude");
   }
+  const prelude = [];
   const result = planFlowReadUseSiteProjection(read, expression, {}, {
     storageExpression: read,
     program: { records: { flowReadProjection: { get() { throw new Error("a native storage location is not a read"); } } } },
-  }, []);
+  }, [], prelude);
   assert.equal(result === expression, true, "explicit native storage use stays unprojected");
+  assert.equal(prelude.length, 0, "the identical native storage expression has no read prelude");
 });

@@ -21,10 +21,14 @@ export interface CsharpDelegateAdapterIdentity {
   readonly assertPresent: boolean;
 }
 
-export interface CsharpExpressionConversionClassification {
+export interface CsharpExpressionConversion {
+  readonly selection: CsharpConversionSelection;
+  readonly operandStability: "stable" | "snapshot";
+}
+
+export interface CsharpExpressionConversionClassification extends CsharpExpressionConversion {
   readonly source: TargetTypeRef;
   readonly target: TargetTypeRef;
-  readonly selection: CsharpConversionSelection;
   readonly identityRequired?: boolean;
   readonly delegateIdentity?: CsharpDelegateAdapterIdentity;
 }
@@ -37,7 +41,7 @@ export interface CsharpConversionClassifications extends CsharpGeneratedHelperRe
   readonly delegateAdapter: { readonly get: (expression: Node, source: TargetTypeRef, target: TargetTypeRef) => CsharpDelegateAdapterIdentity | undefined };
   readonly directCallableReference: { readonly get: (expression: Node) => SourceProjectReference | undefined };
   readonly conversion: { readonly get: (source: TargetTypeRef | undefined, target: TargetTypeRef | undefined, mode: CsharpConversionMode) => CsharpConversionSelection | undefined };
-  readonly expressionConversion: { readonly get: (expression: Node, source: TargetTypeRef | undefined, target: TargetTypeRef | undefined, mode: CsharpConversionMode) => CsharpConversionSelection | undefined };
+  readonly expressionConversion: { readonly get: (expression: Node, source: TargetTypeRef | undefined, target: TargetTypeRef | undefined, mode: CsharpConversionMode) => CsharpExpressionConversion | undefined };
 }
 
 export interface CsharpValueReadStages {
@@ -80,4 +84,9 @@ export interface CsharpConversionPublication extends CsharpGeneratedHelperRecord
 export const csharpUnavailableConversion: CsharpConversionSelection = Object.freeze({
   kind: "rejected",
   reason: "C# conversion requires closed source and target representations.",
+});
+
+export const csharpUnavailableExpressionConversion: CsharpExpressionConversion = Object.freeze({
+  selection: csharpUnavailableConversion,
+  operandStability: "snapshot",
 });

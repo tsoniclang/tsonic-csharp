@@ -20,7 +20,7 @@ import { planCsharpAbsentValue, planCsharpStorageIsAbsent } from "./optional-sto
 import { csharpPlannedEffect, csharpPlannedValue, mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
 import { planCsharpJsValueBox, translateCsharpJsValueInvocation } from "./js-value-operations.js";
 import { captureCsharpPlannedValue, planCsharpExpressionCompletion, planCsharpValueBranch } from "./planned-value-composition.js";
-import { applyCsharpConversionSelection } from "./conversions.js";
+import { applyCsharpConversionSelection, readCsharpExpressionOperandStability } from "./conversions.js";
 import { requireCsharpNativeExpressionUse } from "./native-uses.js";
 import { planCsharpPlannedDiscard } from "../statements/statement-output.js";
 import { csharpPlannedAddressOperand } from "./planned-locations.js";
@@ -58,8 +58,8 @@ export function planCsharpNativeExpression(
       : csharpPlannedValue(selected.target, absent, planned.prelude,
         input.program.records.nativeConstant.get(node, selected.target) === true, input.program.records.nativeAbsence.get(node, selected.target) === true);
   }
-  return mapCsharpPlannedValue(planned, selected.target, expression => applyCsharpConversionSelection(
-    node, sourceFile, input, diagnostics, selected.carrier, selected.target, conversion, expression, planned.absent === true, planned.callable),
+  return mapCsharpPlannedValue(planned, selected.target, (expression, prelude) => applyCsharpConversionSelection(
+    node, sourceFile, input, diagnostics, selected.carrier, selected.target, conversion, expression, prelude, readCsharpExpressionOperandStability(node, input, selected.carrier, selected.target, selected.mode, conversion), planned.absent === true, planned.callable),
     input.program.records.nativeConstant.get(node, selected.target) === true);
 
   function render(use: Exclude<CsharpNativeUse, { readonly kind: "erased" }>): CsharpPlannedValue | undefined {
@@ -93,8 +93,8 @@ export function planCsharpNativeExpression(
       for (const member of selected.members) {
         const value = mapCsharpPlannedValue(
           planners.planExpression(member.initializer, sourceFile, input, diagnostics, state), selected.argumentType,
-          expression => applyCsharpConversionSelection(member.initializer, sourceFile, input, diagnostics,
-            member.carrier, selected.argumentType, member.conversion, expression));
+          (expression, conversionPrelude) => applyCsharpConversionSelection(member.initializer, sourceFile, input, diagnostics,
+            member.carrier, selected.argumentType, member.conversion, expression, conversionPrelude, readCsharpExpressionOperandStability(member.initializer, input, member.carrier, selected.argumentType, "implicit", member.conversion)));
         if (value === undefined) return undefined;
         prelude.push(...value.prelude);
         if (value.completion.kind === "never") return { prelude, completion: value.completion };

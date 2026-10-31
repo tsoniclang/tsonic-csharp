@@ -206,7 +206,7 @@ export function analyzeCsharpRepresentationIteration(
     classFactories.factories.flatMap(factory => factory.captures), callables, operations.erasedStatement);
   const callableCreations = analyzeCsharpCallableCreations({
     source, nodes: sourceStorage.nodes, captures: captureStorage, contracts: callables,
-    operations, storage: storageRepresentations, evidence: sourceEvidence, conversions: preparedConversions,
+    operations, storage: storageRepresentations, expectedTypes, evidence: sourceEvidence, conversions: preparedConversions,
     literals: typeHost.literalValues,
   });
   expectedTypes.completeReturns(callableCreations.callableCreation);

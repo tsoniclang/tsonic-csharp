@@ -18,7 +18,7 @@ import type {
 import {
   translateCsharpSelectedReceiver,
 } from "./receivers.js";
-import { applyCsharpConversionSelection } from "./conversions.js";
+import { applyCsharpConversionSelection, readCsharpExpressionOperandStability } from "./conversions.js";
 import { csharpRecordOptionalRead } from "../objects/indexed-records.js";
 import { planCsharpUnionProperty } from "./union-properties.js";
 import { mapCsharpPlannedValue, type CsharpPlannedValue } from "./planned-values.js";
@@ -128,7 +128,7 @@ function translateSelectedProperty(
   if (receiver.kind !== "value") failCsharpPlannerInvariant("An admitted instance property requires a native receiver value.", node);
   const projection = selection.invocation.kind === "array-like" ? selection.invocation.projection : undefined;
   const projected = projection === undefined ? receiver.value : mapCsharpPlannedValue(receiver.value, projection.target,
-    value => applyCsharpConversionSelection(node, sourceFile, input, diagnostics, projection.source, projection.target, projection.conversion, value));
+    (value, prelude) => applyCsharpConversionSelection(node, sourceFile, input, diagnostics, projection.source, projection.target, projection.conversion, value, prelude, readCsharpExpressionOperandStability(node, input, projection.source, projection.target, "implicit", projection.conversion)));
   return projected === undefined ? undefined : projectCsharpPlannedMember(node, sourceFile, input, diagnostics,
     projected, member.targetName, conditional);
 }

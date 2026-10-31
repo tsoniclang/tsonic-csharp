@@ -176,6 +176,7 @@ export function planLocalDeclarationStatements(
       yieldPlan.resumeExpression,
     );
     const targetType = input.program.records.storageType.get(declarationNode);
+    const resumePrelude: CsharpStatement[] = [];
     const initializer = targetType === undefined
       ? yieldPlan.resumeExpression
       : convertCsharpYieldResumeExpression(
@@ -185,12 +186,14 @@ export function planLocalDeclarationStatements(
           sourceFile,
           input,
           diagnostics,
+          resumePrelude,
         );
     if (initializer === undefined) {
       return failCsharpPlannerInvariant("An admitted yield initializer requires its native resume conversion.", directYield);
     }
     return [
       ...yieldPlan.statements,
+      ...resumePrelude,
       ...(locationIdentity === undefined ? [] : [locationIdentity]),
       {
         kind: "LocalDeclarationStatement",

@@ -169,18 +169,21 @@ test("retained adapter planning rejects a stale activation or carrier and keeps 
       target: csharpDelegateTargetType("System.Action", [{ kind: "source-primitive", name: "int64" }]) }) } } } },
   ]) {
     const diagnostics = [];
+    const prelude = [];
     assert.throws(() => planCsharpDelegateAdapter(node, {}, context, diagnostics, source, target, selection,
-      { kind: "IdentifierName", name: "callback" }, applyCsharpConversionSelection),
+      { kind: "IdentifierName", name: "callback" }, applyCsharpConversionSelection, prelude, "stable"),
     error => error.diagnostic?.code === "TSONIC_INTERNAL_PLANNER_INVARIANT" &&
       error.message === "An admitted retained adapter requires its exact lexical native method.");
     assert.equal(diagnostics.length, 0);
+    assert.equal(prelude.length, 0);
   }
   const diagnostics = [];
+  const prelude = [];
   const planned = planCsharpDelegateAdapter(node, {}, base, diagnostics, source, target, selection,
-    { kind: "IdentifierName", name: "callback" }, applyCsharpConversionSelection);
+    { kind: "IdentifierName", name: "callback" }, applyCsharpConversionSelection, prelude, "stable");
   assert.equal(diagnostics.length, 0);
-  assert.equal(planned.kind, "ObjectCreationExpression");
-  assert.equal(planned.arguments[0].expression.name, "adapter");
+  assert.equal(planned.kind === "IdentifierName" && planned.name === "adapter", true);
+  assert.equal(prelude.length, 0);
   for (const [modes, message] of [
     [undefined, "C# delegate adaptation requires exact renderable source and target signatures."],
     [[], "C# delegate adaptation requires exact renderable source and target signatures."],

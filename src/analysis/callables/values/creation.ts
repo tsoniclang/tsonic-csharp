@@ -7,6 +7,7 @@ import type { CsharpCaptureStorage } from "../../../target-model/records/callabl
 
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";
 import type { CsharpStorageClassifications } from "../../../target-model/records/storage/storage.js";
+import type { CsharpExpectedTypeClassifications } from "../../../target-model/records/types/expected-types.js";
 import type { CsharpConversionClassifications } from "../../../target-model/records/operations/conversions.js";
 import { csharpConversionIsApplicable } from "../../../policy/conversions/applicability.js";
 import { csharpArgumentVectorCallbackResultMatches } from "../../../policy/conversions/callable-completions.js";
@@ -28,6 +29,7 @@ export interface CsharpCallableCreationInput {
   readonly contracts: CsharpCallableContractIndex;
   readonly operations: Pick<CsharpTargetOperationClassifications, "selectedCall" | "selectedConstruction">;
   readonly storage: Pick<CsharpStorageClassifications, "lambdaParameterType" | "storageType">;
+  readonly expectedTypes: Pick<CsharpExpectedTypeClassifications, "requiredExpectedType">;
   readonly evidence: Pick<CsharpSourceEvidenceIndex, "nodeTargetType" | "contextualType" | "compileTimeMetadata">;
   readonly conversions: Pick<CsharpConversionClassifications, "conversion">;
   readonly literals: SourceLiteralIndex;
@@ -66,17 +68,35 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
       continue;
     }
     const disposition = sourceExpressionResultDisposition(ast, node);
+    let container = disposition.kind === "stored" && ast.is.IsPropertyAssignment(disposition.use)
+      ? ast.parent(disposition.use) : disposition.kind === "stored" && ast.is.IsArrayLiteralExpression(disposition.use)
+        ? disposition.use : undefined;
+    const visited = new Set<Node>();
+    let aggregate = false;
+    while (argument === undefined && container !== undefined && !visited.has(container)) {
+      visited.add(container);
+      if (sourceExpressionCallArgument(container, input.source) !== undefined) { aggregate = true; break; }
+      const owner = sourceExpressionResultDisposition(ast, container);
+      container = owner.kind === "stored" && ast.is.IsPropertyAssignment(owner.use) ? ast.parent(owner.use)
+        : owner.kind === "stored" && ast.is.IsArrayLiteralExpression(owner.use) ? owner.use : undefined;
+    }
+    const requirements = aggregate ? input.expectedTypes.requiredExpectedType.get(node) : undefined;
+    if (requirements !== undefined && (requirements.length !== 1 || getCsharpLambdaSignature(
+      getCsharpNullableElementTargetType(requirements[0]) ?? requirements[0]) === undefined)) {
+      producer.publish(node, Object.freeze({ kind: "pending" }));
+      continue;
+    }
     const contextual = argument !== undefined ? immediate
       : disposition.kind === "stored" && ast.is.IsVariableDeclaration(disposition.use)
         ? input.storage.storageType.get(disposition.use)
-        : input.evidence.contextualType.get(node)?.targetType;
+        : aggregate ? requirements![0] : input.evidence.contextualType.get(node)?.targetType;
     const contextualCarrier = getCsharpNullableElementTargetType(contextual) ?? contextual;
     const contract = input.contracts.get({ kind: "declaration", declaration: node });
     const closed = input.contracts.closedInputType(node);
     const native = contract === undefined ? undefined : closed ?? csharpCallableValueType(contract);
     const asynchronous = HasSyntacticModifier(ast, node, ModifierFlagsAsync);
     const carrier = closure !== undefined ? closure.method.type
-      : closed !== undefined && (contract?.bodyInputs !== undefined || contract?.nativeParameters.some(parameter => parameter.targetParameter.optional === true)) ? closed
+      : closed !== undefined ? closed
       : observedSelf || getCsharpMethodValue(sourceCarrier) !== undefined ? sourceCarrier
       : contextualCarrier !== undefined && (!asynchronous ||
         getCsharpTaskResultTargetType(getCsharpLambdaSignature(contextualCarrier)?.returnType) !== undefined) &&

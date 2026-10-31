@@ -1,6 +1,6 @@
 import type { CsharpTypeofRuntimeKind, TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpTypeofResultsEqual, getCsharpTypeofResult, type CsharpTypeofResult } from "../../../target-model/types/runtime-kind.js";
-import type { CsharpExpression, CsharpSwitchExpressionArm } from "../../target-ast/syntax/index.js";
+import type { CsharpExpression, CsharpStatement, CsharpSwitchExpressionArm } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { allocateExpressionTemp, type DestructuringPlannerState } from "../bindings/binding-state.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
@@ -18,12 +18,16 @@ export function planCsharpRuntimeCategory(
   category: CsharpTypeofResult,
   input: CsharpPlanningContext,
   state: DestructuringPlannerState,
+  prelude: CsharpStatement[],
+  evaluation: "evaluate" | "omit",
   comparison?: CsharpRuntimeCategoryComparison,
 ): CsharpExpression | undefined {
   // The sealed category must agree with its operand carrier; a forged or stale fact is refused. The sealed program has
   // no type definitions, so only native class kinds (which need them) rest on the analysis record alone.
   const expected = getCsharpTypeofResult(carrier);
   if (expected !== undefined && !csharpTypeofResultsEqual(expected, category)) return undefined;
+  if (typeof category === "string") return evaluatedConstant(expression, carrier,
+    comparison === undefined ? category : (category === comparison.runtimeKind) !== comparison.negated, prelude, evaluation);
   return planRuntimeCategory(expression, category, input, state, comparison);
 }
 
@@ -37,7 +41,7 @@ function planRuntimeCategory(
   const literal = (value: CsharpTypeofRuntimeKind): Extract<CsharpExpression, { readonly kind: "LiteralExpression" }> => ({
     kind: "LiteralExpression", value: comparison === undefined ? value : (value === comparison.runtimeKind) !== comparison.negated,
   });
-  if (typeof category === "string") return evaluatedConstant(expression, literal(category).value);
+  if (typeof category === "string") return literal(category);
   const arms: CsharpSwitchExpressionArm[] = [];
   if (category.kind === "optional") {
     const designation = allocateExpressionTemp(state);

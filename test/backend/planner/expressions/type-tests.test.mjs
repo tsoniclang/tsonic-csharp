@@ -63,7 +63,9 @@ for (const kind of ["nominal", "array"]) test(`closed ${kind} tests reject missi
   assert.equal(csharpClosedTypeTestMatches(fact), true);
   const admitted = sealedTypeTest(fact);
   assert.deepEqual(admitted.issues, []);
-  assert.equal(planCsharpClosedTypeTest(expression, fact, planning(admitted), state()).kind, "SwitchExpression");
+  const prelude = [];
+  assert.equal(planCsharpClosedTypeTest(expression, fact, planning(admitted), state(), prelude, "omit").kind, "SwitchExpression");
+  assert.equal(prelude.length, 0, "the genuine optional/union dispatch keeps its single original receiver");
   const cyclic = { kind: "optional", element: fact.test.element };
   cyclic.test = cyclic;
   for (const selected of [undefined, null, cyclic, { kind: "native" }, { kind: "constant", value: true },
@@ -77,7 +79,7 @@ for (const kind of ["nominal", "array"]) test(`closed ${kind} tests reject missi
     // The analysis refuses the forged test and seals no plan; the planner never plans an unsealed one.
     const refused = sealedTypeTest(altered);
     assert.equal(refused.issues.length, 1);
-    assert.throws(() => planCsharpClosedTypeTest(expression, altered, planning(refused), state()), missingPlan);
+    assert.throws(() => planCsharpClosedTypeTest(expression, altered, planning(refused), state(), prelude, "omit"), missingPlan);
   }
   for (const changes of [{ predicate: undefined }, { predicate: null }, { predicate: { kind: "unknown" } },
     { predicate: { ...predicate, unexpected: true } }, { sourceCarrier: null },
@@ -86,6 +88,6 @@ for (const kind of ["nominal", "array"]) test(`closed ${kind} tests reject missi
     assert.equal(csharpClosedTypeTestMatches(altered), false);
     // A missing predicate cannot come from a call classification; the analysis is exercised with defined predicates.
     if (altered.predicate !== undefined && altered.predicate !== null) assert.equal(sealedTypeTest(altered).issues.length, 1);
-    assert.throws(() => planCsharpClosedTypeTest(expression, altered, planning(admitted), state()), missingPlan);
+    assert.throws(() => planCsharpClosedTypeTest(expression, altered, planning(admitted), state(), prelude, "omit"), missingPlan);
   }
 });

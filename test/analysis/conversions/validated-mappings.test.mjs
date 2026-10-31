@@ -100,7 +100,7 @@ for (const surface of ["native", "js"]) {
     const native = program.records.nativeExpression.get(returned[0])?.use;
     assert.equal(native?.kind === "converted", true, "the actual return has an exact native conversion");
     const target = native.target;
-    const selection = program.records.expressionConversion.get(returned[0], source, target, "implicit");
+    const selection = program.records.expressionConversion.get(returned[0], source, target, "implicit")?.selection;
     assertCanonicalMapping(selection, "source");
     assertMappingEmission(plan, "widen", selection, target, [0, 1], [1, 2], false);
   });

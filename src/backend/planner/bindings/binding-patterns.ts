@@ -90,8 +90,9 @@ function planBindingNameFromProjection(
   const type = csharpTypeFromTargetTypeRef(binding.target, input.scope.typeParameterNames);
   if (type === undefined) return failCsharpPlannerInvariant(
     "An admitted binding destination lost its native carrier rendering.", projectionNode);
+  const prelude: CsharpStatement[] = [];
   const initializedValue = applyCsharpConversionSelection(projectionNode, sourceFile, input, diagnostics,
-    binding.source, binding.target, binding.conversion, projected);
+    binding.source, binding.target, binding.conversion, projected, prelude, "snapshot");
   if (initializedValue === undefined) return failCsharpPlannerInvariant(
     "An admitted binding conversion lost its selected native renderer.", projectionNode);
   if (HasSourceKind(input.program.source.ast, name, KindIdentifier)) {
@@ -125,13 +126,14 @@ function planBindingNameFromProjection(
           right: binding.initializer!,
         },
       } : binding;
-    return [...(identity === undefined ? [] : [initialized(identity)]),
+    return [...prelude, ...(identity === undefined ? [] : [initialized(identity)]),
       ...(local === undefined ? [captured!] : [initialized(local)])];
   }
   if (HasSourceKind(input.program.source.ast, name, KindObjectBindingPattern) || HasSourceKind(input.program.source.ast, name, KindArrayBindingPattern)) {
     const nestedName = allocateDestructuringTemp(state);
     const nestedSource: CsharpExpression = { kind: "IdentifierName", name: nestedName };
     return [
+      ...prelude,
       {
         kind: "LocalDeclarationStatement",
         name: nestedName,

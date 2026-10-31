@@ -4,7 +4,7 @@ import { planCsharpSourceUndefinedValue } from "../undefined-values.js";
 import { translateCallArgument } from "./arguments.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../expression-planner-types.js";
-import type { CsharpArgument, CsharpExpression } from "../../../target-ast/syntax/index.js";
+import type { CsharpArgument, CsharpExpression, CsharpStatement } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
@@ -56,8 +56,10 @@ export function translateSourceOwnedCall(node: Node, sourceFile: SourceFile, inp
     return convertCsharpPlannedValue(node, sourceFile, input, diagnostics, invocation, selected.result.selectedType, "explicit");
   };
   if (callee.kind === "function") {
-    const expression = planCsharpNativeFunctionCallee(callee, sourceFile, input, diagnostics, state);
-    return composeCsharpPlannedCall(node, sourceFile, input, diagnostics, undefined, arguments_, (_, args) => invoke(expression, args));
+    const prelude: CsharpStatement[] = [];
+    const expression = planCsharpNativeFunctionCallee(callee, sourceFile, input, diagnostics, prelude, state);
+    const call = composeCsharpPlannedCall(node, sourceFile, input, diagnostics, undefined, arguments_, (_, args) => invoke(expression, args));
+    return call === undefined ? undefined : { ...call, prelude: [...prelude, ...call.prelude] };
   }
   if (callee.kind === "method") {
     const method = planCsharpNativeMethodCallee(callee, sourceFile, input, diagnostics, planExpression);
@@ -92,16 +94,21 @@ export function translateSourceOwnedArguments(node: Node, sourceFile: SourceFile
     if (argument === undefined) return undefined;
     planned.push(argument);
   }
+  const groups = selected.groups.map(group => {
+    if (group.kind !== "absence") return group;
+    const prelude: CsharpStatement[] = [];
+    const expression = planCsharpSourceUndefinedValue(node, group, sourceFile, input, diagnostics, prelude);
+    const index = planned.length;
+    planned.push(csharpPlannedValue(group.type, expression, prelude, true, true));
+    return { kind: "value" as const, index };
+  });
   return { operands: planned, arguments: values => {
     const arguments_: CsharpArgument[] = [];
-    for (const group of selected.groups) {
+    for (const group of groups) {
       if (group.kind === "collect") arguments_.push({ kind: "Argument", expression: { kind: "CollectionExpression", elements: group.arguments.map(argument => ({
         kind: argument.spread ? "SpreadElement" : "ExpressionElement", expression: values[argument.index]!,
       })) } });
       else if (group.kind === "value") arguments_.push(csharpPlannedArgumentSyntax(planned[group.index]!, values[group.index]!));
-      else {
-        arguments_.push({ kind: "Argument", expression: planCsharpSourceUndefinedValue(node, group, sourceFile, input, diagnostics) });
-      }
     }
     return arguments_;
   } };

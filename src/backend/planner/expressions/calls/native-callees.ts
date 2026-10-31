@@ -1,7 +1,7 @@
 import type { SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpSourceCalleeSelection } from "../../../../target-model/operations/source-callees.js";
-import type { CsharpExpression } from "../../../target-ast/syntax/index.js";
+import type { CsharpExpression, CsharpStatement } from "../../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import type { ExpressionPlanner } from "../expression-planner-types.js";
 import { csharpPlannedValue, type CsharpPlannedValue, type CsharpPlannedEffectOperand } from "../planned-values.js";
@@ -15,10 +15,11 @@ import { captureCsharpPlannedMemberReceiver } from "../planned-locations.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 
 export function planCsharpNativeFunctionCallee(selected: Extract<CsharpSourceCalleeSelection, { readonly kind: "function" }>,
-  sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], state: DestructuringPlannerState | undefined): CsharpExpression {
+  sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], prelude: CsharpStatement[],
+  state: DestructuringPlannerState | undefined): CsharpExpression {
   const form = input.program.records.nativeFunctionCallee.get(selected.expression);
   if (form === undefined) failCsharpPlannerInvariant("An admitted native function requires its exact source acquisition plan.", selected.expression);
-  return (form === "identifier" ? planIdentifierExpression(selected.expression, sourceFile, input, diagnostics, state)
+  return (form === "identifier" ? planIdentifierExpression(selected.expression, sourceFile, input, diagnostics, prelude, state)
     : tryPlanProjectSourceModuleStaticMemberReference(selected.expression, sourceFile, input, diagnostics)) ??
     failCsharpPlannerInvariant("An admitted native function group requires its exact declaration reference syntax.", selected.expression);
 }

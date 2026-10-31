@@ -27,3 +27,9 @@ export function readCsharpNativeExpressionCarrier(input: CsharpPlanningContext, 
   const use = requireCsharpNativeExpressionUse(input, expression).use;
   return use.kind === "erased" ? undefined : use.carrier;
 }
+
+export function readCsharpNativeDiscardEvaluation(input: CsharpPlanningContext, expression: Node): "evaluate" | "omit" {
+  const selected = requireCsharpNativeExpressionUse(input, expression).discardEvaluation;
+  return selected === "evaluate" || selected === "omit" ? selected
+    : failCsharpPlannerInvariant("A native constant result requires its sealed operand evaluation fact.", expression);
+}

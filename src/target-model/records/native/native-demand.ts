@@ -201,6 +201,7 @@ export type CsharpNativeDiscardEmission =
 export interface CsharpNativeExpressionRecord {
   readonly site: TargetUseSiteRef;
   readonly use: CsharpNativeUse;
+  readonly discardEvaluation: "evaluate" | "omit";
   readonly physical: Exclude<CsharpNativeUse, { readonly kind: "erased" }> | undefined;
   readonly conversion: Exclude<import("../../conversions/selection.js").CsharpConversionSelection, { readonly kind: "rejected" }> | undefined;
   readonly bottom: { readonly effects: readonly TargetUseSiteRef[]; readonly expression: Node } | undefined;

@@ -271,7 +271,7 @@ export function finalizeCsharpNativeEmission(
     operations: admittedOperations, metadata: analysis.sourceEvidence.compileTimeMetadata,
     participation: nativeParticipation.participation, values: analysis.valueReads.valueRead,
     switchCoversDiscriminant, required: analysis.requiredRecords });
-  const lexicalValues = analyzeCsharpLexicalValues({ nodes: sourceStorage.nodes, navigation: source.navigation,
+  const lexicalValues = analyzeCsharpLexicalValues({ ast: source.ast, nodes: sourceStorage.nodes, navigation: source.navigation,
     captures: captureStorage, values: analysis.valueReads, metadata: analysis.sourceEvidence });
   if (lexicalValues.issues.length !== 0) return rejectedTargetStage(lexicalValues.issues);
   const sourceOutputIdentities = analyzeCsharpSourceOutputIdentities({ ast: source.ast, sourceFiles, paths: input.paths,
@@ -386,7 +386,8 @@ export function finalizeCsharpNativeEmission(
   const nativeConstants = analyzeCsharpNativeConstants({ ast: source.ast, demand: nativeDemand, literals: literalValues,
     exact: exactLiterals, values: analysis.valueReads, types: typeEmission.records, references: sourceReferences.records });
   const expressionEmission = analyzeCsharpExpressionEmission({ source, nodes: sourceStorage.nodes, demand: nativeDemand, conversions,
-    evidence: analysis.sourceEvidence, factories: classFactories, operations: admittedOperations });
+    evidence: analysis.sourceEvidence, factories: classFactories, operations: admittedOperations,
+    references: sourceReferences.records, properties: propertyAdmission.records, types: typeEmission.records });
   if (expressionEmission.issues.length !== 0) return rejectedTargetStage(expressionEmission.issues);
   const binaryEmission = analyzeCsharpBinaryEmission({ source, nodes: sourceStorage.nodes, operations: admittedOperations,
     demand: nativeDemand, storage: analysis.storage, constants: nativeConstants, optionalLocals: analysis.optionalLocals,

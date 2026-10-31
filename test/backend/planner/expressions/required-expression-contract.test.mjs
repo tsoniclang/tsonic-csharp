@@ -71,7 +71,7 @@ function fixture() {
         target: Object.freeze({ ...classification.target, call: wrongCall }) }) : program.records.selectedCall.get(node) }),
       expressionConversion: Object.freeze({ get: (node, from, to, mode) => node === radix && mode === "implicit"
         && targetTypeRefEquals(from, absence) && targetTypeRefEquals(to, number)
-        ? rejection : program.records.expressionConversion.get(node, from, to, mode) }) }),
+        ? Object.freeze({ selection: rejection, operandStability: "snapshot" }) : program.records.expressionConversion.get(node, from, to, mode) }) }),
   });
   return { source, program, changed, call, radix, number, rejection };
 }

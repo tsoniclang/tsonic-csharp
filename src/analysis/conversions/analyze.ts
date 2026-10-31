@@ -36,8 +36,48 @@ import { createCsharpGeneratedHelperRecords } from "../program/records/program/g
 import type { CsharpGeneratedHelper } from "../../target-model/records/program/generated-helpers.js";
 import { createCsharpDelegateContractProducer } from "../program/records/callables/callable-conversions.js";
 import { admitCsharpDelegateEmission, admitCsharpDelegateOperand } from "./callable-emission.js";
+import { sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
 
 const maximumConversionClassifications = 1_048_576;
+
+export function csharpConversionOperandStability(expression: Node, policy: CsharpPolicyContext,
+  operations: Pick<CsharpTargetOperationClassifications, "selectedProperty">): "stable" | "snapshot" {
+  const seen = new Set<Node>();
+  for (let current: Node | undefined = expression; current !== undefined;) {
+    if (seen.has(current)) return "snapshot";
+    seen.add(current);
+    const transparent = sourceTransparentExpressionOperand(policy.ast, current);
+    if (transparent !== undefined) { current = transparent; continue; }
+    const kind = policy.ast.kindName(current);
+    if (kind === "KindThisKeyword" || kind === "KindSuperKeyword" || kind === "KindNullKeyword" ||
+      kind === "KindTrueKeyword" || kind === "KindFalseKeyword" || kind === "KindStringLiteral" ||
+      kind === "KindNumericLiteral" || kind === "KindBigIntLiteral" || kind === "KindNoSubstitutionTemplateLiteral") return "stable";
+    if (policy.ast.is.IsIdentifier(current)) {
+      const reference = policy.navigation.referenceFor(current);
+      return reference !== undefined && isSourceOwnedProjectReference(reference, policy) &&
+        policy.ast.getSourceFile(reference.declaration) === reference.sourceFile &&
+        (policy.ast.is.IsVariableDeclaration(reference.declaration) || policy.ast.is.IsParameterDeclaration(reference.declaration) ||
+          policy.ast.is.IsFunctionDeclaration(reference.declaration)) &&
+        !policy.navigation.declarationUseSummary(reference.declaration).bindingWritten ? "stable" : "snapshot";
+    }
+    const property = operations.selectedProperty.get(current);
+    if (property?.selection.kind === "resolved") {
+      const { targetMember, receiver, source } = property.selection;
+      if (targetMember.kind !== "field" || targetMember.readonly !== true) return "snapshot";
+      if (receiver.kind === "none") return "stable";
+      current = source.receiver.expression;
+      continue;
+    }
+    if (property?.selection.kind === "source-owned") {
+      const member = property.sourceOwned?.shapeMember;
+      if (member?.kind !== "resolved" || member.member.readonly !== true || member.member.accessor !== undefined) return "snapshot";
+      current = property.selection.source.receiver.expression;
+      continue;
+    }
+    return "snapshot";
+  }
+  return "snapshot";
+}
 
 export function analyzeCsharpConversions(
   policy: CsharpPolicyContext,
@@ -96,15 +136,11 @@ export function analyzeCsharpConversions(
     } }),
     expressionConversion: Object.freeze({ get(expression, source, target, mode) {
       if (source === undefined || target === undefined) {
-        return csharpUnavailableConversion;
+        return csharpUnavailableExpressionConversion;
       }
       const key = csharpConversionKey(source, target, mode);
-      const selected = expressionSelections.get(expression)?.get(key)?.selection;
-      return selected ?? (
-          closed
-            ? undefined
-            : classifyExpression(expression, source, target, mode)
-        );
+      if (!closed && !expressionSelections.get(expression)?.has(key)) classifyExpression(expression, source, target, mode);
+      return expressionSelections.get(expression)?.get(key);
     } }),
   };
   const classifications = Object.freeze(openClassifications);
@@ -134,7 +170,8 @@ export function analyzeCsharpConversions(
         const key = csharpConversionKey(source, target, mode);
         if (boundary !== undefined) {
           const selections = expressionSelections.get(expression) ?? new Map();
-          selections.set(key, Object.freeze({ source, target, selection: selected,
+          selections.set(key, Object.freeze({ source, target, selection: selected, operandStability: selected.kind === "delegate-adapter" &&
+            selected.strategy === "adaptation" ? operandStability(expression) : "snapshot",
             ...(boundary.identityRequired === true ? { identityRequired: true } : {}) }));
           expressionSelections.set(expression, selections);
         }
@@ -275,9 +312,16 @@ export function analyzeCsharpConversions(
       selections = new Map();
       expressionSelections.set(expression, selections);
     }
-    selections.set(key, Object.freeze({ source, target, selection: selected }));
+    selections.set(key, Object.freeze({ source, target, selection: selected, operandStability: selected.kind === "delegate-adapter" &&
+      selected.strategy === "adaptation" ? operandStability(expression) : "snapshot" }));
     admitCsharpDelegateEmission(delegateContracts, source, target, selected);
     return selected;
+  }
+
+  function operandStability(expression: Node): "stable" | "snapshot" {
+    const operations = preparedOperations
+      ?? failTargetAnalysisInvariant("tsonic-csharp", "A delegate operand requires its completed selected-property input.", expression);
+    return csharpConversionOperandStability(expression, policy, operations);
   }
 
   function prepareStructuralDependencies(expression: Node, source: TargetTypeRef, target: TargetTypeRef): void {
@@ -352,4 +396,4 @@ export function analyzeCsharpConversions(
 
 import { collectCsharpConversionRequirements } from "./requirements.js";
 import { csharpConversionKey, sealCsharpConversionClassifications } from "../program/records/operations/conversions.js";
-import { csharpUnavailableConversion } from "../../target-model/records/operations/conversions.js";
+import { csharpUnavailableConversion, csharpUnavailableExpressionConversion } from "../../target-model/records/operations/conversions.js";
