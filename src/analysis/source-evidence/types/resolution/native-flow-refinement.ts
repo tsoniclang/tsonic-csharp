@@ -28,6 +28,7 @@ export function selectCsharpNativeGuardResult(
   host: CsharpTypePolicyHost,
   expression: Node,
   resolveCarrier: (reference: Node) => TargetTypeRef | undefined,
+  resolveNominal: (guard: Extract<SourceNativeValueGuard, { readonly kind: "nominal" }>) => TargetTypeRef | undefined,
 ): boolean | undefined {
   return selectSourceNativeGuardResult(host, expression, reference => {
     const sourceCarrier = resolveCarrier(reference);
@@ -35,11 +36,7 @@ export function selectCsharpNativeGuardResult(
     const present = getCsharpNullableElementTargetType(sourceCarrier) ?? sourceCarrier;
     const payloads = csharpUnionLeaves(present, host.typeDefinitions)?.map(member => member.carrier) ?? [present];
     return present === sourceCarrier ? payloads : [...payloads, csharpAbsenceTargetType()];
-  }, selected => {
-    const guard = selectSourceNativeValueGuard(host, selected);
-    return guard?.kind === "typeof" || guard?.kind === "absence"
-      ? { sourceOperand: guard.sourceOperand, predicate: guard } : undefined;
-  },
+  }, selected => selectNativeGuard(host, selected, resolveNominal),
     (member, predicate) => selectCsharpNativeCarrierPredicate(host.typeDefinitions, member, predicate));
 }
 

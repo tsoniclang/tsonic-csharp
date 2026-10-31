@@ -33,7 +33,11 @@ export function analyzeCsharpConstructorArguments(
     if (use.kind === "erased" || use.literal !== undefined) return false;
     const node = use.expression;
     const emission = records.expressionEmission.nativeExpression.get(node);
+    if (use.kind === "converted" && emission === undefined)
+      failTargetAnalysisInvariant("tsonic-csharp", "A converted constructor argument requires its admitted native expression plan.", node);
     if (emission?.bottom !== undefined || use.completion.kind === "never") return true;
+    if (use.kind === "converted" && emission?.conversion?.kind === "absence" &&
+      records.nativeConstants.nativeAbsence.get(node, use.carrier) !== true) return true;
     if (ast.is.IsArrowFunction(node) || ast.is.IsFunctionExpression(node)) {
       if (records.captureStorage.captureClosure.get(node) !== undefined) return false;
       const creation = records.callableCreations.callableCreation.get(node);

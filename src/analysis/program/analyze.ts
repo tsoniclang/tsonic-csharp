@@ -273,10 +273,6 @@ function analyzeCsharpTargetProgramBeforeSeal(
   if (classFactories.issues.length > 0) return rejectedTargetStage(classFactories.issues.map(issue => ({
     code: issue.code, category: "error" as const, source: "tsonic-csharp", sourceNode: issue.node, message: issue.message,
   })));
-  if (captureStorage.issues.length > 0) return rejectedTargetStage(captureStorage.issues.map(issue => ({
-    code: issue.code, category: "error" as const, source: "tsonic-csharp", sourceNode: issue.node, message: issue.message,
-  })));
-  if (flowReads.issues.length > 0) return rejectCsharpAnalysisIssues(flowReads.issues);
   const refusals = nativeDemand.unadmitted.flatMap<TargetDiagnostic>(use => {
     if (use.kind === "source-refusal") return [use.diagnostic];
     if (use.reason === "construction-unresolved") {
@@ -303,6 +299,10 @@ function analyzeCsharpTargetProgramBeforeSeal(
   // callable contract for its methods), so it is reported first, with them.
   if (refusals.length > 0) return rejectedTargetStage([...bindingPatterns.issues.map(issue => ({ code: issue.code, category: "error" as const,
     source: "tsonic-csharp", message: issue.message, sourceNode: issue.node })), ...refusals]);
+  if (captureStorage.issues.length > 0) return rejectedTargetStage(captureStorage.issues.map(issue => ({
+    code: issue.code, category: "error" as const, source: "tsonic-csharp", sourceNode: issue.node, message: issue.message,
+  })));
+  if (flowReads.issues.length > 0) return rejectCsharpAnalysisIssues(flowReads.issues);
   const nativeValueCarriers = analyzeCsharpNativeValueCarriers(
     source.ast, nativeDemand.requiredNativeValueDeclarations, analysis.sourceEvidence, analysis.valueReads, analysis.objectShapes,
     source.semantics.forNode, analysis.requiredRecords,

@@ -23,6 +23,7 @@ import { getCsharpClassFactory } from "../../../../target-model/types/carriers/c
 import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
 import { bindCsharpSourceDeclarationArguments, bindCsharpSourceTypeArguments } from "./generic-arguments.js";
 import { csharpModuleCallableInitializer } from "../../../../target-model/syntax/module-callables.js";
+import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 
 export function resolveSourceCallInstantiation(
   scope: CsharpTypeResolutionScope,
@@ -179,13 +180,9 @@ export function resolveSourceCallSelectedType(
     state = bound;
   }
   if (authoredTypeNode !== undefined && host.ast.is.IsThisTypeNode(authoredTypeNode)) {
-    return resolveAuthoredAndSelectedSourceType(
-      authoredTypeNode,
-      host.ast.getSourceFile(authoredTypeNode) ?? selectedSourceFile,
-      selectedType,
-      selectedSourceFile,
-      nextState(state),
-    );
+    if (selectedType === undefined) return undefined;
+    const receiverType = resolveSourceCallReceiverTargetType(source, selectedSourceFile, nextState(state));
+    return source.optionalChain ? getCsharpNullableElementTargetType(receiverType) ?? receiverType : receiverType;
   }
   const authoredSourceFile = host.ast.getSourceFile(authoredTypeNode) ??
     selectedSourceFile;
