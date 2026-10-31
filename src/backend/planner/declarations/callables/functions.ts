@@ -1,5 +1,4 @@
 import type { CsharpPlanningContext } from "../../context.js";
-import { sourceExpressionResultDisposition } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpMethodDeclaration, CsharpStatement } from "../../../target-ast/syntax/index.js";
@@ -64,14 +63,12 @@ export function planSourceFunctionDeclaration(
   const ast = input.program.source.ast;
   const declaration = ast.as.AsFunctionDeclaration(node) ?? ast.as.AsArrowFunction(node) ?? ast.as.AsFunctionExpression(node);
   if (declaration === undefined) failCsharpPlannerInvariant("A source method requires its original checked callable definition.", node);
-  const disposition = sourceExpressionResultDisposition(ast, node);
-  const owner = disposition.kind === "stored" && csharpModuleCallableInitializer(ast, disposition.use) === node
-    ? disposition.use : node;
+  const emission = input.program.records.callableDeclaration.get(node);
+  if (emission === undefined) failCsharpPlannerInvariant("An admitted source function requires its sealed native declaration plan.", node);
+  const owner = emission.sourceOwner;
   const sourceName = ast.name(owner);
   const name = sourceName === undefined || parent === undefined ? undefined : getCsharpLocalBindingName(sourceName, input, parent);
   const selectedName = name ?? planCsharpAdmittedMemberName(input.program.records, sourceName);
-  const emission = input.program.records.callableDeclaration.get(node);
-  if (emission === undefined) failCsharpPlannerInvariant("An admitted source function requires its sealed native declaration plan.", node);
   const state = parent === undefined ? createDestructuringPlannerState(node, input.program.source.ast)
     : createNestedPlannerState(parent, node, input.program.source.ast);
   if (owner !== node) {

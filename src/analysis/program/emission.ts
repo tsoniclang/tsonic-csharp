@@ -180,7 +180,7 @@ export function finalizeCsharpNativeEmission(
     ...optionalCallChains.issues,
     ...analyzeCsharpConditions({ ast: source.ast, nodes: sourceStorage.nodes, demand: nativeDemand, operations: admittedOperations, values: analysis.valueReads }),
     ...analyzeCsharpVoidAdmission({ ast: source.ast, demand: nativeDemand, values: analysis.valueReads, operations: admittedOperations }),
-    ...analyzeCsharpAwaitAdmission({ ast: source.ast, demand: nativeDemand, values: analysis.valueReads, operations: admittedOperations }),
+    ...analyzeCsharpAwaitAdmission({ ast: source.ast, navigation: source.navigation, demand: nativeDemand, values: analysis.valueReads, operations: admittedOperations }),
     ...admittedIterations.issues,
     ...admitCsharpStatementBindings(source.ast, sourceStorage.nodes, nativeDemand.nativeUse,
       admittedOperations, analysis.storage, analysis.sourceEvidence.generator,
@@ -208,7 +208,7 @@ export function finalizeCsharpNativeEmission(
       admittedOperations.nativeUnreachable.get(node) === true || nativeParticipation.participation.get(node) === "erased",
     required: analysis.requiredRecords });
   if (generators.issues.length !== 0) return rejectedTargetStage(generators.issues);
-  const callableDeclarations = analyzeCsharpCallableDeclarationEmission({ ast: source.ast, nodes: sourceStorage.nodes,
+  const callableDeclarations = analyzeCsharpCallableDeclarationEmission({ ast: source.ast, navigation: source.navigation, nodes: sourceStorage.nodes,
     admitted: admittedControlNode, declarations: analysis.declarations, generators: generators.records, callables: analysis.callables });
   if (callableDeclarations.issues.length !== 0) return rejectedTargetStage(callableDeclarations.issues);
   const callableParameters = analyzeCsharpCallableParameterEmission({ ast: source.ast, callables: analysis.callables, nodes: sourceStorage.nodes,

@@ -4,6 +4,8 @@ import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, Type } from "@tsonic/tsts";
 import type { SourceCallableTypeEvidence, SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
+import { csharpSourceValueResult, refineCsharpSourceValueResult } from "./call-results.js";
 import { classifyCsharpSourceProfileDeclaration, classifyCsharpSourceProfileType, selectedCsharpSourceProfileOwner } from "../../../../policy/identities/source-types.js";
 
 import { csharpSourceTypeArgumentNodes } from "../../../../target-model/syntax/type-arguments.js";
@@ -528,7 +530,17 @@ export function resolveSourceValueDeclaration(
   state: CsharpTypeResolutionState,
   selectedType?: Type,
 ): TargetTypeRef | undefined {
-  const { host, resolveAuthoredAndSelectedSourceType, resolveDirectSourceFacts, resolveNodeWithState, resolveSelectedExpressionType, resolveTypeWithState, sourceValueDeclaration, sourceValueDeclarationSyntax } = scope;
+  return scope.resolveSourceValueResult(node, queries, state, selectedType)?.selectedType;
+}
+
+export function resolveSourceValueResult(
+  scope: CsharpTypeResolutionScope,
+  node: Node,
+  queries: SourceFileSemantics,
+  state: CsharpTypeResolutionState,
+  selectedType?: Type,
+): CsharpSourceCallResult | undefined {
+  const { host, resolveAuthoredAndSelectedSourceType, resolveDirectSourceFacts, resolveNodeWithState, resolveNodeValueWithState, resolveSelectedExpressionResult, resolveTypeWithState, sourceValueDeclaration, sourceValueDeclarationSyntax } = scope;
   const reference = host.navigation.referenceFor(node);
   const declaration = sourceValueDeclaration(node, reference?.declaration);
   if (declaration === undefined) {
@@ -545,11 +557,11 @@ export function resolveSourceValueDeclaration(
       state,
     );
     if (resolved !== undefined) {
-      return resolveCsharpNativeParameterCarrier(scope, declaration, resolved, state);
+      return csharpSourceValueResult(resolveCsharpNativeParameterCarrier(scope, declaration, resolved, state));
     }
   }
   if (host.ast.is.IsBindingElement(declaration)) {
-    return host.bindingProjection(declaration, sourceFile)?.bindingCarrier;
+    return csharpSourceValueResult(host.bindingProjection(declaration, sourceFile)?.bindingCarrier);
   }
   const declarationQueries = host.semantics(sourceFile);
   const induction = sourceIntegerInduction(declaration, host.ast, host.navigation, {
@@ -559,7 +571,7 @@ export function resolveSourceValueDeclaration(
     const bound = resolveNodeWithState(induction.bound, sourceFile, nextState(state));
     if (bound?.kind === "source-primitive" &&
       ["int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64", "int128", "uint128", "native-int", "native-uint"].includes(bound.name)) {
-      return bound;
+      return csharpSourceValueResult(bound);
     }
   }
   const declaredSourceType = declarationQueries.declarations.declaredValueType(declaration);
@@ -581,17 +593,17 @@ export function resolveSourceValueDeclaration(
       const native = resolveCsharpNativeParameterCarrier(scope, declaration, contextual.type, state);
       if (native === undefined) return undefined;
       const declaredSource = declarationQueries.declarations.declaredValueType(declaration);
-      if (declaredSource === undefined || selectedSource === undefined) return native;
+      if (declaredSource === undefined || selectedSource === undefined) return csharpSourceValueResult(native);
       const refinement = selectCsharpAuthoredUnionRefinement(native, declaredSource, selectedSource, queries,
         type => resolveCsharpUnionMemberCarrier(scope, native, type, queries, state),
         host.structuralTypes.resolveTarget, host.typeDefinitions);
-      if (refinement.kind !== "not-applicable") return refinement.kind === "resolved" ? refinement.type : undefined;
-      if (native.kind === "source-primitive") return native;
-      return reconcileCsharpSelectedTargetType(native, selected, queries.types.relationship(declaredSource, selectedSource),
-        queries.types.isNonPrimitive(selectedSource));
+      if (refinement.kind !== "not-applicable") return refinement.kind === "resolved" ? csharpSourceValueResult(refinement.type) : undefined;
+      if (native.kind === "source-primitive") return csharpSourceValueResult(native);
+      return csharpSourceValueResult(reconcileCsharpSelectedTargetType(native, selected, queries.types.relationship(declaredSource, selectedSource),
+        queries.types.isNonPrimitive(selectedSource)));
     }
-    return resolveCsharpNativeParameterCarrier(scope, declaration, retainCsharpBroadValueCarrier(declaredTarget, selected,
-      selectedSource !== undefined && queries.types.isNonPrimitive(selectedSource)) ?? selected ?? declaredTarget, state);
+    return csharpSourceValueResult(resolveCsharpNativeParameterCarrier(scope, declaration, retainCsharpBroadValueCarrier(declaredTarget, selected,
+      selectedSource !== undefined && queries.types.isNonPrimitive(selectedSource)) ?? selected ?? declaredTarget, state));
   }
   const arrayInitializer = host.ast.is.IsArrayLiteralExpression(syntax.initializer);
   const declarationKind = host.ast.variableDeclarationKind(declaration);
@@ -608,24 +620,25 @@ export function resolveSourceValueDeclaration(
   const declaredCallable = mutableVariable && getCsharpCallableValueSignature(
     getCsharpNullableElementTargetType(declaredTarget) ?? declaredTarget,
   ) !== undefined;
-  const initializerTarget = arrayInitializer
-    ? resolveNodeWithState(syntax.initializer, sourceFile, nextState(state))
-    : widenedInitializer ? declaredTarget
-    : resolveDirectSourceFacts([syntax.initializer], sourceFile, nextState(state)) ??
-      resolveSelectedExpressionType(syntax.initializer, declarationQueries, nextState(state)) ??
+  const initializerResult = arrayInitializer
+    ? resolveNodeValueWithState(syntax.initializer, sourceFile, nextState(state))
+    : widenedInitializer ? csharpSourceValueResult(declaredTarget)
+    : csharpSourceValueResult(resolveDirectSourceFacts([syntax.initializer], sourceFile, nextState(state))) ??
+      resolveSelectedExpressionResult(syntax.initializer, declarationQueries, nextState(state)) ??
       (declaredTarget !== undefined && (declaredCallable || !mutableVariable && declarationKind !== "const")
-        ? declaredTarget
-        : resolveNodeWithState(syntax.initializer, sourceFile, nextState(state)));
+        ? csharpSourceValueResult(declaredTarget)
+        : resolveNodeValueWithState(syntax.initializer, sourceFile, nextState(state)));
+  const initializerTarget = initializerResult?.selectedType;
   if (initializerTarget === undefined) {
-    return arrayInitializer ? undefined : declaredTarget;
+    return arrayInitializer ? undefined : csharpSourceValueResult(declaredTarget);
   }
   if (node === declaration) {
-    return initializerTarget;
+    return initializerResult;
   }
   const declaredType = queries.declarations.declaredValueType(declaration);
   const selectedValueType = selectedType ?? queries.types.expressionType(node);
   if (declaredType === undefined || selectedValueType === undefined) {
-    return initializerTarget;
+    return initializerResult;
   }
   const refinement = queries.types.refinement(
     declaredType,
@@ -634,7 +647,8 @@ export function resolveSourceValueDeclaration(
   const selectedUnion = selectCsharpAuthoredUnionRefinement(initializerTarget, declaredType, selectedValueType,
     queries, type => resolveCsharpUnionMemberCarrier(scope, initializerTarget, type, queries, state),
     host.structuralTypes.resolveTarget, host.typeDefinitions);
-  if (selectedUnion.kind !== "not-applicable") return selectedUnion.kind === "resolved" ? selectedUnion.type : undefined;
+  if (selectedUnion.kind !== "not-applicable") return selectedUnion.kind === "resolved"
+    ? refineCsharpSourceValueResult(initializerResult, selectedUnion.type) : undefined;
   if (refinement.kind === "ambiguous") {
     return undefined;
   }
@@ -646,22 +660,23 @@ export function resolveSourceValueDeclaration(
       (present as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "enum" &&
       selectedMembers.length > 0 && selectedMembers.every(member =>
         queries.types.isNullish(member) || queries.types.isNumberLike(member))) {
-      return selectedMembers.some(member => queries.types.isNullish(member)) ? initializerTarget : present;
+      return refineCsharpSourceValueResult(initializerResult,
+        selectedMembers.some(member => queries.types.isNullish(member)) ? initializerTarget : present);
     }
-    return reconcileCsharpSelectedTargetType(
+    return refineCsharpSourceValueResult(initializerResult, reconcileCsharpSelectedTargetType(
       initializerTarget,
       resolveTypeWithState(selectedValueType, queries.sourceFile, nextState(state)),
       queries.types.relationship(declaredType, selectedValueType),
       queries.types.isNonPrimitive(selectedValueType),
-    );
+    ));
   }
   if (
     refinement.kind === "members" &&
     refinement.types.length > 0 &&
     refinement.types.every((member) => !queries.types.isNullish(member))
   ) {
-    return getCsharpNullableElementTargetType(initializerTarget) ??
-      initializerTarget;
+    return refineCsharpSourceValueResult(initializerResult, getCsharpNullableElementTargetType(initializerTarget) ??
+      initializerTarget);
   }
-  return initializerTarget;
+  return initializerResult;
 }

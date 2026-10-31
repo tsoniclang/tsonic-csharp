@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import { HasSyntacticModifier, ModifierFlagsAsync, sourceCallableDefinitionIsDiscarded,
-  sourceExpressionCallArgument, sourceExpressionResultDisposition,
+  sourceExpressionCallArgument,
   type SourceLiteralIndex, type TargetSourceProgram } from "@tsonic/target-api/source";
 import { csharpLiteralReturnsFit } from "../calls/return-expressions.js";
 import type { CsharpCaptureStorage } from "../../../target-model/records/callables/capture-storage.js";
@@ -67,7 +67,7 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
       producer.publish(node, Object.freeze({ kind: "pending" }));
       continue;
     }
-    const disposition = sourceExpressionResultDisposition(ast, node);
+    const disposition = input.source.navigation.expressionResultDisposition(node);
     let container = disposition.kind === "stored" && ast.is.IsPropertyAssignment(disposition.use)
       ? ast.parent(disposition.use) : disposition.kind === "stored" && ast.is.IsArrayLiteralExpression(disposition.use)
         ? disposition.use : undefined;
@@ -76,7 +76,7 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
     while (argument === undefined && container !== undefined && !visited.has(container)) {
       visited.add(container);
       if (sourceExpressionCallArgument(container, input.source) !== undefined) { aggregate = true; break; }
-      const owner = sourceExpressionResultDisposition(ast, container);
+      const owner = input.source.navigation.expressionResultDisposition(container);
       container = owner.kind === "stored" && ast.is.IsPropertyAssignment(owner.use) ? ast.parent(owner.use)
         : owner.kind === "stored" && ast.is.IsArrayLiteralExpression(owner.use) ? owner.use : undefined;
     }

@@ -5,7 +5,7 @@ import { analyzeSourceDeclarationGenericAdoption, sourceGenericAdoptionDiagnosti
   createSourceDeclarationOwnershipBudget, defaultSourceDeclarationOwnershipLimits,
   type SourceDeclarationOwnershipBudget, type SourceDeclarationOwnershipPremises,
   type SourceDeclarationOwnershipUnresolved } from "@tsonic/target-api/analysis";
-import { sourceExpressionResultDisposition, type TargetSourceProgram } from "@tsonic/target-api/source";
+import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import { classifyCsharpSourceProfileType } from "../../../policy/identities/source-types.js";
 import type { CsharpValueReadClassifications } from "../../../target-model/records/operations/conversions.js";
 import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations/operations.js";
@@ -163,7 +163,7 @@ export function analyzeCsharpPromiseResults(input: {
     const carrier = nativeCarrier(node);
     const selection = carrier === undefined ? undefined : select(carrier, node);
     if (selection === undefined) continue;
-    const disposition = sourceExpressionResultDisposition(ast, node);
+    const disposition = source.navigation.expressionResultDisposition(node);
     let observeDiscard = false;
     if (ast.is.IsCallExpression(node)) {
       const selected = ownership.forCall(node);

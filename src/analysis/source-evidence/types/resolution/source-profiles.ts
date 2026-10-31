@@ -190,7 +190,8 @@ export function resolveCallableEvidence(
   const typeParameters = resolveCsharpCallableTypeParameters(callable.result.declaration, queries.sourceFile, {
     ast: host.ast, types: { resolveNode: (node, file) => {
       const type = resolveNodeWithState(node, file, nextState(state));
-      return type === undefined ? undefined : Object.freeze({ kind: "resolved" as const, type });
+      return type === undefined ? undefined : Object.freeze({ kind: "resolved" as const, type,
+        sourceResult: Object.freeze({ nativeType: type, selectedType: type }) });
     } },
     genericProjections: host.representations.genericProjections,
   });

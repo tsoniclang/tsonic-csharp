@@ -1,13 +1,15 @@
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, Type } from "@tsonic/tsts";
-import { sourceExpressionResultDisposition, type SourceFileSemantics } from "@tsonic/target-api/source";
+import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../../target-model/types/model.js";
 import { csharpSourcePrimitiveTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
 
 import { nextState } from "./state.js";
 import { resolveBinaryTargetRepresentation, commonTargetRepresentation } from "../../../../policy/types/resolution/representation.js";
-import { selectCsharpAwaitCompletion } from "../../../../policy/operations/control-flow/await-completions.js";
+import { selectCsharpSourceCallAwaitCompletion } from "../../../../policy/operations/control-flow/await-completions.js";
+import type { CsharpSourceCallResult } from "../../../../target-model/operations/source-call-results.js";
+import { csharpSourceValueResult, refineCsharpSourceValueResult } from "./call-results.js";
 import { selectCsharpTargetCall, selectCsharpTargetElement, selectCsharpTargetProperty } from "../../../operations/members/selected-members.js";
 import { isCsharpAssignmentOperator, sourceOperatorFromKindName } from "../../../../target-model/syntax/operators.js";
 import { selectCsharpMethodValue } from "../../../objects/method-values.js";
@@ -25,7 +27,48 @@ import { resolveCsharpContextualLiteralCarrier } from "./contextual-literals.js"
 import { resolveCsharpSourceLiteralTargetType } from "../../../../policy/conversions/source-literals.js";
 
 export function resolveSelectedExpressionType(
-  { host, optionalAccessTargetType, policy, resolveNodeWithState, resolveReadStorage, resolveNonNullExpressionType, resolveMemberAccessTargetType, resolveSourceOwnedCallResult, resolveSourceOwnedConstructionResult, resolveSourceCallResultWithState, sourceUnions }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
+  node: Node,
+  queries: SourceFileSemantics,
+  state: CsharpTypeResolutionState,
+): TargetTypeRef | undefined {
+  return scope.resolveSelectedExpressionResult(node, queries, state)?.selectedType;
+}
+
+export function resolveSelectedExpressionResult(
+  scope: CsharpTypeResolutionScope,
+  node: Node,
+  queries: SourceFileSemantics,
+  state: CsharpTypeResolutionState,
+): CsharpSourceCallResult | undefined {
+  const { host, policy, optionalAccessTargetType, resolveSourceOwnedConstructionResult, resolveSourceCallResultWithState } = scope;
+  if (host.ast.is.IsParenthesizedExpression(node) || host.ast.is.IsSatisfiesExpression(node)) {
+    const expression = host.ast.is.IsParenthesizedExpression(node)
+      ? host.ast.as.AsParenthesizedExpression(node)?.Expression : host.ast.as.AsSatisfiesExpression(node)?.Expression;
+    return scope.resolveNodeValueWithState(expression, queries.sourceFile, nextState(state));
+  }
+  if (host.ast.is.IsCallExpression(node) || host.ast.is.IsNewExpression(node)) {
+    const selection = selectCsharpTargetCall({ ...host, projectTypes: host.projectTypes(), types: policy }, node, queries.sourceFile);
+    if (selection.kind === "resolved") {
+      const result = host.ast.is.IsNewExpression(node)
+        ? selection.call.targetMember.declaringType ?? selection.call.targetMember.returnType
+        : selection.call.targetMember.returnType;
+      if (host.ast.is.IsNewExpression(node)) return csharpSourceValueResult(result);
+      const selected = resolveSourceCallResultWithState(selection.source, queries.sourceFile, state, result);
+      return refineCsharpSourceValueResult(selected, optionalAccessTargetType(selected?.selectedType, selection.source.optionalChain));
+    }
+    if (selection.kind === "source-owned") {
+      if (host.ast.is.IsNewExpression(node)) return csharpSourceValueResult(resolveSourceOwnedConstructionResult(selection.source, queries, state));
+      const selected = resolveSourceCallResultWithState(selection.source, queries.sourceFile, state, undefined);
+      return refineCsharpSourceValueResult(selected, optionalAccessTargetType(selected?.selectedType, selection.source.optionalChain));
+    }
+    return undefined;
+  }
+  return csharpSourceValueResult(resolveSelectedExpressionCarrier(scope, node, queries, state));
+}
+
+function resolveSelectedExpressionCarrier(
+  { host, resolveNodeWithState, resolveNodeValueWithState, resolveReadStorage, resolveNonNullExpressionType, resolveMemberAccessTargetType, sourceUnions }: CsharpTypeResolutionScope,
   node: Node,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
@@ -53,19 +96,6 @@ export function resolveSelectedExpressionType(
     if (asserted === undefined || source === undefined) return undefined;
     return isCsharpJsValueTargetType(source) && asserted.kind === "target-named" && (asserted as CsharpTargetNamedTypeRef).csharpStructuralContract === true
       ? source : asserted;
-  }
-  if (
-    host.ast.is.IsParenthesizedExpression(node) ||
-    host.ast.is.IsSatisfiesExpression(node)
-  ) {
-    const expression = host.ast.is.IsParenthesizedExpression(node)
-      ? host.ast.as.AsParenthesizedExpression(node)?.Expression
-      : host.ast.as.AsSatisfiesExpression(node)?.Expression;
-    return resolveNodeWithState(
-      expression,
-      queries.sourceFile,
-      nextState(state),
-    );
   }
   if (host.ast.is.IsNonNullExpression(node)) {
     return resolveNonNullExpressionType(node, queries, state);
@@ -132,48 +162,15 @@ export function resolveSelectedExpressionType(
       : operandType;
   }
   if (host.ast.is.IsAwaitExpression(node)) {
-    const awaited = resolveNodeWithState(
+    const awaited = resolveNodeValueWithState(
       host.ast.as.AsAwaitExpression(node)?.Expression,
       queries.sourceFile,
       nextState(state),
     );
     return awaited === undefined
       ? undefined
-      : selectCsharpAwaitCompletion(awaited, host.typeDefinitions,
-        sourceExpressionResultDisposition(host.ast, node).kind === "discarded" ? "discarded" : "consumed")?.result;
-  }
-  if (
-    host.ast.is.IsCallExpression(node) ||
-    host.ast.is.IsNewExpression(node)
-  ) {
-    const selection = selectCsharpTargetCall(
-      { ...host, projectTypes: host.projectTypes(), types: policy },
-      node,
-      queries.sourceFile,
-    );
-    if (selection.kind === "resolved") {
-      const result = host.ast.is.IsNewExpression(node)
-        ? selection.call.targetMember.declaringType ??
-          selection.call.targetMember.returnType
-        : selection.call.targetMember.returnType;
-      return host.ast.is.IsNewExpression(node)
-        ? result
-        : optionalAccessTargetType(resolveSourceCallResultWithState(selection.source, queries.sourceFile, state, result)?.selectedType,
-            selection.source.optionalChain);
-    }
-    if (selection.kind === "source-owned") {
-      const result = host.ast.is.IsNewExpression(node)
-        ? resolveSourceOwnedConstructionResult(
-            selection.source,
-            queries,
-            state,
-          )
-        : resolveSourceOwnedCallResult(selection.source, queries, state);
-      return host.ast.is.IsNewExpression(node)
-        ? result
-        : optionalAccessTargetType(result, selection.source.optionalChain);
-    }
-    return undefined;
+      : selectCsharpSourceCallAwaitCompletion(awaited, host.typeDefinitions,
+        host.navigation.expressionResultUse(node))?.result;
   }
   if (host.ast.is.IsPropertyAccessExpression(node) || host.ast.is.IsElementAccessExpression(node)) {
     return resolveMemberAccessTargetType(node, queries, state, "selected");
