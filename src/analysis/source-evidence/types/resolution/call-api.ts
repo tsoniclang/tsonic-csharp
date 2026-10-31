@@ -223,8 +223,6 @@ export function resolveSourceCallResultWithState(
   const declaration = sourceCallSelectedDeclaration(source);
   const queries = host.semantics(sourceFile);
   const result = queries.operations.callResult(source);
-  const completionDeclaration = source.sourceSelectedSignatureKind === "resolved"
-    ? queries.declarations.signatureDeclaration(source.selectedSignature) : undefined;
   const access = source.sourceCalleeAccess;
   if (nativeType === undefined && access?.kind === "property") {
     const receiver = resolveSelectedValueWithState(access.receiver.expression, access.receiver.type, sourceFile, nextState(state));
@@ -250,6 +248,8 @@ export function resolveSourceCallResultWithState(
       return Object.freeze({ nativeType: raw, selectedType: selected });
     }
   }
+  const completionDeclaration = source.sourceSelectedSignatureKind === "resolved"
+    ? queries.declarations.signatureDeclaration(source.selectedSignature) : undefined;
   const retain = (nativeType: TargetTypeRef | undefined): CsharpSourceCallResult | undefined => {
     const selected = selectCsharpSourceCallResult(host, nativeType, () => {
       const checked = result === undefined ? undefined : resolveSourceCallSelectedType(source, declaration,
