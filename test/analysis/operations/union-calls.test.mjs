@@ -48,6 +48,7 @@ function fixture() {
       kind: () => 1, kindName: () => "KindMethodDeclaration", hasModifierKind: () => false,
       name: () => name, text: () => "value", parameters: declaration => [declaration.parameter],
       getSourceFile: () => sourceFile, typeParameters: () => [],
+      parent: subject => owners[declarations.indexOf(subject)],
       as: { AsParameterDeclaration: parameter => parameter } },
     semantics: () => semantics,
     semanticsFor: () => semantics,
@@ -241,6 +242,40 @@ test("shared union discovery retains physical tasks and one source-bodied adopti
     method.result.completion !== undefined && Object.isFrozen(method.result)), true);
   assert.equal(input.select().kind, "resolved");
 });
+
+test("shared union discovery completes non-ambient bodyless selected declarations without reading bodies", () => {
+  const input = fixture();
+  const inner = csharpTaskTargetType(input.integer);
+  const physical = csharpTaskTargetType(inner);
+  for (const signature of input.signatures) signature.csharpDelegateSignature.returnType = physical;
+  input.policy.ast.body = () => assert.fail("Adoption reads only the selected declaration and its ambient context");
+  input.policy.types.resolveSourceCallResult = () => ({ nativeType: physical, selectedType: inner });
+  const selected = sharedMethods(input, []);
+  assert.equal(selected.kind, "resolved");
+  assert.equal(selected.methods.every(method => method.result.nativeType === physical && method.result.selectedType === inner &&
+    method.result.completion !== undefined && Object.isFrozen(method.result)), true);
+  assert.equal(input.select().kind, "resolved");
+});
+
+for (const scope of ["declaration", "containing declaration"]) {
+  test(`shared union discovery preserves the native task layer for an ambient ${scope}`, () => {
+    const input = fixture();
+    const inner = csharpTaskTargetType(input.integer);
+    const physical = csharpTaskTargetType(inner);
+    for (const signature of input.signatures) signature.csharpDelegateSignature.returnType = physical;
+    const declaration = input.declarations[1];
+    const ambient = scope === "declaration" ? declaration : input.policy.ast.parent(declaration);
+    assert.equal(ambient !== undefined, true);
+    input.policy.ast.hasModifierKind = (subject, kind) => kind === "ambient" && subject === ambient;
+    input.policy.ast.body = () => assert.fail("An ambient native signature never reads an implementation body");
+    const selected = sharedMethods(input, []);
+    assert.equal(selected.kind, "resolved");
+    assert.equal(selected.methods[0].result.nativeType === physical && selected.methods[0].result.selectedType === inner &&
+      selected.methods[0].result.completion !== undefined && Object.isFrozen(selected.methods[0].result), true);
+    assert.equal(selected.methods[1].result.nativeType === physical && selected.methods[1].result.selectedType === physical &&
+      selected.methods[1].result.completion === undefined && Object.isFrozen(selected.methods[1].result), true);
+  });
+}
 
 test("shared union discovery refuses missing native result instantiation without another selector", () => {
   const input = fixture();
