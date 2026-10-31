@@ -232,7 +232,7 @@ if (result[0] != 1 || result[1] != 3 || observed[0] != 1 || observed[1] != 3) th
 var first = Index.intoUnknown();
 var alias = first;
 var second = Index.intoUnknown();
-if (object.ReferenceEquals(first, second) || !object.ReferenceEquals(first, alias) || first(3, 1) != 4) throw new System.Exception("unknown argument preserves fresh named callback identity");
+if (!object.ReferenceEquals(first, second) || !object.ReferenceEquals(first, alias) || first(3, 1) != 4) throw new System.Exception("unknown argument preserves native cached named callback identity");
 for (var iteration = 0; iteration < 10000; iteration++) {
     System.GC.KeepAlive(Index.recursive(input));
     System.GC.KeepAlive(Handwritten(input));

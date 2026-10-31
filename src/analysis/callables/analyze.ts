@@ -20,6 +20,7 @@ import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpCallableConversionPolicy } from "./native/adapters.js";
 import type { CsharpConversionClassifications } from "../../target-model/records/operations/conversions.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
 
 export function analyzeCsharpCallableContracts(
   policy: CsharpPolicyContext,
@@ -76,7 +77,15 @@ export function analyzeCsharpCallableContracts(
     const immediate = sourceExpressionCallArgument(declaration, source);
     const selected = immediate === undefined ? undefined : nativeInput(immediate, false);
     const signature = getCsharpLambdaSignature(selected);
-    if (selected !== undefined && signature !== undefined && getCsharpExpressionTreeDelegateType(selected) === undefined &&
+    const selfEscapes = policy.ast.is.IsFunctionExpression(declaration) && policy.ast.name(declaration) !== undefined &&
+      source.navigation.declarationUses(declaration).some(use => {
+        if (use.kind === "type-only" || evidence.compileTimeMetadata.get(use.reference) ||
+          use.kind === "direct-call" && use.role === "call-target") return false;
+        const flow = source.navigation.expressionValueFlow(use.reference);
+        return flow.escapes || flow.memberWritten || flow.receiverUsed || flow.hasUnclassifiedUse ||
+          flow.aliasDeclarations.some(alias => policy.ast.typeNode(alias) !== undefined);
+      });
+    if (!selfEscapes && selected !== undefined && signature !== undefined && getCsharpExpressionTreeDelegateType(selected) === undefined &&
       csharpDelegateSignatureHasSupportedPassingModes(signature) && signature.returnPassing === undefined &&
       signature.parameterPassingModes.every(mode => mode === "by-value") &&
       signature.restParameterIndex === undefined && (signature.optionalParameterIndexes?.length ?? 0) === 0 &&
@@ -105,20 +114,24 @@ export function analyzeCsharpCallableContracts(
           return type !== undefined && (queries.types.isUnknown(type) || queries.types.isAny(type));
         });
         const binders = csharpFreeTypeParameterIdentities([nativeType]);
+        let nativeContract = contract;
         for (const use of uses) {
           if (!consistent) break;
           const argument = use.role === "argument" ? sourceExpressionCallArgument(use.reference, source) : undefined;
           const candidate = argument === undefined ? undefined : nativeInput(argument, true);
-          if (candidate === undefined || !csharpClosedInvocationMatches(nativeType, candidate) ||
+          const completed = candidate === undefined ? undefined : nativeConsumerContract(contract, nativeType, candidate);
+          if (candidate === undefined || completed === undefined ||
             [...csharpFreeTypeParameterIdentities([candidate])].some(identity => !binders.has(identity)) ||
             carrier !== undefined && !targetTypeRefEquals(carrier, candidate)) {
             consistent = false;
             break;
           }
           carrier = candidate;
+          nativeContract = completed;
         }
         if (consistent && carrier !== undefined) {
-          const completed = Object.freeze({ type: carrier, source: contract });
+          byDeclaration.set(declaration, nativeContract);
+          const completed = Object.freeze({ type: carrier, source: nativeContract });
           closedInputs.set(declaration, completed);
           for (const alias of flow.aliasDeclarations) closedInputs.set(alias, completed);
           continue;
@@ -130,8 +143,57 @@ export function analyzeCsharpCallableContracts(
       closedInputs.set(declaration, Object.freeze({ type: nativeType, source: contract }));
     }
   }
-  return sealCsharpCallableContractIndex({ contracts, declarationContracts: nativeDeclarations, byDeclaration,
+  return sealCsharpCallableContractIndex({
+    contracts: contracts.map(contract => contract.kind === "source" ? byDeclaration.get(contract.sourceDeclaration)! : contract),
+    declarationContracts: nativeDeclarations.map(contract => byDeclaration.get(contract.sourceDeclaration)!), byDeclaration,
     byProjectConstructor, closedInputs });
+
+  function nativeConsumerContract(contract: SourceCallableSourceContract, nativeType: TargetTypeRef,
+    candidate: TargetTypeRef): SourceCallableSourceContract | undefined {
+    if (csharpClosedInvocationMatches(nativeType, candidate)) return contract;
+    const signature = getCsharpLambdaSignature(candidate);
+    if (signature === undefined || contract.bodyInputs !== undefined ||
+      contract.parameters.length !== contract.nativeParameters.length ||
+      contract.nativeParameters.some(parameter => parameter.targetParameter.optional === true ||
+        parameter.targetParameter.paramsArray === true || parameter.targetParameter.passingMode !== "by-value")) return undefined;
+    const parameters = [];
+    for (const [index, parameter] of contract.nativeParameters.entries()) {
+      const type = signature.parameters[index];
+      if (type === undefined) return undefined;
+      if (targetTypeRefEquals(type, parameter.targetParameter.type)) { parameters.push(parameter); continue; }
+      const node = policy.ast.typeNode(parameter.sourceParameter);
+      const queries = policy.semanticsFor(parameter.sourceParameter);
+      const declared = node === undefined ? undefined : queries.types.authoredType(node);
+      const conversion = conversions.conversion.get(type, parameter.targetParameter.type, "implicit");
+      if (declared === undefined || !queries.types.isUnknown(declared) && !queries.types.isAny(declared) ||
+        conversion === undefined || !csharpConversionIsApplicable(conversion, "implicit") ||
+        !nativeParameterBodyUnchanged(parameter.sourceParameter, type)) return undefined;
+      parameters.push(Object.freeze({ ...parameter, targetParameter: Object.freeze({ ...parameter.targetParameter, type }) }));
+    }
+    const completed = Object.freeze({ ...contract, nativeParameters: Object.freeze(parameters) });
+    const value = csharpCallableValueType(completed);
+    return value !== undefined && csharpClosedInvocationMatches(value, candidate) ? completed : undefined;
+  }
+
+  function nativeParameterBodyUnchanged(parameter: Node, type: TargetTypeRef): boolean {
+    const summary = source.navigation.declarationUseSummary(parameter);
+    if (summary.bindingWritten || summary.memberWritten || summary.hasUnclassifiedValueUse ||
+      type.kind !== "source-primitive") return false;
+    return summary.uses.every(use => {
+      if (use.kind === "type-only") return true;
+      if (use.role !== "comparison" || use.throughMember || use.captured) return false;
+      let reference = use.reference;
+      for (let parent = policy.ast.parent(reference); parent !== undefined &&
+        sourceTransparentExpressionOperand(policy.ast, parent) === reference; parent = policy.ast.parent(reference)) reference = parent;
+      const parent = policy.ast.parent(reference);
+      const binary = parent === undefined ? undefined : policy.ast.as.AsBinaryExpression(parent);
+      const operator = parent === undefined ? undefined : policy.ast.operatorKindName(parent);
+      if (binary === undefined || operator !== "KindEqualsEqualsEqualsToken" && operator !== "KindExclamationEqualsEqualsToken") return false;
+      const other = binary.Left === reference ? binary.Right : binary.Right === reference ? binary.Left : undefined;
+      const otherType = other === undefined ? undefined : evidence.nodeTargetType.get(other);
+      return otherType !== undefined && targetTypeRefEquals(type, otherType);
+    });
+  }
 
   function nativeInput(argument: NonNullable<ReturnType<typeof sourceExpressionCallArgument>>, invocationOnly: boolean): TargetTypeRef | undefined {
     const operation = policy.ast.is.IsNewExpression(argument.call)

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { assertNativeLoopRefusals } from "../../helpers/native-loop-refusals.mjs";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { loopCaptureStorageSource } from "../../../../tsonic/test/fixtures/loop-capture-storage.mjs";
 import { observableCallableCreationSource } from "../../../../tsonic/test/fixtures/observable-callable-creation.mjs";
@@ -55,7 +56,7 @@ System.GC.KeepAlive(read);
   });
 
   test(`repeated named-self creation within one live activation remains distinct in ${surface}`, { timeout: 300_000 }, () => {
-    const compiled = compileCsharpSource({ surface, sourceText: `
+    const sourceText = `
       export function run(): boolean {
         let previous: ((count: number) => number) | undefined;
         outer: for (let index = 0; index < 6; index++) {
@@ -75,12 +76,16 @@ System.GC.KeepAlive(read);
         }
         return previous !== undefined && previous(2) === 5;
       }
-    ` });
+    `;
+    const refused = compileCsharpSource({ surface, sourceText });
+    assertNativeLoopRefusals(refused, [{ message: "the loop variable is captured by a closure and also written in the loop; use a separate variable.", text: "index += 1", occurrence: 0 }]);
+    const compiled = compileCsharpSource({ surface, sourceText: sourceText.replace("try { continue outer; } finally { index += 1; }", "continue outer;") });
     assertCsharpCompilationSucceeded(compiled);
     const source = compiled.artifacts.get("src/Index.cs");
     assert.equal(typeof source, "string");
-    assert.equal((source.match(/new Func<double, double>\(__tsonic_self_\d+\)/gu) ?? []).length, 1,
-      "one delegate allocation site per authored creation, never a frame cache");
+    assert.equal((source.match(/__tsonic_self_\d+Value = __tsonic_self_\d+;/gu) ?? []).length, 1,
+      "one method-group assignment per authored creation, never a frame cache");
+    assert.doesNotMatch(source, /new Func<double, double>\(__tsonic_self_\d+\)/u);
     executeCsharpConstruction(compiled, `loop-named-self-multiple-creations-${surface}`);
   });
 
@@ -125,7 +130,7 @@ System.GC.KeepAlive(verify);
 }
 
 test("retained loop named-self recursion uses its original live frame without per-call allocation", { timeout: 300_000 }, () => {
-  const compiled = compileCsharpSource({ sourceText: `
+  const sourceText = `
     export function create(): (count: number) => number {
       let selected = (count: number): number => -1;
       for (let index = 0; index < 6; index++) {
@@ -138,7 +143,10 @@ test("retained loop named-self recursion uses its original live frame without pe
       }
       return selected;
     }
-  ` });
+  `;
+  const refused = compileCsharpSource({ sourceText });
+  assertNativeLoopRefusals(refused, [{ message: "the loop variable is captured by a closure and also written in the loop; use a separate variable.", text: "index += 1", occurrence: 0 }]);
+  const compiled = compileCsharpSource({ sourceText: sourceText.replace("        index += 1;\n", "") });
   assertCsharpCompilationSucceeded(compiled);
   executeCsharpConstruction(compiled, "loop-named-self-recursion-cost", false, false, [], `
 var first = Tsonic.Generated.Index.create();
@@ -224,10 +232,12 @@ for (const surface of ["native", "js"]) {
     `;
     const refused = compileCsharpSource({ surface, sourceText: headerSource });
     assert.equal(refused.sourceDiagnosticsText, "", "the original header program remains checked source");
-    assert.deepEqual(refused.result.diagnostics.map(({ code, message }) => ({ code, message })), Array.from({ length: 3 }, () => ({
-      code: "CSHARP_UNSUPPORTED_AST",
-      message: "The loop-header expression captures a per-iteration loop binding; move the callback into the loop body.",
-    })));
+    assert.deepEqual(refused.result.diagnostics.map(({ code, message }) => ({ code, message })), [
+      ...Array.from({ length: 2 }, () => ({ code: "CSHARP_UNSUPPORTED_AST", message: "The loop-header expression captures a per-iteration loop binding; move the callback into the loop body." })),
+      ...Array.from({ length: 3 }, () => ({ code: "CSHARP_UNSUPPORTED_AST", message: "the loop variable is captured by a closure and also written in the loop; use a separate variable." })),
+      { code: "CSHARP_UNSUPPORTED_AST", message: "The loop-header expression captures a per-iteration loop binding; move the callback into the loop body." },
+      { code: "CSHARP_UNSUPPORTED_AST", message: "the loop variable is captured by a closure and also written in the loop; use a separate variable." },
+    ]);
     const checked = createTargetSourceProgram(refused.source);
     const loops = [];
     const visit = node => {
@@ -239,11 +249,12 @@ for (const surface of ["native", "js"]) {
     visit(checked.ast.getSourceFile(diagnosticNode));
     assert.equal(loops.length, 4, "all four original loops remain in the refusal program");
     const headers = [loops[0].Condition, loops[0].Incrementor, loops[3].Initializer];
-    for (const [index, diagnostic] of refused.result.diagnostics.entries()) {
+    for (const [index, diagnostic] of refused.result.diagnostics.filter(diagnostic => diagnostic.message ===
+      "The loop-header expression captures a per-iteration loop binding; move the callback into the loop body.").entries()) {
       assert.equal(diagnostic.sourceNode === headers[index], true, `header ${index}: exact original expression owns the refusal`);
     }
     assert.equal(refused.artifacts.size, 0, "capturing loop headers publish no native artifacts");
-    const compiled = compileCsharpSource({ surface, sourceText: `
+    const bodySource = `
       ${surface === "native" ? 'import { List } from "@tsonic/dotnet/System.Collections.Generic.js";' : ""}
       interface Cursor {
         read<T>(value: T): number;
@@ -294,6 +305,69 @@ for (const surface of ["native", "js"]) {
           cursors.${appendMethod}({
             read<T>(input: T): number { return value; },
             advance<T>(input: T): T { value += 10; return input; },
+          });
+        }
+        return initial() === 0 && values[0]() === 0 && values[1]() === 1 &&
+          cursors[0].read(0) === 0 && cursors[1].read(0) === 1;
+      }
+    `;
+    const bodyRefused = compileCsharpSource({ surface, sourceText: bodySource });
+    assertNativeLoopRefusals(bodyRefused, [{ message: "the loop variable is captured by a closure and also written in the loop; use a separate variable.", text: "step += 10", occurrence: 0 },
+      { message: "the loop variable is captured by a closure and also written in the loop; use a separate variable.", text: "row += 10", occurrence: 0 },
+      { message: "the loop variable is captured by a closure and also written in the loop; use a separate variable.", text: "row += 1", occurrence: 1 },
+      { message: "the loop variable is captured by a closure and also written in the loop; use a separate variable.", text: "value += 10", occurrence: 0 }]);
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      ${surface === "native" ? 'import { List } from "@tsonic/dotnet/System.Collections.Generic.js";' : ""}
+      interface Cursor {
+        read<T>(value: T): number;
+        advance<T>(value: T): T;
+      }
+      export function headers(): boolean {
+        const values${callbackStorage};
+        const cursors${cursorStorage};
+        for (let step = 0; step < 4; step++) {
+          cursors.${appendMethod}({
+            read<T>(value: T): number { return step; },
+            advance<T>(value: T): T { return value; },
+          });
+          values.${appendMethod}(() => step);
+        }
+        if (values.${countProperty} !== 4) return false;
+        if (values[0]() !== 0 || values[1]() !== 1 || values[3]() !== 3) return false;
+        if (cursors[1].advance("same") !== "same" || cursors[1].read(0) !== 1) return false;
+        return values[0]() === 0 && values[1]() === 1 && values[2]() === 2;
+      }
+      export function labeled(): boolean {
+        let cleanup = 0;
+        const values${callbackStorage};
+        const cursors${cursorStorage};
+        outer: for (let row = 0; row < 4; row++) {
+          cursors.${appendMethod}({
+            read<T>(value: T): number { return row; },
+            advance<T>(value: T): T { return value; },
+          });
+          values.${appendMethod}(function (): number { return row; });
+          try {
+            for (let inner = 0; inner < 1; inner++) { continue outer; }
+          } finally { cleanup += 1; }
+        }
+        if (values.${countProperty} !== 4 || values[0]() !== 0 || values[1]() !== 1 || values[3]() !== 3) return false;
+        if (!cursors[0].advance(true) || cursors[0].read(0) !== 0) return false;
+        return values[0]() === 0 && values[1]() === 1 && cursors[1].read(0) === 1 && cleanup === 4;
+      }
+      export function initializer(): boolean {
+        let initial = (): number => -1;
+        const values${callbackStorage};
+        const cursors${cursorStorage};
+        const initialValue = 0;
+        const read = () => initialValue;
+        for (let value = 0; value < 2; value++) {
+          if (read() !== 0) return false;
+          initial = read;
+          values.${appendMethod}(() => value);
+          cursors.${appendMethod}({
+            read<T>(input: T): number { return value; },
+            advance<T>(input: T): T { return input; },
           });
         }
         return initial() === 0 && values[0]() === 0 && values[1]() === 1 &&

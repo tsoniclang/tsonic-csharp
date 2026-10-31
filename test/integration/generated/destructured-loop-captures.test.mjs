@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { assertNativeLoopRefusals } from "../../helpers/native-loop-refusals.mjs";
 import {
   assertCsharpCompilationSucceeded,
   compileCsharpSource,
@@ -36,7 +37,11 @@ const sourceText = `
 
 for (const surface of ["native", "js"]) {
   test(`${surface} destructured loop headers initialize once and retain live iteration storage`, { timeout: 300_000 }, () => {
-    const compiled = compileCsharpSource({ surface, sourceText });
+    const refused = compileCsharpSource({ surface, sourceText });
+    assertNativeLoopRefusals(refused, [{ message: "the loop variable is captured by a closure and also written in the loop; use a separate variable.", text: "index += 1", occurrence: 0 },
+      { message: "the loop variable is captured by a closure and also written in the loop; use a separate variable.", text: "index += 1", occurrence: 1 }]);
+    const compiled = compileCsharpSource({ surface, sourceText: sourceText.replaceAll(
+      "try { continue outer; }\n      finally { index += 1; }", "continue outer;") });
     assertCsharpCompilationSucceeded(compiled);
     assert.equal(/\bdynamic\b|Activator\.|Unsafe\./u.test([...compiled.artifacts.values()].join("\n")), false);
     executeCsharpConstruction(compiled, `destructured-loop-captures-${surface}`);

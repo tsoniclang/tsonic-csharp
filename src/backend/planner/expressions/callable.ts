@@ -25,6 +25,7 @@ import {
   createNestedPlannerState,
   declareCsharpLocalBindingName,
   allocateSyntheticParameter,
+  redirectCsharpParameterStorage,
 } from "../bindings/index.js";
 import type {
   DestructuringPlannerState,
@@ -401,6 +402,8 @@ export function planLambdaParameters(
     return expectedParameterTypes.map(type => ({ kind: "Parameter", name: allocateSyntheticParameter(state), type }));
   }
   const sourceParameters: CsharpLambdaParameter[] = [];
+  const discardOmitted = expectedParameterTypes.length > parameterNodes.length &&
+    (owner === undefined || input.program.records.namedSelf.get(owner) === undefined && input.scope.nativeCallableBody?.declaration !== owner);
   let nativeIndex = 0;
   for (const parameterNode of parameterNodes) {
       if (parameterNode === undefined) failCsharpPlannerInvariant("An admitted lambda requires its complete native parameter vector.");
@@ -420,11 +423,14 @@ export function planLambdaParameters(
       }
       const expectedParameterType = expectedParameterTypes[nativeIndex++];
       if (expectedParameterType === undefined) failCsharpPlannerInvariant("An admitted lambda parameter requires its exact native signature type.", parameterNode);
+      let name = bindingPattern ? allocateSyntheticParameter(state) : declareCsharpLocalBindingName(parameter.name!, input, state);
+      if (discardOmitted && name === "_") {
+        name = redirectCsharpParameterStorage(parameter.name!, input, state)?.storageName
+          ?? failCsharpPlannerInvariant("An authored underscore binding requires its distinct native lambda parameter name.", parameterNode);
+      }
       sourceParameters.push({
         kind: "Parameter",
-        name: bindingPattern
-          ? allocateSyntheticParameter(state)
-          : declareCsharpLocalBindingName(parameter.name!, input, state),
+        name,
         type: expectedParameterType,
       });
   }
@@ -432,7 +438,7 @@ export function planLambdaParameters(
     .slice(sourceParameters.length)
     .map((type): CsharpLambdaParameter => ({
       kind: "Parameter",
-      name: allocateSyntheticParameter(state),
+      name: discardOmitted ? "_" : allocateSyntheticParameter(state),
       type,
     }));
   return [...sourceParameters, ...omittedTargetParameters];

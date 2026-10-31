@@ -28,6 +28,9 @@ export function analyzeCsharpStructuralObjectEmission(input: {
   const hasMethodValues = (shape: CsharpObjectShapeFact): boolean => input.demand.get(objectShapeArtifactKey(shape))?.capabilities.includes("method-values") === true;
   const inherited = (shape: CsharpObjectShapeFact): readonly CsharpObjectShapeFact[] => (shape.implements ?? [])
     .flatMap(type => { const parent = input.shapes.resolveTarget(type); return parent === undefined ? [] : [parent]; });
+  const writableMethodValue = (shape: CsharpObjectShapeFact, member: CsharpObjectShapeMemberFact): boolean =>
+    shape.targetType.kind === "target-named" && (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true &&
+    member.methodValueStorage !== undefined;
   const handleIsInherited = (shape: CsharpObjectShapeFact, member: CsharpObjectShapeMemberFact): boolean => {
     const name = objectShapeStorageMemberName(shape, member);
     const valueType = member.methodValueContract ?? member.type;
@@ -79,7 +82,7 @@ export function analyzeCsharpStructuralObjectEmission(input: {
         const type = member.optional === true ? csharpNullableTargetType(valueType) : valueType;
         if ((hasMethodValues(shape) || member.optional === true || structural && member.methodValueStorage !== undefined) && admit(type, member)) {
           handle = Object.freeze({ name: objectShapeStorageMemberName(shape, member), type,
-            writable: structural && member.methodValueStorage !== undefined });
+            writable: writableMethodValue(shape, member) });
           methodValues.push(handle);
         }
       }
@@ -155,7 +158,7 @@ export function analyzeCsharpStructuralObjectEmission(input: {
             targetTypeRefEquals(type, selected.methodValueContract) &&
             targetTypeRefEquals(type, required.methodValueContract);
           contracts.push(Object.freeze({ name: objectShapeStorageMemberName(contract, required), interface: type, type: carrier,
-            writable: required.methodValueStorage !== undefined,
+            writable: writableMethodValue(contract, required),
             source: required.methodValueContract !== undefined && body !== undefined &&
               (selected.methodValueStorage === undefined || presentBody) ? "this" : objectShapeStorageMemberName(shape, selected) }));
         }

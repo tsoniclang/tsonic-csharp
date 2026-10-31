@@ -1,7 +1,7 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { TryStatement_FinallyBlock, sourceBindingIterationScope, sourceEnclosingCallable,
-  type TargetSourceProgram } from "@tsonic/target-api/source";
+  sourceBindingWriteAtReference, type TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpNativeParticipationInput, CsharpNativeUseClassifications } from "../../target-model/records/native/native-demand.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage/storage.js";
@@ -23,6 +23,9 @@ import { csharpDestructuringAssignmentSyntax } from "../../target-model/syntax/o
 import type { CsharpStatementCompletionRecords } from "../../target-model/records/operations/statement-completion.js";
 import { createCsharpAdmittedIterationProducer } from "../program/records/operations/iteration.js";
 import type { CsharpCaptureStorage } from "../../target-model/records/callables/capture-storage.js";
+import { isCsharpValueTypeTargetType } from "../../target-model/types/identity.js";
+import { readCsharpSelectedWritingArguments } from "../callables/values/argument-passing.js";
+import type { CsharpTargetAttributeFact } from "../../target-model/types/model.js";
 
 export function admitCsharpIterationBindings(
   policy: CsharpPolicyContext,
@@ -88,6 +91,10 @@ export function analyzeCsharpNativeControlFlow(
   controlExit: CsharpStatementCompletionRecords["controlExit"],
   admitted: (node: Node) => boolean,
   captures: Pick<CsharpCaptureStorage, "lexicalCaptures" | "frames">,
+  facts: {
+    readonly operations: Pick<CsharpTargetOperationClassifications, "selectedCall" | "selectedConstruction" | "selectedProperty" | "selectedElement">;
+    readonly evidence: Pick<CsharpSourceEvidenceIndex, "sourceArgument" | "nodeTargetType">;
+  },
 ): readonly TargetDiagnostic[] {
   const issues: TargetDiagnostic[] = [];
   const ast = source.ast;
@@ -117,6 +124,19 @@ export function analyzeCsharpNativeControlFlow(
           message: "The loop-header expression captures a per-iteration loop binding; move the callback into the loop body.",
         }));
       }
+      const valueBindings = new Set([
+        ...captures.lexicalCaptures.flatMap(capture => capture.values),
+        ...captures.frames.flatMap(frame => frame.bindings),
+      ].filter(binding => sourceBindingIterationScope(binding.declaration, ast) === node &&
+        isCsharpValueTypeTargetType(binding.type)).map(binding => binding.declaration));
+      if (valueBindings.size !== 0) refuseMutatingValueMembers(node, valueBindings);
+      const bodyBindings = new Set([
+        ...captures.lexicalCaptures.filter(capture => statement.Statement !== undefined && within(capture.owner, statement.Statement))
+          .flatMap(capture => capture.values),
+        ...captures.frames.filter(frame => frame.scope === node && frame.protocols.some(protocol =>
+          statement.Statement !== undefined && within(protocol.declaration, statement.Statement))).flatMap(frame => frame.bindings),
+      ].filter(binding => sourceBindingIterationScope(binding.declaration, ast) === node).map(binding => binding.declaration));
+      if (statement.Statement !== undefined && bodyBindings.size !== 0) refuseWrittenCapturedBindings(statement.Statement, bodyBindings);
     }
     if (admitted(node) && cleanup !== undefined && (kind === "KindReturnStatement" || kind === "KindBreakStatement" ||
       kind === "KindContinueStatement")) {
@@ -131,6 +151,107 @@ export function analyzeCsharpNativeControlFlow(
   };
   source.navigation.sourceFiles.forEach(file => visit(file, undefined));
   return Object.freeze(issues);
+
+  function capturedValueReceiver(receiver: Node, declarations: ReadonlySet<Node>): boolean {
+    const visited = new Set<Node>();
+    for (let current: Node | undefined = receiver; current !== undefined;) {
+      if (visited.has(current)) return false;
+      visited.add(current);
+      if (ast.is.IsParenthesizedExpression(current)) {
+        current = ast.as.AsParenthesizedExpression(current)?.Expression;
+        continue;
+      }
+      if (ast.is.IsIdentifier(current)) {
+        const declaration = source.navigation.referenceFor(current)?.declaration;
+        return declaration !== undefined && declarations.has(declaration);
+      }
+      const field = facts.operations.selectedProperty.get(current)?.selection ?? facts.operations.selectedElement.get(current)?.target;
+      if (field?.kind !== "resolved" || field.targetMember.kind !== "field" || field.receiver.kind !== "instance") return false;
+      const carrier = facts.evidence.nodeTargetType.get(current);
+      if (carrier === undefined || !isCsharpValueTypeTargetType(carrier)) return false;
+      current = field.source.receiver.expression;
+    }
+    return false;
+  }
+
+  function refuseWrittenCapturedBindings(body: Node, declarations: ReadonlySet<Node>): void {
+    const reported = new Set<Node>();
+    const refuse = (node: Node): void => {
+      if (reported.has(node)) return;
+      reported.add(node);
+      issues.push(Object.freeze({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node,
+        message: "the loop variable is captured by a closure and also written in the loop; use a separate variable." }));
+    };
+    const inspect = (node: Node): void => {
+      if (ast.is.IsIdentifier(node)) {
+        const declaration = source.navigation.referenceFor(node)?.declaration;
+        if (declaration !== undefined && declarations.has(declaration)) {
+          const write = sourceBindingWriteAtReference(ast, node);
+          if (write !== undefined && write.kind !== "initialization" && within(write.operation, body) && admitted(write.operation))
+            refuse(write.operation);
+        }
+      }
+      if (admitted(node)) {
+        const selected = facts.operations.selectedCall.get(node)?.target ?? facts.operations.selectedConstruction.get(node)?.target;
+        if (selected?.kind === "resolved") for (const passing of readCsharpSelectedWritingArguments(source, facts.evidence, selected)) {
+          let storage = passing.storageExpression;
+          while (ast.is.IsParenthesizedExpression(storage)) storage = ast.as.AsParenthesizedExpression(storage)!.Expression!;
+          if (ast.is.IsIdentifier(storage)) {
+            const declaration = source.navigation.referenceFor(storage)?.declaration;
+            if (declaration !== undefined && declarations.has(declaration)) refuse(passing.storageExpression);
+          }
+        }
+      }
+      ast.forEachChild(node, child => { if (child !== undefined) inspect(child); });
+    };
+    inspect(body);
+  }
+
+  function refuseMutatingValueMembers(loop: Node, declarations: ReadonlySet<Node>): void {
+    const reported = new Set<Node>();
+    const refuse = (node: Node): void => {
+      if (reported.has(node)) return;
+      reported.add(node);
+      issues.push(Object.freeze({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node,
+        message: "the per-iteration value-type loop binding is mutated through a member; copy it to a body local first." }));
+    };
+    const readonlyAttributes = (attributes: readonly CsharpTargetAttributeFact[] | undefined): boolean =>
+      attributes?.some(attribute => attribute.attributeType.kind === "target-named" &&
+        attribute.attributeType.id.endsWith("::System.Runtime.CompilerServices.IsReadOnlyAttribute")) === true;
+    const inspect = (node: Node): void => {
+      if (admitted(node)) {
+        const call = facts.operations.selectedCall.get(node);
+        const selectedCall = call?.target ?? facts.operations.selectedConstruction.get(node)?.target;
+        if (selectedCall?.kind === "resolved") for (const passing of readCsharpSelectedWritingArguments(source, facts.evidence, selectedCall)) {
+          const field = facts.operations.selectedProperty.get(passing.storageExpression)?.selection ??
+            facts.operations.selectedElement.get(passing.storageExpression)?.target;
+          if (field?.kind === "resolved" && field.targetMember.kind === "field" && field.receiver.kind === "instance" &&
+            capturedValueReceiver(field.source.receiver.expression, declarations)) refuse(passing.storageExpression);
+        }
+        const receiver = call?.source?.sourceReceiver?.expression;
+        if (receiver !== undefined && capturedValueReceiver(receiver, declarations)) {
+          const target = call?.target;
+          const parameter = target?.kind === "resolved" && target.call.receiver.kind === "target-parameter"
+            ? target.call.targetMember.parameters[target.call.receiver.targetParameterIndex] : undefined;
+          const nonMutating = target?.kind === "resolved" && (target.call.receiver.kind === "none" ||
+            parameter !== undefined && (parameter.passingMode === undefined || parameter.passingMode === "by-value" ||
+              parameter.passingMode === "byref-readonly") ||
+            target.call.receiver.kind === "instance" && (readonlyAttributes(target.call.targetMember.attributes) ||
+              target.call.origin === "provider" && readonlyAttributes(target.call.relation.targetBinding.attributes)));
+          if (!nonMutating) refuse(node);
+        }
+        const property = facts.operations.selectedProperty.get(node)?.selection ?? facts.operations.selectedElement.get(node)?.target;
+        if ((property?.kind === "resolved" || property?.kind === "source-owned" || property?.kind === "project-indexer") &&
+          capturedValueReceiver(property.source.receiver.expression, declarations)) {
+          const fieldRead = property.kind === "resolved" && property.targetMember.kind === "field" && property.source.accessMode === "read";
+          const methodGroup = property.kind === "resolved" && property.targetMember.kind === "method";
+          if (!fieldRead && !methodGroup) refuse(node);
+        }
+      }
+      ast.forEachChild(node, child => { if (child !== undefined) inspect(child); });
+    };
+    inspect(loop);
+  }
 }
 
 export function admitCsharpStatementBindings(

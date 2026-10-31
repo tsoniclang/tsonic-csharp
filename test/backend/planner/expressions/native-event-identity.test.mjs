@@ -82,19 +82,20 @@ test("native adapted events retain identity through original callbacks, aliases,
   assertCsharpCompilationSucceeded(compiled);
   const output = [...compiled.artifacts].filter(([path]) => path.endsWith(".cs")).map(([, source]) => source).join("\n");
   const originalBody = output.slice(output.indexOf("public static void events"), output.indexOf("public static void aliases"));
-  assert.equal(originalBody.match(/void __tsonic_adapter\w*\(int/gu)?.length, 1);
-  const handlerNames = [...originalBody.matchAll(/\.Changed [+-]= new System\.Action<int>\((\w+)\)/gu)].map(match => match[1]);
+  const adapters = [...originalBody.matchAll(/(?:System\.)?Action<int> (__tsonic_adapter\w*) = \(int\b/gu)];
+  assert.equal(adapters.length, 1, "one typed native adapter value per original activation");
+  const handlerNames = [...originalBody.matchAll(/\.Changed [+-]= (\w+);/gu)].map(match => match[1]);
   assert.equal(handlerNames.length, 2);
-  assert.equal(handlerNames[0] === handlerNames[1], true, "same exact native method identity");
-  assert.doesNotMatch(originalBody, /switch|=>|Dictionary|ConditionalWeakTable/u);
+  assert.equal(handlerNames[0] === adapters[0][1] && handlerNames[1] === adapters[0][1], true, "both uses read the identical typed native adapter value");
+  assert.doesNotMatch(originalBody, /switch|void __tsonic_adapter|new (?:System\.)?Action<int>|Dictionary|ConditionalWeakTable/u);
   assert.match(runNative(compiled, assembly, `using System;
 using ProviderUnsupportedMemberFixtures;
 using Generated = EventProof.Index;
 static class Program {
   static void Human(EventSignatures value, Action<double> callback) {
-    value.Changed += Adapter;
-    value.Changed -= Adapter;
-    void Adapter(int current) { callback(current); }
+    Action<int> adapter = (int current) => callback(current);
+    value.Changed += adapter;
+    value.Changed -= adapter;
   }
   static long Allocation(Action<EventSignatures, Action<double>> operation) {
     var value = new EventSignatures(); Action<double> callback = current => {};

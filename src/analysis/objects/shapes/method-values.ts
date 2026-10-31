@@ -100,12 +100,11 @@ export function selectCsharpWritableMethodContract(
     (target.csharpStructuralContract !== true && target.csharpSourceDeclarationKind !== "interface") ||
     writtenMembers.some(member => !shape.members.includes(member) || member.memberKind !== "method" ||
       member.readonly === true || csharpPresentObjectShapeMethod(member) === undefined)) return undefined;
-  if (writtenMembers.every(member => member.methodValueStorage !== undefined)) return shape;
+  if (target.csharpStructuralContract === true && writtenMembers.every(member => member.methodValueStorage !== undefined)) return shape;
   const members = shape.members.map(member => {
     if (!writtenMembers.includes(member) || member.methodValueStorage !== undefined) return member;
-    if ((member.typeParameters?.length ?? 0) === 0) {
-      const { methodValueContract: _contract, ...value } = member;
-      return Object.freeze({ ...value, methodValueStorage: Object.freeze({ kind: "delegate" as const,
+    if ((member.typeParameters?.length ?? 0) === 0 && member.methodValueContract === undefined) {
+      return Object.freeze({ ...member, methodValueStorage: Object.freeze({ kind: "delegate" as const,
         type: member.optional === true ? csharpNullableTargetType(member.type) : member.type }) });
     }
     const contract = member.methodValueContract;
@@ -199,7 +198,7 @@ export function retainCsharpMethodValueContracts(
       ? selectMethodValueUses(sourceStorage).retained : undefined;
     const needsValue = member.methodValueStorage?.kind === "delegate" ||
       member.sourceDeclarations?.some(source => valueUses?.has(source) === true) === true;
-    if (!quantified && !nativeMethod && (member.optional === true || !requiresProtocol && (needsValue || declaration !== undefined))) {
+    if (!requiresProtocol && !nativeMethod && (member.optional === true || needsValue || declaration !== undefined)) {
       const { methodValueContract: _contract, ...value } = member;
       return { ...value, methodValueStorage: Object.freeze({ kind: "delegate" as const,
         type: member.optional === true ? csharpNullableTargetType(member.type) : member.type }) };
@@ -232,7 +231,8 @@ export function retainCsharpMethodValueContracts(
   const contracts = implemented.size === 0 ? undefined : [...implemented.values()];
   const storageChanged = members.some((member, index) => csharpObjectMethodValueStorageKey(member.methodValueStorage) !==
     csharpObjectMethodValueStorageKey(shape.members[index]!.methodValueStorage));
-  const targetType = storageChanged && csharpStructuralObjectShapeIdentity(shape.targetType) !== undefined
+  const targetType = storageChanged &&
+    csharpStructuralObjectShapeIdentity(shape.targetType) !== undefined
     ? createStructuralObjectShapeTarget(members, contracts, environment,
       shape.targetType.kind === "target-named" && (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true,
       shape.methodImplementation)

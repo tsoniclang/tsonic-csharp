@@ -51,9 +51,11 @@ test("native function references retain exact lexical overrides without acquirin
   const input = { program: { source: { ast: { is: { IsIdentifier: node => node === expression } } },
     records: { nativeFunctionCallee: analysis.records.nativeFunctionCallee } } };
   const diagnostics = [];
-  assert.equal(planCsharpNativeFunctionCallee(selected, {}, input, diagnostics, state) === outer, true);
+  const prelude = [];
+  assert.equal(planCsharpNativeFunctionCallee(selected, {}, input, diagnostics, prelude, state) === outer, true);
   state.expressionOverrides.set(expression, inner);
-  assert.equal(planCsharpNativeFunctionCallee(selected, {}, input, diagnostics, state) === inner, true);
+  assert.equal(planCsharpNativeFunctionCallee(selected, {}, input, diagnostics, prelude, state) === inner, true);
+  assert.equal(prelude.length, 0, "lexical overrides require no operand preparation");
   assert.equal(parent.expressionOverrides.get(expression) === outer, true, "another activation is not mutated");
   assert.equal(diagnostics.length, 0);
 });

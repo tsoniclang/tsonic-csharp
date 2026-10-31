@@ -37,11 +37,13 @@ import type { CsharpGeneratedHelper } from "../../target-model/records/program/g
 import { createCsharpDelegateContractProducer } from "../program/records/callables/callable-conversions.js";
 import { admitCsharpDelegateEmission, admitCsharpDelegateOperand } from "./callable-emission.js";
 import { sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
+import { readCsharpSelectedWritingReference } from "../callables/values/argument-passing.js";
 
 const maximumConversionClassifications = 1_048_576;
 
 export function csharpConversionOperandStability(expression: Node, policy: CsharpPolicyContext,
-  operations: Pick<CsharpTargetOperationClassifications, "selectedProperty">): "stable" | "snapshot" {
+  operations: Pick<CsharpTargetOperationClassifications, "selectedProperty" | "selectedCall" | "selectedConstruction">,
+  evidence: Pick<CsharpSourceEvidenceIndex, "sourceArgument">): "stable" | "snapshot" {
   const seen = new Set<Node>();
   for (let current: Node | undefined = expression; current !== undefined;) {
     if (seen.has(current)) return "snapshot";
@@ -58,7 +60,9 @@ export function csharpConversionOperandStability(expression: Node, policy: Cshar
         policy.ast.getSourceFile(reference.declaration) === reference.sourceFile &&
         (policy.ast.is.IsVariableDeclaration(reference.declaration) || policy.ast.is.IsParameterDeclaration(reference.declaration) ||
           policy.ast.is.IsFunctionDeclaration(reference.declaration)) &&
-        !policy.navigation.declarationUseSummary(reference.declaration).bindingWritten ? "stable" : "snapshot";
+        !policy.navigation.declarationUseSummary(reference.declaration).bindingWritten &&
+        !policy.navigation.declarationUseSummary(reference.declaration).uses.some(use =>
+          readCsharpSelectedWritingReference(policy, evidence, operations, use.reference) !== undefined) ? "stable" : "snapshot";
     }
     const property = operations.selectedProperty.get(current);
     if (property?.selection.kind === "resolved") {
@@ -83,6 +87,7 @@ export function analyzeCsharpConversions(
   policy: CsharpPolicyContext,
   evidence: CsharpSourceEvidenceIndex,
   objectShapes: CsharpObjectShapeClassifications & CsharpStructuralInterfaceRegistration,
+  selectedOperations: CsharpTargetOperationClassifications,
 ): CsharpConversionAnalysis {
   const pairSelections = new Map<string, CsharpConversionSelection>();
   const delegateContracts = createCsharpDelegateContractProducer();
@@ -99,7 +104,6 @@ export function analyzeCsharpConversions(
   let classificationCount = 0;
   let closed = false;
   let preparedClassifications: CsharpPreparedConversionClassifications | undefined;
-  let preparedOperations: CsharpTargetOperationClassifications | undefined;
   let preparedValueReads: CsharpValueReadClassifications | undefined;
   let sealedClassifications: CsharpConversionClassifications | undefined;
   const requiredHelpers = new Set<CsharpGeneratedHelper>();
@@ -147,11 +151,10 @@ export function analyzeCsharpConversions(
 
   const analysis: CsharpConversionAnalysis = {
     classifications,
-    prepare({ operations, expectedTypes, valueReads }) {
+    prepare({ expectedTypes, valueReads }) {
       if (preparedClassifications !== undefined) return preparedClassifications;
-      preparedOperations = operations;
       preparedValueReads = valueReads;
-      collectCsharpConversionRequirements({ policy, evidence, objectShapes, operations, expectedTypes, valueReads,
+      collectCsharpConversionRequirements({ policy, evidence, objectShapes, operations: selectedOperations, expectedTypes, valueReads,
         literalRequests, classifyPair, classifyExpression, reserveClassification, issues, propertyProjectionRoots,
         propertyProjections, callConversions });
       preparedClassifications = Object.freeze({ ...classifications, exactLiteralRequests: literalRequests.seal() });
@@ -159,8 +162,8 @@ export function analyzeCsharpConversions(
     },
     close(nativeDemand, requiredRecords, captures, creations) {
       if (closed) return failTargetAnalysisInvariant("tsonic-csharp", "Native conversion preparation closes exactly once.");
-      if (preparedClassifications === undefined || preparedOperations === undefined || preparedValueReads === undefined) failTargetAnalysisInvariant("tsonic-csharp", "Native conversion uses require completed preparation.");
-      const admitted = sealCsharpConversionUses(nativeDemand, preparedOperations, (expression, source, target, mode, exactInteger, boundary, sourceCompletion) => {
+      if (preparedClassifications === undefined || preparedValueReads === undefined) failTargetAnalysisInvariant("tsonic-csharp", "Native conversion uses require completed preparation.");
+      const admitted = sealCsharpConversionUses(nativeDemand, selectedOperations, (expression, source, target, mode, exactInteger, boundary, sourceCompletion) => {
         const selected = boundary === undefined ? classifyExpression(expression, source, target, mode, exactInteger, sourceCompletion) : boundary.selection;
         if (selected === undefined) return undefined;
         admitCsharpDelegateEmission(delegateContracts, source, target, selected);
@@ -319,9 +322,7 @@ export function analyzeCsharpConversions(
   }
 
   function operandStability(expression: Node): "stable" | "snapshot" {
-    const operations = preparedOperations
-      ?? failTargetAnalysisInvariant("tsonic-csharp", "A delegate operand requires its completed selected-property input.", expression);
-    return csharpConversionOperandStability(expression, policy, operations);
+    return csharpConversionOperandStability(expression, policy, selectedOperations, evidence);
   }
 
   function prepareStructuralDependencies(expression: Node, source: TargetTypeRef, target: TargetTypeRef): void {

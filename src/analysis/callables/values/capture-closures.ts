@@ -11,6 +11,7 @@ import type { CsharpCallableContractIndex } from "../../../target-model/records/
 import { csharpCallableValueType } from "../../../policy/types/callables/value-type.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations/operations.js";
+import { readCsharpSelectedWritingReference } from "./argument-passing.js";
 
 export function analyzeCsharpNativeCaptures(
   source: TargetSourceProgram,
@@ -20,6 +21,7 @@ export function analyzeCsharpNativeCaptures(
   creationDemand: Pick<ReadonlyMap<Node, boolean>, "get">,
   callables: Pick<CsharpCallableContractIndex, "get" | "closedInputType">,
   erasedStatement: CsharpTargetOperationClassifications["erasedStatement"],
+  selectedCalls: Pick<CsharpTargetOperationClassifications, "selectedCall" | "selectedConstruction">,
 ): { readonly lexicalCaptures: readonly CsharpNativeClosureCapture[];
   readonly namedSelfBindings: readonly CsharpNamedSelfBinding[] } {
   const captures: CsharpNativeClosureCapture[] = [];
@@ -61,7 +63,9 @@ export function analyzeCsharpNativeCaptures(
         }
         return Object.freeze({ declaration: capture.declaration, scope, type: physicalType(capture.declaration, logical),
           references: Object.freeze([...capture.references]),
-          mutable: source.navigation.declarationUseSummary(capture.declaration).bindingWritten,
+          mutable: source.navigation.declarationUseSummary(capture.declaration).bindingWritten ||
+            source.navigation.declarationUseSummary(capture.declaration).uses.some(use =>
+              readCsharpSelectedWritingReference(source, evidence, selectedCalls, use.reference) !== undefined),
           initialization: sourceBindingCapturedBeforeInitialization(capture.declaration, source.ast, source.navigation) ||
             sourceBindingCapturedBeforeFirstWrite(capture.declaration, source.ast, source.navigation)
             ? "deferred" as const : "initialized" as const });

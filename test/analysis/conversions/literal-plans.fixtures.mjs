@@ -98,10 +98,10 @@ function sealedProviderCallConversions(fixture) {
     semanticsFor: () => host.semantics(sourceFile) };
   const evidence = { compileTimeMetadata: Object.freeze({ get: () => false }), storageTargetType: none, yield: none };
   const shapes = { resolveNode: () => undefined, resolveTarget: () => undefined, registerStructuralInterface: () => false };
-  const analysis = analyzeCsharpConversions(policy, evidence, shapes);
+  const operations = { nativeUnreachable: Object.freeze({ get: () => false }), borrowedSequence: none, binaryOperation: none, selectedConstruction: none,
+      unaryOperation: none, selectedCall: Object.freeze({ get: node => node === call ? { target: selected } : undefined }) };
+  const analysis = analyzeCsharpConversions(policy, evidence, shapes, operations);
   const prepared = analysis.prepare({
-    operations: { nativeUnreachable: Object.freeze({ get: () => false }), borrowedSequence: none, binaryOperation: none, selectedConstruction: none,
-      unaryOperation: none, selectedCall: Object.freeze({ get: node => node === call ? { target: selected } : undefined }) },
     expectedTypes: { expectedType: Object.freeze({ get: node => node === literal ? [counter] : [] }),
       requiredExpectedType: Object.freeze({ get: () => [] }), callableTarget: none,
       exactIntegerConversion: Object.freeze({ get: () => false }) },

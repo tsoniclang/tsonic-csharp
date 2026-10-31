@@ -228,7 +228,11 @@ test("supported named local monomorphic values retain their existing native dele
   assertCsharpCompilationSucceeded(compiled);
   const source = compiled.artifacts.get("src/Index.cs");
   assert.equal(typeof source, "string", "existing named local source");
-  assert.match(source, /new Func<double, double, double>\(choose\)/u);
+  const retained = source.match(/Func<double, double, double> (__tsonic_function_value_\d+) = choose;/u)?.[1];
+  assert.equal(typeof retained, "string", "one native activation-local method-group value");
+  assert.match(source, new RegExp(`Func<double, double, double> first = ${retained};`, "u"));
+  assert.match(source, new RegExp(`Func<double, double, double> second = ${retained};`, "u"));
+  assert.doesNotMatch(source, /new Func<double, double, double>\(choose\)/u);
   assert.match(source, /ReferenceEquals\(selected\.first, selected\.second\)/u);
   assert.doesNotMatch(source, /\.Invoke<|EqualityComparer|\bdynamic\b/u);
 });

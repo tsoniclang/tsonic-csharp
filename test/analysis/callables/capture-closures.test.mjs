@@ -63,7 +63,7 @@ function fixture(text) {
     const issues = [];
     const selected = analyzeCsharpNativeCaptures(source, evidence, physicalType, issues,
       Object.freeze({ get: node => creationDemand.get(node) }), createCaptureContractFixture(source, node => types.get(node)),
-      { get: () => false });
+      { get: () => false }, { selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined } });
     assert.equal(Object.hasOwn(selected, "groups"), false, "no ordinary physical grouping publication");
     assert.equal(Object.hasOwn(selected, "closures"), false, "no ordinary synthetic frame-method publication");
     return { ...selected, issues,

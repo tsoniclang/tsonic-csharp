@@ -24,6 +24,7 @@ import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { csharpConstructorCapturedPlaces } from "../emission/constructor-entry.js";
 import type { CsharpCallableContractIndex } from "../../../target-model/records/callables/callable-values.js";
 import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations/operations.js";
+import { readCsharpSelectedWritingReference } from "../values/argument-passing.js";
 
 export function analyzeCsharpCaptureStorage(
   source: TargetSourceProgram,
@@ -33,6 +34,7 @@ export function analyzeCsharpCaptureStorage(
   classCaptures: readonly import("../../../target-model/records/objects/class-factories.js").CsharpClassCapture[],
   callables: Pick<CsharpCallableContractIndex, "get" | "closedInputType">,
   erasedStatement: CsharpTargetOperationClassifications["erasedStatement"],
+  selectedCalls: Pick<CsharpTargetOperationClassifications, "selectedCall" | "selectedConstruction">,
 ): CsharpCaptureStorage {
   const environment = createCsharpTypeParameterEnvironment(source.ast, declaration => evidence.typeParameterConstraints.get(declaration));
   const groups = new Map<Node, Map<Node, TargetTypeRef>>();
@@ -62,7 +64,9 @@ export function analyzeCsharpCaptureStorage(
   for (const shape of shapes.knownShapes()) {
     for (const capture of (shape.declarationTemplate ?? shape).methodImplementation?.captures ?? []) {
       physicalType(capture.declaration, capture.type);
-      if (!capture.mutable && !deferredBinding(capture.declaration) || storage.nativeBacking.get(capture.declaration) !== undefined) continue;
+      const writtenArgument = source.navigation.declarationUseSummary(capture.declaration).uses.some(use =>
+        readCsharpSelectedWritingReference(source, evidence, selectedCalls, use.reference) !== undefined);
+      if (!capture.mutable && !writtenArgument && !deferredBinding(capture.declaration) || storage.nativeBacking.get(capture.declaration) !== undefined) continue;
       const scope = sourceBindingScope(capture.declaration, source.ast);
       if (scope === undefined || source.ast.is.IsSourceFile(scope)) {
         issues.push({ node: capture.declaration, code: "CSHARP_CAPTURE_SCOPE_NOT_CLOSED",
@@ -124,7 +128,7 @@ export function analyzeCsharpCaptureStorage(
   };
   source.navigation.sourceFiles.forEach(collectCreationDemand);
   const creationDemand = Object.freeze({ get: (declaration: Node) => creationDemandValues.get(declaration) });
-  const nativeCaptures = analyzeCsharpNativeCaptures(source, evidence, physicalType, issues, creationDemand, callables, erasedStatement);
+  const nativeCaptures = analyzeCsharpNativeCaptures(source, evidence, physicalType, issues, creationDemand, callables, erasedStatement, selectedCalls);
   const constructorPlaces = new Map<Node, Omit<CsharpConstructorCaptureProtocol, "frame">>();
   const constructorMethods = new Map<Node, readonly CsharpFrameClosure[]>();
   for (const constructor of constructors) {

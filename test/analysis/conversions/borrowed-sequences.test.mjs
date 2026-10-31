@@ -32,12 +32,12 @@ function sealedConversions(inputs, elementTarget = int64) {
     valueRefinement: { get: () => undefined },
     nodeTargetType: { get: () => undefined } };
   const shapes = { resolveNode: () => undefined, resolveTarget: () => undefined };
-  const analysis = analyzeCsharpConversions(policy, evidence, shapes);
-  analysis.prepare({
-    operations: { nativeUnreachable: Object.freeze({ get: () => false }), operationResultType: Object.freeze({ get: () => undefined }), selectedCall: Object.freeze({ get: () => undefined }),
+  const operations = { nativeUnreachable: Object.freeze({ get: () => false }), operationResultType: Object.freeze({ get: () => undefined }), selectedCall: Object.freeze({ get: () => undefined }),
       binaryOperation: Object.freeze({ get: () => undefined }),
       selectedConstruction: Object.freeze({ get: () => undefined }),
-      borrowedSequence: Object.freeze({ get: node => node === expression ? sequence : undefined }) },
+      borrowedSequence: Object.freeze({ get: node => node === expression ? sequence : undefined }) };
+  const analysis = analyzeCsharpConversions(policy, evidence, shapes, operations);
+  analysis.prepare({
     expectedTypes: { expectedType: Object.freeze({ get: () => [] }), requiredExpectedType: Object.freeze({ get: () => [] }), callableTarget: Object.freeze({ get: () => undefined }) },
     valueReads: { valueRead: Object.freeze({ get: () => undefined }) },
   });

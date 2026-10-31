@@ -23,7 +23,8 @@ test("physical capture decisions are complete before publication and final reads
   } } }, navigation: { sourceFiles: [] } };
   const result = analyzeCsharpCaptureStorage(source, { knownShapes: () => [] }, storage, {},
     declarations.map(declaration => ({ declaration, type: parameter, mutable: false })),
-    { get: () => undefined, closedInputType: () => undefined }, { get: () => false });
+    { get: () => undefined, closedInputType: () => undefined }, { get: () => false },
+    { selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined } });
   assert.equal(result.issues.length, 0);
   closed = true;
   const expected = [csharpRuntimeLocationTargetType(scalar), csharpRuntimeNativeArrayTargetType(scalar), scalar, parameter];

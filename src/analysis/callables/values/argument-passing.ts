@@ -10,6 +10,66 @@ import type { CsharpTargetParameter } from "../../../target-model/types/model.js
 import { isCsharpJsValueTargetType, csharpSourcePrimitiveTargetType } from "../../../target-model/types/index.js";
 import { csharpConstructorBaseCall } from "../emission/constructor-entry.js";
 import { createCsharpArgumentPassingRecords } from "../../program/records/calls/argument-passing.js";
+import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import type { CsharpSourceArgumentSelection, CsharpSourceArgumentSelectionResult } from "../../../source/extension/arguments.js";
+import type { CsharpTargetCallSelection } from "../../../target-model/records/operations/member-selections.js";
+
+export function readCsharpArgumentPassingSource(source: Pick<TargetSourceProgram, "ast">,
+  evidence: Pick<CsharpSourceEvidenceIndex, "sourceArgument">, request: CsharpNativeArgumentRequest): CsharpSourceArgumentSelectionResult {
+  const selected = evidence.sourceArgument.get(request.node);
+  if (selected === undefined) return { kind: "rejected", reason: "C# call planning received an argument without sealed passing evidence." };
+  if (selected.kind === "rejected") return selected;
+  const argument = selected.argument;
+  const mode = argument.passingMode;
+  if (mode !== "by-value" && mode !== "byref-writeonly-must-init" && mode !== "byref-readwrite" && mode !== "byref-readonly")
+    return { kind: "rejected", reason: `C# argument emission does not support finalized argument-passing mode '${mode}'.` };
+  const expected = request.passing ?? "by-value";
+  if (mode !== expected) return { kind: "rejected", reason: `Finalized argument-passing fact '${mode}' does not match the selected call parameter mode '${expected}'.` };
+  const parameter = request.parameter;
+  if (parameter?.csharpValueProjection !== undefined && (parameter.csharpValueProjection !== "properties" || mode !== "by-value" ||
+    !isCsharpJsValueTargetType(parameter.type) || !isCsharpJsValueTargetType(request.target)))
+    return { kind: "rejected", reason: "Checked property projection requires one exact by-value TsValue parameter." };
+  if (parameter?.csharpOutputMayBeNull && (mode === "by-value" || mode === "byref-readonly"))
+    return { kind: "rejected", reason: `Selected target parameter '${parameter.name}' declares nullable output on non-writing passing mode '${mode}'.` };
+  if (!isAstNode(source.ast, argument.storageExpression))
+    return { kind: "rejected", reason: "Argument-passing facts must carry exact source storage expressions before C# argument emission." };
+  return selected;
+}
+
+export function* readCsharpSelectedWritingArguments(source: Pick<TargetSourceProgram, "ast">,
+  evidence: Pick<CsharpSourceEvidenceIndex, "sourceArgument">,
+  selected: Extract<CsharpTargetCallSelection, { readonly kind: "resolved" }>): Iterable<CsharpSourceArgumentSelection> {
+  const entries = selected.call.arguments.map(argument => ({ expression: selected.source.sourceArguments[argument.sourceArgumentIndex]?.expression,
+    parameter: argument.targetParameter }));
+  if (selected.source.sourceReceiver !== undefined && selected.call.receiver.kind === "target-parameter") entries.push({ expression: selected.source.sourceReceiver.expression,
+    parameter: selected.call.targetMember.parameters[selected.call.receiver.targetParameterIndex]
+      ?? failTargetAnalysisInvariant("tsonic-csharp", "A selected native receiver requires its exact target parameter.", selected.source.sourceCallee.expression) });
+  for (const entry of entries) {
+    if (entry.parameter.passingMode !== "byref-readwrite" && entry.parameter.passingMode !== "byref-writeonly-must-init") continue;
+    const expression = entry.expression ?? failTargetAnalysisInvariant("tsonic-csharp", "A selected native argument requires its exact original source expression.", selected.source.sourceCallee.expression);
+    const passing = readCsharpArgumentPassingSource(source, evidence, { node: expression, target: entry.parameter.type,
+      passing: entry.parameter.passingMode, parameter: entry.parameter });
+    if (passing.kind === "rejected") failTargetAnalysisInvariant("tsonic-csharp", passing.reason, expression);
+    yield passing.argument;
+  }
+}
+
+export function readCsharpSelectedWritingReference(source: Pick<TargetSourceProgram, "ast">,
+  evidence: Pick<CsharpSourceEvidenceIndex, "sourceArgument">,
+  operations: Pick<CsharpTargetOperationClassifications, "selectedCall" | "selectedConstruction">,
+  reference: Node): CsharpSourceArgumentSelection | undefined {
+  for (let node = source.ast.parent(reference); node !== undefined; node = source.ast.parent(node)) {
+    const selected = operations.selectedCall.get(node)?.target ?? operations.selectedConstruction.get(node)?.target;
+    if (selected?.kind === "resolved") for (const passing of readCsharpSelectedWritingArguments(source, evidence, selected)) {
+      let storage = passing.storageExpression;
+      while (source.ast.is.IsParenthesizedExpression(storage)) storage = source.ast.as.AsParenthesizedExpression(storage)?.Expression
+        ?? failTargetAnalysisInvariant("tsonic-csharp", "An existing native argument storage identity requires its parenthesized operand.", storage);
+      if (storage === reference) return passing;
+    }
+    if (source.ast.is.IsBlock(node) || source.ast.is.IsSourceFile(node)) break;
+  }
+  return undefined;
+}
 
 export function analyzeCsharpArgumentPassing(input: { readonly source: TargetSourceProgram; readonly requests: readonly CsharpNativeArgumentRequest[];
   readonly nodes: readonly Node[]; readonly evidence: CsharpSourceEvidenceIndex; readonly storage: CsharpStorageClassifications;
@@ -52,25 +112,11 @@ export function analyzeCsharpArgumentPassing(input: { readonly source: TargetSou
     issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message });
   };
   for (const request of requests) {
-    const selected = input.evidence.sourceArgument.get(request.node);
-    if (selected === undefined) { refuse(request.node, "C# call planning received an argument without sealed passing evidence."); continue; }
+    const selected = readCsharpArgumentPassingSource(input.source, input.evidence, request);
     if (selected.kind === "rejected") { refuse(request.node, selected.reason); continue; }
     const argument = selected.argument;
     const mode = argument.passingMode;
-    if (mode !== "by-value" && mode !== "byref-writeonly-must-init" && mode !== "byref-readwrite" && mode !== "byref-readonly") {
-      refuse(request.node, `C# argument emission does not support finalized argument-passing mode '${mode}'.`); continue;
-    }
-    const expected = request.passing ?? "by-value";
-    if (mode !== expected) { refuse(request.node, `Finalized argument-passing fact '${mode}' does not match the selected call parameter mode '${expected}'.`); continue; }
     const parameter = request.parameter;
-    if (parameter?.csharpValueProjection !== undefined && (parameter.csharpValueProjection !== "properties" || mode !== "by-value" ||
-      !isCsharpJsValueTargetType(parameter.type) || !isCsharpJsValueTargetType(request.target))) {
-      refuse(request.node, "Checked property projection requires one exact by-value TsValue parameter."); continue;
-    }
-    if (parameter?.csharpOutputMayBeNull && (mode === "by-value" || mode === "byref-readonly")) {
-      refuse(request.node, `Selected target parameter '${parameter.name}' declares nullable output on non-writing passing mode '${mode}'.`); continue;
-    }
-    if (!isAstNode(input.source.ast, argument.storageExpression)) { refuse(request.node, "Argument-passing facts must carry exact source storage expressions before C# argument emission."); continue; }
     const nativePassing = mode === "by-value" ? undefined : mode === "byref-writeonly-must-init" ? "out" : mode === "byref-readwrite" ? "ref" : "in";
     const location = nativePassing === undefined ? undefined : input.storage.nativeLocation.get(argument.storageExpression);
     if (nativePassing !== undefined && (location?.kind !== "resolved" || location.address === undefined ||

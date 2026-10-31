@@ -316,9 +316,9 @@ for (const wrapper of ["direct", "delegate", "tuple", "native-generic"]) test(wr
       shape.implements = [target];
       return true;
     } };
-  const analysis = analyzeCsharpConversions(policy, {}, shapes);
-  const prepared = analysis.prepare({ operations: { selectedCall: none, selectedConstruction: none },
-    expectedTypes: {}, valueReads: {} });
+  const operations = { selectedCall: none, selectedConstruction: none };
+  const analysis = analyzeCsharpConversions(policy, {}, shapes, operations);
+  const prepared = analysis.prepare({ expectedTypes: {}, valueReads: {} });
   assert.throws(() => analysis.seal(), /closed preparation/u, "final publication cannot compute or close preparation itself");
   const site = csharpNativeUseSite(expression, { kind: "return" });
   const use = Object.freeze({ kind: "converted", expression, carrier: sourceUse, target: targetUse, mode: "implicit",

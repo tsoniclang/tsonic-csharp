@@ -26,7 +26,7 @@ import type {
 import { planResourceScopeStatements } from "./resource-management.js";
 import { planCsharpCaptureFrame } from "../bindings/capture-storage.js";
 import { allocateExpressionTemp, csharpCaptureFrameName, declareCsharpLocalBindingName, getCsharpLocalBindingName } from "../bindings/binding-state.js";
-import { sourceBindingIterationScope, sourceBindingWriteAtReference, sourceExpressionSequence } from "@tsonic/target-api/source";
+import { sourceBindingIterationScope, sourceExpressionSequence } from "@tsonic/target-api/source";
 import { planCsharpPlannedDiscard, planDiscardedExpression } from "./statement-output.js";
 import { csharpLoopContinuationLabel, planCsharpLoopContinuation } from "./loop-regions.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
@@ -105,17 +105,15 @@ function planForStatementCore(
     (input.program.records.capturedPlace.get(binding.declaration) !== undefined ||
       input.program.records.capturedBinding.get(binding.declaration)?.frame.scope === node) &&
     sourceBindingIterationScope(binding.declaration, input.program.source.ast) === node);
-  const iteration = planForIteration(node, bodyNode, nativeBindings, frame, input, diagnostics, state);
+  const iteration = planForIteration(node, nativeBindings, frame, input, diagnostics, state);
   const iterationPrelude = conditionPrelude.flatMap(expression => planCsharpPlannedDiscard(expression!));
   const expandedIncrement = incrementors.some(expression => expression!.prelude.length !== 0 || expression!.completion.kind !== "value");
   const expandedCondition = iterationPrelude.length !== 0 || (condition?.prelude.length ?? 0) !== 0;
-  const label = expandedIncrement || iteration.continuation.length !== 0 ? planCsharpLoopContinuation(node, state) : undefined;
+  const label = expandedIncrement ? planCsharpLoopContinuation(node, state) : undefined;
   const body = condition?.completion.kind === "never" ? [] : planNestedStatementBody(bodyNode, sourceFile, iteration.input, diagnostics, state);
   const continuationExits = input.program.records.loopContinuationExit.get(node);
   if (continuationExits === undefined) failCsharpPlannerInvariant("An admitted for body requires its sealed continuation completion.", node);
-  const incrementStatements = [
-    ...incrementors.flatMap(expression => planCsharpPlannedDiscard(expression!)),
-  ];
+  const incrementStatements = incrementors.flatMap(expression => planCsharpPlannedDiscard(expression!));
   const conditionTest: readonly CsharpStatement[] = [...iterationPrelude, ...condition?.prelude ?? [],
     ...(condition?.completion.kind === "value" ? [{ kind: "IfStatement" as const,
       condition: { kind: "PrefixUnaryExpression" as const, operatorToken: { kind: "ExclamationToken" as const },
@@ -125,9 +123,7 @@ function planForStatementCore(
   ];
   const continuation = label === undefined ? [] : csharpLoopContinuationLabel(node, label, state);
   const initializerPrelude: readonly CsharpStatement[] = initializer?.prelude ?? [];
-  const footer = continuation.length === 0 && continuationExits ? [] : [
-    ...iteration.continuation, ...(expandedIncrement ? incrementStatements : []),
-  ];
+  const footer = expandedIncrement && (continuation.length !== 0 || !continuationExits) ? incrementStatements : [];
   const plannedFor: CsharpStatement = {
     kind: "ForStatement",
     ...(!expandedIncrement && incrementors.length > 0 && continuationExits ? { unreachableIncrementor: true } : {}),
@@ -190,14 +186,13 @@ function planForHeaderContext(
 }
 
 function planForIteration(
-  loop: Node, body: Node, bindings: readonly NativeIterationBinding[], frame: CsharpCaptureFrame | undefined,
+  loop: Node, bindings: readonly NativeIterationBinding[], frame: CsharpCaptureFrame | undefined,
   input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], state: DestructuringPlannerState,
-): { readonly input: CsharpPlanningContext; readonly prelude: readonly CsharpStatement[]; readonly continuation: readonly CsharpStatement[] } {
+): { readonly input: CsharpPlanningContext; readonly prelude: readonly CsharpStatement[] } {
   const nativeBindings = new Map(input.scope.capturedBindings);
   const frames = new Map(input.scope.captureFrames);
   const incoming = new Map<Node, CsharpExpression>();
   const prelude: CsharpStatement[] = [];
-  const continuation: CsharpStatement[] = [];
   const identifier = (name: string): CsharpExpression => ({ kind: "IdentifierName", name });
   for (const binding of bindings) {
     const captured = input.program.records.capturedBinding.get(binding.declaration);
@@ -213,30 +208,12 @@ function planForIteration(
       value = { expression: identifier(name), address: { kind: "root" } };
     }
     nativeBindings.set(binding.declaration, value);
-    if (bindingWrittenInBody(binding.declaration, body, input)) continuation.push({ kind: "ExpressionStatement", expression: {
-      kind: "AssignmentExpression", left: identifier(binding.name), operatorToken: { kind: "EqualsToken" }, right: value.expression,
-    } });
   }
   if (frame !== undefined) {
     prelude.unshift(...planCsharpCaptureFrame(loop, input, diagnostics, state, incoming));
     frames.set(loop, identifier(csharpCaptureFrameName(loop, state)));
   }
-  return { input: { ...input, scope: { ...input.scope, capturedBindings: nativeBindings, captureFrames: frames } }, prelude, continuation };
-}
-
-function bindingWrittenInBody(declaration: Node, body: Node, input: CsharpPlanningContext): boolean {
-  let written = false;
-  const visit = (node: Node): void => {
-    if (written) return;
-    const reference = input.program.records.identifierEmission.get(node);
-    if (reference?.kind === "local" && reference.declaration === declaration) {
-      const write = sourceBindingWriteAtReference(input.program.source.ast, node);
-      if (write !== undefined && write.kind !== "initialization") { written = true; return; }
-    }
-    input.program.source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
-  };
-  visit(body);
-  return written;
+  return { input: { ...input, scope: { ...input.scope, capturedBindings: nativeBindings, captureFrames: frames } }, prelude };
 }
 
 function planForInitializer(

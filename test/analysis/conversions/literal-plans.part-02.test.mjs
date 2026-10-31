@@ -285,11 +285,11 @@ test("actual literal uses prepare their selected union inner endpoint before the
       getSourceFile: () => undefined, forEachChild: (node, visit) => { if (node === sourceFile) visit(expression); } },
     navigation: { referenceFor: () => undefined }, projectTypes: { directSupertypes: () => [] },
     providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) } };
+  const operations = { nativeUnreachable: { get: () => false }, borrowedSequence: none, binaryOperation: none, selectedCall: none,
+      selectedConstruction: none, unaryOperation: none };
   const analysis = analyzeCsharpConversions(policy, { compileTimeMetadata: { get: () => false } },
-    { resolveNode: () => undefined, resolveTarget: () => undefined, registerStructuralInterface: () => false });
+    { resolveNode: () => undefined, resolveTarget: () => undefined, registerStructuralInterface: () => false }, operations);
   const prepared = analysis.prepare({
-    operations: { nativeUnreachable: { get: () => false }, borrowedSequence: none, binaryOperation: none, selectedCall: none,
-      selectedConstruction: none, unaryOperation: none },
     expectedTypes: { callableTarget: none, expectedType: { get: node => node === expression ? [target] : [] },
       exactIntegerConversion: { get: () => false } },
     valueReads: { valueRead: { get: node => node === expression ? { value: source, source } : undefined } },

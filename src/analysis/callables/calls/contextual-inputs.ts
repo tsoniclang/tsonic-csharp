@@ -19,11 +19,11 @@ export function completeCsharpContextualInputs(
   const declaration = contract.sourceDeclaration;
   if (!policy.ast.is.IsArrowFunction(declaration) && !policy.ast.is.IsFunctionExpression(declaration)) return contract;
   if (contract.nativeSignature.methodTypeParameterIdentities.length !== 0) return contract;
-  if (policy.ast.is.IsFunctionExpression(declaration) && policy.ast.name(declaration) !== undefined &&
-    contract.nativeParameters.some(parameter => parameter.targetParameter.optional === true)) return contract;
   const signature = getCsharpLambdaSignature(context);
   const restIndex = signature?.restParameterIndex;
   if (signature === undefined) return contract;
+  if (restIndex === undefined && policy.ast.is.IsFunctionExpression(declaration) && policy.ast.name(declaration) !== undefined &&
+    contract.nativeParameters.some(parameter => parameter.targetParameter.optional === true)) return contract;
   const sequence = restIndex === undefined ? undefined : signature.parameters[restIndex];
   if (restIndex !== undefined && (sequence === undefined ||
       sequence.kind !== "array" && getCsharpJsArrayElementTargetType(sequence) === undefined)) return contract;

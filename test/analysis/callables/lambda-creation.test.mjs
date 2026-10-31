@@ -57,7 +57,7 @@ function fixture(body, quotation = false) {
       assert.equal(arguments_.length, 1, "one same selected native parameter per original checked binding");
       return arguments_[0].targetParameter.type;
     });
-    return [call, { source: checkedCall, target: { kind: "resolved", call: Object.freeze(selected) },
+    return [call, { source: checkedCall, target: { kind: "resolved", source: checkedCall, call: Object.freeze(selected) },
       sourceArgumentParameterTypes: Object.freeze(sourceArgumentParameterTypes) }];
   }));
   const evidence = { compileTimeMetadata: { get: () => false },
@@ -81,12 +81,13 @@ function fixture(body, quotation = false) {
       targetParameter: { name: source.ast.text(source.ast.name(parameter)), type: scalar, passingMode: "by-value" } })),
     returnType: scalar });
   const contracts = { get: identity => identity.declaration === lambda ? contract : undefined, closedInputType: () => undefined };
+  const selectedOperations = { selectedCall: { get: node => operations.get(node) }, selectedConstruction: { get: () => undefined } };
   const selected = analyzeCsharpCaptureStorage(source, { knownShapes: () => [] }, storage, evidence,
-    [], contracts, { get: () => false });
+    [], contracts, { get: () => false }, selectedOperations);
   assert.equal(selected.issues.length === 0, true, "closed capture storage");
   const creations = analyzeCsharpCallableCreations({ source, nodes, captures: selected,
     contracts,
-    operations: { selectedCall: { get: node => operations.get(node) }, selectedConstruction: { get: () => undefined } },
+    operations: selectedOperations,
     storage: { lambdaParameterType: { get: parameter => parameters.includes(parameter) ? scalar : undefined },
       storageType: { get: declaration => source.ast.is.IsVariableDeclaration(declaration) ? callable : undefined } },
     expectedTypes: { requiredExpectedType: { get: () => [] } },

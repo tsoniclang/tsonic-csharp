@@ -121,14 +121,14 @@ static void VerifyGeneric<T>(JSArray<T> values) {
 }
 static T Identity<T>(T value, int index, JSArray<T> values) => value;
 static JSArray<int> NativeSelf(JSArray<int> values) {
-    System.Func<int, int> self = null!;
-    int Self(int value) {
+    System.Func<int, int, JSArray<int>, int> self = null!;
+    int Self(int value, int index, JSArray<int> source) {
         var alias = self;
         if (!object.ReferenceEquals(alias, self)) throw new Tsonic.CSharp.Runtime.Error("self identity");
         return value + 1;
     }
-    self = new System.Func<int, int>(Self);
-    return values.map((value, _, _) => self(value));
+    self = Self;
+    return values.map(self);
 }
 static void VerifyCost(string name, System.Action generated, System.Action native) {
     for (var warmup = 0; warmup < 10000; warmup++) { generated(); native(); }

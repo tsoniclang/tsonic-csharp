@@ -2,7 +2,6 @@ import { canonicalCsharpObjectShapeImplementedTypes, canonicalCsharpObjectShapeM
 
 import { csharpEmptyObjectTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 
-import { targetTypeRefKey } from "../../../target-model/types/equality.js";
 import { type CsharpTypeParameterConstraintResolver } from "../../../target-model/types/generic-references.js";
 import { csharpObjectShapeTypeParameters, closeCsharpOwnerTypeParameterEnvironment } from "../../source-evidence/types/resolution/owner-type-parameter-environment.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
@@ -19,10 +18,7 @@ export function createStructuralObjectShapeTarget(
     return csharpEmptyObjectTargetType();
   }
   const canonicalMembers = canonicalCsharpObjectShapeMembers(members);
-  const canonicalImplemented = canonicalCsharpObjectShapeImplementedTypes(
-    (implemented ?? []).filter(type => !members.some(member => member.methodValueContract !== undefined &&
-      targetTypeRefKey(member.methodValueContract) === targetTypeRefKey(type))),
-  );
+  const canonicalImplemented = canonicalCsharpObjectShapeImplementedTypes(implemented ?? []);
   const typeParameters = closeCsharpOwnerTypeParameterEnvironment(csharpObjectShapeTypeParameters(
     canonicalMembers, canonicalImplemented, implementation,
   ), environment);

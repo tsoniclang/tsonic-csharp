@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { assertNativeLoopRefusals } from "../../../helpers/native-loop-refusals.mjs";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import {
   assertCsharpCompilationSucceeded,
@@ -20,7 +21,7 @@ for (const surface of ["native", "js"]) {
     ["nested array", "[[index]]", "[[0]]"],
   ]) {
     test(`${surface} ${name} destructuring consumes its exact inferred initializer type`, () => {
-      const compiled = compileCsharpSource({ surface, sourceText: `
+      const sourceText = `
         export function local(): number {
           const ${pattern} = ${initializer};
           return index;
@@ -33,7 +34,10 @@ for (const surface of ["native", "js"]) {
           }
           return selected();
         }
-      ` });
+      `;
+    const refused = compileCsharpSource({ surface, sourceText });
+    assertNativeLoopRefusals(refused, [{ message: "the loop variable is captured by a closure and also written in the loop; use a separate variable.", text: "index += 1", occurrence: 0 }]);
+    const compiled = compileCsharpSource({ surface, sourceText: sourceText.replace("            index += 1;\n", "") });
       assertCsharpCompilationSucceeded(compiled);
       const source = [...compiled.artifacts.values()].join("\n");
       assert.equal(/\bdynamic\b|Activator\.|Unsafe\./u.test(source), false);

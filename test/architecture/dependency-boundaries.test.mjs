@@ -232,7 +232,10 @@ test("C# conversion analysis seals sparse exact uses without a type Cartesian pr
   );
   assert.match(analysis, /classifyExpression\(/u);
   assert.match(analysis, /classifyPair\(/u);
-  assert.match(analysis, /prepare\(\{ operations, expectedTypes, valueReads \}\)/u);
+  assert.match(analysis, /prepare\(\{ expectedTypes, valueReads \}\)/u);
+  assert.match(analysis, /selectedOperations: CsharpTargetOperationClassifications,/u);
+  assert.match(analysis, /operations: selectedOperations, expectedTypes, valueReads/u);
+  assert.doesNotMatch(analysis, /\bpreparedOperations\b/u);
   assert.match(analysis, /close\(nativeDemand, requiredRecords, captures, creations\)/u);
   assert.match(analysis, /seal\(\)\s*\{\s*return sealedClassifications/u);
   assert.equal((analysis.match(/sealCsharpConversionUses\(nativeDemand,/gu) ?? []).length, 1,

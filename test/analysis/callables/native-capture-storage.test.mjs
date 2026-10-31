@@ -62,7 +62,8 @@ function fixture(text) {
     storageTargetType: { get: () => undefined }, nodeTargetType: { get: node => types.get(node) },
     typeParameterConstraints: { get: () => undefined },
     contextualType: { get: node => contexts.get(node) },
-  }, classCaptures, createCaptureContractFixture(source, node => types.get(node)), { get: () => false });
+  }, classCaptures, createCaptureContractFixture(source, node => types.get(node)), { get: () => false },
+    { selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined } });
   return { source, binding, owner, evaluate, types, metadata, classCaptures, storageTypes, contexts };
 }
 

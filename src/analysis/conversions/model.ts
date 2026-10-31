@@ -2,7 +2,6 @@ import type { CsharpConversionClassifications, CsharpValueReadClassifications } 
 
 import type { CsharpExactLiteralRequest } from "../../target-model/conversions/exact-literals.js";
 import type { CsharpExpectedTypeClassifications } from "../../target-model/records/types/expected-types.js";
-import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { CsharpNativeDemandAnalysis } from "../../target-model/records/native/native-demand.js";
 import type { CsharpRequiredRecord } from "../program/records/objects/required-records.js";
 
@@ -13,7 +12,6 @@ export interface CsharpPreparedConversionClassifications extends CsharpConversio
 export interface CsharpConversionAnalysis {
   readonly classifications: CsharpConversionClassifications;
   prepare(input: {
-    readonly operations: CsharpTargetOperationClassifications;
     readonly expectedTypes: CsharpExpectedTypeClassifications;
     readonly valueReads: CsharpValueReadClassifications;
   }): CsharpPreparedConversionClassifications;

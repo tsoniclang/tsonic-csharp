@@ -155,6 +155,7 @@ export function analyzeCsharpRepresentationIteration(
     policy,
     sourceEvidence,
     objectShapes,
+    operations,
   );
   const callables = analyzeCsharpCallableContracts(
     policy,
@@ -194,16 +195,15 @@ export function analyzeCsharpRepresentationIteration(
     operations, conversions: conversionAnalysis.classifications, valueReads, sourceEvidence,
   });
   const preparedConversions = conversionAnalysis.prepare({
-    operations,
     expectedTypes,
     valueReads,
   });
   const backingEvidence = Object.freeze({ ...sourceEvidence, inspectClosedArrayStorage: evidence.inspectClosedArrayStorage });
   const storagePreparation = prepareCsharpStorage(policy, backingEvidence, operations, storageRepresentations);
   const classFactories = analyzeCsharpClassFactories(source, typeSystem.projectTypes.catalog, sourceEvidence,
-    storagePreparation.captures, names, requiredRecords);
+    storagePreparation.captures, names, operations, requiredRecords);
   const captureStorage = analyzeCsharpCaptureStorage(source, objectShapes, storagePreparation.captures, sourceEvidence,
-    classFactories.factories.flatMap(factory => factory.captures), callables, operations.erasedStatement);
+    classFactories.factories.flatMap(factory => factory.captures), callables, operations.erasedStatement, operations);
   const callableCreations = analyzeCsharpCallableCreations({
     source, nodes: sourceStorage.nodes, captures: captureStorage, contracts: callables,
     operations, storage: storageRepresentations, expectedTypes, evidence: sourceEvidence, conversions: preparedConversions,

@@ -69,10 +69,10 @@ test("calls-only named self uses handwritten delegate allocation and allocation-
   assertCsharpCompilationSucceeded(compiled);
   const source = compiled.artifacts.get("src/Index.cs");
   assert.doesNotMatch(source, /__TsonicCapture_/u);
-  executeCsharpConstruction(compiled, "named-self-native-cost", false, false, [], `
+  const nativeOutput = executeCsharpConstruction(compiled, "named-self-native-cost", false, false, [], `
 static System.Func<double, double> NativeCreate() {
     static double Original(double count) { return count == 0 ? 1 : Original(count - 1); }
-    return new System.Func<double, double>(Original);
+    return Original;
 }
 for (var index = 0; index < 100; index++) {
     Tsonic.Generated.Index.create(); NativeCreate();
@@ -83,9 +83,10 @@ var actualBytes = System.GC.GetAllocatedBytesForCurrentThread() - before;
 before = System.GC.GetAllocatedBytesForCurrentThread();
 var expected = NativeCreate();
 var nativeBytes = System.GC.GetAllocatedBytesForCurrentThread() - before;
+System.Console.WriteLine($"named-self native allocation generated={actualBytes} native={nativeBytes}");
 if (actualBytes != nativeBytes) throw new System.Exception("named self differs from handwritten delegate allocation");
 var another = Tsonic.Generated.Index.create();
-if (object.ReferenceEquals(actual, another)) throw new System.Exception("named function creation identity reused");
+if (!object.ReferenceEquals(actual, another)) throw new System.Exception("native capture-free method group identity changed");
 before = System.GC.GetAllocatedBytesForCurrentThread();
 for (var index = 0; index < 10000; index++) {
     if (actual(3) != 1) throw new System.Exception("named self recursive result");
@@ -94,4 +95,7 @@ if (System.GC.GetAllocatedBytesForCurrentThread() != before) throw new System.Ex
 System.GC.KeepAlive(actual);
 System.GC.KeepAlive(expected);
 `);
+  const allocation = nativeOutput.match(/named-self native allocation generated=\d+ native=\d+/u);
+  assert.equal(allocation !== null, true, "the native execution reports both measured byte values");
+  console.log(allocation[0]);
 });

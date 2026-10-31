@@ -1,4 +1,5 @@
 import type { SourceFile } from "@tsonic/tsts";
+import { sourceEnclosingCallable } from "@tsonic/target-api/source";
 import type { ResolvedSourceCallInfo } from "../../../target-model/records/calls/source-calls.js";
 import type { CsharpTypePolicyBaseHost, CsharpTypePolicy } from "../../source-evidence/types/resolution/model.js";
 import type { CsharpSourceCalleeSelection } from "../../../target-model/operations/source-callees.js";
@@ -33,6 +34,11 @@ export function classifyCsharpSourceCallee(
       reason: "The exact selected source callee is external to the project and has no C# target relation." });
     return Object.freeze({ kind: "function", expression, declaration: selected });
   }
+  if (declaration !== undefined && declaration === selected && policy.ast.is.IsFunctionExpression(declaration) &&
+    policy.ast.name(declaration) !== undefined && sourceEnclosingCallable(expression, policy.ast) === declaration &&
+    policy.navigation.isProjectDeclaration(declaration)) {
+    return Object.freeze({ kind: "function", expression, declaration });
+  }
   const access = source.sourceCalleeAccess;
   if (access !== undefined && selected === undefined && declaration === undefined) {
     const receiver = policy.types.resolveSelectedValue(access.receiver.expression, access.receiver.type, sourceFile);
@@ -56,7 +62,7 @@ export function classifyCsharpSourceCallee(
     if (type === undefined || getCsharpCallableValueSignature(getCsharpNullableElementTargetType(type) ?? type) === undefined) {
       return reject("A source callee requires its exact selected declaration or native callable storage contract.");
     }
-  } else if ((getCsharpMethodValue(type) === undefined ||
+  } else if (getCsharpNullableElementTargetType(type) === undefined && (getCsharpMethodValue(type) === undefined ||
       policy.ast.is.IsClassDeclaration(policy.ast.parent(declaration))) &&
       (source.sourceCalleeAccess?.kind === "property" || source.sourceCalleeAccess?.kind === "element") &&
       (policy.ast.is.IsMethodDeclaration(declaration) || policy.ast.kindName(declaration) === "KindMethodSignature") &&

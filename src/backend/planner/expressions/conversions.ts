@@ -45,6 +45,7 @@ import { planCsharpUnionMapping } from "./union-mappings.js";
 import { planCsharpDelegateAdapter } from "./callable-conversions.js";
 import type { CsharpPlannedCallable } from "./planned-values.js";
 import { planCsharpAbsentValue } from "./optional-storage.js";
+import { planCsharpDiscardedStatement } from "../statements/statement-output.js";
 
 export function readCsharpConversionClassification(
   node: Node,
@@ -163,8 +164,10 @@ export function applyCsharpConversionSelection(
         return failCsharpPlannerInvariant(
           "An admitted absence conversion requires its renderable source and destination storage contracts.", node);
       }
-      if (!absenceConstant) prelude.push({ kind: "LocalDeclarationStatement", type: source,
-        name: input.names.temporaryName("__tsonic_absent"), initializer: expression });
+      if (!absenceConstant) {
+        const discarded = planCsharpDiscardedStatement(expression, sourceType);
+        if (discarded !== undefined) prelude.push(discarded);
+      }
       return absent;
     }
     case "array-like-union": {

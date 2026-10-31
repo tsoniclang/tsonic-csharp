@@ -435,8 +435,11 @@ export function analyzeCsharpNativeArtifactDemand(
     if (use.defaultValue !== undefined) { demandType(use.defaultValue.source, use.expression); demandType(use.defaultValue.target, use.expression); }
     if (use.kind === "converted" && use.input.kind === "value") {
       demandType(use.input.type, use.expression); demandType(use.target, use.expression);
-      demandConversion(use.expression, use.input.type, use.target,
-        input.conversions.expressionConversion.get(use.expression, use.input.type, use.target, use.mode)?.selection);
+      const conversion = input.conversions.expressionConversion.get(use.expression, use.input.type, use.target, use.mode);
+      const identity = input.conversions.delegateAdapter.get(use.expression, use.input.type, use.target);
+      const anchor = identity === undefined ? use.expression : input.ast.name(identity.declaration)
+        ?? failTargetAnalysisInvariant("tsonic-csharp", "A retained native adapter requires its original declaration-name demand anchor.", identity.declaration);
+      demandConversion(anchor, use.input.type, use.target, conversion?.selection);
     }
     if (use.discardedPresence !== undefined) demandDiscarded(use.discardedPresence);
     demandUseArtifacts(use);

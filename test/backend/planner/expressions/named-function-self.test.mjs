@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { assertNativeLoopRefusals } from "../../../helpers/native-loop-refusals.mjs";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../../helpers/native-construction.mjs";
 import { lexicalSelfBindingSource } from "../../../../../tsonic/test/fixtures/lexical-self-binding.mjs";
@@ -78,7 +79,7 @@ for (const surface of ["native", "js"]) {
   });
 
   test(`named self values retain the current counted-loop frame in ${surface}`, () => {
-    const compiled = compileCsharpSource({ surface, sourceText: `
+    const sourceText = `
       export function create(): (count: number) => number {
         let selected = (count: number): number => -1;
         for (let index = 0; index < 3; index++) {
@@ -92,13 +93,16 @@ for (const surface of ["native", "js"]) {
         }
         return selected;
       }
-    ` });
+    `;
+    const refused = compileCsharpSource({ surface, sourceText });
+    assertNativeLoopRefusals(refused, [{ message: "the loop variable is captured by a closure and also written in the loop; use a separate variable.", text: "index += 1", occurrence: 0 }]);
+    const compiled = compileCsharpSource({ surface, sourceText: sourceText.replace("          index += 1;\n", "") });
     assertCsharpCompilationSucceeded(compiled);
     const source = compiled.artifacts.get("src/Index.cs");
     assert.equal(typeof source, "string");
     executeCsharpConstruction(compiled, `native-loop-self-${surface}`, false, false, [], `
 var selected = Tsonic.Generated.Index.create();
-if (selected(0) != 3 || selected(1) != 3 || selected(4) != 3) throw new System.Exception("native loop self activation, mutation and recursion");
+if (selected(0) != 2 || selected(1) != 2 || selected(4) != 2) throw new System.Exception("native loop self activation, mutation and recursion");
 `);
     const retained = source.match(/double (__tsonic_value\d+) = index;/u);
     assert.equal(retained !== null, true, "one native per-iteration captured local");

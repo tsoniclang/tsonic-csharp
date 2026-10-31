@@ -212,7 +212,7 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
           parameterIndex: argument.targetParameterIndex },
         ...(bindings.kind !== "bound" || binding === undefined ? { withheld: "argument-inconsistent" as const } : {}) };
       record(expression, target, "required", demand);
-      if (expression !== undefined && bindings.kind === "bound" && binding !== undefined && sequence === undefined &&
+      if (expression !== undefined && target !== undefined && bindings.kind === "bound" && binding !== undefined && sequence === undefined &&
         getCsharpExpressionTreeDelegateType(target) !== undefined) recordQuotationInitializer(expression, target, demand);
     }
   }
@@ -252,10 +252,12 @@ export function createCsharpExpectedConstructUses(input: CsharpExpectedTypeAnaly
   }
 
   function sourceArgumentExpectedType(expression: Node | undefined, parameter: Parameters<typeof csharpSourceArgumentExpectedType>[0],
-    sourceForm: Parameters<typeof csharpSourceArgumentExpectedType>[1]): TargetTypeRef {
+    sourceForm: Parameters<typeof csharpSourceArgumentExpectedType>[1]): TargetTypeRef | undefined {
     const declared = csharpSourceArgumentExpectedType(parameter, sourceForm);
     if (expression === undefined || parameter.csharpSourceArgumentAdapter === undefined || !isSourceCallableBodyBoundary(policy.ast, expression)) return declared;
     const callable = callables.get({ kind: "declaration", declaration: expression });
-    return callable === undefined || callable.nativeSignature.methodTypeParameterIdentities.length > 0 ? declared : csharpCallableValueType(callable) ?? declared;
+    if (callable === undefined) return undefined;
+    if (callable.nativeSignature.methodTypeParameterIdentities.length > 0) return declared;
+    return callables.closedInputType(expression) ?? csharpCallableValueType(callable);
   }
 }

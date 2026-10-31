@@ -9,6 +9,8 @@ import { getCsharpClassFactory } from "../../target-model/types/carriers/class-f
 import type { CsharpSourceNameResolver } from "../names/plan.js";
 import { csharpTargetNamedType } from "../../target-model/types/factories.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/objects/required-records.js";
+import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
+import { readCsharpSelectedWritingReference } from "../callables/values/argument-passing.js";
 
 export function analyzeCsharpClassFactories(
   source: TargetSourceProgram,
@@ -16,6 +18,7 @@ export function analyzeCsharpClassFactories(
   evidence: CsharpSourceEvidenceIndex,
   storage: Pick<CsharpStorageClassifications, "storageType">,
   names: CsharpSourceNameResolver,
+  selectedCalls: Pick<CsharpTargetOperationClassifications, "selectedCall" | "selectedConstruction">,
   requiredRecords: CsharpRequiredRecord[],
 ): CsharpClassFactoryIndex {
   const factories: CsharpClassFactory[] = [];
@@ -34,7 +37,9 @@ export function analyzeCsharpClassFactories(
         (reference === undefined ? undefined : evidence.nodeTargetType.get(reference));
       return reference === undefined || type === undefined ? undefined : Object.freeze({
         declaration: capture.declaration, reference, type, fieldName: names.temporaryName(`capture${index}`),
-        mutable: source.navigation.declarationUseSummary(capture.declaration).bindingWritten,
+        mutable: source.navigation.declarationUseSummary(capture.declaration).bindingWritten ||
+          source.navigation.declarationUseSummary(capture.declaration).uses.some(use =>
+            readCsharpSelectedWritingReference(source, evidence, selectedCalls, use.reference) !== undefined),
       });
     });
     if (contract === undefined || type?.kind !== "target-named" || definition.scopeName === undefined ||

@@ -29,7 +29,9 @@ function fixture(text) {
       const argument = source.ast.as.AsCallExpression(node)?.Arguments?.Nodes?.[0];
       if (argument !== undefined) expressions.set(argument, new Map([["exact", Object.freeze({
         source: sourceType, target: targetType, selection: conversion, identityRequired: true,
-        operandStability: csharpConversionOperandStability(argument, policy, { selectedProperty: { get: () => undefined } }),
+        operandStability: csharpConversionOperandStability(argument, policy, { selectedProperty: { get: () => undefined },
+          selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined } },
+          { sourceArgument: { get: () => undefined } }),
       })]]));
     }
     source.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });

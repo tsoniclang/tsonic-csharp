@@ -22,6 +22,8 @@ import type { CsharpConversionClassifications } from "../../../target-model/reco
 import { csharpTargetParameterValueType } from "../../../target-model/types/member-facts.js";
 import { getCsharpRuntimeUnionArms } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { csharpCallableValueType } from "../../../policy/types/callables/value-type.js";
+import { csharpConversionIsApplicable } from "../../../policy/conversions/applicability.js";
 
 export function selectCsharpSourceCallableGenericAbi(
   ast: AstReader,
@@ -75,10 +77,13 @@ export function selectCsharpSourceCallableAbi(
   }
   const presentInput = getCsharpNullableElementTargetType(inputType) ?? inputType;
   const arms = presentInput === undefined ? undefined : getCsharpRuntimeUnionArms(presentInput, policy.typeDefinitions);
+  let callableArms: readonly TargetTypeRef[] | undefined;
   if (arms !== undefined) {
     const callables = arms.filter(arm => getCsharpLambdaSignature(arm) !== undefined);
-    if (callables.length > 1) return undefined;
-    inputType = callables[0];
+    if (callables.length > 1) {
+      callableArms = callables;
+      inputType = undefined;
+    } else inputType = callables[0];
   } else inputType = presentInput;
   const hasInput = !quantified && getCsharpLambdaSignature(inputType) !== undefined;
   if (checked === undefined || valueParameters === undefined) return undefined;
@@ -114,7 +119,7 @@ export function selectCsharpSourceCallableAbi(
   const genericAbi = selectCsharpSourceCallableGenericAbi(policy.ast, declaration);
   if (genericAbi === undefined) return undefined;
   const owner = sourceCallableReceiverTypeOwner(policy, declaration);
-  return completeCsharpContextualInputs(policy, inputType, conversions, Object.freeze({
+  const contract: SourceCallableSourceContract = Object.freeze({
     kind: "source",
     sourceDeclaration: declaration,
     nativeSignature: Object.freeze({ methodTypeParameterIdentities: Object.freeze(
@@ -127,7 +132,17 @@ export function selectCsharpSourceCallableAbi(
     parameters: valueParameters,
     nativeParameters: Object.freeze(nativeParameters),
     returnType,
-  }));
+  });
+  if (callableArms !== undefined) {
+    const intrinsic = csharpCallableValueType(contract);
+    const admitted = intrinsic === undefined ? [] : callableArms.filter(arm => {
+      const conversion = conversions.conversion.get(intrinsic, arm, "implicit");
+      return conversion !== undefined && csharpConversionIsApplicable(conversion, "implicit");
+    });
+    if (admitted.length !== 1) return undefined;
+    inputType = admitted[0];
+  }
+  return completeCsharpContextualInputs(policy, inputType, conversions, contract);
 }
 
 function sourceParameterContracts(

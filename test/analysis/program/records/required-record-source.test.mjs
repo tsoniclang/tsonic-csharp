@@ -61,7 +61,7 @@ for (const surface of ["native", "js"]) {
     const { catalog, names, local } = classFactoryInputs(source, program);
     assert.equal(local.length === 2 && local.every(node => ast.is.IsClassDeclaration(node)), true, "two local class definitions");
     const rows = [];
-    const index = analyzeCsharpClassFactories(source, catalog, records, records, names, rows);
+    const index = analyzeCsharpClassFactories(source, catalog, records, records, names, records, rows);
     assert.equal(index.issues.length === 0, true, "both local classes close");
     assert.equal(sameRows(rows, local, "classFactory", "local class definition", "analyzeCsharpClassFactories"), true,
       "one row per local definition, in catalog order");
@@ -75,7 +75,7 @@ for (const surface of ["native", "js"]) {
     const { catalog, names, local } = classFactoryInputs(source, program);
     const rows = [];
     const evidence = Object.freeze({ ...records, classConstructorType: Object.freeze({ get: () => undefined }) });
-    const index = analyzeCsharpClassFactories(source, catalog, evidence, records, names, rows);
+    const index = analyzeCsharpClassFactories(source, catalog, evidence, records, names, records, rows);
     assert.equal(index.factories.length === 0 && index.issues.length === 2 &&
       index.issues.every((issue, position) => issue.code === "CSHARP_CLASS_FACTORY_NOT_CLOSED" && issue.node === local[position]), true,
       "each unclosed local class carries its ordinary owning issue");
