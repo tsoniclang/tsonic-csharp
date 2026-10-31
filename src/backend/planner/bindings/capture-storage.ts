@@ -1,6 +1,5 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpCaptureFrame } from "../../../target-model/records/callables/capture-storage.js";
 import type { CsharpExpression, CsharpObjectInitializerAssignment, CsharpStatement } from "../../target-ast/syntax/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
@@ -94,24 +93,10 @@ export function planCsharpParameterCapture(
     { kind: "IdentifierName", name: localName }, input, state);
 }
 
-export function planCsharpProtocolFrameRotation(
-  frame: CsharpCaptureFrame, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], state: DestructuringPlannerState,
-): CsharpExpression | undefined {
-  if (frame.protocols.length === 0) failCsharpPlannerInvariant("A rotated native place requires its completed class or quantified protocol.", frame.scope);
-  const type = csharpTypeFromObjectShapeFact(input, frame.shape, diagnostics, frame.scope);
-  if (type === undefined) failCsharpPlannerInvariant("An admitted capture activation requires its native rotation storage.", frame.scope);
-  const receiver: CsharpExpression = { kind: "IdentifierName", name: csharpCaptureFrameName(frame.scope, state) };
-  return { kind: "AssignmentExpression", left: receiver, operatorToken: { kind: "EqualsToken" }, right: {
-    kind: "ObjectCreationExpression", type, assignments: frame.shape.members.map(member => ({
-      kind: "AssignmentExpression", name: member.targetName,
-      expression: { kind: "SimpleMemberAccessExpression", receiver, name: member.targetName },
-    })),
-  } };
-}
-
 export function planCsharpCapturedInitialization(
   declaration: Node, initializer: CsharpExpression | undefined, input: CsharpPlanningContext, state: DestructuringPlannerState,
 ): CsharpStatement | undefined {
+  if (input.scope.capturedBindings?.get(declaration)?.address?.kind === "root") return undefined;
   const target = csharpCapturedBindingExpression(declaration, input, state);
   if (target === undefined || initializer === undefined) return undefined;
   return { kind: "ExpressionStatement", expression: {

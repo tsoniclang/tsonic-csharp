@@ -15,7 +15,6 @@ import type { CsharpPlannedValue, CsharpPlannedAddressOperand } from "./planned-
 import { planCsharpExpressionCompletion } from "./planned-value-composition.js";
 import { readCsharpNativeExpressionCarrier } from "./native-uses.js";
 import { planCsharpAbsenceLiteral } from "./optional-storage.js";
-import { planCsharpDeferredReadGuard } from "../objects/deferred-captures.js";
 
 export function planCsharpIdentifierValue(identifier: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[], state?: DestructuringPlannerState): CsharpPlannedValue | undefined {
@@ -32,18 +31,9 @@ export function planCsharpIdentifierValue(identifier: Node, sourceFile: SourceFi
   if (planned === undefined || planned.completion.kind !== "value") return planned;
   if (getCsharpExpressionOverride(identifier, state) !== undefined) return { ...planned, address: { kind: "root" } };
   const selected = input.program.records.identifierEmission.get(identifier);
-  const owner = input.program.source.ast.parent(identifier);
-  const writeOnly = owner !== undefined && input.program.source.ast.is.IsBinaryExpression(owner) &&
-    input.program.source.ast.as.AsBinaryExpression(owner)?.Left === identifier &&
-    input.program.source.ast.operatorKindName(owner) === "KindEqualsToken";
-  const initialization = !writeOnly && selected?.kind === "local" && selected.declaration !== undefined
-    ? state?.deferredCaptureInitializations.get(selected.declaration) : undefined;
-  const retained = initialization === undefined ? planned : {
-    ...planned, prelude: [planCsharpDeferredReadGuard(initialization), ...planned.prelude],
-  };
   if ((selected?.kind === "module" || selected?.kind === "local") && input.program.records.directCallableReference.get(identifier) !== undefined)
-    return { ...retained, address: { kind: "root" }, callable: { kind: "method" } };
-  if (selected?.kind !== "local") return { ...retained, address: { kind: "root" } };
+    return { ...planned, address: { kind: "root" }, callable: { kind: "method" } };
+  if (selected?.kind !== "local") return { ...planned, address: { kind: "root" } };
   const captured = selected.declaration === undefined ? undefined : input.program.records.capturedBinding.get(selected.declaration);
   const overridden = selected.declaration === undefined ? undefined : input.scope.capturedBindings?.get(selected.declaration);
   let root: CsharpPlannedAddressOperand;
@@ -54,7 +44,7 @@ export function planCsharpIdentifierValue(identifier: Node, sourceFile: SourceFi
       address: { kind: "member", receiver: { expression: receiver }, name: captured.fieldName, static: false } };
   } else root = overridden ?? { expression: { kind: "IdentifierName",
     name: getCsharpLocalBindingName(identifier, input, state) ?? requireSealedSourceReferenceName(identifier, input) }, address: { kind: "root" } };
-  return { ...retained, address: selected.backing ? { kind: "member", receiver: root, name: "Value", static: false } : root.address };
+  return { ...planned, address: selected.backing ? { kind: "member", receiver: root, name: "Value", static: false } : root.address };
 }
 
 export function planIdentifierExpression(identifier: Node, sourceFile: SourceFile, input: CsharpPlanningContext,

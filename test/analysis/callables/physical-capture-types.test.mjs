@@ -17,7 +17,10 @@ test("physical capture decisions are complete before publication and final reads
   const storage = { nativeBacking: lookup(new Map([[declarations[0], layout]])),
     nativeArray: lookup(new Map([[declarations[1], { layout }]])),
     storageType: lookup(new Map([[declarations[2], scalar]])) };
-  const source = { ast: {}, navigation: { sourceFiles: [] } };
+  const source = { ast: { is: { IsVariableDeclaration(declaration) {
+    assert.equal(declarations.includes(declaration), true, "the fixture classifies its own original physical capture subject");
+    return false;
+  } } }, navigation: { sourceFiles: [] } };
   const result = analyzeCsharpCaptureStorage(source, { knownShapes: () => [] }, storage, {},
     declarations.map(declaration => ({ declaration, type: parameter, mutable: false })),
     { get: () => undefined, closedInputType: () => undefined }, { get: () => false });

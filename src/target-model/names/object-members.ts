@@ -5,10 +5,6 @@ export const csharpJsonValueProjectionMethodName = "__tsonicJsonValue";
 export const csharpEnumerableKeysMethodName = "__tsonicObjectEnumerableKeys";
 export const csharpEnumerableKeysStorageName = "__tsonicObjectEnumerableKeyStorage";
 
-export function csharpDeferredCaptureStorageNames(name: string): { readonly valueName: string; readonly initializedName: string } {
-  return { valueName: `${name}Value`, initializedName: `${name}Initialized` };
-}
-
 export function objectShapeStorageMemberName(objectShape: CsharpObjectShapeFact, member: CsharpObjectShapeFact["members"][number]): string {
   if (member.memberKind !== "method") {
     return member.targetName;

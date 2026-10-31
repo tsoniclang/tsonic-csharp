@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { loopCaptureStorageSource } from "../../../../tsonic/test/fixtures/loop-capture-storage.mjs";
 import { observableCallableCreationSource } from "../../../../tsonic/test/fixtures/observable-callable-creation.mjs";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
@@ -162,7 +163,7 @@ for (const surface of ["native", "js"]) {
     const cursorStorage = surface === "native" ? " = new List<Cursor>()" : ": Cursor[] = []";
     const appendMethod = surface === "native" ? "Add" : "push";
     const countProperty = surface === "native" ? "Count" : "length";
-    const compiled = compileCsharpSource({ surface, sourceText: `
+    const headerSource = `
       ${surface === "native" ? 'import { List } from "@tsonic/dotnet/System.Collections.Generic.js";' : ""}
       interface Cursor {
         read<T>(value: T): number;
@@ -220,12 +221,93 @@ for (const surface of ["native", "js"]) {
         return initial() === 0 && values[0]() === 0 && values[1]() === 1 &&
           cursors[0].read(0) === 0 && cursors[1].read(0) === 1;
       }
+    `;
+    const refused = compileCsharpSource({ surface, sourceText: headerSource });
+    assert.equal(refused.sourceDiagnosticsText, "", "the original header program remains checked source");
+    assert.deepEqual(refused.result.diagnostics.map(({ code, message }) => ({ code, message })), Array.from({ length: 3 }, () => ({
+      code: "CSHARP_UNSUPPORTED_AST",
+      message: "The loop-header expression captures a per-iteration loop binding; move the callback into the loop body.",
+    })));
+    const checked = createTargetSourceProgram(refused.source);
+    const loops = [];
+    const visit = node => {
+      if (checked.ast.is.IsForStatement(node)) loops.push(checked.ast.as.AsForStatement(node));
+      checked.ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    };
+    const diagnosticNode = refused.result.diagnostics[0]?.sourceNode;
+    assert.equal(diagnosticNode !== undefined, true, "the header refusal has an original checked source owner");
+    visit(checked.ast.getSourceFile(diagnosticNode));
+    assert.equal(loops.length, 4, "all four original loops remain in the refusal program");
+    const headers = [loops[0].Condition, loops[0].Incrementor, loops[3].Initializer];
+    for (const [index, diagnostic] of refused.result.diagnostics.entries()) {
+      assert.equal(diagnostic.sourceNode === headers[index], true, `header ${index}: exact original expression owns the refusal`);
+    }
+    assert.equal(refused.artifacts.size, 0, "capturing loop headers publish no native artifacts");
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      ${surface === "native" ? 'import { List } from "@tsonic/dotnet/System.Collections.Generic.js";' : ""}
+      interface Cursor {
+        read<T>(value: T): number;
+        advance<T>(value: T): T;
+      }
+      export function headers(): boolean {
+        const values${callbackStorage};
+        const cursors${cursorStorage};
+        for (let step = 0; step < 4; step++) {
+          cursors.${appendMethod}({
+            read<T>(value: T): number { return step; },
+            advance<T>(value: T): T { step += 10; return value; },
+          });
+          values.${appendMethod}(() => step);
+        }
+        if (values.${countProperty} !== 4) return false;
+        if (values[0]() !== 0 || values[1]() !== 1 || values[3]() !== 3) return false;
+        if (cursors[1].advance("same") !== "same" || cursors[1].read(0) !== 11) return false;
+        return values[0]() === 0 && values[1]() === 11 && values[2]() === 2;
+      }
+      export function labeled(): boolean {
+        const values${callbackStorage};
+        const cursors${cursorStorage};
+        outer: for (let row = 0; row < 4; row++) {
+          cursors.${appendMethod}({
+            read<T>(value: T): number { return row; },
+            advance<T>(value: T): T { row += 10; return value; },
+          });
+          values.${appendMethod}(function (): number { return row; });
+          try {
+            for (let inner = 0; inner < 1; inner++) { continue outer; }
+          } finally { row += 1; }
+        }
+        if (values.${countProperty} !== 2 || values[0]() !== 1 || values[1]() !== 3) return false;
+        if (!cursors[0].advance(true) || cursors[0].read(0) !== 11) return false;
+        return values[0]() === 11 && values[1]() === 3 && cursors[1].read(0) === 3;
+      }
+      export function initializer(): boolean {
+        let initial = (): number => -1;
+        const values${callbackStorage};
+        const cursors${cursorStorage};
+        const initialValue = 0;
+        const read = () => initialValue;
+        for (let value = 0; value < 2; value++) {
+          if (read() !== 0) return false;
+          initial = read;
+          values.${appendMethod}(() => value);
+          cursors.${appendMethod}({
+            read<T>(input: T): number { return value; },
+            advance<T>(input: T): T { value += 10; return input; },
+          });
+        }
+        return initial() === 0 && values[0]() === 0 && values[1]() === 1 &&
+          cursors[0].read(0) === 0 && cursors[1].read(0) === 1;
+      }
     ` });
     assertCsharpCompilationSucceeded(compiled);
     const source = compiled.artifacts.get("src/Index.cs");
     assert.equal(typeof source, "string");
     assert.match(source, /=>/u, "ordinary callbacks retain native inline lambda syntax");
     assert.doesNotMatch(source, /__tsonic_callable_/u, "no ordinary callback helper is introduced");
+    assert.match(source, /\bfor\s*\(/u, "body captures use native for syntax");
+    assert.doesNotMatch(source, /\bwhile\s*\(\s*true\s*\)/u, "no counted-loop while emulation");
+    assert.equal((source.match(/\bfinally\b/gu) ?? []).length, 1, "only the authored finally remains");
     executeCsharpConstruction(compiled, `protocol-loop-native-places-${surface}`, false, false, [], `
 if (!Tsonic.Generated.Index.headers()) throw new System.Exception("per-iteration header, body and protocol values");
 if (!Tsonic.Generated.Index.labeled()) throw new System.Exception("per-iteration labeled continue and finally values");

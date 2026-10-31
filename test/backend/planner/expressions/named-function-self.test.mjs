@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../../helpers/direct-csharp-session.mjs";
+import { executeCsharpConstruction } from "../../../helpers/native-construction.mjs";
 import { lexicalSelfBindingSource } from "../../../../../tsonic/test/fixtures/lexical-self-binding.mjs";
 
 for (const surface of ["native", "js"]) {
@@ -93,13 +94,17 @@ for (const surface of ["native", "js"]) {
     assertCsharpCompilationSucceeded(compiled);
     const source = compiled.artifacts.get("src/Index.cs");
     assert.equal(typeof source, "string");
-    const retained = source.match(/ObjectShape_capture_\w+ (__tsonic_value\d+) = (__tsonic_captures\d+);/u);
-    assert.equal(retained !== null, true, "one alias to the current native owner");
-    const method = source.match(/double __tsonic_self_\d+\(double count\)([\s\S]*?)\n\s*__tsonic_self_\d+Value =/u);
+    executeCsharpConstruction(compiled, `native-loop-self-${surface}`, false, false, [], `
+var selected = Tsonic.Generated.Index.create();
+if (selected(0) != 3 || selected(1) != 3 || selected(4) != 3) throw new System.Exception("native loop self activation, mutation and recursion");
+`);
+    const retained = source.match(/double (__tsonic_value\d+) = index;/u);
+    assert.equal(retained !== null, true, "one native per-iteration captured local");
+    const method = source.match(/^(?<indent>[ \t]*)double __tsonic_self_\d+\(double count\)\s*\{(?<body>[\s\S]*?)^\k<indent>\}/mu);
     assert.equal(method !== null, true, "fixed native recursive method");
-    assert.equal(method[1].includes(`${retained[1]}.value0`), true, "body reads the retained activation");
-    assert.equal(method[1].includes(`${retained[2]}.value0`), false, "body never reads the rotating frame local");
+    assert.equal(method.groups.body.includes(retained[1]), true, "body reads its native per-iteration activation");
+    assert.doesNotMatch(method.groups.body, /\bindex\b/u, "body never captures the header control variable");
     assert.equal((source.match(/new Func<double, double>\(__tsonic_self_\d+\)/gu) ?? []).length, 1);
-    assert.match(method[1], /object\.ReferenceEquals\(same, __tsonic_self_\d+Value\)/u);
+    assert.match(method.groups.body, /object\.ReferenceEquals\(same, __tsonic_self_\d+Value\)/u);
   });
 }

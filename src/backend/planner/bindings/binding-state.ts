@@ -31,7 +31,7 @@ export interface DestructuringPlannerState {
   localBindingNames: WeakMap<object, string>;
   typedLocationIdentityNames: WeakMap<object, string>;
   expressionOverrides: WeakMap<object, CsharpExpression>;
-  readonly deferredCaptureInitializations: Map<Node, string>;
+  readonly predeclaredNativeBindings: Set<Node>;
   controlLabels: ControlLabelTarget[];
   readonly loopContinuations: CsharpLoopContinuation[];
   currentReturnType?: CsharpTypeNode;
@@ -123,7 +123,7 @@ export function createDestructuringPlannerState(root?: Node, ast?: AstReader): D
     localBindingNames: new WeakMap(),
     typedLocationIdentityNames: new WeakMap(),
     expressionOverrides: new WeakMap(),
-    deferredCaptureInitializations: new Map(),
+    predeclaredNativeBindings: new Set(),
     controlLabels: [],
     loopContinuations: [],
   };
@@ -201,7 +201,7 @@ export function createNestedPlannerState(
     ...nested,
     parent,
     usedNames: new Set([...parent.usedNames, ...nested.usedNames]),
-    deferredCaptureInitializations: new Map(parent.deferredCaptureInitializations),
+    predeclaredNativeBindings: new Set(parent.predeclaredNativeBindings),
     explicitUnsafeContextDepth: parent.explicitUnsafeContextDepth,
   };
 }
