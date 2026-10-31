@@ -7,7 +7,7 @@ import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 test("closed integer callback inputs retain native width without per-call allocation", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: closedIntegerCallbackInputsSource });
   for (const source of compiled.artifacts.values()) assert.doesNotMatch(source, /Convert.ToDouble/u);
-  executeCsharpConstruction(compiled, "closed-callback-inputs", false, false, [], `
+  const nativeOutput = executeCsharpConstruction(compiled, "closed-callback-inputs", false, false, [], `
 if (!Tsonic.Generated.Index.run(1)) throw new System.Exception("warmup");
 long Measure(int count) {
     var before = System.GC.GetAllocatedBytesForCurrentThread();
@@ -17,7 +17,9 @@ long Measure(int count) {
 var small = Measure(1);
 var large = Measure(10_000);
 if (small != large) throw new System.Exception($"callback allocation {small} != {large}");
+System.Console.WriteLine($"callback_allocation_small={small};large={large}");
 `);
+  console.log(nativeOutput.trim());
 });
 
 test("closed Promise callback inputs preserve authored Error payload and identity", { timeout: 300_000 }, () => {

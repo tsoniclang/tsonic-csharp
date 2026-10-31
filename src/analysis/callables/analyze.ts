@@ -4,7 +4,7 @@ import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { isCsharpSourceCallableArtifactDeclaration, targetTypeRefEquals } from "../../policy/types/index.js";
 import type { CsharpTargetParameter } from "../../policy/types/index.js";
 
-import type { SourceCallableSourceContract, SourceCallableContract } from "../../target-model/records/callables/source-callable-contract.js";
+import type { SourceCallableSourceContract, SourceCallableContract, CsharpSourceCallableParameterContract } from "../../target-model/records/callables/source-callable-contract.js";
 import type { CsharpDeclarationClassifications } from "../../target-model/records/program/declarations.js";
 import type { CsharpSourceNameResolver } from "../names/index.js";
 import type { CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
@@ -40,11 +40,11 @@ export function analyzeCsharpCallableContracts(
   for (const sourceFile of policy.sourceFiles) {
     visit(sourceFile, sourceFile);
   }
-  const nativeDeclarations = closeCsharpProjectCallableContracts({
+  const nativeDeclarations = [...closeCsharpProjectCallableContracts({
     ast: policy.ast, navigation: policy.navigation,
     typeDefinitions: conversions.typeDefinitions, projectTypes: conversions.projectTypes,
     providers: conversions.providers, target: conversions.target, objectShapes: conversions.objectShapes,
-  }, declarationContracts);
+  }, declarationContracts)];
   for (const [index, contract] of nativeDeclarations.entries()) {
     byDeclaration.set(contract.sourceDeclaration, contract);
     contracts[index] = contract;
@@ -131,6 +131,12 @@ export function analyzeCsharpCallableContracts(
         }
         if (consistent && carrier !== undefined) {
           byDeclaration.set(declaration, nativeContract);
+          for (const [index, original] of contracts.entries()) {
+            if (original === contract) contracts[index] = nativeContract;
+          }
+          for (const [index, original] of nativeDeclarations.entries()) {
+            if (original === contract) nativeDeclarations[index] = nativeContract;
+          }
           const completed = Object.freeze({ type: carrier, source: nativeContract });
           closedInputs.set(declaration, completed);
           for (const alias of flow.aliasDeclarations) closedInputs.set(alias, completed);
@@ -144,8 +150,7 @@ export function analyzeCsharpCallableContracts(
     }
   }
   return sealCsharpCallableContractIndex({
-    contracts: contracts.map(contract => contract.kind === "source" ? byDeclaration.get(contract.sourceDeclaration)! : contract),
-    declarationContracts: nativeDeclarations.map(contract => byDeclaration.get(contract.sourceDeclaration)!), byDeclaration,
+    contracts, declarationContracts: nativeDeclarations, byDeclaration,
     byProjectConstructor, closedInputs });
 
   function nativeConsumerContract(contract: SourceCallableSourceContract, nativeType: TargetTypeRef,
@@ -156,7 +161,7 @@ export function analyzeCsharpCallableContracts(
       contract.parameters.length !== contract.nativeParameters.length ||
       contract.nativeParameters.some(parameter => parameter.targetParameter.optional === true ||
         parameter.targetParameter.paramsArray === true || parameter.targetParameter.passingMode !== "by-value")) return undefined;
-    const parameters = [];
+    const parameters: CsharpSourceCallableParameterContract[] = [];
     for (const [index, parameter] of contract.nativeParameters.entries()) {
       const type = signature.parameters[index];
       if (type === undefined) return undefined;
@@ -164,10 +169,10 @@ export function analyzeCsharpCallableContracts(
       const node = policy.ast.typeNode(parameter.sourceParameter);
       const queries = policy.semanticsFor(parameter.sourceParameter);
       const declared = node === undefined ? undefined : queries.types.authoredType(node);
-      const conversion = conversions.conversion.get(type, parameter.targetParameter.type, "implicit");
       if (declared === undefined || !queries.types.isUnknown(declared) && !queries.types.isAny(declared) ||
-        conversion === undefined || !csharpConversionIsApplicable(conversion, "implicit") ||
         !nativeParameterBodyUnchanged(parameter.sourceParameter, type)) return undefined;
+      const conversion = conversions.conversion.get(type, parameter.targetParameter.type, "implicit");
+      if (conversion === undefined || !csharpConversionIsApplicable(conversion, "implicit")) return undefined;
       parameters.push(Object.freeze({ ...parameter, targetParameter: Object.freeze({ ...parameter.targetParameter, type }) }));
     }
     const completed = Object.freeze({ ...contract, nativeParameters: Object.freeze(parameters) });

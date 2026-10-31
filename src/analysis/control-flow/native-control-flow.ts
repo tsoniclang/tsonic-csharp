@@ -25,7 +25,8 @@ import { createCsharpAdmittedIterationProducer } from "../program/records/operat
 import type { CsharpCaptureStorage } from "../../target-model/records/callables/capture-storage.js";
 import { isCsharpValueTypeTargetType } from "../../target-model/types/identity.js";
 import { readCsharpSelectedWritingArguments } from "../callables/values/argument-passing.js";
-import type { CsharpTargetAttributeFact } from "../../target-model/types/model.js";
+import type { CsharpTargetAttributeFact, TargetTypeRef } from "../../target-model/types/model.js";
+import { csharpProviderBindingFromResolution } from "../../providers/model/relation-resolver.js";
 
 export function admitCsharpIterationBindings(
   policy: CsharpPolicyContext,
@@ -94,10 +95,16 @@ export function analyzeCsharpNativeControlFlow(
   facts: {
     readonly operations: Pick<CsharpTargetOperationClassifications, "selectedCall" | "selectedConstruction" | "selectedProperty" | "selectedElement">;
     readonly evidence: Pick<CsharpSourceEvidenceIndex, "sourceArgument" | "nodeTargetType">;
+    readonly providers: Pick<CsharpPolicyContext["providers"], "findTargetBindingByTargetId">;
   },
 ): readonly TargetDiagnostic[] {
   const issues: TargetDiagnostic[] = [];
   const ast = source.ast;
+  const nativeValueType = (type: TargetTypeRef): boolean => {
+    const providerKind = type.kind === "target-named"
+      ? csharpProviderBindingFromResolution(facts.providers.findTargetBindingByTargetId(type.id, "ordinary"))?.kind : undefined;
+    return isCsharpValueTypeTargetType(type) || providerKind === "struct" || providerKind === "enum";
+  };
   const within = (node: Node, root: Node): boolean => {
     let current: Node | undefined = node;
     for (let remaining = 2_048; current !== undefined && remaining > 0; remaining -= 1) {
@@ -128,7 +135,7 @@ export function analyzeCsharpNativeControlFlow(
         ...captures.lexicalCaptures.flatMap(capture => capture.values),
         ...captures.frames.flatMap(frame => frame.bindings),
       ].filter(binding => sourceBindingIterationScope(binding.declaration, ast) === node &&
-        isCsharpValueTypeTargetType(binding.type)).map(binding => binding.declaration));
+        nativeValueType(binding.type)).map(binding => binding.declaration));
       if (valueBindings.size !== 0) refuseMutatingValueMembers(node, valueBindings);
       const bodyBindings = new Set([
         ...captures.lexicalCaptures.filter(capture => statement.Statement !== undefined && within(capture.owner, statement.Statement))
@@ -168,7 +175,7 @@ export function analyzeCsharpNativeControlFlow(
       const field = facts.operations.selectedProperty.get(current)?.selection ?? facts.operations.selectedElement.get(current)?.target;
       if (field?.kind !== "resolved" || field.targetMember.kind !== "field" || field.receiver.kind !== "instance") return false;
       const carrier = facts.evidence.nodeTargetType.get(current);
-      if (carrier === undefined || !isCsharpValueTypeTargetType(carrier)) return false;
+      if (carrier === undefined || !nativeValueType(carrier)) return false;
       current = field.source.receiver.expression;
     }
     return false;

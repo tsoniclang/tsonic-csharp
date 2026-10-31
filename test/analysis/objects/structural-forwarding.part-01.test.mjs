@@ -276,8 +276,10 @@ test("authored bodies admit only exact closed delegate or optional protocol slot
   const optional = select({ ...member, optional: true, methodValueContract: protocol,
     methodValueStorage: { kind: "protocol", type: csharpNullableTargetType(protocol), invocationName: "__tsonic_invoke_body_read" } });
   assert.equal(optional.kind === "selected" && optional.value.declaration.kind === "authored" &&
-    optional.value.declaration.value.kind === "protocol" && optional.value.declaration.value.initializedName !== undefined, true,
-    "a written optional absence has its own state, never a null-coalescing resurrection");
+    optional.value.declaration.value.kind === "protocol" &&
+    targetTypeRefEquals(optional.value.declaration.value.type, csharpNullableTargetType(protocol)) &&
+    !("initializedName" in optional.value.declaration.value), true,
+    "a native nullable slot retains written absence without an initialization flag or null-coalescing resurrection");
   assert.equal(select({ ...member, optional: true, methodValueContract: protocol,
     methodValueStorage: { kind: "protocol", type: protocol, invocationName: "__tsonic_invoke_body_read" } }).kind, "rejected",
     "a present-only field cannot silently erase optional callable absence");

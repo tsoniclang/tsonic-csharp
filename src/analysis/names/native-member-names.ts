@@ -434,7 +434,6 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
           recordHeader(objectShapeMethodBodyName(shape, member), shapeSignature(member, objectShapeMethodBodyName(shape, member), "method"));
           const names = objectShapeMethodValueStorageNames(shape, member);
           field(names.valueName);
-          if (member.optional === true && member.methodValueContract !== undefined) field(names.initializedName);
         }
         if (structural && member.memberKind === "method" && member.methodValueContract !== undefined &&
           targetTypeRefEquals(member.methodValueContract, shape.targetType))

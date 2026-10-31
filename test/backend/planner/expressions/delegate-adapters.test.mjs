@@ -237,7 +237,7 @@ test("exact absence conversion retains an effectful producer and rejects present
       { kind: "absence" }, effect, prelude, readCsharpExpressionOperandStability({}, context(), csharpAbsenceTargetType(), to, "implicit", { kind: "absence" }));
     assertNoTargetDiagnostics(diagnostics);
     assert.equal(planned.kind, "DefaultExpression");
-    assert.equal(prelude.length === 1 && prelude[0].kind === "LocalDeclarationStatement" && prelude[0].initializer === effect, true);
+    assert.equal(prelude.length === 1 && prelude[0].kind === "ExpressionStatement" && prelude[0].expression === effect, true);
   }
   for (const [from, to] of [[number, target], [csharpAbsenceTargetType(), number]]) {
     assert.deepEqual(admitCsharpConversionSelection({}, from, to, { kind: "absence" }), {

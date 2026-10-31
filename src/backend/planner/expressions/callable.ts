@@ -25,7 +25,6 @@ import {
   createNestedPlannerState,
   declareCsharpLocalBindingName,
   allocateSyntheticParameter,
-  redirectCsharpParameterStorage,
 } from "../bindings/index.js";
 import type {
   DestructuringPlannerState,
@@ -52,6 +51,7 @@ import type { CsharpPlannedValue } from "./planned-values.js";
 import { csharpPlannedEffect } from "./planned-values.js";
 import { planCsharpExpressionCompletion } from "./planned-value-composition.js";
 import { planCsharpLocalLambdaCreation } from "./lambda-creation.js";
+import { getCsharpLocalBindingName, redirectCsharpParameterStorage } from "../bindings/binding-state.js";
 
 export interface LambdaTargetContext {
   readonly carrier: TargetTypeRef;
@@ -112,7 +112,7 @@ export function planCsharpArrowLambdaSyntax(
     : createNestedPlannerState(state, node, input.program.source.ast);
   const sourceParameters = planLambdaParameters(
     parameterNodes,
-    sourceFile,
+    node,
     scopedInput,
     diagnostics,
     plannerState,
@@ -246,7 +246,7 @@ export function planFunctionExpression(
   };
   const sourceParameters = planLambdaParameters(
     parameterNodes,
-    sourceFile,
+    node,
     scopedInput,
     diagnostics,
     plannerState,
@@ -291,7 +291,7 @@ export function planCsharpCapturedFunctionLambdaSyntax(
   const scoped = input;
   const state = parentState ?? createDestructuringPlannerState(node, input.program.source.ast);
   const parameterPlan = planLambdaParameterStorage(parameterNodes,
-    planLambdaParameters(parameterNodes, sourceFile, scoped, diagnostics, state, targetContext),
+    planLambdaParameters(parameterNodes, node, scoped, diagnostics, state, targetContext),
     sourceFile, scoped, diagnostics, state);
   if (parameterPlan === undefined) return undefined;
   const body = planCsharpFunctionLambdaBody(node, expression.Body, sourceFile, scoped, diagnostics,
@@ -390,20 +390,17 @@ function getAuthoredLambdaReturnTypeNode(node: Node, ast: AstReader): Node | und
 
 export function planLambdaParameters(
   parameterNodes: readonly (Node | undefined)[],
-  _sourceFile: SourceFile,
+  owner: Node,
   input: CsharpPlanningContext,
   _diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   expectedContext: LambdaTargetContext,
 ): readonly CsharpLambdaParameter[] {
   const expectedParameterTypes = expectedContext.signature.parameters;
-  const owner = parameterNodes[0] === undefined ? undefined : input.program.source.ast.parent(parameterNodes[0]);
-  if (owner !== undefined && input.program.records.callableDeclaration.get(owner)?.contract.bodyInputs !== undefined) {
+  if (input.program.records.callableDeclaration.get(owner)?.contract.bodyInputs !== undefined) {
     return expectedParameterTypes.map(type => ({ kind: "Parameter", name: allocateSyntheticParameter(state), type }));
   }
   const sourceParameters: CsharpLambdaParameter[] = [];
-  const discardOmitted = expectedParameterTypes.length > parameterNodes.length &&
-    (owner === undefined || input.program.records.namedSelf.get(owner) === undefined && input.scope.nativeCallableBody?.declaration !== owner);
   let nativeIndex = 0;
   for (const parameterNode of parameterNodes) {
       if (parameterNode === undefined) failCsharpPlannerInvariant("An admitted lambda requires its complete native parameter vector.");
@@ -423,16 +420,26 @@ export function planLambdaParameters(
       }
       const expectedParameterType = expectedParameterTypes[nativeIndex++];
       if (expectedParameterType === undefined) failCsharpPlannerInvariant("An admitted lambda parameter requires its exact native signature type.", parameterNode);
-      let name = bindingPattern ? allocateSyntheticParameter(state) : declareCsharpLocalBindingName(parameter.name!, input, state);
-      if (discardOmitted && name === "_") {
-        name = redirectCsharpParameterStorage(parameter.name!, input, state)?.storageName
-          ?? failCsharpPlannerInvariant("An authored underscore binding requires its distinct native lambda parameter name.", parameterNode);
-      }
+      const name = bindingPattern ? allocateSyntheticParameter(state) : declareCsharpLocalBindingName(parameter.name!, input, state);
       sourceParameters.push({
         kind: "Parameter",
         name,
         type: expectedParameterType,
       });
+  }
+  const discardOmitted = expectedParameterTypes.length - sourceParameters.length >= 2 &&
+    input.program.records.namedSelf.get(owner) === undefined && !hasCsharpGeneratorPlan(owner, input) &&
+    input.scope.nativeCallableBody?.declaration !== owner;
+  if (discardOmitted) {
+    for (const node of parameterNodes) {
+      const name = node === undefined ? undefined : input.program.source.ast.name(node);
+      if (name === undefined || getCsharpLocalBindingName(name, input, state) !== "_") continue;
+      const index = sourceParameters.findIndex(parameter => parameter.name === "_");
+      if (index < 0) failCsharpPlannerInvariant("An authored underscore binding requires its native parameter slot.", node);
+      const redirected = redirectCsharpParameterStorage(name, input, state)
+        ?? failCsharpPlannerInvariant("An authored underscore binding requires its distinct native lambda parameter name.", node);
+      sourceParameters[index] = { ...sourceParameters[index]!, name: redirected.storageName };
+    }
   }
   const omittedTargetParameters = expectedParameterTypes
     .slice(sourceParameters.length)

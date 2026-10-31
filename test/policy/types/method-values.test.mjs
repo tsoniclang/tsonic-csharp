@@ -529,7 +529,7 @@ for (const returnPassing of [undefined, "byref-readwrite", "byref-readonly"]) {
       const records = { ...structural.records, nativeMemberHiding: { get: () => false },
         objectMemberDeclarations: { get: () => [selection.value] } };
       const interfaceMembers = renderCsharpStructuralInterfaceMembers(undefined, protocolShape, records);
-      const members = renderObjectShapeMembers(undefined, shape, records);
+      const members = renderObjectShapeMembers(undefined, shape, "NativeImplementation", records);
       const expected = [undefined, "in", "ref", "out"];
       const returning = returnPassing === undefined ? undefined : returnPassing === "byref-readonly" ? "ref-readonly" : "ref";
       for (const method of [...interfaceMembers, ...members.filter(candidate => candidate.kind === "MethodDeclaration")]) {

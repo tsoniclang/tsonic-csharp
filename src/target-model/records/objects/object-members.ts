@@ -14,7 +14,7 @@ export type CsharpAuthoredObjectMethodValue =
   | { readonly kind: "fixed" }
   | { readonly kind: "delegate"; readonly type: TargetTypeRef; readonly name: string; readonly valueName: string }
   | { readonly kind: "protocol"; readonly type: TargetTypeRef; readonly interface: TargetTypeRef;
-      readonly name: string; readonly valueName: string; readonly invocationName: string; readonly initializedName: string | undefined };
+      readonly name: string; readonly valueName: string; readonly invocationName: string };
 
 export type CsharpObjectMemberDeclaration =
   | { readonly kind: "authored"; readonly bodyName: string; readonly signature: CsharpObjectMethodSignature;

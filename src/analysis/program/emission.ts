@@ -266,7 +266,7 @@ export function finalizeCsharpNativeEmission(
       switchCoversDiscriminant,
     } });
   const nativeControlIssues = analyzeCsharpNativeControlFlow(source, statementCompletions.controlExit, admittedControlNode, captureStorage,
-    { operations: admittedOperations, evidence: analysis.sourceEvidence });
+    { operations: admittedOperations, evidence: analysis.sourceEvidence, providers: analysis.policy.providers });
   if (nativeControlIssues.length !== 0) return rejectedTargetStage(nativeControlIssues);
   const statementExits = analyzeCsharpStatementExits({ ast: source.ast, nodes: sourceStorage.nodes,
     operations: admittedOperations, metadata: analysis.sourceEvidence.compileTimeMetadata,

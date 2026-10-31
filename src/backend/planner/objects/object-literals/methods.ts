@@ -49,7 +49,7 @@ export function renderCsharpObjectLiteralCallable(
     },
   };
   const parameterPlan = planLambdaParameterStorage(selected.parameters,
-    planLambdaParameters(selected.parameters, sourceFile, scoped, diagnostics, state, target),
+    planLambdaParameters(selected.parameters, declaration, scoped, diagnostics, state, target),
     sourceFile, scoped, diagnostics, state);
   if (parameterPlan === undefined) failCsharpPlannerInvariant("An admitted object callable requires its native parameter storage plan.", declaration);
   const body = planLambdaBlockBody(declaration, selected.body, sourceFile, scoped, diagnostics, state, target);

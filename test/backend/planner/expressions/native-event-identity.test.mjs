@@ -82,7 +82,7 @@ test("native adapted events retain identity through original callbacks, aliases,
   assertCsharpCompilationSucceeded(compiled);
   const output = [...compiled.artifacts].filter(([path]) => path.endsWith(".cs")).map(([, source]) => source).join("\n");
   const originalBody = output.slice(output.indexOf("public static void events"), output.indexOf("public static void aliases"));
-  const adapters = [...originalBody.matchAll(/(?:System\.)?Action<int> (__tsonic_adapter\w*) = \(int\b/gu)];
+  const adapters = [...originalBody.matchAll(/(?:System\.)?Action<int> (__+tsonic_adapter\w*) = \(int\b/gu)];
   assert.equal(adapters.length, 1, "one typed native adapter value per original activation");
   const handlerNames = [...originalBody.matchAll(/\.Changed [+-]= (\w+);/gu)].map(match => match[1]);
   assert.equal(handlerNames.length, 2);

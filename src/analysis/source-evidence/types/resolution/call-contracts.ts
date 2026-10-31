@@ -29,14 +29,14 @@ export function resolveSourceCallContract(
   state: CsharpTypeResolutionState,
   selection: "checked" | "implementation",
 ): CsharpSourceCallContractSelection {
-  const { host, resolveSelectedValueWithState, sourceCallableTypeParametersMatch } = scope;
+  const { host, resolveSelectedValueWithState, resolveReadStorage, sourceCallableTypeParametersMatch } = scope;
   const direct = (): CsharpSourceCallContractSelection => Object.freeze({ kind: "declaration",
     contract: host.representations.sourceCallable(source, sourceFile, selection) });
   if (host.ast.is.IsNewExpression(source.call) || host.ast.kindName(source.sourceCallee.expression) === "KindSuperKeyword") return direct();
   const callee = classifyCsharpSourceCallee({ ast: host.ast, navigation: host.navigation,
     projectTypes: host.projectTypes(),
     typeDefinitions: host.typeDefinitions,
-    types: { resolveSelectedValue: (expression, type, file) =>
+    types: { resolveReadStorage, resolveSelectedValue: (expression, type, file) =>
       resolveSelectedValueWithState(expression, type, file, nextState(state)) },
   }, source, sourceFile);
   if (callee.kind === "function" || callee.kind === "method" || callee.kind === "union-method") return direct();

@@ -16,7 +16,8 @@ export function csharpObjectShapeMethodDeclaration(
 ): Node | undefined {
   const methods = shape.methodImplementation?.methods;
   if (methods === undefined || member.memberKind !== "method") return undefined;
-  const declarations = methods.filter(declaration => member.sourceDeclarations?.includes(declaration));
+  const declarations = methods.filter(declaration => member.sourceDeclarations?.includes(declaration) === true ||
+    member.sourceSubjects?.includes(declaration) === true);
   return declarations.length === 1 ? declarations[0] : undefined;
 }
 

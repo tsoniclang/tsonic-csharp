@@ -51,12 +51,10 @@ export function objectShapeMethodInvocationName(member: CsharpObjectShapeMemberF
 export function objectShapeMethodValueStorageNames(objectShape: CsharpObjectShapeFact, member: CsharpObjectShapeFact["members"][number]): {
   readonly name: string;
   readonly valueName: string;
-  readonly initializedName: string;
 } {
   return {
     name: objectShapeStorageMemberName(objectShape, member),
     valueName: objectShapeSyntheticStorageMemberName(objectShape, member, "method_value"),
-    initializedName: objectShapeSyntheticStorageMemberName(objectShape, member, "method_initialized"),
   };
 }
 

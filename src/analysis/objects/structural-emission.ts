@@ -37,6 +37,7 @@ export function analyzeCsharpStructuralObjectEmission(input: {
     return inherited(shape).some(parent => parent.members.some(candidate => {
       if (candidate.memberKind !== "method" || !hasMethodValues(parent) && candidate.optional !== true && candidate.methodValueStorage === undefined ||
         member.methodValueStorage !== undefined && candidate.methodValueStorage === undefined ||
+        writableMethodValue(shape, member) && !writableMethodValue(parent, candidate) ||
         objectShapeStorageMemberName(parent, candidate) !== name) return false;
       const inheritedType = candidate.methodValueContract ?? candidate.type;
       return targetTypeRefEquals(member.optional === true ? csharpNullableTargetType(valueType) : valueType,

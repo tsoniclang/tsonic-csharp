@@ -150,6 +150,7 @@ function renderObjectShapeDeclaration(
   const members = renderObjectShapeMembers(
     input.scope.typeParameterNames,
     fact,
+    selected.name,
     input.program.records,
   );
   const methodValues = renderCsharpMethodValueContracts(fact, input);

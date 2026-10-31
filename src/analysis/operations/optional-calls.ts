@@ -14,7 +14,7 @@ export function classifyCsharpOptionalCallCallee(
   policy: CsharpPolicyContext, source: ResolvedSourceCallInfo | undefined, sourceFile: SourceFile,
 ): CsharpCallClassification["optionalCallee"] {
   if (source === undefined || policy.ast.as.AsCallExpression(source.call)?.QuestionDotToken === undefined) return undefined;
-  const selected = policy.types.resolveNode(source.sourceCallee.expression, sourceFile)?.type;
+  const selected = policy.types.resolveReadStorage(source.sourceCallee.expression, sourceFile);
   if (selected === undefined) return undefined;
   const type = getCsharpNullableElementTargetType(selected) ?? getCsharpGenericOptionalParts(selected)?.element ?? selected;
   return getCsharpDelegateSignature(type) === undefined && getCsharpMethodValue(type) === undefined && !isCsharpJsValueTargetType(type)
@@ -32,7 +32,7 @@ export function classifyCsharpOptionalCallReceiver(
     return undefined;
   }
   const receiver = source.sourceReceiver;
-  const selected = policy.types.resolveNode(receiver.expression, sourceFile)?.type;
+  const selected = policy.types.resolveReadStorage(receiver.expression, sourceFile);
   if (selected === undefined) return undefined;
   const type = getCsharpNullableElementTargetType(selected) ?? getCsharpGenericOptionalParts(selected)?.element ?? selected;
   const access = source.sourceCalleeAccess?.expression;

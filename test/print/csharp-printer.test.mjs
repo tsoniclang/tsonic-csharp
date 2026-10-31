@@ -49,7 +49,7 @@ function renderGeneratedMembers(shape, hiddenNames, diagnostics) {
     diagnostics?.push(...analysis.issues);
     return undefined;
   }
-  return renderObjectShapeMembers(undefined, shape, { ...analysis.records, structuralObject: { get: () => undefined },
+  return renderObjectShapeMembers(undefined, shape, "__Shape", { ...analysis.records, structuralObject: { get: () => undefined },
     nativeLayoutEmission: { get: () => undefined }, nativeMemberHiding: unhiddenObjectMembers(shape, hiddenNames).memberHiding });
 }
 
@@ -543,6 +543,16 @@ test("object-shape display names are readable, unique, and build-order invariant
         objectShapeIdentity: candidates[0].identity,
         modifiers: ["public"],
         members: [{
+          kind: "ConstructorDeclaration",
+          name: canonicalName,
+          modifiers: ["public"],
+          parameters: [],
+          body: { kind: "Block", statements: [] },
+        }, {
+          kind: "StaticConstructorDeclaration",
+          name: canonicalName,
+          body: { kind: "Block", statements: [] },
+        }, {
           kind: "FieldDeclaration",
           name: "next",
           modifiers: ["public"],
@@ -557,6 +567,16 @@ test("object-shape display names are readable, unique, and build-order invariant
         name: canonicalName,
         modifiers: ["public"],
         members: [{
+          kind: "ConstructorDeclaration",
+          name: canonicalName,
+          modifiers: ["public"],
+          parameters: [],
+          body: { kind: "Block", statements: [] },
+        }, {
+          kind: "StaticConstructorDeclaration",
+          name: canonicalName,
+          body: { kind: "Block", statements: [] },
+        }, {
           kind: "FieldDeclaration",
           name: "unchanged",
           modifiers: ["public"],
@@ -571,6 +591,10 @@ test("object-shape display names are readable, unique, and build-order invariant
   assert.match(normalizedSource, /Todo_InputShape_aaaaaaaaaaaa1 next/u);
   assert.match(normalizedSource, /class __TsonicShape_first/u);
   assert.match(normalizedSource, /__TsonicShape_first unchanged/u);
+  assert.equal((normalizedSource.match(/public Todo_InputShape_aaaaaaaaaaaa1\(\)/gu) ?? []).length, 1);
+  assert.equal((normalizedSource.match(/static Todo_InputShape_aaaaaaaaaaaa1\(\)/gu) ?? []).length, 1);
+  assert.equal((normalizedSource.match(/public __TsonicShape_first\(\)/gu) ?? []).length, 1);
+  assert.equal((normalizedSource.match(/static __TsonicShape_first\(\)/gu) ?? []).length, 1);
 });
 
 test("printer renders explicit unsafe statement and expression nodes", () => {

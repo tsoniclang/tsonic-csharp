@@ -14,17 +14,25 @@ import {
 } from "../../../target-model/names/object-members.js";
 import { renderCsharpStructuralMethod } from "./structural-interfaces.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import { nullableCsharpType } from "../types/primitives.js";
 import { renderCsharpExplicitImplementationTypeParameters } from "../types/type-parameters.js";
 
 export function renderObjectShapeMembers(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
   shape: CsharpObjectShapeFact,
+  name: string,
   records: CsharpObjectMemberRecords & CsharpStructuralObjectEmissionRecords & CsharpNativeLayoutRecords & { readonly nativeMemberHiding: CsharpNativeMemberHidingReader },
 ): readonly CsharpTypeMember[] {
   const selected = records.objectMemberDeclarations.get(shape);
   if (selected === undefined) failCsharpPlannerInvariant("An admitted object requires its sealed native member inventory.", shape.methodImplementation?.declaration);
-  return selected.flatMap(emission => renderMember(typeParameterNames, shape, emission, records));
+  const initializations: CsharpStatement[] = selected.flatMap(({ declaration }) => declaration.kind !== "authored" ||
+    declaration.value.kind === "fixed" ? [] : [{ kind: "ExpressionStatement", expression: {
+      kind: "AssignmentExpression", operatorToken: { kind: "EqualsToken" },
+      left: { kind: "IdentifierName", name: declaration.value.valueName },
+      right: { kind: "IdentifierName", name: declaration.value.kind === "protocol" ? "this" : declaration.bodyName },
+    } }]);
+  return [...selected.flatMap(emission => renderMember(typeParameterNames, shape, emission, records)),
+    ...initializations.length === 0 ? [] : [{ kind: "ConstructorDeclaration" as const, name, modifiers: ["public" as const],
+      parameters: [], body: { kind: "Block" as const, statements: initializations } }]];
 }
 
 function renderMember(
@@ -45,23 +53,10 @@ function renderMember(
       const method = renderCsharpStructuralMethod(typeParameterNames, shape, member, records);
       const type = render(value.type);
       const stored: CsharpExpression = { kind: "IdentifierName", name: value.valueName };
-      const original: CsharpExpression = { kind: "IdentifierName", name: value.kind === "protocol" ? "this" : selected.bodyName };
-      const initialized = value.kind === "protocol" && value.initializedName !== undefined
-        ? { kind: "IdentifierName" as const, name: value.initializedName } : undefined;
-      const notWritten: CsharpExpression = initialized === undefined
-        ? { kind: "NullPatternExpression", expression: stored, negated: false }
-        : { kind: "PrefixUnaryExpression", operatorToken: { kind: "ExclamationToken" }, operand: initialized };
-      const getter: CsharpExpression = value.kind === "delegate"
-        ? { kind: "AssignmentExpression", operatorToken: { kind: "QuestionQuestionEqualsToken" }, left: stored, right: original }
-        : initialized === undefined
-          ? { kind: "BinaryExpression", operatorToken: { kind: "QuestionQuestionToken" }, left: stored, right: original }
-          : { kind: "ConditionalExpression", condition: initialized, whenTrue: stored, whenFalse: original };
       const arguments_ = method.parameters.map(parameter => ({ kind: "Argument" as const,
         expression: { kind: "IdentifierName" as const, name: parameter.name },
         ...(parameter.passing === undefined ? {} : { passing: parameter.passing }) }));
       const typeArguments = (method.typeParameters ?? []).map(parameter => ({ kind: "IdentifierName" as const, name: parameter.name }));
-      const direct: CsharpExpression = { kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression",
-        receiver: { kind: "IdentifierName", name: "this" }, name: selected.bodyName, typeArguments }, arguments: arguments_ };
       const present: CsharpExpression = { kind: "PostfixUnaryExpression", operand: stored, operatorToken: { kind: "ExclamationToken" } };
       const indirect: CsharpExpression = { kind: "InvocationExpression", callee: value.kind === "delegate" ? present
         : { kind: "SimpleMemberAccessExpression", receiver: present, name: value.invocationName, typeArguments }, arguments: arguments_ };
@@ -69,24 +64,14 @@ function renderMember(
         ? [{ kind: "ExpressionStatement", expression }, { kind: "ReturnStatement" }]
         : [{ kind: "ReturnStatement", expression, ...(method.returnPassing === undefined ? {} : { ref: true as const }) }];
       return [
-        { kind: "FieldDeclaration", name: value.valueName, type: nullableCsharpType(type), modifiers: ["private", ...hiding(value.valueName)] },
-        ...(initialized === undefined || value.kind !== "protocol" || value.initializedName === undefined ? [] : [
-          { kind: "FieldDeclaration" as const, name: value.initializedName, type: { kind: "PredefinedType" as const, name: "bool" },
-            modifiers: ["private" as const, ...hiding(value.initializedName)] },
-        ]),
+        { kind: "FieldDeclaration", name: value.valueName, type, modifiers: ["private", ...hiding(value.valueName)] },
         { kind: "PropertyDeclaration", name: value.name, type, modifiers: publicModifiers(value.name),
-          getter: { kind: "Block", statements: [{ kind: "ReturnStatement", expression: getter }] },
+          getter: { kind: "Block", statements: [{ kind: "ReturnStatement", expression: stored }] },
           setter: { kind: "Block", statements: [
             { kind: "ExpressionStatement", expression: { kind: "AssignmentExpression", operatorToken: { kind: "EqualsToken" }, left: stored,
               right: { kind: "IdentifierName", name: "value" } } },
-            ...(initialized === undefined ? [] : [{ kind: "ExpressionStatement" as const,
-              expression: { kind: "AssignmentExpression" as const, operatorToken: { kind: "EqualsToken" as const }, left: initialized,
-                right: { kind: "LiteralExpression" as const, value: true } } }]),
           ] } },
-        { ...method, modifiers: publicModifiers(member.targetName), body: { kind: "Block", statements: [
-          { kind: "IfStatement", condition: notWritten, thenBody: { kind: "Block", statements: complete(direct) } },
-          ...complete(indirect),
-        ] } },
+        { ...method, modifiers: publicModifiers(member.targetName), body: { kind: "Block", statements: complete(indirect) } },
       ];
     }
     case "copied": {

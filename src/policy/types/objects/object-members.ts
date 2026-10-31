@@ -68,8 +68,7 @@ export function selectCsharpObjectMemberEmission(input: CsharpObjectMemberPolicy
       value: environment.kind === "delegate"
         ? Object.freeze({ kind: "delegate", type: storage.type, name: names.name, valueName: names.valueName })
         : Object.freeze({ kind: "protocol", type: storage.type, interface: environment.type,
-          name: environment.currentSlotName, valueName: names.valueName, invocationName: environment.invocationName,
-          initializedName: member.optional === true ? names.initializedName : undefined }) });
+          name: environment.currentSlotName, valueName: names.valueName, invocationName: environment.invocationName }) });
   }
   if ((member.typeParameters?.length ?? 0) > 0 || member.methodValueContract !== undefined) {
     if (member.methodValueStorage !== undefined) {

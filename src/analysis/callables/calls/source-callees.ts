@@ -16,7 +16,7 @@ export interface CsharpSourceCalleeHost {
   readonly ast: CsharpTypePolicyBaseHost["ast"];
   readonly navigation: CsharpTypePolicyBaseHost["navigation"];
   readonly projectTypes: Pick<CsharpProjectTypePolicy, "catalog">;
-  readonly types: Pick<CsharpTypePolicy, "resolveSelectedValue">;
+  readonly types: Pick<CsharpTypePolicy, "resolveSelectedValue" | "resolveReadStorage">;
   readonly typeDefinitions?: CsharpTypeDefinitions;
 }
 
@@ -37,7 +37,7 @@ export function classifyCsharpSourceCallee(
       reason: "The exact selected source callee is external to the project and has no C# target relation." });
     return Object.freeze({ kind: "function", expression, declaration: moduleCallable ?? selected });
   }
-  if (declaration !== undefined && declaration === selected && policy.ast.is.IsFunctionExpression(declaration) &&
+  if (declaration !== undefined && declaration === selected && policy.ast.kindName(declaration) === "KindFunctionExpression" &&
     policy.ast.name(declaration) !== undefined && sourceEnclosingCallable(expression, policy.ast) === declaration &&
     policy.navigation.isProjectDeclaration(declaration)) {
     return Object.freeze({ kind: "function", expression, declaration });
@@ -59,7 +59,9 @@ export function classifyCsharpSourceCallee(
     return Object.freeze({ kind: "method", expression: access.expression, declaration: selected,
       receiver: Object.freeze({ expression: access.receiver.expression, type: staticReceiver }) });
   }
-  const type = policy.types.resolveSelectedValue(expression, source.sourceCallee.type, sourceFile);
+  const type = access === undefined
+    ? policy.types.resolveSelectedValue(expression, source.sourceCallee.type, sourceFile)
+    : policy.types.resolveReadStorage(expression, sourceFile);
   const reject = (reason: string): CsharpSourceCalleeSelection => Object.freeze({ kind: "rejected", reason });
   if (selected === undefined || declaration === undefined) {
     if (type === undefined || getCsharpCallableValueSignature(getCsharpNullableElementTargetType(type) ?? type) === undefined) {

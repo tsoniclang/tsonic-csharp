@@ -21,7 +21,8 @@ function classify(declaration, selected, access, carrier = delegate, isStatic = 
     navigation: { sourceReferenceFor: () => declaration === undefined ? undefined : { declaration },
       isProjectDeclaration: node => node === functionDeclaration },
     projectTypes: { catalog: { definitionForDeclaration: () => undefined } },
-    types: { resolveSelectedValue: node => node === expression ? carrier : owner },
+    types: { resolveSelectedValue: node => node === expression ? carrier : owner,
+      resolveReadStorage: node => { assert.equal(node === expression, true, "the exact fixture member owns its native storage"); return carrier; } },
   }, { sourceCallee: { expression, selectedDeclaration: selected }, sourceCalleeAccess: access }, {});
 }
 
@@ -39,7 +40,8 @@ test("exact direct functions never request a first-class delegate projection", (
     navigation: { sourceReferenceFor: () => ({ declaration: functionDeclaration }),
       isProjectDeclaration: node => node === functionDeclaration },
     projectTypes: { catalog: {} },
-    types: { resolveSelectedValue: () => { throw new Error("unnecessary callable projection"); } },
+    types: { resolveSelectedValue: () => { throw new Error("unnecessary callable projection"); },
+      resolveReadStorage: () => assert.fail("an exact direct function has no member-storage read") },
   }, { sourceCallee: { expression, selectedDeclaration: functionDeclaration } }, {});
   assert.equal(selected.kind, "function");
 });
@@ -103,7 +105,7 @@ test("a checked composite class method selects its closed receiver without acqui
     types: { resolveSelectedValue: node => {
       assert.equal(node === receiver, true, "only the exact native receiver is acquired");
       return union;
-    } },
+    }, resolveReadStorage: () => assert.fail("the checked class-union branch never reads a delegate member") },
   }, { sourceCallee: { expression }, sourceCalleeAccess: { kind: "property", expression, receiver: { expression: receiver } } }, {});
   assert.equal(selected.kind === "union-method" && selected.receiver.type === union, true, "closed candidate awaits the existing per-arm method proof");
   assert.equal(selected.receiver.expression === receiver && selected.expression === expression, true, "exact selected AST nodes retained");
@@ -119,7 +121,9 @@ test("composite calls do not manufacture class-union evidence for interface, for
       navigation: { sourceReferenceFor: () => undefined },
       projectTypes: { catalog: { definitionForTarget: type => type === owner ? { kind: "class" }
         : type === right && kind === "interface" ? { kind: "interface" } : undefined } },
-      types: { resolveSelectedValue: node => node === receiver ? union : { kind: "source-primitive", name: "uint32" } },
+      types: { resolveSelectedValue: node => node === receiver ? union : { kind: "source-primitive", name: "uint32" },
+        resolveReadStorage: node => { assert.equal(node === expression, true, "only the original member has fixture storage");
+          return { kind: "source-primitive", name: "uint32" }; } },
     }, { sourceCallee: { expression }, sourceCalleeAccess: { kind: "property", expression, receiver: { expression: receiver } } }, {});
     assert.equal(selected.kind === "rejected", true, kind);
   }
