@@ -155,3 +155,81 @@ System.GC.KeepAlive(first);
 System.GC.KeepAlive(second);
 `);
 });
+
+for (const surface of ["native", "js"]) {
+  test(`ordinary loop callbacks retain the current quantified protocol place in ${surface}`, { timeout: 300_000 }, () => {
+    const callbackStorage = surface === "native" ? " = new List<() => number>()" : ": (() => number)[] = []";
+    const cursorStorage = surface === "native" ? " = new List<Cursor>()" : ": Cursor[] = []";
+    const appendMethod = surface === "native" ? "Add" : "push";
+    const countProperty = surface === "native" ? "Count" : "length";
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      ${surface === "native" ? 'import { List } from "@tsonic/dotnet/System.Collections.Generic.js";' : ""}
+      interface Cursor {
+        read<T>(value: T): number;
+        advance<T>(value: T): T;
+      }
+      export function headers(): boolean {
+        const values${callbackStorage};
+        const cursors${cursorStorage};
+        const conditions${callbackStorage};
+        const increments${callbackStorage};
+        for (let step = 0; (conditions.${appendMethod}(() => step), step < 4); (increments.${appendMethod}(() => step), step++)) {
+          cursors.${appendMethod}({
+            read<T>(value: T): number { return step; },
+            advance<T>(value: T): T { step += 10; return value; },
+          });
+          values.${appendMethod}(() => step);
+        }
+        if (values.${countProperty} !== 4 || conditions.${countProperty} !== 5 || increments.${countProperty} !== 4) return false;
+        if (values[0]() !== 0 || values[1]() !== 1 || values[3]() !== 3) return false;
+        if (cursors[1].advance("same") !== "same" || cursors[1].read(0) !== 11) return false;
+        return values[0]() === 0 && values[1]() === 11 && values[2]() === 2 &&
+          conditions[0]() === 0 && conditions[1]() === 11 && conditions[4]() === 4 &&
+          increments[0]() === 11 && increments[1]() === 2 && increments[3]() === 4;
+      }
+      export function labeled(): boolean {
+        const values${callbackStorage};
+        const cursors${cursorStorage};
+        outer: for (let row = 0; row < 4; row++) {
+          cursors.${appendMethod}({
+            read<T>(value: T): number { return row; },
+            advance<T>(value: T): T { row += 10; return value; },
+          });
+          values.${appendMethod}(function (): number { return row; });
+          try {
+            for (let inner = 0; inner < 1; inner++) { continue outer; }
+          } finally { row += 1; }
+        }
+        if (values.${countProperty} !== 2 || values[0]() !== 1 || values[1]() !== 3) return false;
+        if (!cursors[0].advance(true) || cursors[0].read(0) !== 11) return false;
+        return values[0]() === 11 && values[1]() === 3 && cursors[1].read(0) === 3;
+      }
+      export function initializer(): boolean {
+        let initial = (): number => -1;
+        const values${callbackStorage};
+        const cursors${cursorStorage};
+        for (let value = 0, read = () => value; value < 2; value++) {
+          if (read() !== 0) return false;
+          initial = read;
+          values.${appendMethod}(() => value);
+          cursors.${appendMethod}({
+            read<T>(input: T): number { return value; },
+            advance<T>(input: T): T { value += 10; return input; },
+          });
+        }
+        return initial() === 0 && values[0]() === 0 && values[1]() === 1 &&
+          cursors[0].read(0) === 0 && cursors[1].read(0) === 1;
+      }
+    ` });
+    assertCsharpCompilationSucceeded(compiled);
+    const source = compiled.artifacts.get("src/Index.cs");
+    assert.equal(typeof source, "string");
+    assert.match(source, /=>/u, "ordinary callbacks retain native inline lambda syntax");
+    assert.doesNotMatch(source, /__tsonic_callable_/u, "no ordinary callback helper is introduced");
+    executeCsharpConstruction(compiled, `protocol-loop-native-places-${surface}`, false, false, [], `
+if (!Tsonic.Generated.Index.headers()) throw new System.Exception("per-iteration header, body and protocol values");
+if (!Tsonic.Generated.Index.labeled()) throw new System.Exception("per-iteration labeled continue and finally values");
+if (!Tsonic.Generated.Index.initializer()) throw new System.Exception("initializer and per-iteration native places remain distinct");
+`);
+  });
+}
