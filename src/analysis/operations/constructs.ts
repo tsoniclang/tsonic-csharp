@@ -8,7 +8,7 @@ import { classifyTypeofComparison } from "./typeof-comparisons.js";
 import { classifyMethodTypeArgumentProjections } from "./method-type-arguments.js";
 import { csharpErasedExpressionStatement, type CsharpOperationErasure } from "./statement-erasure.js";
 import type { CsharpAwaitCompletion } from "../../target-model/types/await-completions.js";
-import { selectCsharpAwaitCompletion } from "../../policy/operations/control-flow/await-completions.js";
+import { selectCsharpSourceCallAwaitCompletion } from "../../policy/operations/control-flow/await-completions.js";
 import { admitCsharpConversionSelection } from "../conversions/validation.js";
 import { csharpOperationConversionIssue, csharpSelectedCallConversionIssue } from "./conversion-admission.js";
 import { validateCsharpJsValueOperationSelection } from "../../policy/operations/js-values/selection.js";
@@ -25,7 +25,7 @@ import { selectCsharpMemoryBinding } from "./memory-bindings.js";
 
 import { selectCsharpElementDeletion } from "./collections/element-deletion.js";
 import { selectCsharpSwitch } from "./control-flow/switch.js";
-import { AsForInOrOfStatement, sourceClassFieldIsTypeOnly, sourceExpressionResultDisposition } from "@tsonic/target-api/source";
+import { AsForInOrOfStatement, sourceClassFieldIsTypeOnly } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { selectCsharpJsValueCallOperation, selectCsharpJsValueBinaryOperation, selectCsharpJsValueReceiverExpressionOperation, selectCsharpJsValueUnaryOperation, selectCsharpJsTypeofOperation, selectCsharpJsValueCondition, selectCsharpJsValueVoidOperation } from "./js-values.js";
 import { selectCsharpProviderValue } from "./members/values.js";
@@ -77,10 +77,10 @@ export function analyzeCsharpOperationConstruct(
   if (erased) producer.erasedStatement.selected(node, true);
   if (ast.is.IsAwaitExpression(node)) {
     const expression = ast.as.AsAwaitExpression(node)?.Expression;
-    const completion = selectCsharpAwaitCompletion(
-      expression === undefined ? undefined : policy.types.resolveNode(expression, sourceFile)?.type,
+    const completion = selectCsharpSourceCallAwaitCompletion(
+      expression === undefined ? undefined : policy.types.resolveNode(expression, sourceFile)?.sourceResult,
       policy.typeDefinitions,
-      sourceExpressionResultDisposition(ast, node).kind === "discarded" ? "discarded" : "consumed");
+      policy.navigation.expressionResultUse(node));
     const rejection = awaitResultMappingRejection(policy, completion);
     if (rejection !== undefined) {
       issues?.push(Object.freeze({ node, code: "CSHARP_AWAIT_RESULT_MAPPING_NOT_PROVEN", message: rejection }));
@@ -492,26 +492,11 @@ function awaitResultMappingRejection(
   completion: CsharpAwaitCompletion | undefined,
 ): string | undefined {
   if (completion === undefined) return undefined;
-  const pending: { readonly phase: CsharpAwaitCompletion; readonly leaving: boolean }[] = [
-    { phase: completion, leaving: false },
-  ];
-  const active = new Set<CsharpAwaitCompletion>();
-  const validated = new Set<CsharpAwaitCompletion>();
+  const pending: CsharpAwaitCompletion[] = [completion];
   while (pending.length > 0) {
-    const current = pending.pop()!;
-    const phase = current.phase;
-    if (current.leaving) {
-      active.delete(phase);
-      validated.add(phase);
-      continue;
-    }
-    if (active.has(phase)) return "C# await adoption requires a finite completed phase composition.";
-    if (validated.has(phase)) continue;
+    const phase = pending.pop()!;
     if (phase.adoption !== undefined) {
-      active.add(phase);
-      pending.push({ phase, leaving: true });
-      pending.push({ phase: phase.adoption.continuation, leaving: false });
-      pending.push({ phase: phase.adoption.native, leaving: false });
+      pending.push(phase.adoption.continuation, phase.adoption.native);
       continue;
     }
     for (const alternative of phase.alternatives) {
@@ -519,7 +504,6 @@ function awaitResultMappingRejection(
       const admitted = admitCsharpConversionSelection(policy, alternative.result, phase.result, alternative.resultMapping);
       if (admitted.kind === "rejected") return admitted.reason;
     }
-    validated.add(phase);
   }
   return undefined;
 }

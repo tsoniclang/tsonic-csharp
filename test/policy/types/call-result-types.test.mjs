@@ -4,7 +4,7 @@ import { completeCsharpSourceCallAdoption, selectCsharpSourceCallResult } from "
 import { csharpTsValueTargetType, csharpEmptyObjectTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { csharpTaskTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
-import { selectCsharpAwaitCompletion } from "../../../dist/policy/operations/control-flow/await-completions.js";
+import { selectCsharpAwaitCompletion, selectCsharpSourceCallAwaitCompletion } from "../../../dist/policy/operations/control-flow/await-completions.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 
 const base = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "fixture.Base" };
@@ -38,7 +38,7 @@ test("a declared source Task union records its own post-await arm completion wit
   const selected = completeCsharpSourceCallAdoption(host, raw);
   assert.equal(selected.nativeType === nativeType && targetTypeRefEquals(selected.selectedType, nativeType), true,
     "the real returned Task and its union payload are not copied or coerced");
-  const awaited = selectCsharpAwaitCompletion(selected.selectedType);
+  const awaited = selectCsharpSourceCallAwaitCompletion(selected);
   assert.equal(awaited.adoption.native.result === payload && awaited.adoption.continuation === selected.completion &&
     targetTypeRefEquals(awaited.result, scalar), true,
   "the same immutable declaration-owned operation supplies the native outer await and selected arm await");

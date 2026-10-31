@@ -25,7 +25,7 @@ function propertyFixture() {
   for (const file of csharpProgramSourceFiles(program)) visit(file);
   assert.equal(property !== undefined, true, "the fixture has one property access");
   const expression = ast.as.AsPropertyAccessExpression(property).Expression;
-  checked = { ast, property, expression };
+  checked = { ast, property, expression, navigation: program.source.navigation };
   return checked;
 }
 
@@ -49,11 +49,12 @@ for (const surface of ["native", "js"]) {
 }
 
 function operands(selection, access) {
-  const { ast, property } = propertyFixture();
+  const { ast, property, navigation } = propertyFixture();
   const absent = Object.freeze({ get: () => undefined });
   return selectCsharpNativeOperandUses({
     ast,
-    navigation: { referenceFor: () => undefined, sourceReferenceFor: () => undefined, isProjectDeclaration: () => false },
+    navigation: { referenceFor: () => undefined, sourceReferenceFor: () => undefined, isProjectDeclaration: () => false,
+      expressionResultUse: navigation.expressionResultUse },
     evidence: { sourceDefaultValue: absent, sourceArgument: absent },
     operations: { selectedProperty: { get: () => selection === undefined ? undefined : { selection } }, nativeHandler: absent },
     valueReads: { valueRead: absent },

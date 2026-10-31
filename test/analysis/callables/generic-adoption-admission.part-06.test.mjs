@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
-import { code, identity, nativeEntryCases, nativeEntryInverses, nativeOpaquePayloadCases, nativeConstructorCases, nativeConstructorInverses, sourcePosition, sourceSpan, cases, rejected } from "./generic-adoption-admission.fixtures.mjs";
+import { code, identity, nativeEntryCases, nativeEntryInverses, nativeOpaquePayloadCases, nativeConstructorCases, nativeConstructorInverses, sourcePosition, sourceSpan, cases, rejected, executePromiseAdoption } from "./generic-adoption-admission.fixtures.mjs";
 
 function supportedOpaque(compiled) {
   assert.equal(compiled.result.diagnostics.length, 0, JSON.stringify(compiled.result.diagnostics.slice(0, 8)
@@ -52,10 +52,12 @@ test("C# native callback non-adoption inverse: " + name, { timeout: 300_000 }, (
 }
 
 for (const [name, declarations, expression] of Array.from(nativeOpaquePayloadCases).slice(0, 3)) {
-test("C# native opaque callable input is unresolved, not safe empty: " + name, () => {
-    const compiled = compileCsharpSource({ surface: "js", sourceText: declarations +
-      "\nexport function reject(value: Promise<number>): void { void wrap(value); }" });
+test("C# native opaque callable input is unresolved, not safe empty: " + name, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText: declarations +
+      "\nexport function reject(value: Promise<number>): void { void wrap(value); }" +
+      "\nconst actual = Promise.resolve(5); reject(actual); const pending = wrap(actual); console.log(await pending);" });
     supportedOpaque(compiled);
+    executePromiseAdoption(compiled, "promise-native-opaque-" + name, "5");
   });
 
 test("C# ordinary opaque callable input keeps its native value: " + name, { timeout: 300_000 }, () => {
@@ -68,9 +70,11 @@ test("C# ordinary opaque callable input keeps its native value: " + name, { time
 }
 
 for (const [name, declarations, expression] of Array.from(nativeOpaquePayloadCases).slice(3, 4)) {
-test("C# native opaque callable input is unresolved, not safe empty: " + name, () => {
-    const compiled = compileCsharpSource({ surface: "js", sourceText: declarations +
-      "\nexport function reject(value: Promise<number>): void { void wrap(value); }" });
+test("C# native opaque callable input is unresolved, not safe empty: " + name, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText: declarations +
+      "\nexport function reject(value: Promise<number>): void { void wrap(value); }" +
+      "\nconst actual = Promise.resolve(5); reject(actual); const pending = wrap(actual); console.log(await pending);" });
     supportedOpaque(compiled);
+    executePromiseAdoption(compiled, "promise-native-opaque-" + name, "5");
   });
 }

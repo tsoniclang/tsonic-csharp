@@ -9,7 +9,7 @@ import { analyzeCsharpClassFactories } from "../project-types/class-factories.js
 import { analyzeCsharpClassInitialization } from "../project-types/class-initialization.js";
 
 import type { CsharpRequiredRecord } from "./records/objects/required-records.js";
-import { sourceDeclarationHasOnlyTypeUses, sourceDeclarationIsModuleScoped, sourceCallableValueExpression, sourceExpressionResultDisposition } from "@tsonic/target-api/source";
+import { sourceDeclarationHasOnlyTypeUses, sourceDeclarationIsModuleScoped, sourceCallableValueExpression } from "@tsonic/target-api/source";
 import { csharpModuleCallableInitializer } from "../../target-model/syntax/module-callables.js";
 import { analyzeCsharpExactLiteralSelections } from "../conversions/literal-plans.js";
 
@@ -92,7 +92,7 @@ export function analyzeCsharpRepresentationIteration(
       let moduleCallable = csharpModuleCallableInitializer(source.ast, node);
       let moduleOwner = node;
       if (moduleCallable === undefined && (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node))) {
-        const disposition = sourceExpressionResultDisposition(source.ast, node);
+        const disposition = source.navigation.expressionResultDisposition(node);
         if (disposition.kind === "stored" && csharpModuleCallableInitializer(source.ast, disposition.use) === node) {
           moduleCallable = node;
           moduleOwner = disposition.use;
@@ -104,6 +104,10 @@ export function analyzeCsharpRepresentationIteration(
           source.ast.getSourceFile(moduleOwner))?.kind !== "resolved") return undefined;
         const callable = previous?.callables.get({ kind: "declaration", declaration: moduleCallable });
         return callable === undefined ? undefined : csharpCallableValueType(callable);
+      }
+      if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) {
+        const selected = previous?.callables.closedInputType(node);
+        if (selected !== undefined) return selected;
       }
       const storage = previous?.storage.requiredStorageType.get(node);
       if (storage !== undefined) return storage;

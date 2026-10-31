@@ -53,7 +53,8 @@ const input = selected => ({ ast, evidence: { compileTimeMetadata: no, sourceArg
   operations: { selectedCall: { get: node => node === call ? selected : undefined }, nativeHandler: none, borrowedSequence: none },
   valueReads: { valueRead: { get: () => ({ value: scalar }) } }, bindingPatterns: { bindingPatternProjection: none },
   unusedDefault: no, callableCreation: none, optionalLocals: none, classFactories: { classFactory: none },
-  navigation: { sourceReferenceFor: () => undefined, referenceFor: () => undefined, isProjectDeclaration: () => false } });
+  navigation: { sourceReferenceFor: () => undefined, referenceFor: () => undefined, isProjectDeclaration: () => false,
+    expressionResultUse: source.navigation.expressionResultUse } });
 
 test("source method runtime order differs from planning order without a copied argument binder", () => {
   const selected = selectCsharpNativeOperandUses(input(classification({ kind: "grouped", arguments: [record], groups: [] })), call);

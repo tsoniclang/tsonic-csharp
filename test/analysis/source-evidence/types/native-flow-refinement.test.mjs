@@ -9,7 +9,8 @@ import { csharpJsArrayTargetType, csharpJsDateTargetType, csharpJsRegExpTargetTy
 import { csharpStringTargetType, csharpObjectTargetType, csharpSourcePrimitiveTargetType } from "../../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpRuntimeUnionTargetType, getCsharpRuntimeUnionArms } from "../../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { resolveCsharpInstanceType } from "../../../../dist/analysis/source-evidence/types/resolution/instance-tests.js";
-import { resolveSelectedValueWithState } from "../../../../dist/analysis/source-evidence/types/resolution/public-api.js";
+import { resolveSelectedValueWithState, resolveSelectedValueResultWithState } from "../../../../dist/analysis/source-evidence/types/resolution/public-api.js";
+import { csharpSourceValueResult } from "../../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../../dist/target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../../dist/target-model/types/equality.js";
 import { createCsharpSourceUnionIndex } from "../../../../dist/analysis/source-evidence/types/resolution/source-unions.js";
@@ -155,6 +156,12 @@ test("selected native values materialize all surviving exact union arms and reta
       closedTypeGuard: () => undefined,
     },
     sourceValueDeclaration: (_node, referenced) => referenced,
+    resolveSelectedValueResultWithState: (...args) => resolveSelectedValueResultWithState(scope, ...args),
+    resolveSourceValueResult(node) {
+      assert.equal(source.navigation.referenceFor(node)?.declaration === declaration, true,
+        "the completed native result belongs to this checked parameter read");
+      return csharpSourceValueResult(storage);
+    },
     resolveTypeWithState: () => bytes,
     resolveNodeWithState: () => { assert.fail("a proven native subset must not reconstruct its checker carrier"); },
   };
@@ -220,6 +227,12 @@ function guardedArraySelection(body) {
       },
     },
     sourceValueDeclaration: (_node, referenced) => referenced,
+    resolveSelectedValueResultWithState: (...args) => resolveSelectedValueResultWithState(scope, ...args),
+    resolveSourceValueResult(node) {
+      assert.equal(source.navigation.referenceFor(node)?.declaration === declaration, true,
+        "the completed native result belongs to this checked parameter read");
+      return csharpSourceValueResult(storage);
+    },
     resolveNodeWithState: () => { assert.fail("scoped native storage must not reconstruct a checker carrier"); },
     resolveTypeWithState: () => { assert.fail("retained exact native source members must not be reclassified"); },
   };
@@ -290,6 +303,12 @@ test("exact nominal subclass evidence remains authoritative inside a native guar
       closedTypeGuard: () => undefined,
     },
     sourceValueDeclaration: (_node, referenced) => referenced,
+    resolveSelectedValueResultWithState: (...args) => resolveSelectedValueResultWithState(scope, ...args),
+    resolveSourceValueResult(node) {
+      assert.equal(source.navigation.referenceFor(node)?.declaration === declaration, true,
+        "the completed native result belongs to this checked parameter read");
+      return csharpSourceValueResult(storage);
+    },
     resolveTypeWithState: () => child,
     resolveNodeWithState: () => { assert.fail("nominal refinement must retain its exact scoped native storage"); },
   };

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { sourceValueDeclaration } from "../../../dist/analysis/source-evidence/types/resolution/calls.js";
-import { resolveNode, resolveSelectedValueWithState, resolveStorage } from "../../../dist/analysis/source-evidence/types/resolution/public-api.js";
+import { resolveNode, resolveSelectedValueWithState, resolveSelectedValueResultWithState, resolveStorage } from "../../../dist/analysis/source-evidence/types/resolution/public-api.js";
+import { csharpSourceValueResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 
 function fixture(kind, project) {
   const expression = { kind };
@@ -44,11 +45,11 @@ test("a dependent native node retains the original selected rejection without a 
   const selected = Object.freeze({ kind: "rejected", subject: array, code: "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH",
     reason: "The original native element destination is inconsistent." });
   const carrier = { kind: "source-primitive", name: "int32" };
-  const result = resolveNode({ resolveNodeWithState(node, sourceFile, state) {
+  const result = resolveNode({ resolveNodeValueWithState(node, sourceFile, state) {
     assert.equal(node === expression && sourceFile === file, true, "the actual dependent use retains its source context");
     assert.equal("rejectNativeParameter" in state, false, "the superseded parameter-only callback is not another API");
     state.rejectNativeResolution(selected);
-    return carrier;
+    return csharpSourceValueResult(carrier);
   } }, expression, file);
   assert.equal(result === selected && Object.isFrozen(result), true, "the actual immutable owner result is transported unchanged");
   assert.equal(result.subject === array && result.code === selected.code && result.reason === selected.reason, true,
@@ -110,7 +111,8 @@ test("selected values replace an enclosing operation owner for both syntax and c
           semantics: () => queries,
         },
         sourceValueDeclaration: () => undefined,
-        resolveNodeWithState(selected, selectedFile, nested) {
+        resolveSelectedValueResultWithState: (...args) => resolveSelectedValueResultWithState(scope, ...args),
+        resolveNodeValueWithState(selected, selectedFile, nested) {
           assert.equal(selected === node && selectedFile === file, true, kind);
           accept(nested); observed.push("syntax"); return undefined;
         },

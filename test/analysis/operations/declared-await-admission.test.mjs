@@ -42,7 +42,7 @@ function fixture(body) {
   visit(file);
   assert.equal(awaits.length, 1, "one exact checked await owns the completion");
   const node = awaits[0];
-  return { ast: source.ast, node, expression: source.ast.as.AsAwaitExpression(node).Expression };
+  return { ast: source.ast, navigation: source.navigation, node, expression: source.ast.as.AsAwaitExpression(node).Expression };
 }
 
 function admit(selected, changes = {}) {
@@ -55,6 +55,7 @@ function admit(selected, changes = {}) {
   const use = { kind: changes.erased ? "erased" : "runtime", expression: selected.node };
   return analyzeCsharpAwaitAdmission({
     ast: selected.ast,
+    navigation: selected.navigation,
     demand: { entries: changes.repeated ? [{ use }, { use }] : [{ use }] },
     values: { valueRead: carriers },
     operations: { awaitCompletion: new Map(changes.missingCompletion ? [] : [[selected.node, completion]]) },

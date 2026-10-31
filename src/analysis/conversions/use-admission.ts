@@ -163,6 +163,7 @@ export function sealCsharpConversionUses(
     const declarations = symbol === undefined ? [] : queries.declarations.symbolDeclarations(symbol);
     const literal = declarations.length === 1 ? declarations[0] : undefined;
     if (literal === undefined || !context.ast.is.IsObjectLiteralExpression(literal) ||
+      context.ast.properties(literal).length === 0 ||
       !context.navigation.isProjectDeclaration(literal) ||
       context.ast.getSourceFile(literal) !== context.ast.getSourceFile(expression) ||
       sourceEnclosingCallable(literal, context.ast) !== sourceEnclosingCallable(expression, context.ast) ||
