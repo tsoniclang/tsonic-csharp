@@ -183,13 +183,6 @@ export const producersCarrierRegistry = Object.freeze([
     frozen: false,
   },
   {
-    id: "src/analysis/source-evidence/types/resolution/public-api.ts#resolveSelectedValueWithState",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/source-evidence/types/resolution/public-api.ts", symbol: "resolveSelectedValueWithState" },
-    responsibility: "producers/resolve-selected-value-with-state",
-    frozen: false,
-  },
-  {
     id: "src/analysis/source-evidence/types/resolution/public-api.ts#resolveSelectedType",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/analysis/source-evidence/types/resolution/public-api.ts", symbol: "resolveSelectedType" },
@@ -222,13 +215,6 @@ export const producersCarrierRegistry = Object.freeze([
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/analysis/source-evidence/types/resolution/indexed-access.ts", symbol: "resolveCsharpProviderIndexedAccess" },
     responsibility: "producers/resolve-provider-indexed-access",
-    frozen: false,
-  },
-  {
-    id: "src/analysis/source-evidence/types/resolution/nodes.ts#resolveNodeWithState",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/source-evidence/types/resolution/nodes.ts", symbol: "resolveNodeWithState" },
-    responsibility: "producers/resolve-node-with-state",
     frozen: false,
   },
   {
@@ -281,13 +267,6 @@ export const producersCarrierRegistry = Object.freeze([
     frozen: false,
   },
   {
-    id: "src/analysis/source-evidence/types/resolution/expressions.ts#resolveSelectedExpressionType",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/source-evidence/types/resolution/expressions.ts", symbol: "resolveSelectedExpressionType" },
-    responsibility: "producers/expression-result",
-    frozen: false,
-  },
-  {
     id: "src/analysis/source-evidence/types/resolution/conditional-types.ts#resolveCsharpConditionalApplication",
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/analysis/source-evidence/types/resolution/conditional-types.ts", symbol: "resolveCsharpConditionalApplication" },
@@ -313,13 +292,6 @@ export const producersCarrierRegistry = Object.freeze([
     kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
     declaration: { module: "src/analysis/source-evidence/types/resolution/source-references.ts", symbol: "resolveStandardSourceTypeTransformation" },
     responsibility: "producers/resolve-standard-source-type-transformation",
-    frozen: false,
-  },
-  {
-    id: "src/analysis/source-evidence/types/resolution/source-references.ts#resolveSourceValueDeclaration",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/source-evidence/types/resolution/source-references.ts", symbol: "resolveSourceValueDeclaration" },
-    responsibility: "producers/resolve-identifier-carrier",
     frozen: false,
   },
   {
