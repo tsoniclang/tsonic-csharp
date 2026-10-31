@@ -1,20 +1,16 @@
 import type { CsharpUnionCallClassification } from "../../target-model/records/calls/union-calls.js";
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { SourceFile } from "@tsonic/tsts";
 import type { ResolvedSourceCallInfo } from "../../target-model/records/calls/source-calls.js";
-import { asSourceNode, sourceCallableValueParameters } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { getCsharpRuntimeUnionArms } from "../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpSourceArgumentPassingMode } from "../../source/extension/arguments.js";
-import { substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
-import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
-import { csharpDelegateSignatureHasSupportedPassingModes, getCsharpCallableValueSignature, getCsharpTaskResultTargetType } from "../../target-model/types/carriers/delegates.js";
-import type { CsharpSourceCallResult } from "../../target-model/operations/source-call-results.js";
+import { csharpDelegateSignatureHasSupportedPassingModes } from "../../target-model/types/carriers/delegates.js";
 import { selectCsharpConversion } from "../../policy/conversions/core.js";
 import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
-import { completeCsharpSourceCallAdoption } from "../source-evidence/types/resolution/call-results.js";
+import { selectCsharpUnionCallMethods } from "../source-evidence/types/resolution/union-call-methods.js";
 
 export function classifyCsharpUnionCall(
   policy: CsharpPolicyContext,
@@ -34,64 +30,28 @@ export function classifyCsharpUnionCall(
     source.sourceArguments.some(argument => csharpSourceArgumentPassingMode(policy.sourceFacts, argument.expression) !== "by-value")) {
     return reject("Closed class-union calls require a present receiver and exact value-argument passing contracts.");
   }
-  const selectedProperty = semantics.types.propertyInfos(property.receiver.type).filter(info => info.symbol === property.selectedSymbol);
-  const declarations = [...semantics.facts.selectedSubjects(property.selectedSymbol, property.selectedDeclaration),
-    ...selectedProperty.flatMap(info => info.rootSymbols.flatMap(symbol => semantics.declarations.symbolDeclarations(symbol)))]
-    .flatMap(subject => {
-      const node = asSourceNode(subject, policy.ast);
-      return node !== undefined && policy.navigation.isProjectDeclaration(node) ? [node] : [];
-    });
   const parameterTypes = source.sourceSelectedSignatureParameters.map((_, index) => policy.types.resolveSourceCallParameter(source, index, sourceFile, "callable"));
   const resultType = policy.types.resolveSourceCallResult(source, sourceFile, undefined)?.selectedType;
   const typeArguments = policy.types.resolveSourceCallTypeArguments(source, sourceFile);
   if (resultType === undefined || typeArguments === undefined || parameterTypes.some(type => type === undefined)) return reject("Closed class-union call arguments and result require exact target carriers.");
+  const selectedMethods = selectCsharpUnionCallMethods(policy, property, arms, typeArguments,
+    (declaration, file) => policy.types.resolveNode(declaration, file)?.type);
+  if (selectedMethods.kind === "rejected") return reject(selectedMethods.reason);
+  if (selectedMethods.kind === "incomplete-result")
+    return reject(`Class-union result completion is not exact: native='${targetTypeRefKey(selectedMethods.nativeType)}', completed='${selectedMethods.result === undefined ? "missing" : targetTypeRefKey(selectedMethods.result.selectedType)}', result='${targetTypeRefKey(resultType)}'.`);
   let armFailure: string | undefined;
   const refuseArm = (reason: string): undefined => {
     armFailure ??= reason;
     return undefined;
   };
-  const methods = arms.map(arm => {
-    const owners = new Set<Node>();
-    const pending = [arm];
-    const visited = new Set<string>();
-    while (pending.length > 0) {
-      const type = pending.pop()!;
-      const key = targetTypeRefKey(type);
-      if (visited.has(key)) continue;
-      visited.add(key);
-      const definition = policy.projectTypes.catalog.definitionForTarget(type);
-      if (definition !== undefined) owners.add(definition.declaration);
-      pending.push(...(policy.projectTypes.directSupertypes(type) ?? []));
-    }
-    const candidates = [...new Set(declarations)].filter(declaration => {
-      if (policy.ast.kindName(declaration) !== "KindMethodDeclaration" || policy.ast.hasModifierKind(declaration, "static")) return false;
-      const owner = policy.projectTypes.catalog.definitionContainingDeclaration(declaration);
-      return owner !== undefined && owners.has(owner.declaration);
-    });
-    if (candidates.length !== 1) return refuseArm(`Class-union candidate cardinality is ${candidates.length}; exactly one method is required.`);
-    const declaration = candidates[0]!;
+  const methods = selectedMethods.methods.map(method => {
+    const { arm, declaration, signature, parameters, nativeParameters, result } = method;
     const name = policy.ast.name(declaration);
     const selectedName = name === undefined ? undefined : policy.semanticsFor(name).propertyNames.get(name);
-    const parameters = sourceCallableValueParameters(policy.ast, declaration, policy.semanticsFor(declaration));
-    const file = policy.ast.getSourceFile(declaration);
-    const signature = file === undefined ? undefined
-      : getCsharpCallableValueSignature(policy.types.resolveNode(declaration, file)?.type);
     if (selectedName?.kind !== "resolved" || parameters === undefined || parameters.length !== parameterTypes.length ||
-      signature === undefined || !csharpDelegateSignatureHasSupportedPassingModes(signature) ||
+      !csharpDelegateSignatureHasSupportedPassingModes(signature) ||
       signature.parameters.length !== parameters.length || signature.returnPassing !== undefined ||
       signature.parameterPassingModes.some(mode => mode !== "by-value")) return refuseArm("Class-union incoming native signature, ref mode or parameter arity is not exact.");
-    const typeParameters = policy.ast.typeParameters(declaration).map(parameter =>
-      parameter === undefined ? undefined : csharpSourceTypeParameter(parameter, policy.ast));
-    if (typeParameters.length !== typeArguments.length || typeParameters.some(parameter => parameter === undefined))
-      return refuseArm(`Class-union formal type-argument count is ${typeParameters.length}, selected count is ${typeArguments.length}, and every formal must be exact.`);
-    const substitutions = new Map(typeParameters.map((parameter, index) =>
-      [parameter!.identity, typeArguments[index]!] as const));
-    const instantiate = (member: Node, type: TargetTypeRef | undefined) => {
-      if (type === undefined) return undefined;
-      const value = policy.projectTypes.instantiateMemberType(member, arm,
-        substituteTargetTypeParameters(type, substitutions));
-      return value.kind === "resolved" ? value.type : undefined;
-    };
     if (parameters.some((parameter, index) => {
       if (parameter === undefined) return true;
       const contract = source.sourceSelectedSignatureParameters[index];
@@ -102,17 +62,11 @@ export function classifyCsharpUnionCall(
         contract.acceptsOmission && !contract.rest &&
           !signature.optionalParameterIndexes?.includes(index)) return true;
       const expected = parameterTypes[index];
-      const actual = instantiate(parameter, signature.parameters[index]);
+      const actual = nativeParameters?.[index];
       return expected === undefined || actual === undefined || !targetTypeRefEquals(expected, actual);
     })) return refuseArm("Class-union incoming native parameters do not match the selected checked argument contracts.");
-    const actualResult = instantiate(declaration, signature.returnType);
-    if (actualResult === undefined) return refuseArm("Class-union result join is missing its exact instantiated native result carrier.");
-    const nativeResult: CsharpSourceCallResult = Object.freeze({ nativeType: actualResult, selectedType: actualResult });
-    const result = getCsharpTaskResultTargetType(actualResult) !== undefined && policy.ast.body(declaration) !== undefined
-      ? completeCsharpSourceCallAdoption(policy, nativeResult) : nativeResult;
+    const actualResult = result.nativeType;
     const resultElement = getCsharpNullableElementTargetType(resultType);
-    if (result === undefined || !targetTypeRefEquals(result.nativeType, actualResult))
-      return refuseArm(`Class-union result completion is not exact: native='${targetTypeRefKey(actualResult)}', completed='${result === undefined ? "missing" : targetTypeRefKey(result.selectedType)}', result='${targetTypeRefKey(resultType)}'.`);
     if (!targetTypeRefEquals(resultType, result.selectedType) &&
       (resultElement === undefined || !targetTypeRefEquals(resultElement, result.selectedType)) &&
       getCsharpRuntimeUnionArms(resultElement ?? resultType, policy.typeDefinitions) === undefined)

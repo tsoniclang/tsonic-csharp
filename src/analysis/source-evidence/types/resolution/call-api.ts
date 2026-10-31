@@ -15,15 +15,10 @@ import { getCsharpNullableElementTargetType } from "../../../../target-model/typ
 
 import type { CsharpSourceCallContractSelection } from "./call-contracts.js";
 import { csharpSourceCallArgumentParameter } from "../../../../policy/types/callables/source-callable-contract.js";
-import { asSourceNode } from "@tsonic/target-api/source";
-import type { Node } from "@tsonic/tsts";
 import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/carriers/runtime-carriers.js";
-import { getCsharpCallableValueSignature } from "../../../../target-model/types/carriers/delegates.js";
-import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
-import { substituteTargetTypeParameters } from "../../../../policy/types/resolution/substitution.js";
-import { targetTypeRefKey } from "../../../../target-model/types/equality.js";
 import { selectCsharpConversion } from "../../../../policy/conversions/core.js";
 import { csharpConversionIsApplicable } from "../../../../policy/conversions/applicability.js";
+import { selectCsharpUnionCallMethods } from "./union-call-methods.js";
 
 export function resolveSourceCallTypeArguments(
   { resolveSourceCallContract, resolveSourceCallInstantiation }: CsharpTypeResolutionScope,
@@ -239,52 +234,12 @@ export function resolveSourceCallResultWithState(
       const property = queries.operations.propertyAccess(access.expression);
       const instantiation = resolveSourceCallInstantiation(source, sourceFile, nextState(state));
       if (property === undefined || instantiation === undefined) return undefined;
-      const selectedProperties = queries.types.propertyInfos(property.receiver.type).filter(info => info.symbol === property.selectedSymbol);
-      const declarations = [...new Set([
-        ...queries.facts.selectedSubjects(property.selectedSymbol, property.selectedDeclaration),
-        ...selectedProperties.flatMap(info => info.rootSymbols.flatMap(symbol => queries.declarations.symbolDeclarations(symbol))),
-      ].flatMap(subject => {
-        const node = asSourceNode(subject, host.ast);
-        return node !== undefined && host.navigation.isProjectDeclaration(node) ? [node] : [];
-      }))];
-      const results: CsharpSourceCallResult[] = [];
-      for (const arm of arms) {
-        const owners = new Set<Node>();
-        const pending = [arm];
-        const visited = new Set<string>();
-        while (pending.length > 0) {
-          const type = pending.pop()!;
-          const key = targetTypeRefKey(type);
-          if (visited.has(key)) continue;
-          visited.add(key);
-          const definition = projectTypes.catalog.definitionForTarget(type);
-          if (definition !== undefined) owners.add(definition.declaration);
-          pending.push(...(projectTypes.directSupertypes(type) ?? []));
-        }
-        const candidates = declarations.filter(member => {
-          if (host.ast.kindName(member) !== "KindMethodDeclaration" || host.ast.hasModifierKind(member, "static")) return false;
-          const owner = projectTypes.catalog.definitionContainingDeclaration(member);
-          return owner !== undefined && owners.has(owner.declaration);
-        });
-        if (candidates.length !== 1) return undefined;
-        const member = candidates[0]!;
-        const file = host.ast.getSourceFile(member);
-        const signature = file === undefined ? undefined
-          : getCsharpCallableValueSignature(resolveNodeWithState(member, file, nextState(state)));
-        const parameters = host.ast.typeParameters(member).map(parameter =>
-          parameter === undefined ? undefined : csharpSourceTypeParameter(parameter, host.ast));
-        if (signature === undefined || signature.returnPassing !== undefined ||
-          parameters.length !== instantiation.arguments.length || parameters.some(parameter => parameter === undefined)) return undefined;
-        const substitutions = new Map(parameters.map((parameter, index) =>
-          [parameter!.identity, instantiation.arguments[index]!] as const));
-        const native = projectTypes.instantiateMemberType(member, arm,
-          substituteTargetTypeParameters(signature.returnType, substitutions));
-        if (native.kind !== "resolved") return undefined;
-        const selected = Object.freeze({ nativeType: native.type, selectedType: native.type });
-        const completed = host.ast.body(member) === undefined ? selected : completeCsharpSourceCallAdoption(host, selected);
-        if (completed === undefined) return undefined;
-        results.push(completed);
-      }
+      const methods = selectCsharpUnionCallMethods({ ast: host.ast, navigation: host.navigation,
+        semanticsFor: node => host.semanticsFor(node), projectTypes, typeDefinitions: host.typeDefinitions },
+      property, arms, instantiation.arguments,
+      (member, file) => resolveNodeWithState(member, file, nextState(state)));
+      if (methods.kind !== "resolved") return undefined;
+      const results = methods.methods.map(method => method.result);
       const raw = combineCsharpTargetUnionMembers(results.map(result => result.nativeType));
       const selected = combineCsharpTargetUnionMembers(results.map(result => result.selectedType));
       if (raw === undefined || selected === undefined || results.some(result =>
