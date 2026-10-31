@@ -9,6 +9,7 @@ import type { CsharpProjectTypePolicy } from "../../../target-model/records/type
 import { resolveCsharpStaticMemberReceiver } from "../../../policy/types/project/static-members.js";
 import { getCsharpRuntimeUnionArms } from "../../../target-model/types/carriers/runtime-carriers.js";
 import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
+import { csharpModuleCallableInitializer } from "../../../target-model/syntax/module-callables.js";
 
 export interface CsharpSourceCalleeHost {
   readonly ast: CsharpTypePolicyBaseHost["ast"];
@@ -27,11 +28,13 @@ export function classifyCsharpSourceCallee(
   const selected = source.sourceCalleeAccess?.selectedDeclaration ?? source.sourceCallee.selectedDeclaration;
   const reference = policy.navigation.sourceReferenceFor(expression);
   const declaration = reference?.declaration ?? source.sourceCalleeAccess?.declaration ?? source.sourceCallee.declaration;
+  const moduleCallable = declaration === undefined ? undefined : csharpModuleCallableInitializer(policy.ast, declaration);
   if (declaration !== undefined && selected !== undefined &&
-    policy.ast.is.IsFunctionDeclaration(declaration) && policy.ast.is.IsFunctionDeclaration(selected)) {
+    (policy.ast.is.IsFunctionDeclaration(declaration) && policy.ast.is.IsFunctionDeclaration(selected) ||
+      moduleCallable !== undefined && (selected === declaration || selected === moduleCallable))) {
     if (!policy.navigation.isProjectDeclaration(selected)) return Object.freeze({ kind: "rejected",
       reason: "The exact selected source callee is external to the project and has no C# target relation." });
-    return Object.freeze({ kind: "function", expression, declaration: selected });
+    return Object.freeze({ kind: "function", expression, declaration: moduleCallable ?? selected });
   }
   const access = source.sourceCalleeAccess;
   if (access !== undefined && selected === undefined && declaration === undefined) {

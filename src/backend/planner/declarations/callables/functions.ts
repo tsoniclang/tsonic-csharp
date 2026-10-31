@@ -1,5 +1,5 @@
 import type { CsharpPlanningContext } from "../../context.js";
-import { AsFunctionDeclaration } from "@tsonic/target-api/source";
+import { sourceExpressionResultDisposition } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpMethodDeclaration, CsharpStatement } from "../../../target-ast/syntax/index.js";
@@ -15,7 +15,23 @@ import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { planCsharpGeneratorFunction } from "../../statements/generators.js";
 import { withCsharpSafetyModifiers } from "../../safety/explicit-safety.js";
-import { planCsharpAbsenceReturn } from "../../statements/statement-output.js";
+import { consumeCsharpPlannedValue, planCsharpAbsenceReturn, planCsharpVoidReturn } from "../../statements/statement-output.js";
+import { csharpModuleCallableInitializer } from "../../../../target-model/syntax/module-callables.js";
+import { planExpression } from "../../expressions/index.js";
+
+export function planModuleCallableDeclaration(
+  declaration: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
+): CsharpMethodDeclaration {
+  const initializer = csharpModuleCallableInitializer(input.program.source.ast, declaration);
+  if (initializer === undefined) failCsharpPlannerInvariant("A native module method requires its original const callable declaration.", declaration);
+  const planned = planSourceFunctionDeclaration(initializer, sourceFile, input, diagnostics);
+  const modifiers = input.program.records.memberModifiers.get(declaration);
+  if (modifiers === undefined) failCsharpPlannerInvariant("A native module method requires its sealed declaration modifiers.", declaration);
+  return { ...planned.declaration, kind: "MethodDeclaration",
+    modifiers: withCsharpSafetyModifiers([...modifiers.member, ...(planned.async ? ["async" as const] : []),
+      ...planCsharpNativeMemberHiding(input.program.records.nativeMemberHiding, { kind: "source", declaration, role: "member" })],
+      initializer, "declaration", input) };
+}
 
 export function planFunctionDeclaration(
   node: Node,
@@ -45,13 +61,25 @@ export function planSourceFunctionDeclaration(
   parent?: DestructuringPlannerState,
 ): { readonly async: boolean; readonly declaration: Omit<CsharpMethodDeclaration, "kind" | "modifiers" | "body"> &
   { readonly body: NonNullable<CsharpMethodDeclaration["body"]> } } {
-  const declaration = AsFunctionDeclaration(input.program.source.ast, node)!;
-  const name = declaration.name === undefined || parent === undefined ? undefined : getCsharpLocalBindingName(declaration.name, input, parent);
-  const selectedName = name ?? planCsharpAdmittedMemberName(input.program.records, declaration.name);
+  const ast = input.program.source.ast;
+  const declaration = ast.as.AsFunctionDeclaration(node) ?? ast.as.AsArrowFunction(node) ?? ast.as.AsFunctionExpression(node);
+  if (declaration === undefined) failCsharpPlannerInvariant("A source method requires its original checked callable definition.", node);
+  const disposition = sourceExpressionResultDisposition(ast, node);
+  const owner = disposition.kind === "stored" && csharpModuleCallableInitializer(ast, disposition.use) === node
+    ? disposition.use : node;
+  const sourceName = ast.name(owner);
+  const name = sourceName === undefined || parent === undefined ? undefined : getCsharpLocalBindingName(sourceName, input, parent);
+  const selectedName = name ?? planCsharpAdmittedMemberName(input.program.records, sourceName);
   const emission = input.program.records.callableDeclaration.get(node);
   if (emission === undefined) failCsharpPlannerInvariant("An admitted source function requires its sealed native declaration plan.", node);
   const state = parent === undefined ? createDestructuringPlannerState(node, input.program.source.ast)
     : createNestedPlannerState(parent, node, input.program.source.ast);
+  if (owner !== node) {
+    const self = input.program.records.namedSelf.get(node);
+    for (const reference of [...self?.calls ?? [], ...self?.values ?? []]) {
+      state.expressionOverrides.set(reference, { kind: "IdentifierName", name: selectedName });
+    }
+  }
   const parameters = planParametersWithPrelude(emission.contract.parameters, sourceFile, input, diagnostics, state);
   const declaredReturnType = getExplicitReturnType(declaration.Type, node, "function declaration", sourceFile, input, diagnostics);
   const generatorSyntax = emission.generator;
@@ -87,14 +115,20 @@ export function planSourceFunctionDeclaration(
   }
   const returnContract = input.program.records.returnContract.get(node);
   state.currentUndefinedReturn = returnContract?.kind === "resolved" && returnContract.undefinedReturn === true;
-  const bodyStatements = planBlockStatements(
-    declaration.Body,
-    sourceFile,
-    input,
-    diagnostics,
-    state,
-    parameters.prelude,
-  );
+  const body = declaration.Body;
+  if (body === undefined) failCsharpPlannerInvariant("An admitted source method requires its checked body.", node);
+  let bodyStatements: readonly CsharpStatement[];
+  if (ast.is.IsBlock(body)) {
+    bodyStatements = planBlockStatements(body, sourceFile, input, diagnostics, state, parameters.prelude);
+  } else {
+    const value = planExpression(body, sourceFile, input, diagnostics, state);
+    if (value === undefined) failCsharpPlannerInvariant("An admitted expression-bodied method requires its native return plan.", body);
+    const completion = input.program.records.lambdaBody.get(node)?.completion;
+    bodyStatements = [...parameters.prelude, ...(completion === undefined
+      ? consumeCsharpPlannedValue(value, expression => [{ kind: "ReturnStatement", expression }],
+        () => [{ kind: "ReturnStatement" }])
+      : planCsharpVoidReturn(value, completion, state.currentReturnExpressionTargetType, input))];
+  }
   const returnType = csharpTypeFromTargetTypeRef(emission.returnCarrier, input.scope.typeParameterNames);
   if (returnType === undefined) failCsharpPlannerInvariant("An admitted source function requires its renderable native return carrier.", node);
   return { async, declaration: {

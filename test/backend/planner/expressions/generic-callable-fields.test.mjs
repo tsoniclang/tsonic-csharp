@@ -107,9 +107,10 @@ test("nested generic callable owners are discovered before the synthetic source 
       return choose("left", "right");
     }
   `);
-  assert.match(source, /create\.__tsonic_invoke_body_Invoke<double>\(/u);
+  assert.match(source, /Index\.create<double>\(3\)/u);
   assert.match(source, /choose\.__tsonic_invoke_body_Invoke<string>\(/u);
-  assert.match(owners, /\bInvoke<Outer>\(/u);
+  assert.match(source, /public static [^\n]+ create<Outer>\(Outer seed\)/u);
+  assert.doesNotMatch(source, /create\.__tsonic_invoke_body_Invoke/u);
   assert.match(owners, /\bInvoke<T>\(T left, T right\)/u);
   assert.match(owners, /\.Length/u);
 });
@@ -163,8 +164,10 @@ test("nested generic callable owners retain outer payloads and distinct invocati
       return left.seed === 3 && left.value === "left" && right.seed === "seed" && right.value === 7;
     }
   `);
-  assert.match(source, /create\.__tsonic_invoke_body_Invoke<double>\(/u);
-  assert.match(source, /create\.__tsonic_invoke_body_Invoke<string>\(/u);
+  assert.match(source, /Index\.create<double>\(3\)/u);
+  assert.match(source, /public static [^\n]+ create<Outer>\(Outer seed\)/u);
+  assert.doesNotMatch(source, /create\.__tsonic_invoke_body_Invoke/u);
+  assert.match(source, /Index\.create<string>\("seed"\)/u);
   assert.match(source, /first\.__tsonic_invoke_body_Invoke<string>\(/u);
   assert.match(source, /second\.__tsonic_invoke_body_Invoke<double>\(/u);
   assert.match(owners, /value0/u);

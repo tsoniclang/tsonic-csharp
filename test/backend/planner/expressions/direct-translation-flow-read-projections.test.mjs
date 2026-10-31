@@ -44,15 +44,6 @@ test("direct C# translation projects exact checker flow types for inferred local
         {
             return (object?)value is Derived ? ((Derived)value).value : default(string?);
         }
-        private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
-        private static object? __tsonic_module_init_core()
-        {
-            return null;
-        }
-        public static void __tsonic_module_init()
-        {
-            _ = __tsonic_module_initialization.Value;
-        }
     }
     public class Base : Tsonic.CSharp.Runtime.ITsClosedValueCarrier
     {

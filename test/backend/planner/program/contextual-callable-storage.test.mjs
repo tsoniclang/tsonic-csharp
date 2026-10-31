@@ -9,7 +9,7 @@ import { planTopLevelVariableStatement } from "../../../../dist/backend/planner/
 import { csharpTypeFromTargetTypeRef } from "../../../../dist/backend/planner/types/render.js";
 import { sameCsharpType } from "../../../helpers/csharp-type-equality.mjs";
 import {
-  csharpSourcePrimitiveTargetType, getCsharpDelegateSignature, getCsharpTaskResultTargetType, targetTypeRefEquals,
+  csharpSourcePrimitiveTargetType, getCsharpTaskResultTargetType, targetTypeRefEquals,
 } from "../../../../dist/target-model/types/index.js";
 import { csharpProgramSourceFiles } from "../../../helpers/program-source-files.mjs";
 
@@ -40,27 +40,26 @@ for (const surface of [undefined, "js"]) {
     assert.equal(declaration !== undefined, true, "authored Handler storage declaration");
     const initializer = input.source.ast.as.AsVariableDeclaration(declaration).Initializer;
     const body = input.program.records.returnContract.get(initializer);
-    const storage = input.program.records.storageType.get(declaration);
-    const signature = getCsharpDelegateSignature(storage);
+    const emitted = input.program.records.callableDeclaration.get(initializer);
     assert.equal(body?.kind, "resolved", "closed async body contract");
+    assert.equal(emitted !== undefined, true, "one completed native method declaration");
     assert.equal(getCsharpTaskResultTargetType(body.type) !== undefined, true, "body produces an exact Task");
-    assert.equal(signature !== undefined, true, "closed contextual storage signature");
-    assert.equal(targetTypeRefEquals(body.type, signature.returnType), false, "contextual union is not the intrinsic Task");
+    assert.equal(targetTypeRefEquals(emitted.returnCarrier, body.type), true, "method returns its intrinsic Task");
+    assert.equal(input.program.records.moduleBindingInitialization.get(declaration), "declaration", "no module value initializer");
     const awaiting = input.awaiting.find(node => {
       const operand = input.source.ast.as.AsAwaitExpression(node).Expression;
       const callee = input.source.ast.as.AsCallExpression(operand)?.Expression;
       return callee !== undefined && input.source.ast.is.IsIdentifier(callee) &&
         input.source.ast.text(callee) === "storedCompletion";
     });
-    assert.equal(awaiting !== undefined, true, "direct stored callable await");
+    assert.equal(awaiting !== undefined, true, "direct native method await");
     const completion = input.program.records.awaitCompletion.get(awaiting);
     assert.equal(completion !== undefined, true, "sealed await correspondence");
-    assert.equal(completion.alternatives.length, 2, "Task and synchronous Reply alternatives");
-    assert.equal(completion.optional, true, "one native absence state");
-    assert.equal(completion.alternatives.some(alternative => alternative.task &&
-      targetTypeRefEquals(alternative.carrier, body.type)), true, "await retains the body's exact Task alternative");
-    assert.equal(completion.alternatives.every(alternative => alternative.sourcePath.length > 0), true,
-      "the awaited storage is a union rather than a bare Task");
+    assert.equal(completion.alternatives.length, 1, "one physical Task alternative");
+    assert.equal(completion.optional, false, "the native method always returns its Task");
+    assert.equal(completion.alternatives[0].task, true, "native Task completion");
+    assert.equal(targetTypeRefEquals(completion.alternatives[0].carrier, body.type), true, "exact intrinsic Task carrier");
+    assert.equal(completion.alternatives[0].sourcePath.length, 0, "no stored union projection");
   });
 
   test(`local contextual async storage renders its selected carrier on ${surface ?? "native"}`, () => {
@@ -94,83 +93,29 @@ for (const surface of [undefined, "js"]) {
       const declaration = input.variables.get(name);
       assert.equal(declaration !== undefined, true, name);
       const initializer = input.source.ast.as.AsVariableDeclaration(declaration).Initializer;
-      const creation = input.program.records.callableCreation.get(initializer);
-      assert.equal(creation?.kind, "selected", `${name}: approved C-1405 canonical native creation`);
-      assert.equal(Object.hasOwn(input.program.records, "callableVisibility"), false,
-        `${name}: the removed promotion selector stays absent`);
+      const emitted = input.program.records.callableDeclaration.get(initializer);
+      assert.equal(emitted !== undefined, true, `${name}: canonical native method declaration`);
+      assert.equal(Object.hasOwn(input.program.records, "callableVisibility"), false, "removed use-census selector stays absent");
       const statement = input.source.ast.parent(input.source.ast.parent(declaration));
-      const firstStatement = statements.length;
-      planTopLevelVariableStatement(statement, input.file, context, diagnostics, () => assert.fail("Unexpected type declaration"), members, statements, state, false);
+      planTopLevelVariableStatement(statement, input.file, context, diagnostics, () => assert.fail("Unexpected type declaration"), members, statements, state);
       assert.equal(diagnostics.length, 0, name);
-      const carrier = input.program.records.storageType.get(declaration);
-      const signature = getCsharpDelegateSignature(carrier);
-      assert.equal(signature !== undefined, true, `${name}: closed storage signature`);
-      const ownStatements = statements.slice(firstStatement);
-      const field = members.find(member => (member.kind === "FieldDeclaration" || member.kind === "PropertyDeclaration") && member.name === name);
-      assert.equal(field !== undefined && sameCsharpType(field.type, csharpTypeFromTargetTypeRef(carrier)), true,
-        `${name}: approved C-1405 exact native module value`);
-      assert.equal(ownStatements.filter(statement => statement.kind === "ExpressionStatement" &&
-        statement.expression.kind === "AssignmentExpression" && statement.expression.left.kind === "IdentifierName" &&
-        statement.expression.left.name === name).length, 1, `${name}: one original-order binding initialization`);
-      const nativeSignature = getCsharpDelegateSignature(creation.carrier);
-      assert.equal(nativeSignature !== undefined, true, `${name}: approved C-1426 native creation contract`);
-      const initialization = ownStatements.find(statement => statement.kind === "ExpressionStatement" &&
-        statement.expression.kind === "AssignmentExpression" && statement.expression.left.kind === "IdentifierName" &&
-        statement.expression.left.name === name).expression.right;
-      let adapted = initialization;
-      while (adapted.kind === "CastExpression" || adapted.kind === "ParenthesizedExpression") adapted = adapted.expression;
-      let native = adapted;
-      if (adapted.kind === "SwitchExpression") {
-        assert.equal(adapted.arms.length, 1, "one original native callable evaluation feeds one boundary adapter");
-        assert.equal(adapted.arms[0].pattern.kind, "VarPattern", "the adapter retains the original evaluated callable");
-        native = adapted.expression;
-        while (native.kind === "CastExpression" || native.kind === "ParenthesizedExpression") native = native.expression;
-        adapted = adapted.arms[0].expression;
-        while (adapted.kind === "CastExpression" || adapted.kind === "ParenthesizedExpression") adapted = adapted.expression;
-      }
-      const adapter = adapted.kind === "LambdaExpression" ? adapted : undefined;
-      const adapterStatements = adapter?.body.kind === "Block" ? adapter.body.statements : [];
-      const nativeReturn = csharpTypeFromTargetTypeRef(nativeSignature.returnType);
-      assert.equal(nativeReturn !== undefined, true, `${name}: renderable method return`);
-      const method = name === "storedCompletion" ? adapterStatements.find(statement => statement.kind === "LocalFunctionStatement" &&
-        sameCsharpType(statement.returnType, nativeReturn)) : undefined;
-      if (name === "storedCompletion") {
-        assert.equal(method !== undefined && method.modifiers.includes("async"), true,
-          "approved C1445: the genuine Task/union adaptation calls one native Task method, not an inner delegate");
-        assert.equal(sameCsharpType(method.returnType, nativeReturn), true, "the exact canonical native Task return");
-        assert.equal(asyncLambdaCount(ownStatements), 0, "the union adapter allocates no inner async source delegate");
-      } else {
-        assert.equal(native.kind === "LambdaExpression" && native.async === true, true,
-          `${name}: the nonadapted native async producer stays inline`);
-      }
-      assert.equal(getCsharpTaskResultTargetType(nativeSignature.returnType) !== undefined, true,
-        `${name}: native creation, adapted body and await use one Task carrier`);
-      const parameters = name === "storedCompletion" ? method.parameters : native.parameters;
-      assert.equal(parameters.length, nativeSignature.parameters.length, `${name}: exact callable arity`);
-      assert.equal(parameters.every((parameter, index) =>
-        sameCsharpType(parameter.type, csharpTypeFromTargetTypeRef(nativeSignature.parameters[index]))), true,
-        `${name}: selected native parameter carriers`);
-      if (name === "storedCompletion") {
-        assert.equal(adapter !== undefined && adapter.async !== true && adapter.parameters.length === signature.parameters.length, true,
-          "approved C-1426: the sole initializer adapts to the exact original union contract");
-        assert.equal(adapter.parameters.every((parameter, index) =>
-          sameCsharpType(parameter.type, csharpTypeFromTargetTypeRef(signature.parameters[index]))), true,
-          "the union adapter preserves each original native input");
-        assert.equal(adapterStatements.filter(statement => statement.kind === "LocalFunctionStatement" &&
-          statement.modifiers.includes("async")).length, 1, "one existing native async body, no additional Task wrapper");
-        assert.equal(adapterStatements.at(-1)?.kind, "ReturnStatement", "adapted union result");
-        assert.equal(adapterStatements.at(-1).expression.kind, "InvocationExpression", "native union injection");
-        assert.equal(adapterStatements.at(-1).expression.callee.name, "From1", "exact selected Task alternative");
-      } else {
-        assert.equal(targetTypeRefEquals(nativeSignature.returnType, signature.returnType), true,
-          "the inferred native Task body already matches its stored carrier");
-      }
+      const method = members.find(member => member.kind === "MethodDeclaration" && member.name === name);
+      assert.equal(method !== undefined, true, `${name}: direct native method`);
+      assert.equal(method.modifiers.includes("internal") && method.modifiers.includes("static") && method.modifiers.includes("async"), true,
+        `${name}: original non-exported async declaration`);
+      assert.equal(sameCsharpType(method.returnType, csharpTypeFromTargetTypeRef(emitted.returnCarrier)), true,
+        `${name}: exact native body return`);
+      assert.equal(getCsharpTaskResultTargetType(emitted.returnCarrier) !== undefined, true, `${name}: intrinsic Task`);
+      assert.equal(method.parameters.length, emitted.contract.nativeParameters.length, `${name}: exact callable arity`);
+      assert.equal(method.parameters.every((parameter, index) => sameCsharpType(parameter.type,
+        csharpTypeFromTargetTypeRef(emitted.contract.nativeParameters[index].targetParameter.type))), true,
+        `${name}: original native parameter carriers`);
+      assert.equal(asyncLambdaCount(method.body), 0, "one native async method, no inner async delegate or Task wrapper");
+      assert.equal(members.some(member => (member.kind === "FieldDeclaration" || member.kind === "PropertyDeclaration") && member.name === name), false,
+        `${name}: no module delegate storage`);
+      assert.equal(input.program.records.moduleBindingInitialization.get(declaration), "declaration", `${name}: no initialization entry`);
     }
-    const initializations = statements.filter(statement => statement.kind === "ExpressionStatement" &&
-      statement.expression.kind === "AssignmentExpression" && statement.expression.left.kind === "IdentifierName" &&
-      ["storedCompletion", "inferredStoredCompletion"].includes(statement.expression.left.name));
-    assert.deepEqual(initializations.map(statement => statement.expression.left.name), ["storedCompletion", "inferredStoredCompletion"],
-      "approved C-1405: both original module values initialize once in source order");
+    assert.equal(statements.length, 0, "module const methods emit no initializer or adapter allocation");
   });
 
   for (const exported of [false, true]) test(`${exported ? "exported" : "direct"} async storage preserves its native int64 result on ${surface ?? "native"}`, () => {
@@ -184,39 +129,27 @@ for (const surface of [undefined, "js"]) {
     const statements = [];
     const statement = input.source.ast.parent(input.source.ast.parent(declaration));
     planTopLevelVariableStatement(statement, input.file, context, diagnostics, () => assert.fail("Unexpected type declaration"), members, statements,
-      createDestructuringPlannerState(input.file, input.source.ast), false);
+      createDestructuringPlannerState(input.file, input.source.ast));
     assert.equal(diagnostics.length, 0);
     const name = input.program.records.sourceName.get(input.source.ast.name(declaration));
     assert.equal(name.kind, "resolved", "exact source identifier including native keyword escaping");
-    const carrier = input.program.records.storageType.get(declaration);
-    const signature = getCsharpDelegateSignature(carrier);
-    assert.equal(signature !== undefined, true, "sealed native callable");
-    assert.equal(targetTypeRefEquals(getCsharpTaskResultTargetType(signature.returnType),
-      csharpSourcePrimitiveTargetType("int64")), true, "the result never passes through a floating carrier");
-    const field = members.find(member => (member.kind === "FieldDeclaration" || member.kind === "PropertyDeclaration") && member.name === name.name);
-    assert.equal(field !== undefined && sameCsharpType(field.type, csharpTypeFromTargetTypeRef(carrier)), true,
-      "approved C-1407: the original native module value holds its exact delegate");
-    assert.equal(field.modifiers.includes("public"), true, "public module-value visibility stays exact");
     const initializer = input.source.ast.as.AsVariableDeclaration(declaration).Initializer;
-    const creation = input.program.records.callableCreation.get(initializer);
-    assert.equal(creation?.kind, "selected", "one completed native creation");
-    assert.equal(Object.hasOwn(input.program.records, "callableVisibility"), false, "no obsolete promotion publication");
-    const nativeSignature = getCsharpDelegateSignature(creation.carrier);
-    assert.equal(targetTypeRefEquals(nativeSignature?.returnType, signature.returnType), true,
-      "the native Task<long> creation matches its body and caller");
-    const initialization = statements.find(statement => statement.kind === "ExpressionStatement" &&
-      statement.expression.kind === "AssignmentExpression" && statement.expression.left.kind === "IdentifierName" &&
-      statement.expression.left.name === name.name).expression.right;
-    let native = initialization;
-    while (native.kind === "CastExpression" || native.kind === "ParenthesizedExpression") native = native.expression;
-    assert.equal(native.kind, "LambdaExpression", "approved C-1441 exact inline async producer at the initializer");
-    assert.equal(native.async, true);
-    assert.equal(native.parameters.length, nativeSignature.parameters.length, "the same native input vector");
-    assert.equal(statements.filter(statement => statement.kind === "ExpressionStatement" &&
-      statement.expression.kind === "AssignmentExpression" && statement.expression.left.kind === "IdentifierName" &&
-      statement.expression.left.name === name.name).length, 1, "approved C-1407: one original binding initialization");
-    assert.equal(asyncLambdaCount(statements),
-      1, "one native async body, no additional Task wrapper");
+    const emitted = input.program.records.callableDeclaration.get(initializer);
+    assert.equal(emitted !== undefined, true, "one completed native method declaration");
+    assert.equal(targetTypeRefEquals(getCsharpTaskResultTargetType(emitted.returnCarrier),
+      csharpSourcePrimitiveTargetType("int64")), true, "the result never passes through a floating carrier");
+    assert.equal(Object.hasOwn(input.program.records, "callableVisibility"), false, "no obsolete use-census publication");
+    const method = members.find(member => member.kind === "MethodDeclaration" && member.name === name.name);
+    assert.equal(method !== undefined && sameCsharpType(method.returnType, csharpTypeFromTargetTypeRef(emitted.returnCarrier)), true,
+      "exact Task<long> method return");
+    assert.equal(method.modifiers.includes(exported ? "public" : "internal"), true, "authored module visibility");
+    assert.equal(method.modifiers.includes("static") && method.modifiers.includes("async"), true, "native async static method");
+    assert.equal(method.parameters.length, emitted.contract.nativeParameters.length, "the same native input vector");
+    assert.equal(asyncLambdaCount(method.body), 0, "one native async method, no delegate or extra Task wrapper");
+    assert.equal(members.some(member => (member.kind === "FieldDeclaration" || member.kind === "PropertyDeclaration") && member.name === name.name), false,
+      "no native module delegate storage");
+    assert.equal(input.program.records.moduleBindingInitialization.get(declaration), "declaration", "no module initialization entry");
+    assert.equal(statements.length, 0, "no native callable initializer allocation");
   });
 }
 

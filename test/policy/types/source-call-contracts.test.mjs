@@ -84,7 +84,9 @@ function fixture(carrier = csharpDelegateTargetType("System.Func", [integer], in
     nativeParameters: [{ sourceParameter, targetParameter: { name: "value", type: outer, passingMode: "by-value" } }], returnType: outer };
   const scope = { host: {
     ast: { typeParameters: () => [], is: { IsNewExpression: () => false, IsFunctionDeclaration: node => node?.kind === "function",
-      IsMethodDeclaration: () => false, IsClassDeclaration: () => false }, parent: () => undefined, kindName: node => node?.kind },
+      IsMethodDeclaration: () => false, IsClassDeclaration: () => false,
+      IsVariableDeclaration: node => node?.kind === "variable" },
+      parent: () => undefined, name: node => node?.name, kindName: node => node?.kind },
     navigation: { sourceReferenceFor: () => ({ declaration }), isProjectDeclaration: node => direct && node === declaration },
     semantics: () => ({ declarations: { signatureDeclaration: () => signatureDeclaration }, operations: {
       callResult: () => undefined, callParameterSlots: selected => selectSourceCallParameterSlots(selected, { isTuple: () => false }),
