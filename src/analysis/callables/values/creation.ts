@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import { HasSyntacticModifier, ModifierFlagsAsync, sourceCallableDefinitionIsDiscarded,
-  sourceExpressionCallArgument,
+  sourceExpressionCallArgument, sourceCallArgumentCorrespondences,
   type SourceLiteralIndex, type TargetSourceProgram } from "@tsonic/target-api/source";
 import { csharpLiteralReturnsFit } from "../calls/return-expressions.js";
 import type { CsharpCaptureStorage } from "../../../target-model/records/callables/capture-storage.js";
@@ -36,7 +36,7 @@ export interface CsharpCallableCreationInput {
 }
 
 export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInput): CsharpCallableCreationIndex {
-  const producer = createCsharpCallableCreationProducer();
+  const producer = createCsharpCallableCreationProducer(input.nodes);
   const { ast } = input.source;
   for (const node of input.nodes) {
     if (input.evidence.compileTimeMetadata.get(node) ||
@@ -59,10 +59,10 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
       ? input.operations.selectedConstruction.get(argument.call) : input.operations.selectedCall.get(argument.call);
     const nativeArguments = operation?.sourceArgumentParameterTypes;
     const checked = argument === undefined ? undefined : input.source.semantics.forNode(argument.call).operations.call(argument.call);
-    const nativeBindings = checked?.sourceArgumentBindings.filter(binding =>
-      argument !== undefined && binding.sourceArgumentIndex === argument.argumentIndex && binding.sourceForm === "value" &&
-      checked.sourceArguments[binding.sourceArgumentIndex]?.expression === argument.argument) ?? [];
-    const immediate = nativeBindings.length === 1 ? nativeArguments?.[checked!.sourceArgumentBindings.indexOf(nativeBindings[0]!)] : undefined;
+    const nativeBindings = checked === undefined ? undefined : sourceCallArgumentCorrespondences(ast, checked)?.filter(row =>
+      argument !== undefined && row.binding.sourceArgumentIndex === argument.argumentIndex && row.binding.sourceForm === "value" &&
+      row.argument.expression === argument.argument);
+    const immediate = nativeBindings?.length === 1 ? nativeArguments?.[nativeBindings[0]!.bindingIndex] : undefined;
     if (argument !== undefined && immediate === undefined) {
       producer.publish(node, Object.freeze({ kind: "pending" }));
       continue;
