@@ -26,7 +26,8 @@ import type {
   NestedStatementPlanner,
 } from "./model.js";
 import type { CsharpPlannedValue } from "../expressions/planned-values.js";
-import { consumeCsharpPlannedValue } from "./statement-output.js";
+import { consumeCsharpPlannedValue, planCsharpPlannedDiscard } from "./statement-output.js";
+import { readCsharpNativeDiscardEvaluation } from "../expressions/native-uses.js";
 import { planCsharpLoopContinuation, csharpLoopContinuationLabel } from "./loop-regions.js";
 
 export function planIfStatement(
@@ -39,14 +40,17 @@ export function planIfStatement(
 ): readonly CsharpStatement[] {
   const statement = AsIfStatement(input.program.source.ast, node)!;
   const selected = statement.Expression === undefined ? undefined : input.program.records.nativeGuardResult.get(statement.Expression);
-  if (selected !== undefined) {
-    const branch = selected ? statement.ThenStatement : statement.ElseStatement;
-    return branch === undefined ? [] : [{ kind: "Block", body: { kind: "Block",
-      statements: planNestedStatementBody(branch, sourceFile, input, diagnostics, state) } }];
-  }
   const condition = planConditionExpression(statement.Expression, "If statement", sourceFile, input, diagnostics, state);
   if (condition === undefined) {
     return failCsharpPlannerInvariant("An admitted if statement requires its native condition plan.", node);
+  }
+  if (selected !== undefined) {
+    const effects = readCsharpNativeDiscardEvaluation(input, statement.Expression!) === "evaluate"
+      ? planCsharpPlannedDiscard(condition) : condition.prelude;
+    if (condition.completion.kind === "never") return effects;
+    const branch = selected ? statement.ThenStatement : statement.ElseStatement;
+    return [...effects, ...(branch === undefined ? [] : [{ kind: "Block" as const, body: { kind: "Block" as const,
+      statements: planNestedStatementBody(branch, sourceFile, input, diagnostics, state) } }])];
   }
   return consumeCsharpPlannedValue(condition, value => [{
     kind: "IfStatement",

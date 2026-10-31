@@ -1,7 +1,7 @@
 import test from "node:test";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
-import { nativeGuardReachabilitySource, nativeHeaderReachabilitySource } from "../../../../tsonic/test/fixtures/native-guard-reachability.mjs";
+import { nativeGuardReachabilitySource, nativeHeaderReachabilitySource, nativeGuardGetterEffectsSource } from "../../../../tsonic/test/fixtures/native-guard-reachability.mjs";
 import { createTsonicPlugin as nodejsCapability } from "../../../../csharp-nodejs/dist/index.js";
 import { join } from "node:path";
 import { testRepositoryRoots } from "../../../../tsonic/test/scripts/workspace-layout.mjs";
@@ -11,6 +11,11 @@ for (const surface of [undefined, "js"]) {
     const compiled = compileCsharpSource({ surface, sourceText: nativeGuardReachabilitySource });
     assertCsharpCompilationSucceeded(compiled);
     executeCsharpConstruction(compiled, "native-guard-reachability");
+  });
+  test(`folded native guards evaluate throwing getters exactly once on ${surface ?? "native"}`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: nativeGuardGetterEffectsSource });
+    assertCsharpCompilationSucceeded(compiled);
+    executeCsharpConstruction(compiled, `native-guard-getter-effects-${surface ?? "native"}`);
   });
 }
 
