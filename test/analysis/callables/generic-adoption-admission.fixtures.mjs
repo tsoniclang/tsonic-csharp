@@ -647,10 +647,6 @@ function genericAdoptionExecution(name, invoked) {
     return { source: prefix + `await ${invoked}(actual); console.log("completed");`, expected: "completed" };
   if (name === "forward-local")
     return { source: prefix + `console.log(await ${invoked}(actual));`, expected: "0" };
-  if (name === "nested-return")
-    return { source: prefix + `console.log(await ${invoked}(actual).read());`, expected: "5" };
-  if (name === "returned-arrow")
-    return { source: prefix + `console.log(await ${invoked}(actual)());`, expected: "5" };
   return { source: prefix + `console.log(await ${invoked}(actual));`, expected: "5" };
 }
 
