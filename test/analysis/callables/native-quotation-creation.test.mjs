@@ -6,6 +6,7 @@ import { createDotnetModuleSpecifierPolicy, csharpDotnetProviderContributionKind
 import { getCsharpExpressionTreeDelegateType, getCsharpLambdaSignature } from "../../../dist/target-model/types/carriers/delegates.js";
 import { buildDotnetFixture } from "../../helpers/dotnet-fixtures.mjs";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
+import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const fixture = join(root, "test/fixtures/dotnet-provider/expression-trees");
@@ -142,3 +143,29 @@ test("asynchronous alias bodies never become synchronous native quotations", () 
   "an asynchronous runtime callable cannot acquire quotation by an alias");
   assert.equal(compiled.artifacts.size, 0, "asynchronous runtime quotation publishes no partial output");
 });
+
+for (const surface of [undefined, "js"]) {
+  test(`nested expression-only delegates do not acquire quotation statement preparation on ${surface ?? "native"}`, () => {
+    const compiled = compile("return ExpressionHost.Add((value: int32): int32 => value + ((input: int32): int32 => input + 2)(1), 4);", surface);
+    assertCsharpCompilationSucceeded(compiled);
+    const program = compiled.result.program;
+    const ast = program.source.ast;
+    const arrows = [];
+    const visit = node => {
+      if (ast.is.IsArrowFunction(node)) arrows.push(node);
+      ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    };
+    for (const file of program.source.navigation.sourceFiles) {
+      if (ast.getFileName(file) === "/project/index.ts") visit(file);
+    }
+    assert.equal(arrows.length, 2, "one original quotation and one nested native delegate");
+    assert.equal(program.records.callableCreation.get(arrows[0])?.allocation.kind, "quotation");
+    assert.equal(program.records.callableCreation.get(arrows[1])?.allocation.kind, "cached");
+    for (const arrow of arrows) {
+      assert.equal(program.records.lambdaBody.get(arrow)?.preparation, "expression");
+      assert.equal(Object.isFrozen(program.records.lambdaBody.get(arrow)), true);
+    }
+    executeCsharpConstruction(compiled, `nested-quotation-preparation-${surface ?? "native"}`, false, false, [join(fixture, "ExpressionTrees.csproj")],
+      'if (Tsonic.Generated.Index.run() != 7) throw new System.Exception("native nested quotation result");');
+  });
+}

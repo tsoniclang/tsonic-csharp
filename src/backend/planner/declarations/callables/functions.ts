@@ -120,7 +120,9 @@ export function planSourceFunctionDeclaration(
   } else {
     const value = planExpression(body, sourceFile, input, diagnostics, state);
     if (value === undefined) failCsharpPlannerInvariant("An admitted expression-bodied method requires its native return plan.", body);
-    const completion = input.program.records.lambdaBody.get(node)?.completion;
+    const lambda = input.program.records.lambdaBody.get(node) ??
+      failCsharpPlannerInvariant("An admitted expression-bodied method requires its native preparation record.", node);
+    const completion = lambda.completion;
     bodyStatements = [...parameters.prelude, ...(completion === undefined
       ? consumeCsharpPlannedValue(value, expression => [{ kind: "ReturnStatement", expression }],
         () => [{ kind: "ReturnStatement" }])

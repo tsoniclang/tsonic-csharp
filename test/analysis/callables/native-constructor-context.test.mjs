@@ -47,3 +47,72 @@ export async function run(): Promise<boolean> {
       'if (!await Tsonic.Generated.Index.run()) throw new System.Exception("native uint64 callback context");');
   });
 }
+
+for (const surface of ["native", "js"]) {
+  test(`base callable arguments use actual native statement preparation on ${surface}`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+class Base {
+  result: number;
+  constructor(read: (value: number) => number) { this.result = read(2); }
+}
+class Plain extends Base {
+  constructor() { super((value: number): number => value + 3); }
+}
+class Recursive extends Base {
+  constructor() {
+    super(function recurse(value: number): number { return value === 0 ? 5 : recurse(value - 1); });
+  }
+}
+export function run(): boolean { return new Plain().result === 5 && new Recursive().result === 5; }
+` });
+    assertCsharpCompilationSucceeded(compiled);
+    const program = compiled.result.program;
+    const ast = program.source.ast;
+    const arguments_ = [];
+    const visit = node => {
+      if (ast.is.IsArrowFunction(node) || ast.is.IsFunctionExpression(node)) arguments_.push(node);
+      ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    };
+    csharpProgramSourceFiles(program).forEach(visit);
+    assert.equal(arguments_.length, 2, "the two original base-call arguments are the complete callable domain");
+    for (const argument of arguments_) {
+      const plain = ast.is.IsArrowFunction(argument);
+      const creation = program.records.callableCreation.get(argument);
+      const emitted = program.records.lambdaBody.get(argument);
+      assert.equal(creation?.kind, "selected", "each argument has its exact native creation");
+      assert.equal(emitted?.preparation, plain ? "expression" : "statements",
+        "real local-function preparation, not allocation placement, controls sequencing");
+      assert.equal(Object.isFrozen(emitted), true, "the same completed preparation record is immutable");
+      assert.equal(program.records.constructorArgument.get(argument)?.kind, plain ? "direct" : "helper",
+        "base emission consumes the canonical preparation requirement");
+      if (plain) assert.equal(creation.allocation.kind, "fresh", "a fresh delegate still needs no creation statements");
+    }
+    executeCsharpConstruction(compiled, `callable-preparation-${surface}`);
+  });
+
+  test(`generator function creation retains its real statement preparation on ${surface}`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+import type { int } from "@tsonic/csharp/types.js";
+export const expression = function* (): Generator<int, string, int> {
+  const next: int = yield 2;
+  yield next;
+  return "expression";
+};
+` });
+    assertCsharpCompilationSucceeded(compiled);
+    const program = compiled.result.program;
+    const ast = program.source.ast;
+    const expressions = [];
+    const visit = node => {
+      if (ast.is.IsFunctionExpression(node)) expressions.push(node);
+      ast.forEachChild(node, child => { if (child !== undefined) visit(child); });
+    };
+    csharpProgramSourceFiles(program).forEach(visit);
+    assert.equal(expressions.length, 1, "one original generator expression");
+    const declaration = expressions[0];
+    assert.equal(program.records.callableDeclaration.get(declaration)?.generator, true,
+      "the completed declaration, not a spelling heuristic, owns the native generator");
+    assert.equal(program.records.lambdaBody.get(declaration)?.preparation, "statements");
+    assert.equal(Object.isFrozen(program.records.lambdaBody.get(declaration)), true);
+  });
+}

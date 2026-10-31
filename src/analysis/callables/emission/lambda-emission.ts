@@ -37,8 +37,9 @@ export function analyzeCsharpLambdaEmission(input: { readonly source: TargetSour
     const signature = carrier === undefined ? undefined : input.types.typeEmission.get(carrier)?.lambda;
     if (signature === undefined) { refuse(node, "Lambda emission requires a contextual function/delegate type from TSTS or provider facts before C# emission."); continue; }
     const declaration = ast.as.AsArrowFunction(node) ?? ast.as.AsFunctionExpression(node);
-    const contract = input.declarations.callableDeclaration.get(node)?.contract;
-    if (contract === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted lambda requires its checked source value parameters.", node);
+    const emitted = input.declarations.callableDeclaration.get(node);
+    if (emitted === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted lambda requires its checked source value parameters.", node);
+    const contract = emitted.contract;
     const parameters = contract.parameters;
     if (contract.nativeParameters.length > signature.parameters.length) {
       refuse(contract.nativeParameters[signature.parameters.length]?.sourceParameter ?? node,
@@ -77,9 +78,17 @@ export function analyzeCsharpLambdaEmission(input: { readonly source: TargetSour
     const returnTarget = asynchronous ? result?.taskResult : signature.returnType;
     const completion = body === undefined || ast.is.IsBlock(body) ? undefined
       : csharpVoidReturnCompletion(input.values.valueRead.get(body)?.value, returnTarget);
-    values.set(node, { completion });
+    const preparation = input.captures.captureClosure.get(node) === undefined && ast.is.IsFunctionExpression(node) &&
+      (input.captures.namedSelf.get(node) !== undefined || emitted.generator) ? "statements" : "expression";
+    values.set(node, { completion, preparation });
+  }
+  if (issues.length !== 0) return Object.freeze({ records: createCsharpLambdaEmissionRecords(values), issues: Object.freeze(issues) });
+  for (const node of values.keys()) {
+    const creation = input.creations.callableCreation.get(node);
+    if (creation?.kind !== "selected") failTargetAnalysisInvariant("tsonic-csharp", "An admitted lambda requires its completed native creation fact.", node);
     if (creation.allocation.kind !== "quotation") continue;
     if (ast.is.IsFunctionExpression(node)) { refuse(node, "A native expression-tree quotation requires expression-bodied arrow syntax, not a function-expression statement body."); continue; }
+    const body = ast.body(node);
     let prepared = body === undefined || ast.is.IsBlock(body) || HasSyntacticModifier(ast, node, ModifierFlagsAsync);
     const pending = body === undefined ? [] : [body];
     while (!prepared && pending.length !== 0) {
@@ -88,11 +97,13 @@ export function analyzeCsharpLambdaEmission(input: { readonly source: TargetSour
       const use = input.demand.nativeUse.expression(expression)?.use;
       const signature = use === undefined || use.kind === "erased" ? undefined : input.types.typeEmission.get(use.carrier)?.lambda;
       const nestedCreation = ast.is.IsArrowFunction(expression) || ast.is.IsFunctionExpression(expression) ? input.creations.callableCreation.get(expression) : undefined;
+      const nestedEmission = nestedCreation?.kind !== "selected" ? undefined : values.get(expression) ??
+        failTargetAnalysisInvariant("tsonic-csharp", "An admitted nested lambda requires its native preparation record.", expression);
       prepared ||= input.captures.captureFrame.get(expression) !== undefined || ast.is.IsClassExpression(expression) || ast.is.IsAwaitExpression(expression) ||
         ast.is.IsSpreadElement(expression) || ast.is.IsSpreadAssignment(expression) ||
         ast.is.IsPostfixUnaryExpression(expression) || use !== undefined && use.kind !== "erased" && use.completion.kind === "never" ||
         nestedCreation !== undefined && nestedCreation.kind !== "discarded" && (nestedCreation.kind !== "selected" ||
-          nestedCreation.allocation.kind !== "inline" && nestedCreation.allocation.kind !== "quotation") ||
+          nestedEmission?.preparation === "statements") ||
         signature !== undefined && nestedCreation !== undefined && ast.is.IsBlock((ast.as.AsArrowFunction(expression) ?? ast.as.AsFunctionExpression(expression))?.Body) ||
         call?.reordered === true && call.operands.some(operand => operand.kind !== "argument" ||
           input.constants.nativeConstant.get(operand.expression, operand.parameter.type) !== true);

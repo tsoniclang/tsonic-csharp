@@ -141,7 +141,9 @@ export function planCsharpArrowLambdaSyntax(
     ...parameterIdentityDeclarations,
     ...planCsharpCaptureEntryBindings(expression.Body, scopedInput, plannerState),
   ];
-  const completion = input.program.records.lambdaBody.get(node)?.completion;
+  const emitted = input.program.records.lambdaBody.get(node) ??
+    failCsharpPlannerInvariant("An admitted lambda requires its native preparation record.", node);
+  const completion = emitted.completion;
   const body = planExpression(expression.Body!, sourceFile, scopedInput, diagnostics, plannerState);
   if (body === undefined) {
     return undefined;
@@ -187,6 +189,8 @@ export function planFunctionExpression(
   if (creationPolicy.kind === "quotation") {
     return failCsharpPlannerInvariant("An admitted native quotation cannot be a function-expression statement body.", node);
   }
+  const emitted = input.program.records.lambdaBody.get(node) ??
+    failCsharpPlannerInvariant("An admitted function expression requires its native preparation record.", node);
   const targetContext = getLambdaTargetContext(node, input);
   const closure = input.scope.nativeCallableBody?.declaration === node ? undefined : input.program.records.captureClosure.get(node);
   const complete = (expression: CsharpExpression | undefined, prelude: readonly CsharpStatement[] = []): CsharpPlannedValue | undefined =>
@@ -221,7 +225,7 @@ export function planFunctionExpression(
     for (const reference of self.values) plannerState.expressionOverrides.set(reference, { kind: "IdentifierName", name: valueName! });
   }
   const completeBody = (body: CsharpBlock, async = false): CsharpPlannedValue | undefined => {
-    if (self === undefined && !generatorSyntax) {
+    if (emitted.preparation === "expression") {
       const expression = { kind: "LambdaExpression" as const, ...(async ? { async: true } : {}), parameters, body };
       const planned = complete(expression);
       return planned === undefined ? undefined : { ...planned, callable: { kind: "lambda", expression } };
