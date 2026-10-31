@@ -200,8 +200,7 @@ export function finalizeCsharpNativeEmission(
     const incomplete = pendingUses[0]!;
     return failTargetAnalysisInvariant("tsonic-csharp",
       `Native consumption '${incomplete.site.role}' requires completed '${incomplete.reason}' evidence before publication.` +
-      (incomplete.message === undefined ? "" : ` ${incomplete.message.slice(0, 2048)}`) +
-      (incomplete.site.specialization === undefined ? "" : ` Context '${incomplete.site.specialization.slice(0, 2048)}'.`), incomplete.expression);
+      (incomplete.message === undefined ? "" : ` ${incomplete.message.slice(0, 2048)}`), incomplete.expression);
   }
   const generators = analyzeCsharpGenerators({ ast: source.ast, nodes: sourceStorage.nodes, evidence: analysis.sourceEvidence,
     admitted: admittedControlNode, erased: node => analysis.sourceEvidence.compileTimeMetadata.get(node) === true ||
