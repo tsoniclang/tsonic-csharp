@@ -9,7 +9,8 @@ import { analyzeCsharpClassFactories } from "../project-types/class-factories.js
 import { analyzeCsharpClassInitialization } from "../project-types/class-initialization.js";
 
 import type { CsharpRequiredRecord } from "./records/objects/required-records.js";
-import { sourceDeclarationHasOnlyTypeUses, sourceDeclarationIsModuleScoped, sourceCallableValueExpression } from "@tsonic/target-api/source";
+import { sourceDeclarationHasOnlyTypeUses, sourceDeclarationIsModuleScoped, sourceCallableValueExpression, sourceExpressionResultDisposition } from "@tsonic/target-api/source";
+import { csharpModuleCallableInitializer } from "../../target-model/syntax/module-callables.js";
 import { analyzeCsharpExactLiteralSelections } from "../conversions/literal-plans.js";
 
 import { analyzeCsharpTypeProjections, csharpTypeProjectionIndexesEqual } from "../declarations/type-projections.js";
@@ -88,6 +89,22 @@ export function analyzeCsharpRepresentationIteration(
       return previous?.storage.closedNativeContracts.some(contract => targetTypeRefEquals(contract, type)) === true;
     },
     scopedTargetType(node) {
+      let moduleCallable = csharpModuleCallableInitializer(source.ast, node);
+      let moduleOwner = node;
+      if (moduleCallable === undefined && (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node))) {
+        const disposition = sourceExpressionResultDisposition(source.ast, node);
+        if (disposition.kind === "stored" && csharpModuleCallableInitializer(source.ast, disposition.use) === node) {
+          moduleCallable = node;
+          moduleOwner = disposition.use;
+        }
+      }
+      if (moduleCallable !== undefined) {
+        const annotation = source.ast.typeNode(moduleOwner);
+        if (annotation !== undefined && typeSystem?.analysisTypes.resolveNode(annotation,
+          source.ast.getSourceFile(moduleOwner))?.kind !== "resolved") return undefined;
+        const callable = previous?.callables.get({ kind: "declaration", declaration: moduleCallable });
+        return callable === undefined ? undefined : csharpCallableValueType(callable);
+      }
       const storage = previous?.storage.requiredStorageType.get(node);
       if (storage !== undefined) return storage;
       if (!input.source.ast.is.IsArrowFunction(node) && !input.source.ast.is.IsFunctionExpression(node) &&
@@ -340,6 +357,17 @@ function sourceCallableContract(
 ) {
   if (callables === undefined) {
     return undefined;
+  }
+  if (selection === "implementation") {
+    const reference = input.source.navigation.sourceReferenceFor(source.sourceCallee.expression);
+    const declaration = reference?.declaration ?? source.sourceCalleeAccess?.declaration ?? source.sourceCallee.declaration;
+    const initializer = declaration === undefined ? undefined : csharpModuleCallableInitializer(input.source.ast, declaration);
+    if (initializer !== undefined) {
+      const selected = source.sourceCalleeAccess?.selectedDeclaration ?? source.sourceCallee.selectedDeclaration;
+      if (selected === undefined || selected !== declaration && selected !== initializer ||
+        !input.source.navigation.isProjectDeclaration(selected)) return undefined;
+      return callables.get({ kind: "declaration", declaration: initializer });
+    }
   }
   const selectedCallee = source.sourceCallee.selectedDeclaration;
   if (

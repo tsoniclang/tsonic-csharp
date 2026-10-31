@@ -22,6 +22,7 @@ import { resolveCsharpProjectionArguments } from "./projection-arguments.js";
 import { getCsharpClassFactory } from "../../../../target-model/types/carriers/class-factories.js";
 import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
 import { bindCsharpSourceDeclarationArguments, bindCsharpSourceTypeArguments } from "./generic-arguments.js";
+import { csharpModuleCallableInitializer } from "../../../../target-model/syntax/module-callables.js";
 
 export function resolveSourceCallInstantiation(
   scope: CsharpTypeResolutionScope,
@@ -508,8 +509,16 @@ function sourceCallTypeParameterIdentities(
   const remap = kind === "declaration" && callable?.sourceDeclaration !== undefined &&
     checked !== undefined && checked !== callable.sourceDeclaration;
   if (remap) {
-    const implementation = host.navigation.callableImplementation(checked);
-    if (implementation.kind !== "resolved" || implementation.implementation.declaration !== callable.sourceDeclaration ||
+    const reference = host.navigation.sourceReferenceFor(source.sourceCallee.expression);
+    const declaration = reference?.declaration ?? source.sourceCalleeAccess?.declaration ?? source.sourceCallee.declaration;
+    const initializer = declaration === undefined ? undefined : csharpModuleCallableInitializer(host.ast, declaration);
+    const selectedDeclaration = source.sourceCalleeAccess?.selectedDeclaration ?? source.sourceCallee.selectedDeclaration;
+    const implementation = initializer === undefined ? host.navigation.callableImplementation(checked) : undefined;
+    const matches = initializer === undefined
+      ? implementation?.kind === "resolved" && implementation.implementation.declaration === callable.sourceDeclaration
+      : initializer === callable.sourceDeclaration && selectedDeclaration !== undefined &&
+        (selectedDeclaration === declaration || selectedDeclaration === initializer) && host.navigation.isProjectDeclaration(selectedDeclaration);
+    if (!matches ||
         host.ast.typeParameters(checked).length !== selected.length ||
         host.ast.typeParameters(callable.sourceDeclaration!).length !== selected.length) return undefined;
   }

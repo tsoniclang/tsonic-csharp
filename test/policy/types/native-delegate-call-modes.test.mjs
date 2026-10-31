@@ -16,7 +16,8 @@ function fixture(modes, slots) {
     sourceSelectedSignatureParameters: [{ parameterIndex: 7, parameterDeclaration: sourceParameter }] };
   const scope = { host: {
     ast: { is: { IsNewExpression: () => false, IsFunctionDeclaration: () => false, IsMethodDeclaration: () => false,
-      IsClassDeclaration: () => false }, parent: () => undefined, kindName: () => "KindVariableDeclaration" },
+      IsClassDeclaration: () => false, IsVariableDeclaration: node => node === declaration },
+      parent: () => undefined, name: node => node?.name, kindName: () => "KindVariableDeclaration" },
     navigation: { sourceReferenceFor: () => ({ declaration }), isProjectDeclaration: () => false }, projectTypes: () => ({ catalog: {} }),
     representations: { closedInputContract: () => undefined },
     semantics: () => ({ declarations: { signatureDeclaration: () => selectedDeclaration },

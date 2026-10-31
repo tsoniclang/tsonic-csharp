@@ -26,6 +26,7 @@ import type { CsharpTargetOperationClassifications } from "../../target-model/re
 import type { CsharpModuleInitializationAnalysis, CsharpModuleInitializationIssue } from "../../target-model/records/program/module-initialization.js";
 
 import { createCsharpModuleInitializationProducer } from "../program/records/program/module-initialization.js";
+import { csharpModuleCallableInitializer } from "../../target-model/syntax/module-callables.js";
 
 interface CsharpModuleInitializationAnalysisInput {
   readonly sourceEvidence: import("../../target-model/records/program/source-evidence.js").CsharpSourceEvidenceIndex;
@@ -56,8 +57,9 @@ export function analyzeCsharpModuleInitialization(
         if (declaration === undefined || !input.source.ast.is.IsVariableDeclaration(declaration)) continue;
         const variable = AsVariableDeclaration(input.source.ast, declaration);
         const initializer = variable?.Initializer;
-        producer.binding(declaration, initializer === undefined ? "declaration" : "value");
-        if (initializer !== undefined && variable?.name !== undefined) recordPatternBindings(variable.name);
+        const callable = csharpModuleCallableInitializer(input.source.ast, declaration);
+        producer.binding(declaration, initializer === undefined || callable !== undefined ? "declaration" : "value");
+        if (initializer !== undefined && callable === undefined && variable?.name !== undefined) recordPatternBindings(variable.name);
       }
     }
     entries.set(normalizedFileName(input, sourceFile), Object.freeze({
@@ -173,6 +175,7 @@ function variableStatementHasInitializer(
     node !== undefined &&
     input.source.ast.is.IsVariableDeclaration(node) &&
     !input.sourceEvidence.compileTimeMetadata.get(node) &&
+    csharpModuleCallableInitializer(input.source.ast, node) === undefined &&
     AsVariableDeclaration(input.source.ast, node)?.Initializer !== undefined);
 }
 

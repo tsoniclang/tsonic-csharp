@@ -38,6 +38,7 @@ import { createCsharpDelegateContractProducer } from "../program/records/callabl
 import { admitCsharpDelegateEmission, admitCsharpDelegateOperand } from "./callable-emission.js";
 import { sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
 import { readCsharpSelectedWritingReference } from "../callables/values/argument-passing.js";
+import { csharpModuleCallableInitializer } from "../../target-model/syntax/module-callables.js";
 
 const maximumConversionClassifications = 1_048_576;
 
@@ -261,9 +262,10 @@ export function analyzeCsharpConversions(
     const sourceFile = policy.ast.getSourceFile(expression);
     const reference = policy.navigation.referenceFor(expression);
     if (reference !== undefined && isSourceOwnedProjectReference(reference, policy) &&
-      policy.ast.is.IsFunctionDeclaration(reference.declaration) &&
-      policy.ast.is.IsSourceFile(policy.ast.parent(reference.declaration)) &&
-      !policy.navigation.declarationUseSummary(reference.declaration).bindingWritten) {
+      (csharpModuleCallableInitializer(policy.ast, reference.declaration) !== undefined ||
+        policy.ast.is.IsFunctionDeclaration(reference.declaration) &&
+        policy.ast.is.IsSourceFile(policy.ast.parent(reference.declaration)) &&
+        !policy.navigation.declarationUseSummary(reference.declaration).bindingWritten)) {
       directCallables.set(expression, Object.freeze({ ...reference }));
     }
     let candidate = selectCsharpIntegerTruncationConversion(policy, expression, sourceFile, source, target) ?? selectCsharpExpressionConversion(
@@ -303,8 +305,10 @@ export function analyzeCsharpConversions(
         })
       : candidate, sourceCompletion);
     if (selected.kind === "delegate-adapter" && selected.instantiation !== undefined && reference !== undefined &&
-      isSourceOwnedProjectReference(reference, policy) && policy.ast.is.IsFunctionDeclaration(reference.declaration) &&
-      !policy.navigation.declarationUseSummary(reference.declaration).bindingWritten) {
+      isSourceOwnedProjectReference(reference, policy) &&
+      (csharpModuleCallableInitializer(policy.ast, reference.declaration) !== undefined ||
+        policy.ast.is.IsFunctionDeclaration(reference.declaration) &&
+        !policy.navigation.declarationUseSummary(reference.declaration).bindingWritten)) {
       const direct = Object.freeze({ ...reference });
       directCallables.set(expression, direct);
       const name = policy.ast.name(reference.declaration);

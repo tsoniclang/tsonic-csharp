@@ -14,8 +14,9 @@ const delegate = csharpDelegateTargetType("System.Action", []);
 const owner = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "owner", csharpRender: { kind: "name", namespace: [], name: "Owner" } };
 function classify(declaration, selected, access, carrier = delegate, isStatic = false) {
   return classifyCsharpSourceCallee({
-    ast: { is: { IsFunctionDeclaration: node => node?.kind === "function", IsMethodDeclaration: node => node?.kind === "method",
-      IsClassDeclaration: node => node?.kind === "class" }, parent: node => node.parent,
+    ast: { is: { IsVariableDeclaration: node => node?.kind === "variable",
+      IsFunctionDeclaration: node => node?.kind === "function", IsMethodDeclaration: node => node?.kind === "method",
+      IsClassDeclaration: node => node?.kind === "class" }, parent: node => node.parent, name: node => node.name,
       kindName: node => node.kind, hasModifierKind: () => isStatic },
     navigation: { sourceReferenceFor: () => declaration === undefined ? undefined : { declaration },
       isProjectDeclaration: node => node === functionDeclaration },
@@ -33,7 +34,8 @@ test("source direct functions do not become delegate operands", () => {
 
 test("exact direct functions never request a first-class delegate projection", () => {
   const selected = classifyCsharpSourceCallee({
-    ast: { is: { IsFunctionDeclaration: node => node === functionDeclaration } },
+    ast: { is: { IsFunctionDeclaration: node => node === functionDeclaration,
+      IsVariableDeclaration: node => node === variableDeclaration } },
     navigation: { sourceReferenceFor: () => ({ declaration: functionDeclaration }),
       isProjectDeclaration: node => node === functionDeclaration },
     projectTypes: { catalog: {} },

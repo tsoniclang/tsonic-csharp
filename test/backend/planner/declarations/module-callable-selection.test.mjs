@@ -26,6 +26,34 @@ test("closed exported arrows become public methods while first-class identities 
   const output = [...compiled.artifacts.values()].join("\n");
   assert.match(output, /public static string direct\(string value\)/u);
   assert.match(output, /public static string renamed\(string value\)/u);
-  assert.match(output, /Func<string, string> retained/u);
-  executeCsharpConstruction(compiled, "exported-callable-selection");
+  assert.match(output, /public static string retained\(string value\)/u);
+  assert.match(output, /Func<string, string> retain\(\)/u);
+  assert.doesNotMatch(output, /Func<string, string> retained\s*\{/u);
+  const nativeOutput = executeCsharpConstruction(compiled, "exported-callable-selection", false, false, [], `
+if (Tsonic.Generated.Functions.direct("one") != "one" ||
+    Tsonic.Generated.Functions.renamed("two") != "two" ||
+    Tsonic.Generated.Functions.retain()("three") != "three")
+    throw new System.Exception("original module callable values");
+if (Tsonic.Generated.Functions.retain() != (System.Func<string, string>)Tsonic.Generated.Functions.retained)
+    throw new System.Exception("original retained native method and receiver");
+bool expectedIdentity = NativeModuleIdentityConsumer.Compare();
+bool actualIdentity = Tsonic.Generated.Index.run();
+if (actualIdentity != expectedIdentity)
+    throw new System.Exception("module callable identity differs from handwritten native modules");
+System.Console.WriteLine($"native-method-identity: expected={expectedIdentity}; actual={actualIdentity}");
+
+static class NativeModuleIdentity
+{
+    internal static string Retained(string value) => value;
+    internal static System.Func<string, string> Retain() => Retained;
+}
+static class NativeModuleIdentityConsumer
+{
+    internal static bool Compare() => object.ReferenceEquals(
+        NativeModuleIdentity.Retain(),
+        (System.Func<string, string>)NativeModuleIdentity.Retained);
+}
+`);
+  assert.match(nativeOutput, /native-method-identity: expected=(?:True|False); actual=(?:True|False)/u);
+  console.log(nativeOutput.match(/native-method-identity: expected=(?:True|False); actual=(?:True|False)/u)[0]);
 });

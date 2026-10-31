@@ -25,6 +25,8 @@ import type { DestructuringPlannerState } from "../bindings/index.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planResourceRegistrationStatement } from "../statements/resource-management.js";
 import { planCsharpNativeMemberHiding } from "../declarations/modifiers.js";
+import { csharpModuleCallableInitializer } from "../../../target-model/syntax/module-callables.js";
+import { planModuleCallableDeclaration } from "../declarations/callables/functions.js";
 
 export function planTopLevelVariableStatement(
   statement: Node,
@@ -53,6 +55,10 @@ export function planTopLevelVariableStatement(
   const reassignable = declarationKind === "let" || declarationKind === "var";
   for (const declaration of declarations) {
     if (input.program.records.compileTimeMetadata.get(declaration)) continue;
+    if (csharpModuleCallableInitializer(input.program.source.ast, declaration) !== undefined) {
+      moduleMembers.push(planModuleCallableDeclaration(declaration, sourceFile, input, diagnostics));
+      continue;
+    }
     const valueType = input.program.records.sourceStruct.get(declaration);
     if (valueType !== undefined) {
       const planned = planValueTypeDeclaration(declaration, sourceFile, input, diagnostics);

@@ -33,6 +33,7 @@ import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/car
 import { captureCsharpPlannedLocation } from "./planned-locations.js";
 import { planCsharpPlannedDiscard } from "../statements/statement-output.js";
 import { planCsharpConditionalValue } from "./conditional-values.js";
+import { getCsharpDelegateSignature } from "../../../target-model/types/carriers/delegates.js";
 
 export function planSelectedCsharpBinaryOperation(node: Node, selection: CsharpResolvedBinaryOperation, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[], planExpression: ExpressionPlanner, state?: DestructuringPlannerState
 ): CsharpPlannedValue | undefined {
@@ -212,7 +213,18 @@ export function planSelectedCsharpBinaryOperation(node: Node, selection: CsharpR
     if (left === undefined || right === undefined) {
       return undefined;
     }
-    return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, [left, right], values => {
+    const operands = [left, right].map((operand): CsharpPlannedValue => {
+      if (operation.distinctMethodValues === true || operand.callable?.kind !== "method" ||
+        operand.completion.kind !== "value" || getCsharpDelegateSignature(operand.completion.carrier) === undefined) return operand;
+      let expression = operand.completion.expression;
+      while (expression.kind === "ParenthesizedExpression") expression = expression.expression;
+      if (expression.kind !== "IdentifierName" && expression.kind !== "SimpleMemberAccessExpression") return operand;
+      const type = csharpTypeFromTargetTypeRef(operand.completion.carrier, input.scope.typeParameterNames)
+        ?? failCsharpPlannerInvariant("An admitted method identity requires its selected native delegate type.", node);
+      return { ...operand, callable: undefined, completion: { ...operand.completion,
+        expression: { kind: "CastExpression", type, expression: operand.completion.expression } } };
+    });
+    return buildCsharpPlannedValue(node, sourceFile, input, diagnostics, operands, values => {
     const comparison: CsharpExpression = operation.distinctMethodValues === true ? {
       kind: "BinaryExpression",
       left: { kind: "TupleExpression", elements: values },

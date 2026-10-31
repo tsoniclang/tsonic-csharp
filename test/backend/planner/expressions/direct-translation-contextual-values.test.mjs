@@ -282,15 +282,6 @@ test("direct C# translation retains imported interface context for expression-bo
                 title = title,
             });
         }
-        private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
-        private static object? __tsonic_module_init_core()
-        {
-            return null;
-        }
-        public static void __tsonic_module_init()
-        {
-            _ = __tsonic_module_initialization.Value;
-        }
     }
 }
 `);
@@ -318,16 +309,16 @@ test("direct C# translation retains imported interface context for expression-bo
 
 test("direct C# translation reconstructs imported callable-expression return contracts", () => {
   const initializers = [
-    [`(text: string): int | undefined => {
+    `(text: string): int | undefined => {
       void text;
       return undefined;
-    }`, true],
-    [`function (text: string): int | undefined {
+    }`,
+    `function (text: string): int | undefined {
       void text;
       return undefined;
-    }`, false],
+    }`,
   ];
-  for (const [initializer, direct] of initializers) {
+  for (const initializer of initializers) {
     const compiled = compileCsharpSource({
     sourceText: `
       import type { int } from "@tsonic/csharp/types.js";
@@ -346,7 +337,7 @@ test("direct C# translation reconstructs imported callable-expression return con
     assert.equal(compiled.sourceDiagnosticsText, "");
     assert.deepEqual(compiled.extensionDiagnostics, []);
     assert.deepEqual(compiled.targetDiagnostics, []);
-    assert.equal(compiled.artifacts.get("src/Helper.cs"), direct ? `namespace Tsonic.Generated
+    assert.equal(compiled.artifacts.get("src/Helper.cs"), `namespace Tsonic.Generated
 {
     public static class Helper
     {
@@ -354,43 +345,6 @@ test("direct C# translation reconstructs imported callable-expression return con
         {
             _ = text;
             return default(int?);
-        }
-        private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
-        private static object? __tsonic_module_init_core()
-        {
-            return null;
-        }
-        public static void __tsonic_module_init()
-        {
-            _ = __tsonic_module_initialization.Value;
-        }
-    }
-}
-` : `using System;
-
-namespace Tsonic.Generated
-{
-    public static class Helper
-    {
-        public static Func<string, int?> parseValue
-        {
-            get;
-            private set;
-        } = default(Func<string, int?>)!;
-        private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
-        private static object? __tsonic_module_init_core()
-        {
-            static int? __tsonic_callable_94(string text)
-            {
-                _ = text;
-                return default(int?);
-            }
-            parseValue = new Func<string, int?>(__tsonic_callable_94);
-            return null;
-        }
-        public static void __tsonic_module_init()
-        {
-            _ = __tsonic_module_initialization.Value;
         }
     }
 }
@@ -402,16 +356,6 @@ namespace Tsonic.Generated
         public static int? parseRequired(string text)
         {
             return global::Tsonic.Generated.Helper.parseValue(text);
-        }
-        private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
-        private static object? __tsonic_module_init_core()
-        {
-            Helper.__tsonic_module_init();
-            return null;
-        }
-        public static void __tsonic_module_init()
-        {
-            _ = __tsonic_module_initialization.Value;
         }
     }
 }

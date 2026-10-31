@@ -157,7 +157,7 @@ export function analyzeCsharpPromiseResults(input: {
   };
   diagnostics.push(...analyzeCsharpGenericAdoption({ source, projectRoot: input.projectRoot, nodes, premises, budget }));
   if (diagnostics.length !== 0) return Object.freeze({ results, diagnostics: Object.freeze(diagnostics) });
-  const ownership = createSourceDeclarationOwnershipQuery({ source, nodes, budget, premises });
+  const ownership = createSourceDeclarationOwnershipQuery({ source, sourceNodes: input.nodes, nodes, budget, premises });
   for (const node of nodes) {
     if (!ast.is.IsCallExpression(node) && !ast.is.IsNewExpression(node)) continue;
     const carrier = nativeCarrier(node);

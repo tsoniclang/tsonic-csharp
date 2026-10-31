@@ -1,4 +1,5 @@
 import type { AstReader, Node } from "@tsonic/tsts";
+import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import { HasSourceKind, HasSyntacticModifier, KindPrivateIdentifier, ModifierFlagsStatic, ModifierFlagsAsync, sourceParameterIsProperty, sourceClassFieldIsTypeOnly } from "@tsonic/target-api/source";
 import type { CsharpProjectCallableAdapters, CsharpProjectCallableDispatch } from "../../../target-model/records/callables/callable-adapters.js";
 import type { CsharpCaptureStorage } from "../../../target-model/records/callables/capture-storage.js";
@@ -7,9 +8,11 @@ import { createCsharpDeclarationModifierRecords } from "../../program/records/pr
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../../program/records/objects/required-records.js";
 import type { CsharpGeneratorRecords } from "../../../target-model/records/callables/generators.js";
 import type { CsharpClassFactoryIndex } from "../../../target-model/records/objects/class-factories.js";
+import { csharpModuleCallableInitializer } from "../../../target-model/syntax/module-callables.js";
 
 export function analyzeCsharpDeclarationModifiers(input: {
   readonly ast: AstReader;
+  readonly navigation: Pick<TargetSourceProgram["navigation"], "moduleExports">;
   readonly nodes: readonly Node[];
   readonly dispatch: CsharpProjectCallableAdapters["callableDispatch"];
   readonly helperAccess: CsharpCaptureStorage["helperAccess"];
@@ -19,6 +22,17 @@ export function analyzeCsharpDeclarationModifiers(input: {
 }) {
   const values = new Map<Node, CsharpMemberModifierSelection>();
   for (const node of input.nodes) {
+    const moduleCallable = csharpModuleCallableInitializer(input.ast, node);
+    if (moduleCallable !== undefined) {
+      const file = input.ast.getSourceFile(node);
+      const exported = file !== undefined && input.navigation.moduleExports(file).some(selected => selected.declaration === node);
+      const member: readonly CsharpMemberModifier[] = Object.freeze([exported ? "public" : "internal", "static"]);
+      values.set(node, Object.freeze({ member, implementation: member, abstract: false, erased: false,
+        method: Object.freeze([]), property: undefined }));
+      requireCsharpRecord(input.required, { family: "memberModifiers", subject: node,
+        construct: "module callable", producer: "analyzeCsharpDeclarationModifiers" });
+      continue;
+    }
     const kind = input.ast.kindName(node);
     if (kind !== "KindMethodDeclaration" && kind !== "KindConstructor" && kind !== "KindPropertyDeclaration" &&
       kind !== "KindGetAccessor" && kind !== "KindSetAccessor" && !sourceParameterIsProperty(input.ast, node)) continue;
