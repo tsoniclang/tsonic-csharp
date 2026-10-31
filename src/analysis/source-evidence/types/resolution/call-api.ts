@@ -228,6 +228,8 @@ export function resolveSourceCallResultWithState(
   const declaration = sourceCallSelectedDeclaration(source);
   const queries = host.semantics(sourceFile);
   const result = queries.operations.callResult(source);
+  const completionDeclaration = source.sourceSelectedSignatureKind === "resolved"
+    ? queries.declarations.signatureDeclaration(source.selectedSignature) : undefined;
   const complete = (
     selectedDeclaration: Node | undefined,
     selected: CsharpSourceCallResult | undefined,
@@ -312,7 +314,7 @@ export function resolveSourceCallResultWithState(
     });
     return selected;
   };
-  if (nativeType !== undefined) return complete(declaration, retain(nativeType));
+  if (nativeType !== undefined) return complete(completionDeclaration, retain(nativeType));
   const selection = resolveSourceCallContract(source, sourceFile, state, "implementation");
   if (selection.kind === "rejected") return undefined;
   const callable = selection.contract;
@@ -324,9 +326,9 @@ export function resolveSourceCallResultWithState(
       const nativeType = resolveSourceCallableContractType(source, callable, callable.returnType, sourceFile, state);
       const selected = retain(resolveSourceCallableContractType(source, callable, callable.nativeSignature.sourceReturnType, sourceFile, state));
       return nativeType === undefined || selected === undefined ? undefined
-        : complete(declaration, Object.freeze({ nativeType, selectedType: selected.selectedType }));
+        : complete(completionDeclaration, Object.freeze({ nativeType, selectedType: selected.selectedType }));
     }
-    return complete(declaration, retain(resolveSourceCallableContractType(
+    return complete(completionDeclaration, retain(resolveSourceCallableContractType(
       source,
       callable,
       callable.returnType,
@@ -338,7 +340,7 @@ export function resolveSourceCallResultWithState(
   if (result === undefined) {
     return undefined;
   }
-  return complete(declaration, retain(resolveSourceCallSelectedType(
+  return complete(completionDeclaration, retain(resolveSourceCallSelectedType(
     source,
     declaration,
     result.authoredTypeNode,
