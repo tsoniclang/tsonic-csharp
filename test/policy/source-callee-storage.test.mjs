@@ -128,3 +128,88 @@ test("composite calls do not manufacture class-union evidence for interface, for
     assert.equal(selected.kind === "rejected", true, kind);
   }
 });
+
+function optionalNominalMethodFixture({ accessKind, ownerKind, memberKind, optionalMethod, optionalCallee }) {
+  const classOwner = { kind: ownerKind };
+  const method = { kind: memberKind, parent: classOwner, optional: optionalMethod ? {} : undefined };
+  const call = { QuestionDotToken: optionalCallee ? {} : undefined };
+  const access = { kind: accessKind, expression, receiver: { expression: receiver } };
+  const carrier = csharpNullableTargetType(delegate);
+  const policy = {
+    ast: {
+      is: {
+        IsFunctionDeclaration: () => false,
+        IsVariableDeclaration: () => false,
+        IsMethodDeclaration: node => node?.kind === "method",
+        IsClassDeclaration: node => node?.kind === "class",
+        IsCallExpression: node => node === call,
+      },
+      as: { AsCallExpression: node => {
+        assert.equal(node === call, true, "only the original selected call owns invocation optionality");
+        return call;
+      } },
+      parent: node => node?.parent,
+      name: () => undefined,
+      kindName: node => node?.kind,
+      hasModifierKind: () => false,
+      questionToken: node => {
+        assert.equal(node === method, true, "only the selected method owns optional-member evidence");
+        return node.optional;
+      },
+    },
+    navigation: {
+      sourceReferenceFor: node => {
+        assert.equal(node === expression, true, "the original member keeps its declaration identity");
+        return { declaration: method };
+      },
+      isProjectDeclaration: node => node === method,
+    },
+    projectTypes: { catalog: { definitionForDeclaration: () => undefined } },
+    types: {
+      resolveReadStorage: node => {
+        assert.equal(node === expression, true, "the original lifted member owns its native storage");
+        return carrier;
+      },
+      resolveSelectedValue: node => {
+        assert.equal(node === receiver, true, "only the original native receiver is acquired");
+        return owner;
+      },
+    },
+  };
+  const source = { call, optionalChain: true, sourceCallee: { expression, selectedDeclaration: method },
+    sourceCalleeAccess: access, sourceReceiver: access.receiver };
+  return { policy, source, method, carrier };
+}
+
+test("optional receivers keep required nominal methods on their native declaration ABI", () => {
+  for (const accessKind of ["property", "element"]) {
+    const input = optionalNominalMethodFixture({ accessKind, ownerKind: "class", memberKind: "method",
+      optionalMethod: false, optionalCallee: false });
+    const selected = classifyCsharpSourceCallee(input.policy, input.source, {});
+    assert.equal(selected.kind === "method" && selected.declaration === input.method, true, accessKind);
+    assert.equal(selected.expression === expression && selected.receiver.expression === receiver &&
+      selected.receiver.type === owner, true, "the present native receiver and original method stay exact");
+    assert.equal(selected.type === undefined && Object.isFrozen(selected) && Object.isFrozen(selected.receiver), true,
+      "receiver lifting does not create a first-class delegate or change the native method contract");
+  }
+});
+
+test("receiver lifting cannot promote optional callees, optional methods, fields or structural protocols to native methods", () => {
+  for (const [label, ownerKind, memberKind, optionalMethod, optionalCallee] of [
+    ["optional invocation", "class", "method", false, true],
+    ["optional method", "class", "method", true, false],
+    ["callable field", "class", "property", false, false],
+    ["structural protocol", "interface", "method", false, false],
+  ]) {
+    const input = optionalNominalMethodFixture({ accessKind: "property", ownerKind, memberKind, optionalMethod, optionalCallee });
+    const selected = classifyCsharpSourceCallee(input.policy, input.source, {});
+    assert.equal(selected.kind === "value" && selected.expression === expression && selected.type === input.carrier, true, label);
+    assert.equal(Object.isFrozen(selected), true, label);
+  }
+  const foreign = optionalNominalMethodFixture({ accessKind: "property", ownerKind: "class", memberKind: "method",
+    optionalMethod: false, optionalCallee: false });
+  foreign.source.call = {};
+  const selected = classifyCsharpSourceCallee(foreign.policy, foreign.source, {});
+  assert.equal(selected.kind === "value" && selected.type === foreign.carrier, true,
+    "a foreign invocation node cannot prove receiver-only lifting or gain a native method ABI");
+});
