@@ -14,11 +14,15 @@ function inputs(options = {}) {
   const argument = { expression: {}, type: {} };
   const binding = { sourceArgumentIndex: 0, effectiveArgumentIndex: 0, sourceParameterIndex: 0,
     sourceForm: "value", ...options.binding };
-  const source = { sourceArguments: [argument], sourceArgumentBindings: options.bindings ?? [binding],
+  const call = {};
+  const source = { call, sourceSelectedSignatureKind: "resolved", sourceArguments: [argument], sourceArgumentBindings: options.bindings ?? [binding],
     sourceSelectedSignatureParameters: [{ parameterIndex: options.parameterIndex ?? 0 }] };
   let reads = 0;
   const host = {
-    ast: { is: { IsSpreadElement: () => false } },
+    ast: { is: { IsSpreadElement: () => false }, arguments: node => {
+      assert.equal(node === call, true, "only the original checked call owns these arguments");
+      return [argument.expression];
+    } },
     semantics: () => ({ types: { isNumberLike: () => false,
       callable: type => type === argument.type && options.callable !== false ? {} : undefined } }),
     types: { resolveSelectedValue: () => undefined, resolveType: () => undefined, resolveNode: () => undefined,
