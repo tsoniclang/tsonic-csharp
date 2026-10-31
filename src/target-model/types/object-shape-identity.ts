@@ -82,7 +82,7 @@ export function csharpObjectShapeContractKey(
     ...(shape.members.some(member => member.methodValueStorage !== undefined) ? [canonicalCsharpObjectShapeMembers(shape.members).map(member =>
       csharpObjectMethodValueStorageKey(member.methodValueStorage))] : []),
     ...(shape.methodImplementation === undefined ? [] : [shape.methodImplementation.identity,
-      shape.methodImplementation.captures.map(capture => [capture.fieldName, targetTypeRefKey(capture.type), capture.mutable]),
+      shape.methodImplementation.captures.map(capture => [capture.fieldName, targetTypeRefKey(capture.type), capture.mutable, capture.initialization]),
     ]),
   ]);
 }

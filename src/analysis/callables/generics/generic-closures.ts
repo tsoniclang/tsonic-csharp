@@ -2,9 +2,8 @@ import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";
 import type { CsharpStorageIssue } from "../../../target-model/records/storage/storage.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
-import type { CsharpFrameClosure, CsharpNativeClosureCapture } from "../../../target-model/records/callables/capture-storage.js";
+import type { CsharpFrameClosure, CsharpNativeClosureCapture, CsharpOriginalCapturedPlace } from "../../../target-model/records/callables/capture-storage.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 
 const maximumGenericClosureCaptures = 131_072;
@@ -13,7 +12,7 @@ export function selectCsharpGenericFrameClosures(
   source: TargetSourceProgram,
   evidence: CsharpSourceEvidenceIndex,
   captures: readonly CsharpNativeClosureCapture[],
-  groups: Map<Node, Map<Node, TargetTypeRef>>,
+  groups: Map<Node, Map<Node, Pick<CsharpOriginalCapturedPlace, "type" | "initialization">>>,
   issues: CsharpStorageIssue[],
 ): readonly CsharpFrameClosure[] {
   const selected: CsharpFrameClosure[] = [];
@@ -44,15 +43,15 @@ export function selectCsharpGenericFrameClosures(
     let valid = true;
     for (const place of capture.values) {
       if (!place.mutable && place.initialization !== "deferred") continue;
-      const group = stagedGroups.get(place.scope) ?? new Map<Node, TargetTypeRef>();
+      const group = stagedGroups.get(place.scope) ?? new Map<Node, Pick<CsharpOriginalCapturedPlace, "type" | "initialization">>();
       const previous = group.get(place.declaration);
-      if (previous !== undefined && !targetTypeRefEquals(previous, place.type)) {
+      if (previous !== undefined && (!targetTypeRefEquals(previous.type, place.type) || previous.initialization !== place.initialization)) {
         issues.push({ node: place.declaration, code: "CSHARP_CAPTURE_STORAGE_CONFLICT",
           message: "One captured binding cannot have incompatible physical storage contracts." });
         valid = false;
         continue;
       }
-      group.set(place.declaration, place.type);
+      group.set(place.declaration, Object.freeze({ type: place.type, initialization: place.initialization }));
       stagedGroups.set(place.scope, group);
     }
     if (valid) selected.push(Object.freeze({ declaration: node, scope: node, methodName: method.method, type,

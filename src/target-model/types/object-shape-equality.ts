@@ -22,7 +22,7 @@ export function csharpObjectShapesEqual(
     (left.methodImplementation?.captures ?? []).every((capture, index) => {
       const other = right.methodImplementation?.captures[index];
       return other !== undefined && capture.declaration === other.declaration && capture.fieldName === other.fieldName &&
-        capture.mutable === other.mutable && targetTypeRefEquals(capture.type, other.type);
+        capture.mutable === other.mutable && capture.initialization === other.initialization && targetTypeRefEquals(capture.type, other.type);
     }) &&
     left.constructible === right.constructible &&
     targetTypeListsEqual(left.implements ?? [], right.implements ?? []) &&

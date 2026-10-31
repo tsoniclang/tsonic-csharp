@@ -1,4 +1,4 @@
-import type { CsharpObjectShapeFact, TargetTypeRef } from "../../types/model.js";
+import type { CsharpCaptureInitialization, CsharpObjectShapeFact, TargetTypeRef } from "../../types/model.js";
 import type { CsharpStorageIssue } from "../storage/storage.js";
 import type { Node } from "@tsonic/tsts";
 
@@ -8,7 +8,7 @@ export interface CsharpOriginalCapturedPlace {
   readonly type: TargetTypeRef;
   readonly references: readonly Node[];
   readonly mutable: boolean;
-  readonly initialization: "initialized" | "deferred";
+  readonly initialization: CsharpCaptureInitialization;
 }
 
 export interface CsharpNativeClosureCapture {

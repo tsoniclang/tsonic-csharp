@@ -11,6 +11,7 @@ import { csharpTargetNamedType } from "../../target-model/types/factories.js";
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../program/records/objects/required-records.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import { readCsharpSelectedWritingReference } from "../callables/values/argument-passing.js";
+import { csharpCapturedBindingInitialization } from "../callables/values/capture-initialization.js";
 
 export function analyzeCsharpClassFactories(
   source: TargetSourceProgram,
@@ -40,6 +41,7 @@ export function analyzeCsharpClassFactories(
         mutable: source.navigation.declarationUseSummary(capture.declaration).bindingWritten ||
           source.navigation.declarationUseSummary(capture.declaration).uses.some(use =>
             readCsharpSelectedWritingReference(source, evidence, selectedCalls, use.reference) !== undefined),
+        initialization: csharpCapturedBindingInitialization(capture.declaration, source.ast, source.navigation),
       });
     });
     if (contract === undefined || type?.kind !== "target-named" || definition.scopeName === undefined ||

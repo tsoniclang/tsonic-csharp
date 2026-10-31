@@ -1,6 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import { sourceBindingScope, sourceBindingIterationScope, sourceLexicalCaptures, sourceBindingCapturedBeforeInitialization,
-  sourceBindingCapturedBeforeFirstWrite, type TargetSourceProgram } from "@tsonic/target-api/source";
+import { sourceBindingScope, sourceBindingIterationScope, sourceLexicalCaptures, type TargetSourceProgram } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";
@@ -8,10 +7,19 @@ import type { CsharpStorageIssue } from "../../../target-model/records/storage/s
 import { selectCsharpNamedSelfBinding } from "./named-self.js";
 import type { CsharpNativeClosureCapture, CsharpNamedSelfBinding } from "../../../target-model/records/callables/capture-storage.js";
 import type { CsharpCallableContractIndex } from "../../../target-model/records/callables/callable-values.js";
-import { csharpCallableValueType } from "../../../policy/types/callables/value-type.js";
+import { csharpCallableDeclarationValueType } from "../../../policy/types/callables/value-type.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations/operations.js";
 import { readCsharpSelectedWritingReference } from "./argument-passing.js";
+import { csharpCapturedBindingInitialization } from "./capture-initialization.js";
+
+export function csharpCaptureSubtreeIsErased(
+  node: Node,
+  evidence: Pick<CsharpSourceEvidenceIndex, "compileTimeMetadata">,
+  erasedStatement: CsharpTargetOperationClassifications["erasedStatement"],
+): boolean {
+  return evidence.compileTimeMetadata.get(node) === true || erasedStatement.get(node) === true;
+}
 
 export function analyzeCsharpNativeCaptures(
   source: TargetSourceProgram,
@@ -27,7 +35,7 @@ export function analyzeCsharpNativeCaptures(
   const captures: CsharpNativeClosureCapture[] = [];
   const namedSelfBindings: CsharpNamedSelfBinding[] = [];
   const visit = (node: Node): void => {
-    if (evidence.compileTimeMetadata.get(node) || erasedStatement.get(node)) return;
+    if (csharpCaptureSubtreeIsErased(node, evidence, erasedStatement)) return;
     const literal = source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node);
     if (literal) {
       const discarded = creationDemand.get(node);
@@ -42,12 +50,10 @@ export function analyzeCsharpNativeCaptures(
       const contract = callables.get({ kind: "declaration", declaration: node });
       const protocol = evidence.nodeTargetType.get(node);
       const type = contract === undefined ? undefined : getCsharpMethodValue(protocol) !== undefined
-        ? protocol : callables.closedInputType(node) ?? csharpCallableValueType(contract);
+        ? protocol : csharpCallableDeclarationValueType(callables, node);
       if (type === undefined && literal) {
-        const file = source.ast.getSourceFile(node);
         issues.push({ node, code: "CSHARP_CAPTURE_CALLABLE_NOT_CLOSED",
-          message: "A native closure requires its exact checked callable contract." +
-            ` Source '${file === undefined ? "<missing>" : source.ast.getFileName(file).slice(0, 512)}:${source.ast.pos(node)}-${source.ast.end(node)}'.` });
+          message: "A native closure requires its exact checked callable contract." });
       }
       const values = lexical.captures.filter(capture => !evidence.compileTimeMetadata.get(capture.declaration)).map(capture => {
         const logical = evidence.storageTargetType.get(capture.declaration) ?? evidence.nodeTargetType.get(capture.declaration);
@@ -66,9 +72,7 @@ export function analyzeCsharpNativeCaptures(
           mutable: source.navigation.declarationUseSummary(capture.declaration).bindingWritten ||
             source.navigation.declarationUseSummary(capture.declaration).uses.some(use =>
               readCsharpSelectedWritingReference(source, evidence, selectedCalls, use.reference) !== undefined),
-          initialization: sourceBindingCapturedBeforeInitialization(capture.declaration, source.ast, source.navigation) ||
-            sourceBindingCapturedBeforeFirstWrite(capture.declaration, source.ast, source.navigation)
-            ? "deferred" as const : "initialized" as const });
+          initialization: csharpCapturedBindingInitialization(capture.declaration, source.ast, source.navigation) });
       });
       const receivers = lexical.receivers.map(receiver => {
         const reference = receiver.references[0];

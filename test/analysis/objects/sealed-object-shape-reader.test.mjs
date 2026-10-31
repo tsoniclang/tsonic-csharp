@@ -3,6 +3,9 @@ import test from "node:test";
 import { analyzeCsharpObjectShapes } from "../../../dist/analysis/objects/analyze.js";
 import { instantiateCsharpObjectShape } from "../../../dist/policy/types/objects/instantiation.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
+import { csharpObjectShapesEqual } from "../../../dist/target-model/types/object-shape-equality.js";
+import { csharpObjectShapeContractKey } from "../../../dist/target-model/types/object-shape-identity.js";
+import { selectCsharpStructuralObjectCarrier } from "../../../dist/policy/types/objects/shape-carriers.js";
 import { emptyCsharpTypeDefinitions } from "../../../dist/target-model/types/source-union-definitions.js";
 import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 import { resolveCsharpOptionalStorage } from "../../../dist/policy/types/storage/optional-storage.js";
@@ -203,7 +206,7 @@ test("structural implementations are materialized at seal and an unrecorded inst
 });
 
 test("a sealed generic instance owns frozen members, type parameters and captures and reads back canonically", () => {
-  const capture = { declaration: {}, reference: {}, fieldName: "captured", type: parameter, mutable: false };
+  const capture = { declaration: {}, reference: {}, fieldName: "captured", type: parameter, mutable: false, initialization: "initialized" };
   const methodParameter = { identity: "test.Shape.pick.Item", name: "Item", constraints: [] };
   const rich = { targetType: template.targetType, members: [member(parameter), { ...member(parameter),
     sourceKey: { kind: "property", name: "pick" }, sourceName: "pick", targetName: "pick", memberKind: "method",
@@ -216,6 +219,8 @@ test("a sealed generic instance owns frozen members, type parameters and capture
     assert.equal(instance !== undefined && instance.members.length === 2, true, `non-empty generic instance is published ${label}`);
     assert.equal(targetTypeRefEquals(instance.members[0].type, integer) &&
       targetTypeRefEquals(instance.methodImplementation.captures[0].type, integer), true, `member and capture are substituted ${label}`);
+    assert.equal(instance.methodImplementation.captures[0].initialization, "initialized",
+      `the required declaration-local initialization survives substitution ${label}`);
     for (const [name, mutate] of [
       ["root field", () => { instance.members = []; }],
       ["members array", () => instance.members.push(member(string))],
@@ -226,6 +231,7 @@ test("a sealed generic instance owns frozen members, type parameters and capture
       ["method implementation", () => { instance.methodImplementation.identity = "other"; }],
       ["capture array", () => instance.methodImplementation.captures.push(capture)],
       ["capture entry", () => { instance.methodImplementation.captures[0].type = string; }],
+      ["capture initialization", () => { instance.methodImplementation.captures[0].initialization = "deferred"; }],
     ]) {
       assert.equal(refusesMutation(mutate), true, `${name} refuses mutation ${label}`);
     }
@@ -310,4 +316,30 @@ test("a generic structural implementation is substituted once at seal into froze
     targetTypeRefEquals(again[0].properties[0].member.type, optional(integer)), true, "later reads return the same canonical record");
   assert.equal(Object.isFrozen(recordTemplate.members) || Object.isFrozen(sourceSymbol), false, "borrowed source objects are not frozen");
   assert.equal(queries, before, "no native query after seal");
+});
+
+test("required capture initialization participates symmetrically in complete shape equality and keys", () => {
+  const declaration = Object.freeze({});
+  const capture = Object.freeze({ declaration, reference: Object.freeze({}), fieldName: "captured", type: integer,
+    mutable: false, initialization: "initialized" });
+  const implementation = Object.freeze({ declaration: Object.freeze({}), identity: "test.initialization",
+    methods: Object.freeze([]), captures: Object.freeze([capture]) });
+  const original = Object.freeze({ targetType: holder.targetType, members: Object.freeze([member(integer)]),
+    methodImplementation: implementation });
+  const deferred = Object.freeze({ ...original, methodImplementation: Object.freeze({ ...implementation,
+    captures: Object.freeze([Object.freeze({ ...capture, initialization: "deferred" })]) }) });
+  assert.equal(csharpObjectShapesEqual(original, original), true);
+  assert.equal(csharpObjectShapesEqual(deferred, deferred), true);
+  assert.equal(csharpObjectShapesEqual(original, deferred), false,
+    "the same declaration cannot silently lose its required initialization fact");
+  assert.equal(csharpObjectShapesEqual(deferred, original), false, "the complete-record relation is symmetric");
+  assert.notEqual(csharpObjectShapeContractKey(original), csharpObjectShapeContractKey(deferred));
+  const carrier = shape => selectCsharpStructuralObjectCarrier(shape.members, [], [], false, shape.methodImplementation);
+  assert.equal(targetTypeRefEquals(carrier(original), carrier(deferred)), false,
+    "the native capture-storage contract key retains initialization beside type and mutability");
+  for (const shape of [original, deferred]) {
+    const first = carrier(shape);
+    assert.equal(targetTypeRefEquals(first, carrier(shape)), true, "the same complete fact retains its canonical identity");
+    assert.equal(Object.isFrozen(first), true);
+  }
 });

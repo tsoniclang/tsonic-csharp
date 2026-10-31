@@ -1,5 +1,16 @@
 import { csharpDelegateTargetType, isCsharpVoidTargetType, type TargetTypeRef, getCsharpDelegateSignature, isCsharpSourceDelegateTargetType, targetTypeRefEquals } from "../index.js";
 import { type SourceCallableContract } from "../../../target-model/records/callables/source-callable-contract.js";
+import type { Node } from "@tsonic/tsts";
+import type { CsharpCallableContractIndex } from "../../../target-model/records/callables/callable-values.js";
+
+export function csharpCallableDeclarationValueType(
+  callables: Pick<CsharpCallableContractIndex, "get" | "closedInputType">,
+  declaration: Node,
+): TargetTypeRef | undefined {
+  const contract = callables.get({ kind: "declaration", declaration });
+  return contract === undefined ? undefined
+    : callables.closedInputType(declaration) ?? csharpCallableValueType(contract);
+}
 
 export function csharpCallableValueType(
   callable: SourceCallableContract,

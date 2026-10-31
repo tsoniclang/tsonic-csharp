@@ -442,6 +442,8 @@ test("missing loop binding or callable evidence rejects rather than selecting an
     assert.equal(selected.captures.length, 0, missing);
     assert.equal(selected.issues.length, 1, missing);
     assert.equal(selected.issues[0]?.code, missing === "index" ? "CSHARP_ITERATION_CAPTURE_NOT_CLOSED" : "CSHARP_CAPTURE_CALLABLE_NOT_CLOSED");
+    if (missing === "read") assert.equal(selected.issues[0]?.message,
+      "A native closure requires its exact checked callable contract.", "the canonical refusal excludes temporary file/position debug payload");
   }
 });
 

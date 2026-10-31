@@ -4,6 +4,8 @@ import type { CsharpTargetBinaryExecutionDriver } from "../metadata/provider-met
 
 export type CsharpTypeofRuntimeKind = "string" | "number" | "boolean" | "bigint" | "symbol" | "object" | "function" | "undefined";
 
+export type CsharpCaptureInitialization = "initialized" | "deferred";
+
 export type CsharpSourceMemberKey =
   | { readonly kind: "property"; readonly name: string }
   | {
@@ -67,6 +69,7 @@ export interface CsharpObjectShapeFact {
       readonly fieldName: string;
       readonly type: TargetTypeRef;
       readonly mutable: boolean;
+      readonly initialization: CsharpCaptureInitialization;
     }[];
   };
 }

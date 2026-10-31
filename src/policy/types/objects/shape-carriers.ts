@@ -27,7 +27,7 @@ export function selectCsharpStructuralObjectCarrier(
     } : {}),
     ...(contract ? { contract: true } : {}),
     ...(implementation === undefined ? {} : { implementation: implementation.identity,
-      captures: implementation.captures.map(capture => [capture.fieldName, targetTypeRefKey(capture.type), capture.mutable]),
+      captures: implementation.captures.map(capture => [capture.fieldName, targetTypeRefKey(capture.type), capture.mutable, capture.initialization]),
     }),
   });
   const identity = createHash("sha256").update(key).digest("hex");

@@ -1,7 +1,7 @@
-import type { CsharpCaptureFrame, CsharpCaptureStorage, CsharpCapturedBinding, CsharpCaptureProtocol, CsharpConstructorCaptureProtocol } from "../../../target-model/records/callables/capture-storage.js";
+import type { CsharpCaptureFrame, CsharpCaptureStorage, CsharpCapturedBinding, CsharpCaptureProtocol, CsharpConstructorCaptureProtocol, CsharpOriginalCapturedPlace } from "../../../target-model/records/callables/capture-storage.js";
 import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import { sourceCallableDefinitionIsDiscarded, sourceBindingScope, sourceNodeIdentity, sourceBindingCapturedBeforeInitialization, sourceBindingCapturedBeforeFirstWrite } from "@tsonic/target-api/source";
+import { sourceCallableDefinitionIsDiscarded, sourceBindingScope, sourceNodeIdentity } from "@tsonic/target-api/source";
 import { createHash } from "node:crypto";
 import type { CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpObjectShapeClassifications } from "../../../target-model/records/objects/object-shapes.js";
@@ -11,7 +11,7 @@ import { createStructuralObjectShapeTarget } from "../../objects/shapes/construc
 import { csharpRuntimeLocationTargetType, csharpRuntimeNativeArrayTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";
-import { analyzeCsharpNativeCaptures } from "../values/capture-closures.js";
+import { analyzeCsharpNativeCaptures, csharpCaptureSubtreeIsErased } from "../values/capture-closures.js";
 import { type CsharpFrameClosure } from "../../../target-model/records/callables/capture-storage.js";
 import { csharpTargetNamedType } from "../../../target-model/types/factories.js";
 import { selectCsharpGenericFrameClosures } from "../generics/generic-closures.js";
@@ -37,7 +37,7 @@ export function analyzeCsharpCaptureStorage(
   selectedCalls: Pick<CsharpTargetOperationClassifications, "selectedCall" | "selectedConstruction">,
 ): CsharpCaptureStorage {
   const environment = createCsharpTypeParameterEnvironment(source.ast, declaration => evidence.typeParameterConstraints.get(declaration));
-  const groups = new Map<Node, Map<Node, TargetTypeRef>>();
+  const groups = new Map<Node, Map<Node, Pick<CsharpOriginalCapturedPlace, "type" | "initialization">>>();
   const protocols = new Map<Node, CsharpCaptureProtocol[]>();
   const retainProtocol = (scope: Node, protocol: CsharpCaptureProtocol): void => {
     const previous = protocols.get(scope) ?? [];
@@ -58,36 +58,33 @@ export function analyzeCsharpCaptureStorage(
     physicalTypes.set(declaration, selected ?? null);
     return selected ?? logicalType;
   };
-  const deferredBinding = (declaration: Node): boolean =>
-    sourceBindingCapturedBeforeInitialization(declaration, source.ast, source.navigation) ||
-    sourceBindingCapturedBeforeFirstWrite(declaration, source.ast, source.navigation);
   for (const shape of shapes.knownShapes()) {
     for (const capture of (shape.declarationTemplate ?? shape).methodImplementation?.captures ?? []) {
       physicalType(capture.declaration, capture.type);
       const writtenArgument = source.navigation.declarationUseSummary(capture.declaration).uses.some(use =>
         readCsharpSelectedWritingReference(source, evidence, selectedCalls, use.reference) !== undefined);
-      if (!capture.mutable && !writtenArgument && !deferredBinding(capture.declaration) || storage.nativeBacking.get(capture.declaration) !== undefined) continue;
+      if (!capture.mutable && !writtenArgument && capture.initialization !== "deferred" || storage.nativeBacking.get(capture.declaration) !== undefined) continue;
       const scope = sourceBindingScope(capture.declaration, source.ast);
       if (scope === undefined || source.ast.is.IsSourceFile(scope)) {
         issues.push({ node: capture.declaration, code: "CSHARP_CAPTURE_SCOPE_NOT_CLOSED",
           message: "A captured binding requires its exact retained lexical activation scope." });
         continue;
       }
-      const bindings = groups.get(scope) ?? new Map<Node, TargetTypeRef>();
+      const bindings = groups.get(scope) ?? new Map<Node, Pick<CsharpOriginalCapturedPlace, "type" | "initialization">>();
       const type = physicalType(capture.declaration, capture.type);
       const existing = bindings.get(capture.declaration);
-      if (existing !== undefined && !targetTypeRefEquals(existing, type)) {
+      if (existing !== undefined && (!targetTypeRefEquals(existing.type, type) || existing.initialization !== capture.initialization)) {
         issues.push({ node: capture.declaration, code: "CSHARP_CAPTURE_STORAGE_CONFLICT",
           message: "One captured binding cannot have incompatible physical storage contracts." });
       }
-      bindings.set(capture.declaration, type);
+      bindings.set(capture.declaration, Object.freeze({ type, initialization: capture.initialization }));
       groups.set(scope, bindings);
       retainProtocol(scope, { kind: "method", declaration: (shape.declarationTemplate ?? shape).methodImplementation!.declaration });
     }
   }
   for (const capture of classCaptures) {
     physicalType(capture.declaration, capture.type);
-    if (!capture.mutable && !deferredBinding(capture.declaration) || storage.nativeBacking.get(capture.declaration) !== undefined) continue;
+    if (!capture.mutable && capture.initialization !== "deferred" || storage.nativeBacking.get(capture.declaration) !== undefined) continue;
     const scope = sourceBindingScope(capture.declaration, source.ast);
     if (scope === undefined || source.ast.is.IsSourceFile(scope)) {
       issues.push({ node: capture.declaration, code: "CSHARP_CAPTURE_SCOPE_NOT_CLOSED",
@@ -104,20 +101,20 @@ export function analyzeCsharpCaptureStorage(
       continue;
     }
     retainProtocol(scope, { kind: "class", declaration: owner });
-    const bindings = groups.get(scope) ?? new Map<Node, TargetTypeRef>();
+    const bindings = groups.get(scope) ?? new Map<Node, Pick<CsharpOriginalCapturedPlace, "type" | "initialization">>();
     const type = physicalType(capture.declaration, capture.type);
     const existing = bindings.get(capture.declaration);
-    if (existing !== undefined && !targetTypeRefEquals(existing, type)) {
+    if (existing !== undefined && (!targetTypeRefEquals(existing.type, type) || existing.initialization !== capture.initialization)) {
       issues.push({ node: capture.declaration, code: "CSHARP_CAPTURE_STORAGE_CONFLICT",
         message: "One class capture cannot have incompatible native storage contracts." });
     }
-    bindings.set(capture.declaration, type);
+    bindings.set(capture.declaration, Object.freeze({ type, initialization: capture.initialization }));
     groups.set(scope, bindings);
   }
   const creationDemandValues = new Map<Node, boolean>();
   const constructors: Node[] = [];
   const collectCreationDemand = (node: Node): void => {
-    if (evidence.compileTimeMetadata.get(node) || erasedStatement.get(node)) return;
+    if (csharpCaptureSubtreeIsErased(node, evidence, erasedStatement)) return;
     if (source.ast.is.IsConstructorDeclaration(node)) constructors.push(node);
     if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) {
       const discarded = sourceCallableDefinitionIsDiscarded(node, source.ast, source.navigation);
@@ -141,13 +138,13 @@ export function analyzeCsharpCaptureStorage(
         !source.ast.is.IsClassDeclaration(owner) && !source.ast.is.IsClassExpression(owner)) {
       failTargetAnalysisInvariant("tsonic-csharp", "Constructor entry capture requires its actual class declaration and body.", constructor);
     }
-    const bindings = groups.get(scope) ?? new Map<Node, TargetTypeRef>();
+    const bindings = groups.get(scope) ?? new Map<Node, Pick<CsharpOriginalCapturedPlace, "type" | "initialization">>();
     for (const place of required) {
       const previous = bindings.get(place.declaration);
-      if (previous !== undefined && !targetTypeRefEquals(previous, place.type)) {
+      if (previous !== undefined && (!targetTypeRefEquals(previous.type, place.type) || previous.initialization !== place.initialization)) {
         failTargetAnalysisInvariant("tsonic-csharp", "Constructor entry capture requires the same original physical place.", place.declaration);
       }
-      bindings.set(place.declaration, place.type);
+      bindings.set(place.declaration, Object.freeze({ type: place.type, initialization: place.initialization }));
     }
     groups.set(scope, bindings);
     retainProtocol(scope, { kind: "class", declaration: owner });
@@ -155,11 +152,10 @@ export function analyzeCsharpCaptureStorage(
     const declarations = new Set(required.map(place => place.declaration));
     const methods: CsharpFrameClosure[] = [];
     for (const capture of nativeCaptures.lexicalCaptures) {
-      const context = evidence.contextualType.get(capture.owner)?.targetType ?? capture.type;
       if (source.ast.is.IsFunctionDeclaration(capture.owner) || capture.values.length === 0 ||
           !capture.values.every(place => declarations.has(place.declaration)) ||
           source.ast.typeParameters(capture.owner).length !== 0 ||
-          getCsharpMethodValue(context) !== undefined || getCsharpExpressionTreeDelegateType(context) !== undefined ||
+          getCsharpMethodValue(capture.type) !== undefined || getCsharpExpressionTreeDelegateType(capture.type) !== undefined ||
           nativeCaptures.namedSelfBindings.some(self => self.declaration === capture.owner && self.values.length !== 0)) continue;
       let enclosing = source.ast.parent(capture.owner);
       while (enclosing !== undefined && enclosing !== constructor) {
@@ -209,11 +205,9 @@ export function analyzeCsharpCaptureStorage(
     }
     const receivers = Object.freeze([...receiverValues.values()].map((receiver, index) =>
       Object.freeze({ ...receiver, fieldName: `receiver${index}` })));
-    const bindings = Object.freeze([...group].map(([declaration, type], index) => Object.freeze({
-      declaration, type, fieldName: `value${index}`,
-      // A binding captured before its initializer or, without one, before its first write is stored in the frame before it
-      // holds a value.
-      ...(deferredBinding(declaration) ? { initialization: "deferred" as const } : {}),
+    const bindings = Object.freeze([...group].map(([declaration, place], index) => Object.freeze({
+      declaration, type: place.type, fieldName: `value${index}`,
+      ...(place.initialization === "deferred" ? { initialization: "deferred" as const } : {}),
     })));
     const fields = [...bindings, ...receivers];
     const members: readonly CsharpObjectShapeMemberFact[] = Object.freeze(fields.map(field => Object.freeze({
@@ -248,7 +242,8 @@ export function analyzeCsharpCaptureStorage(
   for (const method of valueMethods) {
     const lexical = nativeCaptures.lexicalCaptures.find(capture => capture.owner === method.declaration);
     if (lexical === undefined) failTargetAnalysisInvariant("tsonic-csharp", "A quantified environment requires its completed original-place capture facts.", method.declaration);
-    const captured = lexical.values.map(place => ({ declaration: place.declaration, type: place.type, shared: byBinding.get(place.declaration) }));
+    const captured = lexical.values.map(place => ({ declaration: place.declaration, type: place.type,
+      initialization: place.initialization, shared: byBinding.get(place.declaration) }));
     const contract = getCsharpMethodValue(method.type)?.owner;
     const identity = sourceNodeIdentity(source.ast, method.declaration);
     if (contract === undefined || identity === undefined || captured.some(binding => binding === undefined)) {
@@ -257,7 +252,8 @@ export function analyzeCsharpCaptureStorage(
       continue;
     }
     const bindings = Object.freeze(captured.filter(binding => binding!.shared === undefined).map((binding, index) =>
-      Object.freeze({ declaration: binding!.declaration, type: binding!.type, fieldName: `value${index}` })));
+      Object.freeze({ declaration: binding!.declaration, type: binding!.type, fieldName: `value${index}`,
+        ...(binding!.initialization === "deferred" ? { initialization: "deferred" as const } : {}) })));
     const parents = Object.freeze([...new Set(captured.flatMap(binding => binding!.shared === undefined ? [] : [binding!.shared.frame]))]
       .map((frame, index) => Object.freeze({ frame, fieldName: `parent${index}` })));
     const receivers = Object.freeze(method.receivers.map((receiver, index) => Object.freeze({ ...receiver, fieldName: `receiver${index}` })));

@@ -8,6 +8,7 @@ import { sealCsharpCaptureStorage } from "../../../dist/analysis/program/records
 import { csharpMethodValueType } from "../../../dist/target-model/types/method-values.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { createCaptureContractFixture } from "../../helpers/capture-contracts.mjs";
+import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 
 const scalar = Object.freeze({ kind: "source-primitive", name: "float64" });
 const callable = csharpDelegateTargetType("System.Func", [], scalar);
@@ -25,6 +26,7 @@ function fixture(text) {
   const declarations = new Map();
   const types = new Map();
   const metadata = new Set();
+  const erased = new Set();
   const classCaptures = [];
   const storageTypes = new Map();
   const contexts = new Map();
@@ -62,9 +64,9 @@ function fixture(text) {
     storageTargetType: { get: () => undefined }, nodeTargetType: { get: node => types.get(node) },
     typeParameterConstraints: { get: () => undefined },
     contextualType: { get: node => contexts.get(node) },
-  }, classCaptures, createCaptureContractFixture(source, node => types.get(node)), { get: () => false },
+  }, classCaptures, createCaptureContractFixture(source, node => types.get(node)), { get: node => erased.has(node) },
     { selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined } });
-  return { source, binding, owner, evaluate, types, metadata, classCaptures, storageTypes, contexts };
+  return { source, binding, owner, evaluate, types, metadata, erased, classCaptures, storageTypes, contexts };
 }
 
 test("ordinary native closures retain distinct checked owners over the same original mutable place", () => {
@@ -173,7 +175,7 @@ test("a genuinely mutable local-class protocol and an ordinary lambda share the 
   const selected = sourceLexicalCaptures(owner, [owner], input.source.ast, input.source.navigation, "source");
   assert.equal(selected.captures.length, 1);
   input.classCaptures.push({ declaration, reference: selected.captures[0].references[0],
-    type: scalar, mutable: true, fieldName: "originalValue" });
+    type: scalar, mutable: true, fieldName: "originalValue", initialization: "initialized" });
   const result = input.evaluate();
   assert.equal(result.issues.length, 0);
   assert.equal(result.frames.length, 1);
@@ -254,3 +256,87 @@ test("a missing quantified native protocol is refused at the original value rath
   assert.equal(result.frames.length, 0);
   assert.equal(result.captureClosure.get(result.issues[0].node) === undefined, true);
 });
+
+for (const [label, sourceText, expected] of [
+  ["initialized", `export function create(value: number) {
+    const read = () => value;
+    const shape = { read(): number { return value; } };
+    class Holder { read(): number { return value; } }
+    return { read, shape, Holder };
+  }`, "initialized"],
+  ["first-write deferred", `export function create() {
+    let value: number;
+    const read = () => value;
+    const shape = { read(): number { return value; } };
+    class Holder { read(): number { return value; } }
+    value = 7;
+    return { read, shape, Holder };
+  }`, "deferred"],
+]) {
+  test(`all native capture origins publish the same ${label} initialization fact`, () => {
+    const compiled = compileCsharpSource({ sourceText });
+    assertCsharpCompilationSucceeded(compiled);
+    const program = compiled.result.program;
+    const factories = program.classFactories.filter(factory => factory.captures.length !== 0);
+    assert.equal(factories.length, 1, "the actual local-class producer participates");
+    const captured = factories[0].captures[0];
+    assert.equal(captured.initialization, expected);
+    assert.equal(Object.isFrozen(captured), true);
+    const implementations = program.objectShapes.knownShapes().flatMap(shape =>
+      (shape.declarationTemplate ?? shape).methodImplementation?.captures ?? [])
+      .filter(capture => capture.declaration === captured.declaration);
+    assert.equal(implementations.length > 0, true, "the actual shape-method producer participates");
+    for (const capture of implementations) {
+      assert.equal(capture.initialization, expected);
+      assert.equal(Object.isFrozen(capture), true);
+    }
+    const place = program.records.capturedPlace.get(captured.declaration);
+    assert.equal(place !== undefined && place.declaration === captured.declaration, true,
+      "the ordinary lambda publishes the same original declaration");
+    assert.equal(place.initialization, expected);
+    assert.equal(Object.isFrozen(place), true);
+    if (expected === "deferred") {
+      const binding = program.records.capturedBinding.get(captured.declaration);
+      assert.equal(binding !== undefined, true, "the required class/method storage retains deferred initialization");
+      assert.equal(binding.frame.bindings.find(field => field.declaration === captured.declaration)?.initialization, expected);
+    }
+  });
+}
+
+test("constructor method selection reads the final capture type rather than a contextual protocol", () => {
+  const input = fixture(`class Base { constructor(callback: () => number) { callback(); } }
+    export class Derived extends Base {
+      constructor(value: number) { const read = () => value; super(read); }
+    }`);
+  const owner = input.owner("read");
+  const protocol = Object.freeze({ kind: "target-named", id: "tsonic.shape:context-only",
+    csharpAllowsRefLikeTypeArguments: [], csharpRender: { kind: "named", name: "ContextOnly" } });
+  const contextual = csharpMethodValueType(protocol, "invoke", "context-only", callable, []);
+  assert.equal(contextual !== undefined, true, "the competing contextual protocol is real but is not the captured contract");
+  input.contexts.set(owner, { targetType: contextual });
+  const result = input.evaluate();
+  assert.equal(result.issues.length, 0);
+  const capture = result.lexicalCaptures.find(selected => selected.owner === owner);
+  assert.equal(capture !== undefined && capture.type === callable, true, "the completed native capture keeps its plain delegate");
+  const selected = result.captureClosure.get(owner);
+  assert.equal(selected !== undefined && selected.method.type === capture.type, true,
+    "constructor selection and publication use the same final type");
+  assert.equal(selected.method.captures[0] === input.binding("value"), true);
+  assert.equal(selected.frame.methods.length, 1);
+});
+
+for (const classification of ["metadata", "erased"]) {
+  test(`${classification} capture subtrees are skipped before creation-demand collection and native traversal`, () => {
+    const input = fixture(`class Base { constructor(callback: () => number) { callback(); } }
+      export class Derived extends Base {
+        constructor(value: number) { const read = () => value; super(read); }
+      }`);
+    const file = input.source.navigation.sourceFiles[0];
+    input[classification].add(file);
+    const result = input.evaluate();
+    assert.equal(result.issues.length, 0);
+    assert.equal(result.lexicalCaptures.length, 0);
+    assert.equal(result.frames.length, 0);
+    assert.equal(result.captureClosure.get(input.owner("read")) === undefined, true);
+  });
+}

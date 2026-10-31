@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { selectCsharpParameterListCarrier } from "../../../../dist/policy/types/callables/parameter-list.js";
 import { csharpSourceCallArgumentParameter } from "../../../../dist/policy/types/callables/source-callable-contract.js";
-import { csharpCallableValueType } from "../../../../dist/policy/types/callables/value-type.js";
+import { csharpCallableValueType, csharpCallableDeclarationValueType } from "../../../../dist/policy/types/callables/value-type.js";
 import { csharpJsArrayTargetType } from "../../../../dist/target-model/types/carriers/js.js";
 import {
   csharpSourcePrimitiveTargetType,
@@ -52,4 +52,56 @@ test("a non-generic source callable's value carrier is its exact native delegate
   assert.equal(func.csharpDelegateSignature.restParameterIndex, 0);
   assert.equal(csharpCallableValueType({ ...callable, nativeSignature: { ...callable.nativeSignature, methodTypeParameterIdentities: ["owner:f:T"] } }), undefined,
     "a generic method has no single closed delegate carrier");
+});
+
+test("the completed declaration projection retains its one contract-index native input authority", () => {
+  const declaration = Object.freeze({});
+  const contract = Object.freeze({
+    nativeSignature: Object.freeze({ methodTypeParameterIdentities: [] }),
+    nativeParameters: Object.freeze([{ targetParameter: { type: int32 } }]),
+    returnType: int32,
+  });
+  const completed = Object.freeze(csharpCallableValueType(contract));
+  const index = Object.freeze({
+    get(subject) {
+      assert.equal(subject.kind === "declaration" && subject.declaration === declaration, true, "the same original declaration");
+      return contract;
+    },
+    closedInputType(node) {
+      assert.equal(node === declaration, true, "the same completed native input");
+      return completed;
+    },
+  });
+  assert.equal(csharpCallableDeclarationValueType(index, declaration) === completed, true,
+    "the closed native input is projected without rebuilding or choosing a contextual carrier");
+  assert.equal(csharpCallableDeclarationValueType({
+    get: () => undefined,
+    closedInputType: () => assert.fail("missing declarations cannot acquire a native input"),
+  }, declaration), undefined);
+});
+
+test("the completed declaration projection preserves intrinsic slots and the quantified refusal", () => {
+  const declaration = Object.freeze({});
+  const contract = Object.freeze({
+    nativeSignature: Object.freeze({ methodTypeParameterIdentities: [] }),
+    nativeParameters: Object.freeze([{ targetParameter: { type: int32, optional: true } }]),
+    returnType: int32,
+  });
+  const index = selected => ({
+    get(subject) {
+      assert.equal(subject.kind === "declaration" && subject.declaration === declaration, true);
+      return selected;
+    },
+    closedInputType(node) {
+      assert.equal(node === declaration, true);
+      return undefined;
+    },
+  });
+  const selected = csharpCallableDeclarationValueType(index(contract), declaration);
+  assert.equal(selected !== undefined, true);
+  assert.deepEqual(selected.csharpDelegateSignature.parameters, [int32]);
+  assert.deepEqual(selected.csharpDelegateSignature.optionalParameterIndexes, [0]);
+  assert.equal(csharpCallableDeclarationValueType(index({
+    ...contract, nativeSignature: { methodTypeParameterIdentities: ["original.Value"] },
+  }), declaration), undefined, "a quantified contract is not replaced by a guessed ordinary delegate");
 });
