@@ -57,6 +57,7 @@ export function selectCsharpSourceCallableAbi(
 ): SourceCallableSourceContract | undefined {
   const checked = policy.semantics(sourceFile).types.declarationSignatureInfo(declaration);
   const valueParameters = sourceCallableValueParameters(policy.ast, declaration, policy.semantics(sourceFile));
+  if (checked === undefined || valueParameters === undefined) return undefined;
   const contextual = evidence.contextualType.get(declaration);
   let inputType = contextual?.targetType;
   const quantified = policy.ast.typeParameters(declaration).length !== 0;
@@ -79,14 +80,23 @@ export function selectCsharpSourceCallableAbi(
   const arms = presentInput === undefined ? undefined : getCsharpRuntimeUnionArms(presentInput, policy.typeDefinitions);
   let callableArms: readonly TargetTypeRef[] | undefined;
   if (arms !== undefined) {
-    const callables = arms.filter(arm => getCsharpLambdaSignature(arm) !== undefined);
+    const callables = arms.filter(arm => {
+      const signature = getCsharpLambdaSignature(arm);
+      if (signature === undefined) return false;
+      return valueParameters.every((parameterNode, index) => {
+        const parameter = AsParameterDeclaration(policy.ast, parameterNode);
+        const sourceParameter = checked.parameters.find(candidate => candidate.declaration === parameterNode);
+        return parameter !== undefined && sourceParameter !== undefined &&
+          (parameter.DotDotDotToken !== undefined || sourceParameter.acceptsOmission ||
+            index < signature.parameters.length || signature.restParameterIndex !== undefined && index >= signature.restParameterIndex);
+      });
+    });
     if (callables.length > 1) {
       callableArms = callables;
       inputType = undefined;
     } else inputType = callables[0];
   } else inputType = presentInput;
   const hasInput = !quantified && getCsharpLambdaSignature(inputType) !== undefined;
-  if (checked === undefined || valueParameters === undefined) return undefined;
   const accessor = policy.ast.is.IsGetAccessorDeclaration(declaration) || policy.ast.is.IsSetAccessorDeclaration(declaration);
   const returnContract = declarations.returnContract.get(declaration);
   const returnType = policy.ast.is.IsSetAccessorDeclaration(declaration) ? csharpVoidTargetType() : evidence.generatorTargetType.get(declaration) ??

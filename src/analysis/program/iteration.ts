@@ -105,6 +105,10 @@ export function analyzeCsharpRepresentationIteration(
         const callable = previous?.callables.get({ kind: "declaration", declaration: moduleCallable });
         return callable === undefined ? undefined : csharpCallableValueType(callable);
       }
+      if (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node)) {
+        const selected = previous?.callables.closedInputType(node);
+        if (selected !== undefined) return selected;
+      }
       const storage = previous?.storage.requiredStorageType.get(node);
       if (storage !== undefined) return storage;
       if (!input.source.ast.is.IsArrowFunction(node) && !input.source.ast.is.IsFunctionExpression(node) &&
