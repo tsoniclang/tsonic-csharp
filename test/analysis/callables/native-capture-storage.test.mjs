@@ -306,7 +306,7 @@ for (const [label, sourceText, expected] of [
 test("constructor method selection reads the final capture type rather than a contextual protocol", () => {
   const input = fixture(`class Base { constructor(callback: () => number) { callback(); } }
     export class Derived extends Base {
-      constructor(value: number) { const read = () => value; super(read); }
+      constructor(value: number, read: () => number = () => value) { super(read); }
     }`);
   const owner = input.owner("read");
   const protocol = Object.freeze({ kind: "target-named", id: "tsonic.shape:context-only",
