@@ -1,5 +1,5 @@
 import { classifyCsharpJsValueCallShape } from "./js-value-calls.js";
-import { classifyCsharpSourceCallArguments } from "./source-call-arguments.js";
+import { classifyCsharpNativeCallArguments, classifyCsharpSourceCallArguments, classifyCsharpTypedLocationCallArguments } from "./source-call-arguments.js";
 import { classifyCsharpUnionCall } from "./union-calls.js";
 import { classifyCsharpSourceCallee } from "../callables/calls/source-callees.js";
 import { classifyCsharpBorrowedSequenceInput } from "./borrowed-sequences.js";
@@ -245,8 +245,11 @@ export function analyzeCsharpOperationConstruct(
         : {
             sourceTypeArguments:
               policy.types.resolveSourceCallTypeArguments(source, sourceFile),
-            ...classifyCsharpSourceCallArguments(policy, source, sourceFile, sourceCall, sourceMethodValue,
-              target?.kind === "resolved" ? target : undefined, typedLocation),
+            ...(typedLocation?.kind === "location-bind" || typedLocation?.kind === "location-project" || typedLocation?.kind === "location-view"
+              ? classifyCsharpTypedLocationCallArguments(source, typedLocation)
+              : target?.kind === "resolved"
+                ? classifyCsharpNativeCallArguments(source, target)
+                : classifyCsharpSourceCallArguments(policy, source, sourceFile, sourceCall, sourceMethodValue)),
           }),
     }));
   } else if (ast.is.IsNewExpression(node)) {
@@ -288,8 +291,9 @@ export function analyzeCsharpOperationConstruct(
         : {},
       ...target?.kind === "source-owned" || target?.kind === "resolved"
         ? {
-            ...classifyCsharpSourceCallArguments(policy, target.source, sourceFile, undefined, undefined,
-              target.kind === "resolved" ? target : undefined),
+            ...(target.kind === "resolved"
+              ? classifyCsharpNativeCallArguments(target.source, target)
+              : classifyCsharpSourceCallArguments(policy, target.source, sourceFile, undefined, undefined)),
           }
         : {},
     }));

@@ -7,34 +7,41 @@ import type { CsharpTargetCallSelection } from "../../target-model/records/opera
 import { csharpSourceArgumentExpectedType } from "../../target-model/types/member-facts.js";
 import type { CsharpTypedLocationOperationSelection } from "../../target-model/records/storage/typed-locations.js";
 
+export function classifyCsharpTypedLocationCallArguments(
+  source: ResolvedSourceCallInfo,
+  typedLocation: Extract<CsharpTypedLocationOperationSelection,
+    { readonly kind: "location-bind" | "location-project" | "location-view" }>,
+): Pick<CsharpSourceCallArgumentClassification, "sourceArgumentParameterTypes"> {
+  return Object.freeze({ sourceArgumentParameterTypes: Object.freeze(source.sourceArgumentBindings.map(binding => {
+    const expression = source.sourceArguments[binding.sourceArgumentIndex]?.expression;
+    const arguments_ = typedLocation.arguments.filter(argument => argument.expression === expression);
+    return binding.sourceForm === "value" && arguments_.length === 1 ? arguments_[0]!.type : undefined;
+  })) });
+}
+
+export function classifyCsharpNativeCallArguments(
+  source: ResolvedSourceCallInfo,
+  native: Extract<CsharpTargetCallSelection, { readonly kind: "resolved" }>,
+): Pick<CsharpSourceCallArgumentClassification, "sourceArgumentParameterTypes"> {
+  const sourceArgumentParameterTypes = Object.freeze(source.sourceArgumentBindings.map(binding => {
+    const arguments_ = native.call.arguments.filter(argument =>
+      argument.sourceArgumentIndex === binding.sourceArgumentIndex &&
+      argument.effectiveArgumentIndex === binding.effectiveArgumentIndex &&
+      argument.sourceForm === binding.sourceForm && argument.spreadElementIndex === binding.spreadElementIndex);
+    return arguments_.length === 1
+      ? csharpSourceArgumentExpectedType(arguments_[0]!.targetParameter, binding.sourceForm) : undefined;
+  }));
+  return Object.freeze({ sourceArgumentParameterTypes });
+}
+
 export function classifyCsharpSourceCallArguments(
   policy: CsharpPolicyContext,
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
-  sourceCall?: CsharpSourceCallArgumentClassification["sourceCall"],
-  sourceMethodValue?: CsharpSourceCallArgumentClassification["sourceMethodValue"],
-  native?: Extract<CsharpTargetCallSelection, { readonly kind: "resolved" }>,
-  typedLocation?: CsharpTypedLocationOperationSelection,
+  sourceCall: CsharpSourceCallArgumentClassification["sourceCall"],
+  sourceMethodValue: CsharpSourceCallArgumentClassification["sourceMethodValue"],
 ): Pick<CsharpSourceCallArgumentClassification,
   "sourceParameterTypes" | "sourceArgumentParameterTypes" | "sourceArgumentGrouping"> {
-  if (typedLocation?.kind === "location-bind" || typedLocation?.kind === "location-project" || typedLocation?.kind === "location-view") {
-    return Object.freeze({ sourceArgumentParameterTypes: Object.freeze(source.sourceArgumentBindings.map(binding => {
-      const expression = source.sourceArguments[binding.sourceArgumentIndex]?.expression;
-      const arguments_ = typedLocation.arguments.filter(argument => argument.expression === expression);
-      return binding.sourceForm === "value" && arguments_.length === 1 ? arguments_[0]!.type : undefined;
-    })) });
-  }
-  if (native !== undefined) {
-    const sourceArgumentParameterTypes = Object.freeze(source.sourceArgumentBindings.map(binding => {
-      const arguments_ = native.call.arguments.filter(argument =>
-        argument.sourceArgumentIndex === binding.sourceArgumentIndex &&
-        argument.effectiveArgumentIndex === binding.effectiveArgumentIndex &&
-        argument.sourceForm === binding.sourceForm && argument.spreadElementIndex === binding.spreadElementIndex);
-      return arguments_.length === 1
-        ? csharpSourceArgumentExpectedType(arguments_[0]!.targetParameter, binding.sourceForm) : undefined;
-    }));
-    return Object.freeze({ sourceArgumentParameterTypes });
-  }
   const sourceNativeParameters = policy.types.resolveSourceCallParameters(source, sourceFile);
   const sourceParameterTypes = Object.freeze(source.sourceSelectedSignatureParameters.map((_, index) =>
     policy.types.resolveSourceCallParameter(source, index, sourceFile, "callable")));
