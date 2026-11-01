@@ -351,6 +351,7 @@ export interface CsharpSourceArgumentAdapter {
 
 export type CsharpObjectShapeCapability =
   | "json-serialization"
+  | "data-slots"
   | "reference-identity"
   | "method-values"
   | "enumerable-keys";

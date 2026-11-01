@@ -275,6 +275,7 @@ export function analyzeCsharpNativeArtifactDemand(
       !isCsharpEmptyObjectTargetType(shape.targetType)) {
       demandShape(shape, node);
       capability(node, shape.targetType, "reference-identity");
+      capability(node, shape.targetType, "data-slots");
     }
   }
 

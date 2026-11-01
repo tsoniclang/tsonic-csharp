@@ -14,7 +14,7 @@ export function selectCsharpFlowReadProjection(
   absenceUse: SourceAbsenceUse,
 ): CsharpFlowReadProjection {
   if (storageType === undefined) return { kind: "identity" };
-  if (absenceUse !== undefined) return { kind: "identity" };
+  if (absenceUse === "comparison") return { kind: "identity" };
   if (storageType.kind === "type-parameter" && selectedType !== undefined &&
       targetTypeRefEquals(storageType, selectedType) && deferredConstructorField) return { kind: "non-null" };
   if (refinement === undefined) return { kind: "rejected",
@@ -33,7 +33,7 @@ export function selectCsharpFlowReadProjection(
   if (storageType.kind === "target-named" &&
       (storageType as CsharpTargetNamedTypeRef).csharpFlowRefinementRepresentation === "identity") return { kind: "identity" };
   const target = refinement.flowReadTargetType;
-  if (target === undefined) return { kind: "rejected",
+  if (target === undefined) return absenceUse === "coalesce" ? { kind: "identity" } : { kind: "rejected",
     reason: "The exact checked source value refinement has no closed C# representation." };
   if (targetTypeRefEquals(storageType, target)) return { kind: "identity" };
   const selection = selectCsharpFlowReadConversion(policy, storageType, target, selectedThrowable);

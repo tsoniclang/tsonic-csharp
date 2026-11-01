@@ -6,7 +6,6 @@ export interface CsharpObjectMemberPolicyInput {
   readonly member: CsharpObjectShapeMemberFact;
   readonly receiverBound: boolean;
   readonly authored: boolean;
-  readonly retainMethodValue: boolean;
   readonly deferred: boolean;
   readonly implementsInterface: boolean;
   readonly nativeField: CsharpNativeObjectField | undefined;

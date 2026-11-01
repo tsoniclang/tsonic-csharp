@@ -287,3 +287,10 @@ function sourceProfileErrorTypePolicy(
   return Object.freeze({ ownerId, sourceName: identity.name, kind: "error",
     errorName: identity.name, baseException: identity.baseException });
 }
+
+export function csharpSourceTypeIsBroadEmptyObject(type: Type, queries: SourceFileSemantics, ast: AstReader): boolean {
+  const symbol = queries.declarations.typeSymbol(type);
+  const declarations = symbol === undefined ? [] : queries.declarations.symbolDeclarations(symbol);
+  return declarations.length > 0 && declarations.every(declaration => ast.is.IsTypeLiteralNode(declaration) &&
+    ast.members(declaration).length === 0);
+}

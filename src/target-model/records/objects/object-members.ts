@@ -11,7 +11,7 @@ export interface CsharpObjectMethodSignature {
 }
 
 export type CsharpAuthoredObjectMethodValue =
-  | { readonly kind: "fixed"; readonly stableValue?: { readonly type: TargetTypeRef; readonly valueName: string } }
+  | { readonly kind: "fixed" }
   | { readonly kind: "delegate"; readonly type: TargetTypeRef; readonly name: string; readonly valueName: string }
   | { readonly kind: "protocol"; readonly type: TargetTypeRef; readonly interface: TargetTypeRef;
       readonly name: string; readonly valueName: string; readonly invocationName: string };

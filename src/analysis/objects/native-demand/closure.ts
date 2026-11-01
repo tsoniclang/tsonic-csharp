@@ -70,6 +70,7 @@ export function collectCapabilityClosure(
     case "json-serialization":
       return scope.collectJsonClosure(type, preferredShape, pendingShapes);
     case "reference-identity":
+    case "data-slots":
     case "method-values":
     case "enumerable-keys":
       return collectCsharpReferenceClosure(scope, type, preferredShape, pendingShapes, capability);
@@ -82,11 +83,10 @@ export function addShapeCapabilities(
   shapes: ReadonlyMap<string, CsharpObjectShapeFact>,
   capability: CsharpObjectShapeCapability,
 ): void {
-  for (const [key, shape] of shapes) {
+  for (const key of shapes.keys()) {
     const capabilities = target.get(key) ?? new Set<CsharpObjectShapeCapability>();
     capabilities.add(capability);
-    if (capability === "reference-identity" && shape.methodImplementation !== undefined &&
-        shape.members.some(member => member.memberKind === "method")) capabilities.add("method-values");
+    if (capability === "data-slots") capabilities.add("reference-identity");
     target.set(key, capabilities);
   }
 }

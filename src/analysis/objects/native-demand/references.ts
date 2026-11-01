@@ -6,13 +6,14 @@ import { maximumArtifactCount } from "./batches.js";
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { getCsharpCollectionElementTargetType } from "../../../target-model/types/carriers/collections.js";
 import { getCsharpRuntimeUnionArms } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { getCsharpCallableValueSignature } from "../../../target-model/types/carriers/delegates.js";
 
 export function collectCsharpReferenceClosure(
   scope: CsharpObjectShapeDemandScope,
   type: TargetTypeRef,
   preferred: CsharpObjectShapeFact | undefined,
   pending: ReadonlyMap<string, CsharpObjectShapeFact>,
-  capability: "reference-identity" | "method-values" | "enumerable-keys",
+  capability: "reference-identity" | "method-values" | "enumerable-keys" | "data-slots",
 ): { readonly kind: "accepted"; readonly shapes: ReadonlyMap<string, CsharpObjectShapeFact> }
   | { readonly kind: "rejected"; readonly reason: string } {
   const root = preferred ?? scope.host.objectShapes.resolveTarget(type);
@@ -75,8 +76,17 @@ export function collectCsharpReferenceClosure(
       return { kind: "rejected", reason: `The ${capability} capability cannot use native value storage.` };
     }
     shapes.set(key, shape);
-    if (capability === "reference-identity") memberTypes.push(...shape.members.map(member => member.methodValueStorage?.type ?? member.type));
-    if (capability === "method-values" || capability === "reference-identity" && shape.methodImplementation !== undefined) {
+    if (capability === "data-slots") {
+      for (const member of shape.members) {
+        if (member.sourceKey.kind !== "property" || member.memberKind === "method") continue;
+        if (member.type === undefined) return { kind: "rejected",
+          reason: "A native data slot requires its exact checked payload carrier." };
+        if (getCsharpCallableValueSignature(member.type) !== undefined) return { kind: "rejected",
+          reason: "Closed native data slots do not admit native callable payloads." };
+        memberTypes.push(member.type);
+      }
+    }
+    if (capability === "method-values") {
       if (shape.declarationTemplate !== undefined) enqueue(shape.declarationTemplate);
       for (const member of shape.members) {
         if (member.methodValueContract === undefined) continue;

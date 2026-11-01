@@ -36,6 +36,7 @@ import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { createCsharpLiteralShapeResolver } from "./literal-construction.js";
 import { createCsharpProjectShapeProjection } from "./project-construction.js";
 import { createCsharpNativeShapeProjections } from "./native-projections.js";
+import { closeCsharpOwnerTypeParameterEnvironment } from "../../source-evidence/types/resolution/owner-type-parameter-environment.js";
 
 export function createCsharpObjectShapePolicy(
   host: CsharpObjectShapePolicyHost,
@@ -211,7 +212,7 @@ export function createCsharpObjectShapePolicy(
     return shape === undefined ? undefined : rememberTargetShape(shape);
   }
 
-  const resolveObjectLiteralTargetShape = createCsharpLiteralShapeResolver(host, { resolveNode, deriveMembers, retainLiteralMemberEvidence, instantiateMemberEvidence, rememberTargetShape });
+  const resolveObjectLiteralTargetShape = createCsharpLiteralShapeResolver(host, { resolveNode, resolveTarget, deriveMembers, retainLiteralMemberEvidence, instantiateMemberEvidence, rememberTargetShape });
   const resolveProjectConstructibleSelectedType = createCsharpProjectShapeProjection(host, deriveMembers);
 
   function remember(
@@ -503,15 +504,12 @@ export function createCsharpObjectShapePolicy(
   }
 
   function nativeProjectOwner(type: CsharpTargetNamedTypeRef): CsharpTargetNamedTypeRef | undefined {
-    const definition = host.projectTypeCatalog.definitionForTarget(type);
-    if (definition?.kind !== "class" && definition?.kind !== "interface" || type.typeArguments === undefined) return type;
-    const arguments_ = type.typeArguments.map(argument => {
-      if (argument.kind !== "type-parameter") return argument;
-      const constraints = environment(argument);
-      return constraints.kind === "resolved" ? Object.freeze({ ...argument, csharpConstraints: constraints }) : undefined;
-    });
-    return arguments_.some(argument => argument === undefined) ? undefined
-      : { ...type, typeArguments: Object.freeze(arguments_ as readonly TargetTypeRef[]) };
+    if (type.typeArguments === undefined) return type;
+    const parameters = closeCsharpOwnerTypeParameterEnvironment(type.typeArguments.flatMap(argument =>
+      argument.kind === "type-parameter" ? [argument] : []), environment);
+    const closed = new Map(parameters.map(parameter => [parameter.identity, parameter]));
+    return { ...type, typeArguments: Object.freeze(type.typeArguments.map(argument =>
+      argument.kind === "type-parameter" ? closed.get(argument.identity)! : argument)) };
   }
 
   function resolveProjectDeclarationShape(

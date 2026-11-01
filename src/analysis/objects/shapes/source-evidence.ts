@@ -4,7 +4,7 @@ import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-mo
 import type { ExtensionFactSubject, Node, Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { sourceTypeIsAuthoredEmptyObject } from "@tsonic/target-api/source";
-import { classifyCsharpSourceProfileType } from "../../../policy/identities/source-types.js";
+import { classifyCsharpSourceProfileType, csharpSourceTypeIsBroadEmptyObject } from "../../../policy/identities/source-types.js";
 
 export function sourceSubjects(
   node: Node,
@@ -48,6 +48,7 @@ export function typeIsExcludedFromObjectShape(
   const profile = classifyCsharpSourceProfileType(type, queries, host.ast);
   return queries.types.isAny(type) ||
     queries.types.isUnknown(type) ||
+    csharpSourceTypeIsBroadEmptyObject(type, queries, host.ast) ||
     queries.types.isNever(type) ||
     queries.types.isVoidLike(type) ||
     queries.types.isNullish(type) ||

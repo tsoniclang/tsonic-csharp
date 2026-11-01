@@ -41,17 +41,6 @@ export function analyzeCsharpCallOperation(
     shape.kind,
     expression?.QuestionDotToken !== undefined,
   ));
-  if (jsValue.kind === "resolved" && source?.sourceSelectedSignatureKind === "untyped" &&
-      policy.sourceStorage !== undefined) {
-    const subject = policy.sourceStorage.subjectFor(source.sourceCallee.expression);
-    const origins = subject.kind === "resolved" ? policy.sourceStorage.originSubjectsFor(subject.subject) : undefined;
-    if (origins?.kind === "resolved" && origins.subjects.some(origin => origin.kind === "value" &&
-        origin.projection.length === 0 && policy.navigation.isProjectDeclaration(origin.node) &&
-        ast.is.IsMethodDeclaration(origin.node) && ast.body(origin.node) !== undefined)) {
-      issues?.push({ node, code: "CSHARP_NATIVE_PARTICIPATION_NOT_CLOSED",
-        message: "A symbolic callable invocation has no selected implementation execution." });
-    }
-  }
   const typeTest = selectCsharpArrayTypeTest(policy, source, sourceFile);
   const form = selectCsharpCallForm(typeTest, selectCsharpSourceFlowCall(policy, node), jsValue);
   const selectedTarget = jsValue.kind === "not-js-value" && typeTest === undefined

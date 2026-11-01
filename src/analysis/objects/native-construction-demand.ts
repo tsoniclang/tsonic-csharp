@@ -1,6 +1,6 @@
 import { providerVirtualDeclarationFactKey, type Node, type SourceFile, type Type } from "@tsonic/tsts";
 import { sourceDeclarationIsModuleScoped, sourceEnclosingCallable,
-  sourceExpressionCallArgument, sourceCallArgumentCorrespondences,
+  sourceExpressionCallArgument, sourceCallArgumentCorrespondences, Node_Initializer, sourceTransparentExpressionOperand,
   type SourceTypeComponentEvidence } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
@@ -17,6 +17,9 @@ import type { CsharpObjectLiteralTargetShapeResolution } from "../../target-mode
 import { createCsharpNativeConstructionRecords } from "../program/records/native/native-construction.js";
 import type { CsharpTargetCallSelection } from "../../target-model/records/operations/member-selections.js";
 import type { CsharpTypeQueries } from "../../policy/model/type-resolution.js";
+import { csharpSourceTypeParameter } from "../../source/extension/type-parameters.js";
+import { csharpSourceTypeIsBroadEmptyObject } from "../../policy/identities/source-types.js";
+import { isCsharpRecordDictionaryTargetType } from "../../target-model/types/carriers/collections.js";
 
 type LiteralContextHost = Pick<CsharpTypePolicyBaseHost, "ast" | "navigation" | "semanticsFor">;
 
@@ -65,26 +68,23 @@ export function selectCsharpLiteralDeclarationContext(
     const rows = call === undefined ? undefined : sourceCallArgumentCorrespondences({ ast, semantics }, call);
     const selected = rows?.filter(row => row.argument.expression === ast.arguments(argument.call)[argument.argumentIndex] &&
       row.binding.sourceForm === "value");
-    if (call === undefined || selected?.length !== 1) {
-      unclassified.add(node);
-      return false;
-    }
-    const row = selected[0]!;
-    const formal = row.binding.selectedParameterType;
-    const component = returnedFrom === undefined
-      ? { selectedType: formal, declaration: row.parameter.parameterDeclaration,
-          authoredTypeNode: row.parameter.authoredTypeNode, contextualCall: call }
-      : (() => {
-          const signature = semantics.types.callable(formal);
-          return signature === undefined ? undefined : { ...signature.result, contextualCall: call };
-        })();
+    const row = selected?.length === 1 ? selected[0] : undefined;
+    const contextual = host.semanticsFor(node).types.contextualValueSelection(node);
+    const input: SourceTypeComponentEvidence | undefined = contextual.kind === "selected" ? contextual.component : row === undefined ? undefined
+      : { selectedType: row.binding.selectedParameterType, contextualCall: call };
+    const component = returnedFrom === undefined || input === undefined ? input : (() => {
+      const signature = semantics.types.callable(input.selectedType);
+      return signature === undefined ? undefined : { ...signature.result,
+        ...(input.contextualCall === undefined ? {} : { contextualCall: input.contextualCall }) };
+    })();
     if (component === undefined) {
       unclassified.add(node);
       return false;
     }
-    requirements.push({ component, source: node, binding: row.binding, ...(returnedFrom === undefined ? {} : { returnedFrom }),
-      ...(node === expression && row.parameter.authoredTypeNode !== undefined
-        ? { sourceAnnotation: row.parameter.authoredTypeNode } : {}) });
+    requirements.push({ component, source: node, ...(row === undefined ? {} : { binding: row.binding }),
+      ...(returnedFrom === undefined ? {} : { returnedFrom }),
+      ...(node === expression && component.authoredTypeNode !== undefined
+        ? { sourceAnnotation: component.authoredTypeNode } : {}) });
     return true;
   };
   const addReturn = (node: Node, callable: Node): boolean => {
@@ -234,7 +234,7 @@ interface CsharpNativeConstructionHost extends Pick<CsharpTypePolicyBaseHost,
   scopedTargetType(node: Node): TargetTypeRef | undefined;
   isCompileTimeMetadata(node: Node): boolean;
   selectTargetCall(node: Node, sourceFile: SourceFile): CsharpTargetCallSelection;
-  readonly types: Pick<CsharpTypeQueries, "resolveSourceCallArgumentParameter">;
+  readonly types: Pick<CsharpTypeQueries, "resolveSourceCallArgumentParameter" | "resolveSelectedType">;
 }
 
 function literalTypeHint(node: Node, host: Pick<CsharpTypePolicyBaseHost, "ast">): string {
@@ -289,13 +289,39 @@ export function createCsharpNativeConstructionDemandQuery(
     const targetType = source !== members[0] ? csharpNullableTargetType(retained.targetType) : retained.targetType;
     constructions.set(node, Object.freeze({ targetType, shape: retained }));
   };
+  const dependentAliases = (context: CsharpLiteralContext, seeds: readonly Node[]): ReadonlySet<Node> => {
+    const blocked = new Set(seeds);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const declaration of context.declarations) {
+        if (blocked.has(declaration)) continue;
+        let initializer = Node_Initializer(host.ast, declaration);
+        const seen = new Set<Node>();
+        while (initializer !== undefined && !seen.has(initializer)) {
+          seen.add(initializer);
+          const operand = sourceTransparentExpressionOperand(host.ast, initializer);
+          if (operand === undefined) break;
+          initializer = operand;
+        }
+        const origin = initializer === undefined ? undefined : host.navigation.referenceFor(initializer)?.declaration;
+        if (origin !== undefined && blocked.has(origin)) {
+          blocked.add(declaration);
+          changed = true;
+        }
+      }
+    }
+    return blocked;
+  };
   const publishAliases = (literal: Node, context: CsharpLiteralContext, shape: CsharpObjectShapeFact, nominal: boolean): void => {
-    for (const declaration of context.declarations) {
+    const blocked = dependentAliases(context, context.declarations.filter(declaration => {
+      if (nominal || host.ast.typeNode(declaration) === undefined) return false;
       const summary = host.navigation.declarationUseSummary(declaration);
-      if (!nominal && host.ast.typeNode(declaration) !== undefined &&
-          (summary.aliasedOrStored || summary.exported || summary.identityCompared)) continue;
-      if (!nominal && host.ast.typeNode(declaration) !== undefined &&
-          host.ast.as.AsVariableDeclaration(declaration)?.Initializer !== literal) continue;
+      return summary.aliasedOrStored || summary.exported || summary.identityCompared ||
+        host.ast.as.AsVariableDeclaration(declaration)?.Initializer !== literal;
+    }));
+    for (const declaration of context.declarations) {
+      if (blocked.has(declaration)) continue;
       publish(declaration, shape);
       for (const reference of host.navigation.referencesToDeclaration(declaration)) publish(reference, shape);
     }
@@ -315,7 +341,12 @@ export function createCsharpNativeConstructionDemandQuery(
         return declaration !== undefined && declarations.includes(declaration) ? [index] : [];
       })]);
       const independent = host.types.resolveSourceCallArgumentParameter(call, row.binding, semantics.sourceFile, excluded);
-      if (independent?.kind === "type-parameter") return true;
+      if (independent?.kind === "type-parameter" && call.sourceSelectedMethodTypeArguments?.some(selected => {
+        if (selected.explicitTypeNode !== undefined) return false;
+        const symbol = semantics.declarations.typeSymbol(selected.typeParameter);
+        return symbol !== undefined && semantics.declarations.symbolDeclarations(symbol).some(declaration =>
+          declaration !== undefined && csharpSourceTypeParameter(declaration, host.ast)?.identity === independent.identity);
+      }) === true) return true;
     }
     const selected = host.selectTargetCall(argument.call, host.semanticsFor(argument.call).sourceFile);
     if (selected.kind !== "resolved") return false;
@@ -348,6 +379,8 @@ export function createCsharpNativeConstructionDemandQuery(
       const present = queries.types.unionOrIntersectionTypes(selected).filter(type => !queries.types.isNullish(type));
       return present.length === 1 ? present[0] : selected;
     };
+    const broadType = (type: Type): boolean => queries.types.isUnknown(type) || queries.types.isAny(type) ||
+      queries.types.isNonPrimitive(type) || csharpSourceTypeIsBroadEmptyObject(type, queries, host.ast);
     if (ownRequirements.some(requirement => {
       const selected = selectedType(requirement);
       return selected !== undefined && queries.types.isAny(selected);
@@ -355,25 +388,38 @@ export function createCsharpNativeConstructionDemandQuery(
       issue(node, "TSONIC_ANY_UNSUPPORTED", "'any' has no native representation. Declare the type, or use 'unknown' and narrow it.");
       return;
     }
-    const requirements = context.requirements.filter(requirement => !selectedCallUsesValue(requirement, context.declarations));
+    const opaqueBindings = dependentAliases(context, context.declarations.filter(declaration => {
+      const annotation = host.ast.typeNode(declaration);
+      const selected = annotation === undefined ? undefined : host.semanticsFor(declaration).types.authoredType(annotation);
+      return selected !== undefined && broadType(selected);
+    }));
+    const requirements = context.requirements.filter(requirement => {
+      if (selectedCallUsesValue(requirement, context.declarations)) return false;
+      const type = selectedType(requirement);
+      const declaration = host.navigation.referenceFor(requirement.source)?.declaration;
+      return type === undefined || broadType(type) || declaration === undefined || !opaqueBindings.has(declaration);
+    });
+    if (ownRequirements.some(requirement => {
+      const selected = selectedType(requirement);
+      return selected !== undefined && isCsharpRecordDictionaryTargetType(host.types.resolveSelectedType(
+        requirement.component.authoredTypeNode, selected, queries.sourceFile));
+    })) return;
     if (requirements.length === 0 && ownDeclaration !== undefined && host.ast.is.IsVariableDeclaration(ownDeclaration) &&
         selectLocalValue(ownDeclaration, source, node)) return;
     const broad = requirements.some(requirement => {
       const selected = selectedType(requirement);
-      return selected !== undefined && (queries.types.isUnknown(selected) || queries.types.isAny(selected) ||
-        queries.types.isNonPrimitive(selected));
+      return selected !== undefined && broadType(selected);
     });
     if (broad && host.ast.properties(node).some(property => property !== undefined &&
         (host.ast.is.IsGetAccessorDeclaration(property) || host.ast.is.IsSetAccessorDeclaration(property) ||
-          host.ast.is.IsSpreadAssignment(property)))) {
+          host.ast.is.IsSpreadAssignment(property) || host.ast.is.IsMethodDeclaration(property)))) {
       issue(node, "CSHARP_UNSUPPORTED_AST",
         "Dynamic object construction supports only named data properties with closed native value carriers.");
       return;
     }
     const candidates = requirements.flatMap(requirement => {
       const selected = selectedType(requirement);
-      if (selected === undefined || queries.types.isUnknown(selected) || queries.types.isAny(selected) ||
-          queries.types.isNonPrimitive(selected)) return [];
+      if (selected === undefined || broadType(selected)) return [];
       const native = queries.facts.typeSubjects(selected).some(subject => {
         const fact = host.sourceFacts?.getFact(subject, providerVirtualDeclarationFactKey);
         if (fact === undefined) return false;
@@ -397,7 +443,7 @@ export function createCsharpNativeConstructionDemandQuery(
         ? getCsharpTaskResultTargetType(returned) : returned;
       const shape = host.resolveShape(selected, queries.sourceFile,
         requirement.returnedFrom !== undefined && host.ast.hasModifierKind(requirement.returnedFrom, "async")
-          ? undefined : requirement.component.authoredTypeNode, carrier);
+          ? undefined : native ? requirement.sourceAnnotation : requirement.component.authoredTypeNode, native ? undefined : carrier);
       return shape === undefined ? [] : [{ requirement, shape, native }];
     });
     const nominal = candidates.filter(candidate => candidate.native);
@@ -452,7 +498,7 @@ export function createCsharpNativeConstructionDemandQuery(
       if (selected === undefined) return false;
       if (requirement.component.declaration !== undefined && context.declarations.includes(requirement.component.declaration))
         return false;
-      if (queries.types.isUnknown(selected) || queries.types.isAny(selected) || queries.types.isNonPrimitive(selected)) return true;
+      if (broadType(selected)) return true;
       return false;
     });
     if (empty && !ownAnnotation && candidates.length === 0 && (opaque || context.untypedReturns.length > 0)) {
@@ -464,10 +510,18 @@ export function createCsharpNativeConstructionDemandQuery(
     const expected = [...new Map((own.length > 0 ? own : structural).map(candidate =>
       [targetTypeRefKey(candidate.shape.targetType), candidate.shape])).values()];
     if (expected.length === 0) {
-      if (requirements.some(requirement => {
+      const unresolved = requirements.find(requirement => {
         const type = selectedType(requirement);
-        return type !== undefined && !queries.types.isUnknown(type) && !queries.types.isAny(type) && !queries.types.isNonPrimitive(type);
-      })) return;
+        return type !== undefined && !broadType(type);
+      });
+      if (unresolved !== undefined) {
+        const type = selectedType(unresolved)!;
+        const symbol = queries.declarations.typeSymbol(type);
+        const name = symbol === undefined ? undefined : queries.declarations.symbolName(symbol);
+        issue(node, "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN",
+          `Native construction has no exact carrier for its checked required type '${name ?? "the selected source contract"}'. ` + literalTypeHint(node, host));
+        return;
+      }
       const checked = host.resolveShape(source, queries.sourceFile, node);
       if (checked !== undefined) expected.push(checked);
     }
@@ -477,6 +531,11 @@ export function createCsharpNativeConstructionDemandQuery(
       return;
     }
     if (resolved?.kind === "resolved") {
+      if (broad && resolved.shape.members.some(member => getCsharpCallableValueSignature(member.type) !== undefined)) {
+        issue(node, "CSHARP_UNSUPPORTED_AST",
+          "Dynamic object construction supports only named data properties with closed native value carriers.");
+        return;
+      }
       publish(node, resolved.shape);
       if (context.unclassified.length > 0) return;
       publishAliases(node, context, resolved.shape, false);

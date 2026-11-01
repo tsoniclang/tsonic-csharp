@@ -179,6 +179,7 @@ test("generic method type arguments come only from shared selected call evidence
   assert.deepEqual([...consumerCounts.entries()].sort(), [
     ["src/analysis/conversions/requirements.ts", 1],
     ["src/analysis/declarations/analyze.ts", 1],
+    ["src/analysis/objects/native-construction-demand.ts", 1],
     ["src/analysis/operations/members/calls/instantiation.ts", 1],
     ["src/analysis/operations/members/calls/type-arguments.ts", 3],
     ["src/analysis/operations/source-profiles/js/regexp-protocol.ts", 1],

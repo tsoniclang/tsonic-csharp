@@ -24,15 +24,12 @@ export function renderObjectShapeMembers(
 ): readonly CsharpTypeMember[] {
   const selected = records.objectMemberDeclarations.get(shape);
   if (selected === undefined) failCsharpPlannerInvariant("An admitted object requires its sealed native member inventory.", shape.methodImplementation?.declaration);
-  const initializations: CsharpStatement[] = selected.flatMap(({ declaration }) => {
-    if (declaration.kind !== "authored") return [];
-    const storage = declaration.value.kind === "fixed" ? declaration.value.stableValue : declaration.value;
-    return storage === undefined ? [] : [{ kind: "ExpressionStatement", expression: {
+  const initializations: CsharpStatement[] = selected.flatMap(({ declaration }) => declaration.kind !== "authored" ||
+    declaration.value.kind === "fixed" ? [] : [{ kind: "ExpressionStatement", expression: {
       kind: "AssignmentExpression", operatorToken: { kind: "EqualsToken" },
-      left: { kind: "IdentifierName", name: storage.valueName },
+      left: { kind: "IdentifierName", name: declaration.value.valueName },
       right: { kind: "IdentifierName", name: declaration.value.kind === "protocol" ? "this" : declaration.bodyName },
-    } }];
-  });
+    } }]);
   return [...selected.flatMap(emission => renderMember(typeParameterNames, shape, emission, records)),
     ...initializations.length === 0 ? [] : [{ kind: "ConstructorDeclaration" as const, name, modifiers: ["public" as const],
       parameters: [], body: { kind: "Block" as const, statements: initializations } }]];
@@ -52,12 +49,7 @@ function renderMember(
   switch (selected.kind) {
     case "authored": {
       const value = selected.value;
-      if (value.kind === "fixed") {
-        const stable = value.stableValue;
-        if (stable === undefined) return [];
-        const type = render(stable.type);
-        return [{ kind: "FieldDeclaration", name: stable.valueName, type, modifiers: ["private", "readonly"] }];
-      }
+      if (value.kind === "fixed") return [];
       const method = renderCsharpStructuralMethod(typeParameterNames, shape, member, records);
       const type = render(value.type);
       const stored: CsharpExpression = { kind: "IdentifierName", name: value.valueName };

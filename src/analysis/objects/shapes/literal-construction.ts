@@ -9,6 +9,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 
 import { csharpSourceMemberKeysEqual } from "../../../target-model/types/source-member-keys.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
+import { namedTargetTypeImplicitlyAccepts } from "../../../policy/conversions/carriers.js";
 
 import { selectCsharpObjectMethodImplementation } from "./method-implementations.js";
 import { selectCsharpMethodValueEnvironment } from "../../../policy/types/objects/method-environments.js";
@@ -26,13 +27,14 @@ export function createCsharpLiteralShapeResolver(
   host: CsharpObjectShapePolicyHost,
   dependencies: {
     readonly resolveNode: CsharpRecursiveObjectShapePolicy["resolveNode"];
+    readonly resolveTarget: CsharpRecursiveObjectShapePolicy["resolveTarget"];
     readonly deriveMembers: ReturnType<typeof createCsharpObjectShapeMemberResolver>["deriveMembers"];
     readonly retainLiteralMemberEvidence: ReturnType<typeof createCsharpObjectShapeMemberResolver>["retainLiteralMemberEvidence"];
     readonly instantiateMemberEvidence: ReturnType<typeof createCsharpObjectShapeMemberResolver>["instantiateMemberEvidence"];
     readonly rememberTargetShape: (shape: CsharpObjectShapeFact) => CsharpObjectShapeFact;
   },
 ): CsharpRecursiveObjectShapePolicy["resolveObjectLiteralTargetShape"] {
-  const { resolveNode, deriveMembers, retainLiteralMemberEvidence, instantiateMemberEvidence, rememberTargetShape } = dependencies;
+  const { resolveNode, resolveTarget, deriveMembers, retainLiteralMemberEvidence, instantiateMemberEvidence, rememberTargetShape } = dependencies;
   const environment = host.typeParameterConstraints;
   function resolveObjectLiteralTargetShape(
     expectedShapes: readonly CsharpObjectShapeFact[],
@@ -51,7 +53,13 @@ export function createCsharpLiteralShapeResolver(
         reason: accessors.reason,
       };
     }
-    const expectedShape = expectedShapes[0];
+    const accepts = (source: CsharpObjectShapeFact, target: CsharpObjectShapeFact): boolean =>
+      namedTargetTypeImplicitlyAccepts({ typeDefinitions: host.typeDefinitions, projectTypes: host.projectTypes(),
+        providers: host.providers, objectShapes: { resolveNode, resolveTarget } },
+      source.targetType, target.targetType, new Set());
+    const requiredShapes = expectedShapes.filter(expected => !expectedShapes.some(other =>
+      other !== expected && accepts(other, expected) && !accepts(expected, other)));
+    const expectedShape = requiredShapes[0];
     if (expectedShape === undefined) {
       if (accessors.kind === "none") {
         return { kind: "not-applicable" };
@@ -73,7 +81,7 @@ export function createCsharpLiteralShapeResolver(
           };
     }
     const contracts = new Map<string, TargetTypeRef>();
-    for (const expected of expectedShapes) {
+    for (const expected of requiredShapes) {
       const selected = expected.targetType.kind === "target-named" &&
         ((expected.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "interface" ||
           (expected.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true)
@@ -88,7 +96,7 @@ export function createCsharpLiteralShapeResolver(
       reason: "Object-literal construction requires exact member correspondence with its declared native contract.",
     };
     const expectedMembers: CsharpObjectShapeMemberFact[] = [];
-    for (const expected of expectedShapes) {
+    for (const expected of requiredShapes) {
       const selected = instantiateMemberEvidence(expected.members, sourceType, queries, expected.sourceType);
       if (selected === undefined) return { kind: "rejected", subject: objectLiteral,
         reason: "Object-literal construction requires exact member correspondence with every declared native contract." };
@@ -117,7 +125,7 @@ export function createCsharpLiteralShapeResolver(
     const copiedMethods = host.ast.properties(objectLiteral).some(property => property !== undefined &&
       host.ast.is.IsSpreadAssignment(property)) && expectedMembers.some(csharpObjectShapeMethodRequiresProtocol);
     const ownsImplementation = expectedShape.methodImplementation?.declaration === objectLiteral;
-    if (expectedShapes.length === 1 && additionalMembers.length === 0 && accessors.kind === "none" &&
+    if (requiredShapes.length === 1 && additionalMembers.length === 0 && accessors.kind === "none" &&
       (implemented === expectedShape.implements || implemented?.length === expectedShape.implements?.length &&
         implemented?.every((type, index) => targetTypeRefEquals(type, expectedShape.implements![index]!))) &&
       (!nativeMethodLiteral || ownsImplementation) && !copiedMethods) {

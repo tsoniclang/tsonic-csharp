@@ -68,7 +68,7 @@ function fixture() {
   const semantics = {
     sourceFile,
     facts: { typeSubjects: type => [canonical(type)] },
-    declarations: { symbolDeclarations: () => [] },
+    declarations: { typeSymbol: type => type.symbol, symbolDeclarations: () => [] },
     types: {
       isUnion: type => type.union !== undefined,
       unionOrIntersectionTypes: type => type.union,
@@ -110,6 +110,7 @@ function fixture() {
         IsSpreadElement: selected => selected?.kind === "spread-element",
         IsGetAccessorDeclaration: selected => selected?.kind === "getter",
         IsSetAccessorDeclaration: selected => selected?.kind === "setter",
+        IsMethodDeclaration: selected => selected?.kind === "method",
         IsIdentifier: selected => selected?.kind === "identifier",
         IsSatisfiesExpression: selected => selected?.kind === "satisfies",
         IsAsExpression: selected => selected?.kind === "assertion",
@@ -146,6 +147,10 @@ function fixture() {
     },
     navigation: {
       isProjectDeclaration: selected => !foreign.has(selected),
+      referenceFor: selected => {
+        for (const [declaration, uses] of references) if (uses.includes(selected)) return { declaration };
+        return undefined;
+      },
       referencesToDeclaration: selected => references.get(selected) ?? [],
       expressionValueFlow: selected => ({
         aliasDeclarations: selected.parent?.kind === "variable" ? [selected.parent] : [],
@@ -170,7 +175,10 @@ function fixture() {
     },
     selectTargetCall: () => { throw new Error("this fixture has no call argument uses"); },
     isCompileTimeMetadata: () => false,
-    types: { resolveSourceCallArgumentParameter: () => { throw new Error("this fixture has no call argument uses"); } },
+    types: {
+      resolveSourceCallArgumentParameter: () => { throw new Error("this fixture has no call argument uses"); },
+      resolveSelectedType: (_node, type) => rows.get(canonical(type))?.shape.targetType,
+    },
     scopedTargetType: selected => existing.get(selected),
     retainSourceShape: (_node, _type, shape) => shape,
   };
@@ -701,6 +709,7 @@ test("literal construction reads its own checked source type independently of a 
       typeParameterConstraints: () => ({ kind: "resolved", constraints: [] }),
     }, {
       resolveNode: () => selectedShape,
+      resolveTarget: () => selectedShape,
       deriveMembers: value.resolver.deriveMembers,
     retainLiteralMemberEvidence: value.resolver.retainLiteralMemberEvidence,
       instantiateMemberEvidence: value.resolver.instantiateMemberEvidence,
@@ -721,6 +730,7 @@ test("literal construction reads its own checked source type independently of a 
     typeParameterConstraints: () => ({ kind: "resolved", constraints: [] }),
   }, {
     resolveNode: () => other,
+    resolveTarget: () => other,
     deriveMembers: value.resolver.deriveMembers,
     retainLiteralMemberEvidence: value.resolver.retainLiteralMemberEvidence,
     instantiateMemberEvidence: value.resolver.instantiateMemberEvidence,

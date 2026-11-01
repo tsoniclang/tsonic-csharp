@@ -12,7 +12,7 @@ import { csharpBigIntegerTargetType, csharpObjectTargetType, csharpJsStringTarge
 import { csharpJsSymbolTargetType } from "../../../../target-model/types/carriers/js.js";
 import { csharpFixedArrayRepresentationRejection } from "../../../../policy/types/collections/fixed-arrays.js";
 import { readCsharpSourceDefaultValue, readCsharpSourceField, readCsharpSourceFixedArrayType, readCsharpSourceFunctionPointerType, readCsharpSourceJsStringMarker, readCsharpSourcePointerType, isCsharpSourceRawPointer } from "../../../../source/extension/markers.js";
-import { classifyCsharpSourceProfileType } from "../../../../policy/identities/source-types.js";
+import { classifyCsharpSourceProfileType, csharpSourceTypeIsBroadEmptyObject } from "../../../../policy/identities/source-types.js";
 import { csharpTargetTypeFromBinding } from "../../../../policy/types/storage/bindings.js";
 import { readCsharpSourceKeepAlive } from "../../../../source/extension/reachability.js";
 import { csharpNullableReferenceTargetType, isCsharpNullableReferenceTargetType } from "../../../../target-model/types/carriers/nullable.js";
@@ -44,6 +44,7 @@ export function resolveTypeWithState(
   }
   const queries = host.semantics(sourceFile);
   if (queries.types.isNonPrimitive(type)) return csharpObjectTargetType();
+  if (csharpSourceTypeIsBroadEmptyObject(type, queries, host.ast)) return csharpTsValueTargetType();
   const bound = csharpBoundSourceType(type, queries, state);
   if (bound !== undefined) return bound.targetType;
   const conditional = resolveCsharpSemanticConditionalType(scope, type, queries, state);
