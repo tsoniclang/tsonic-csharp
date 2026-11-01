@@ -485,6 +485,7 @@ export function finalizeCsharpNativeEmission(
       shapes: callableAdapters.objectShapes, names, projectTypes, projections: analysis.typeProjections, declarations: analysis.declarations }),
     nativeDeclarations: analyzeCsharpNativeDeclarationForms({ ast: source.ast, nodes: sourceStorage.nodes, projectTypes, required: analysis.requiredRecords }),
     declarationModifiers: analyzeCsharpDeclarationModifiers({ ast: source.ast, navigation: source.navigation, nodes: sourceStorage.nodes,
+      moduleBindings: moduleInitialization.index.moduleBindingInitialization,
       dispatch: callableAdapters.callableDispatch, helperAccess: captureStorage.helperAccess, required: analysis.requiredRecords, generators: generators.records, factories: classFactories.classFactory }),
     generators: generators.records,
     localBindings: analyzeCsharpLocalBindings({ ast: source.ast, navigation: source.navigation, nodes: sourceStorage.nodes,

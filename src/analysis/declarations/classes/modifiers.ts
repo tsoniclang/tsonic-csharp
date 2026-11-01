@@ -8,12 +8,13 @@ import { createCsharpDeclarationModifierRecords } from "../../program/records/pr
 import { requireCsharpRecord, type CsharpRequiredRecord } from "../../program/records/objects/required-records.js";
 import type { CsharpGeneratorRecords } from "../../../target-model/records/callables/generators.js";
 import type { CsharpClassFactoryIndex } from "../../../target-model/records/objects/class-factories.js";
-import { csharpModuleCallableInitializer } from "../../../target-model/syntax/module-callables.js";
+import type { CsharpModuleInitializationIndex } from "../../../target-model/records/program/module-initialization.js";
 
 export function analyzeCsharpDeclarationModifiers(input: {
   readonly ast: AstReader;
   readonly navigation: Pick<TargetSourceProgram["navigation"], "moduleExports">;
   readonly nodes: readonly Node[];
+  readonly moduleBindings: CsharpModuleInitializationIndex["moduleBindingInitialization"];
   readonly dispatch: CsharpProjectCallableAdapters["callableDispatch"];
   readonly helperAccess: CsharpCaptureStorage["helperAccess"];
   readonly required: CsharpRequiredRecord[];
@@ -22,15 +23,14 @@ export function analyzeCsharpDeclarationModifiers(input: {
 }) {
   const values = new Map<Node, CsharpMemberModifierSelection>();
   for (const node of input.nodes) {
-    const moduleCallable = csharpModuleCallableInitializer(input.ast, node);
-    if (moduleCallable !== undefined) {
+    if (input.moduleBindings.get(node) !== undefined) {
       const file = input.ast.getSourceFile(node);
       const exported = file !== undefined && input.navigation.moduleExports(file).some(selected => selected.declaration === node);
       const member: readonly CsharpMemberModifier[] = Object.freeze([exported ? "public" : "internal", "static"]);
       values.set(node, Object.freeze({ member, implementation: member, abstract: false, erased: false,
         method: Object.freeze([]), property: undefined }));
       requireCsharpRecord(input.required, { family: "memberModifiers", subject: node,
-        construct: "module callable", producer: "analyzeCsharpDeclarationModifiers" });
+        construct: "module binding", producer: "analyzeCsharpDeclarationModifiers" });
       continue;
     }
     const kind = input.ast.kindName(node);

@@ -15,6 +15,7 @@ import { planCsharpJsValueBox } from "./js-value-operations.js";
 import { planCsharpUnionPattern } from "./union-patterns.js";
 import { renderCsharpClosedShapeConversion } from "../objects/closed-object-shapes.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
+import { planCsharpPlannedDiscard } from "../statements/statement-output.js";
 
 export function planCsharpPropertyValueProjection(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[], targetType: TargetTypeRef, planExpression: ExpressionPlanner,
@@ -28,6 +29,14 @@ export function planCsharpPropertyValueProjection(node: Node, sourceFile: Source
   const sourceType = use.completion.type;
   const selected = input.program.records.propertyValueProjection.get(node, sourceType);
   if (selected === undefined) failCsharpPlannerInvariant("An admitted property projection requires its exact native representation.", node);
+  if (selected.kind === "absence") {
+    const planned = planExpression(node, sourceFile, input, diagnostics, state);
+    if (planned === undefined || planned.completion.kind === "never") return planned;
+    if (planned.completion.kind !== "value") return undefined;
+    const type = csharpTypeFromTargetTypeRef(csharpTsValueTargetType(), input.scope.typeParameterNames)
+      ?? failCsharpPlannerInvariant("An admitted property projection requires its native closed result type.", node);
+    return csharpPlannedValue(targetType, { kind: "DefaultExpression", type }, planCsharpPlannedDiscard(planned));
+  }
   if (selected.kind === "object" && selected.literal !== undefined) {
     const prelude: CsharpStatement[] = [];
     const values = new Map<CsharpClosedShapeMemberProjection, CsharpExpression>();
@@ -68,8 +77,7 @@ function renderCsharpPropertyValueProjection(node: Node, sourceFile: SourceFile,
   if (selected.kind === "identity") return expression;
   const resultSyntax = csharpTypeFromTargetTypeRef(csharpTsValueTargetType(), input.scope.typeParameterNames)
     ?? failCsharpPlannerInvariant("An admitted property projection requires its native closed result type.", node);
-  if (selected.kind === "absence") return { kind: "SwitchExpression", expression,
-    arms: [{ pattern: { kind: "DiscardPattern" }, expression: { kind: "DefaultExpression", type: resultSyntax } }] };
+  if (selected.kind === "absence") return { kind: "DefaultExpression", type: resultSyntax };
   if (selected.kind === "optional") {
     const present = csharpTypeFromTargetTypeRef(selected.present, input.scope.typeParameterNames)
       ?? failCsharpPlannerInvariant("An admitted optional property projection requires its native payload type.", node);
