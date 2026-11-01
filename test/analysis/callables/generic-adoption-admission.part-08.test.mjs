@@ -102,7 +102,7 @@ test("C# official native constructor inverse: " + name, { timeout: 300_000 }, ()
 }
 
 for (const [name, declarations, invoked] of Array.from(cases).slice(0, 19)) {
-test(`C# generic adoption refuses the actual Promise-valued ${name} site before sealing`, { timeout: 300_000 }, () => {
+test(`C# generic adoption accepts the actual Promise-valued ${name} site before sealing`, { timeout: 300_000 }, () => {
     const execution = genericAdoptionExecution(name, invoked);
     const sourceText = `${declarations}
       export function reject(promised: Promise<number>): void { void ${invoked}(promised); }`;
@@ -147,7 +147,7 @@ test("C# generic class adoption is refused at the checked constructor", { timeou
   executePromiseAdoption(compiled, "promise-generic-constructor", "5");
 });
 
-test("C# refuses a known Promise wrapper with a still-free inner payload before physical analysis", { timeout: 300_000 }, () => {
+test("C# preserves a known Promise wrapper with a still-free inner payload in native execution", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText: `${identity}
     function wrap<Value>(value: Value) { return identity(Promise.resolve(value)); }
     export function run(): void { void wrap(7); }` + "\nrun(); console.log(await wrap(7));" });
@@ -165,7 +165,7 @@ for (const [name, extra, receiver, unsupportedHeritage] of Array.from([
   ["wrapped-inherited", "class Derived<Part> extends Holder<Promise<Part>> {}", "Derived<number>"],
   ["conditional-inherited", "class Derived<Part> extends Holder<Part extends number ? number : Promise<number>> {}", "Derived<string>", "Holder<Part extends number ? number : Promise<number>>"],
 ]).slice(0, 8)) {
-test(`C# generic adoption refuses the actual ${name} class receiver`, { timeout: 300_000 }, () => {
+test(`C# generic adoption ${unsupportedHeritage === undefined ? "accepts" : "refuses"} the actual ${name} class receiver`, { timeout: 300_000 }, () => {
     const sourceText = `
       class Holder<Value> { constructor(readonly value: Value) {} async get(): Promise<Value> { return this.value; } }
       ${extra} export function reject(holder: ${receiver}) { return holder.get(); }
@@ -260,7 +260,7 @@ test(`C# retains ${recursive ? "recursive" : "direct"} resolver/value correlatio
     assert.equal(output.trim(), "7", "the Promise-valued actual reaches only the ordinary callback");
   });
 
-test(`C# refuses the matching ${recursive ? "recursive" : "direct"} adopting resolver row`, { timeout: 300_000 }, () => {
+test(`C# completes the matching ${recursive ? "recursive" : "direct"} adopting resolver row in native execution`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText: `${helper}
       function wrap<Value>(value: Value): Promise<Value> { return new Promise<Value>(resolve => deliver(resolve, value, 2)); }
       export function reject(promised: Promise<number>): void { void wrap(promised); }` +

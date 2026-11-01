@@ -1,3 +1,4 @@
+import { csharpSourceValueResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
@@ -43,7 +44,7 @@ function fixture() {
         ast: source.ast,
         types: { resolveNode: (node, file) => {
           const type = host.typeResolver.resolveNode(node, file, { depth: 0 });
-          return type === undefined ? undefined : { kind: "resolved", type };
+          return type === undefined ? undefined : { kind: "resolved", sourceResult: csharpSourceValueResult(type) };
         } },
       });
     }),

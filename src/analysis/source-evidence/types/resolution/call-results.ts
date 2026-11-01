@@ -63,7 +63,10 @@ export function refineCsharpSourceValueResult(
   type: TargetTypeRef | undefined,
 ): CsharpSourceCallResult | undefined {
   if (selected === undefined || type === undefined) return undefined;
-  return selected.selectedType === type ? selected : targetTypeRefEquals(selected.selectedType, type)
+  if (selected.selectedType === type) return selected;
+  const original = getCsharpNullableElementTargetType(selected.selectedType) ?? selected.selectedType;
+  const refined = getCsharpNullableElementTargetType(type) ?? type;
+  return targetTypeRefEquals(original, refined)
     ? Object.freeze({ ...selected, selectedType: type }) : csharpSourceValueResult(type);
 }
 
@@ -79,7 +82,7 @@ export function completeCsharpSourceDeclarationCallAdoption(
   return completeCsharpSourceCallAdoption(host, selected);
 }
 
-export function completeCsharpSourceCallAdoption(
+function completeCsharpSourceCallAdoption(
   host: { readonly typeDefinitions?: CsharpTypeDefinitions },
   selected: CsharpSourceCallResult | undefined,
 ): CsharpSourceCallResult | undefined {

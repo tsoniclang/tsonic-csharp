@@ -1,3 +1,4 @@
+import { csharpSourceValueResult } from "../../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { selectCsharpJsValueBinaryOperation, selectCsharpJsValueUnaryOperation } from "../../../../dist/analysis/operations/js-values.js";
@@ -5,7 +6,7 @@ import { validateCsharpJsValueOperationSelection } from "../../../../dist/policy
 import { csharpTsValueTargetType } from "../../../../dist/policy/types/index.js";
 
 const carrier = csharpTsValueTargetType();
-const policy = { types: { resolveNode: () => ({ kind: "resolved", type: carrier }), resolveReadStorage: () => undefined } };
+const policy = { types: { resolveNode: () => ({ kind: "resolved", sourceResult: csharpSourceValueResult(carrier) }), resolveReadStorage: () => undefined } };
 
 test("checked binary operator facts select one typed entry, not runtime string dispatch", () => {
   for (const [operator, member, result] of [

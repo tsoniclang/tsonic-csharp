@@ -31,7 +31,7 @@ export function resolveNode(
   const selected = resolveNodeValueWithState(node, sourceFile, { depth: 0, rejectNativeResolution: rejection => {
     rejected ??= rejection;
   } });
-  return rejected ?? (selected === undefined ? undefined : Object.freeze({ kind: "resolved", type: selected.selectedType, sourceResult: selected }));
+  return rejected ?? (selected === undefined ? undefined : Object.freeze({ kind: "resolved", sourceResult: selected }));
 }
 
 export function resolveType(
@@ -57,7 +57,7 @@ export function resolveStorage(
   const declaration = sourceValueDeclaration(node, reference?.declaration);
   if (declaration === undefined) {
     const selected = resolveNode(node, sourceFile);
-    return selected?.kind === "resolved" ? selected.type : undefined;
+    return selected?.kind === "resolved" ? selected.sourceResult.selectedType : undefined;
   }
   const catchCarrier = catchVariableStorageCarrier(declaration);
   if (catchCarrier !== undefined) {
@@ -71,7 +71,7 @@ export function resolveStorage(
     declaration,
     host.ast.getSourceFile(declaration) ?? sourceFile,
   );
-  return selected?.kind === "resolved" ? selected.type : undefined;
+  return selected?.kind === "resolved" ? selected.sourceResult.selectedType : undefined;
 }
 
 export function resolveReadStorage(
@@ -129,7 +129,7 @@ export function resolveValue(
   sourceFile: SourceFile,
 ): TargetTypeRef | undefined {
   const selected = resolveNode(node, sourceFile);
-  return selected?.kind === "rejected" ? undefined : selected?.type ?? resolveType(type, sourceFile);
+  return selected?.kind === "rejected" ? undefined : selected?.sourceResult.selectedType ?? resolveType(type, sourceFile);
 }
 
 export function resolveSelectedValue(

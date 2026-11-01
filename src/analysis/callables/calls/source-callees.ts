@@ -67,21 +67,23 @@ export function classifyCsharpSourceCallee(
     if (type === undefined || getCsharpCallableValueSignature(getCsharpNullableElementTargetType(type) ?? type) === undefined) {
       return reject("A source callee requires its exact selected declaration or native callable storage contract.");
     }
-  } else if ((getCsharpNullableElementTargetType(type) === undefined ||
-      source.optionalChain && source.sourceReceiver !== undefined && policy.ast.is.IsCallExpression(source.call) &&
-      policy.ast.as.AsCallExpression(source.call)?.QuestionDotToken === undefined &&
-      policy.ast.is.IsClassDeclaration(policy.ast.parent(declaration)) &&
-      policy.ast.questionToken(declaration) === undefined && policy.ast.questionToken(selected) === undefined) &&
-      (getCsharpMethodValue(type) === undefined ||
-      policy.ast.is.IsClassDeclaration(policy.ast.parent(declaration))) &&
+  } else {
+    const nominalMethod = policy.ast.is.IsClassDeclaration(policy.ast.parent(declaration));
+    const liftedReceiver = source.optionalChain && source.sourceReceiver !== undefined &&
+      policy.ast.is.IsCallExpression(source.call) && policy.ast.as.AsCallExpression(source.call)?.QuestionDotToken === undefined &&
+      nominalMethod && policy.ast.questionToken(declaration) === undefined && policy.ast.questionToken(selected) === undefined;
+    const methodDeclaration = policy.ast.is.IsMethodDeclaration(declaration) || policy.ast.kindName(declaration) === "KindMethodSignature";
+    const selectedMethod = policy.ast.is.IsMethodDeclaration(selected) || policy.ast.kindName(selected) === "KindMethodSignature";
+    if ((getCsharpNullableElementTargetType(type) === undefined || liftedReceiver) &&
+      (getCsharpMethodValue(type) === undefined || nominalMethod) &&
       (source.sourceCalleeAccess?.kind === "property" || source.sourceCalleeAccess?.kind === "element") &&
-      (policy.ast.is.IsMethodDeclaration(declaration) || policy.ast.kindName(declaration) === "KindMethodSignature") &&
-      (policy.ast.is.IsMethodDeclaration(selected) || policy.ast.kindName(selected) === "KindMethodSignature")) {
-    const access = source.sourceCalleeAccess;
-    const receiver = policy.types.resolveSelectedValue(access.receiver.expression, access.receiver.type, sourceFile);
-    if (receiver === undefined) return reject("A direct source method requires its exact native receiver contract.");
-    return Object.freeze({ kind: "method", expression: access.expression, declaration: selected,
-      receiver: Object.freeze({ expression: access.receiver.expression, type: receiver }) });
+      methodDeclaration && selectedMethod) {
+      const access = source.sourceCalleeAccess;
+      const receiver = policy.types.resolveSelectedValue(access.receiver.expression, access.receiver.type, sourceFile);
+      if (receiver === undefined) return reject("A direct source method requires its exact native receiver contract.");
+      return Object.freeze({ kind: "method", expression: access.expression, declaration: selected,
+        receiver: Object.freeze({ expression: access.receiver.expression, type: receiver }) });
+    }
   }
   if (type === undefined || getCsharpMethodValue(getCsharpNullableElementTargetType(type) ?? type) === undefined &&
       getCsharpDelegateSignature(getCsharpNullableElementTargetType(type) ?? type) === undefined) {

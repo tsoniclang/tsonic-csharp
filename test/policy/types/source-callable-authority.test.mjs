@@ -1,3 +1,4 @@
+import { csharpSourceValueResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { isSourceOwnedCallableRuntimeCarrierSubject } from "../../../dist/analysis/source-evidence/types/resolution/source-ownership.js";
@@ -16,7 +17,7 @@ function fixture() {
   const signatures = [signature];
   const input = {
     sourceFiles: [file],
-    types: { resolveNode: () => ({ kind: "resolved", type: callable }) },
+    types: { resolveNode: () => ({ kind: "resolved", sourceResult: csharpSourceValueResult(callable) }) },
     navigation: {
       referenceFor: () => ({ declaration, sourceFile: file }),
       isProjectDeclaration: selected => selected.project === true,
@@ -66,7 +67,7 @@ test("foreign, unresolved, mixed and declaration-only signatures do not manufact
     selected => { selected.implementation.file = { declarationFile: true }; selected.input.sourceFiles.push(selected.implementation.file); },
     selected => { selected.implementation.kind = "noncallable"; },
     selected => { selected.signatures.push({ declaration: { kind: "function", file: {}, project: false } }); },
-    selected => { selected.input.types.resolveNode = () => ({ kind: "resolved", type: integer }); },
+    selected => { selected.input.types.resolveNode = () => ({ kind: "resolved", sourceResult: csharpSourceValueResult(integer) }); },
   ]) {
     const selected = fixture();
     mutate(selected);

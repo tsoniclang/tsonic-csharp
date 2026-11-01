@@ -127,10 +127,12 @@ export function analyzeCsharpSourceCallEmission(input: { readonly source: Target
         if (closure.frame.ownership === "activation") {
           const constructor = ast.parent(closure.frame.scope);
           const owner = constructor === undefined ? undefined : ast.parent(constructor);
-          if (owner === undefined || !input.source.navigation.isProjectDeclaration(owner) ||
-              !closure.frame.protocols.some(protocol => protocol.kind === "class" && protocol.declaration === owner) ||
-              getCsharpDelegateSignature(closure.method.type) === undefined) {
-            refuse(node, "A captured native method requires its exact class construction protocol and signature."); continue;
+          const classProtocol = owner !== undefined && input.source.navigation.isProjectDeclaration(owner) &&
+            closure.frame.protocols.some(protocol => protocol.kind === "class" && protocol.declaration === owner);
+          const addressProtocol = closure.frame.protocols.some(protocol => protocol.kind === "address" &&
+            closure.frame.bindings.some(binding => binding.declaration === protocol.declaration));
+          if ((!classProtocol && !addressProtocol) || getCsharpDelegateSignature(closure.method.type) === undefined) {
+            refuse(node, "A captured native method requires its exact class or address activation protocol and signature."); continue;
           }
           methodValue = undefined;
         } else {
@@ -156,5 +158,5 @@ function csharpCallIsConstructorBaseCall(ast: AstReader, call: Node): boolean {
   const statement = ast.parent(call);
   const block = statement === undefined ? undefined : ast.parent(statement);
   const constructor = block === undefined ? undefined : ast.parent(block);
-  return constructor !== undefined && ast.is.IsConstructorDeclaration(constructor) && csharpConstructorBaseCall(ast, constructor) === call;
+  return constructor !== undefined && ast.is.IsConstructorDeclaration(constructor) && csharpConstructorBaseCall(ast, constructor)?.call === call;
 }

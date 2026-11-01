@@ -55,7 +55,7 @@ export function analyzeCsharpNativeDemand(
     const participation = input.participation.get(node);
     if (participation === "body" || participation === "frame-body") nativeBodyRoots.push(node);
     if (ast.is.IsConstructorDeclaration(node)) {
-      const call = csharpConstructorBaseCall(ast, node);
+      const call = csharpConstructorBaseCall(ast, node)?.call;
       if (call !== undefined) baseCalls.set(node, call);
     }
     if (isCsharpUnusedTupleDefault(ast, input.bindingPatterns.bindingPatternProjection, node)) unusedDefaults.add(node);

@@ -49,10 +49,10 @@ export function createCsharpSourceProfileInputs(
     }
     if (carrier !== undefined && isCsharpThrowableType(host, carrier)) throwableCarriers.add(carrier);
     if (!types.has(value.type)) types.set(value.type, host.types.resolveType(value.type, file));
-    if (!nodes.has(value.expression)) nodes.set(value.expression, host.types.resolveNode(value.expression, file)?.type);
+    if (!nodes.has(value.expression)) nodes.set(value.expression, host.types.resolveNode(value.expression, file)?.sourceResult?.selectedType);
     if (host.ast.is.IsSpreadElement(value.expression)) {
       const operand = host.ast.as.AsSpreadElement(value.expression)?.Expression;
-      if (operand !== undefined && !nodes.has(operand)) nodes.set(operand, host.types.resolveNode(operand, file)?.type);
+      if (operand !== undefined && !nodes.has(operand)) nodes.set(operand, host.types.resolveNode(operand, file)?.sourceResult?.selectedType);
     }
     if (requirements.objectShapes === true && !objectShapes.has(value.expression)) objectShapes.set(value.expression,
       host.objectShapes?.resolveNode(value.expression, file) ?? host.objectShapes?.resolveTarget(carrier));

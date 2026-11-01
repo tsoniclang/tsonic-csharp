@@ -1,3 +1,4 @@
+import { csharpSourceValueResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { spawnSync } from "node:child_process";
@@ -96,7 +97,7 @@ function domain(input, carrier, projection, root = "first", selected = "selected
     semantics: file => input.source.semantics.forFile(file),
     types: { resolveNode(selectedNode, file) {
       assert.equal(selectedNode === node && file === input.file, true, "retain original physical owner, never resolve field source type");
-      return { kind: "resolved", type: carrier };
+      return { kind: "resolved", sourceResult: csharpSourceValueResult(carrier) };
     } },
   };
   return { host, expression, origin: origin.subject };

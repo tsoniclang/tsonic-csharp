@@ -5,11 +5,11 @@ import type { CsharpPlanningContext } from "../../context.js";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import { unparenthesizeCsharpCallable } from "./callable-syntax.js";
+import { unparenthesizeCsharpExpression } from "./callable-syntax.js";
 
 export function applyCalleeTypeArguments(typeParameterNames: ReadonlyMap<string, string> | undefined, callee: CsharpExpression,
   typeArguments: readonly TargetTypeRef[], node: Node, diagnostics: TargetDiagnostic[]): CsharpExpression {
-  callee = unparenthesizeCsharpCallable(callee);
+  callee = unparenthesizeCsharpExpression(callee);
   const rendered = renderCsharpTargetTypeArguments(typeParameterNames, typeArguments, node, diagnostics);
   if (rendered.length === 0) return callee;
   switch (callee.kind) {

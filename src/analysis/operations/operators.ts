@@ -102,8 +102,8 @@ export function selectCsharpDestructuringAssignmentOperation(
       "C# destructuring-assignment policy requires an array or object binding pattern.",
     );
   }
-  const sourceType = input.types.resolveNode(syntax.source, sourceFile)?.type;
-  const resultType = input.types.resolveNode(node, sourceFile)?.type;
+  const sourceType = input.types.resolveNode(syntax.source, sourceFile)?.sourceResult?.selectedType;
+  const resultType = input.types.resolveNode(node, sourceFile)?.sourceResult?.selectedType;
   if (
     sourceType === undefined ||
     resultType === undefined ||
@@ -198,8 +198,8 @@ export function selectCsharpUnaryOperation(
   const update = sourceOperator === "++" || sourceOperator === "--";
   const operandType = update
     ? input.types.resolveReadStorage(operand, sourceFile)
-    : input.types.resolveNode(operand, sourceFile)?.type;
-  const resultType = update ? operandType : input.types.resolveNode(node, sourceFile)?.type;
+    : input.types.resolveNode(operand, sourceFile)?.sourceResult?.selectedType;
+  const resultType = update ? operandType : input.types.resolveNode(node, sourceFile)?.sourceResult?.selectedType;
   if (operandType === undefined || resultType === undefined) {
     return rejected(
       "The checked update expression has no closed C# representation for its operand and result.",

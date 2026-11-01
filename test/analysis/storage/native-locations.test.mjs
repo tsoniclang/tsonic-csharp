@@ -1,3 +1,4 @@
+import { csharpSourceValueResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { classifyCsharpNativeLocation } from "../../../dist/analysis/storage/native-locations.js";
@@ -60,7 +61,7 @@ function fixture(kind = "identifier", options = {}) {
     navigation: { referenceFor: node => ({ declaration: node === expression ? declaration : options.receiverStorage?.declaration }),
       isProjectDeclaration: () => false },
     semantics: () => semantics, semanticsFor: () => semantics,
-    types: { resolveNode: node => ({ kind: "resolved", type: node === receiver ? options.receiverType ?? owner : integer }),
+    types: { resolveNode: node => ({ kind: "resolved", sourceResult: csharpSourceValueResult(node === receiver ? options.receiverType ?? owner : integer) }),
       resolveReadStorage: node => node === receiver ? options.receiverType ?? owner : options.storageType ?? integer,
       resolveStorage: () => options.receiverType ?? owner,
       resolveSelectedValue: () => options.receiverType ?? owner, nativeFlowTypes: () => undefined },

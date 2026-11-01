@@ -9,7 +9,7 @@ import type { CsharpPlannedCallable } from "./planned-values.js";
 import type { applyCsharpConversionSelection } from "./conversions.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import { planCsharpVoidReturn } from "../statements/statement-output.js";
+import { consumeCsharpPlannedValue, planCsharpVoidReturn } from "../statements/statement-output.js";
 import { planCsharpExpressionCompletion } from "./planned-value-composition.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 
@@ -99,7 +99,9 @@ function buildAdaptation(node: Node, sourceFile: SourceFile, input: CsharpPlanni
   if (selection.returnConversion.kind === "void-return") {
     const completion = planCsharpExpressionCompletion(node, sourceFile, input, diagnostics, invocation, sourceSignature.returnType);
     if (completion === undefined) return undefined;
-    statements.push(...planCsharpVoidReturn(completion, contract.targetVoid ? "void" : "absence", targetSignature.returnType, input));
+    statements.push(...(contract.targetVoid
+      ? consumeCsharpPlannedValue(completion, expression => [{ kind: "ExpressionStatement", expression }])
+      : planCsharpVoidReturn(completion, "absence", targetSignature.returnType, input)));
   } else {
     const value = convert(node, sourceFile, input, diagnostics, sourceSignature.returnType, targetSignature.returnType, selection.returnConversion,
       invocation, statements, "snapshot");
