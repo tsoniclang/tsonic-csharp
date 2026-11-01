@@ -8,7 +8,9 @@ test("floor policy retains every native integer carrier supplied by exact provid
   for (const name of ["int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64", "int128", "uint128", "native-int", "native-uint", "float32", "float64"]) {
     const carrier = { kind: "source-primitive", name };
     const call = callEvidence({ argumentTypes: [{}], receiver: false });
+    const sourceFile = { kind: "source-file" };
     const fixture = directProviderHost({
+      sourceFile, calls: [[call.evidence.call, call.evidence]],
       nodeTypes: [[call.evidence.sourceArguments[0].expression, carrier]],
       semanticTypes: [[call.evidence.sourceSelectedSignatureParameters[0].selectedType, carrier]],
       signatureDeclarations: [[call.evidence.selectedSignature, call.signatureDeclaration]],
@@ -18,7 +20,8 @@ test("floor policy retains every native integer carrier supplied by exact provid
         memberName: "floor",
         memberKey: { kind: "property-key", name: "floor" },
       }))],
-      ast: { kindName: () => "KindMethodSignature", is: { IsSpreadElement: () => false }, arguments: node => {
+      ast: { getSourceFile: node => node === call.evidence.call ? sourceFile : undefined,
+        kindName: () => "KindMethodSignature", is: { IsSpreadElement: () => false }, arguments: node => {
         assert.equal(node === call.evidence.call, true, "only the original checked floor call owns these arguments");
         return [call.evidence.sourceArguments[0].expression];
       } },
