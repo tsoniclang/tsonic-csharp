@@ -122,7 +122,7 @@ export function resolveCsharpArrayLiteralSelection(
     return carrier === undefined ? unavailable : resolved(carrier, []);
   }
   const numeric = selectCsharpInferredNumericArrayElement(contributions, sourceElement,
-    destination.kind === "resolved" ? destination.carrier : undefined);
+    required);
   if (numeric.kind === "rejected") return numeric;
   const contributionCarriers = numeric.kind === "unavailable" ? numeric.carriers : elements;
   const element = destination.kind === "resolved" ? destination.carrier
