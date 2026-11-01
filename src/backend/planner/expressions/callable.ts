@@ -52,7 +52,7 @@ import type { CsharpPlannedValue } from "./planned-values.js";
 import { csharpPlannedEffect } from "./planned-values.js";
 import { planCsharpExpressionCompletion } from "./planned-value-composition.js";
 import { planCsharpLocalLambdaCreation } from "./lambda-creation.js";
-import { getCsharpLocalBindingName, redirectCsharpParameterStorage } from "../bindings/binding-state.js";
+import { allocateUnusedParameter, getCsharpLocalBindingName, redirectCsharpParameterStorage } from "../bindings/binding-state.js";
 
 export interface LambdaTargetContext {
   readonly carrier: TargetTypeRef;
@@ -439,12 +439,7 @@ export function planLambdaParameters(
     input.program.records.namedSelf.get(owner) === undefined && !hasCsharpGeneratorPlan(owner, input) &&
     input.scope.nativeCallableBody?.declaration !== owner;
   const discardOmitted = inlineOmitted && expectedParameterTypes.length - sourceParameters.length >= 2;
-  let unusedName = "unused";
-  if (inlineOmitted && !discardOmitted) {
-    let suffix = 0;
-    while (state.usedNames.has(unusedName)) unusedName = `unused${++suffix}`;
-    state.usedNames.add(unusedName);
-  }
+  const unusedName = inlineOmitted && !discardOmitted ? allocateUnusedParameter(state) : "unused";
   if (discardOmitted) {
     for (const node of parameterNodes) {
       const name = node === undefined ? undefined : input.program.source.ast.name(node);

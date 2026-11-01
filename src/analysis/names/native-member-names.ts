@@ -1,4 +1,5 @@
 import type { AstReader, Node } from "@tsonic/tsts";
+import { csharpFrameClosureMethodName } from "../../target-model/names/capture-methods.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { AsVariableDeclaration, sourceClassFieldIsTypeOnly, sourceObjectMemberDeclarations,
   sourceDeclarationIsModuleScoped, sourceParameterIsProperty } from "@tsonic/target-api/source";
@@ -460,7 +461,8 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
         if (signature === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
           "An admitted capture method requires its final native callable signature before name sealing.", method.declaration);
         const contract = input.callables.get({ kind: "declaration", declaration: method.declaration });
-        recordHeader(method.methodName, { name: nativeName(method.methodName), kind: "method",
+        const name = csharpFrameClosureMethodName(method);
+        recordHeader(name, { name: nativeName(name), kind: "method",
           genericParameterIds: contract?.nativeSignature.methodTypeParameterIdentities ?? [],
           parameters: getCsharpExpressionTreeDelegateType(method.type) === undefined
             ? signature.parameters.map((type, index) => ({ type, passingMode: signature.parameterPassingModes[index]! })) : [] });

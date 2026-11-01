@@ -30,6 +30,7 @@ export interface CsharpPlanningRepresentationQueries {
 }
 
 export interface CsharpTypePolicyBaseHost {
+  readonly moduleCallables: import("../../../../target-model/records/callables/module-callables.js").CsharpModuleCallableIdentities;
   readonly integerRanges: import("../../../../target-model/records/operations/integer-ranges.js").CsharpIntegerRangeIndex;
   readonly objectMethodSources: CsharpObjectMethodSources;
   readonly literalValues: import("@tsonic/target-api/source").SourceLiteralIndex;

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/index.js";
-import { getCsharpAwaitResultTargetType } from "../../../dist/policy/operations/control-flow/await-completions.js";
+import { selectCsharpAwaitCompletion } from "../../../dist/policy/operations/control-flow/await-completions.js";
 import { csharpAbsenceTargetType, csharpDelegateTargetType, csharpNullableTargetType,
   csharpTaskTargetType, csharpVoidTargetType, csharpSourcePrimitiveTargetType,
   combineCsharpTargetUnionMembers, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
@@ -26,6 +26,6 @@ test("optional Task lifting preserves arity, payload and non-null requirements",
   const adapter = selectCsharpConversion(policy, csharpDelegateTargetType("System.Action", []), csharpDelegateTargetType("System.Func", [], optional), "implicit");
   assert.equal(adapter.kind, "delegate-adapter");
   assert.deepEqual(adapter.returnConversion, { kind: "void-return" });
-  assert.ok(targetTypeRefEquals(getCsharpAwaitResultTargetType(optional), unit));
-  assert.ok(targetTypeRefEquals(getCsharpAwaitResultTargetType(csharpNullableTargetType(csharpTaskTargetType(integer))), csharpNullableTargetType(integer)));
+  assert.ok(targetTypeRefEquals(selectCsharpAwaitCompletion(optional)?.result, unit));
+  assert.ok(targetTypeRefEquals(selectCsharpAwaitCompletion(csharpNullableTargetType(csharpTaskTargetType(integer)))?.result, csharpNullableTargetType(integer)));
 });

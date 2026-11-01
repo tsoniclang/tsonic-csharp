@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { csharpProviderPolicyContributionKind } from "../../../dist/target-model/metadata/provider-metadata.js";
 import { csharpProviderPolicyContribution } from "../../../dist/providers/model/provider-policy-contribution.js";
@@ -11,15 +11,14 @@ test("C404 provider contribution metadata has one canonical target-model owner a
   assert.equal(csharpProviderPolicyContributionKind, "csharp-provider-policy");
   const owner = readFileSync(new URL("../../../src/target-model/metadata/provider-metadata.ts", import.meta.url), "utf8");
   assert.equal(owner.includes("export interface CsharpProviderPolicyContribution"), true);
-  const driver = readFileSync(new URL("../../../src/target-model/types/binary-execution.ts", import.meta.url), "utf8");
+  const driver = readFileSync(new URL("../../../src/target-model/types/model.ts", import.meta.url), "utf8");
   assert.equal(driver.includes("export interface CsharpTargetBinaryExecutionDriver"), true);
   assert.equal(owner.includes("export interface CsharpTargetBinaryExecutionDriver"), false, "provider metadata consumes the native driver fact without redeclaring it");
   assert.equal(owner.includes("CsharpProviderBinaryExecutionDriver"), false, "the superseded driver synonym has no declaration or field use");
   const publicTypes = readFileSync(new URL("../../../src/public/provider.ts", import.meta.url), "utf8");
   assert.equal(publicTypes.includes("CsharpProviderBinaryExecutionDriver"), false, "the superseded driver name is not re-exported");
   assert.equal(publicTypes.includes("CsharpTargetBinaryExecutionDriver"), true, "the canonical driver is publicly exported from its sole owner");
-  const oldTypes = readFileSync(new URL("../../../src/target-model/types/model.ts", import.meta.url), "utf8");
-  assert.equal(oldTypes.includes("export interface CsharpTargetBinaryExecutionDriver"), false);
+  assert.equal(existsSync(new URL("../../../src/target-model/types/binary-execution.ts", import.meta.url)), false, "the coupled model has no parallel driver module");
   const oldContribution = readFileSync(new URL("../../../src/providers/model/provider-policy-contribution.ts", import.meta.url), "utf8");
   assert.equal(oldContribution.includes("export interface CsharpProviderPolicyContribution"), false);
   assert.equal(/export\s+(?:type\s+)?\{[^}]*CsharpProviderPolicyContribution/.test(oldContribution), false);

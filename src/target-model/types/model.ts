@@ -1,6 +1,12 @@
 import type { ArgumentPassingMode, ExtensionFactSubject, Node, ResolvedSourceWellKnownSymbolInfo, SourcePrimitiveKind, Type } from "@tsonic/tsts";
 import type { SourceStructuralMemberPair } from "@tsonic/target-api/source";
-import type { CsharpTargetBinaryExecutionDriver } from "./binary-execution.js";
+
+export interface CsharpTargetBinaryExecutionDriver {
+  readonly id: string;
+  readonly declaringType: TargetTypeRef;
+  readonly runMethodName: string;
+  readonly runWithEntrypointMethodName: string;
+}
 
 export type CsharpTypeofRuntimeKind = "string" | "number" | "boolean" | "bigint" | "symbol" | "object" | "function" | "undefined";
 

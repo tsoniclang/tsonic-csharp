@@ -3,7 +3,7 @@ import type { CsharpProviderTargetRejection } from "../../target-model/identitie
 import type { CsharpProviderTargetRelation } from "../../target-model/identities/provider-relations.js";
 import type { CsharpTargetBindingFact } from "../../target-model/types/model.js";
 import { csharpProviderPolicyContributionKind, type CsharpProviderPolicyContribution } from "../../target-model/metadata/provider-metadata.js";
-import type { CsharpTargetBinaryExecutionDriver } from "../../target-model/types/binary-execution.js";
+import type { CsharpTargetBinaryExecutionDriver } from "../../target-model/types/model.js";
 import { hasExactContributionFields, isContributionRecord, nonEmptyContributionString } from "./contribution-values.js";
 import { snapshotCsharpMetadata } from "../../target-model/metadata/immutable.js";
 

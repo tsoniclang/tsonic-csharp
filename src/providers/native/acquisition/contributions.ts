@@ -8,7 +8,7 @@ import type { DotnetReflectionTypeDataProvider } from "./provider.js";
 import { validateCsharpProviderPolicyContribution } from "../../model/provider-policy-contribution.js";
 import { composeCsharpBinaryExecutionDriver } from "../../../target-model/metadata/binary-execution-drivers.js";
 import type { CsharpProviderPolicyContribution } from "../../../target-model/metadata/provider-metadata.js";
-import type { CsharpTargetBinaryExecutionDriver } from "../../../target-model/types/binary-execution.js";
+import type { CsharpTargetBinaryExecutionDriver } from "../../../target-model/types/model.js";
 import { csharpProviderPolicyContributionKind } from "../../../target-model/metadata/provider-metadata.js";
 import { hasExactContributionFields, isContributionRecord, nonEmptyContributionString } from "../../model/contribution-values.js";
 

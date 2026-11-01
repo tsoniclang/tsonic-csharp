@@ -14,6 +14,7 @@ const delegate = csharpDelegateTargetType("System.Action", []);
 const owner = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "owner", csharpRender: { kind: "name", namespace: [], name: "Owner" } };
 function classify(declaration, selected, access, carrier = delegate, isStatic = false) {
   return classifyCsharpSourceCallee({
+    moduleCallables: Object.freeze({ get: () => undefined }),
     ast: { is: { IsVariableDeclaration: node => node?.kind === "variable",
       IsFunctionDeclaration: node => node?.kind === "function", IsMethodDeclaration: node => node?.kind === "method",
       IsClassDeclaration: node => node?.kind === "class" }, parent: node => node.parent, name: node => node.name,
@@ -35,6 +36,7 @@ test("source direct functions do not become delegate operands", () => {
 
 test("exact direct functions never request a first-class delegate projection", () => {
   const selected = classifyCsharpSourceCallee({
+    moduleCallables: Object.freeze({ get: () => undefined }),
     ast: { is: { IsFunctionDeclaration: node => node === functionDeclaration,
       IsVariableDeclaration: node => node === variableDeclaration } },
     navigation: { sourceReferenceFor: () => ({ declaration: functionDeclaration }),
@@ -99,6 +101,7 @@ test("a checked composite class method selects its closed receiver without acqui
   const right = { ...owner, id: "right", csharpRender: { kind: "name", namespace: [], name: "Right" } };
   const union = csharpRuntimeUnionTargetType([owner, right]);
   const selected = classifyCsharpSourceCallee({
+    moduleCallables: Object.freeze({ get: () => undefined }),
     ast: { is: {}, parent: () => undefined },
     navigation: { sourceReferenceFor: () => undefined },
     projectTypes: { catalog: { definitionForTarget: type => type === owner || type === right ? { kind: "class" } : undefined } },
@@ -117,6 +120,7 @@ test("composite calls do not manufacture class-union evidence for interface, for
   for (const kind of ["interface", "foreign", "scalar"]) {
     const union = csharpRuntimeUnionTargetType([owner, kind === "scalar" ? { kind: "source-primitive", name: "int32" } : right]);
     const selected = classifyCsharpSourceCallee({
+      moduleCallables: Object.freeze({ get: () => undefined }),
       ast: { is: {}, parent: () => undefined },
       navigation: { sourceReferenceFor: () => undefined },
       projectTypes: { catalog: { definitionForTarget: type => type === owner ? { kind: "class" }
@@ -136,6 +140,7 @@ function optionalNominalMethodFixture({ accessKind, ownerKind, memberKind, optio
   const access = { kind: accessKind, expression, receiver: { expression: receiver } };
   const carrier = csharpNullableTargetType(delegate);
   const policy = {
+    moduleCallables: Object.freeze({ get: () => undefined }),
     ast: {
       is: {
         IsFunctionDeclaration: () => false,

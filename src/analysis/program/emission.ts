@@ -207,7 +207,7 @@ export function finalizeCsharpNativeEmission(
       admittedOperations.nativeUnreachable.get(node) === true || nativeParticipation.participation.get(node) === "erased",
     required: analysis.requiredRecords });
   if (generators.issues.length !== 0) return rejectedTargetStage(generators.issues);
-  const callableDeclarations = analyzeCsharpCallableDeclarationEmission({ ast: source.ast, navigation: source.navigation, nodes: sourceStorage.nodes,
+  const callableDeclarations = analyzeCsharpCallableDeclarationEmission({ ast: source.ast, moduleCallables: analysis.policy.moduleCallables, nodes: sourceStorage.nodes,
     admitted: admittedControlNode, declarations: analysis.declarations, generators: generators.records, callables: analysis.callables });
   if (callableDeclarations.issues.length !== 0) return rejectedTargetStage(callableDeclarations.issues);
   const callableParameters = analyzeCsharpCallableParameterEmission({ ast: source.ast, callables: analysis.callables, nodes: sourceStorage.nodes,

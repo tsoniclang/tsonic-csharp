@@ -1,3 +1,4 @@
+import { csharpFrameClosureMethodName } from "../../../target-model/names/capture-methods.js";
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpCaptureFrame } from "../../../target-model/records/callables/capture-storage.js";
@@ -63,6 +64,7 @@ export function renderCsharpCaptureFrameMethods(
   };
   for (const selected of methods) {
     const { method, quotation, signature } = selected;
+    const name = csharpFrameClosureMethodName(method);
     const returnType = csharpTypeFromTargetTypeRef(selected.returnType, input.scope.typeParameterNames);
     const file = input.program.source.ast.getSourceFile(method.declaration);
     if (returnType === undefined || file === undefined) failCsharpPlannerInvariant("An admitted capture method requires its native return syntax and checked source file.", method.declaration);
@@ -72,10 +74,10 @@ export function renderCsharpCaptureFrameMethods(
     } });
     if (selected.form === "declaration") {
       const planned = planSourceFunctionDeclaration(method.declaration, file, context, diagnostics);
-      publish({ ...planned.declaration, kind: "MethodDeclaration", name: method.methodName,
+      publish({ ...planned.declaration, kind: "MethodDeclaration", name: name,
         modifiers: withCsharpSafetyModifiers(planned.async
-          ? ["public", "async", ...planCsharpArtifactMemberHiding(input.program.records.nativeMemberHiding, shape, method.methodName)]
-          : ["public", ...planCsharpArtifactMemberHiding(input.program.records.nativeMemberHiding, shape, method.methodName)],
+          ? ["public", "async", ...planCsharpArtifactMemberHiding(input.program.records.nativeMemberHiding, shape, name)]
+          : ["public", ...planCsharpArtifactMemberHiding(input.program.records.nativeMemberHiding, shape, name)],
           method.declaration, "declaration", context) }, selected);
       continue;
     }
@@ -84,8 +86,8 @@ export function renderCsharpCaptureFrameMethods(
       : planCsharpCapturedFunctionLambdaSyntax(method.declaration, file, context, diagnostics);
     if (lambda === undefined) failCsharpPlannerInvariant("An admitted captured callable requires its native body fragments.", method.declaration);
     if (quotation) {
-      publish({ kind: "MethodDeclaration", name: method.methodName,
-        modifiers: ["public", ...planCsharpArtifactMemberHiding(input.program.records.nativeMemberHiding, shape, method.methodName)], returnType,
+      publish({ kind: "MethodDeclaration", name: name,
+        modifiers: ["public", ...planCsharpArtifactMemberHiding(input.program.records.nativeMemberHiding, shape, name)], returnType,
         parameters: [], body: { kind: "Block", statements: [{ kind: "ReturnStatement", expression: lambda }] },
       }, selected);
       members.push(...context.scope.generatedMethods?.values() ?? []);
@@ -104,9 +106,9 @@ export function renderCsharpCaptureFrameMethods(
           ? { defaultValue: { kind: "DefaultExpression" as const, type } } : {}),
       };
     });
-    publish({ kind: "MethodDeclaration", name: method.methodName,
+    publish({ kind: "MethodDeclaration", name: name,
       modifiers: ["public", ...(lambda.async ? ["async" as const] : []),
-        ...planCsharpArtifactMemberHiding(input.program.records.nativeMemberHiding, shape, method.methodName)], returnType,
+        ...planCsharpArtifactMemberHiding(input.program.records.nativeMemberHiding, shape, name)], returnType,
       typeParameters: planTypeParameters(input.program.source.ast.typeParameters(method.declaration), context, diagnostics),
       parameters,
       body: lambda.body.kind === "Block" ? lambda.body : { kind: "Block", statements: [

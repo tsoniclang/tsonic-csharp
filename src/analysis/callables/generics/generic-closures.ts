@@ -54,7 +54,8 @@ export function selectCsharpGenericFrameClosures(
       group.set(place.declaration, Object.freeze({ type: place.type, initialization: place.initialization }));
       stagedGroups.set(place.scope, group);
     }
-    if (valid) selected.push(Object.freeze({ declaration: node, scope: node, methodName: method.method, type,
+    if (valid) selected.push(Object.freeze({ declaration: node, scope: node,
+      identity: Object.freeze({ kind: "protocol" as const, name: method.method }), type,
       captures: Object.freeze(capture.values.map(place => place.declaration)), receivers: capture.receivers }));
   }
   for (const [scope, bindings] of stagedGroups) groups.set(scope, bindings);

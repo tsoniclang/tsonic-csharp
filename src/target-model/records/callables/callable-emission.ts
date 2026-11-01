@@ -1,9 +1,10 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../types/model.js";
 import type { SourceCallableSourceContract } from "./source-callable-contract.js";
+import type { CsharpCallableSourceIdentity } from "./module-callables.js";
 
 export interface CsharpCallableDeclarationEmission {
-  readonly sourceOwner: Node;
+  readonly sourceIdentity: CsharpCallableSourceIdentity;
   readonly contract: SourceCallableSourceContract;
   readonly async: boolean;
   readonly returnCarrier: TargetTypeRef;

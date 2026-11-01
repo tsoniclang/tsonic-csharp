@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { csharpFrameClosureMethodName } from "../../../dist/target-model/names/capture-methods.js";
 import test from "node:test";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
 import { createTargetSourceProgram, sourceLexicalCaptures } from "@tsonic/target-api/source";
@@ -240,6 +241,10 @@ test("a checked quantified protocol retains its native method and shares its ori
   assert.equal(closure !== undefined && closure.method.type === type, true);
   assert.equal(closure.frame.ownership, "value");
   assert.equal(closure.method.declaration === owner, true);
+  assert.equal(closure.method.identity.kind, "protocol");
+  assert.equal(closure.method.identity.name, "invoke");
+  assert.equal(Object.isFrozen(closure.method.identity), true);
+  assert.equal(csharpFrameClosureMethodName(closure.method), "invoke");
   const shared = result.capturedBinding.get(input.binding("state"));
   assert.equal(shared !== undefined && closure.frame.parents.some(parent => parent.frame === shared.frame), true);
   assert.equal(result.capturedPlace.get(input.binding("state"))?.declaration === input.binding("state"), true);
@@ -330,6 +335,29 @@ test("constructor method selection reads the final capture type rather than a co
     "constructor selection and publication use the same final type");
   assert.equal(selected.method.captures[0] === input.binding("value"), true);
   assert.equal(selected.frame.methods.length, 1);
+});
+
+test("activation methods seal one stable ordinal identity before native spelling", () => {
+  const input = fixture(`class Base { constructor(read: () => number, change: () => number) { read(); change(); } }
+    export class Derived extends Base {
+      constructor(value: number, read: () => number = () => value, change: () => number = () => ++value) { super(read, change); }
+    }`);
+  const result = input.evaluate();
+  assert.equal(result.issues.length, 0);
+  const read = result.captureClosure.get(input.owner("read"));
+  const change = result.captureClosure.get(input.owner("change"));
+  assert.equal(read !== undefined && change !== undefined, true, "both checked callback owners retain their constructor activation");
+  assert.equal(read.frame === change.frame, true, "one native frame is shared, without another environment");
+  assert.equal(read.method.identity.kind === "activation" && change.method.identity.kind === "activation", true);
+  assert.equal(read.method.identity.index, 0);
+  assert.equal(change.method.identity.index, 1);
+  for (const selected of [read, change]) {
+    assert.equal(selected.frame.methods[selected.method.identity.index] === selected.method, true, "the sealed frame owns the exact stable method identity");
+    assert.equal(Object.isFrozen(selected.method.identity), true);
+    assert.equal(Object.hasOwn(selected.method, "methodName"), false, "analysis does not retain a parallel final spelling");
+    assert.equal(csharpFrameClosureMethodName(selected.method), `invoke${selected.method.identity.index}`);
+    assert.equal(result.captureClosure.get(selected.method.declaration) === selected, true, "references retain the same published closure");
+  }
 });
 
 for (const classification of ["metadata", "erased"]) {

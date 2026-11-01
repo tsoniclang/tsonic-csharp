@@ -96,10 +96,3 @@ export function selectCsharpSourceCallAwaitCompletion(
     adoption: Object.freeze({ native, continuation }),
   });
 }
-
-export function getCsharpAwaitResultTargetType(
-  type: TargetTypeRef | undefined,
-  definitions?: CsharpTypeDefinitions,
-): TargetTypeRef | undefined {
-  return selectCsharpAwaitCompletion(type, definitions)?.result;
-}

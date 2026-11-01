@@ -26,9 +26,9 @@ import type { CsharpTargetOperationClassifications } from "../../target-model/re
 import type { CsharpModuleInitializationAnalysis, CsharpModuleInitializationIssue } from "../../target-model/records/program/module-initialization.js";
 
 import { createCsharpModuleInitializationProducer } from "../program/records/program/module-initialization.js";
-import { csharpModuleCallableInitializer } from "../../target-model/syntax/module-callables.js";
 
 interface CsharpModuleInitializationAnalysisInput {
+  readonly moduleCallables: import("../../target-model/records/callables/module-callables.js").CsharpModuleCallableIdentities;
   readonly sourceEvidence: import("../../target-model/records/program/source-evidence.js").CsharpSourceEvidenceIndex;
   readonly source: TargetSourceProgram;
   readonly sourceFiles: readonly SourceFile[];
@@ -57,7 +57,7 @@ export function analyzeCsharpModuleInitialization(
         if (declaration === undefined || !input.source.ast.is.IsVariableDeclaration(declaration)) continue;
         const variable = AsVariableDeclaration(input.source.ast, declaration);
         const initializer = variable?.Initializer;
-        const callable = csharpModuleCallableInitializer(input.source.ast, declaration);
+        const callable = input.moduleCallables.get(declaration)?.callable;
         producer.binding(declaration, initializer === undefined || callable !== undefined ? "declaration" : "value");
         if (initializer !== undefined && callable === undefined && variable?.name !== undefined) recordPatternBindings(variable.name);
       }
@@ -175,7 +175,7 @@ function variableStatementHasInitializer(
     node !== undefined &&
     input.source.ast.is.IsVariableDeclaration(node) &&
     !input.sourceEvidence.compileTimeMetadata.get(node) &&
-    csharpModuleCallableInitializer(input.source.ast, node) === undefined &&
+    input.moduleCallables.get(node) === undefined &&
     AsVariableDeclaration(input.source.ast, node)?.Initializer !== undefined);
 }
 

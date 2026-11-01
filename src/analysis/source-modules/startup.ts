@@ -4,7 +4,7 @@ import type { CsharpSourceFileRecords } from "../../target-model/records/program
 import type { CsharpModuleInitializationIndex } from "../../target-model/records/program/module-initialization.js";
 import type { CsharpSourceModuleConstructionIndex } from "../../target-model/records/program/source-modules.js";
 import type { CsharpStartupEmission } from "../../target-model/records/program/startup.js";
-import type { CsharpTargetBinaryExecutionDriver } from "../../target-model/types/binary-execution.js";
+import type { CsharpTargetBinaryExecutionDriver } from "../../target-model/types/model.js";
 import type { CsharpTargetConfiguration } from "../../target-model/configuration/model.js";
 import { selectCsharpTypeEmission } from "../../policy/types/resolution/type-emission.js";
 import { createCsharpStartupRecords } from "../program/records/program/startup.js";

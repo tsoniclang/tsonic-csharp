@@ -10,7 +10,6 @@ import { analyzeCsharpClassInitialization } from "../project-types/class-initial
 
 import type { CsharpRequiredRecord } from "./records/objects/required-records.js";
 import { sourceDeclarationHasOnlyTypeUses, sourceDeclarationIsModuleScoped, sourceCallableValueExpression } from "@tsonic/target-api/source";
-import { csharpModuleCallableInitializer, csharpModuleCallableSource } from "../../target-model/syntax/module-callables.js";
 import { analyzeCsharpExactLiteralSelections } from "../conversions/literal-plans.js";
 
 import { analyzeCsharpTypeProjections, csharpTypeProjectionIndexesEqual } from "../declarations/type-projections.js";
@@ -89,7 +88,7 @@ export function analyzeCsharpRepresentationIteration(
       return previous?.storage.closedNativeContracts.some(contract => targetTypeRefEquals(contract, type)) === true;
     },
     scopedTargetType(node) {
-      const moduleSource = csharpModuleCallableSource(source.ast, source.navigation, node);
+      const moduleSource = typeHost.moduleCallables.get(node);
       if (moduleSource !== undefined) {
         const moduleCallable = moduleSource.callable;
         const moduleOwner = moduleSource.sourceOwner;
@@ -119,6 +118,7 @@ export function analyzeCsharpRepresentationIteration(
     sourceCallable(source, sourceFile, selection) {
       return sourceCallableContract(
         input,
+        typeHost.moduleCallables,
         source,
         sourceFile,
         typeSystem,
@@ -135,6 +135,7 @@ export function analyzeCsharpRepresentationIteration(
     representations,
   );
   const policyContext = createCsharpAnalysisPolicyContext({
+    moduleCallables: typeHost.moduleCallables,
     integerRanges: typeHost.integerRanges,
     literalValues: typeHost.literalValues,
     callOnlyAlias: typeHost.callOnlyAlias,
@@ -351,6 +352,7 @@ export function analyzeCsharpRepresentationIteration(
 
 function sourceCallableContract(
   input: CsharpTargetAnalysisRequest["input"],
+  moduleCallables: import("../../target-model/records/callables/module-callables.js").CsharpModuleCallableIdentities,
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
   typeSystem: CsharpTypeAnalysis | undefined,
@@ -363,7 +365,7 @@ function sourceCallableContract(
   if (selection === "implementation") {
     const reference = input.source.navigation.sourceReferenceFor(source.sourceCallee.expression);
     const declaration = reference?.declaration ?? source.sourceCalleeAccess?.declaration ?? source.sourceCallee.declaration;
-    const initializer = declaration === undefined ? undefined : csharpModuleCallableInitializer(input.source.ast, declaration);
+    const initializer = declaration === undefined ? undefined : moduleCallables.get(declaration)?.callable;
     if (initializer !== undefined) {
       const selected = source.sourceCalleeAccess?.selectedDeclaration ?? source.sourceCallee.selectedDeclaration;
       if (selected === undefined || selected !== declaration && selected !== initializer ||

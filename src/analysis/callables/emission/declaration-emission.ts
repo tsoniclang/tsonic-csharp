@@ -1,5 +1,4 @@
 import type { AstReader, Node } from "@tsonic/tsts";
-import type { SourceProgramNavigation } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpCallableDeclarationEmission } from "../../../target-model/records/callables/callable-emission.js";
@@ -7,11 +6,11 @@ import type { CsharpDeclarationClassifications } from "../../../target-model/rec
 import type { CsharpGeneratorRecords } from "../../../target-model/records/callables/generators.js";
 import { createCsharpCallableDeclarationRecords } from "../../program/records/callables/callable-emission.js";
 import type { CsharpCallableContractIndex } from "../../../target-model/records/callables/callable-values.js";
-import { csharpModuleCallableSource } from "../../../target-model/syntax/module-callables.js";
+import type { CsharpModuleCallableIdentities } from "../../../target-model/records/callables/module-callables.js";
 
 export function analyzeCsharpCallableDeclarationEmission(input: {
   readonly ast: AstReader;
-  readonly navigation: Pick<SourceProgramNavigation, "expressionResultDisposition">;
+  readonly moduleCallables: CsharpModuleCallableIdentities;
   readonly nodes: readonly Node[];
   readonly admitted: (node: Node) => boolean;
   readonly declarations: CsharpDeclarationClassifications;
@@ -35,9 +34,11 @@ export function analyzeCsharpCallableDeclarationEmission(input: {
     const generator = input.generators.generator.get(node) !== undefined;
     const contract = input.callables.get({ kind: "declaration", declaration: node });
     if (contract === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted callable requires its sealed source value vector and native ABI.", node);
-    const sourceOwner = csharpModuleCallableSource(input.ast, input.navigation, node)?.sourceOwner ?? node;
-    values.set(node, Object.freeze({ contract, sourceOwner,
-      async: !generator && input.ast.hasModifierKind(node, "async"), returnCarrier: returned.type, generator }));
+    const sourceIdentity = input.moduleCallables.get(node) ?? Object.freeze({ callable: node, sourceOwner: node });
+    const emission = Object.freeze({ contract, sourceIdentity,
+      async: !generator && input.ast.hasModifierKind(node, "async"), returnCarrier: returned.type, generator });
+    values.set(node, emission);
+    if (sourceIdentity.sourceOwner !== node) values.set(sourceIdentity.sourceOwner, emission);
   }
   return Object.freeze({ records: createCsharpCallableDeclarationRecords(values), issues: Object.freeze(issues) });
 }

@@ -135,7 +135,7 @@ export function analyzeCsharpCaptureStorage(
     const methods = activationMethods.get(scope) ?? [];
     if (methods.some(method => method.declaration === capture.owner)) return;
     activationMethods.set(scope, Object.freeze([...methods, Object.freeze({
-      declaration: capture.owner, scope, methodName: `invoke${methods.length}`,
+      declaration: capture.owner, scope, identity: Object.freeze({ kind: "activation" as const, index: methods.length }),
       type: capture.type, captures: Object.freeze(capture.values.map(place => place.declaration)), receivers: capture.receivers,
     })]));
   };

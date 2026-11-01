@@ -1,7 +1,7 @@
 import type { TargetCompileInput } from "@tsonic/target-api";
 import type { CsharpTargetConfiguration } from "../../target-model/configuration/model.js";
 import type { CsharpProviderRuntimeAcquisition, CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
-import type { CsharpTargetBinaryExecutionDriver } from "../../target-model/types/binary-execution.js";
+import type { CsharpTargetBinaryExecutionDriver } from "../../target-model/types/model.js";
 import type { CsharpProjectClassifications } from "../../target-model/project/plan.js";
 import type { SourceFile } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";

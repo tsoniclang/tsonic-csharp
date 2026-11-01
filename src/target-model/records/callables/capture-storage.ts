@@ -69,7 +69,9 @@ export interface CsharpCaptureStorage {
 export interface CsharpFrameClosure {
   readonly declaration: Node;
   readonly scope: Node;
-  readonly methodName: string;
+  readonly identity:
+    | { readonly kind: "activation"; readonly index: number }
+    | { readonly kind: "protocol"; readonly name: string };
   readonly type: TargetTypeRef;
   readonly captures: readonly Node[];
   readonly receivers: readonly { readonly owner: Node; readonly references: readonly Node[]; readonly type: TargetTypeRef }[];

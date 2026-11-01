@@ -22,7 +22,6 @@ import { resolveCsharpProjectionArguments } from "./projection-arguments.js";
 import { getCsharpClassFactory } from "../../../../target-model/types/carriers/class-factories.js";
 import { csharpSourceTypeParameter } from "../../../../source/extension/type-parameters.js";
 import { bindCsharpSourceDeclarationArguments, bindCsharpSourceTypeArguments } from "./generic-arguments.js";
-import { csharpModuleCallableInitializer } from "../../../../target-model/syntax/module-callables.js";
 import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 
 export function resolveSourceCallInstantiation(
@@ -508,7 +507,7 @@ function sourceCallTypeParameterIdentities(
   if (remap) {
     const reference = host.navigation.sourceReferenceFor(source.sourceCallee.expression);
     const declaration = reference?.declaration ?? source.sourceCalleeAccess?.declaration ?? source.sourceCallee.declaration;
-    const initializer = declaration === undefined ? undefined : csharpModuleCallableInitializer(host.ast, declaration);
+    const initializer = declaration === undefined ? undefined : host.moduleCallables.get(declaration)?.callable;
     const selectedDeclaration = source.sourceCalleeAccess?.selectedDeclaration ?? source.sourceCallee.selectedDeclaration;
     const implementation = initializer === undefined ? host.navigation.callableImplementation(checked) : undefined;
     const matches = initializer === undefined

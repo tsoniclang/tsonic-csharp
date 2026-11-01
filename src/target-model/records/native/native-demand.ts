@@ -22,7 +22,7 @@ export type CsharpNativeUseSlot =
   | { readonly kind: "intrinsic-operand"; readonly operand: "value" | "offset" | "location" | "initial" | "left" | "right" | "argument";
       readonly index?: number };
 
-export interface CsharpNativeUseContext {
+interface CsharpNativeUseContext {
   readonly target?: TargetTypeRef;
   readonly mode?: CsharpConversionMode;
 }

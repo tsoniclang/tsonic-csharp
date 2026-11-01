@@ -15,14 +15,16 @@ import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { planCsharpGeneratorFunction } from "../../statements/generators.js";
 import { withCsharpSafetyModifiers } from "../../safety/explicit-safety.js";
 import { consumeCsharpPlannedValue, planCsharpAbsenceReturn, planCsharpVoidReturn } from "../../statements/statement-output.js";
-import { csharpModuleCallableInitializer } from "../../../../target-model/syntax/module-callables.js";
 import { planExpression } from "../../expressions/index.js";
 
 export function planModuleCallableDeclaration(
   declaration: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
 ): CsharpMethodDeclaration {
-  const initializer = csharpModuleCallableInitializer(input.program.source.ast, declaration);
-  if (initializer === undefined) failCsharpPlannerInvariant("A native module method requires its original const callable declaration.", declaration);
+  const identity = input.program.records.callableDeclaration.get(declaration)?.sourceIdentity;
+  if (identity === undefined || identity.sourceOwner !== declaration || identity.callable === declaration) {
+    failCsharpPlannerInvariant("A native module method requires its original const callable declaration.", declaration);
+  }
+  const initializer = identity.callable;
   const planned = planSourceFunctionDeclaration(initializer, sourceFile, input, diagnostics);
   const modifiers = input.program.records.memberModifiers.get(declaration);
   if (modifiers === undefined) failCsharpPlannerInvariant("A native module method requires its sealed declaration modifiers.", declaration);
@@ -65,7 +67,7 @@ export function planSourceFunctionDeclaration(
   if (declaration === undefined) failCsharpPlannerInvariant("A source method requires its original checked callable definition.", node);
   const emission = input.program.records.callableDeclaration.get(node);
   if (emission === undefined) failCsharpPlannerInvariant("An admitted source function requires its sealed native declaration plan.", node);
-  const owner = emission.sourceOwner;
+  const owner = emission.sourceIdentity.sourceOwner;
   const sourceName = ast.name(owner);
   const name = sourceName === undefined || parent === undefined ? undefined : getCsharpLocalBindingName(sourceName, input, parent);
   const selectedName = name ?? planCsharpAdmittedMemberName(input.program.records, sourceName);

@@ -51,7 +51,7 @@ import { objectShapeStorageMemberName } from "../../../target-model/names/object
 import { selectCsharpCopiedMethodReceiver } from "../copied-methods.js";
 import { createCsharpJsonPayloadFrontier } from "../json-payload-frontier.js";
 
-export interface CsharpNativeArtifactDemandInput extends CsharpObjectShapeDemandHost, CsharpNativeParticipationInput {
+interface CsharpNativeArtifactDemandInput extends CsharpObjectShapeDemandHost, CsharpNativeParticipationInput {
   readonly ast: AstReader;
   readonly sourceFiles: readonly SourceFile[];
   readonly propertyNames: Pick<SourcePropertyNameIndex, "get">;

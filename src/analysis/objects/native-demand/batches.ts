@@ -36,7 +36,7 @@ export interface CsharpObjectShapeDemandHost {
   readonly typeDefinitions?: CsharpTypeDefinitions;
 }
 
-export interface MutableObjectShapeArtifact {
+interface MutableObjectShapeArtifact {
   fact: CsharpObjectShapeFact;
   materialization: "source" | "synthetic";
   readonly capabilities: Set<CsharpObjectShapeCapability>;
@@ -52,13 +52,13 @@ export interface JsonClosureState {
   depth: number;
 }
 
-export interface PreparedObjectShapeBatch {
+interface PreparedObjectShapeBatch {
   readonly shapes: Map<string, CsharpObjectShapeFact>;
   readonly dependencies: Map<string, Set<string>>;
   readonly materializations: Map<string, "source" | "synthetic">;
 }
 
-export interface StagedObjectShapeRecord {
+interface StagedObjectShapeRecord {
   readonly fact: CsharpObjectShapeFact;
   readonly materialization: "source" | "synthetic";
   readonly capabilities: ReadonlySet<CsharpObjectShapeCapability>;

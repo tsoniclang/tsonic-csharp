@@ -9,6 +9,7 @@ import { analyzeCsharpValueDomainCarriers } from "../objects/value-domain-carrie
 import type { CsharpValueDomainCarrierIssue } from "../../target-model/records/types/value-domains.js";
 
 export interface CsharpAnalysisPolicyContextInput {
+  readonly moduleCallables: CsharpPolicyContext["moduleCallables"];
   readonly integerRanges: CsharpPolicyContext["integerRanges"];
   readonly literalValues: CsharpPolicyContext["literalValues"];
   readonly callOnlyAlias: CsharpPolicyContext["callOnlyAlias"];
@@ -34,6 +35,7 @@ export function createCsharpAnalysisPolicyContext(
     types: typeSystem.analysisTypes, objectShapes: typeSystem.objectShapes, semantics: source.semantics.forFile },
     context.sourceStorage.invocations.flatMap(node => source.ast.arguments(node).filter((argument): argument is NonNullable<typeof argument> => argument !== undefined)));
   const policy: CsharpPolicyContext = Object.freeze({
+    moduleCallables: context.moduleCallables,
     integerRanges: context.integerRanges,
     literalValues: context.literalValues,
     callOnlyAlias: context.callOnlyAlias,

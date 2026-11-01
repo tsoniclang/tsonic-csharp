@@ -2,7 +2,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpOperationIssue } from "../../target-model/records/operations/operations.js";
 import type { CsharpTypedLocationOperationSelection } from "../../target-model/records/storage/typed-locations.js";
-import type { CsharpTargetBinaryExecutionDriver } from "../../target-model/types/binary-execution.js";
+import type { CsharpTargetBinaryExecutionDriver } from "../../target-model/types/model.js";
 import type { CsharpOperationProducer } from "../program/records/operations/operations.js";
 import { classifyCsharpJsValueCallShape } from "./js-value-calls.js";
 import { classifyCsharpNativeCallArguments, classifyCsharpSourceCallArguments, classifyCsharpTypedLocationCallArguments } from "./source-call-arguments.js";

@@ -393,6 +393,7 @@ test("callable declaration refusals precede dependent parameter and native ABI r
   const returned = Object.freeze({ kind: "rejected", reason: "one exact conflicting native pointee contract" });
   const unreachable = () => assert.fail("a rejected source declaration cannot require its missing completed native ABI");
   const selected = analyzeCsharpCallableDeclarationEmission({
+    moduleCallables: { get: unreachable },
     ast: { body: node => node === owner ? Object.freeze({}) : undefined,
       is: { IsFunctionDeclaration: node => node === owner, IsFunctionExpression: () => false, IsArrowFunction: () => false,
         IsMethodDeclaration: () => false, IsGetAccessorDeclaration: () => false } },

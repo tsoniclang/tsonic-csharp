@@ -4,7 +4,7 @@ import type { CsharpProviderTargetRejection, CsharpProviderTargetRelation } from
 import type { CsharpTargetBindingFact } from "../types/model.js";
 import type { TargetBindingFact } from "../types/model.js";
 import type { CsharpNativeTargetBindingFact } from "../types/native-inheritance.js";
-import type { CsharpTargetBinaryExecutionDriver } from "../types/binary-execution.js";
+import type { CsharpTargetBinaryExecutionDriver } from "../types/model.js";
 
 export type CsharpProviderBindingResolution =
   | { readonly kind: "resolved"; readonly binding: TargetBindingFact }

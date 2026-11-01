@@ -34,6 +34,7 @@ export function resolveSourceCallContract(
     contract: host.representations.sourceCallable(source, sourceFile, selection) });
   if (host.ast.is.IsNewExpression(source.call) || host.ast.kindName(source.sourceCallee.expression) === "KindSuperKeyword") return direct();
   const callee = classifyCsharpSourceCallee({ ast: host.ast, navigation: host.navigation,
+    moduleCallables: host.moduleCallables,
     projectTypes: host.projectTypes(),
     typeDefinitions: host.typeDefinitions,
     types: { resolveReadStorage, resolveSelectedValue: (expression, type, file) =>

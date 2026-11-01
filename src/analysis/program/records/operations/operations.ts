@@ -4,7 +4,7 @@ import type { CsharpTargetOperationClassifications, CsharpOperationIssue, Csharp
 import type { CsharpMemoryBindingSelection } from "../../../../target-model/records/storage/memory-bindings.js";
 import type { CsharpJsStringConversionSelection } from "../../../../target-model/records/operations/explicit-js-string.js";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
-import type { CsharpTargetBinaryExecutionDriver } from "../../../../target-model/types/binary-execution.js";
+import type { CsharpTargetBinaryExecutionDriver } from "../../../../target-model/types/model.js";
 
 export function createCsharpOperationProducer() {
   let closed = false;

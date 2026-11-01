@@ -1,3 +1,4 @@
+import { csharpFrameClosureMethodName } from "../../../target-model/names/capture-methods.js";
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression, CsharpObjectInitializerAssignment, CsharpStatement } from "../../target-ast/syntax/index.js";
@@ -54,8 +55,9 @@ export function planCsharpFrameClosureReference(
     if (receiver === undefined || csharpTypeFromObjectShapeFact(input, selected.frame.shape, diagnostics, node) === undefined) {
       failCsharpPlannerInvariant("An activation callback requires its exact shared native place.", node);
     }
-    return { expression: { kind: "SimpleMemberAccessExpression", receiver, name: selected.method.methodName },
-      callable: { kind: "captured-method", receiver, name: selected.method.methodName } };
+    const name = csharpFrameClosureMethodName(selected.method);
+    return { expression: { kind: "SimpleMemberAccessExpression", receiver, name },
+      callable: { kind: "captured-method", receiver, name } };
   }
   {
     const retained = input.scope.captureFrames?.get(selected.frame.scope);

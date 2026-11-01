@@ -32,6 +32,7 @@ import { analyzeCsharpPromiseResults } from "../callables/async/promise-results.
 import { analyzeCsharpFlowReadProjections } from "../conversions/flow-read-projections.js";
 
 import { analyzeCsharpNativeValueCarriers, analyzeCsharpObjectMethodSources } from "../objects/value-carriers.js";
+import { analyzeCsharpModuleCallables } from "../callables/module-callables.js";
 
 type CsharpAnalysisRejection = Extract<TargetStageResult<never>, { readonly kind: "rejected" }>;
 
@@ -84,6 +85,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const statementErasure = Object.freeze({ attributeApplications: sourceAttributeApplications, safetyApplications });
   const sourceFiles = Object.freeze([...source.navigation.sourceFiles]);
   const sourceNodes = source.navigation.nodesForFiles(sourceFiles);
+  const moduleCallables = analyzeCsharpModuleCallables(source.ast, sourceNodes);
   const literalValues = analyzeSourceLiteralValues(source.ast, sourceFiles);
   const sourceStorage = createSourceStorageQuery(source, sourceFiles, undefined, createCsharpSourceProfileStorageEffects(source, providers));
   const sourceStorageFailure = sourceStorage.failureReason();
@@ -104,6 +106,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
   });
   const callOnlyAlias = createCsharpSourceProfileCallableAliasQuery(source);
   const typeHost = {
+    moduleCallables,
     integerRanges: createCsharpIntegerRangeIndex(source, sourceNodes),
     enumConstants: source.semantics.enumConstants,
     literalValues,
@@ -249,6 +252,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
   const attributes = analysis.attributes;
   if (attributes.diagnostics.length > 0) return rejectedTargetStage(attributes.diagnostics);
   const moduleInitialization = analyzeCsharpModuleInitialization({
+    moduleCallables,
     sourceEvidence: analysis.sourceEvidence,
     source,
     sourceFiles,

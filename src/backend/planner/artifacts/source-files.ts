@@ -3,7 +3,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { planSourceFile, type PlannedCsharpSourceFile } from "../program/source-file.js";
 import { planCsharpObjectShapeSourceFile } from "../objects/planning.js";
 
-export interface CsharpSourceFilePlan {
+interface CsharpSourceFilePlan {
   readonly sourceFiles: readonly PlannedCsharpSourceFile[];
   readonly objectShapes: ReturnType<typeof planCsharpObjectShapeSourceFile>;
 }

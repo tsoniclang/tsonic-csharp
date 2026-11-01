@@ -240,6 +240,15 @@ export function allocateSyntheticParameter(state: DestructuringPlannerState): st
   return allocateSyntheticName(state, "__tsonic_param", "nextParameterIndex");
 }
 
+export function allocateUnusedParameter(state: DestructuringPlannerState): string {
+  let suffix = 0;
+  return allocateAvailableName(state, () => {
+    const name = suffix === 0 ? "unused" : `unused${suffix}`;
+    suffix += 1;
+    return name;
+  });
+}
+
 export function getCsharpExpressionOverride(
   reference: Node, state: DestructuringPlannerState | undefined,
 ): CsharpExpression | undefined {
@@ -383,9 +392,16 @@ function allocateSyntheticName(
   prefix: string,
   counterName: "nextTempIndex" | "nextParameterIndex" | "nextForOfIndex" | "nextForInIndex" | "nextCatchIndex" | "nextControlLabelIndex" | "nextTypedLocationIdentityIndex",
 ): string {
-  for (;;) {
+  return allocateAvailableName(state, () => {
     const name = `${prefix}${state[counterName]}`;
     state[counterName] += 1;
+    return name;
+  });
+}
+
+function allocateAvailableName(state: DestructuringPlannerState, next: () => string): string {
+  for (;;) {
+    const name = next();
     if (!state.usedNames.has(name)) {
       state.usedNames.add(name);
       return name;

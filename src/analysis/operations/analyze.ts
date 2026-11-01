@@ -26,7 +26,7 @@ export function analyzeCsharpTargetOperations(
 ): CsharpTargetOperationClassifications {
   const producer = createCsharpOperationProducer();
   const classPropertyStorage = classifyCsharpClassPropertyStorage(policy, evidence);
-  const binaryExecutionDrivers: import("../../target-model/types/binary-execution.js").CsharpTargetBinaryExecutionDriver[] = [];
+  const binaryExecutionDrivers: import("../../target-model/types/model.js").CsharpTargetBinaryExecutionDriver[] = [];
   const issues: CsharpOperationIssue[] = [];
   const erasure = createCsharpOperationErasure(policy.ast, erasureIndexes, issues);
   for (const sourceFile of policy.sourceFiles) analyzeCsharpOperationConstruct(sourceFile, sourceFile,
