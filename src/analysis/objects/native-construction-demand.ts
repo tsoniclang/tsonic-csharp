@@ -165,9 +165,12 @@ export function selectCsharpLiteralDeclarationContext(
     if (use.role === "storage" && parent !== undefined && aliases.has(parent) && ast.typeNode(parent) === undefined) continue;
     if (use.role === "return") {
       const callable = sourceEnclosingCallable(reference, ast);
-      const context = callable === undefined ? undefined : returnContext(callable, reference)
-        ?? { component: { selectedType: checked }, source: reference };
-      if (context === undefined) return reject(reference, "has an unresolved return identity use");
+      if (callable === undefined) return reject(reference, "has an unresolved return identity use");
+      const context = returnContext(callable, reference);
+      if (context === undefined) {
+        opaqueUses.push(reference);
+        continue;
+      }
       if (opaqueType(context.component.selectedType, host.semanticsFor(reference))) opaqueUses.push(reference);
       if (!queries.types.isUnknown(context.component.selectedType) && !queries.types.isAny(context.component.selectedType)) identityUses.push(context);
       continue;

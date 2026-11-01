@@ -96,18 +96,11 @@ export function resolveCsharpArrayLiteralSelection(
       { ...context, ...use }, sourceElements.length === 0));
   const selectedDestinations = destinations.flatMap(destination => destination.kind === "resolved" ? [destination.carrier] : []);
   const required = selectedDestinations[0];
-  if (required !== undefined && selectedDestinations.some(destination => !targetTypeRefEquals(required, destination))) {
-    return { kind: "rejected", reason:
-      "This array declaration has conflicting exact identity-use representations. Annotate its const binding with the required native array type." };
-  }
   if ((context?.opaqueUses.length ?? 0) !== 0 && required !== undefined && sourceElement !== undefined &&
     !targetTypeRefEquals(required, sourceElement)) return { kind: "rejected", reason:
       "This array declaration escapes its closed identity-use set and cannot select a narrower native representation. Annotate its const binding with the required native array type." };
-  const requiredElement = context !== undefined && (context.opaqueUses.length !== 0 ||
-    context.identityUses.length !== 0 && destinations.some(destination => destination.kind === "unavailable"))
-    ? sourceElement : required;
-  const destination = requiredElement === undefined ? { kind: "unavailable" as const }
-    : { kind: "resolved" as const, carrier: requiredElement };
+  const destination = required === undefined ? { kind: "unavailable" as const }
+    : { kind: "resolved" as const, carrier: required };
   if (elements.length === 0) {
     if (sourceElements.length === 0 && destination.kind === "unavailable" &&
       context === undefined) {
