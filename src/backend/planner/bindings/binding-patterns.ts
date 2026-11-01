@@ -42,7 +42,7 @@ export function planBindingPatternFromExpression(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
-  planExpression?: ExpressionPlanner,
+  planExpression: ExpressionPlanner,
   retainBinding?: (binding: CsharpEntryBinding, declaration: Node) => void,
 ): readonly CsharpStatement[] {
   const projectionPlanner: BindingProjectionPlanner = (
@@ -81,7 +81,7 @@ function planBindingNameFromProjection(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
-  planExpression?: ExpressionPlanner,
+  planExpression: ExpressionPlanner,
   retainBinding?: (binding: CsharpEntryBinding, declaration: Node) => void,
 ): readonly CsharpStatement[] {
   const binding = input.program.records.bindingPatternProjection.get(projectionNode)?.binding;
