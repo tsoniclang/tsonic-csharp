@@ -211,7 +211,7 @@ export interface CsharpTypeResolutionScope {
   >,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
-  authoredRoot: Node,
+  authoredRoot: Node | undefined,
   selectedType: Type,
 ): TargetTypeRef | undefined;
   resolveSignatureParameterListTarget(

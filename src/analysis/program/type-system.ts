@@ -19,7 +19,8 @@ import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-mo
 import { csharpObjectShapeMemberRetainsNativeReference } from "../../policy/types/objects/member-reads.js";
 import { resolveCsharpObjectShapeMemberReadTargetType } from "../operations/members/object-shape-members.js";
 import { isCsharpJsValueTargetType } from "../../target-model/types/carriers/runtime-carriers.js";
-import type { CsharpPlanningRepresentationQueries, CsharpTypePolicy, CsharpTypePolicyBaseHost } from "../source-evidence/types/resolution/model.js";
+import type { CsharpPlanningRepresentationQueries, CsharpTypePolicy, CsharpTypePolicyBaseHost, CsharpTypePolicyHost } from "../source-evidence/types/resolution/model.js";
+import { selectCsharpTargetCall } from "../operations/members/selected-members.js";
 import { createCsharpTypeResolutionServices } from "../source-evidence/types/resolution/engine.js";
 import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../../target-model/records/types/project-types.js";
 import {
@@ -40,6 +41,7 @@ import { csharpTargetTypeFromBinding } from "../../policy/types/storage/bindings
 import type { CsharpTypeParameterConstraint } from "../../target-model/types/generic-constraints.js";
 
 export interface CsharpTypeSystem {
+  readonly selectTargetCall: CsharpTypePolicyHost["selectTargetCall"];
   readonly typeDefinitions: import("../../target-model/types/source-union-definitions.js").CsharpTypeDefinitions;
   readonly analysisTypes: CsharpTypePolicy;
   readonly objectShapes: CsharpRecursiveObjectShapePolicy;
@@ -57,6 +59,10 @@ function createCsharpTypeSystem(
   const requireProjectTypes = (): CsharpProjectTypePolicy => {
     if (projectTypes === undefined) failTargetAnalysisInvariant("tsonic-csharp", "C# project heritage was requested before the type system was fully initialized.");
     return projectTypes;
+  };
+  const selectTargetCall: CsharpTypePolicyHost["selectTargetCall"] = (call, sourceFile) => {
+    if (objectShapes === undefined) failTargetAnalysisInvariant("tsonic-csharp", "C# target-call selection requires the initialized native object-shape owner.");
+    return selectCsharpTargetCall({ ...host, types, objectShapes, projectTypes: requireProjectTypes() }, call, sourceFile);
   };
   const typeParameterConstraints = createCsharpTypeParameterEnvironment(host.ast, (declaration, parameter, source) => {
     const sourceFile = source?.sourceFile ?? host.ast.getSourceFile(declaration);
@@ -100,6 +106,7 @@ function createCsharpTypeSystem(
     representations: CsharpPlanningRepresentationQueries,
   ) => createCsharpTypeResolutionServices({
       ...host,
+      selectTargetCall,
       typeParameterConstraints,
       representations,
       projectTypeCatalog,
@@ -230,6 +237,7 @@ function createCsharpTypeSystem(
     projectTypeCatalog,
   );
   return Object.freeze({
+    selectTargetCall,
     typeDefinitions: host.typeDefinitions ?? emptyCsharpTypeDefinitions,
     analysisTypes: types,
     objectShapes,
@@ -256,6 +264,7 @@ export function createCsharpTypeAnalysis(
   const system = createCsharpTypeSystem(host, catalog, selectedRepresentations);
   nativeConstruction = createCsharpNativeConstructionDemandQuery({
     ...host,
+    selectTargetCall: system.selectTargetCall,
     scopedTargetType: representations.scopedTargetType,
     resolveShape: system.objectShapes.resolveType,
     resolveLiteralShape: system.objectShapes.resolveObjectLiteralTargetShape,

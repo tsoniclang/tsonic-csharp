@@ -100,7 +100,11 @@ export function resolveCsharpArrayLiteralSelection(
     return { kind: "rejected", reason:
       "This array declaration has conflicting exact identity-use representations. Annotate its const binding with the required native array type." };
   }
-  const requiredElement = context !== undefined && context.identityUses.length !== 0 && destinations.some(destination => destination.kind === "unavailable")
+  if ((context?.opaqueUses.length ?? 0) !== 0 && required !== undefined && sourceElement !== undefined &&
+    !targetTypeRefEquals(required, sourceElement)) return { kind: "rejected", reason:
+      "This array declaration escapes its closed identity-use set and cannot select a narrower native representation. Annotate its const binding with the required native array type." };
+  const requiredElement = context !== undefined && (context.opaqueUses.length !== 0 ||
+    context.identityUses.length !== 0 && destinations.some(destination => destination.kind === "unavailable"))
     ? sourceElement : required;
   const destination = requiredElement === undefined ? { kind: "unavailable" as const }
     : { kind: "resolved" as const, carrier: requiredElement };

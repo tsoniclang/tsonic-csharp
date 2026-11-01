@@ -70,9 +70,9 @@ export function resolveTypeWithState(
     );
   }
   const transformation = queries.types.standardTransformation(undefined, type);
-  if (transformation !== undefined) return transformation.kind === "component"
-    ? scope.resolveSourceTypeComponentEvidence(transformation.component, queries, nextState(state))
-    : undefined;
+  if (transformation !== undefined) return scope.resolveStandardSourceTypeTransformation(
+    transformation, queries, nextState(state), undefined, type,
+  );
   const application = queries.types.aliasApplication(type);
   if (application?.kind === "direct" && sourceTypeSyntaxIsCompositional(host.ast, application.typeNode) &&
     host.navigation.isProjectDeclaration(application.declaration)) {

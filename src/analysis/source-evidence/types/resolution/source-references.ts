@@ -248,7 +248,7 @@ export function resolveStandardSourceTypeTransformation(
   >,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
-  authoredRoot: Node,
+  authoredRoot: Node | undefined,
   selectedType: Type,
 ): TargetTypeRef | undefined {
   if (transformation.kind === "unresolved") {
@@ -260,6 +260,11 @@ export function resolveStandardSourceTypeTransformation(
     return getCsharpNullableElementTargetType(input) ?? input;
   }
   if (transformation.kind === "component") {
+    const members = queries.types.structuralMembers(selectedType, transformation.component.selectedType, "correspondence");
+    if (members.kind === "available" && members.members.some(pair => pair.kind === "present" &&
+      pair.source.property.readonly !== pair.destination.property.readonly)) {
+      return host.structuralTypes.resolveType(selectedType, queries.sourceFile, nextState(state), authoredRoot);
+    }
     return resolveSourceTypeComponentEvidence(
       transformation.component,
       queries,

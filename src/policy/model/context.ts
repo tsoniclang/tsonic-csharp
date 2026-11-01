@@ -18,11 +18,13 @@ import type { CsharpProviderCallSelectionHost } from "./provider-calls.js";
 import type { CsharpObjectShapePolicy } from "../../target-model/records/objects/object-shapes.js";
 import type { CsharpTypeQueries } from "./type-resolution.js";
 import type { CsharpProjectTypePolicy } from "../../target-model/records/types/project-types.js";
+import type { CsharpTargetCallSelection } from "../../target-model/records/operations/member-selections.js";
 import type {
   CsharpSourceIdentityPolicy,
 } from "../../source/extension/identities.js";
 
 export interface CsharpPolicyContext extends CsharpProviderCallSelectionHost {
+  selectTargetCall(call: Node, sourceFile: SourceFile): CsharpTargetCallSelection;
   readonly integerRanges: import("../../target-model/records/operations/integer-ranges.js").CsharpIntegerRangeIndex;
   readonly literalValues: import("@tsonic/target-api/source").SourceLiteralIndex;
   callOnlyAlias(declaration: Node): import("@tsonic/target-api/source").SourceCallOnlyAlias | undefined;

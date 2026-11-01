@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { nativePropertyProjectionSource, nativePropertyProjectionCostSource } from "../../../../tsonic/test/fixtures/native-property-projections.mjs";
+import { nativePropertyProjectionSource, nativePropertyProjectionSourceForEmptyReturn, nativePropertyProjectionCostSource } from "../../../../tsonic/test/fixtures/native-property-projections.mjs";
 import { assertCsharpCheckingSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
@@ -97,7 +97,20 @@ test("own-property admission includes closed covariant native implementations wi
 });
 
 test("native property projections preserve selected generic inherited getters and exact failure identity", { timeout: 300_000 }, () => {
-  const compiled = compileCsharpSource({ surface: "js", sourceText: nativePropertyProjectionSource });
+  const original = compileCsharpSource({ surface: "js", sourceText: nativePropertyProjectionSource });
+  assertCsharpCheckingSucceeded(original);
+  const issues = original.targetDiagnostics.filter(diagnostic => diagnostic.category === "error");
+  assert.equal(issues.length, 1, "only the inferred cross-function empty return is refused");
+  const issue = issues[0];
+  assert.equal(issue.code, "TSONIC_UNTYPED_OBJECT_LITERAL");
+  assert.equal(issue.message, "This object literal has no target type. Declare a return type for 'supplyEmpty' at its declaration.");
+  const range = issue.sourceNode === undefined ? undefined : original.source.ast.authoredRange(issue.sourceNode);
+  const start = nativePropertyProjectionSource.indexOf("{}", nativePropertyProjectionSource.indexOf("function supplyEmpty"));
+  assert.equal(range?.kind === "authored" && range.start === start && range.end === start + 2, true,
+    "the inferred empty return owns its refusal, not the caller or the closed projected local");
+  assert.equal(original.result.program === undefined && original.result.plan === undefined && original.artifacts.size === 0,
+    true, "cross-function empty inference publishes nothing");
+  const compiled = compileCsharpSource({ surface: "js", sourceText: nativePropertyProjectionSourceForEmptyReturn(": object") });
   executeCsharpConstruction(compiled, "property-projections");
 });
 

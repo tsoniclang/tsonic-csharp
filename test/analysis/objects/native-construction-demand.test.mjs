@@ -98,6 +98,7 @@ function fixture() {
     ast: {
       is: {
         IsObjectLiteralExpression: selected => selected?.kind === "literal",
+        IsArrayLiteralExpression: selected => selected?.kind === "array",
         IsVariableDeclaration: selected => selected?.kind === "variable",
         IsVariableDeclarationList: () => false,
         IsVariableStatement: () => false,
@@ -107,9 +108,16 @@ function fixture() {
         IsReturnStatement: () => false,
         IsArrowFunction: () => false,
         IsFunctionExpression: () => false,
+        IsPropertyAssignment: selected => selected?.kind === "property",
+        IsObjectBindingPattern: selected => selected?.kind === "binding-pattern",
+        IsSpreadAssignment: selected => selected?.kind === "spread",
+        IsGetAccessorDeclaration: selected => selected?.kind === "getter",
+        IsSetAccessorDeclaration: selected => selected?.kind === "setter",
+        IsIdentifier: selected => selected?.kind === "identifier",
       },
       as: { AsVariableDeclaration: selected => selected?.kind === "variable" ? selected : undefined },
       parent: selected => selected?.parent,
+      name: selected => selected?.name,
       children: () => [],
       forEachChild: (selected, visit) => { if (selected === sourceFile) nodes.forEach(visit); },
       properties: selected => selected.properties ?? [],
@@ -125,6 +133,7 @@ function fixture() {
         : key === sourcePrimitiveFactKey && explicit.has(value) ? { name: "float64" } : undefined;
     } },
     semanticsFor: () => semantics,
+    selectTargetCall() { throw new Error("This fixture contains no call-expression nodes."); },
     resolveShape: type => {
       const shape = rows.get(canonical(type))?.shape;
       return shape === undefined || canonical(type) === type ? shape : { ...shape, sourceType: type };

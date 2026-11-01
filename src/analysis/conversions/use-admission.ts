@@ -32,7 +32,7 @@ export function sealCsharpConversionUses(
   requiredRecords: CsharpRequiredRecord[],
   preparationIssues: readonly CsharpConversionIssue[],
   callConversions: ReadonlyMap<Node, CsharpCallConversionRequests>,
-  context: Pick<CsharpPolicyContext, "ast" | "navigation" | "semanticsFor"> & {
+  context: Pick<CsharpPolicyContext, "ast" | "navigation" | "semanticsFor" | "selectTargetCall"> & {
     readonly objectShapes: Pick<CsharpPolicyContext["objectShapes"], "resolveTarget">;
   },
 ): {

@@ -168,7 +168,7 @@ test("provider arguments retain an object literal's contextual project interface
   assert.match(shapes, new RegExp(`public class ${selectedCarrier} : ErrorResponse`, "u"));
 });
 
-test("JS structural views retain one closed value carrier through assertions, flow, mutation, identity, and literals", () => {
+test("JS structural views retain one closed value carrier through assertions, flow, mutation, identity, and literals", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({
     surface: "js",
     sourceText: `
@@ -230,7 +230,7 @@ test("JS structural views retain one closed value carrier through assertions, fl
         }
         public static string create()
         {
-            ObjectShape_64173a5b655b<Tsonic.CSharp.Runtime.TsValue> obj = new ObjectShape_b1754c0ee162
+            ObjectShape_b1754c0ee162 obj = new ObjectShape_b1754c0ee162
             {
                 title = Tsonic.CSharp.Js.JSON.parse("\\\"created\\\""),
             };
@@ -249,6 +249,27 @@ if (Index.parse(@"{""title"":""kept""}") != "kept" || Index.parse(@"{""title"":7
     throw new System.Exception("checked JSON field refinement");
 if (Index.update(@"{""title"":""kept""}") != "number" || !Index.identity(@"{""title"":""kept""}"))
     throw new System.Exception("original JSON mutation and alias identity");
+if (Index.create() != "string") throw new System.Exception("the original closed literal retains its JSON field payload");
+for (int iteration = 0; iteration < 10000; iteration++) {
+    Escape.Value = Index.create();
+    Escape.Value = Native.Create();
+}
+long before = System.GC.GetAllocatedBytesForCurrentThread();
+for (int iteration = 0; iteration < 4096; iteration++) Escape.Value = Index.create();
+long actual = System.GC.GetAllocatedBytesForCurrentThread() - before;
+before = System.GC.GetAllocatedBytesForCurrentThread();
+for (int iteration = 0; iteration < 4096; iteration++) Escape.Value = Native.Create();
+long reference = System.GC.GetAllocatedBytesForCurrentThread() - before;
+if (Escape.Value != "string" || actual != reference)
+    throw new System.Exception($"native closed JSON construction allocation {actual} != {reference}");
+static class Escape { public static string? Value; }
+static class Native {
+    public static string Create() {
+        var value = new Closed { title = Tsonic.CSharp.Js.JSON.parse(@"""created""") };
+        return Tsonic.CSharp.Runtime.TsValue.ApplyDynamicTypeof(value.title);
+    }
+    private sealed class Closed { public Tsonic.CSharp.Runtime.TsValue title; }
+}
 `);
 });
 

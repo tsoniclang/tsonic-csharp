@@ -178,7 +178,7 @@ export function analyzeCsharpConversions(
         const selected = classifyPair(source, target, "implicit", expression);
         return selected;
       }, requiredRecords, issues, callConversions, { ast: policy.ast, navigation: policy.navigation,
-        semanticsFor: policy.semanticsFor, objectShapes });
+        semanticsFor: policy.semanticsFor, selectTargetCall: policy.selectTargetCall, objectShapes });
       issues.push(...admitted.issues);
       delegateAdapters = sealCsharpDelegateAdapterIdentities(policy, preparedValueReads, admitted.expressions, issues);
       delegateContracts.seal();
