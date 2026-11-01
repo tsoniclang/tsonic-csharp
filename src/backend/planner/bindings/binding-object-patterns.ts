@@ -24,7 +24,7 @@ export function planObjectBindingPattern(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planBindingNameFromProjection: BindingProjectionPlanner,
-  planExpression?: ExpressionPlanner,
+  planExpression: ExpressionPlanner,
 ): readonly CsharpStatement[] {
   const selected = input.program.records.bindingPatternProjection.get(patternNode)?.source;
   if (selected?.kind === "object-shape-source") {
