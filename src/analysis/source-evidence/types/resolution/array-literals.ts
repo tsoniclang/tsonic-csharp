@@ -89,7 +89,21 @@ export function resolveCsharpArrayLiteralSelection(
   const contributions = selected.flatMap(group => group ?? []);
   const elements = contributions.map(member => member.carrier);
   const context = selectCsharpLiteralDeclarationContext(node, queries, host);
-  const destination = selectArrayElementDestination(scope, node, queries, state, context, sourceElements.length === 0);
+  if (context?.kind === "rejected") return { kind: "rejected", reason: context.reason };
+  const destinations = context === undefined
+    ? [selectArrayElementDestination(scope, node, queries, state, undefined, sourceElements.length === 0)]
+    : context.identityUses.map(use => selectArrayElementDestination(scope, node, queries, state,
+      { ...context, ...use }, sourceElements.length === 0));
+  const selectedDestinations = destinations.flatMap(destination => destination.kind === "resolved" ? [destination.carrier] : []);
+  const required = selectedDestinations[0];
+  if (required !== undefined && selectedDestinations.some(destination => !targetTypeRefEquals(required, destination))) {
+    return { kind: "rejected", reason:
+      "This array declaration has conflicting exact identity-use representations. Annotate its const binding with the required native array type." };
+  }
+  const requiredElement = context !== undefined && context.identityUses.length !== 0 && destinations.some(destination => destination.kind === "unavailable")
+    ? sourceElement : required;
+  const destination = requiredElement === undefined ? { kind: "unavailable" as const }
+    : { kind: "resolved" as const, carrier: requiredElement };
   if (elements.length === 0) {
     if (sourceElements.length === 0 && destination.kind === "unavailable" &&
       context === undefined) {
@@ -128,7 +142,7 @@ function selectArrayElementDestination(
   expression: Node,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
-  context: ReturnType<typeof selectCsharpLiteralDeclarationContext>,
+  context: Extract<ReturnType<typeof selectCsharpLiteralDeclarationContext>, { readonly kind: "selected" }> | undefined,
   empty: boolean,
 ): { readonly kind: "resolved"; readonly carrier: TargetTypeRef } | { readonly kind: "unavailable" } {
   const { host } = scope;

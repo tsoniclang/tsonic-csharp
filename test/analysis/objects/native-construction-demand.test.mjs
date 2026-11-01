@@ -4,6 +4,7 @@ import { providerVirtualDeclarationFactKey, sourcePrimitiveFactKey } from "@tson
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { createCsharpNativeConstructionDemandQuery } from "../../../dist/analysis/objects/native-construction-demand.js";
 import { createCsharpObjectShapeMemberResolver } from "../../../dist/analysis/objects/shapes/member-evidence.js";
+import { createCsharpLiteralShapeResolver } from "../../../dist/analysis/objects/shapes/literal-construction.js";
 import { mergeCsharpObjectShapeSubjects } from "../../../dist/analysis/objects/shapes/construction.js";
 import { checkCsharpSource, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
@@ -534,7 +535,8 @@ function memberProvenanceFixture() {
     assert.equal(selected !== undefined, true, "the declared member has checked typed ownership evidence");
     return selected;
   };
-  return { queries, resolver, owner, actual, declared };
+  return { queries, resolver, owner, actual, declared, ast,
+    literal: name => ast.as.AsVariableDeclaration(declarations.get(name)).Initializer };
 }
 
 test("typed optional member evidence survives literal, declared value and read publication", () => {
@@ -629,4 +631,45 @@ test("ambiguous optional declaration owners never choose a first matching proof"
     { targetType: structural, sourceType: actual, members: second });
   assert.equal(value.resolver.instantiateMemberEvidence(merged.members, actual, value.queries, actual) === undefined,
     true, "different checked owners associated with the same source are ambiguous, not a success fallback");
+});
+
+test("literal construction reads its own checked source type independently of a canonical native shape", () => {
+  const value = memberProvenanceFixture();
+  const owner = value.owner("omitted");
+  const literal = value.literal("omitted");
+  const actual = value.actual("omitted");
+  const expected = { targetType: { ...structural, csharpStructuralContract: true },
+    sourceType: owner, members: value.declared(owner) };
+  const other = { ...expected, sourceType: value.actual("present") };
+  for (const [label, selectedShape] of [["unavailable native shape", undefined], ["another checked source", other]]) {
+    const select = createCsharpLiteralShapeResolver({
+      ast: value.ast, semantics: () => value.queries,
+      typeParameterConstraints: () => ({ kind: "resolved", constraints: [] }),
+    }, {
+      resolveNode: () => selectedShape,
+      retainLiteralMemberEvidence: value.resolver.retainLiteralMemberEvidence,
+      instantiateMemberEvidence: value.resolver.instantiateMemberEvidence,
+      rememberTargetShape: shape => shape,
+    });
+    const selected = select(expected, literal, value.queries.sourceFile);
+    assert.equal(selected.kind === "resolved", true, label);
+    assert.equal(selected.shape.sourceType === actual, true, `${label}: the original literal owns its checked Type`);
+    const evidence = selected.shape.members[0].sourceMemberEvidence[0];
+    assert.equal(evidence.sourceType === actual && evidence.ownerType === owner &&
+      evidence.correspondence.kind === "absent", true,
+    `${label}: an actual omitted slot is not replaced by a native shape's representative source`);
+  }
+  const unavailable = { ...value.queries, types: { ...value.queries.types, expressionType: () => undefined } };
+  const selectMissing = createCsharpLiteralShapeResolver({
+    ast: value.ast, semantics: () => unavailable,
+    typeParameterConstraints: () => ({ kind: "resolved", constraints: [] }),
+  }, {
+    resolveNode: () => other,
+    retainLiteralMemberEvidence: value.resolver.retainLiteralMemberEvidence,
+    instantiateMemberEvidence: value.resolver.instantiateMemberEvidence,
+    rememberTargetShape: shape => shape,
+  });
+  const missing = selectMissing(expected, literal, value.queries.sourceFile);
+  assert.equal(missing.kind === "rejected" && missing.subject === literal, true,
+    "missing checked literal type cannot borrow a native shape's type or a declared-owner fallback");
 });

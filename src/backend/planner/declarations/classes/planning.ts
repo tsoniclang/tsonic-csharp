@@ -24,6 +24,7 @@ import { planClassInitializationRegion } from "./initializers.js";
 import { renderObjectShapeProjectionMethods } from "../../objects/closed-object-shapes.js";
 import { planCsharpNativeMemberHiding } from "../modifiers.js";
 import { failCsharpPlannerInvariant } from "../../diagnostics.js";
+import { csharpClosedPropertyInterfaceType, renderCsharpClosedPropertyDispatch } from "../../objects/closed-property-dispatch.js";
 
 export interface CsharpPlannedClass {
   readonly declaration: CsharpClassDeclaration;
@@ -48,6 +49,7 @@ export function planClassDeclaration(
   const interfaces = [...heritage.interfaces, csharpClosedValueCarrierInterfaceType()];
   if (factory?.identity !== undefined) interfaces.push(csharpTypeFromTargetTypeRef(factory.identity.type, input.scope.typeParameterNames)!);
   const jsonSerializable = objectShape !== undefined && objectShapeRequiresJsonSerialization(input, objectShape);
+  const closedProperties = objectShape !== undefined && csharpObjectShapeArtifact(input, objectShape).capabilities.includes("reference-identity");
   const memberNodes = selected.instanceMembers;
   const initializerInput = factory === undefined ? input : classFactoryContext(factory,
     { kind: "IdentifierName", name: factory.environmentName }, input, diagnostics, "instance");
@@ -100,6 +102,7 @@ export function planClassDeclaration(
     interfaces: [
       ...interfaces,
       ...(jsonSerializable ? [csharpJsonValueInterfaceType()] : []),
+      ...(closedProperties ? [csharpClosedPropertyInterfaceType()] : []),
     ],
     members: [
       ...(staticRegion?.relocates ? [{ kind: "ConstructorDeclaration" as const, name: className,
@@ -120,6 +123,7 @@ export function planClassDeclaration(
       }]),
       ...(objectShape === undefined ? [] : planCsharpStructuralInterfaceMembers(objectShape, input, diagnostics)),
       ...members,
+      ...(closedProperties && objectShape !== undefined ? renderCsharpClosedPropertyDispatch(objectShape, input) : []),
       ...(jsonSerializable && objectShape !== undefined
         ? renderJsonSerializableObjectShapeMethod(objectShape, input.program.records)
         : []),

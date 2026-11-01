@@ -60,6 +60,10 @@ export function selectCsharpBinaryOperands(
   let leftType = sourceOperator === "=" || sourceOperator === "??="
     ? input.types.resolveReadStorage(left)
     : resolveBinaryOperandType(input, left, targetTypeFor);
+  if (sourceOperator === "??") {
+    const storage = input.types.resolveReadStorage(left);
+    if (getCsharpNullableElementTargetType(storage) !== undefined) leftType = storage;
+  }
   const nullishRightExpectation = sourceOperator === "??"
     ? expectedResultType ?? nullishValueType(leftType, input.typeDefinitions)
     : sourceOperator === "??=" ? nullishValueType(leftType, input.typeDefinitions)

@@ -10,6 +10,7 @@ export function selectCsharpFlowReadProjection(
   refinement: CsharpValueRefinementClassification | undefined,
   deferredConstructorField: boolean,
   selectedThrowable: boolean,
+  absenceConsumer: boolean,
 ): CsharpFlowReadProjection {
   if (storageType === undefined) return { kind: "identity" };
   if (storageType.kind === "type-parameter" && selectedType !== undefined &&
@@ -23,6 +24,7 @@ export function selectCsharpFlowReadProjection(
       ? "A target storage-read projection requires an exact project source declaration."
       : `A target storage-read projection requires the exact source ${source.missing === "declared-type" ? "declared type" : "selected type"}.` };
   }
+  if (absenceConsumer) return { kind: "identity" };
   if (source.refinement.kind === "exact" && (refinement.flowReadTargetType === undefined ||
       targetTypeRefEquals(storageType, refinement.flowReadTargetType))) return { kind: "identity" };
   if (source.refinement.kind === "ambiguous") return { kind: "rejected",

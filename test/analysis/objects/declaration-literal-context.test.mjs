@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { join } from "node:path";
 import { compileCsharpSource, assertCsharpCheckingSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { testRepositoryRoots } from "../../../../tsonic/test/scripts/workspace-layout.mjs";
 import { createTsonicPlugin as nodejsCapability } from "../../../../csharp-nodejs/dist/index.js";
 import { selectCsharpArrayLiteralCarrier } from "../../../dist/policy/types/collections/literal-construction.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
@@ -41,7 +43,7 @@ for (const callers of ["", "export function caller(): MakeDirectoryOptions { ret
     const compiled = compile(`import type { MakeDirectoryOptions } from "node:fs";
       function make() { return {}; } ${callers}`);
     assert.equal(compiled.targetDiagnostics.some(diagnostic => diagnostic.code === "TSONIC_UNTYPED_OBJECT_LITERAL" &&
-      diagnostic.message === "This object literal has no target type. Declare one, e.g. 'function baseOptions(): MakeDirectoryOptions'."), true,
+      diagnostic.message === "This object literal has no target type. Declare a return type for 'make' at its declaration."), true,
       "the original literal needs an annotation, not caller-based reconstruction");
     assert.equal(compiled.artifacts.size, 0, "annotation refusal publishes no executable source");
   });
@@ -158,30 +160,60 @@ test("already-typed local aliases have no spelling-distance limit", () => {
     "arbitrarily spelled checked aliases keep the original allocation");
 });
 
-for (const [label, body, literal] of [
-  ["untyped intermediate alias", "const base = {}; const alias = base; const options: MakeDirectoryOptions = alias; return options;", "{}"],
-  ["mutable context alias", "const base = {}; let options: MakeDirectoryOptions = base; return options;", "{}"],
-  ["settled item12 chain", "const base = { recursive: true }; const tuned = base; const final = tuned; const options: MakeDirectoryOptions = final; return options;", "{ recursive: true }"],
-]) test(`C1202 requests the original literal annotation for ${label}`, () => {
+function assertNativeOptionsContract(compiled, label, recursive, cached = false) {
+  assertAccepted(compiled, label);
+  const output = [...compiled.artifacts.values()].join("\n");
+  assert.equal([...output.matchAll(/new Tsonic\.CSharp\.Node\.MakeDirectoryOptions\b/gu)].length, 1,
+    `${label}: one direct native allocation at the original producer`);
+  assert.doesNotMatch(output, /TsObject|CreateDynamicObject|Tsonic__ObjectShape|Activator|System\.Reflection|DynamicInvoke/u);
+  executeCsharpConstruction(compiled, `complete-native-options-${label.replaceAll(" ", "-")}`, false, false,
+    [join(testRepositoryRoots.csharpNodejs, "csharp/src/Tsonic.CSharp.Node/Tsonic.CSharp.Node.csproj")], `
+using System;
+using Tsonic.CSharp.Node;
+using Index = Tsonic.Generated.Index;
+var value = Index.make();
+if (value.recursive != ${recursive ? "true" : "null"} || value.mode is not null) throw new Exception("exact native optional fields");
+var alias = value;
+alias.mode = 17;
+if (!ReferenceEquals(value, alias) || value.mode != 17) throw new Exception("native alias mutation and identity");
+if (ReferenceEquals(value, Index.make()) != ${cached ? "true" : "false"}) throw new Exception("native construction lifetime");
+for (int index = 0; index < 10000; index++) {
+    GC.KeepAlive(Index.make());
+    GC.KeepAlive(Native.Make());
+}
+long before = GC.GetAllocatedBytesForCurrentThread();
+for (int index = 0; index < 8192; index++) GC.KeepAlive(Index.make());
+long generated = GC.GetAllocatedBytesForCurrentThread() - before;
+before = GC.GetAllocatedBytesForCurrentThread();
+for (int index = 0; index < 8192; index++) GC.KeepAlive(Native.Make());
+long handwritten = GC.GetAllocatedBytesForCurrentThread() - before;
+if (generated != handwritten) throw new Exception($"native option allocation {generated} != {handwritten}");
+static class Native {
+    ${cached ? "static readonly MakeDirectoryOptions stored = new MakeDirectoryOptions { recursive = true };" : ""}
+    public static MakeDirectoryOptions Make() => ${cached ? "stored" : `new MakeDirectoryOptions${recursive ? " { recursive = true }" : "()"}`};
+}
+`);
+}
+
+for (const [label, body] of [
+  ["untyped intermediate alias", "const base = {}; const alias = base; const options: MakeDirectoryOptions = alias; return options;"],
+  ["mutable context alias", "const base = {}; let options: MakeDirectoryOptions = base; return options;"],
+  ["settled item12 chain", "const base = { recursive: true }; const tuned = base; const final = tuned; const options: MakeDirectoryOptions = final; return options;"],
+]) test(`complete direct native use set selects the original literal for ${label}`, { timeout: 300_000 }, () => {
   const sourceText = `import type { MakeDirectoryOptions } from "node:fs";
     export function make(): MakeDirectoryOptions { ${body} }`;
   const compiled = compile(sourceText);
-  const issues = compiled.result.diagnostics.filter(diagnostic => diagnostic.code === "TSONIC_UNTYPED_OBJECT_LITERAL");
-  assert.equal(issues.length, 1, `${label}: one canonical literal owner publishes the refusal`);
-  const issue = issues[0];
-  const ast = compiled.source.ast;
-  const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
-  const text = range?.kind !== "authored" ? undefined
-    : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end);
-  assert.equal(issue?.message === "This object literal has no target type. Declare one, e.g. 'function baseOptions(): MakeDirectoryOptions'." &&
-    text === literal, true, `${label}: exact annotation diagnostic at the original literal, not the final conversion`);
-  assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
-    `${label}: no unproved native construction is published`);
+  assertNativeOptionsContract(compiled, label, label === "settled item12 chain");
+});
+
+test("a module const literal uses its own complete direct typed return contract", { timeout: 300_000 }, () => {
+  const sourceText = `const base = { recursive: true };
+    export function make(): MakeDirectoryOptions { return base; }`;
+  const compiled = compile(`import type { MakeDirectoryOptions } from "node:fs"; ${sourceText}`);
+  assertNativeOptionsContract(compiled, "module const", true, true);
 });
 
 for (const [label, sourceText] of [
-  ["another body", `const base = { recursive: true };
-    export function make(): MakeDirectoryOptions { return base; }`],
   ["declared structural context", `export function make(): MakeDirectoryOptions {
     const base: { recursive: boolean } = { recursive: true }; const alias = base; return alias; }`],
   ["a parameter without a literal declaration", `export function make(base: { recursive: boolean }): MakeDirectoryOptions {
@@ -195,6 +227,30 @@ for (const [label, sourceText] of [
     `${label}: no original literal is guessed or retyped`);
   assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
     `${label}: rejected native conversion publishes no program`);
+});
+
+for (const [label, body, code, reason] of [
+  ["an unannotated mutable alias", "const base = {}; let alias = base; const options: MakeDirectoryOptions = alias; return options;",
+    "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN", "has a mutable alias outside its closed representation contract"],
+  ["no nominal identity requirement", "const base = {}; const alias = base; return alias;",
+    "TSONIC_UNTYPED_OBJECT_LITERAL", undefined],
+]) test(`complete direct native use set precisely refuses ${label}`, () => {
+  const sourceText = `import type { MakeDirectoryOptions } from "node:fs";
+    export function make(): ${reason === undefined ? "unknown" : "MakeDirectoryOptions"} { ${body} }`;
+  const compiled = compile(sourceText);
+  const issues = compiled.targetDiagnostics.filter(diagnostic => diagnostic.category === "error");
+  assert.equal(issues.length, 1, `${label}: one original literal owns the unavailable native contract`);
+  const refusal = issues[0];
+  assert.equal(refusal.code, code);
+  const hint = "This object literal has no target type. Declare a type for 'base' at this initializer.";
+  assert.equal(reason === undefined ? refusal.message === hint :
+    refusal.message.startsWith(`${hint} Native construction ${reason} at source offset `), true,
+  `${label}: exact own-binding hint and precise closed-use cause`);
+  const range = refusal.sourceNode === undefined ? undefined : compiled.source.ast.authoredRange(refusal.sourceNode);
+  assert.equal(range?.kind === "authored" && range.start === sourceText.indexOf("{}") &&
+    range.end === sourceText.indexOf("{}") + 2, true, `${label}: the original literal owns the refusal`);
+  assert.equal(compiled.result.program === undefined && compiled.plan === undefined && compiled.artifacts.size === 0, true,
+    `${label}: zero publication without a proved native identity requirement`);
 });
 
 for (const surface of ["native", "js"]) {

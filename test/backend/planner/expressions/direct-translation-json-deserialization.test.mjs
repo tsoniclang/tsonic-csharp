@@ -253,21 +253,38 @@ if (Index.update(@"{""title"":""kept""}") != "number" || !Index.identity(@"{""ti
 });
 
 test("broad value object literals lower directly into nested closed JS-value carriers", () => {
-  const compiled = compileCsharpSource({
-    sourceText: `
+  const constructionSource = resultType => `
       export function createUnknown(): unknown {
         return { value: 1, child: { label: "ready" } };
       }
-      export function createAny(): any {
+      export function createAny(): ${resultType} {
         return { enabled: true };
       }
-    `,
-  });
-
+    `;
+  const originalSource = constructionSource("any");
+  const compiled = compileCsharpSource({ sourceText: originalSource });
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
-  assert.deepEqual(compiled.targetDiagnostics, []);
-  const source = compiled.artifacts.get("src/Index.cs") ?? "";
+  const issues = compiled.result.diagnostics.filter(issue => issue.category === "error");
+  assert.equal(issues.length, 1, "only the original explicit-any literal is refused");
+  assert.equal(issues[0].code, "TSONIC_ANY_UNSUPPORTED");
+  assert.equal(issues[0].message,
+    "'any' has no native representation. Declare the type, or use 'unknown' and narrow it.");
+  const ast = compiled.source.ast;
+  assert.equal(ast.is.IsObjectLiteralExpression(issues[0].sourceNode), true,
+    "the original literal owns the refusal, not its supported broad sibling");
+  const range = ast.authoredRange(issues[0].sourceNode);
+  assert.equal(range.kind === "authored", true);
+  assert.deepEqual({ start: range.start, end: range.end },
+    { start: originalSource.indexOf("{ enabled: true }"), end: originalSource.indexOf("{ enabled: true }") + "{ enabled: true }".length });
+  assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0,
+    true, "an explicit-any construction publishes no executable partial program");
+
+  const supported = compileCsharpSource({ sourceText: constructionSource("unknown") });
+  assert.equal(supported.sourceDiagnosticsText, "");
+  assert.deepEqual(supported.extensionDiagnostics, []);
+  assert.deepEqual(supported.targetDiagnostics, []);
+  const source = supported.artifacts.get("src/Index.cs") ?? "";
   assert.match(
     source,
     /TsValue createUnknown\(\)[\s\S]*TsValue\.from\(new ObjectShape_[a-f0-9]+\s*\{\s*value = 1,\s*child = new ObjectShape_[a-f0-9]+\s*\{\s*label = "ready",\s*\},\s*\}\)/u,
@@ -276,7 +293,14 @@ test("broad value object literals lower directly into nested closed JS-value car
     source,
     /TsValue createAny\(\)[\s\S]*TsValue\.from\(new ObjectShape_[a-f0-9]+\s*\{\s*enabled = true,\s*\}\)/u,
   );
-  assert.equal(compiled.artifacts.has("generated/TsonicObjectShapes.cs"), true,
+  assert.equal(supported.artifacts.has("generated/TsonicObjectShapes.cs"), true,
     "broad result boxing does not erase the closed native field inventories");
   assert.doesNotMatch(source, /CreateDynamicObject|ReadDynamicSlot|WriteDynamicSlot|System\.Reflection/u);
+  executeCsharpConstruction(supported, "broad-unknown-native-construction", false, false, [], `
+var nested = Tsonic.Generated.Index.createUnknown();
+if (System.Convert.ToInt64(nested.ReadDynamicSlot("value").unwrap()) != 1 ||
+    nested.ReadDynamicSlot("child").ReadDynamicSlotAs<string>("label") != "ready" ||
+    !Tsonic.Generated.Index.createAny().ReadDynamicSlotAs<bool>("enabled"))
+    throw new System.Exception("original closed native broad fields retain exact payloads");
+`);
 });

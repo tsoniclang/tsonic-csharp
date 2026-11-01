@@ -22,6 +22,7 @@ import { csharpWellKnownSymbolTargetMemberName, getCsharpDelegateSignature, getC
 import { substituteTargetTypeParameters } from "../../policy/types/resolution/substitution.js";
 import { csharpObjectShapeMethodDeclaration, csharpPresentObjectShapeMethod } from "../../target-model/types/method-values.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
+import { csharpObjectTargetType } from "../../target-model/types/carriers/scalar-types.js";
 import { csharpTargetStorageIdentityEquals } from "../../policy/types/storage/storage-identity.js";
 import type { CsharpSourceNameResolver } from "./plan.js";
 import type { CsharpObjectShapeDemandClosure } from "../../target-model/records/objects/object-shape-demand.js";
@@ -325,6 +326,9 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
       }
     }
     if (artifacts.get(objectShapeArtifactKey(shape))?.capabilities.includes("enumerable-keys")) names.push(csharpEnumerableKeysMethodName);
+    if (artifacts.get(objectShapeArtifactKey(shape))?.capabilities.includes("reference-identity")) {
+      names.push("TryReadDynamicSlot", "WriteDynamicSlot");
+    }
     return names;
   }
 
@@ -471,6 +475,14 @@ export function analyzeCsharpNativeMemberNames(input: CsharpNativeMemberNameInpu
           parameters: [{ type: projection.receiver.targetType, passingMode: "by-value" },
             ...(projection.selection.kind === "has-own" ? [{ type: csharpStringTargetType(), passingMode: "by-value" as const }]
               : projection.selection.kind === "assign" ? [{ type: projection.selection.sourceShape.targetType, passingMode: "by-value" as const }] : [])] });
+      }
+      if (artifact.capabilities.includes("reference-identity")) {
+        recordHeader("TryReadDynamicSlot", { name: "TryReadDynamicSlot", kind: "method", genericParameterIds: [],
+          parameters: [{ type: csharpStringTargetType(), passingMode: "by-value" },
+            { type: csharpObjectTargetType(), passingMode: "byref-writeonly-must-init" }] });
+        recordHeader("WriteDynamicSlot", { name: "WriteDynamicSlot", kind: "method", genericParameterIds: [],
+          parameters: [{ type: csharpStringTargetType(), passingMode: "by-value" },
+            { type: csharpObjectTargetType(), passingMode: "by-value" }] });
       }
       if (artifact.capabilities.includes("enumerable-keys") && artifact.materialization === "synthetic") {
         recordHeader(csharpEnumerableKeysMethodName, { name: csharpEnumerableKeysMethodName,

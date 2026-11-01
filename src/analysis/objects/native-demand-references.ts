@@ -3,6 +3,8 @@ import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef, TargetTypeRef } f
 import { isCsharpValueTypeTargetType, targetTypeRefEquals, targetTypeRefKey, isSourceDeclaredNominalShape } from "../../target-model/types/index.js";
 import { objectShapeArtifactKey } from "../../target-model/records/objects/object-shape-keys.js";
 import { maximumArtifactCount } from "./native-demand-batches.js";
+import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
+import { isCsharpRefLikeTargetType } from "../../target-model/types/ref-like.js";
 
 export function collectCsharpReferenceClosure(
   scope: CsharpObjectShapeDemandScope,
@@ -52,6 +54,18 @@ export function collectCsharpReferenceClosure(
       return { kind: "rejected", reason: `The ${capability} capability cannot use native value storage.` };
     }
     shapes.set(key, shape);
+    if (capability === "reference-identity") {
+      if (shape.declarationTemplate !== undefined) enqueue(shape.declarationTemplate);
+      for (const member of shape.members) {
+        if (member.memberKind !== "property") continue;
+        if (isCsharpRefLikeTargetType(member.type) || member.type.kind === "pointer" || member.type.kind === "function-pointer") {
+          return { kind: "rejected", reason: `Closed native property '${member.sourceName}' cannot cross the value-observation ABI without losing its native lifetime or address contract.` };
+        }
+        const type = getCsharpNullableElementTargetType(member.type) ?? member.type;
+        const nested = scope.host.objectShapes.resolveTarget(type);
+        if (nested !== undefined && !isCsharpValueTypeTargetType(nested.targetType)) enqueue(nested);
+      }
+    }
     if (capability === "method-values") {
       if (shape.declarationTemplate !== undefined) enqueue(shape.declarationTemplate);
       for (const member of shape.members) {

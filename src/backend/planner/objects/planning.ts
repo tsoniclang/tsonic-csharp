@@ -40,6 +40,7 @@ import { renderCsharpMethodValueContracts } from "./method-values.js";
 import { csharpEnumerableKeysContract, renderCsharpEnumerableKeys } from "./enumerable-keys.js";
 import { renderCsharpAuthoredObjectMethods } from "./authored-methods.js";
 import { renderCsharpCaptureFrameMethods } from "./capture-methods.js";
+import { csharpClosedPropertyInterfaceType, renderCsharpClosedPropertyDispatch } from "./closed-property-dispatch.js";
 
 export function csharpTypeFromObjectShapeFact(
   input: CsharpPlanningContext,
@@ -143,7 +144,7 @@ function renderObjectShapeDeclaration(
     return { kind: "InterfaceDeclaration", name: selected.name,
       objectShapeIdentity: selected.identity, modifiers: ["public", ...csharpObjectShapeSafetyModifiers(input, fact)], typeParameters,
       interfaces: [...interfaces, ...(jsonSerializable ? [csharpJsonValueInterfaceType()] : []),
-        ...(referenceIdentity ? [csharpClosedValueCarrierInterfaceType()] : [])],
+        ...(referenceIdentity ? [csharpClosedValueCarrierInterfaceType(), csharpClosedPropertyInterfaceType()] : [])],
       members: [...contractMembers, ...(capabilities.includes("enumerable-keys") && !inheritedEnumerableKeys ? [csharpEnumerableKeysContract(fact, input.program.records.nativeMemberHiding)] : []),
         ...renderObjectShapeProjectionMethods(input, projections, diagnostics)] };
   }
@@ -177,7 +178,7 @@ function renderObjectShapeDeclaration(
           interfaces: [
             ...interfaces,
             ...(jsonSerializable ? [csharpJsonValueInterfaceType()] : []),
-            ...(referenceIdentity ? [csharpClosedValueCarrierInterfaceType()] : []),
+            ...(referenceIdentity ? [csharpClosedValueCarrierInterfaceType(), csharpClosedPropertyInterfaceType()] : []),
           ],
         }),
     members: [
@@ -186,6 +187,7 @@ function renderObjectShapeDeclaration(
       ...methodValues,
       ...enumerableKeys,
       ...members,
+      ...(referenceIdentity ? renderCsharpClosedPropertyDispatch(fact, input) : []),
       ...(jsonSerializable ? renderJsonSerializableObjectShapeMethod(fact, input.program.records) : []),
       ...renderObjectShapeProjectionMethods(
         input,

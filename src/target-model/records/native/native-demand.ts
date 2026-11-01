@@ -1,7 +1,7 @@
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { Node } from "@tsonic/tsts";
 import { targetUseSiteRef, type TargetUseSiteRef } from "@tsonic/target-api/analysis";
-import type { CsharpConversionMode, CsharpConversionSelection } from "../../conversions/selection.js";
+import type { CsharpConversionMode } from "../../conversions/selection.js";
 import { csharpTargetRepresentationContractId } from "../../identities/identities.js";
 import { targetTypeRefKey } from "../../types/equality.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../types/model.js";
@@ -93,27 +93,11 @@ export interface CsharpExpectedNativeUse {
   readonly literal?: CsharpExactLiteralRecipe;
   readonly binary?: CsharpResolvedBinaryOperation;
   readonly objectShape?: CsharpObjectShapeFact;
-  readonly dynamicObject?: CsharpNativeObjectConstruction;
   readonly construction?: {
     readonly site: TargetUseSiteRef;
     readonly carrier: TargetTypeRef;
     readonly children: readonly TargetUseSiteRef[];
   };
-}
-
-export interface CsharpNativeObjectMember {
-  readonly name: string;
-  readonly initializer: Node;
-  readonly carrier: TargetTypeRef;
-  readonly conversion: CsharpConversionSelection;
-}
-
-export interface CsharpNativeObjectConstruction {
-  readonly backingType: TargetTypeRef;
-  readonly argumentType: TargetTypeRef;
-  readonly writeMember: string;
-  readonly resultMember: string;
-  readonly members: readonly CsharpNativeObjectMember[];
 }
 
 export interface CsharpExpectedNativeUseInput {
@@ -165,7 +149,6 @@ interface CsharpNativeEvaluatedUse {
   readonly propertyKeys?: readonly CsharpNativePropertyKey[];
   readonly binary?: CsharpResolvedBinaryOperation;
   readonly objectShape?: CsharpObjectShapeFact;
-  readonly dynamicObject?: CsharpNativeObjectConstruction;
   readonly defaultValue?: CsharpDefaultValueContract;
   readonly exactInteger?: true;
   readonly discardedPresence?: CsharpNativeDiscardedPresence;

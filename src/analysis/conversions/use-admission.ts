@@ -168,6 +168,6 @@ export function sealCsharpConversionUses(
       context.ast.getSourceFile(literal) !== context.ast.getSourceFile(expression) ||
       sourceEnclosingCallable(literal, context.ast) !== sourceEnclosingCallable(expression, context.ast) ||
       selectCsharpLiteralDeclarationContext(literal, context.semanticsFor(literal), context) !== undefined) return undefined;
-    return csharpUntypedObjectLiteralIssue(literal);
+    return csharpUntypedObjectLiteralIssue(literal, context.ast);
   }
 }

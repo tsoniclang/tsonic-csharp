@@ -15,19 +15,33 @@ import { createCsharpNativeConstructionRecords } from "../program/records/native
 
 type LiteralContextHost = Pick<CsharpTypePolicyBaseHost, "ast" | "navigation" | "semanticsFor">;
 
-interface CsharpLiteralContext {
+interface CsharpLiteralUseContext {
   readonly component: SourceTypeComponentEvidence;
-  readonly declarations: readonly Node[];
   readonly source: Node;
   readonly returnedFrom?: Node;
+}
+
+interface CsharpLiteralContext extends CsharpLiteralUseContext {
+  readonly kind: "selected";
+  readonly declarations: readonly Node[];
+  readonly identityUses: readonly CsharpLiteralUseContext[];
+}
+
+interface CsharpLiteralContextRejection {
+  readonly kind: "rejected";
+  readonly subject: Node;
+  readonly reason: string;
 }
 
 export function selectCsharpLiteralDeclarationContext(
   expression: Node,
   queries: SourceFileSemantics,
   host: LiteralContextHost,
-): CsharpLiteralContext | undefined {
+): CsharpLiteralContext | CsharpLiteralContextRejection | undefined {
   const { ast, navigation } = host;
+  const selected = (use: CsharpLiteralUseContext, declarations: readonly Node[],
+    identityUses: readonly CsharpLiteralUseContext[] = [use]): CsharpLiteralContext =>
+    ({ kind: "selected", ...use, declarations, identityUses });
   let current = expression;
   while (ast.is.IsParenthesizedExpression(ast.parent(current))) current = ast.parent(current)!;
   const declaration = ast.parent(current);
@@ -49,23 +63,22 @@ export function selectCsharpLiteralDeclarationContext(
     if (binding?.Initializer === initializer && binding.Type !== undefined &&
       ast.is.IsObjectBindingPattern(ast.name(owner!))) {
       const selectedType = queries.types.expressionType(expression);
-      return selectedType === undefined ? undefined : { component: { selectedType, declaration: owner },
-        declarations: [], source: expression };
+      return selectedType === undefined ? undefined : selected({ component: { selectedType, declaration: owner },
+        source: expression }, []);
     }
   }
   const declarations = variable?.Initializer === current ? [declaration!] : [];
-  const returnContext = (callable: Node, locals: readonly Node[]): CsharpLiteralContext | undefined => {
+  const returnContext = (callable: Node, source: Node): CsharpLiteralUseContext | undefined => {
     const authoredTypeNode = ast.typeNode(callable);
     if (authoredTypeNode !== undefined) {
       const selectedType = host.semanticsFor(authoredTypeNode).types.authoredType(authoredTypeNode);
       return selectedType === undefined ? undefined : { component: { selectedType, authoredTypeNode, declaration: callable },
-        declarations: locals, source: expression, returnedFrom: callable };
+        source, returnedFrom: callable };
     }
     const callableQueries = host.semanticsFor(callable);
     const contextual = callableQueries.types.contextualValueSelection(callable);
     const signature = contextual.kind === "selected" ? callableQueries.types.callable(contextual.component.selectedType) : undefined;
-    return signature === undefined ? undefined : { component: signature.result, declarations: locals,
-      source: expression, returnedFrom: callable };
+    return signature === undefined ? undefined : { component: signature.result, source, returnedFrom: callable };
   };
   const parent = ast.parent(current);
   const returning = parent !== undefined && ast.is.IsReturnStatement(parent) ||
@@ -73,68 +86,99 @@ export function selectCsharpLiteralDeclarationContext(
   if (returning) {
     const callable = parent !== undefined && (ast.is.IsArrowFunction(parent) || ast.is.IsFunctionExpression(parent))
       ? parent : sourceEnclosingCallable(expression, ast);
-    const selected = callable === undefined ? undefined : returnContext(callable, declarations);
-    if (selected !== undefined) return selected;
+    const use = callable === undefined ? undefined : returnContext(callable, expression);
+    if (use !== undefined) return selected(use, declarations);
   }
   const direct = queries.types.contextualValueSelection(expression);
-  if (direct.kind === "selected") return { component: direct.component, declarations, source: expression };
+  if (direct.kind === "selected") return selected({ component: direct.component, source: expression }, declarations);
+  const enclosing = parent !== undefined && ast.is.IsPropertyAssignment(parent)
+    ? ast.parent(parent) : parent;
+  if (enclosing !== undefined && (ast.is.IsArrayLiteralExpression(enclosing) ||
+    parent !== undefined && ast.is.IsPropertyAssignment(parent) && ast.is.IsObjectLiteralExpression(enclosing))) {
+    const enclosingQueries = host.semanticsFor(enclosing);
+    const enclosingContext = selectCsharpLiteralDeclarationContext(enclosing, enclosingQueries, host);
+    if (enclosingContext?.kind === "rejected") return enclosingContext;
+    const identityUses = (enclosingContext?.identityUses ?? []).flatMap((use): CsharpLiteralUseContext[] => {
+      const type = use.returnedFrom !== undefined && ast.hasModifierKind(use.returnedFrom, "async")
+        ? enclosingQueries.types.typeArguments(use.component.selectedType)[0] : use.component.selectedType;
+      if (type === undefined || enclosingQueries.types.isUnknown(type) || enclosingQueries.types.isAny(type)) return [];
+      if (ast.is.IsArrayLiteralExpression(enclosing)) {
+        const index = ast.elements(enclosing).indexOf(current);
+        const element = enclosingQueries.types.isTuple(type) ? enclosingQueries.types.tupleElementTypes(type)[index]
+          : enclosingQueries.types.isArrayLike(type) ? enclosingQueries.types.typeArguments(type)[0] : undefined;
+        return element === undefined ? [] : [{ component: { selectedType: element }, source: expression }];
+      }
+      const source = enclosingQueries.types.expressionType(enclosing);
+      const correspondence = source === undefined ? undefined : enclosingQueries.types.structuralMembers(source, type, "read");
+      const member = correspondence?.kind === "available" ? correspondence.members.find(member =>
+        member.kind === "present" && member.source.declarations.includes(parent!)) : undefined;
+      return member?.kind !== "present" ? [] : [{ component: { selectedType: member.destination.property.type }, source: expression }];
+    });
+    if (identityUses[0] !== undefined) return selected(identityUses[0], [], identityUses);
+  }
   if (declarations.length === 0) return undefined;
   const list = ast.parent(declaration!);
-  const statement = ast.parent(list);
-  const block = ast.parent(statement);
-  if (list === undefined || statement === undefined || block === undefined ||
-    !ast.is.IsVariableDeclarationList(list) || !ast.is.IsVariableStatement(statement) ||
-    !ast.is.IsBlock(block)) return undefined;
-  const siblings = ast.children(block).filter((node): node is Node => node !== undefined);
-  const position = siblings.indexOf(statement);
-  if (position < 0) return undefined;
-  const next = siblings[position + 1];
-  if (next === undefined) return undefined;
-  const immediate = ast.is.IsReturnStatement(next) ? ast.as.AsReturnStatement(next)?.Expression
-    : ast.is.IsExpressionStatement(next) ? ast.as.AsExpressionStatement(next)?.Expression : undefined;
-  const call = immediate !== undefined && ast.is.IsCallExpression(immediate) ? ast.as.AsCallExpression(immediate) : undefined;
-  if (call !== undefined) {
-    for (const argument of call.Arguments?.Nodes ?? []) {
-      if (argument === undefined || !ast.is.IsIdentifier(argument) ||
-        navigation.referenceFor(argument)?.declaration !== declaration) continue;
-      const checked = host.semanticsFor(argument).types.contextualValueSelection(argument);
-      if (checked.kind === "selected") return { component: checked.component, declarations, source: argument };
+  if (list === undefined || !ast.is.IsVariableDeclarationList(list)) return undefined;
+  const checked = queries.types.expressionType(expression);
+  if (checked === undefined) return undefined;
+  const flow = navigation.expressionValueFlow(expression);
+  const typedSlots = new Set(flow.aliasDeclarations.filter(alias => alias !== declaration &&
+    ast.variableDeclarationKind(alias) !== "const" && ast.typeNode(alias) !== undefined));
+  const aliases = new Set(flow.aliasDeclarations.filter(alias => !typedSlots.has(alias)));
+  const name = ast.name(declaration!);
+  const binding = name !== undefined && ast.is.IsIdentifier(name) ? ast.text(name) : "value";
+  const reject = (use: Node, reason: string): CsharpLiteralContextRejection => ({ kind: "rejected", subject: expression,
+    reason: `${ast.is.IsObjectLiteralExpression(expression) ? csharpUntypedObjectLiteralIssue(expression, ast).message : `Annotate 'const ${binding}' with the exact native element type.`} Native construction ${reason} at source offset ${ast.pos(use)}.` });
+  if (flow.yielded) {
+    return reject(expression, "escapes its closed const-alias use set");
+  }
+  for (const alias of aliases) {
+    if (alias !== declaration && ast.variableDeclarationKind(alias) !== "const" || navigation.declarationUseSummary(alias).bindingWritten) {
+      return reject(alias, "has a mutable alias outside its closed representation contract");
     }
-    return undefined;
   }
-  if (ast.is.IsReturnStatement(next)) {
-    const returned = ast.as.AsReturnStatement(next)?.Expression;
-    if (returned === undefined || !ast.is.IsIdentifier(returned) ||
-      navigation.referenceFor(returned)?.declaration !== declaration) return undefined;
-    const callable = sourceEnclosingCallable(next, ast);
-    return callable === undefined ? undefined : returnContext(callable, declarations);
+  const identityUses: CsharpLiteralUseContext[] = flow.exported
+    ? [{ component: { selectedType: checked }, source: expression }] : [];
+  for (const use of flow.uses) {
+    const owner = navigation.referenceFor(use.reference)?.declaration;
+    if (owner !== undefined && typedSlots.has(owner)) continue;
+    if (use.kind === "type-only" || use.throughMember || use.role === "condition") continue;
+    let reference = use.reference;
+    while (ast.is.IsParenthesizedExpression(ast.parent(reference))) reference = ast.parent(reference)!;
+    const parent = ast.parent(reference);
+    if (parent !== undefined && (ast.is.IsVoidExpression(parent) || ast.is.IsTypeOfExpression(parent))) continue;
+    if (use.role === "receiver" && parent !== undefined &&
+      (ast.is.IsSpreadElement(parent) || ast.is.IsSpreadAssignment(parent) ||
+        ast.is.IsForOfStatement(parent) || ast.is.IsForInStatement(parent))) continue;
+    if (use.role === "storage" && parent !== undefined && aliases.has(parent) && ast.typeNode(parent) === undefined) continue;
+    if (use.role === "return") {
+      const callable = sourceEnclosingCallable(reference, ast);
+      const context = callable === undefined ? undefined : returnContext(callable, reference)
+        ?? { component: { selectedType: checked }, source: reference };
+      if (context === undefined) return reject(reference, "has an unresolved return identity use");
+      if (!queries.types.isUnknown(context.component.selectedType) && !queries.types.isAny(context.component.selectedType)) identityUses.push(context);
+      continue;
+    }
+    if (use.role === "comparison" && parent !== undefined && ast.is.IsBinaryExpression(parent)) {
+      const binary = ast.as.AsBinaryExpression(parent);
+      const other = binary?.Left === reference ? binary.Right : binary?.Left;
+      const owner = other === undefined ? undefined : navigation.referenceFor(other)?.declaration;
+      const otherType = other === undefined ? undefined : host.semanticsFor(other).types.expressionType(other);
+      if (owner !== undefined && aliases.has(owner) || otherType !== undefined && queries.types.isNullish(otherType)) continue;
+      if (otherType !== undefined) {
+        identityUses.push({ component: { selectedType: otherType }, source: reference });
+        continue;
+      }
+    }
+    const context = selectCsharpLiteralDeclarationContext(reference, host.semanticsFor(reference), host);
+    if (context?.kind === "rejected") return context;
+    if (context === undefined) return reject(reference, "has an unresolved identity use");
+    if (!queries.types.isUnknown(context.component.selectedType) && !queries.types.isAny(context.component.selectedType)) {
+      identityUses.push(...context.identityUses);
+    }
   }
-  if (!ast.is.IsVariableStatement(next)) return undefined;
-  const nextList = ast.as.AsVariableStatement(next)?.DeclarationList;
-  if (nextList === undefined || ast.variableDeclarationKind(nextList) !== "const") return undefined;
-  const variables = ast.children(nextList).filter((node): node is Node =>
-    node !== undefined && ast.is.IsVariableDeclaration(node));
-  const nextDeclaration = variables.length === 1 ? variables[0] : undefined;
-  const nextVariable = nextDeclaration === undefined ? undefined : ast.as.AsVariableDeclaration(nextDeclaration);
-  const initializer = nextVariable?.Initializer;
-  if (initializer === undefined || !ast.is.IsIdentifier(initializer) ||
-    navigation.referenceFor(initializer)?.declaration !== declaration) return undefined;
-  const authoredTypeNode = nextVariable?.Type;
-  if (authoredTypeNode === undefined) {
-    if (!ast.is.IsArrayLiteralExpression(expression)) return undefined;
-    const following = siblings[position + 2];
-    const returned = following !== undefined && ast.is.IsReturnStatement(following)
-      ? ast.as.AsReturnStatement(following)?.Expression : undefined;
-    if (returned === undefined || !ast.is.IsIdentifier(returned) ||
-      navigation.referenceFor(returned)?.declaration !== nextDeclaration) return undefined;
-    const callable = sourceEnclosingCallable(following!, ast);
-    return callable === undefined || ast.typeNode(callable) === undefined ||
-      sourceEnclosingCallable(expression, ast) !== callable ? undefined
-      : returnContext(callable, [...declarations, nextDeclaration!]);
-  }
-  const selectedType = host.semanticsFor(authoredTypeNode).types.authoredType(authoredTypeNode);
-  return selectedType === undefined ? undefined : { component: { selectedType, authoredTypeNode,
-    declaration: nextDeclaration }, declarations, source: expression };
+  const first = identityUses[0] ?? { component: { selectedType: checked }, source: expression };
+  return selected(first, [...aliases], identityUses);
 }
 
 interface CsharpNativeConstructionHost extends Pick<CsharpTypePolicyBaseHost,
@@ -145,9 +189,26 @@ interface CsharpNativeConstructionHost extends Pick<CsharpTypePolicyBaseHost,
   scopedTargetType(node: Node): TargetTypeRef | undefined;
 }
 
-export function csharpUntypedObjectLiteralIssue(node: Node): CsharpNativeConstructionIssue {
+export function csharpUntypedObjectLiteralIssue(
+  node: Node,
+  ast: LiteralContextHost["ast"],
+): CsharpNativeConstructionIssue {
+  let expression = node;
+  while (ast.is.IsParenthesizedExpression(ast.parent(expression))) expression = ast.parent(expression)!;
+  const parent = ast.parent(expression);
+  const variable = parent !== undefined && ast.is.IsVariableDeclaration(parent)
+    ? ast.as.AsVariableDeclaration(parent) : undefined;
+  const binding = variable?.Initializer === expression ? ast.name(parent!) : undefined;
+  const callable = parent !== undefined && ast.is.IsReturnStatement(parent)
+    ? sourceEnclosingCallable(node, ast) : undefined;
+  const callableName = callable === undefined ? undefined : ast.name(callable);
+  const hint = binding !== undefined && ast.is.IsIdentifier(binding)
+    ? `Declare a type for '${ast.text(binding)}' at this initializer.`
+    : callableName !== undefined && ast.is.IsIdentifier(callableName)
+    ? `Declare a return type for '${ast.text(callableName)}' at its declaration.`
+    : "Declare a type at this construction site.";
   return Object.freeze({ node, code: "TSONIC_UNTYPED_OBJECT_LITERAL",
-    message: "This object literal has no target type. Declare one, e.g. 'function baseOptions(): MakeDirectoryOptions'." });
+    message: `This object literal has no target type. ${hint}` });
 }
 
 export function createCsharpNativeConstructionDemandQuery(
@@ -188,15 +249,40 @@ export function createCsharpNativeConstructionDemandQuery(
     const source = queries.types.expressionType(node);
     if (source === undefined || queries.types.constructSignatures(source).length !== 0) return;
     const context = selectCsharpLiteralDeclarationContext(node, queries, host);
-    const contextual = context?.component.selectedType;
+    if (context?.kind === "rejected") {
+      issue(context.subject, "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN", context.reason);
+      return;
+    }
+    const contextual = context?.identityUses.length === 0 ? undefined : context?.component.selectedType;
     const asynchronous = context?.returnedFrom !== undefined && host.ast.hasModifierKind(context.returnedFrom, "async");
     const selected = contextual !== undefined && asynchronous ? queries.types.typeArguments(contextual)[0] : contextual;
     if (selected !== undefined && queries.types.isAny(selected)) {
       issue(node, "TSONIC_ANY_UNSUPPORTED", "'any' has no native representation. Declare the type, or use 'unknown' and narrow it.");
       return;
     }
+    if (selected !== undefined && queries.types.isUnknown(selected) && host.ast.properties(node).some(property =>
+      property !== undefined && (host.ast.is.IsSpreadAssignment(property) ||
+        host.ast.is.IsGetAccessorDeclaration(property) || host.ast.is.IsSetAccessorDeclaration(property)))) {
+      issue(node, "CSHARP_UNSUPPORTED_AST", "Broad native object construction requires named data properties or closed native method values; accessor and spread observations have no admitted closed native contract.");
+      return;
+    }
+    const expectedShapes = (context?.identityUses ?? []).flatMap(use => {
+      const selectedType = use.returnedFrom !== undefined && host.ast.hasModifierKind(use.returnedFrom, "async")
+        ? queries.types.typeArguments(use.component.selectedType)[0] : use.component.selectedType;
+      if (selectedType === undefined || queries.types.isUnknown(selectedType) || queries.types.isAny(selectedType)) return [];
+      return [{ use, shape: host.resolveShape(selectedType, host.semanticsFor(use.source).sourceFile,
+        use.returnedFrom !== undefined ? undefined : use.component.authoredTypeNode) }];
+    });
+    const firstShape = expectedShapes[0]?.shape;
+    const conflicting = expectedShapes.find(expected => firstShape !== undefined && expected.shape !== undefined &&
+      !targetTypeRefEquals(firstShape.targetType, expected.shape.targetType));
+    if (conflicting !== undefined) {
+      issue(node, "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN",
+        `${csharpUntypedObjectLiteralIssue(node, host.ast).message} Native construction has conflicting exact identity representations at source offset ${host.ast.pos(conflicting.use.source)}.`);
+      return;
+    }
     if (host.ast.properties(node).length === 0 && selected === undefined) {
-      issues.push(csharpUntypedObjectLiteralIssue(node));
+      issues.push(csharpUntypedObjectLiteralIssue(node, host.ast));
       return;
     }
     const native = selected !== undefined && queries.facts.typeSubjects(selected).some(subject => {
@@ -247,7 +333,7 @@ export function createCsharpNativeConstructionDemandQuery(
         return;
       }
     }
-    if (context !== undefined) return;
+    if (context !== undefined && context.identityUses.length !== 0) return;
     const declaration = host.ast.parent(node);
     const variable = declaration === undefined || !host.ast.is.IsVariableDeclaration(declaration)
       ? undefined : host.ast.as.AsVariableDeclaration(declaration);

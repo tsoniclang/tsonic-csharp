@@ -38,21 +38,26 @@ for (const surface of ["native", "js"]) {
     assert.equal(literals.length, 5, "both nested literals and the alias container are checked");
     for (const node of literals) {
       const use = program.records.nativeExpression.get(node)?.physical;
-      assert.equal(use !== undefined && use.kind !== "erased" && use.dynamicObject !== undefined &&
-        use.objectShape === undefined, true, "fresh broad construction carries a sealed member plan, not a synthetic shape");
-      assert.equal(Object.isFrozen(use.dynamicObject), true, "the selected authored member order is immutable");
-      assert.equal(Object.isFrozen(use.dynamicObject.members), true, "the native object member vector is immutable");
-      assert.equal(use.dynamicObject.members.every(member => Object.isFrozen(member)), true,
-        "each selected member retains immutable checked name and initializer evidence");
+      assert.equal(use !== undefined && use.dynamicObject === undefined && use.objectShape !== undefined,
+        true, "fresh broad construction carries its one sealed native object-shape contract");
+      assert.equal(Object.isFrozen(use.objectShape), true, "the selected native construction contract is immutable");
+      assert.equal(Object.isFrozen(use.objectShape.members), true, "the native object member vector is immutable");
+      assert.equal(use.objectShape.members.every(member => Object.isFrozen(member)), true,
+        "each selected member retains immutable checked field and source evidence");
+      const order = program.records.nativeOrder.get(node);
+      assert.equal(order !== undefined && Object.isFrozen(order), true,
+        "the original construction has one immutable selected initializer order");
     }
     const output = [...compiled.artifacts.values()].join("\n");
-    assert.equal((output.match(/new Tsonic\.CSharp\.Runtime\.TsObject\(\)/gu) ?? []).length, 5,
+    assert.equal((output.match(/new ObjectShape_[a-f0-9]+\b/gu) ?? []).length, 5,
       "one direct native construction is emitted for each fresh literal");
     assert.equal(/\.CreateDynamicObject\(|new object\??\[/u.test(output), false,
       "direct native field writes do not allocate a params array or box the closed value carrier");
-    assert.equal(/\bObjectShape_[a-f0-9]+\b|System\.Reflection|\bdynamic\b/u.test(output), false,
-      "fresh broad literals require neither a boxed intermediate shape nor reflective access");
-    assert.equal(/\.WriteDynamicSlot\("value",/u.test(output) && /\.WriteDynamicSlot\("label",/u.test(output), true,
+    assert.equal(/new Tsonic\.CSharp\.Runtime\.TsObject\b|System\.Reflection|\bdynamic\b|\.WriteDynamicSlot\(/u.test(output), false,
+      "fresh broad literals use direct native fields, never dictionary-backed or reflective construction");
+    const names = literals.flatMap(node => program.records.nativeExpression.get(node).physical.objectShape.members
+      .map(member => member.sourceName));
+    assert.equal(names.includes("value") && names.includes("label"), true,
       "the nested literal retains both exact native fields");
     executeCsharpConstruction(compiled, `broad-object-construction-${surface}`, false, false, [], `
 var nested = Tsonic.Generated.Index.nested();
@@ -136,25 +141,55 @@ static class Escape { public static TsValue Value; }
 static class Native {
     [MethodImpl(MethodImplOptions.NoInlining)]
     public static TsValue scalar(double value) {
-        var target = new TsObject();
-        target.WriteDynamicSlot("value", value);
-        return TsValue.from(target);
+        return TsValue.from(new Scalar { value = value });
     }
     [MethodImpl(MethodImplOptions.NoInlining)]
     public static TsValue reference(string value) {
-        var target = new TsObject();
-        target.WriteDynamicSlot("value", value);
-        return TsValue.from(target);
+        return TsValue.from(new Reference { value = value });
     }
     [MethodImpl(MethodImplOptions.NoInlining)]
     public static TsValue nested(double value) {
-        var child = new TsObject();
-        child.WriteDynamicSlot("value", value);
-        var target = new TsObject();
-        target.WriteDynamicSlot("child", child);
-        return TsValue.from(target);
+        var child = new Scalar { value = value };
+        return TsValue.from(new Nested { child = child });
+    }
+    sealed class Scalar : ITsClosedValueCarrier, IDynamicObject {
+        public double value;
+        public bool TryReadDynamicSlot(string key, out object? result) {
+            if (key == "value") { result = value; return true; }
+            result = null;
+            return false;
+        }
+        public void WriteDynamicSlot(string key, object? input) {
+            if (key == "value") { value = TsValue.CastDynamic<double>(input); return; }
+            throw new InvalidOperationException("The native object has no writable field with this name.");
+        }
+    }
+    sealed class Reference : ITsClosedValueCarrier, IDynamicObject {
+        public string value = null!;
+        public bool TryReadDynamicSlot(string key, out object? result) {
+            if (key == "value") { result = value; return true; }
+            result = null;
+            return false;
+        }
+        public void WriteDynamicSlot(string key, object? input) {
+            if (key == "value") { value = TsValue.CastDynamic<string>(input); return; }
+            throw new InvalidOperationException("The native object has no writable field with this name.");
+        }
+    }
+    sealed class Nested : ITsClosedValueCarrier, IDynamicObject {
+        public Scalar child = null!;
+        public bool TryReadDynamicSlot(string key, out object? result) {
+            if (key == "child") { result = child; return true; }
+            result = null;
+            return false;
+        }
+        public void WriteDynamicSlot(string key, object? input) {
+            if (key == "child") { child = TsValue.CastDynamic<Scalar>(input); return; }
+            throw new InvalidOperationException("The native object has no writable field with this name.");
+        }
     }
 }
 `);
   });
 }
+

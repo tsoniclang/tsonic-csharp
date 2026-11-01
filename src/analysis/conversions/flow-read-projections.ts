@@ -1,6 +1,7 @@
 import { isCsharpThrowableType } from "../project-types/throwable-types.js";
 import { createCsharpFlowReadProjectionProducer } from "../program/records/operations/flow-read-projections.js";
 import type { AstReader, Node } from "@tsonic/tsts";
+import { sourceAbsenceUse } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { selectCsharpFlowReadProjection } from "../../policy/types/objects/read-projections.js";
 import type { CsharpFlowReadClassifications, CsharpSourceEvidenceIndex } from "../../target-model/records/program/source-evidence.js";
@@ -10,7 +11,7 @@ import type { CsharpObjectShapeClassifications } from "../../target-model/record
 import { admitCsharpConversionSelection } from "./validation.js";
 
 export function analyzeCsharpFlowReadProjections(
-  policy: Pick<CsharpPolicyContext, "ast" | "sourceFiles" | "navigation" | "typeDefinitions" | "projectTypes" | "providers" | "target"> & {
+  policy: Pick<CsharpPolicyContext, "ast" | "sourceFiles" | "navigation" | "semanticsFor" | "typeDefinitions" | "projectTypes" | "providers" | "target"> & {
     readonly objectShapes: Pick<CsharpObjectShapeClassifications, "resolveNode" | "resolveTarget">;
   },
   evidence: CsharpSourceEvidenceIndex,
@@ -31,6 +32,7 @@ export function analyzeCsharpFlowReadProjections(
       const selected = selectCsharpFlowReadProjection(
         policy, read?.flowReadStorage, read?.flowReadValue, evidence.valueRefinement.get(node), deferredConstructorFieldRead(policy.ast, node),
         isCsharpThrowableType(policy, evidence.valueRefinement.get(node)?.flowReadTargetType),
+        sourceAbsenceUse(node, policy) !== undefined,
       );
       const projection = selected.kind === "conversion"
         ? { ...selected, selection: admitCsharpConversionSelection(policy, selected.source, selected.target, selected.selection) }
