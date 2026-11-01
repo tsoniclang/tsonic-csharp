@@ -9,10 +9,10 @@ import type {
 } from "../../target-ast/syntax/index.js";
 import {
   declareCsharpTypedLocationIdentityName,
-} from "./index.js";
+} from "./binding-state.js";
 import type {
   DestructuringPlannerState,
-} from "./index.js";
+} from "./binding-state.js";
 import { redirectCsharpParameterStorage } from "./binding-state.js";
 import { planCsharpNativeMemoryCall } from "../expressions/native-memory.js";
 import { csharpRuntimeLocationTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";

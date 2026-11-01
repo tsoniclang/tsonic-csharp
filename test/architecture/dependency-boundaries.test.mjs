@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { posix, resolve } from "node:path";
 import test from "node:test";
+import { createCompilerSessionFromFiles } from "../../../tsonic/packages/tsts/dist/src/index.js";
 import {
   evaluateArchitecture,
   evaluateBarrelModules,
@@ -12,7 +13,7 @@ import {
 } from "../../../tsonic/test/architecture/tooling/architecture-rules.mjs";
 import { collectFiles, readSourceInventory } from "../../../tsonic/test/architecture/tooling/file-inventory.mjs";
 import { classifyFiles } from "../../../tsonic/test/architecture/tooling/layer-classification.mjs";
-import { buildTypeScriptModuleAnalysis } from "../../../tsonic/test/architecture/tooling/module-graph.mjs";
+import { analyzeCheckedTypeScriptModules } from "../../../tsonic/test/architecture/tooling/module-graph.mjs";
 import { evaluateTestDomainOwnership } from "../../../tsonic/test/architecture/tooling/test-inventory.mjs";
 import { evaluatePublicExportInventory } from "../../../tsonic/test/architecture/tooling/public-export-inventory.mjs";
 import { canonicalTargetTestDomains } from "../../../tsonic/test/architecture/tooling/target-layer-contract.mjs";
@@ -54,7 +55,29 @@ test("C# product imports conform to the declared architecture", () => {
     exclude: ["dist", "node_modules", "test", ".temp", ".analysis"],
   });
   const classification = classifyFiles(sourceFiles.keys(), csharpLayerRules);
-  const moduleAnalysis = buildTypeScriptModuleAnalysis(sourceFiles);
+  const testFiles = new Map([...readSourceInventory(resolve(repositoryRoot, "test"), {
+    extensions: [".mjs"], exclude: ["dist", "node_modules", ".temp", ".analysis"],
+  })].map(([file, text]) => [`test/${file}`, text]));
+  const files = new Map([...sourceFiles, ...testFiles]);
+  const { rootDir, outDir } = JSON.parse(readFileSync(resolve(repositoryRoot, "tsconfig.json"), "utf8")).compilerOptions;
+  assert.equal(typeof rootDir === "string" && typeof outDir === "string", true, "declared source/output roots");
+  const resolutionRoots = [rootDir, outDir].map(root => posix.normalize(root));
+  const source = createCompilerSessionFromFiles({
+    currentDirectory: "/architecture",
+    files: new Map([...files].map(([file, text]) => [`/architecture/${file}`, text])),
+    rootFiles: [...files.keys()],
+    compilerOptions: {
+      allowJs: true, module: "esnext", moduleResolution: "bundler", noLib: true,
+      noResolve: true, skipLibCheck: true, target: "esnext",
+      rootDirs: resolutionRoots.map(root => posix.join("/architecture", root)),
+    },
+  }).checkSource();
+  const checked = analyzeCheckedTypeScriptModules(source, files, "/architecture/", resolutionRoots);
+  const moduleAnalysis = {
+    modules: checked.modules.filter(module => sourceFiles.has(module.file)),
+    edges: checked.edges.filter(edge => sourceFiles.has(edge.source)),
+  };
+  const readers = checked.modules.filter(module => testFiles.has(module.file));
   const architecture = evaluateArchitecture({
     sourceFiles,
     edges: moduleAnalysis.edges,
@@ -74,7 +97,7 @@ test("C# product imports conform to the declared architecture", () => {
     ...barrelFindings,
     ...evaluateModuleLiveness({ modules: moduleAnalysis.modules, edges: moduleAnalysis.edges,
       entrypoints: ["src/index.ts", "src/public/provider.ts", "src/public/provider-dotnet.ts"] }),
-    ...evaluateFunctionLiveness({ modules: moduleAnalysis.modules,
+    ...evaluateFunctionLiveness({ modules: moduleAnalysis.modules, readers,
       entrypoints: ["src/index.ts", "src/public/provider.ts", "src/public/provider-dotnet.ts"] }),
     ...evaluateSelfBarrelImports({ modules: moduleAnalysis.modules, edges: moduleAnalysis.edges }),
   ];
