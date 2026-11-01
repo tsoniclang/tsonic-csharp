@@ -32,6 +32,7 @@ import { csharpLoopContinuationLabel, planCsharpLoopContinuation } from "./loop-
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { CsharpCaptureFrame } from "../../../target-model/records/callables/capture-storage.js";
 import type { CsharpPlannedAddressOperand } from "../expressions/planned-values.js";
+import { readCsharpNativeDiscardEvaluation } from "../expressions/native-uses.js";
 
 export function planForStatement(
   node: Node,
@@ -109,8 +110,9 @@ function planForStatementCore(
   const iterationPrelude = conditionPrelude.flatMap(expression => planCsharpPlannedDiscard(expression!));
   const expandedIncrement = incrementors.some(expression => expression!.prelude.length !== 0 || expression!.completion.kind !== "value");
   const expandedCondition = iterationPrelude.length !== 0 || (condition?.prelude.length ?? 0) !== 0;
+  const zeroIterations = conditionNode !== undefined && input.program.records.nativeGuardResult.get(conditionNode) === false;
   const label = expandedIncrement ? planCsharpLoopContinuation(node, state) : undefined;
-  const body = condition?.completion.kind === "never" ? [] : planNestedStatementBody(bodyNode, sourceFile, iteration.input, diagnostics, state);
+  const body = zeroIterations || condition?.completion.kind === "never" ? [] : planNestedStatementBody(bodyNode, sourceFile, iteration.input, diagnostics, state);
   const continuationExits = input.program.records.loopContinuationExit.get(node);
   if (continuationExits === undefined) failCsharpPlannerInvariant("An admitted for body requires its sealed continuation completion.", node);
   const incrementStatements = incrementors.flatMap(expression => planCsharpPlannedDiscard(expression!));
@@ -147,7 +149,10 @@ function planForStatementCore(
       ],
     },
   };
-  const loopStatements = condition?.completion.kind === "never" ? conditionTest : [plannedFor];
+  const loopStatements = zeroIterations && condition !== undefined
+    ? [...iterationPrelude, ...(readCsharpNativeDiscardEvaluation(input, conditionNode!) === "evaluate"
+      ? planCsharpPlannedDiscard(condition) : condition.prelude)]
+    : condition?.completion.kind === "never" ? conditionTest : [plannedFor];
   return initializerPrelude.length === 0
     ? loopStatements
     : initializer?.preludeScope === "enclosing"
