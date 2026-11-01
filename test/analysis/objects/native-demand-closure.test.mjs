@@ -344,3 +344,37 @@ test("constructor refusals and other participating native refusals share one com
   assert.equal(compiled.source.ast.is.IsTaggedTemplateExpression(tagged.sourceNode), true,
     "the independent refusal belongs to the actual tagged template, not an unrelated tag-body operation");
 });
+
+test("general native JSON declarations propagate through exact native inheritance without runtime origins", () => {
+  const base = Object.freeze({ targetType: { kind: "target-named", id: "Example.JsonBase", csharpAllowsRefLikeTypeArguments: [] }, members: [] });
+  const derived = Object.freeze({ targetType: { kind: "target-named", id: "Example.JsonDerived", csharpAllowsRefLikeTypeArguments: [] },
+    members: [], implements: [base.targetType] });
+  const shapes = new Map([base, derived].map(shape => [targetTypeRefKey(shape.targetType), shape]));
+  const engine = createCsharpObjectShapeDemandEngine({ ast: {}, names: { typeParameterNames: [] },
+    captureStorage: { captureFrameShape: { get() {} } }, conversions: { conversion: { get() {} } },
+    objectShapes: { targetShapes: Object.freeze(Object.fromEntries(shapes)), knownShapes: () => [...shapes.values()],
+      resolveTarget(type) { return type === undefined ? undefined : shapes.get(targetTypeRefKey(type)); } } });
+  for (const shape of [base, derived]) assert.equal(engine.registerObjectShape(shape, "synthetic").kind, "accepted",
+    "the exact native declarations are admitted before serializer publication");
+  engine.registerGeneralJsonWriter(base);
+  const closure = engine.close();
+  for (const shape of [base, derived]) assert.equal(closure.artifacts.find(artifact => artifact.key === objectShapeArtifactKey(shape)).jsonContract?.kind,
+    "properties", "a native implementation keeps the declared inherited JSON protocol without a caller census");
+  assert.equal(closure.artifacts.length, 2, "no extra representation or source-origin artifact is introduced");
+});
+
+test("general native JSON metadata cannot make legal pointer fields acquire an invalid object-boxing writer", () => {
+  const pointer = { kind: "pointer", pointee: { kind: "source-primitive", name: "uint8" } };
+  const shape = Object.freeze({ targetType: { kind: "target-named", id: "Example.NativeAddress", csharpAllowsRefLikeTypeArguments: [] },
+    members: [{ sourceKey: { kind: "property", name: "address" }, sourceName: "address", targetName: "address", memberKind: "property", type: pointer }] });
+  const engine = createCsharpObjectShapeDemandEngine({ ast: {}, names: { typeParameterNames: [] },
+    captureStorage: { captureFrameShape: { get() {} } }, conversions: { conversion: { get() {} } },
+    objectShapes: { targetShapes: Object.freeze({ [targetTypeRefKey(shape.targetType)]: shape }),
+      resolveTarget(type) { return type === shape.targetType ? shape : undefined; } } });
+  assert.equal(engine.registerObjectShape(shape, "synthetic").kind, "accepted", "the original native pointer field remains representable");
+  engine.registerGeneralJsonWriter(shape);
+  const artifact = engine.close().artifacts.find(entry => entry.key === objectShapeArtifactKey(shape));
+  assert.equal(artifact.fact === shape && artifact.fact.members[0].type === pointer, true, "native pointer identity and storage are unchanged");
+  assert.equal(artifact.jsonContract === undefined && !artifact.capabilities.includes("json-serialization"), true,
+    "no pointer-to-object conversion, wrapper or false native writer is manufactured");
+});

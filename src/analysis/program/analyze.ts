@@ -33,6 +33,7 @@ import { analyzeCsharpFlowReadProjections } from "../conversions/flow-read-proje
 
 import { analyzeCsharpNativeValueCarriers, analyzeCsharpObjectMethodSources } from "../objects/value-carriers.js";
 import { analyzeCsharpModuleCallables } from "../callables/module-callables.js";
+import { analyzeCsharpSourceAnyAdmission } from "../source-evidence/source-any-admission.js";
 
 type CsharpAnalysisRejection = Extract<TargetStageResult<never>, { readonly kind: "rejected" }>;
 
@@ -73,6 +74,10 @@ function analyzeCsharpTargetProgramBeforeSeal(
   if (aliasIssues.length !== 0) return rejectedTargetStage(aliasIssues.map(diagnostic => ({
     ...targetDiagnosticFromExtension(diagnostic.nodeOrSpan, diagnostic), code: diagnostic.publicCode,
   })));
+  const sourceFiles = Object.freeze([...source.navigation.sourceFiles]);
+  const sourceNodes = source.navigation.nodesForFiles(sourceFiles);
+  const sourceAnyIssues = analyzeCsharpSourceAnyAdmission(source, sourceNodes);
+  if (sourceAnyIssues.length !== 0) return rejectedTargetStage(sourceAnyIssues);
   if (source.semantics.enumConstants.issues.length !== 0) return rejectedTargetStage(source.semantics.enumConstants.issues);
   const memoryBindings = createTsonicMemoryBindingIndex(source);
   const sourceAttributeApplications = createCsharpSourceAttributeApplicationIndex(source, source.navigation.sourceFiles);
@@ -83,8 +88,6 @@ function analyzeCsharpTargetProgramBeforeSeal(
     navigation: source.navigation,
   });
   const statementErasure = Object.freeze({ attributeApplications: sourceAttributeApplications, safetyApplications });
-  const sourceFiles = Object.freeze([...source.navigation.sourceFiles]);
-  const sourceNodes = source.navigation.nodesForFiles(sourceFiles);
   const moduleCallables = analyzeCsharpModuleCallables(source.ast, sourceNodes);
   const literalValues = analyzeSourceLiteralValues(source.ast, sourceFiles);
   const sourceStorage = createSourceStorageQuery(source, sourceFiles, undefined, createCsharpSourceProfileStorageEffects(source, providers));

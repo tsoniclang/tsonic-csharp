@@ -487,11 +487,16 @@ test("native storage publication still requires exact source-member corresponden
 });
 
 test("consumed any is refused without a dynamic object-construction path", () => {
-  const value = fixture();
-  const literal = value.node(value.row([{ identity: "user" }]), { any: true });
-  const selected = value.freeze();
-  assert.equal(selected.issues[0].code, "TSONIC_ANY_UNSUPPORTED");
-  assert.equal(selected.constructionFor(literal) === undefined, true);
+  const compiled = compileCsharpSource({ sourceText: "export const value: any = { user: 1 };" });
+  assert.equal(compiled.sourceDiagnosticsText, "", "the original consumed-any contract is checked source");
+  const issues = compiled.result.diagnostics.filter(issue => issue.category === "error");
+  assert.equal(issues.length, 1, "one canonical source-any owner refuses before construction");
+  assert.equal(issues[0].code, "TSONIC_ANY_UNSUPPORTED");
+  assert.equal(issues[0].message, "'any' has no native representation. Declare the type, or use 'unknown' and narrow it.");
+  assert.equal(compiled.source.ast.is.IsVariableDeclaration(issues[0].sourceNode), true,
+    "the checked declaration owns its actual any storage");
+  assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+    "the canonical admission cannot publish an invented native construction");
 });
 
 function memberProvenanceFixture() {

@@ -186,7 +186,8 @@ function projectObservableEnvironment(preprocessed: string): readonly (readonly 
   for (const match of preprocessed.matchAll(/GetEnvironmentVariable\(\s*'([^']+)'\s*\)/gu)) referenced.add(match[1]!.toUpperCase());
   return Object.entries(process.env)
     .filter((entry): entry is [string, string] => entry[1] !== undefined &&
-      (referenced.has(entry[0].toUpperCase()) || /^(?:DOTNET_|MSBUILD|NUGET_)/iu.test(entry[0])))
+      (referenced.has(entry[0].toUpperCase()) ||
+        (/^(?:DOTNET_|MSBUILD|NUGET_)/iu.test(entry[0]) && entry[0].toUpperCase() !== "NUGET_HTTP_CACHE_PATH")))
     .sort(([left], [right]) => left.localeCompare(right, "en"));
 }
 
