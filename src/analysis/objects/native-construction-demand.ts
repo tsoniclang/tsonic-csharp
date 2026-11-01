@@ -49,9 +49,9 @@ export function selectCsharpLiteralDeclarationContext(
   const declaration = ast.parent(current);
   const variable = declaration !== undefined && ast.is.IsVariableDeclaration(declaration)
     ? ast.as.AsVariableDeclaration(declaration) : undefined;
+  let initializer = current;
+  let owner = declaration;
   if (ast.is.IsObjectLiteralExpression(expression)) {
-    let initializer = current;
-    let owner = declaration;
     while (owner !== undefined && !ast.is.IsVariableDeclaration(owner)) {
       if (!ast.is.IsPropertyAssignment(owner) || ast.as.AsPropertyAssignment(owner)?.Initializer !== initializer) break;
       const literal = ast.parent(owner);
@@ -60,14 +60,17 @@ export function selectCsharpLiteralDeclarationContext(
       while (ast.is.IsParenthesizedExpression(ast.parent(initializer))) initializer = ast.parent(initializer)!;
       owner = ast.parent(initializer);
     }
-    const binding = owner !== undefined && ast.is.IsVariableDeclaration(owner)
-      ? ast.as.AsVariableDeclaration(owner) : undefined;
-    if (binding?.Initializer === initializer && binding.Type !== undefined &&
-      ast.is.IsObjectBindingPattern(ast.name(owner!))) {
-      const selectedType = queries.types.expressionType(expression);
-      return selectedType === undefined ? undefined : selected({ component: { selectedType, declaration: owner },
-        source: expression }, [], []);
-    }
+  }
+  const binding = owner !== undefined && ast.is.IsVariableDeclaration(owner)
+    ? ast.as.AsVariableDeclaration(owner) : undefined;
+  const bindingName = owner === undefined ? undefined : ast.name(owner);
+  if (binding?.Initializer === initializer && bindingName !== undefined &&
+    (ast.is.IsObjectBindingPattern(bindingName) || ast.is.IsArrayBindingPattern(bindingName))) {
+    const source = ast.is.IsIdentifier(expression) ? navigation.referenceFor(expression)?.declaration : undefined;
+    const selectedType = source === undefined ? queries.types.expressionType(expression)
+      : host.semanticsFor(source).declarations.declaredValueType(source);
+    return selectedType === undefined ? undefined : selected({ component: { selectedType, declaration: owner },
+      source: expression }, [], []);
   }
   const declarations = variable?.Initializer === current ? [declaration!] : [];
   const returnContext = (callable: Node, source: Node): CsharpLiteralUseContext | undefined => {
