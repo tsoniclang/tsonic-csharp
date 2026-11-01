@@ -1,5 +1,5 @@
 import type { AstReader, Node } from "@tsonic/tsts";
-import { sourceCallableValueExpression } from "@tsonic/target-api/source";
+import { sourceCallableValueExpression, type SourceProgramNavigation } from "@tsonic/target-api/source";
 
 export function csharpModuleCallableInitializer(ast: AstReader, declaration: Node): Node | undefined {
   if (!ast.is.IsVariableDeclaration(declaration)) return undefined;
@@ -14,4 +14,17 @@ export function csharpModuleCallableInitializer(ast: AstReader, declaration: Nod
     { typeAssertions: "transparent" });
   return initializer !== undefined && (ast.is.IsArrowFunction(initializer) || ast.is.IsFunctionExpression(initializer))
     ? initializer : undefined;
+}
+
+export function csharpModuleCallableSource(
+  ast: AstReader,
+  navigation: Pick<SourceProgramNavigation, "expressionResultDisposition">,
+  node: Node,
+): { readonly callable: Node; readonly sourceOwner: Node } | undefined {
+  const initializer = csharpModuleCallableInitializer(ast, node);
+  if (initializer !== undefined) return Object.freeze({ callable: initializer, sourceOwner: node });
+  if (!ast.is.IsArrowFunction(node) && !ast.is.IsFunctionExpression(node)) return undefined;
+  const disposition = navigation.expressionResultDisposition(node);
+  return disposition.kind === "stored" && csharpModuleCallableInitializer(ast, disposition.use) === node
+    ? Object.freeze({ callable: node, sourceOwner: disposition.use }) : undefined;
 }

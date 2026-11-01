@@ -1,3 +1,4 @@
+import { createCsharpCallableCreationProducer } from "../../../dist/analysis/program/records/callables/callable-creations.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
@@ -172,3 +173,24 @@ for (const body of ["return invoke((entry: number) => entry + 1);", "return invo
     assert.equal(Object.isFrozen(selected), true);
   });
 }
+
+test("native callable creation publication distinguishes foreign, duplicate and sealed ownership", () => {
+  const declaration = Object.freeze({});
+  const foreign = Object.freeze({});
+  const creation = Object.freeze({ kind: "pending" });
+  const producer = createCsharpCallableCreationProducer([declaration]);
+  assert.throws(() => producer.publish(foreign, creation), error => error instanceof Error &&
+    error.message.includes("Native callable creation publication requires its admitted source-node domain."));
+  producer.publish(declaration, creation);
+  assert.throws(() => producer.publish(declaration, creation), error => error instanceof Error &&
+    error.message.includes("A native callable creation publishes once for each admitted source node."));
+  const selected = producer.seal();
+  assert.equal(selected.callableCreation.get(declaration) === creation, true,
+    "publication retains the identical frozen creation on its original declaration");
+  assert.equal(Object.isFrozen(selected) && Object.isFrozen(selected.callableCreation), true);
+  assert.equal(selected.callableTarget.get(declaration), undefined, "pending is not a fabricated native carrier");
+  assert.throws(() => producer.publish(foreign, creation), error => error instanceof Error &&
+    error.message.includes("A native callable creation cannot publish after sealing."));
+  assert.throws(() => producer.seal(), error => error instanceof Error &&
+    error.message.includes("Native callable creations seal once."));
+});

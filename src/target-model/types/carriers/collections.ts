@@ -79,12 +79,6 @@ export function getCsharpJsArrayElementTargetType(
     : undefined;
 }
 
-export function isCsharpReadOnlyIndexableCollectionTargetType(type: TargetTypeRef | undefined): boolean {
-  return type?.kind === "array" ||
-    (type?.kind === "target-named" &&
-      (type as CsharpTargetNamedTypeRef).csharpReadOnlyIndexableElementType !== undefined);
-}
-
 export function getCsharpReadOnlyIndexableCollectionElementTargetType(type: TargetTypeRef | undefined): TargetTypeRef | undefined {
   if (type?.kind === "array") {
     return type.element;

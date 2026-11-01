@@ -17,7 +17,7 @@ import { planCsharpNativeFunctionCallee, planCsharpNativeMethodCallee } from "./
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/render.js";
-import { castCsharpCallableOperand, unparenthesizeCsharpCallable } from "./callable-syntax.js";
+import { castCsharpCallableOperand, unparenthesizeCsharpExpression } from "./callable-syntax.js";
 
 export function translateSourceOwnedCall(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner, planCallArgument: CallArgumentPlanner, state?: DestructuringPlannerState): CsharpPlannedValue | undefined {
@@ -72,7 +72,7 @@ export function translateSourceOwnedCall(node: Node, sourceFile: SourceFile, inp
   }
   const expression = planExpression(callee.expression, sourceFile, input, diagnostics);
   const invokeValue = (value: CsharpExpression, args: readonly CsharpArgument[]): CsharpPlannedValue | undefined => {
-    const operand = unparenthesizeCsharpCallable(value);
+    const operand = unparenthesizeCsharpExpression(value);
     if (operand.kind !== "LambdaExpression") return invoke(value, args);
     const type = expression?.completion.kind === "value"
       ? csharpTypeFromTargetTypeRef(expression.completion.carrier, input.scope.typeParameterNames) : undefined;

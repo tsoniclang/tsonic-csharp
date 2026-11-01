@@ -140,7 +140,7 @@ test("advanced .NET API contracts close through provider selection and C# syntax
     .map(match => match[1]);
   assert.equal(eventAdapters.length, 2);
   assert.equal(eventAdapters[0], eventAdapters[1], "native add/remove share the exact retained adapter");
-  const retainedAdapters = [...output.matchAll(/System\.Action<int> (__+tsonic_adapter\w*) = \(int __tsonic_arg0\) =>\s*\{\s*callback\(__tsonic_arg0\);\s*return;\s*\};/gu)];
+  const retainedAdapters = [...output.matchAll(/System\.Action<int> (__+tsonic_adapter\w*) = \(int __tsonic_arg0\) =>\s*\{\s*callback\(__tsonic_arg0\);\s*\};/gu)];
   assert.equal(retainedAdapters.length, 1, "one typed retained native adapter value");
   assert.equal(retainedAdapters[0][1], eventAdapters[0], "both events read the declared adapter");
   assert.doesNotMatch(output, /new System\.Action<int>/u);

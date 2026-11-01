@@ -2,11 +2,10 @@ import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
 import type { ExtensionFactSubject, Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../../../policy/model/context.js";
 import type { TargetTypeRef } from "../../../../target-model/types/model.js";
-import { isCsharpJsValueTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { getCsharpMethodValue } from "../../../../target-model/types/method-values.js";
 import { isCsharpSourceDelegateTargetType } from "../../../../target-model/types/carriers/delegates.js";
 
-import { isTypeParameterTargetRef, isCsharpDelegateTargetRef } from "../../../../policy/ownership/type-categories.js";
+import { isCsharpDelegateTargetRef } from "../../../../policy/ownership/type-categories.js";
 export function isSourceOwnedCallableRuntimeCarrierSubject(
   node: Node | undefined,
   sourceFile: SourceFile,
@@ -15,7 +14,7 @@ export function isSourceOwnedCallableRuntimeCarrierSubject(
   if (node === undefined) {
     return false;
   }
-  const carrier = input.types.resolveNode(node, sourceFile)?.type;
+  const carrier = input.types.resolveNode(node, sourceFile)?.sourceResult?.selectedType;
   const reference = input.navigation.referenceFor(node);
   return (isCsharpDelegateTargetRef(carrier) || getCsharpMethodValue(carrier) !== undefined) &&
     (
@@ -46,36 +45,6 @@ function isSourceCallableResult(
     input.navigation.isProjectDeclaration(declaration) &&
     input.sourceFiles.includes(file) && !input.ast.isDeclarationFile(file) &&
     !hasProviderOwnedSubject(file, input) && !hasProviderOwnedSubject(declaration, input);
-}
-
-export function isSourceOwnedProjectShapeSubject(
-  node: Node | undefined,
-  sourceFile: SourceFile,
-  input: CsharpPolicyContext,
-): boolean {
-  if (node === undefined) {
-    return false;
-  }
-  const carrier = input.types.resolveNode(node, sourceFile)?.type;
-  if (isCsharpJsValueTargetType(carrier)) {
-    return false;
-  }
-  return isTypeParameterTargetRef(carrier) ||
-    input.navigation.isProjectShape(node);
-}
-
-export function isSourceOwnedProjectConstructibleObjectSubject(
-  node: Node | undefined,
-  sourceFile: SourceFile,
-  input: CsharpPolicyContext,
-): boolean {
-  if (node === undefined) {
-    return false;
-  }
-  const carrier = input.types.resolveNode(node, sourceFile)?.type;
-  return !isCsharpJsValueTargetType(carrier) &&
-    !isTypeParameterTargetRef(carrier) &&
-    input.navigation.isProjectConstructibleObject(node);
 }
 
 export function isSourceDeclaredCallableReference(

@@ -5,34 +5,6 @@ import { dotnetMemberKindToProviderKind } from "./conversions.js";
 import { dotnetProviderMemberId, dotnetProviderSourceMemberGroupId } from "../../model/member-identity.js";
 import { dotnetProviderSignatureIdsForMember, dotnetSignatureToProviderSignature, mergeProviderSignatures, providerSignatureCallShapeKey } from "./signatures.js";
 
-export function mergeOwnAndBaseProviderMembers(
-  ownMembers: readonly ProviderMemberDeclaration[],
-  baseMembers: readonly ProviderMemberDeclaration[],
-): readonly ProviderMemberDeclaration[] {
-  if (baseMembers.length === 0) {
-    return ownMembers;
-  }
-  if (ownMembers.length === 0) {
-    return baseMembers;
-  }
-  const members = [...baseMembers];
-  for (const member of ownMembers) {
-    const matchingBaseMembers = baseMembers.filter((baseMember) =>
-      providerMemberNamesEqual(baseMember, member) &&
-      providerMembersHaveSameStaticness(baseMember, member)
-    );
-    if (matchingBaseMembers.length === 0) {
-      members.push(member);
-      continue;
-    }
-    for (const matchingMember of matchingBaseMembers) {
-      members.splice(members.indexOf(matchingMember), 1);
-    }
-    members.push(...mergeProviderMemberWithLocalBase(member, matchingBaseMembers));
-  }
-  return members;
-}
-
 export function mergeProviderMemberList(members: readonly ProviderMemberDeclaration[]): readonly ProviderMemberDeclaration[] {
   const merged: ProviderMemberDeclaration[] = [];
   for (const member of members) {
@@ -236,29 +208,6 @@ export function filterTsCompatibleProviderMembers(
 }
 
 const reservedProviderConstructorSourceNames = new Set(["constructor"]);
-
-function mergeProviderMemberWithLocalBase(
-  member: ProviderMemberDeclaration,
-  baseMembers: readonly ProviderMemberDeclaration[],
-): readonly ProviderMemberDeclaration[] {
-  const matchingBaseMembers = baseMembers.filter((baseMember) =>
-    providerMemberNamesEqual(baseMember, member) &&
-    providerMembersHaveSameStaticness(baseMember, member)
-  );
-  if (matchingBaseMembers.length === 0) {
-    return [member];
-  }
-  if (member.kind === "method" && matchingBaseMembers.every((baseMember) => baseMember.kind === "method")) {
-    return [{
-      ...member,
-      signatures: mergeProviderSignatures([
-        ...(member.signatures ?? []),
-        ...matchingBaseMembers.flatMap((baseMember) => baseMember.signatures ?? []),
-      ]),
-    }];
-  }
-  return [];
-}
 
 function providerMembersHaveSameStaticness(
   left: ProviderMemberDeclaration,

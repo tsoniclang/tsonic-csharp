@@ -10,7 +10,6 @@ import { createCsharpTargetPack } from "../../../../dist/descriptor/target-pack.
 import { printCsharpProjectFile } from "../../../../dist/print/project/manifest.js";
 import { createDotnetToolchain } from "../../../../dist/toolchain/native.js";
 import { createCsharpTargetConfiguration } from "../../../../dist/compilation/configuration.js";
-import { validateCsharpTargetOptions } from "../../../../dist/options/target.js";
 import {
   classifyCsharpProjectConfiguration,
 } from "../../../../dist/compilation/project.js";
@@ -142,17 +141,17 @@ test("project artifact keeps language syntax and memory-safety rules independent
 
 test("C# target options reject retired compatibility controls", () => {
   assert.throws(
-    () => validateCsharpTargetOptions({
+    () => createCsharpTargetConfiguration({
       id: "csharp",
       options: { typescriptCompatibility: "compat" },
-    }),
+    }, repoRoot, fixtureProjectRoot),
     /option 'options\.typescriptCompatibility' is not supported/u,
   );
   assert.throws(
-    () => validateCsharpTargetOptions({
+    () => createCsharpTargetConfiguration({
       id: "csharp",
       options: { memorySafetyRules: "legacy" },
-    }),
+    }, repoRoot, fixtureProjectRoot),
     /must be either 'csharp14' or 'preview'/u,
   );
 });

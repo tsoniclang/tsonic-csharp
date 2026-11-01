@@ -386,22 +386,6 @@ function projectInstanceTargetTypeAt(
   return undefined;
 }
 
-export function resolveSourceOwnedCallResult(
-  { resolveSourceCallResultWithState }: CsharpTypeResolutionScope,
-  source: NonNullable<
-    ReturnType<SourceFileSemantics["operations"]["call"]>
-  >,
-  queries: SourceFileSemantics,
-  state: CsharpTypeResolutionState,
-): TargetTypeRef | undefined {
-  return resolveSourceCallResultWithState(
-    source,
-    queries.sourceFile,
-    state,
-    undefined,
-  )?.selectedType;
-}
-
 export function resolveSelectedReceiverTargetType(
   { host, resolveNodeWithState, resolveTypeWithState }: CsharpTypeResolutionScope,
   receiver: {
@@ -445,7 +429,7 @@ export function resolveSelectedReceiverTargetType(
 }
 
 export function resolveSourceOwnedConstructionResult(
-  { host, projectSourceDeclarationTargetType, resolveSourceOwnedCallResult,
+  { host, projectSourceDeclarationTargetType, resolveSourceCallResultWithState,
     resolveNodeWithState, resolveSourceCallInstantiation }: CsharpTypeResolutionScope,
   source: NonNullable<
     ReturnType<SourceFileSemantics["operations"]["call"]>
@@ -465,7 +449,7 @@ export function resolveSourceOwnedConstructionResult(
     !host.ast.is.IsClassDeclaration(declaration) ||
     !host.navigation.isProjectDeclaration(declaration)
   ) {
-    return resolveSourceOwnedCallResult(source, queries, state);
+    return resolveSourceCallResultWithState(source, queries.sourceFile, state, undefined)?.selectedType;
   }
   const selectedArguments = source.sourceSelectedMethodTypeArguments ?? [];
   const callable = host.representations.sourceCallable(source, queries.sourceFile, "checked");

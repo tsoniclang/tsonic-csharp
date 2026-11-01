@@ -1,18 +1,7 @@
 import type { Node } from "@tsonic/tsts";
-import type { CsharpNativeUseContext, CsharpNativeUseSlot } from "../../../target-model/records/native/native-demand.js";
-import { csharpNativeUseSite } from "../../../target-model/records/native/native-demand.js";
 import type { CsharpPlanningContext } from "../context.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-
-export function readCsharpNativeUse(
-  input: CsharpPlanningContext,
-  owner: Node,
-  slot: CsharpNativeUseSlot,
-  context: CsharpNativeUseContext = {},
-) {
-  return input.program.records.nativeUse.get(csharpNativeUseSite(owner, slot, context));
-}
 
 export function readCsharpNativeExpressionUse(input: CsharpPlanningContext, expression: Node) {
   return input.program.records.nativeExpression.get(expression);

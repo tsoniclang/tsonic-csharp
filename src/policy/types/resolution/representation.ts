@@ -5,12 +5,10 @@ import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/car
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
 import { isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
-import { getCsharpAwaitResultTargetType } from "../../operations/control-flow/await-completions.js";
 import { isCsharpAssignmentOperator, sourceOperatorFromKindName, isCsharpDestructuringAssignmentPattern } from "../../../target-model/syntax/operators.js";
 import { selectCsharpNumericBinaryPromotion } from "../../operations/numeric/promotion.js";
 import { sourcePrimitiveImplicitlyConverts } from "../../conversions/source-primitives.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import type { CsharpTypeDefinitions } from "../../../target-model/types/source-union-definitions.js";
 import { resolveCsharpShortCircuitResult } from "./short-circuit-values.js";
 
 export function resolveBinaryTargetRepresentation(
@@ -111,11 +109,4 @@ export function getNonNullableTargetRepresentation(
   type: TargetTypeRef,
 ): TargetTypeRef {
   return getCsharpNullableElementTargetType(type) ?? getCsharpGenericOptionalParts(type)?.element ?? type;
-}
-
-export function getTaskResultType(
-  type: TargetTypeRef,
-  definitions?: CsharpTypeDefinitions,
-): TargetTypeRef | undefined {
-  return getCsharpAwaitResultTargetType(type, definitions);
 }

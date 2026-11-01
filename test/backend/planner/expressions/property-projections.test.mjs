@@ -3,7 +3,7 @@ import test from "node:test";
 import { planCsharpPropertyValueProjection } from "../../../../dist/backend/planner/expressions/property-value-projection.js";
 import { createCsharpObjectShapePropertyOrderIndex } from "../../../../dist/analysis/objects/property-order.js";
 import { csharpNeverTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTsValueTargetType } from "../../../../dist/target-model/types/index.js";
-import { requireObjectShapeProjection } from "../../../../dist/analysis/objects/native-demand-requests.js";
+import { requireObjectShapeProjection } from "../../../../dist/analysis/objects/native-demand/requests.js";
 import { analyzeCsharpPropertyValueProjection } from "../../../../dist/analysis/conversions/property-value-projection.js";
 import { selectCsharpClosedShapeConversion } from "../../../../dist/policy/types/objects/closed-object-shapes.js";
 import { csharpPlannedValue, csharpPlannedEffect } from "../../../../dist/backend/planner/expressions/planned-values.js";

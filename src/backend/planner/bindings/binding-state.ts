@@ -2,7 +2,7 @@ import type {
   CsharpPlanningContext } from "../context.js";
 import { csharpIdentifierFragment, tryCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
-import type { CsharpExpression, CsharpTypeNode } from "../../target-ast/syntax/index.js";
+import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import type { AstReader,
   Node,
 } from "@tsonic/tsts";
@@ -53,14 +53,14 @@ export interface CsharpGeneratorPlannerContext {
 }
 
 export interface CsharpResourceScopePlannerContext {
-  readonly stackName: string;
   readonly kind: "sync" | "async";
+  readonly continuations: Map<CsharpStatement, CsharpStatement[]>;
 }
 
 export interface ResourceScopeSyntheticNames {
-  readonly stackName: string;
   readonly errorName: string;
   readonly caughtErrorName: string;
+  readonly disposalErrorName: string;
 }
 
 export interface GeneratorSyntheticNames {
@@ -136,9 +136,9 @@ export function allocateResourceScopeNames(
     const index = state.nextResourceScopeIndex;
     state.nextResourceScopeIndex += 1;
     const names = {
-      stackName: `__tsonic_resources${index}`,
       errorName: `__tsonic_resourceError${index}`,
       caughtErrorName: `__tsonic_caughtResourceError${index}`,
+      disposalErrorName: `__tsonic_disposalError${index}`,
     };
     if (Object.values(names).every((name) => !state.usedNames.has(name))) {
       for (const name of Object.values(names)) {

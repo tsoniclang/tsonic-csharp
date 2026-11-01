@@ -5,7 +5,6 @@ import type { TargetPlanningSourceNavigation } from "@tsonic/target-api/analysis
 import type { CsharpTypeNode } from "../../target-ast/syntax/index.js";
 import { planIdentifierName } from "../names/source-identifiers.js";
 import { sanitizeIdentifier } from "../../../target-model/names/identifiers.js";
-import { csharpSourceTypeArgumentNodes } from "../../../target-model/syntax/type-arguments.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 
 export function getCsharpTypeFromProjectSourceReferenceNode(
@@ -13,20 +12,6 @@ export function getCsharpTypeFromProjectSourceReferenceNode(
 ): CsharpTypeNode | undefined {
   const declaration = input.program.records.projectSourceReference.get(node);
   return declaration === undefined ? undefined : renderProjectSourceType(declaration, input, diagnostics);
-}
-
-export function getCsharpTypeFromProjectSourceTypeReferenceNode(
-  node: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
-  resolveCsharpType: (typeNode: Node | undefined, typeSourceFile: SourceFile, typeInput: CsharpPlanningContext,
-    typeDiagnostics?: TargetDiagnostic[]) => CsharpTypeNode,
-  diagnostics?: TargetDiagnostic[],
-): CsharpTypeNode | undefined {
-  const referenceNode = input.program.source.ast.name(node) ?? node;
-  const type = getCsharpTypeFromProjectSourceReferenceNode(referenceNode, sourceFile, input, diagnostics);
-  if (type === undefined) return undefined;
-  const typeArguments = csharpSourceTypeArgumentNodes(input.program.source.ast, node)
-    .map(argument => resolveCsharpType(argument, sourceFile, input, diagnostics));
-  return withCsharpTypeArguments(type, typeArguments);
 }
 
 export function getCsharpTypeFromProjectSourceReference(
@@ -46,11 +31,4 @@ function renderProjectSourceType(declaration: Node, input: CsharpPlanningContext
   const name = planIdentifierName(selected.name, input, "Project source type reference");
   return selected.scopeName === undefined ? { kind: "IdentifierName", name }
     : { kind: "QualifiedName", left: { kind: "IdentifierName", name: sanitizeIdentifier(selected.scopeName) }, name };
-}
-
-export function withCsharpTypeArguments(type: CsharpTypeNode, typeArguments: readonly CsharpTypeNode[]): CsharpTypeNode {
-  if (typeArguments.length === 0) return type;
-  if (type.kind !== "IdentifierName" && type.kind !== "QualifiedName")
-    failCsharpPlannerInvariant("An admitted project source type requires a named native generic destination.");
-  return { ...type, typeArguments };
 }

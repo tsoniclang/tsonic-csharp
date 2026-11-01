@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCsharpObjectShapeDemandEngine } from "../../../dist/analysis/objects/native-demand-requests.js";
+import { createCsharpObjectShapeDemandEngine } from "../../../dist/analysis/objects/native-demand/requests.js";
 import { publishCsharpNativeArtifactDemand } from "../../../dist/analysis/program/records/native/native-demand.js";
 import { renderObjectShapeProjectionMethods } from "../../../dist/backend/planner/objects/closed-object-shapes.js";
 import { objectShapeArtifactKey } from "../../../dist/target-model/records/objects/object-shape-keys.js";
 import { csharpStringTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../../dist/target-model/types/index.js";
 import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
 import { csharpProjectedType } from "../../../dist/target-model/types/projections.js";
-import { prepareCsharpObjectShapeProjectionDeclaration } from "../../../dist/analysis/objects/native-demand-declarations.js";
+import { prepareCsharpObjectShapeProjectionDeclaration } from "../../../dist/analysis/objects/native-demand/declarations.js";
 import { publishCsharpObjectShapeProjectionDeclaration, selectCsharpObjectShapePublication } from "../../../dist/analysis/names/object-shapes.js";
 import { printCsharpCompilationUnit } from "../../../dist/print/source/index.js";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";

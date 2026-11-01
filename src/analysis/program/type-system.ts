@@ -71,8 +71,8 @@ function createCsharpTypeSystem(
           depth: 0, sourceBindings: new Map([[declaration, { sourceType, targetType: parameter }]]),
           rejectNativeResolution: rejection => { rejected ??= rejection; },
         });
-        return rejected ?? (type === undefined ? undefined : Object.freeze({ kind: "resolved" as const, type,
-          sourceResult: Object.freeze({ nativeType: type, selectedType: type }) }));
+        return rejected ?? (type === undefined ? undefined : Object.freeze({ kind: "resolved" as const,
+          sourceResult: csharpSourceValueResult(type)! }));
       } },
     });
     if (resolution.kind !== "resolved") return resolution;
@@ -263,3 +263,4 @@ export function createCsharpTypeAnalysis(
   });
   return Object.freeze({ ...system, nativeConstruction });
 }
+import { csharpSourceValueResult } from "../source-evidence/types/resolution/call-results.js";

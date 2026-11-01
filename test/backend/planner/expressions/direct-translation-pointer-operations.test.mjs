@@ -546,7 +546,7 @@ test("optional pointer projection retains missingness and evaluates exact callba
     export function hash(pointer: Pointer<int32> | undefined): number { return hashptr(pointer); }
     export function missing(): number { return hashptr<int32>(undefined); }
   `);
-  assert.match(compiled.artifacts.get("src/Index.cs"), /Location<int>\? (__tsonic_value_\d+) = pointer;[\s\S]*?return Tsonic\.CSharp\.Runtime\.Location<int>\.ProjectOptional<int>\(\1,/u);
+  assert.match(compiled.artifacts.get("src/Index.cs"), /return Tsonic\.CSharp\.Runtime\.Location<int>\.ProjectOptional<int>\(pointer,/u);
   assert.match(compiled.artifacts.get("src/Index.cs"), /Location<int>\.Hash\(pointer\)/u);
   assert.match(compiled.artifacts.get("src/Index.cs"), /Location<int>\.Hash\(default\(Tsonic\.CSharp\.Runtime\.Location<int>\?\)\)/u);
 });

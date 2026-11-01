@@ -1,3 +1,5 @@
+import type { SourceFile } from "@tsonic/tsts";
+import type { CsharpSourceModuleBootstrap } from "../../../target-model/records/program/source-modules.js";
 import type { CsharpPlanningContext } from "../context.js";
 import type { CsharpOutputSourceFile } from "../../artifact-model/output.js";
 import type { PlannedCsharpSourceFile } from "./source-file.js";
@@ -32,10 +34,10 @@ export function planCsharpStartupSourceFile(
     input,
   );
   const workerEntryByKey = new Map<string, {
-    readonly sourceFile: import("@tsonic/tsts").SourceFile;
+    readonly sourceFile: SourceFile;
     readonly identity: string;
     readonly planned: PlannedCsharpSourceFile;
-    readonly bootstrap: import("../../../target-model/records/program/source-modules.js").CsharpSourceModuleBootstrap;
+    readonly bootstrap: CsharpSourceModuleBootstrap;
   }>();
   for (const construction of selection.workers) {
     const sourceFile = construction.sourceFile;
@@ -122,10 +124,10 @@ export function planCsharpStartupSourceFile(
 function planCsharpWorkerDispatch(
   typeParameterNames: ReadonlyMap<string, string> | undefined,
   entries: readonly {
-    readonly sourceFile: import("@tsonic/tsts").SourceFile;
+    readonly sourceFile: SourceFile;
     readonly identity: string;
     readonly planned: PlannedCsharpSourceFile;
-    readonly bootstrap: import("../../../target-model/records/program/source-modules.js").CsharpSourceModuleBootstrap;
+    readonly bootstrap: CsharpSourceModuleBootstrap;
   }[],
   binaryExecutionDriver: PlannedCsharpBinaryExecutionDriver | undefined,
 ): readonly CsharpStatement[] {

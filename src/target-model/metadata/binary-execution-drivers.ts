@@ -1,4 +1,4 @@
-import type { CsharpTargetBinaryExecutionDriver } from "./provider-metadata.js";
+import type { CsharpTargetBinaryExecutionDriver } from "../types/binary-execution.js";
 import { canonicalProviderValue } from "./canonical-value.js";
 
 export function composeCsharpBinaryExecutionDriver(

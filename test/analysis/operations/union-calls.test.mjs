@@ -1,3 +1,4 @@
+import { csharpSourceValueResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { classifyCsharpUnionCall } from "../../../dist/analysis/operations/union-calls.js";
@@ -59,7 +60,7 @@ function fixture() {
       },
       resolveSourceCallResult: () => ({ selectedType: integer }), resolveSourceCallTypeArguments: () => [],
       resolveNode: declaration => { const type = signatures[declarations.indexOf(declaration)];
-        return type === undefined ? undefined : { kind: "resolved", type }; },
+        return type === undefined ? undefined : { kind: "resolved", sourceResult: csharpSourceValueResult(type) }; },
       resolveStorage: () => assert.fail("Body-local storage is not a native incoming parameter contract") },
     projectTypes: { catalog: {
         definitionForTarget: target => ({ kind: "class", declaration: owners[arms.indexOf(target)] }),
@@ -147,7 +148,7 @@ function sharedMethods(input, typeArguments) {
     (declaration, file) => {
       assert.equal(file === input.sourceFile && input.declarations.includes(declaration), true,
         "only the actual selected member and its own file resolve");
-      return input.policy.types.resolveNode(declaration, file)?.type;
+      return input.policy.types.resolveNode(declaration, file)?.sourceResult?.selectedType;
     });
 }
 
@@ -170,7 +171,7 @@ test("one early union method owner supplies the same checked members and results
     sourceCallSelectedDeclaration: () => input.declarations[0],
     resolveSelectedValueWithState: (...arguments_) => input.policy.types.resolveSelectedValue(...arguments_),
     resolveSourceCallInstantiation: () => ({ arguments: [] }),
-    resolveNodeWithState: (declaration, file) => input.policy.types.resolveNode(declaration, file)?.type };
+    resolveNodeWithState: (declaration, file) => input.policy.types.resolveNode(declaration, file)?.sourceResult?.selectedType };
   const early = resolveSourceCallResultWithState(scope, input.source, input.sourceFile, { depth: 0 }, undefined);
   const operation = input.select();
   assert.equal(early.nativeType === input.integer && early.selectedType === input.integer, true);

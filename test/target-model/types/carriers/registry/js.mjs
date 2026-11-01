@@ -224,11 +224,4 @@ export const jsCarrierRegistry = Object.freeze([
     responsibility: "js/resolve-source-profile-type",
     frozen: false,
   },
-  {
-    id: "src/analysis/operations/borrowed-sequence-elements.ts#resolveCsharpBorrowedSequenceElement",
-    kinds: ["array", "function-pointer", "opaque", "pointer", "source-primitive", "target-named", "tuple", "type-parameter"],
-    declaration: { module: "src/analysis/operations/borrowed-sequence-elements.ts", symbol: "resolveCsharpBorrowedSequenceElement" },
-    responsibility: "kinds/tuple",
-    frozen: false,
-  },
 ]);

@@ -1,6 +1,6 @@
 import type { SourceFile } from "@tsonic/tsts";
 import type { CsharpSourceModuleBootstrap } from "./source-modules.js";
-import type { CsharpTargetBinaryExecutionDriver } from "../../metadata/provider-metadata.js";
+import type { CsharpTargetBinaryExecutionDriver } from "../../types/binary-execution.js";
 
 export interface CsharpStartupEmission {
   readonly kind: "none" | "library" | "binary";

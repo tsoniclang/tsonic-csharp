@@ -1,5 +1,4 @@
 import type { CsharpConversionMode, CsharpConversionSelection } from "../../conversions/selection.js";
-import type { CsharpGeneratedHelperRecords } from "../program/generated-helpers.js";
 import type { CsharpDelegateContractRecords } from "../callables/callable-conversions.js";
 import type { TargetTypeRef } from "../../types/model.js";
 import type { CsharpClosedShapeMemberProjection } from "../objects/closed-object-shapes.js";
@@ -33,7 +32,7 @@ export interface CsharpExpressionConversionClassification extends CsharpExpressi
   readonly delegateIdentity?: CsharpDelegateAdapterIdentity;
 }
 
-export interface CsharpConversionClassifications extends CsharpGeneratedHelperRecords, CsharpDelegateContractRecords {
+export interface CsharpConversionClassifications extends CsharpDelegateContractRecords {
   readonly propertyProjectionRoots: readonly { readonly node: Node; readonly carrier: TargetTypeRef }[];
   readonly issues: readonly CsharpConversionIssue[];
   readonly propertyProjection: { readonly get: (expression: Node, source: TargetTypeRef) => readonly CsharpClosedShapeMemberProjection[] | undefined };
@@ -71,7 +70,7 @@ export interface CsharpValueReadClassifications {
   readonly valueRead: { readonly get: (node: Node) => CsharpValueRead | undefined };
 }
 
-export interface CsharpConversionPublication extends CsharpGeneratedHelperRecords, CsharpDelegateContractRecords {
+export interface CsharpConversionPublication extends CsharpDelegateContractRecords {
   readonly propertyProjectionRoots: CsharpConversionClassifications["propertyProjectionRoots"];
   readonly issues: readonly CsharpConversionIssue[];
   readonly propertyProjection: CsharpConversionClassifications["propertyProjection"];

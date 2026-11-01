@@ -47,12 +47,12 @@ export function planCsharpFrameClosureReference(
   const selected = input.program.records.captureClosure.get(node);
   if (selected === undefined) return undefined;
   if (selected.frame.ownership === "activation") {
-    if (!selected.frame.protocols.some(protocol => protocol.kind === "class")) {
-      failCsharpPlannerInvariant("An admitted captured method requires its completed class construction protocol.", node);
+    if (!selected.frame.protocols.some(protocol => protocol.kind === "class" || protocol.kind === "address")) {
+      failCsharpPlannerInvariant("An admitted captured method requires its completed class or address activation protocol.", node);
     }
     const receiver = csharpCaptureFrameExpression(selected.frame.scope, input, state);
     if (receiver === undefined || csharpTypeFromObjectShapeFact(input, selected.frame.shape, diagnostics, node) === undefined) {
-      failCsharpPlannerInvariant("A class construction callback requires its exact shared native place.", node);
+      failCsharpPlannerInvariant("An activation callback requires its exact shared native place.", node);
     }
     return { expression: { kind: "SimpleMemberAccessExpression", receiver, name: selected.method.methodName },
       callable: { kind: "captured-method", receiver, name: selected.method.methodName } };

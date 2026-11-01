@@ -14,7 +14,9 @@ export function createCsharpCallableCreationProducer(nodes: readonly Node[]) {
   };
   return Object.freeze({
     publish(node: Node, value: CsharpNativeCallableCreation): void {
-      if (closed || creations.has(node) || !domain.has(node)) failTargetAnalysisInvariant("tsonic-csharp", "A native callable creation publishes once before sealing.", node);
+      if (closed) failTargetAnalysisInvariant("tsonic-csharp", "A native callable creation cannot publish after sealing.", node);
+      if (creations.has(node)) failTargetAnalysisInvariant("tsonic-csharp", "A native callable creation publishes once for each admitted source node.", node);
+      if (!domain.has(node)) failTargetAnalysisInvariant("tsonic-csharp", "Native callable creation publication requires its admitted source-node domain.", node);
       creations.set(node, Object.freeze(value));
     },
     seal(): CsharpCallableCreationIndex {

@@ -4,15 +4,15 @@ import type {
   CsharpObjectShapeProjection,
   CsharpObjectShapeProjectionKind,
   TargetTypeRef,
-} from "../../target-model/types/index.js";
-import type { CsharpObjectShapeDemandScope } from "./native-demand-batches.js";
-import type { CsharpJsonObjectShapeContractResult } from "../../target-model/records/objects/json-object-shapes.js";
-import { selectCsharpJsonObjectShapeContract } from "../../policy/types/objects/json-object-shapes.js";
-import type { CsharpArtifactRequestResult, CsharpObjectShapeProjectionRequestResult } from "./native-demand-batches.js";
-import type { CsharpObjectShapeArtifactClosure, CsharpObjectShapeDeclarationNaming, CsharpObjectShapeDemandClosure, CsharpPreparedObjectShapeProjection } from "../../target-model/records/objects/object-shape-demand.js";
+} from "../../../target-model/types/index.js";
+import type { CsharpObjectShapeDemandScope } from "./batches.js";
+import type { CsharpJsonObjectShapeContractResult } from "../../../target-model/records/objects/json-object-shapes.js";
+import { selectCsharpJsonObjectShapeContract } from "../../../policy/types/objects/json-object-shapes.js";
+import type { CsharpArtifactRequestResult, CsharpObjectShapeProjectionRequestResult } from "./batches.js";
+import type { CsharpObjectShapeArtifactClosure, CsharpObjectShapeDeclarationNaming, CsharpObjectShapeDemandClosure, CsharpPreparedObjectShapeProjection } from "../../../target-model/records/objects/object-shape-demand.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import { accepted, rejected } from "./native-demand-batches.js";
+import { accepted, rejected } from "./batches.js";
 import {
   csharpObjectShapeMemberContractKey,
   resolveCsharpObjectShapeMemberBySourceContract,
@@ -20,23 +20,23 @@ import {
   targetTypeRefEquals,
   isCsharpEmptyObjectTargetType,
   isSourceDeclaredNominalShape,
-} from "../../target-model/types/index.js";
-import { objectShapeArtifactKey } from "../../target-model/records/objects/object-shape-keys.js";
-import { objectShapeMaterialization } from "../../policy/types/objects/object-shape-materialization.js";
-import { objectShapeProjectionKey } from "../../target-model/records/objects/object-shape-keys.js";
-import { csharpObjectShapeMethodDeclaration } from "../../target-model/types/method-values.js";
-import type { CsharpObjectShapeDemandHost } from "./native-demand-batches.js";
-import type { CsharpObjectShapeProjectionAdmission } from "../../target-model/records/objects/object-shape-demand.js";
+} from "../../../target-model/types/index.js";
+import { objectShapeArtifactKey } from "../../../target-model/records/objects/object-shape-keys.js";
+import { objectShapeMaterialization } from "../../../policy/types/objects/object-shape-materialization.js";
+import { objectShapeProjectionKey } from "../../../target-model/records/objects/object-shape-keys.js";
+import { csharpObjectShapeMethodDeclaration } from "../../../target-model/types/method-values.js";
+import type { CsharpObjectShapeDemandHost } from "./batches.js";
+import type { CsharpObjectShapeProjectionAdmission } from "../../../target-model/records/objects/object-shape-demand.js";
 import { objectShapeProjectionConversions,
-  prepareCsharpObjectShapeProjectionDeclaration } from "./native-demand-declarations.js";
-import { prepareCsharpObjectShapeDeclarationNames } from "../names/object-shapes.js";
+  prepareCsharpObjectShapeProjectionDeclaration } from "./declarations.js";
+import { prepareCsharpObjectShapeDeclarationNames } from "../../names/object-shapes.js";
 import {
   collectShapeDependencies,
   prepareObjectShapeBatch,
   addObjectShapesToBatch,
   validateObjectShapeBatch,
   commitObjectShapeBatch,
-} from "./native-demand-batches.js";
+} from "./batches.js";
 import {
   collectJsonClosure,
   collectCapabilityClosure,
@@ -47,7 +47,7 @@ import {
   collectJsonType,
   collectJsonShape,
   inheritedObjectShapeCapabilities,
-} from "./native-demand-closure.js";
+} from "./closure.js";
 
 export function registerObjectShape(
   { addObjectShapesToBatch, addShapeCapabilities, collectCapabilityClosure, commitObjectShapeBatch, host, inheritedObjectShapeCapabilities, prepareObjectShapeBatch, validateObjectShapeBatch }: CsharpObjectShapeDemandScope,

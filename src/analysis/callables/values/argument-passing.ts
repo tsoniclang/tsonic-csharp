@@ -78,7 +78,7 @@ export function analyzeCsharpArgumentPassing(input: { readonly source: TargetSou
   for (const node of input.nodes) {
     if (!input.admitted(node)) continue;
     if (input.source.ast.is.IsConstructorDeclaration(node)) {
-      const baseCall = csharpConstructorBaseCall(input.source.ast, node);
+      const baseCall = csharpConstructorBaseCall(input.source.ast, node)?.call;
       const selected = baseCall === undefined ? undefined : input.operations.selectedCall.get(baseCall);
       for (const [index, argument] of (baseCall === undefined ? [] : input.source.ast.arguments(baseCall)).entries()) {
         if (argument === undefined) continue;

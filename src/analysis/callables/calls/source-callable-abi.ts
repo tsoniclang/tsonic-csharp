@@ -1,4 +1,5 @@
 import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { AsParameterDeclaration, HasSourceKind, KindIdentifier, sourceCallableValueParameters, sourceTransparentExpressionOperand,
   sourceCallArgumentCorrespondences } from "@tsonic/target-api/source";
 import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
@@ -55,6 +56,7 @@ export function selectCsharpSourceCallableAbi(
   projections: CsharpGenericProjectionIndex,
   operations: Pick<CsharpTargetOperationClassifications, "selectedCall" | "selectedConstruction">,
   conversions: Pick<CsharpConversionClassifications, "conversion">,
+  issues: TargetDiagnostic[],
 ): SourceCallableSourceContract | undefined {
   const checked = policy.semantics(sourceFile).types.declarationSignatureInfo(declaration);
   const valueParameters = sourceCallableValueParameters(policy.ast, declaration, policy.semantics(sourceFile));
@@ -64,7 +66,7 @@ export function selectCsharpSourceCallableAbi(
   const quantified = policy.ast.typeParameters(declaration).length !== 0;
   const call = contextual?.contextualCall;
   if (call !== undefined) {
-    const bindings = sourceCallArgumentCorrespondences(policy.ast, call)?.filter(binding => {
+    const bindings = sourceCallArgumentCorrespondences({ ast: policy.ast, semantics: policy.semantics(sourceFile) }, call)?.filter(binding => {
       let expression = binding.argument.expression;
       for (let inner = sourceTransparentExpressionOperand(policy.ast, expression); inner !== undefined;
         inner = sourceTransparentExpressionOperand(policy.ast, expression)) expression = inner;
@@ -152,7 +154,7 @@ export function selectCsharpSourceCallableAbi(
     if (admitted.length !== 1) return undefined;
     inputType = admitted[0];
   }
-  return completeCsharpContextualInputs(policy, inputType, conversions, contract);
+  return completeCsharpContextualInputs(policy, inputType, conversions, contract, issues);
 }
 
 function sourceParameterContracts(

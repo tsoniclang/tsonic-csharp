@@ -54,6 +54,39 @@ export function read(): number {
       "the backend receives one sealed initialization lookup");
   });
 
+  test(`module storage exposes only checked exports and keeps initialization order on ${surface ?? "native"}`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+let calls = 0;
+function next(): number { calls++; return calls; }
+const hidden = next();
+const { first: privateLeaf } = { first: next() };
+export const visible = next();
+export const { second: publicLeaf } = { second: next() };
+const aliased = next();
+export { aliased as exposed };
+class Reader { read(): number { return hidden + privateLeaf; } }
+export function run(): boolean {
+  return new Reader().read() === 3 && visible === 3 && publicLeaf === 4 && aliased === 5 && calls === 5;
+}
+` });
+    const emitted = [...compiled.artifacts.values()].join("\n");
+    for (const name of ["hidden", "privateLeaf", "calls"])
+      assert.match(emitted, new RegExp(`internal static [^\\n{]+ ${name}\\b`, "u"), name);
+    for (const name of ["visible", "publicLeaf", "aliased"])
+      assert.match(emitted, new RegExp(`public static [^\\n{]+ ${name}\\b`, "u"), name);
+    executeCsharpConstruction(compiled, `native-module-storage-${surface ?? "native"}`);
+  });
+
+  test(`method-only modules omit lazy initialization on ${surface ?? "native"}`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+export const increment = (value: number): number => value + 1;
+export function run(): boolean { return increment(4) === 5; }
+` });
+    const emitted = [...compiled.artifacts.values()].join("\n");
+    assert.doesNotMatch(emitted, /Lazy<|__tsonic_module_init/u);
+    executeCsharpConstruction(compiled, `native-method-only-module-${surface ?? "native"}`);
+  });
+
   test(`module patterns preserve roots, leaves, defaults, exports and live aliases on ${surface ?? "native"}`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface, files: moduleBindingPatternFiles,
       sourceText: moduleBindingPatternFiles["index.ts"], targetOptions: { outputType: "Exe" } });

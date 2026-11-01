@@ -23,10 +23,6 @@ export interface PlannedParameterList {
   readonly entryBindings: readonly CsharpEntryBinding[];
 }
 
-export function planParameters(parameterNodes: readonly Node[], sourceFile: SourceFile, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[]): readonly CsharpParameter[] {
-  return planParametersWithPrelude(parameterNodes, sourceFile, input, diagnostics).parameters;
-}
-
 export function planParametersWithPrelude(parameterNodes: readonly Node[], sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[], state: DestructuringPlannerState = createDestructuringPlannerState()): PlannedParameterList {
   const parameters: CsharpParameter[] = [];

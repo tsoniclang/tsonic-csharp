@@ -103,7 +103,7 @@ test("direct C# translation preserves authored primitive aliases through structu
 {
     public static class Index
     {
-        public static ObjectShape_1e4714b9b387<int> nextId
+        internal static ObjectShape_1e4714b9b387<int> nextId
         {
             get;
             private set;

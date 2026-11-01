@@ -20,15 +20,6 @@ const supportedCsharpTargetOptionKeys = Object.freeze([
   "targetFramework",
 ]);
 
-export function validateCsharpTargetOptions(target: TargetSelection): void {
-  validateCsharpTargetOptionKeys(target);
-  readCsharpTargetFramework(target);
-  validateCsharpSafetyConfiguration(
-    readCsharpLanguageDialect(target),
-    readCsharpMemorySafetyRules(target),
-  );
-}
-
 export function validateCsharpTargetOptionKeys(target: TargetSelection): void {
   const options = target.options;
   if (options === undefined) {

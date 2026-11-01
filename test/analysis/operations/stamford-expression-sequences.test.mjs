@@ -3,7 +3,7 @@ import test from "node:test";
 import { nativeExpressionSequencesSource } from "../../../../tsonic/test/fixtures/native-expression-sequences.mjs";
 import { checkCsharpSource, assertCsharpCheckingSucceeded, withCsharpSessionRequest } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpAnalysisProgram } from "../../../dist/analysis/program/index.js";
-import { csharpBinarySelectionsEqual } from "../../../dist/analysis/expected-types/binary-equality.js";
+import { csharpBinarySelectionsEqual } from "../../helpers/binary-selections.mjs";
 import { csharpSourcePrimitiveTargetType, targetTypeRefEquals } from "../../../dist/target-model/types/index.js";
 
 for (const surface of [undefined, "js"]) {

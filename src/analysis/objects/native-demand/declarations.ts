@@ -1,16 +1,16 @@
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
-import type { CsharpObjectShapeDemandHost } from "./native-demand-batches.js";
-import type { CsharpPreparedObjectShapeProjection } from "../../target-model/records/objects/object-shape-demand.js";
-import type { CsharpObjectShapeProjectionDeclaration } from "../../target-model/records/objects/object-shape-demand.js";
+import type { CsharpObjectShapeDemandHost } from "./batches.js";
+import type { CsharpPreparedObjectShapeProjection } from "../../../target-model/records/objects/object-shape-demand.js";
+import type { CsharpObjectShapeProjectionDeclaration } from "../../../target-model/records/objects/object-shape-demand.js";
 
-import type { CsharpObjectShapeFact, CsharpObjectShapeProjection, TargetTypeRef } from "../../target-model/types/model.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeProjection, TargetTypeRef } from "../../../target-model/types/model.js";
 
-import { visitCsharpTargetTypeParameters } from "../../target-model/types/generic-references.js";
-import { closeCsharpOwnerTypeParameterEnvironment } from "../source-evidence/types/resolution/owner-type-parameter-environment.js";
-import { isCsharpReferenceCarrier } from "../../target-model/types/identity.js";
-import { csharpObjectShapeAssignmentMembers, csharpObjectShapeProjectionMembers, csharpObjectShapeProjectionMethodName } from "../../target-model/types/object-shape-projection.js";
-import { getCsharpJsArrayElementTargetType } from "../../target-model/types/carriers/collections.js";
-import { selectCsharpObjectProjection } from "../../policy/types/objects/closed-object-shapes.js";
+import { visitCsharpTargetTypeParameters } from "../../../target-model/types/generic-references.js";
+import { closeCsharpOwnerTypeParameterEnvironment } from "../../source-evidence/types/resolution/owner-type-parameter-environment.js";
+import { isCsharpReferenceCarrier } from "../../../target-model/types/identity.js";
+import { csharpObjectShapeAssignmentMembers, csharpObjectShapeProjectionMembers, csharpObjectShapeProjectionMethodName } from "../../../target-model/types/object-shape-projection.js";
+import { getCsharpJsArrayElementTargetType } from "../../../target-model/types/carriers/collections.js";
+import { selectCsharpObjectProjection } from "../../../policy/types/objects/closed-object-shapes.js";
 
 export function objectShapeProjectionConversions(
   host: CsharpObjectShapeDemandHost,

@@ -1,3 +1,4 @@
+import { csharpSourceValueResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { spawnSync } from "node:child_process";
@@ -5,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
 import { createTargetSourceProgram, Node_Initializer } from "@tsonic/target-api/source";
 import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
-import { csharpValueDomainHasTargetType as selectedValueDomainHasTargetType } from "../../../dist/policy/types/objects/value-domain-carrier.js";
+import { selectedValueDomainHasTargetType } from "../../helpers/value-domain-carriers.mjs";
 import { analyzeCsharpValueDomainCarriers, projectCsharpNativeSourceStorageCarrier } from "../../../dist/analysis/objects/value-domain-carriers.js";
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpEmptyObjectTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
@@ -96,7 +97,7 @@ function domain(input, carrier, projection, root = "first", selected = "selected
     semantics: file => input.source.semantics.forFile(file),
     types: { resolveNode(selectedNode, file) {
       assert.equal(selectedNode === node && file === input.file, true, "retain original physical owner, never resolve field source type");
-      return { kind: "resolved", type: carrier };
+      return { kind: "resolved", sourceResult: csharpSourceValueResult(carrier) };
     } },
   };
   return { host, expression, origin: origin.subject };

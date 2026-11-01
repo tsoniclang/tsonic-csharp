@@ -15,7 +15,7 @@ test("C# ordinary opaque callable input keeps its native value: " + name, { time
 }
 
 for (const [name, declarations, expression] of Array.from(nativeOpaquePayloadCases).slice(4, 12)) {
-test("C# native opaque callable input is unresolved, not safe empty: " + name, { timeout: 300_000 }, () => {
+test("C# native opaque callable input retains its declared native contract: " + name, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText: declarations +
       "\nexport function reject(value: Promise<number>): void { void wrap(value); }" +
       "\nconst actual = Promise.resolve(5); reject(actual); const pending = wrap(actual); console.log(await pending);" });
@@ -39,7 +39,7 @@ test("C# ordinary opaque callable input keeps its native value: " + name, { time
 }
 
 for (const [name, declarations, expression] of Array.from(nativeOpaquePayloadCases).slice(12, 13)) {
-test("C# native opaque callable input is unresolved, not safe empty: " + name, { timeout: 300_000 }, () => {
+test("C# native opaque callable input retains its declared native contract: " + name, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText: declarations +
       "\nexport function reject(value: Promise<number>): void { void wrap(value); }" +
       "\nconst actual = Promise.resolve(5); reject(actual); const pending = wrap(actual); console.log(await pending);" });

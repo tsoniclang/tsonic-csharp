@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
-import { maskNonCode } from "./source-code-mask.mjs";
+import { createSourceCodeMask } from "./source-code-mask.mjs";
 import {
   buildSelectedEvidenceAuditRows,
   collectSelectedEvidenceFindings,
@@ -79,7 +79,8 @@ test("semantic product code contains no forbidden reconstruction mechanism", () 
 
 test("metadata validation stays independent of compiler subjects and semantic reconstruction", () => {
   const metadata = readFileSync(join(repoRoot, "src/target-model/metadata/immutable.ts"), "utf8");
-  assert.doesNotMatch(maskNonCode(metadata), /\bimport\b|\b(?:node|subject|symbol|signature|checker|semantics|sourceType)\b/u);
+  const mask = createSourceCodeMask(new Map([["metadata.ts", metadata]]));
+  assert.doesNotMatch(mask("metadata.ts"), /\bimport\b|\b(?:node|subject|symbol|signature|checker|semantics|sourceType)\b/u);
   const probe = 'const result = Reflect.ownKeys(node);';
   for (const file of ["src/analysis/project-types/type-definitions.ts", "src/target-model/types/snapshot.ts", "src/policy/example.ts"]) {
     assert.deepEqual(collectSelectedEvidenceFindingsForSource(file, probe).map(finding => finding.ruleId), ["raw-ownKeys"]);

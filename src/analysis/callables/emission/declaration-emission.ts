@@ -7,7 +7,7 @@ import type { CsharpDeclarationClassifications } from "../../../target-model/rec
 import type { CsharpGeneratorRecords } from "../../../target-model/records/callables/generators.js";
 import { createCsharpCallableDeclarationRecords } from "../../program/records/callables/callable-emission.js";
 import type { CsharpCallableContractIndex } from "../../../target-model/records/callables/callable-values.js";
-import { csharpModuleCallableInitializer } from "../../../target-model/syntax/module-callables.js";
+import { csharpModuleCallableSource } from "../../../target-model/syntax/module-callables.js";
 
 export function analyzeCsharpCallableDeclarationEmission(input: {
   readonly ast: AstReader;
@@ -35,9 +35,7 @@ export function analyzeCsharpCallableDeclarationEmission(input: {
     const generator = input.generators.generator.get(node) !== undefined;
     const contract = input.callables.get({ kind: "declaration", declaration: node });
     if (contract === undefined) failTargetAnalysisInvariant("tsonic-csharp", "An admitted callable requires its sealed source value vector and native ABI.", node);
-    const disposition = input.navigation.expressionResultDisposition(node);
-    const sourceOwner = disposition.kind === "stored" && csharpModuleCallableInitializer(input.ast, disposition.use) === node
-      ? disposition.use : node;
+    const sourceOwner = csharpModuleCallableSource(input.ast, input.navigation, node)?.sourceOwner ?? node;
     values.set(node, Object.freeze({ contract, sourceOwner,
       async: !generator && input.ast.hasModifierKind(node, "async"), returnCarrier: returned.type, generator }));
   }

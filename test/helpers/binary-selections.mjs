@@ -1,12 +1,7 @@
-import type { CsharpTargetBinaryOperation } from "../../target-model/records/operations/operator-selection.js";
-import type { selectCsharpBinaryOperation } from "../operations/operators.js";
-import { targetTypeRefEquals } from "../../target-model/types/equality.js";
-import { csharpUnionEqualityArmsEqual } from "../../target-model/operations/binary.js";
+import { targetTypeRefEquals } from "../../dist/target-model/types/equality.js";
+import { csharpUnionEqualityArmsEqual } from "../../dist/target-model/operations/binary.js";
 
-export function csharpBinarySelectionsEqual(
-  left: ReturnType<typeof selectCsharpBinaryOperation>,
-  right: ReturnType<typeof selectCsharpBinaryOperation>,
-): boolean {
+export function csharpBinarySelectionsEqual(left, right) {
   if (left.kind !== right.kind) return false;
   if (left.kind === "rejected" || right.kind === "rejected") {
     return left.kind === "rejected" && right.kind === "rejected" && left.reason === right.reason;
@@ -18,7 +13,7 @@ export function csharpBinarySelectionsEqual(
     targetTypeRefEquals(left.resultType, right.resultType);
 }
 
-function csharpBinaryTargetOperationsEqual(left: CsharpTargetBinaryOperation, right: CsharpTargetBinaryOperation): boolean {
+function csharpBinaryTargetOperationsEqual(left, right) {
   if (left.kind !== right.kind) return false;
   switch (left.kind) {
     case "sequence":
@@ -49,7 +44,7 @@ function csharpBinaryTargetOperationsEqual(left: CsharpTargetBinaryOperation, ri
       return right.kind === "nullish-test" && left.operand === right.operand && left.negated === right.negated &&
         (left.unionArmIndexes === undefined ? right.unionArmIndexes === undefined
           : right.unionArmIndexes !== undefined && left.unionArmIndexes.length === right.unionArmIndexes.length &&
-            left.unionArmIndexes.every((arm, index) => arm === right.unionArmIndexes![index]));
+            left.unionArmIndexes.every((arm, index) => arm === right.unionArmIndexes[index]));
     case "reference-identity":
       return right.kind === "reference-identity" && left.negated === right.negated;
   }

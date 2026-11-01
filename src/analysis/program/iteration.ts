@@ -10,7 +10,7 @@ import { analyzeCsharpClassInitialization } from "../project-types/class-initial
 
 import type { CsharpRequiredRecord } from "./records/objects/required-records.js";
 import { sourceDeclarationHasOnlyTypeUses, sourceDeclarationIsModuleScoped, sourceCallableValueExpression } from "@tsonic/target-api/source";
-import { csharpModuleCallableInitializer } from "../../target-model/syntax/module-callables.js";
+import { csharpModuleCallableInitializer, csharpModuleCallableSource } from "../../target-model/syntax/module-callables.js";
 import { analyzeCsharpExactLiteralSelections } from "../conversions/literal-plans.js";
 
 import { analyzeCsharpTypeProjections, csharpTypeProjectionIndexesEqual } from "../declarations/type-projections.js";
@@ -89,16 +89,10 @@ export function analyzeCsharpRepresentationIteration(
       return previous?.storage.closedNativeContracts.some(contract => targetTypeRefEquals(contract, type)) === true;
     },
     scopedTargetType(node) {
-      let moduleCallable = csharpModuleCallableInitializer(source.ast, node);
-      let moduleOwner = node;
-      if (moduleCallable === undefined && (source.ast.is.IsArrowFunction(node) || source.ast.is.IsFunctionExpression(node))) {
-        const disposition = source.navigation.expressionResultDisposition(node);
-        if (disposition.kind === "stored" && csharpModuleCallableInitializer(source.ast, disposition.use) === node) {
-          moduleCallable = node;
-          moduleOwner = disposition.use;
-        }
-      }
-      if (moduleCallable !== undefined) {
+      const moduleSource = csharpModuleCallableSource(source.ast, source.navigation, node);
+      if (moduleSource !== undefined) {
+        const moduleCallable = moduleSource.callable;
+        const moduleOwner = moduleSource.sourceOwner;
         const annotation = source.ast.typeNode(moduleOwner);
         if (annotation !== undefined && typeSystem?.analysisTypes.resolveNode(annotation,
           source.ast.getSourceFile(moduleOwner))?.kind !== "resolved") return undefined;
@@ -178,7 +172,7 @@ export function analyzeCsharpRepresentationIteration(
     objectShapes,
     operations,
   );
-  const callables = analyzeCsharpCallableContracts(
+  const callableResult = analyzeCsharpCallableContracts(
     policy,
     sourceEvidence,
     declarations,
@@ -189,6 +183,8 @@ export function analyzeCsharpRepresentationIteration(
       providers: policy.providers, target: policy.target, objectShapes, conversion: conversionAnalysis.classifications.conversion }),
     operations,
   );
+  if (callableResult.kind === "rejected") return callableResult;
+  const callables = callableResult.value;
   const expectedTypes = analyzeCsharpExpectedTypes(
     policy,
     sourceEvidence,

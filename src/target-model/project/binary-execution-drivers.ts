@@ -1,5 +1,5 @@
 import { csharpTargetNamedType } from "../types/factories.js";
-import type { CsharpTargetBinaryExecutionDriver } from "../metadata/provider-metadata.js";
+import type { CsharpTargetBinaryExecutionDriver } from "../types/binary-execution.js";
 import { csharpQualifiedTypeRenderShape } from "../types/render-shapes.js";
 
 export const csharpJsEventLoopBinaryExecutionDriver:
