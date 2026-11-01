@@ -79,7 +79,7 @@ export function validateArgumentsTargetSelectedParameters(
       sourceArgument.argument.storageExpression,
       sourceFile,
     );
-    const sourceType = sourceSelection?.kind === "rejected" ? undefined : sourceSelection?.type ?? (sourceArgument.argument.passingMode === "by-value"
+    const sourceType = sourceSelection?.kind === "rejected" ? undefined : sourceSelection?.sourceResult.selectedType ?? (sourceArgument.argument.passingMode === "by-value"
       ? host.types.resolveType(
           binding.selectedArgumentType,
           sourceFile,

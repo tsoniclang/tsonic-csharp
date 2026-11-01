@@ -3,7 +3,7 @@ import test from "node:test";
 import { resolveBinaryTargetRepresentation } from "../../../dist/policy/types/resolution/representation.js";
 import { analyzeSourceLiteralValues } from "@tsonic/target-api/source";
 import { selectCsharpBinaryOperands } from "../../../dist/analysis/operations/operators.js";
-import { csharpBinarySelectionsEqual } from "../../../dist/analysis/expected-types/binary-equality.js";
+import { csharpBinarySelectionsEqual } from "../../helpers/binary-selections.mjs";
 import { selectCsharpConversion, selectCsharpExpressionConversion } from "../../../dist/policy/conversions/index.js";
 import { csharpAbsenceTargetType, csharpNullableTargetType, csharpRuntimeUnionTargetType,
   csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTargetNamedType, csharpVoidTargetType,

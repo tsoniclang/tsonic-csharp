@@ -149,6 +149,23 @@ test("native product boundary scanner rejects runtime reflection and dynamic sem
   );
 });
 
+test("native product boundary masks checked regex literals without hiding division or template code", () => {
+  const ignored = collectNativeProductBoundaryFindingsFromSources([{ file: "src/literals.ts", text: [
+    'const label = "😀"; const pattern = /:\\s*dynamic\\b|\\bdynamic\\s+[A-Za-z_$][\\w$]*\\s*(?:=|;|,)/g;',
+    'if (ready) /require\\(.*\\)/u.test(value);',
+    'const slashes = /[\\/"`]/u;',
+  ].join("\n") }]);
+  assert.deepEqual(ignored.map(formatNativeProductBoundaryFinding), []);
+  const executable = collectNativeProductBoundaryFindingsFromSources([{ file: "src/expressions.ts", text: [
+    'const quotient = 20 / 4; const actual = require("legacy");',
+    'const rendered = `literal ${require("legacy")}`;',
+    'const label = "😀"; const pattern = /require\\(.*\\)/u; const actual = require("legacy");',
+  ].join("\n") }]);
+  assert.deepEqual(executable.map(finding => `${finding.ruleId}:${finding.line}`), [
+    "commonjs-require-call:1", "commonjs-require-call:2", "commonjs-require-call:3",
+  ]);
+});
+
 test("native product manifest rejects non-ESM and third-party product dependencies", () => {
   const findings = collectNativeProductManifestFindingsFromText(
     "package.json",

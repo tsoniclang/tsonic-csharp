@@ -4,10 +4,8 @@ import { csharpBigIntegerTargetType } from "../../../dist/target-model/types/car
 import { analyzeSourceLiteralValues } from "@tsonic/target-api/source";
 import { checkedSourceLiteralValues } from "../../helpers/source-literal-values.mjs";
 
-import {
-  csharpSourcePrimitiveTargetType,
-  selectCsharpNumericBinaryPromotion,
-} from "../../../dist/policy/index.js";
+import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
+import { selectCsharpNumericBinaryPromotion } from "../../../dist/policy/operations/numeric/promotion.js";
 
 const ast = {
   is: {

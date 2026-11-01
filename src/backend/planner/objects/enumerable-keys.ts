@@ -37,8 +37,3 @@ export function renderCsharpEnumerableKeys(
         expression: { kind: "IdentifierName", name: csharpEnumerableKeysStorageName } }] } },
   ];
 }
-
-export function isCsharpEnumerableKeysMember(member: CsharpTypeMember): boolean {
-  return member.kind === "FieldDeclaration" && member.name === csharpEnumerableKeysStorageName ||
-    member.kind === "MethodDeclaration" && member.name === csharpEnumerableKeysMethodName;
-}

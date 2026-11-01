@@ -1,4 +1,5 @@
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { SourceCallableSourceContract } from "../../../target-model/records/callables/source-callable-contract.js";
 import type { CsharpCallableParameterAdapter } from "../../../target-model/records/callables/callable-adapters.js";
 import { getCsharpLambdaSignature } from "../../../target-model/types/carriers/delegates.js";
@@ -15,6 +16,7 @@ export function completeCsharpContextualInputs(
   context: TargetTypeRef | undefined,
   conversions: Pick<CsharpConversionClassifications, "conversion">,
   contract: SourceCallableSourceContract,
+  issues: TargetDiagnostic[],
 ): SourceCallableSourceContract | undefined {
   const declaration = contract.sourceDeclaration;
   if (!policy.ast.is.IsArrowFunction(declaration) && !policy.ast.is.IsFunctionExpression(declaration)) return contract;
@@ -51,8 +53,16 @@ export function completeCsharpContextualInputs(
   })));
   const adapters = admitCsharpCallableParameterAdapters((source, target) => {
     const conversion = conversions.conversion.get(source, target, "implicit");
-    return conversion !== undefined && csharpConversionIsApplicable(conversion, "implicit")
-      ? Object.freeze({ source, target, conversion }) : undefined;
+    if (conversion !== undefined && csharpConversionIsApplicable(conversion, "implicit")) {
+      return Object.freeze({ source, target, conversion });
+    }
+    const parameterIndex = contract.nativeParameters.findIndex((parameter, index) =>
+      targetTypeRefEquals(parameter.targetParameter.type, target) &&
+      nativeParameters[index] !== undefined && targetTypeRefEquals(nativeParameters[index].targetParameter.type, source));
+    issues.push({ source: "tsonic-csharp", category: "error", code: "CSHARP_LAMBDA_PARAMETER_TYPE_CONFLICT",
+      sourceNode: parameterIndex < 0 ? declaration : contract.parameters[parameterIndex],
+      message: "The authored lambda parameter cannot accept its exact selected C# delegate parameter through one closed implicit conversion." });
+    return undefined;
   },
     nativeParameters.map(parameter => parameter.targetParameter), contract.nativeParameters.map(parameter => parameter.targetParameter));
   const scalar = (adapter: CsharpCallableParameterAdapter): adapter is Extract<CsharpCallableParameterAdapter,

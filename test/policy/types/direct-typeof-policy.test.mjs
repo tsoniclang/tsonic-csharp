@@ -1,11 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {
-  csharpNullableTargetType,
-  csharpSourcePrimitiveTargetType,
-  csharpStringTargetType,
-} from "../../../dist/policy/index.js";
+import { csharpNullableTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
+import { csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { getCsharpTypeofResult, getCsharpTypeofRuntimeKind } from "../../../dist/target-model/types/runtime-kind.js";
 import { selectCsharpTypeofComparison } from "../../../dist/policy/operations/syntax/typeof.js";

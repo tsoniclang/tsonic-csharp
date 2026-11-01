@@ -1,6 +1,6 @@
 import type { CsharpTargetMember, TargetTypeRef } from "../../../types/index.js";
 import { csharpJsMapTargetType, csharpJsSetTargetType, getCsharpJsMapTargetTypes, getCsharpJsSetElementTargetType } from "../../../../target-model/types/carriers/js.js";
-import { csharpDelegateTargetType, csharpEnumerableTargetType, csharpNullableTargetType, csharpSourcePrimitiveTargetType, csharpVoidTargetType, getCsharpNullableElementTargetType, isCsharpValueTypeTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/index.js";
+import { csharpDelegateTargetType, csharpEnumerableTargetType, csharpNullableTargetType, csharpSourcePrimitiveTargetType, csharpVoidTargetType, getCsharpNullableElementTargetType, isCsharpValueTypeTargetType, targetTypeRefEquals } from "../../../../target-model/types/index.js";
 import type { CsharpSourceProfileCallPolicy, CsharpSourceProfileCallPolicyContext, CsharpSourceProfileCallPolicyResult, CsharpSourceProfilePropertyPolicy } from "../../../model/source-profiles.js";
 import { csharpSourceProfileCall, csharpSourceProfileDiagnostic, resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
 import { instanceMethod, jsCallPolicy, jsConstructIdentity, jsMemberIdentity, jsPropertyPolicy, jsRuntimeTargetType, staticMethod, targetParameter, targetProperty } from "./common.js";
@@ -462,10 +462,4 @@ function rejectedCollectionConstruction(
       ],
     ),
   };
-}
-
-export function csharpJsCollectionPolicyKey(
-  type: TargetTypeRef,
-): string {
-  return targetTypeRefKey(type);
 }

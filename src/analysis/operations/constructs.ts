@@ -1,7 +1,5 @@
-import { classifyCsharpJsValueCallShape } from "./js-value-calls.js";
-import { classifyCsharpNativeCallArguments, classifyCsharpSourceCallArguments, classifyCsharpTypedLocationCallArguments } from "./source-call-arguments.js";
-import { classifyCsharpUnionCall } from "./union-calls.js";
-import { classifyCsharpSourceCallee } from "../callables/calls/source-callees.js";
+import { analyzeCsharpCallOperation } from "./call-operation.js";
+import { classifyCsharpNativeCallArguments, classifyCsharpSourceCallArguments } from "./source-call-arguments.js";
 import { classifyCsharpBorrowedSequenceInput } from "./borrowed-sequences.js";
 
 import { classifyTypeofComparison } from "./typeof-comparisons.js";
@@ -15,19 +13,15 @@ import { validateCsharpJsValueOperationSelection } from "../../policy/operations
 import { resolveCsharpInstanceType } from "../source-evidence/types/resolution/instance-tests.js";
 import { selectCsharpClosedTypeTestPlan } from "../../policy/operations/operators/type-tests.js";
 import { selectCsharpOperatorForm } from "../../policy/operations/operators/operator-forms.js";
-import { selectCsharpArrayTypeTest } from "./source-profiles/js/type-tests.js";
-import { selectCsharpCallForm } from "../../policy/operations/members/call-forms.js";
 import { getCsharpTypeofResult } from "../../target-model/types/runtime-kind.js";
-import { getCsharpMethodValue } from "../../target-model/types/method-values.js";
 import { getCsharpClassFactory } from "../../target-model/types/carriers/class-factories.js";
-import { classifyCsharpOptionalCallCallee, classifyCsharpOptionalCallReceiver } from "./optional-calls.js";
 import { selectCsharpMemoryBinding } from "./memory-bindings.js";
 
 import { selectCsharpElementDeletion } from "./collections/element-deletion.js";
 import { selectCsharpSwitch } from "./control-flow/switch.js";
 import { AsForInOrOfStatement, sourceClassFieldIsTypeOnly, sourceExpressionSequence } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import { selectCsharpJsValueCallOperation, selectCsharpJsValueBinaryOperation, selectCsharpJsValueReceiverExpressionOperation, selectCsharpJsValueUnaryOperation, selectCsharpJsTypeofOperation, selectCsharpJsValueCondition, selectCsharpJsValueVoidOperation } from "./js-values.js";
+import { selectCsharpJsValueBinaryOperation, selectCsharpJsValueReceiverExpressionOperation, selectCsharpJsValueUnaryOperation, selectCsharpJsTypeofOperation, selectCsharpJsValueCondition, selectCsharpJsValueVoidOperation } from "./js-values.js";
 import { selectCsharpProviderValue } from "./members/values.js";
 import { selectCsharpTargetProperty } from "./members/selected-members.js";
 import { selectCsharpTargetElement } from "./members/selected-members.js";
@@ -40,7 +34,6 @@ import { csharpTypedLocationLoweringRefusal, selectCsharpNativeRefReturn, select
 import { selectCsharpRefusedTypedLocationOperandCall } from "./typed-location-operands.js";
 import { selectCsharpRegularExpressionLiteral } from "./syntax/regexp-literal.js";
 import { selectCsharpResourceManagement } from "../control-flow/resource-management.js";
-import { selectCsharpSourceFlowCall } from "../../policy/operations/flow/source-flow.js";
 import { selectCsharpBinaryOperation, selectCsharpDestructuringAssignmentOperation, selectCsharpUnaryOperation } from "./operators.js";
 import { selectCsharpIteration } from "./iteration/selection.js";
 import { isCsharpThrowableType } from "../project-types/throwable-types.js";
@@ -62,7 +55,7 @@ export function analyzeCsharpOperationConstruct(
   erasure: CsharpOperationErasure,
   producer: CsharpOperationProducer,
   binaryExecutionDrivers:
-    import("../../target-model/metadata/provider-metadata.js").CsharpTargetBinaryExecutionDriver[],
+    import("../../target-model/types/binary-execution.js").CsharpTargetBinaryExecutionDriver[],
   scopeIssues: CsharpOperationIssue[] | undefined,
 ): void {
   if (evidence.compileTimeMetadata.get(node)) return;
@@ -109,7 +102,7 @@ export function analyzeCsharpOperationConstruct(
   );
   if (ast.is.IsTypeOfExpression(node)) {
     const operand = ast.as.AsTypeOfExpression(node)?.Expression;
-    const selected = operand === undefined ? undefined : getCsharpTypeofResult(policy.types.resolveNode(operand, sourceFile)?.type, undefined, policy.typeDefinitions);
+    const selected = operand === undefined ? undefined : getCsharpTypeofResult(policy.types.resolveNode(operand, sourceFile)?.sourceResult?.selectedType, undefined, policy.typeDefinitions);
     if (operand !== undefined && selected !== undefined) producer.typeofRuntimeKind.selected(operand, selected);
   }
   if (ast.is.IsIdentifier(node)) {
@@ -178,82 +171,7 @@ export function analyzeCsharpOperationConstruct(
     producer.typedLocation.selected(node, typedLocation!);
   }
   if (ast.is.IsCallExpression(node)) {
-    const expression = ast.as.AsCallExpression(node);
-    const source = policy.semantics(sourceFile).operations.call(node);
-    const callee = source?.sourceCallee.expression ?? expression?.Expression;
-    const shape = classifyCsharpJsValueCallShape(policy.ast, source);
-    const jsValue = validateCsharpJsValueOperationSelection(selectCsharpJsValueCallOperation(
-      policy,
-      callee,
-      shape.receiver,
-      sourceFile,
-      shape.kind,
-      expression?.QuestionDotToken !== undefined,
-    ));
-    const typeTest = selectCsharpArrayTypeTest(policy, source, sourceFile);
-    const form = selectCsharpCallForm(typeTest, selectCsharpSourceFlowCall(policy, node), jsValue);
-    const selectedTarget = jsValue.kind === "not-js-value" && typeTest === undefined
-      ? selectCsharpTargetCall(policy, node, sourceFile)
-      : undefined;
-    const conversionIssue = csharpSelectedCallConversionIssue(policy, selectedTarget);
-    if (conversionIssue !== undefined) issues?.push(conversionIssue);
-    const target = conversionIssue === undefined ? selectedTarget : undefined;
-    if (target?.kind === "resolved") {
-      const driver = target.call.targetMember.csharpBinaryExecutionDriver;
-      if (driver !== undefined) binaryExecutionDrivers.push(driver);
-    }
-    const selectedResultType = jsValue.kind === "resolved"
-      ? jsValue.resultType
-      : policy.types.resolveNode(node, sourceFile)?.type;
-    const selectedOptionalReceiver = classifyCsharpOptionalCallReceiver(policy, source, target, sourceFile);
-    const receiverIssue = csharpOperationConversionIssue(node, selectedOptionalReceiver?.conversion, "CSHARP_MEMBER_RECEIVER_CONVERSION_NOT_PROVEN");
-    if (receiverIssue !== undefined) issues?.push(receiverIssue);
-    const optionalReceiver = receiverIssue === undefined ? selectedOptionalReceiver : undefined;
-    const optionalCallee = classifyCsharpOptionalCallCallee(policy, source, sourceFile);
-    const sourceCall = source === undefined || target?.kind !== "source-owned" ? undefined
-      : classifyCsharpSourceCallee(policy, source, sourceFile);
-    const sourceMethodValue = source === undefined || sourceCall?.kind !== "value" ? undefined
-      : getCsharpMethodValue(policy.types.resolveNode(source.sourceCallee.expression, sourceFile)?.type);
-    producer.call.selected(node, Object.freeze({
-      form,
-      ...(sourceMethodValue === undefined ? {} : { sourceMethodValue }),
-      ...(optionalReceiver === undefined ? {} : { optionalReceiver }),
-      ...(optionalCallee === undefined ? {} : { optionalCallee }),
-      unionCall: classifyCsharpUnionCall(policy, source, sourceFile),
-      ...(source === undefined ? {} : { source }),
-      ...(sourceCall === undefined ? {} : { sourceCall }),
-      ...(source === undefined || target?.kind !== "source-owned" && !(target?.kind === "resolved" &&
-        target.call.targetMember.kind === "method" && policy.navigation.isProjectDeclaration(
-          source.sourceCalleeAccess?.selectedDeclaration ?? source.sourceCallee.selectedDeclaration)) ? {} : {
-        sourceResult: policy.types.resolveSourceCallResult(source, sourceFile,
-          target?.kind === "resolved" ? target.call.targetMember.returnType : undefined),
-      }),
-      ...(target === undefined ? {} : { target }),
-      ...(selectedResultType === undefined ? {} : { selectedResultType }),
-      ...target?.kind === "resolved"
-        ? {
-            methodTypeArgumentProjections:
-              classifyMethodTypeArgumentProjections(
-                policy,
-                target.call,
-                node,
-                sourceFile,
-                issues,
-              ),
-          }
-        : {},
-      ...(source === undefined
-        ? {}
-        : {
-            sourceTypeArguments:
-              policy.types.resolveSourceCallTypeArguments(source, sourceFile),
-            ...(typedLocation?.kind === "location-bind" || typedLocation?.kind === "location-project" || typedLocation?.kind === "location-view"
-              ? classifyCsharpTypedLocationCallArguments(source, typedLocation)
-              : target?.kind === "resolved"
-                ? classifyCsharpNativeCallArguments(source, target)
-                : classifyCsharpSourceCallArguments(policy, source, sourceFile, sourceCall, sourceMethodValue)),
-          }),
-    }));
+    analyzeCsharpCallOperation(node, sourceFile, policy, producer, typedLocation, binaryExecutionDrivers, issues);
   } else if (ast.is.IsNewExpression(node)) {
     const expression = ast.as.AsNewExpression(node);
     const jsValue = selectCsharpJsValueReceiverExpressionOperation(
@@ -274,7 +192,7 @@ export function analyzeCsharpOperationConstruct(
     }
     const selectedResultType = jsValue.kind === "resolved"
       ? jsValue.resultType
-      : policy.types.resolveNode(node, sourceFile)?.type;
+      : policy.types.resolveNode(node, sourceFile)?.sourceResult?.selectedType;
     producer.construction.selected(node, Object.freeze({
       jsValue,
       ...(target === undefined ? {} : { target }),
@@ -446,7 +364,7 @@ export function analyzeCsharpOperationConstruct(
   if (ast.is.IsThrowStatement(node)) {
     const expression = ast.as.AsThrowStatement(node)?.Expression;
     if (expression !== undefined) {
-      const sourceCarrier = policy.types.resolveNode(expression, sourceFile)?.type;
+      const sourceCarrier = policy.types.resolveNode(expression, sourceFile)?.sourceResult?.selectedType;
       producer.throwValue.selected(node, Object.freeze({ expression, sourceCarrier, targetCarrier: selectCsharpThrownOperandCarrier(policy, sourceCarrier, isCsharpThrowableType(policy, sourceCarrier)) }),
       );
       producer.exactCatchRethrow.selected(node, classifyExactUnmodifiedCatchRethrow(policy, node, expression),

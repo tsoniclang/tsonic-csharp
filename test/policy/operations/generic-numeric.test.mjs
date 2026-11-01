@@ -1,8 +1,9 @@
+import { csharpSourceValueResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { csharpSourceHasNumericConstraint } from "../../../dist/analysis/source-evidence/types/resolution/numeric-constraint-evidence.js";
 import { selectCsharpGenericNumericOperation } from "../../../dist/analysis/operations/numeric/generic.js";
-import { csharpBinarySelectionsEqual } from "../../../dist/analysis/expected-types/binary-equality.js";
+import { csharpBinarySelectionsEqual } from "../../helpers/binary-selections.mjs";
 
 function scenario() {
   const file = {};
@@ -29,7 +30,7 @@ function scenario() {
     navigation: { referenceFor: () => ({ declaration: binding }) },
     semantics: () => semantics,
     types: { resolveSelectedValue: () => carrier,
-      resolveNode: node => node === constraint ? { kind: "resolved", type: scalar } : undefined },
+      resolveNode: node => node === constraint ? { kind: "resolved", sourceResult: csharpSourceValueResult(scalar) } : undefined },
   };
   return { input, file, declaration, expression, carrier, scalar };
 }

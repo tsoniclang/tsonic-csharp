@@ -41,6 +41,7 @@ import type { CsharpValueReadStageIndex } from "../../target-model/records/opera
 import type { CsharpDeclarationClassifications, CsharpReturnTargetContract } from "../../target-model/records/program/declarations.js";
 import { createCsharpDeclarationProducer } from "../program/records/program/declarations.js";
 import { selectCsharpParameterDefaultContext } from "./parameter-default-context.js";
+import { refineCsharpSourceValueResult } from "../source-evidence/types/resolution/call-results.js";
 
 export function analyzeCsharpDeclarations(
   policy: CsharpPolicyContext,
@@ -251,9 +252,10 @@ function classifyReturnContract(
           targetTypeRefEquals(result.selectedType, type)) inferredBaseline = result.selectedType;
       }
       if (asynchronous) {
-        const selected = policy.types.resolveNode(expression, policy.ast.getSourceFile(expression))?.sourceResult;
-        const awaited = selectCsharpSourceCallAwaitCompletion(selected === undefined ? undefined
-          : Object.freeze({ ...selected, selectedType: type }), policy.typeDefinitions)?.result;
+        const selected = operations.selectedCall.get(expression)?.sourceResult ??
+          policy.types.resolveNode(expression, policy.ast.getSourceFile(expression))?.sourceResult;
+        const returned = refineCsharpSourceValueResult(selected, type);
+        const awaited = selectCsharpSourceCallAwaitCompletion(returned, policy.typeDefinitions, "consumed")?.result;
         if (awaited !== undefined) observed.push(awaited);
         else if (targetTypeRefEquals(type, observedBaseline)) observed.push(type);
         else incomplete = true;

@@ -16,7 +16,7 @@ import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
 import type { CsharpCallableContractIndex } from "../../../target-model/records/callables/callable-values.js";
 import type { CsharpCallableCreationIndex } from "../../../target-model/records/callables/callable-values.js";
-import { csharpCallableDeclarationValueType } from "../../../policy/types/callables/value-type.js";
+import { csharpCallableValueType } from "../../../policy/types/callables/value-type.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations/operations.js";
 import type { CsharpNativeCallableAllocation } from "../../../target-model/records/native/native-demand.js";
@@ -59,7 +59,8 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
       ? input.operations.selectedConstruction.get(argument.call) : input.operations.selectedCall.get(argument.call);
     const nativeArguments = operation?.sourceArgumentParameterTypes;
     const checked = argument === undefined ? undefined : input.source.semantics.forNode(argument.call).operations.call(argument.call);
-    const nativeBindings = checked === undefined ? undefined : sourceCallArgumentCorrespondences(ast, checked)?.filter(row =>
+    const nativeBindings = checked === undefined ? undefined : sourceCallArgumentCorrespondences({ ast,
+      semantics: input.source.semantics.forNode(checked.call) }, checked)?.filter(row =>
       argument !== undefined && row.binding.sourceArgumentIndex === argument.argumentIndex && row.binding.sourceForm === "value" &&
       row.argument.expression === argument.argument);
     const immediate = nativeBindings?.length === 1 ? nativeArguments?.[nativeBindings[0]!.bindingIndex] : undefined;
@@ -93,7 +94,7 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
     const contextualCarrier = getCsharpNullableElementTargetType(contextual) ?? contextual;
     const contract = input.contracts.get({ kind: "declaration", declaration: node });
     const closed = input.contracts.closedInputType(node);
-    const native = csharpCallableDeclarationValueType(input.contracts, node);
+    const native = contract === undefined ? undefined : closed ?? csharpCallableValueType(contract);
     const asynchronous = HasSyntacticModifier(ast, node, ModifierFlagsAsync);
     const carrier = closure !== undefined ? closure.method.type
       : closed !== undefined ? closed

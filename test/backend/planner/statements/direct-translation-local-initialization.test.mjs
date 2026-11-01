@@ -101,17 +101,19 @@ namespace Tsonic.Generated
         }
         public static double walk(string[] values)
         {
-            ObjectShape_capture_ffef __tsonic_captures0 = new ObjectShape_capture_ffef
+            double count = 0;
+            Action<double> visit = default(Action<double>)!;
+            visit = (double index) =>
             {
-                value0 = default(Action<double>)!,
-                value1 = default(string[])!,
-                value2 = default(double)!,
+                if (index >= values.Length)
+                {
+                    return;
+                }
+                count++;
+                visit(index + 1);
             };
-            __tsonic_captures0.value1 = values;
-            __tsonic_captures0.value2 = 0;
-            __tsonic_captures0.value0 = __tsonic_captures0.invoke0;
-            __tsonic_captures0.value0(0);
-            return __tsonic_captures0.value2;
+            visit(0);
+            return count;
         }
     }
 }

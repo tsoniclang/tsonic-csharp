@@ -2,7 +2,8 @@ import type { TargetCapabilityContribution } from "@tsonic/target-api/provider";
 import type { CsharpProviderTargetRejection } from "../../target-model/identities/provider-relations.js";
 import type { CsharpProviderTargetRelation } from "../../target-model/identities/provider-relations.js";
 import type { CsharpTargetBindingFact } from "../../target-model/types/model.js";
-import { csharpProviderPolicyContributionKind, type CsharpTargetBinaryExecutionDriver, type CsharpProviderPolicyContribution } from "../../target-model/metadata/provider-metadata.js";
+import { csharpProviderPolicyContributionKind, type CsharpProviderPolicyContribution } from "../../target-model/metadata/provider-metadata.js";
+import type { CsharpTargetBinaryExecutionDriver } from "../../target-model/types/binary-execution.js";
 import { hasExactContributionFields, isContributionRecord, nonEmptyContributionString } from "./contribution-values.js";
 import { snapshotCsharpMetadata } from "../../target-model/metadata/immutable.js";
 

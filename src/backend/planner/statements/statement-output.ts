@@ -1,5 +1,5 @@
 import type { TargetTypeRef } from "../../../target-model/types/index.js";
-import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../target-ast/syntax/index.js";
+import type { CsharpExpression, CsharpStatement } from "../../target-ast/syntax/index.js";
 import {
   isCsharpVoidTargetType,
   isCsharpNeverTargetType,
@@ -83,10 +83,6 @@ export function planCsharpVoidReturn(
     planned.completion.kind === "never" ? [] : [
     completion === "absence" ? planCsharpAbsenceReturn(carrier, input) : { kind: "ReturnStatement" },
   ] as readonly CsharpStatement[])];
-}
-
-export function isVoidCsharpType(type: CsharpTypeNode): boolean {
-  return type.kind === "PredefinedType" && type.name === "void";
 }
 
 export function planDiscardedExpression(

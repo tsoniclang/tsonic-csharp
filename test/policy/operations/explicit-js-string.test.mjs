@@ -1,3 +1,4 @@
+import { csharpSourceValueResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { sourceMarkerFactKey } from "@tsonic/tsts";
@@ -29,7 +30,7 @@ function fixture(options = {}) {
     types: { resolveNode: subject => {
       const type = subject === sourceValue ? options.sourceType ?? nativeString
         : subject === node ? options.resultType ?? exactString : undefined;
-      return type === undefined ? undefined : { kind: "resolved", type };
+      return type === undefined ? undefined : { kind: "resolved", sourceResult: csharpSourceValueResult(type) };
     } },
   };
   return { node, sourceValue, sourceFile, selection: selectCsharpJsStringConversion(policy, node, sourceFile) };

@@ -1,6 +1,6 @@
 import type { ArgumentPassingMode, ExtensionFactSubject, Node, ResolvedSourceWellKnownSymbolInfo, SourcePrimitiveKind, Type } from "@tsonic/tsts";
 import type { SourceStructuralMemberPair } from "@tsonic/target-api/source";
-import type { CsharpTargetBinaryExecutionDriver } from "../metadata/provider-metadata.js";
+import type { CsharpTargetBinaryExecutionDriver } from "./binary-execution.js";
 
 export type CsharpTypeofRuntimeKind = "string" | "number" | "boolean" | "bigint" | "symbol" | "object" | "function" | "undefined";
 
@@ -543,14 +543,6 @@ export interface CsharpTargetBindingFact extends Omit<TargetBindingFact, "member
 
 export function csharpTargetBindingFact(binding: TargetBindingFact | undefined): CsharpTargetBindingFact | undefined {
   return binding as CsharpTargetBindingFact | undefined;
-}
-
-export function csharpTargetMemberFact(member: TargetMember | undefined): CsharpTargetMember | undefined {
-  return member as CsharpTargetMember | undefined;
-}
-
-export function csharpTargetMemberFacts(members: readonly TargetMember[] | undefined): readonly CsharpTargetMember[] {
-  return (members ?? []) as readonly CsharpTargetMember[];
 }
 
 export interface CsharpDelegateSignatureShape {

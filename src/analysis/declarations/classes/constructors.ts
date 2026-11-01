@@ -28,7 +28,7 @@ export function analyzeCsharpConstructorEmission(input: {
   const issues: TargetDiagnostic[] = [];
   for (const node of input.nodes) {
     if (!input.ast.is.IsConstructorDeclaration(node) || !input.admitted(node)) continue;
-    const baseCall = csharpConstructorBaseCall(input.ast, node);
+    const baseCall = csharpConstructorBaseCall(input.ast, node)?.call;
     const prepared = csharpConstructorRequiresPreparation(input.ast, node, input.declarations, input.storage, input.captured);
     entries.set(node, Object.freeze({ baseCall, prepared }));
     if (baseCall === undefined) continue;

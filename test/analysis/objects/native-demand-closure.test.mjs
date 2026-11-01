@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
-import { collectJsonType } from "../../../dist/analysis/objects/native-demand-closure.js";
-import { maximumJsonClosureDepth } from "../../../dist/analysis/objects/native-demand-batches.js";
+import { collectJsonType } from "../../../dist/analysis/objects/native-demand/closure.js";
+import { maximumJsonClosureDepth } from "../../../dist/analysis/objects/native-demand/batches.js";
 import { csharpAbsenceTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import test from "node:test";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { compileCsharpRequiredRecordSource, csharpRecordInput } from "../../helpers/required-records.mjs";
 import { createCsharpProgramRecords } from "../../../dist/analysis/program/records/create.js";
 import { assertCsharpRequiredRecords } from "../../../dist/analysis/program/records/objects/required-records.js";
-import { createCsharpObjectShapeDemandEngine } from "../../../dist/analysis/objects/native-demand-requests.js";
+import { createCsharpObjectShapeDemandEngine } from "../../../dist/analysis/objects/native-demand/requests.js";
 import { publishCsharpNativeArtifactDemand } from "../../../dist/analysis/program/records/native/native-demand.js";
 import { objectShapeArtifactKey } from "../../../dist/target-model/records/objects/object-shape-keys.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";

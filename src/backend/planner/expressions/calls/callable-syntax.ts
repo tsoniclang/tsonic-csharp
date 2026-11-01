@@ -1,10 +1,10 @@
 import type { CsharpExpression, CsharpTypeNode } from "../../../target-ast/syntax/index.js";
 
-export function unparenthesizeCsharpCallable(expression: CsharpExpression): CsharpExpression {
+export function unparenthesizeCsharpExpression(expression: CsharpExpression): CsharpExpression {
   while (expression.kind === "ParenthesizedExpression") expression = expression.expression;
   return expression;
 }
 
 export function castCsharpCallableOperand(expression: CsharpExpression, type: CsharpTypeNode): CsharpExpression {
-  return { kind: "CastExpression", type, expression: unparenthesizeCsharpCallable(expression) };
+  return { kind: "CastExpression", type, expression };
 }

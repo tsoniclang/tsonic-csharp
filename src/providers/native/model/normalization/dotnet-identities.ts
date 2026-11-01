@@ -1,5 +1,5 @@
 import { requireNonEmptyString, requireOptionalNonEmptyString, requireString, requireSupportedDiscriminant, supportedDotnetRenderShapeKinds } from "./support.js";
-import type { DotnetAssemblyReference, DotnetConversionOperatorDeclaration, DotnetMemberDeclaration, DotnetParameterDefaultValue, DotnetUnsupportedDefaultValueDeclaration, DotnetUnsupportedMemberDeclaration } from "../index.js";
+import type { DotnetAssemblyReference, DotnetConversionOperatorDeclaration, DotnetParameterDefaultValue, DotnetUnsupportedDefaultValueDeclaration } from "../index.js";
 import type { ContractCollector } from "./support.js";
 import type { DotnetRenderShape } from "../types.js";
 
@@ -142,20 +142,6 @@ export function validateOptionalDotnetUnsupportedDefaultValue(
   for (const [index, evidence] of (value.evidence ?? []).entries()) {
     requireNonEmptyString(evidence.message, `${path}.evidence[${index}].message`, collector);
   }
-}
-
-export function hasMatchingUnsupportedMember(
-  members: readonly DotnetUnsupportedMemberDeclaration[],
-  member: DotnetMemberDeclaration,
-  memberKind: DotnetUnsupportedMemberDeclaration["memberKind"],
-): boolean {
-  return members.some((candidate) =>
-    candidate.memberKind === memberKind &&
-    candidate.targetId === member.targetId &&
-    candidate.metadataName === member.metadataName &&
-    typeof candidate.reason === "string" &&
-    candidate.reason.length > 0
-  );
 }
 
 export function dotnetConversionOperatorNameMatchesKind(

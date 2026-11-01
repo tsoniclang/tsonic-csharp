@@ -78,14 +78,19 @@ export function selectCsharpAwaitCompletion(
 
 export function selectCsharpSourceCallAwaitCompletion(
   selected: CsharpSourceCallResult | undefined,
-  definitions?: CsharpTypeDefinitions,
-  resultUse: "consumed" | "discarded" = "consumed",
+  definitions: CsharpTypeDefinitions | undefined,
+  resultUse: "consumed" | "discarded",
 ): CsharpAwaitCompletion | undefined {
   if (selected === undefined) return undefined;
   const native = selectCsharpAwaitCompletion(selected.selectedType, definitions, resultUse);
   if (native === undefined) return undefined;
-  const continuation = getCsharpTaskResultTargetType(selected.nativeType) !== undefined &&
-    targetTypeRefEquals(selected.nativeType, selected.selectedType) ? selected.completion : undefined;
+  const present = getCsharpNullableElementTargetType(selected.selectedType) ?? selected.selectedType;
+  const selectedContinuation = getCsharpTaskResultTargetType(selected.nativeType) !== undefined &&
+    targetTypeRefEquals(selected.nativeType, present) ? selected.completion : undefined;
+  const continuation = selectedContinuation === undefined || !native.optional || selectedContinuation.optional
+    ? selectedContinuation : Object.freeze({ ...selectedContinuation, optional: true,
+      result: isCsharpVoidTargetType(selectedContinuation.result) ? selectedContinuation.result
+        : csharpNullableTargetType(selectedContinuation.result) });
   return continuation === undefined ? native : Object.freeze({ ...native,
     result: continuation.result, discard: continuation.discard,
     adoption: Object.freeze({ native, continuation }),

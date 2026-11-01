@@ -12,10 +12,10 @@ export function planCsharpDeferredOriginalPlaces(
     const name = input.program.source.ast.name(declaration)!;
     const place = input.program.records.capturedPlace.get(declaration);
     const type = place === undefined ? undefined : csharpTypeFromTargetTypeRef(place.type, input.scope.typeParameterNames);
-    if (type === undefined) failCsharpPlannerInvariant("A deferred native capture requires its exact original physical storage.", declaration);
+    if (place === undefined || type === undefined) failCsharpPlannerInvariant("A predeclared native capture requires its exact original physical storage.", declaration);
     state.predeclaredNativeBindings.add(declaration);
     return { kind: "LocalDeclarationStatement", name: declareCsharpLocalBindingName(name, input, state), type,
-      initializer: { kind: "DefaultExpression", type, nullForgiving: true } };
+      ...(place.initialization === "deferred" ? { initializer: { kind: "DefaultExpression" as const, type, nullForgiving: true } } : {}) };
   });
 }
 

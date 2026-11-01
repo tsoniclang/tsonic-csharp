@@ -60,6 +60,7 @@ function fixture(text) {
   const evaluate = () => analyzeCsharpCaptureStorage(source, { knownShapes: () => [] }, {
     nativeBacking: { get: () => undefined }, nativeArray: { get: () => undefined },
     storageType: { get: declaration => storageTypes.get(declaration) },
+    typedLocationIdentity: { get: () => false },
   }, { compileTimeMetadata: { get: node => metadata.has(node) },
     storageTargetType: { get: () => undefined }, nodeTargetType: { get: node => types.get(node) },
     typeParameterConstraints: { get: () => undefined },
@@ -295,10 +296,16 @@ for (const [label, sourceText, expected] of [
       "the ordinary lambda publishes the same original declaration");
     assert.equal(place.initialization, expected);
     assert.equal(Object.isFrozen(place), true);
+    const binding = program.records.capturedBinding.get(captured.declaration);
     if (expected === "deferred") {
-      const binding = program.records.capturedBinding.get(captured.declaration);
       assert.equal(binding !== undefined, true, "the required class/method storage retains deferred initialization");
-      assert.equal(binding.frame.bindings.find(field => field.declaration === captured.declaration)?.initialization, expected);
+    }
+    if (binding !== undefined) {
+      const field = binding.frame.bindings.find(field => field.declaration === captured.declaration);
+      assert.equal(field !== undefined && Object.hasOwn(field, "initialization"), true,
+        "every actual native frame binding publishes the required initialization fact");
+      assert.equal(field.initialization, expected);
+      assert.equal(Object.isFrozen(field), true, "the required frame fact is immutable");
     }
   });
 }

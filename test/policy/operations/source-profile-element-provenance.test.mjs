@@ -1,3 +1,4 @@
+import { csharpSourceValueResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
@@ -54,7 +55,7 @@ function fixture(options = {}) {
       } : undefined },
     types: { nativeFlowTypes: () => options.emptyFlow ? [] : undefined,
       resolveType: type => type === sourceType ? csharpJsArrayTargetType(csharpStringTargetType()) : undefined,
-      resolveNode: node => node === receiver ? { kind: "resolved", type: csharpJsArrayTargetType(csharpStringTargetType()) } : undefined,
+      resolveNode: node => node === receiver ? { kind: "resolved", sourceResult: csharpSourceValueResult(csharpJsArrayTargetType(csharpStringTargetType())) } : undefined,
       resolveSelectedValue: node => node === receiver ? csharpJsArrayTargetType(csharpStringTargetType()) : undefined },
   };
   return { host, source, sourceFile };

@@ -98,9 +98,11 @@ function fixture(body, overrides = {}) {
   const declarations = { runtimeDefault: { get: () => undefined },
     returnContract: { get: node => ({ kind: "resolved", type: node === lambda ? overrides.sourceReturn ?? scopedBinder ?? scalar : scalar }) } };
   const names = { resolve: node => ({ kind: "resolved", name: source.ast.text(node) }) };
-  const analyzed = analyzeCsharpCallableContracts(policy, evidence, declarations, names, { genericProjection: Object.freeze({ get: () => [] }) }, source,
+  const callableResult = analyzeCsharpCallableContracts(policy, evidence, declarations, names, { genericProjection: Object.freeze({ get: () => [] }) }, source,
     Object.freeze({ typeDefinitions: undefined, projectTypes: policy.projectTypes, providers: { findTargetBindingByTargetId: () => ({ kind: "missing" }) }, target: {},
       objectShapes, conversion: { get() { throw new Error("This fixture has no contextual native parameter adaptation."); } } }), operations);
+  assert.equal(callableResult.kind, "resolved", "the original callable fixture has no native input refusal");
+  const analyzed = callableResult.value;
   const contract = analyzed.get({ kind: "declaration", declaration: lambda });
   assert.equal(contract !== undefined, true, "the original declaration has its completed native ABI");
   const nativeCarrier = csharpCallableValueType(contract);

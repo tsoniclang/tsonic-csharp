@@ -16,7 +16,6 @@ export type CsharpNodeTypeResolution = (Extract<CsharpNativeSourceCarrierSelecti
   readonly sourceResult?: never;
 }) | {
   readonly kind: "resolved";
-  readonly type: TargetTypeRef;
   readonly sourceResult: CsharpSourceCallResult;
 };
 

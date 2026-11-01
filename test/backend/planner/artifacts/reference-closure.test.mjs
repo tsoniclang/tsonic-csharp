@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { collectCsharpReferenceClosure } from "../../../../dist/analysis/objects/native-demand-references.js";
+import { collectCsharpReferenceClosure } from "../../../../dist/analysis/objects/native-demand/references.js";
 
 function shape(id, bases = [], overrides = {}) {
   return {

@@ -1,3 +1,4 @@
+import { csharpSourceValueResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { classifySourceOwnedMember } from "../../../dist/analysis/operations/member-access.js";
@@ -27,7 +28,7 @@ for (const kind of ["class", "interface"]) {
           operations: { propertyAccess: () => undefined },
         }),
         types: {
-          resolveNode: node => ({ kind: "resolved", type: node === receiver ? carrier : integer }),
+          resolveNode: node => ({ kind: "resolved", sourceResult: csharpSourceValueResult(node === receiver ? carrier : integer) }),
           resolveSelectedValue: node => node === receiver ? carrier : integer,
           resolveReadStorage: () => integer,
         },

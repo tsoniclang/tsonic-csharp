@@ -1,3 +1,4 @@
+import { executeCsharpConstruction } from "../../../helpers/native-construction.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { planCsharpTypedLocationIdentityDeclaration } from "../../../../dist/backend/planner/bindings/typed-location-identities.js";
@@ -34,5 +35,47 @@ for (const surface of ["native", "js"]) {
     assert.equal(text.includes(".CreateMember("), true, "pointer identity belongs to the actual retained frame");
     assert.equal(text.includes("locationIdentity"), false, "no extra local identity accompanies the native frame owner");
     assert.equal(text.includes(".CreateLocal("), false, "no second local-storage address path");
+    executeCsharpConstruction(compiled, `addressed-original-place-${surface}`, false, false, [], `
+using Location = Tsonic.CSharp.Runtime.Location<double>;
+for (var warmup = 0; warmup < 1000; warmup++) {
+    Tsonic.Generated.Index.main();
+    Handwritten();
+}
+var before = System.GC.GetAllocatedBytesForCurrentThread();
+for (var iteration = 0; iteration < 4096; iteration++) Tsonic.Generated.Index.main();
+var generatedCost = System.GC.GetAllocatedBytesForCurrentThread() - before;
+before = System.GC.GetAllocatedBytesForCurrentThread();
+for (var iteration = 0; iteration < 4096; iteration++) Handwritten();
+var nativeCost = System.GC.GetAllocatedBytesForCurrentThread() - before;
+if (generatedCost != nativeCost)
+    throw new System.Exception($"native addressed activation allocation {generatedCost} != {nativeCost}");
+static void Handwritten() {
+    var frame = new NativeAddressFrame { Seed = 3 };
+    frame.Selected = frame.Read;
+    var original = frame.Selected;
+    frame.Selected = frame.Write;
+    var alias = original;
+    if (original(0) != 4 || original(1) != 6 || alias(0) != 7 || alias(8) != 9)
+        throw new System.Exception("native addressed callback values and aliases");
+}
+sealed class NativeAddressFrame {
+    public double Seed;
+    public System.Func<double, double> Selected = null!;
+    public double Read(double count) {
+        if (count != 0) return Selected(count - 1);
+        var first = Location.CreateMember(this, nameof(Seed), static frame => frame.Seed, static (frame, value) => frame.Seed = value);
+        var second = Location.CreateMember(this, nameof(Seed), static frame => frame.Seed, static (frame, value) => frame.Seed = value);
+        if (!Location.Same(first, second)) throw new System.Exception("native original place identity");
+        second.Store(first.Load() + 1);
+        return Seed;
+    }
+    public double Write(double count) {
+        if (count != 0) return Selected(count - 1);
+        var pointer = Location.CreateMember(this, nameof(Seed), static frame => frame.Seed, static (frame, value) => frame.Seed = value);
+        pointer.Store(pointer.Load() + 2);
+        return Seed;
+    }
+}
+`);
   });
 }

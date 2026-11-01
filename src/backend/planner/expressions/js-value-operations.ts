@@ -86,26 +86,3 @@ export function translateCsharpJsValueInvocation(
         })),
       };
 }
-
-export function translateCsharpJsValueFactory(
-  expression: CsharpExpression,
-): CsharpExpression {
-  return {
-    kind: "LambdaExpression",
-    parameters: [],
-    body: expression,
-  };
-}
-
-export function translateCsharpJsValueArgumentFactory(
-  arguments_: readonly CsharpExpression[],
-): CsharpExpression {
-  return translateCsharpJsValueFactory({
-    kind: "ArrayCreationExpression",
-    elementType: {
-      kind: "NullableType",
-      inner: { kind: "PredefinedType", name: "object" },
-    },
-    elements: arguments_,
-  });
-}
