@@ -1,3 +1,4 @@
+import { csharpSourceValueResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -5,8 +6,8 @@ import { createCsharpTypeResolutionQueryCache } from "../../../dist/analysis/sou
 
 const int32 = Object.freeze({ kind: "source-primitive", name: "int32" });
 const string = Object.freeze({ kind: "source-primitive", name: "string" });
-const int32Node = Object.freeze({ kind: "resolved", type: int32 });
-const stringNode = Object.freeze({ kind: "resolved", type: string });
+const int32Node = Object.freeze({ kind: "resolved", sourceResult: csharpSourceValueResult(int32) });
+const stringNode = Object.freeze({ kind: "resolved", sourceResult: csharpSourceValueResult(string) });
 
 test("type-resolution queries memoize completed exact results and misses", () => {
   const cache = createCsharpTypeResolutionQueryCache();

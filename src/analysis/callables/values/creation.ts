@@ -1,4 +1,5 @@
 import type { Node } from "@tsonic/tsts";
+import { rejectedTargetStage, resolvedTargetStage, type TargetDiagnostic, type TargetStageResult } from "@tsonic/target-api/artifacts";
 import { HasSyntacticModifier, ModifierFlagsAsync, sourceCallableDefinitionIsDiscarded,
   sourceExpressionCallArgument, sourceCallArgumentCorrespondences,
   type SourceLiteralIndex, type TargetSourceProgram } from "@tsonic/target-api/source";
@@ -35,20 +36,15 @@ export interface CsharpCallableCreationInput {
   readonly literals: SourceLiteralIndex;
 }
 
-export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInput): CsharpCallableCreationIndex {
+export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInput): TargetStageResult<CsharpCallableCreationIndex> {
   const producer = createCsharpCallableCreationProducer(input.nodes);
+  const issues: TargetDiagnostic[] = [];
   const { ast } = input.source;
   for (const node of input.nodes) {
     if (input.evidence.compileTimeMetadata.get(node) ||
       !ast.is.IsArrowFunction(node) && !ast.is.IsFunctionExpression(node)) continue;
     if (sourceCallableDefinitionIsDiscarded(node, ast, input.source.navigation)) {
       producer.publish(node, Object.freeze({ kind: "discarded" }));
-      continue;
-    }
-    const captures = input.captures.lexicalCaptures.find(candidate => candidate.owner === node);
-    if (captures === undefined || captures.values.some(value => value.type === undefined) ||
-      captures.receivers.some(receiver => receiver.type === undefined)) {
-      producer.publish(node, Object.freeze({ kind: "pending" }));
       continue;
     }
     const closure = input.captures.captureClosure.get(node);
@@ -92,10 +88,28 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
         ? input.storage.storageType.get(disposition.use)
         : aggregate ? requirements![0] : input.evidence.contextualType.get(node)?.targetType;
     const contextualCarrier = getCsharpNullableElementTargetType(contextual) ?? contextual;
+    const asynchronous = HasSyntacticModifier(ast, node, ModifierFlagsAsync);
+    if (getCsharpExpressionTreeDelegateType(contextualCarrier) !== undefined) {
+      const body = ast.body(node);
+      const message = ast.is.IsFunctionExpression(node)
+        ? "A native expression-tree quotation requires expression-bodied arrow syntax, not a function-expression statement body."
+        : body === undefined || ast.is.IsBlock(body) || asynchronous
+          ? "A native expression-tree quotation requires a synchronous expression-bodied lambda without statement preparation."
+          : undefined;
+      if (message !== undefined) {
+        issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp", sourceNode: node, message });
+        continue;
+      }
+    }
+    const captures = input.captures.lexicalCaptures.find(candidate => candidate.owner === node);
+    if (captures === undefined || captures.values.some(value => value.type === undefined) ||
+      captures.receivers.some(receiver => receiver.type === undefined)) {
+      producer.publish(node, Object.freeze({ kind: "pending" }));
+      continue;
+    }
     const contract = input.contracts.get({ kind: "declaration", declaration: node });
     const closed = input.contracts.closedInputType(node);
     const native = contract === undefined ? undefined : closed ?? csharpCallableValueType(contract);
-    const asynchronous = HasSyntacticModifier(ast, node, ModifierFlagsAsync);
     const carrier = closure !== undefined ? closure.method.type
       : closed !== undefined ? closed
       : observedSelf || getCsharpMethodValue(sourceCarrier) !== undefined ? sourceCarrier
@@ -159,7 +173,7 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
         csharpLiteralReturnsFit(ast, input.literals, node, signature.returnType, expression => input.source.semantics.forNode(expression));
     }
   }
-  return producer.seal();
+  return issues.length === 0 ? resolvedTargetStage(producer.seal()) : rejectedTargetStage(issues);
 }
 
 import { createCsharpCallableCreationProducer } from "../../program/records/callables/callable-creations.js";

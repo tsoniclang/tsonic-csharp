@@ -86,7 +86,7 @@ function fixture(body, quotation = false) {
   const selected = analyzeCsharpCaptureStorage(source, { knownShapes: () => [] }, storage, evidence,
     [], contracts, { get: () => false }, selectedOperations);
   assert.equal(selected.issues.length === 0, true, "closed capture storage");
-  const creations = analyzeCsharpCallableCreations({ source, nodes, captures: selected,
+  const creationResult = analyzeCsharpCallableCreations({ source, nodes, captures: selected,
     contracts,
     operations: selectedOperations,
     storage: { lambdaParameterType: { get: parameter => parameters.includes(parameter) ? scalar : undefined },
@@ -94,6 +94,8 @@ function fixture(body, quotation = false) {
     expectedTypes: { requiredExpectedType: { get: () => [] } },
     evidence, conversions: { conversion: { get: (input, output) => targetTypeRefEquals(input, output) ? { kind: "identity" } : undefined } },
     literals: { literalValue: { get: () => undefined } } });
+  assert.equal(creationResult.kind, "resolved", "the original creation fixture has no quotation syntax refusal");
+  const creations = creationResult.value;
   return { selected: creations, captures: selected, lambda, operations, source, nodes, evidence };
 }
 

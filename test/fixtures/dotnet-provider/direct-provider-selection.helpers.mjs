@@ -1,3 +1,4 @@
+import { csharpSourceValueResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import assert from "node:assert/strict";
 import { analyzeSourceLiteralValues } from "@tsonic/target-api/source";
 import { test } from "node:test";
@@ -535,7 +536,7 @@ export function directProviderHost(options = {}) {
       types: Object.freeze({
         resolveNode(node) {
           const type = nodeTypes.get(node);
-          return type === undefined ? undefined : { kind: "resolved", type };
+          return type === undefined ? undefined : { kind: "resolved", sourceResult: csharpSourceValueResult(type) };
         },
         resolveType(type) {
           return semanticTypes.get(type);

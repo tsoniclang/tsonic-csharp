@@ -241,7 +241,6 @@ export function createCsharpProgramRecords(
     capturedBinding: input.captureStorage.capturedBinding,
     capturedPlace: input.captureStorage.capturedPlace,
     constructorCapture: input.captureStorage.constructorCapture,
-    lexicalCaptures: input.captureStorage.lexicalCaptures,
     physicalStorageType: input.captureStorage.physicalStorageType,
     captureClosure: input.captureStorage.captureClosure,
     namedSelf: input.captureStorage.namedSelf,

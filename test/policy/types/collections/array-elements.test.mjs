@@ -1,3 +1,4 @@
+import { csharpSourceValueResult } from "../../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { selectCsharpInferredNumericArrayElement } from "../../../../dist/policy/types/collections/array-elements.js";
@@ -295,7 +296,7 @@ test("array queries never publish an in-progress nested result", () => {
   cache.resolveNode({}, file, () => {
     const selection = cache.resolveArrayLiteral(expression, file, true, () => nested);
     assert.equal(selection === nested, true, "the nested invocation sees its own result without publishing it");
-    return { kind: "resolved", type: primitive("int32") };
+    return { kind: "resolved", sourceResult: csharpSourceValueResult(primitive("int32")) };
   });
   assert.equal(cache.resolveArrayLiteral(expression, file, true, () => final) === final, true,
     "a completed outer query recomputes the final selection instead of retaining a nested partial result");

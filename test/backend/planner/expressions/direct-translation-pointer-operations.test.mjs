@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { executeCsharpConstruction } from "../../../helpers/native-construction.mjs";
 import {
   compileCsharpSource,
 } from "../../../helpers/direct-csharp-session.mjs";
@@ -310,10 +311,19 @@ test("sibling lambdas isolate local names while retaining captured location iden
   const source = compiled.artifacts.get("src/Index.cs");
   assert.equal(occurrences(source, "(int value) =>"), 2);
   assert.doesNotMatch(source, /\(int value_\d+\) =>/u);
-  assert.match(
-    source,
-    /CreateLocal\((__tsonic_locationIdentity\d+), \(\) => seed,[\s\S]*CreateLocal\(\1, \(\) => seed,/u,
-  );
+  const captured = /Func<bool> captured = (?<frame>__tsonic_captures\d+)\.(?<method>invoke\d+);/u.exec(source);
+  assert.equal(captured !== null, true, "the captured callable belongs to its one retained frame");
+  const field = new RegExp(`${captured.groups.frame}\\.(?<field>\\w+) = seed;`, "u").exec(source);
+  assert.equal(field !== null, true, "the retained member is the original seed storage");
+  const frameSource = [...compiled.artifacts].filter(([path]) => path.endsWith(".cs") && path !== "src/Index.cs")
+    .map(([, text]) => text).join("\n");
+  assert.match(frameSource, new RegExp(
+    `bool ${captured.groups.method}\\(\\)\\s*\\{\\s*return [^;]*\\.Same\\([^;]*CreateMember\\(this, "${field.groups.field}",[^;]*CreateMember\\(this, "${field.groups.field}",[^;]*\\);\\s*\\}`, "u"),
+    "both captured addresses use this same frame and this same original field");
+  executeCsharpConstruction(compiled, "sibling-lambda-location-identity", false, false, [], `
+if (!Tsonic.Generated.Index.compareSiblingLambdas(7))
+    throw new System.Exception("sibling lambda original location identity");
+`);
 });
 
 test("loop bindings preserve assignment, lexical, and function-scoped storage identity", () => {
