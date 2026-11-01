@@ -47,7 +47,7 @@ export function analyzeCsharpPromiseResults(input: {
   readonly nodes: readonly Node[];
   readonly records: CsharpValueReadClassifications & CsharpNativeUseClassifications &
     Pick<CsharpStorageRepresentationClassifications, "storageType"> &
-    Pick<CsharpTargetOperationClassifications, "selectedCall" | "selectedConstruction">;
+    Pick<CsharpTargetOperationClassifications, "selectedCall" | "selectedConstruction" | "resource">;
   readonly definitions: CsharpTypeDefinitions;
   readonly nativePlacement: readonly TargetDiagnostic[];
 }): { readonly results: CsharpPromiseResults; readonly diagnostics: readonly TargetDiagnostic[] } {
@@ -143,7 +143,18 @@ export function analyzeCsharpPromiseResults(input: {
         reason: "owned-value", contract: Object.freeze({ kind: "expression", expression: value.node,
           component: value.component }) })]) });
     },
-    suspensionFor(value) {
+    suspensionFor(value, use) {
+      if (use === "resource-cleanup") {
+        const resource = input.records.resource.get(value.node);
+        const checked = source.semantics.forNode(value.node).operations.resourceManagement(value.node);
+        if (resource?.kind !== "resolved" || resource.source !== checked || checked?.declaration !== value.node ||
+          checked.declarationKind !== "await using")
+          return unresolved(value.node, "Cleanup suspension requires this declaration's completed native disposal registration.");
+        const disposals = resource.registration.kind === "direct" ? [resource.registration.disposal]
+          : resource.registration.arms.map(arm => arm.disposal);
+        return Object.freeze({ kind: disposals.some(disposal => disposal.kind === "async") ? "may-suspend" : "never", value,
+          contract: Object.freeze({ kind: "declaration", declaration: value.node, component: value.component }) });
+      }
       const call = ast.is.IsCallExpression(value.node) || ast.is.IsNewExpression(value.node);
       const carrier = nativeCarrier(value.node);
       if (carrier === undefined) return undefined;

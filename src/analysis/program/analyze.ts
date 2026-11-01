@@ -315,7 +315,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     nodes: sourceNodes,
     records: { valueRead: analysis.valueReads.valueRead, nativeUse: nativeDemand.nativeUse,
       storageType: analysis.storage.storageType, selectedCall: analysis.operations.selectedCall,
-      selectedConstruction: analysis.operations.selectedConstruction },
+      selectedConstruction: analysis.operations.selectedConstruction, resource: analysis.operations.resource },
     definitions: analysis.typeDefinitions, nativePlacement: analysis.refLikeDiagnostics });
   if (promiseResults.diagnostics.length > 0) return rejectedTargetStage(promiseResults.diagnostics);
   const providerFailures = providers.failures();

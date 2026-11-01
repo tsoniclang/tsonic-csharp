@@ -100,7 +100,7 @@ function nativeReadFixture() {
       : { site: selected.site, use: selected.use }; } });
   return { program, nodes, call, reference, input: { source, projectRoot: "/project", nodes,
     records: { valueRead: records.valueRead, storageType: records.storageType, nativeUse,
-      selectedCall: records.selectedCall, selectedConstruction: records.selectedConstruction },
+      selectedCall: records.selectedCall, selectedConstruction: records.selectedConstruction, resource: records.resource },
     definitions: program.typeDefinitions, nativePlacement: [] } };
 }
 
