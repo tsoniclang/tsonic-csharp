@@ -297,6 +297,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
   });
   // A refused destructuring binding is the root cause of refusals at its later uses (an incomplete rest copy has no
   // callable contract for its methods), so it is reported first, with them.
+  // Completed native refusals precede their capture-storage and flow consequences; all three analyses are complete.
   if (refusals.length > 0) return rejectedTargetStage([...bindingPatterns.issues.map(issue => ({ code: issue.code, category: "error" as const,
     source: "tsonic-csharp", message: issue.message, sourceNode: issue.node })), ...refusals]);
   if (captureStorage.issues.length > 0) return rejectedTargetStage(captureStorage.issues.map(issue => ({

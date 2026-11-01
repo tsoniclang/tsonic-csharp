@@ -116,3 +116,49 @@ export const expression = function* (): Generator<int, string, int> {
     assert.equal(Object.isFrozen(program.records.lambdaBody.get(declaration)), true);
   });
 }
+
+for (const surface of ["native", "js"]) {
+  test(`statements before super retain their checked source and precise native constructor refusal on ${surface}`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+class Base { constructor(read: () => number) { read(); } }
+export class Derived extends Base {
+  constructor(value: number) { const read = () => value; super(read); }
+}
+` });
+    assert.equal(compiled.sourceDiagnosticsText, "", "the original pre-super closure is valid checked source");
+    assert.deepEqual(compiled.result.diagnostics.map(({ code, message }) => ({ code, message })), [{
+      code: "CSHARP_UNSUPPORTED_AST",
+      message: "A native C# derived constructor requires super(...) as its first statement; statements before base initialization are not supported.",
+    }]);
+    const issue = compiled.result.diagnostics[0];
+    const ast = compiled.source.ast;
+    assert.equal(ast.kindName(issue.sourceNode), "KindCallExpression");
+    const sourceFile = ast.getSourceFile(issue.sourceNode);
+    assert.equal(compiled.source.sourceFiles.includes(sourceFile), true, "the real original base call owns the refusal");
+    assert.equal(Buffer.from(ast.getSourceText(sourceFile))
+      .subarray(ast.pos(issue.sourceNode), ast.end(issue.sourceNode)).toString("utf8").trim(), "super(read)");
+    assert.equal(compiled.result.program, undefined, "no incomplete native program is published");
+    assert.equal(compiled.result.artifacts.length, 0);
+  });
+
+  test(`ordinary native lambda omitted slots preserve outer bindings and exact native argument shapes on ${surface}`, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+function invoke(callback: (value: number, index: number) => number): number { return callback(7, 3); }
+function invokeThree(callback: (value: number, first: number, second: number) => number): number { return callback(7, 3, 4); }
+export function run(): boolean {
+  const unused = 11;
+  const _ = 5;
+  return invoke((value: number) => value + unused) === 18 &&
+    invoke((value: number) => value + 1) === 8 &&
+    invokeThree((value: number) => value + _) === 12;
+}
+` });
+    assertCsharpCompilationSucceeded(compiled);
+    const generated = [...compiled.artifacts.values()].join("\n");
+    assert.match(generated, /\(double value, double unused1\) =>/u,
+      "one omitted native slot has a plain collision-free name, never a shadowing underscore binding");
+    assert.match(generated, /\(double value, double _, double _\) =>/u,
+      "two actually omitted native slots remain native discards without binding the outer underscore");
+    executeCsharpConstruction(compiled, `native-lambda-omitted-scope-${surface}`);
+  });
+}

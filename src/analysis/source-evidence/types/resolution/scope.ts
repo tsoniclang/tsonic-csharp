@@ -161,13 +161,6 @@ export interface CsharpTypeResolutionScope {
   resolveProjectThisTargetType(
   node: Node,
 ): TargetTypeRef | undefined;
-  resolveSourceOwnedCallResult(
-  source: NonNullable<
-    ReturnType<SourceFileSemantics["operations"]["call"]>
-  >,
-  queries: SourceFileSemantics,
-  state: CsharpTypeResolutionState,
-): TargetTypeRef | undefined;
   resolveSelectedReceiverTargetType(
   receiver: {
     readonly expression?: Node;

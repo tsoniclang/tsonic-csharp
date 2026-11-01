@@ -28,12 +28,20 @@ export function csharpConstructorCapturedPlaces(
     .filter(value => value.parameter === parameter).map(value => value.place)));
 }
 
-export function csharpConstructorBaseCall(ast: AstReader, constructor: Node): Node | undefined {
+export function csharpConstructorBaseCall(ast: AstReader, constructor: Node): {
+  readonly call: Node;
+  readonly statementIndex: number;
+} | undefined {
   const body = ast.body(constructor);
-  const first = body === undefined ? undefined : ast.as.AsBlock(body)?.Statements?.Nodes[0];
-  const expression = AsExpressionStatement(ast, first)?.Expression;
-  const call = AsCallExpression(ast, expression);
-  return call?.Expression !== undefined && HasSourceKind(ast, call.Expression, KindSuperKeyword) ? expression : undefined;
+  const statements = body === undefined ? undefined : ast.as.AsBlock(body)?.Statements?.Nodes;
+  for (const [statementIndex, statement] of (statements ?? []).entries()) {
+    const expression = AsExpressionStatement(ast, statement)?.Expression;
+    const call = AsCallExpression(ast, expression);
+    if (expression !== undefined && call?.Expression !== undefined && HasSourceKind(ast, call.Expression, KindSuperKeyword)) {
+      return Object.freeze({ call: expression, statementIndex });
+    }
+  }
+  return undefined;
 }
 
 export function csharpConstructorRequiresPreparation(

@@ -11,6 +11,8 @@ export interface CsharpOriginalCapturedPlace {
   readonly initialization: CsharpCaptureInitialization;
 }
 
+export type CsharpCapturedPlaceContract = Pick<CsharpOriginalCapturedPlace, "type" | "initialization">;
+
 export interface CsharpNativeClosureCapture {
   readonly owner: Node;
   readonly type: TargetTypeRef;
@@ -19,7 +21,7 @@ export interface CsharpNativeClosureCapture {
 }
 
 export interface CsharpCaptureProtocol {
-  readonly kind: "class" | "method" | "quantified";
+  readonly kind: "class" | "method" | "quantified" | "address";
   readonly declaration: Node;
 }
 
@@ -29,7 +31,7 @@ export interface CsharpCaptureFrame {
   readonly ownership: "activation" | "value";
   readonly shape: CsharpObjectShapeFact;
   readonly bindings: readonly { readonly declaration: Node; readonly fieldName: string; readonly type: TargetTypeRef;
-    readonly initialization?: "deferred" }[];
+    readonly initialization: CsharpCaptureInitialization }[];
   readonly parents: readonly { readonly frame: CsharpCaptureFrame; readonly fieldName: string }[];
   readonly methods: readonly CsharpFrameClosure[];
   readonly receivers: readonly { readonly owner: Node; readonly references: readonly Node[]; readonly type: TargetTypeRef; readonly fieldName: string }[];

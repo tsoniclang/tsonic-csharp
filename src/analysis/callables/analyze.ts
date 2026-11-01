@@ -1,4 +1,6 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
+import { rejectedTargetStage, resolvedTargetStage, type TargetDiagnostic, type TargetStageResult } from "@tsonic/target-api/artifacts";
+import { csharpConstructorBaseCall } from "./emission/constructor-entry.js";
 import { selectCsharpSourceCallableAbi, selectCsharpProjectConstructorAbi } from "./calls/source-callable-abi.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { isCsharpSourceCallableArtifactDeclaration, targetTypeRefEquals } from "../../policy/types/index.js";
@@ -31,7 +33,8 @@ export function analyzeCsharpCallableContracts(
   source: TargetSourceProgram,
   conversions: CsharpCallableConversionPolicy & Pick<CsharpConversionClassifications, "conversion">,
   operations: Pick<CsharpTargetOperationClassifications, "selectedCall" | "selectedConstruction">,
-): CsharpCallableContractIndex {
+): TargetStageResult<CsharpCallableContractIndex> {
+  const issues: TargetDiagnostic[] = [];
   const byDeclaration = new Map<Node, SourceCallableSourceContract>();
   const byProjectConstructor = new Map<string, SourceCallableContract>();
   const contracts: SourceCallableContract[] = [];
@@ -50,7 +53,7 @@ export function analyzeCsharpCallableContracts(
     contracts[index] = contract;
   }
   for (const { declaration, sourceFile } of checkedDeclarations) {
-    const contract = selectCsharpSourceCallableAbi(policy, evidence, declarations, names, declaration, sourceFile, projections, operations, conversions);
+    const contract = selectCsharpSourceCallableAbi(policy, evidence, declarations, names, declaration, sourceFile, projections, operations, conversions, issues);
     if (contract !== undefined) {
       byDeclaration.set(declaration, contract);
       contracts.push(contract);
@@ -70,6 +73,7 @@ export function analyzeCsharpCallableContracts(
       }
     }
   }
+  if (issues.length !== 0) return rejectedTargetStage(issues);
   const closedInputs = new Map<Node, CsharpClosedCallableInput>();
   for (const [declaration, contract] of byDeclaration) {
     const nativeType = csharpCallableValueType(contract);
@@ -149,9 +153,9 @@ export function analyzeCsharpCallableContracts(
       closedInputs.set(declaration, Object.freeze({ type: nativeType, source: contract }));
     }
   }
-  return sealCsharpCallableContractIndex({
+  return resolvedTargetStage(sealCsharpCallableContractIndex({
     contracts, declarationContracts: nativeDeclarations, byDeclaration,
-    byProjectConstructor, closedInputs });
+    byProjectConstructor, closedInputs }));
 
   function nativeConsumerContract(contract: SourceCallableSourceContract, nativeType: TargetTypeRef,
     candidate: TargetTypeRef): SourceCallableSourceContract | undefined {
@@ -227,6 +231,14 @@ export function analyzeCsharpCallableContracts(
 
   function visit(node: Node, sourceFile: SourceFile): void {
     if (evidence.compileTimeMetadata.get(node)) return;
+    if (policy.ast.is.IsConstructorDeclaration(node)) {
+      const baseCall = csharpConstructorBaseCall(policy.ast, node);
+      if (baseCall !== undefined && baseCall.statementIndex !== 0) {
+        issues.push({ source: "tsonic-csharp", category: "error", code: "CSHARP_UNSUPPORTED_AST", sourceNode: baseCall.call,
+          message: "A native C# derived constructor requires super(...) as its first statement; statements before base initialization are not supported." });
+        return;
+      }
+    }
     const accessor = policy.ast.is.IsGetAccessorDeclaration(node) || policy.ast.is.IsSetAccessorDeclaration(node);
     if (isCsharpSourceCallableArtifactDeclaration(policy.ast, node) || accessor) {
       const selected = selectCsharpSourceCallableAbi(
@@ -239,6 +251,7 @@ export function analyzeCsharpCallableContracts(
         projections,
         operations,
         conversions,
+        issues,
       );
       const contract = selected;
       if (contract !== undefined) {

@@ -3,8 +3,8 @@ import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpSourceEvidenceIndex } from "../../../target-model/records/program/source-evidence.js";
 import type { CsharpStorageIssue } from "../../../target-model/records/storage/storage.js";
 import { getCsharpMethodValue } from "../../../target-model/types/method-values.js";
-import type { CsharpFrameClosure, CsharpNativeClosureCapture, CsharpOriginalCapturedPlace } from "../../../target-model/records/callables/capture-storage.js";
-import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import type { CsharpFrameClosure, CsharpNativeClosureCapture, CsharpCapturedPlaceContract } from "../../../target-model/records/callables/capture-storage.js";
+import { csharpCapturedPlaceContractsEqual } from "../storage/captured-place-contract.js";
 
 const maximumGenericClosureCaptures = 131_072;
 
@@ -12,7 +12,7 @@ export function selectCsharpGenericFrameClosures(
   source: TargetSourceProgram,
   evidence: CsharpSourceEvidenceIndex,
   captures: readonly CsharpNativeClosureCapture[],
-  groups: Map<Node, Map<Node, Pick<CsharpOriginalCapturedPlace, "type" | "initialization">>>,
+  groups: Map<Node, Map<Node, CsharpCapturedPlaceContract>>,
   issues: CsharpStorageIssue[],
 ): readonly CsharpFrameClosure[] {
   const selected: CsharpFrameClosure[] = [];
@@ -43,9 +43,9 @@ export function selectCsharpGenericFrameClosures(
     let valid = true;
     for (const place of capture.values) {
       if (!place.mutable && place.initialization !== "deferred") continue;
-      const group = stagedGroups.get(place.scope) ?? new Map<Node, Pick<CsharpOriginalCapturedPlace, "type" | "initialization">>();
+      const group = stagedGroups.get(place.scope) ?? new Map<Node, CsharpCapturedPlaceContract>();
       const previous = group.get(place.declaration);
-      if (previous !== undefined && (!targetTypeRefEquals(previous.type, place.type) || previous.initialization !== place.initialization)) {
+      if (previous !== undefined && !csharpCapturedPlaceContractsEqual(previous, place)) {
         issues.push({ node: place.declaration, code: "CSHARP_CAPTURE_STORAGE_CONFLICT",
           message: "One captured binding cannot have incompatible physical storage contracts." });
         valid = false;

@@ -3,7 +3,7 @@ import type { SourceFile } from "@tsonic/tsts";
 import type { ResolvedSourceCallInfo } from "../../target-model/records/calls/source-calls.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { getCsharpRuntimeUnionArms } from "../../target-model/types/carriers/runtime-carriers.js";
-import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
+import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpSourceArgumentPassingMode } from "../../source/extension/arguments.js";
@@ -35,10 +35,10 @@ export function classifyCsharpUnionCall(
   const typeArguments = policy.types.resolveSourceCallTypeArguments(source, sourceFile);
   if (resultType === undefined || typeArguments === undefined || parameterTypes.some(type => type === undefined)) return reject("Closed class-union call arguments and result require exact target carriers.");
   const selectedMethods = selectCsharpUnionCallMethods(policy, property, arms, typeArguments,
-    (declaration, file) => policy.types.resolveNode(declaration, file)?.type);
+    (declaration, file) => policy.types.resolveNode(declaration, file)?.sourceResult?.selectedType);
   if (selectedMethods.kind === "rejected") return reject(selectedMethods.reason);
   if (selectedMethods.kind === "incomplete-result")
-    return reject(`Class-union result completion is not exact: native='${targetTypeRefKey(selectedMethods.nativeType)}', completed='${selectedMethods.result === undefined ? "missing" : targetTypeRefKey(selectedMethods.result.selectedType)}', result='${targetTypeRefKey(resultType)}'.`);
+    return reject("Class-union result completion requires the exact selected native result.");
   let armFailure: string | undefined;
   const refuseArm = (reason: string): undefined => {
     armFailure ??= reason;
@@ -65,15 +65,14 @@ export function classifyCsharpUnionCall(
       const actual = nativeParameters?.[index];
       return expected === undefined || actual === undefined || !targetTypeRefEquals(expected, actual);
     })) return refuseArm("Class-union incoming native parameters do not match the selected checked argument contracts.");
-    const actualResult = result.nativeType;
     const resultElement = getCsharpNullableElementTargetType(resultType);
     if (!targetTypeRefEquals(resultType, result.selectedType) &&
       (resultElement === undefined || !targetTypeRefEquals(resultElement, result.selectedType)) &&
       getCsharpRuntimeUnionArms(resultElement ?? resultType, policy.typeDefinitions) === undefined)
-      return refuseArm(`Class-union result join has no exact native carrier or selected union: native='${targetTypeRefKey(actualResult)}', completed='${targetTypeRefKey(result.selectedType)}', result='${targetTypeRefKey(resultType)}'.`);
+      return refuseArm("Class-union result join requires an exact native carrier or selected union.");
     const conversion = selectCsharpConversion(policy, result.selectedType, resultType, "implicit");
     if (!csharpConversionIsApplicable(conversion, "implicit"))
-      return refuseArm(`Class-union result conversion is not proven: native='${targetTypeRefKey(actualResult)}', completed='${targetTypeRefKey(result.selectedType)}', result='${targetTypeRefKey(resultType)}'. ${conversion.kind === "rejected" || conversion.kind === "ambiguous" ? conversion.reason : conversion.kind}`);
+      return refuseArm(`Class-union result conversion is not proven. ${conversion.kind === "rejected" || conversion.kind === "ambiguous" ? conversion.reason : conversion.kind}`);
     return Object.freeze({ arm, declaration, targetName: selectedName.name, result, conversion });
   });
   return methods.some(method => method === undefined) ? reject(armFailure ?? "Each selected class-union arm must identify one method with the same exact native argument and result contract.") : {

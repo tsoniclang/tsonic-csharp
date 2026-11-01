@@ -267,7 +267,7 @@ export function analyzeCsharpSourceEvidence(
       providerVirtualDeclarations.add(node);
     }
     const nodeSelection = types.resolveNode(node, sourceFile);
-    nodeTargetTypes.set(node, recordTargetType(nodeSelection?.kind === "resolved" ? nodeSelection.type : undefined) ?? missing);
+    nodeTargetTypes.set(node, recordTargetType(nodeSelection?.kind === "resolved" ? nodeSelection.sourceResult.selectedType : undefined) ?? missing);
     const nodeTargetType = cachedValue(nodeTargetTypes.get(node));
     if (!typeOnly && nodeSelection?.kind === "rejected") {
       const previous = nativeExpressionIssues.get(nodeSelection.subject);

@@ -1,3 +1,4 @@
+import { csharpSourceValueResult } from "../../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { selectCsharpJsValueCallOperation, selectCsharpJsValueBinaryOperation } from "../../../../dist/analysis/operations/js-values.js";
@@ -5,7 +6,7 @@ import { selectCsharpJsValueReceiverOperation, validateCsharpJsValueOperationSel
 import { csharpTsValueTargetType } from "../../../../dist/policy/types/index.js";
 
 const carrier = csharpTsValueTargetType();
-const policy = { types: { resolveNode: () => ({ kind: "resolved", type: carrier }) } };
+const policy = { types: { resolveNode: () => ({ kind: "resolved", sourceResult: csharpSourceValueResult(carrier) }) } };
 
 test("optional closed reads select exact immutable eager counterparts", () => {
   for (const [source, expected] of [["property-read", "ReadDynamicSlot"], ["element-read", "ReadDynamicElement"]]) {
@@ -58,7 +59,7 @@ test("ordinary reads retain their direct native invocation and no speculative op
 });
 
 test("logical JS selections contain exact native condition and branch relation", () => {
-  const policy = { types: { resolveNode: () => ({ kind: "resolved", type: carrier }), resolveReadStorage: () => undefined } };
+  const policy = { types: { resolveNode: () => ({ kind: "resolved", sourceResult: csharpSourceValueResult(carrier) }), resolveReadStorage: () => undefined } };
   for (const [operator, member, dispatch, whenTrue] of [
     ["&&", "ToDynamicBoolean", "static", "right"],
     ["||", "ToDynamicBoolean", "static", "left"],

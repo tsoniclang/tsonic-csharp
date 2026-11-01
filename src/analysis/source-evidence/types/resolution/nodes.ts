@@ -29,18 +29,18 @@ export function resolveNodeValueWithState(
   sourceFile: SourceFile | undefined,
   state: CsharpTypeResolutionState,
 ): CsharpSourceCallResult | undefined {
-  const selected = resolveNodeCarrierWithState(scope, node, sourceFile, state);
+  const selected = resolveNodeResultWithState(scope, node, sourceFile, state);
   return node === undefined ? selected : refineCsharpSourceValueResult(selected,
     resolveCsharpNativeParameterCarrier(scope, node, selected?.selectedType, state));
 }
 
-function resolveNodeCarrierWithState(
+function resolveNodeResultWithState(
   scope: CsharpTypeResolutionScope,
   node: Node | undefined,
   sourceFile: SourceFile | undefined,
   state: CsharpTypeResolutionState,
 ): CsharpSourceCallResult | undefined {
-  const { host, resolveCallableType, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceType, resolveProjectThisTargetType, resolveSelectedExpressionResult, resolveSourceValueResult, resolveTupleTypeNode, resolveTypeReferenceNode, resolveTypeWithState } = scope;
+  const { host, resolveCallableType, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectThisTargetType, resolveSelectedExpressionResult, resolveSourceValueResult, resolveTupleTypeNode, resolveTypeReferenceNode, resolveTypeWithState } = scope;
   if (node === undefined || state.depth > maximumTypeResolutionDepth) {
     return undefined;
   }
@@ -62,9 +62,7 @@ function resolveNodeCarrierWithState(
     return selected === undefined ? csharpSourceValueResult(scopedTargetType)
       : scope.resolveSelectedValueResultWithState(node, selected, queries.sourceFile, state);
   }
-  const indexed = resolveCsharpProviderIndexedAccess(scope, node, queries, state);
-  if (indexed !== undefined) return csharpSourceValueResult(indexed);
-  const syntaxFact = resolveDirectSourceFacts(
+  const syntaxFact = resolveCsharpProviderIndexedAccess(scope, node, queries, state) ?? resolveDirectSourceFacts(
     [node],
     queries.sourceFile,
     state,
@@ -106,15 +104,10 @@ function resolveNodeCarrierWithState(
   if (direct !== undefined) {
     return csharpSourceValueResult(direct);
   }
-  const literal = resolveCsharpSourceLiteralTargetType(host, host.literalValues.literalValue.get(node));
-  if (literal !== undefined) {
-    return csharpSourceValueResult(literal);
-  }
-  const keyword = resolveKeywordType(
-    host.ast.kindName(node),
-  );
-  if (keyword !== undefined) {
-    return csharpSourceValueResult(keyword);
+  const scalar = resolveCsharpSourceLiteralTargetType(host, host.literalValues.literalValue.get(node)) ??
+    resolveKeywordType(host.ast.kindName(node));
+  if (scalar !== undefined) {
+    return csharpSourceValueResult(scalar);
   }
   if (host.ast.is.IsFunctionTypeNode(node)) {
     const selected = queries.types.authoredType(node);
@@ -126,16 +119,11 @@ function resolveNodeCarrierWithState(
       queries.sourceFile,
       nextState(csharpSourceStorageComponentContext(host, state, { kind: "array-element" })),
     );
-    if (element !== undefined) {
-      return csharpSourceValueResult(selectedCsharpSourceProfileOwner(host.target) === "js"
-        ? csharpJsArrayTargetType(element)
-        : { kind: "array", element });
-    }
-    return csharpSourceValueResult(resolveTypeWithState(
-      queries.types.authoredType(node),
-      queries.sourceFile,
-      nextState(state),
-    ));
+    const carrier = element === undefined
+      ? resolveTypeWithState(queries.types.authoredType(node), queries.sourceFile, nextState(state))
+      : selectedCsharpSourceProfileOwner(host.target) === "js" ? csharpJsArrayTargetType(element)
+        : { kind: "array" as const, element };
+    return csharpSourceValueResult(carrier);
   }
   if (host.ast.is.IsTupleTypeNode(node)) {
     return csharpSourceValueResult(resolveTupleTypeNode(node, queries, state));
@@ -230,13 +218,23 @@ function resolveNodeCarrierWithState(
   if (declaredValue !== undefined) {
     return declaredValue;
   }
+  return csharpSourceValueResult(resolveFallbackNodeCarrier(scope, node, queries, state));
+}
+
+function resolveFallbackNodeCarrier(
+  scope: CsharpTypeResolutionScope,
+  node: Node,
+  queries: SourceFileSemantics,
+  state: CsharpTypeResolutionState,
+): TargetTypeRef | undefined {
+  const { host, resolveProjectSourceType, resolveTypeWithState } = scope;
   if (!host.ast.is.IsClassDeclaration(node) && !host.ast.is.IsInterfaceDeclaration(node)) {
     const constructor = resolveCsharpConstructorValueType(scope, queries.types.expressionType(node), queries, state);
-    if (constructor !== undefined) return csharpSourceValueResult(constructor);
+    if (constructor !== undefined) return constructor;
   }
   const projectType = resolveProjectSourceType(node, queries.sourceFile, state);
   if (projectType !== undefined) {
-    return csharpSourceValueResult(projectType);
+    return projectType;
   }
   const structuralType = host.structuralTypes.resolveNode(
     node,
@@ -244,13 +242,13 @@ function resolveNodeCarrierWithState(
     nextState(state),
   );
   if (structuralType !== undefined) {
-    return csharpSourceValueResult(structuralType);
+    return structuralType;
   }
-  return csharpSourceValueResult(resolveTypeWithState(
+  return resolveTypeWithState(
     queries.types.expressionType(node),
     queries.sourceFile,
     nextState(state),
-  ));
+  );
 }
 
 export function resolveTupleTypeNode(

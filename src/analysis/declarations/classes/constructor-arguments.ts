@@ -42,9 +42,9 @@ export function analyzeCsharpConstructorArguments(
       const creation = records.callableCreations.callableCreation.get(node);
       if (creation?.kind === "discarded") return false;
       if (creation?.kind !== "selected") failTargetAnalysisInvariant("tsonic-csharp", "A constructor callable argument requires its completed native creation fact.", node);
-      const emission = records.lambdaEmission.lambdaBody.get(node) ??
+      const lambdaPreparation = records.lambdaEmission.lambdaBody.get(node) ??
         failTargetAnalysisInvariant("tsonic-csharp", "A constructor callable argument requires its native preparation record.", node);
-      return emission.preparation === "statements";
+      return lambdaPreparation.preparation === "statements";
     }
     if (use.kind === "converted" && emission?.physical !== undefined && emission.physical !== use) {
       return sequence(emission.physical) || use.completion.kind === "void" && emission.physical.completion.kind === "value";
@@ -114,7 +114,7 @@ export function analyzeCsharpConstructorArguments(
   };
   for (const node of nodes) {
     if (!ast.is.IsConstructorDeclaration(node) || !admitted(node)) continue;
-    const baseCall = csharpConstructorBaseCall(ast, node);
+    const baseCall = csharpConstructorBaseCall(ast, node)?.call;
     if (baseCall === undefined) continue;
     const selected = records.operations.selectedCall.get(baseCall);
     for (const [index, argument] of ast.arguments(baseCall).entries()) {

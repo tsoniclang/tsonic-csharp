@@ -46,7 +46,8 @@ import {
 } from "../statements/generators.js";
 import { planLambdaParameterStorage } from "./lambda-parameter-storage.js";
 import { planCsharpFrameClosureReference, planCsharpNamedSelfCaptureContext } from "../bindings/capture-closures.js";
-import { consumeCsharpPlannedValue, planCsharpVoidReturn, planCsharpAbsenceReturn } from "../statements/statement-output.js";
+import { consumeCsharpPlannedValue, planCsharpVoidReturn, planCsharpAbsenceReturn, planCsharpPlannedDiscard } from "../statements/statement-output.js";
+import { readCsharpNativeDiscardEvaluation } from "./native-uses.js";
 import type { CsharpPlannedValue } from "./planned-values.js";
 import { csharpPlannedEffect } from "./planned-values.js";
 import { planCsharpExpressionCompletion } from "./planned-value-composition.js";
@@ -151,13 +152,16 @@ export function planCsharpArrowLambdaSyntax(
   const quotedEffect = creationPolicy.kind === "quotation" && completion === "void" &&
     entryPrelude.length === 0 && body.completion.kind === "void" && body.prelude.length === 1 &&
     body.effect !== undefined ? body.effect : undefined;
+  const discarded = completion === undefined || readCsharpNativeDiscardEvaluation(input, expression.Body!) === "evaluate"
+    ? body : csharpPlannedEffect(csharpVoidTargetType(), body.prelude);
   return {
     kind: "LambdaExpression",
     ...(isAsyncExpression(input.program.source.ast, node) ? { async: true } : {}),
     parameters,
     body: quotedEffect ?? (completion !== undefined
-      ? { kind: "Block", statements: [...entryPrelude, ...planCsharpVoidReturn(body, completion,
-        returnContext?.returnExpressionTargetType, input)] }
+      ? { kind: "Block", statements: [...entryPrelude, ...(completion === "void"
+        ? planCsharpPlannedDiscard(discarded) : planCsharpVoidReturn(discarded, completion,
+          returnContext?.returnExpressionTargetType, input))] }
       : entryPrelude.length === 0 && body.prelude.length === 0 && body.completion.kind === "value"
       ? body.completion.expression
       : {
@@ -431,9 +435,16 @@ export function planLambdaParameters(
         type: expectedParameterType,
       });
   }
-  const discardOmitted = expectedParameterTypes.length - sourceParameters.length >= 2 &&
+  const inlineOmitted = expectedParameterTypes.length - sourceParameters.length > 0 &&
     input.program.records.namedSelf.get(owner) === undefined && !hasCsharpGeneratorPlan(owner, input) &&
     input.scope.nativeCallableBody?.declaration !== owner;
+  const discardOmitted = inlineOmitted && expectedParameterTypes.length - sourceParameters.length >= 2;
+  let unusedName = "unused";
+  if (inlineOmitted && !discardOmitted) {
+    let suffix = 0;
+    while (state.usedNames.has(unusedName)) unusedName = `unused${++suffix}`;
+    state.usedNames.add(unusedName);
+  }
   if (discardOmitted) {
     for (const node of parameterNodes) {
       const name = node === undefined ? undefined : input.program.source.ast.name(node);
@@ -449,7 +460,7 @@ export function planLambdaParameters(
     .slice(sourceParameters.length)
     .map((type): CsharpLambdaParameter => ({
       kind: "Parameter",
-      name: discardOmitted ? "_" : allocateSyntheticParameter(state),
+      name: discardOmitted ? "_" : inlineOmitted ? unusedName : allocateSyntheticParameter(state),
       type,
     }));
   return [...sourceParameters, ...omittedTargetParameters];

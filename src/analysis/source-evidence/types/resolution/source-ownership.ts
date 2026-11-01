@@ -14,7 +14,7 @@ export function isSourceOwnedCallableRuntimeCarrierSubject(
   if (node === undefined) {
     return false;
   }
-  const carrier = input.types.resolveNode(node, sourceFile)?.type;
+  const carrier = input.types.resolveNode(node, sourceFile)?.sourceResult?.selectedType;
   const reference = input.navigation.referenceFor(node);
   return (isCsharpDelegateTargetRef(carrier) || getCsharpMethodValue(carrier) !== undefined) &&
     (
