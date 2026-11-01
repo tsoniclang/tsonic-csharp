@@ -312,3 +312,27 @@ test(`C# erases ${name} without refusing or executing its generic async body`, {
     assert.equal(output.trim(), "1", "only the retained consume body runs");
   });
 }
+
+for (const surface of ["native", "js"]) {
+  test(`C# optional source calls preserve Promise-valued adoption on ${surface}`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({
+      surface,
+      targetOptions: { outputType: surface === "js" ? "Exe" : "Library" },
+      sourceText: `class Holder { wrap<T>(value: T): Promise<T> { return new Promise<T>(resolve => resolve(value)); } }
+export async function run(holder: Holder | undefined): Promise<number> { return (await holder?.wrap(Promise.resolve(5))) ?? 0; }` +
+        (surface === "js" ? "\nconsole.log(await run(new Holder()));\nconsole.log(await run(undefined));" : ""),
+    });
+    assert.equal(compiled.result.diagnostics.length, 0,
+      JSON.stringify(compiled.result.diagnostics.map(({ code, message }) => ({ code, message }))));
+    const output = executeCsharpConstruction(compiled, `promise-optional-call-adoption-${surface}`, false, false, [],
+      surface === "native" ? `
+var present = await Tsonic.Generated.Index.run(new Tsonic.Generated.Holder());
+var absent = await Tsonic.Generated.Index.run(null);
+if (present != 5 || absent != 0) throw new System.Exception("optional-call adoption native values");
+System.Console.WriteLine(present);
+System.Console.WriteLine(absent);
+` : "");
+    assert.equal(output.trim(), "5\n0", "the present optional receiver adopts its Promise payload and the absent receiver returns zero");
+    console.log(`optional-call-adoption (${surface}): ${JSON.stringify(output.trim())}`);
+  });
+}
