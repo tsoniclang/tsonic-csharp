@@ -49,9 +49,9 @@ test("direct C# translation derives mapped utility shapes from exact project mem
 {
     public static class Index
     {
-        public static ObjectShape_adbe2b47b126<double, string> clone(ObjectShape_e8dcbad87c09<double, string> input)
+        public static ObjectShape_adbe2b47b126<double, string> clone(ObjectShape_adbe2b47b126<double, string> input)
         {
-            ObjectShape_e8dcbad87c09<double, string> __tsonic_value_174 = input;
+            ObjectShape_adbe2b47b126<double, string> __tsonic_value_174 = input;
             double ___tsonic_value_174 = __tsonic_value_174.id;
             string ____tsonic_value_174 = __tsonic_value_174.label;
             return new ObjectShape_bdd15b6025ff
@@ -84,11 +84,6 @@ test("direct C# translation derives mapped utility shapes from exact project mem
             get;
             set;
         }
-    }
-    public interface ObjectShape_e8dcbad87c09<out Property0, out Property1>
-    {
-        Property0 id { get; }
-        Property1 label { get; }
     }
 }
 `,

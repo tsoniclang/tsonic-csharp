@@ -136,25 +136,55 @@ static class Escape { public static TsValue Value; }
 static class Native {
     [MethodImpl(MethodImplOptions.NoInlining)]
     public static TsValue scalar(double value) {
-        var target = new TsObject();
-        target.WriteDynamicSlot("value", value);
-        return TsValue.from(target);
+        return TsValue.from(new Scalar { value = value });
     }
     [MethodImpl(MethodImplOptions.NoInlining)]
     public static TsValue reference(string value) {
-        var target = new TsObject();
-        target.WriteDynamicSlot("value", value);
-        return TsValue.from(target);
+        return TsValue.from(new Reference { value = value });
     }
     [MethodImpl(MethodImplOptions.NoInlining)]
     public static TsValue nested(double value) {
-        var child = new TsObject();
-        child.WriteDynamicSlot("value", value);
-        var target = new TsObject();
-        target.WriteDynamicSlot("child", child);
-        return TsValue.from(target);
+        var child = new Scalar { value = value };
+        return TsValue.from(new Nested { child = child });
+    }
+    sealed class Scalar : ITsClosedValueCarrier, IDynamicObject {
+        public double value;
+        public bool TryReadDynamicSlot(string key, out object? result) {
+            if (key == "value") { result = value; return true; }
+            result = null;
+            return false;
+        }
+        public void WriteDynamicSlot(string key, object? input) {
+            if (key == "value") { value = TsValue.CastDynamic<double>(input); return; }
+            throw new InvalidOperationException("The native object has no writable field with this name.");
+        }
+    }
+    sealed class Reference : ITsClosedValueCarrier, IDynamicObject {
+        public string value = null!;
+        public bool TryReadDynamicSlot(string key, out object? result) {
+            if (key == "value") { result = value; return true; }
+            result = null;
+            return false;
+        }
+        public void WriteDynamicSlot(string key, object? input) {
+            if (key == "value") { value = TsValue.CastDynamic<string>(input); return; }
+            throw new InvalidOperationException("The native object has no writable field with this name.");
+        }
+    }
+    sealed class Nested : ITsClosedValueCarrier, IDynamicObject {
+        public Scalar child = null!;
+        public bool TryReadDynamicSlot(string key, out object? result) {
+            if (key == "child") { result = child; return true; }
+            result = null;
+            return false;
+        }
+        public void WriteDynamicSlot(string key, object? input) {
+            if (key == "child") { child = TsValue.CastDynamic<Scalar>(input); return; }
+            throw new InvalidOperationException("The native object has no writable field with this name.");
+        }
     }
 }
 `);
   });
 }
+

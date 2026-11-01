@@ -54,8 +54,8 @@ export async function run(): Promise<boolean> {
 ` }), "void-awaited-values", true);
 });
 
-test("qualified source builtins retain static operations and local shadows", { timeout: 300_000 }, () => {
-  executeCsharpConstruction(compileCsharpSource({ surface: "js", sourceText: `
+function qualifiedBuiltinSource(frozenInspection) {
+  return `
 function local(globalThis: { String: { fromCharCode: (value: number) => number } }): number {
   return globalThis.String.fromCharCode(7);
 }
@@ -66,10 +66,23 @@ export function run(): boolean {
     (globalThis).String.fromCharCode(65) === "A" &&
     (globalThis.String).fromCodePoint(128512) === "😀" &&
     globalThis["String"].fromCharCode(...codes) === "AB" &&
-    globalThis.Math.max(...[3, 7]) === 7 && globalThis.Object.isFrozen(frozen) &&
+    globalThis.Math.max(...[3, 7]) === 7 && ${frozenInspection} &&
     local({ String: { fromCharCode: value => value + 1 } }) === 8;
 }
-` }), "qualified-source-builtins");
+`;
+}
+
+test("qualified source builtins retain static operations and local shadows", { timeout: 300_000 }, () => {
+  const original = compileCsharpSource({ surface: "js", sourceText: qualifiedBuiltinSource("globalThis.Object.isFrozen(frozen)") });
+  assert.equal(original.sourceDiagnosticsText, "");
+  const issues = original.result.diagnostics.filter(issue => issue.category === "error");
+  assert.equal(issues.length, 1);
+  assert.equal(issues[0].code, "TSONIC_IS_FROZEN_UNSUPPORTED");
+  assert.equal(issues[0].message, "Object.isFrozen has no native equivalent; immutability is a compile-time property. Use readonly declarations instead.");
+  assert.equal(original.result.program === undefined && original.result.plan === undefined && original.artifacts.size === 0, true);
+  const native = compileCsharpSource({ surface: "js", sourceText: qualifiedBuiltinSource("globalThis.Object.freeze(frozen) === frozen") });
+  executeCsharpConstruction(native, "qualified-source-builtins");
+  assert.doesNotMatch([...native.artifacts.values()].join("\n"), /EmptyObject\.Freeze|\.isFrozen\(/u);
 });
 
 test("numeric sequence arguments retain initialized values, widths and source evaluation order", { timeout: 300_000 }, () => {
