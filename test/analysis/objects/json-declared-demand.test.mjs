@@ -4,6 +4,7 @@ import { createCsharpObjectShapeDemandEngine } from "../../../dist/analysis/obje
 import { objectShapeArtifactKey } from "../../../dist/target-model/records/objects/object-shape-keys.js";
 import { csharpPropertySourceMemberKey } from "../../../dist/target-model/types/source-member-keys.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
+import { csharpStringTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 
 function shape(name, members = []) {
@@ -79,7 +80,7 @@ test("foreign and unregistered native shapes cannot manufacture a general JSON w
 
 test("selected toJSON declarations retain their exact native result and property-key ABI", () => {
   const result = shape("Projection", [property("count", { kind: "source-primitive", name: "int64" })]);
-  const text = { kind: "source-primitive", name: "string" };
+  const text = csharpStringTargetType();
   const method = Object.freeze({ sourceKey: csharpPropertySourceMemberKey("toJSON"), sourceName: "toJSON", targetName: "toJSON",
     memberKind: "method", type: csharpDelegateTargetType("System.Func", [text], result.targetType) });
   const record = shape("Callback", [method]);
