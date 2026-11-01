@@ -11,7 +11,7 @@ import { combineCsharpTargetUnionMembers } from "../../../../target-model/types/
 import { csharpDelegateTargetType } from "../../../../target-model/types/carriers/delegates.js";
 
 import { csharpNullableTargetType } from "../../../../target-model/types/carriers/nullable.js";
-import { csharpExceptionTargetType, csharpRuntimeErrorTargetType, isCsharpNeverTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
+import { csharpExceptionTargetType, csharpRuntimeErrorTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
 import { isCsharpVoidTargetType } from "../../../../target-model/types/identity.js";
 import { csharpTargetTypeFromBinding } from "../../../../policy/types/storage/bindings.js";
 import { definedValues } from "./source-evidence.js";
@@ -174,7 +174,7 @@ export function resolveCallableEvidence(
       ? {}
       : { restParameterIndex: restParameterIndexes[0] }),
   };
-  const signature = isCsharpVoidTargetType(returnType) || isCsharpNeverTargetType(returnType)
+  const signature = isCsharpVoidTargetType(returnType)
     ? csharpDelegateTargetType(
         "System.Action",
         parameterTypes,

@@ -1,4 +1,3 @@
-import { csharpSourceValueResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { sourceValueDeclaration } from "../../../dist/analysis/source-evidence/types/resolution/calls.js";

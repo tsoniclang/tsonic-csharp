@@ -7,6 +7,7 @@ import { admitCsharpExpectedNativeUses, collectCsharpExpectedNativeUseSites } fr
 import { analyzeCsharpExactLiteralSelections } from "../../../dist/analysis/conversions/literal-plans.js";
 import { csharpNativeUseSite } from "../../../dist/target-model/records/native/native-demand.js";
 import { analyzeCsharpCallableCreations } from "../../../dist/analysis/callables/values/creation.js";
+import { analyzeCsharpCaptureStorage } from "../../../dist/analysis/callables/storage/capture-storage.js";
 import { csharpDelegateTargetType } from "../../../dist/target-model/types/carriers/delegates.js";
 import { csharpObjectTargetType, csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpProviderArgumentSourceCarrier } from "../../../dist/policy/operations/members/native-use-arguments.js";
@@ -441,7 +442,7 @@ test("a required pending request and a cycle stay explicit rather than publishin
   assert.deepEqual(admission.pending.map(entry => entry.reason), ["argument-unresolved", "forwarding-cycle", "forwarding-cycle"], "native-use-admission:101: admission.pending.map(entry => entry.reason)");
 });
 
-function nativeCreations(value, overrides = {}) {
+function nativeCreationInputs(value) {
   const records = value.program.records;
   const contract = declaration => {
     const result = records.returnContract.get(declaration);
@@ -456,8 +457,17 @@ function nativeCreations(value, overrides = {}) {
       parameters, nativeParameters, returnType: result.type,
     };
   };
+  const contracts = { get: identity => contract(identity.declaration), closedInputType: () => undefined };
+  const captures = analyzeCsharpCaptureStorage(value.source, value.program.objectShapes, records, records,
+    [], contracts, records.erasedStatement, records);
+  assert.equal(captures.issues.length, 0, "the original fixture supplies its actual completed capture owner");
+  return { records, contracts, captures };
+}
+
+function nativeCreations(value, overrides = {}) {
+  const { records, contracts, captures } = nativeCreationInputs(value);
   const creationResult = analyzeCsharpCallableCreations({ source: value.source, nodes: value.nodes,
-    captures: records, contracts: { get: identity => contract(identity.declaration), closedInputType: () => undefined },
+    captures, contracts,
     operations: { selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined } },
     storage: records, expectedTypes: value.expected, evidence: records, conversions: records,
     literals: value.literalValues, ...overrides });
@@ -495,7 +505,7 @@ test("frame callable creation retains the selected implementation carrier before
     for (let index = 0; index < 3; index++) { const read = () => index; return read; }
     return () => 0;
   }`, "native");
-  const records = value.program.records;
+  const records = nativeCreationInputs(value).captures;
   const captures = records.lexicalCaptures.find(entry => value.ast.is.IsArrowFunction(entry.owner) && entry.values.length === 1);
   assert.equal(captures !== undefined && value.nodes.includes(captures.owner), true,
     "the original checked lambda publishes its native capture");

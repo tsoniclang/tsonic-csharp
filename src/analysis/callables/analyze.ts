@@ -23,6 +23,7 @@ import type { CsharpCallableConversionPolicy } from "./native/adapters.js";
 import type { CsharpConversionClassifications } from "../../target-model/records/operations/conversions.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import { csharpConversionIsApplicable } from "../../policy/conversions/applicability.js";
+import { csharpArgumentVectorCallbackResultMatches } from "../../policy/conversions/callable-completions.js";
 
 export function analyzeCsharpCallableContracts(
   policy: CsharpPolicyContext,
@@ -96,7 +97,7 @@ export function analyzeCsharpCallableContracts(
       contract.nativeParameters.every(parameter => parameter.targetParameter.paramsArray !== true && parameter.targetParameter.optional !== true) &&
       contract.nativeParameters.length <= signature.parameters.length &&
       contract.nativeParameters.every((parameter, index) => targetTypeRefEquals(parameter.targetParameter.type, signature.parameters[index]!)) &&
-      targetTypeRefEquals(contract.returnType, signature.returnType)) {
+      csharpArgumentVectorCallbackResultMatches(contract.returnType, signature.returnType)) {
       closedInputs.set(declaration, Object.freeze({ type: selected, source: contract }));
       continue;
     }
