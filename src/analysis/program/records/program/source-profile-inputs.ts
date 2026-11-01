@@ -67,7 +67,8 @@ export function createCsharpSourceProfileInputs(
   const resultType = host.types.resolveType(result, file);
   if (result !== undefined) types.set(result, resultType);
   const callTypeArguments = source === undefined ? undefined : host.types.resolveSourceCallTypeArguments(source, file);
-  const correspondence = source === undefined ? undefined : sourceCallArgumentCorrespondences(host.ast, source);
+  const correspondence = source === undefined ? undefined : sourceCallArgumentCorrespondences({ ast: host.ast,
+    semantics: host.semantics(file) }, source);
   const parameters = source === undefined ? [] : source.sourceSelectedSignatureParameters.map((parameter, index) => {
     const declared = host.types.resolveSourceCallParameter(source, index, file, "declared");
     const present = getCsharpNullableElementTargetType(declared) ?? declared;
