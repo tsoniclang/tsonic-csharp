@@ -402,7 +402,7 @@ export function paths(): boolean {
 export function hoisted(): boolean {
   const before = answer();
   using active = new Resource("0", false); void active;
-  const after = 11;
+  const after: int = 11;
   function answer(): int { return 17; }
   function captured(): int { return after; }
   return before === 17 && captured() === 11;
@@ -451,7 +451,7 @@ let events = "";
 function read(): string { return events; }
 class SyncResource { [Symbol.dispose](): void { events += "s"; } }
 class AsyncResource {
-  async [Symbol.asyncDispose](): Promise<void> { await Promise.resolve(); events += "a"; }
+  async [Symbol.asyncDispose](): Promise<void> { await Promise.resolve(undefined); events += "a"; }
 }
 async function consume(resource: SyncResource | AsyncResource): Promise<void> {
   await using active = resource; void active;

@@ -19,7 +19,7 @@ import { selectCsharpMemoryBinding } from "./memory-bindings.js";
 
 import { selectCsharpElementDeletion } from "./collections/element-deletion.js";
 import { selectCsharpSwitch } from "./control-flow/switch.js";
-import { AsForInOrOfStatement, sourceClassFieldIsTypeOnly } from "@tsonic/target-api/source";
+import { AsForInOrOfStatement, sourceClassFieldIsTypeOnly, sourceExpressionSequence } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { selectCsharpJsValueBinaryOperation, selectCsharpJsValueReceiverExpressionOperation, selectCsharpJsValueUnaryOperation, selectCsharpJsTypeofOperation, selectCsharpJsValueCondition, selectCsharpJsValueVoidOperation } from "./js-values.js";
 import { selectCsharpProviderValue } from "./members/values.js";
@@ -86,8 +86,11 @@ export function analyzeCsharpOperationConstruct(
       producer.borrowedSequence.selected(expression, classifyCsharpBorrowedSequenceInput(policy, expression, sourceFile));
     }
   }
-  if (ast.is.IsIfStatement(node)) {
-    const expression = ast.as.AsIfStatement(node)?.Expression;
+  if (ast.is.IsIfStatement(node) || ast.is.IsForStatement(node)) {
+    const forCondition = ast.is.IsForStatement(node) ? ast.as.AsForStatement(node)?.Condition : undefined;
+    const forConditions = forCondition === undefined ? undefined : sourceExpressionSequence(ast, forCondition);
+    const expression = ast.is.IsIfStatement(node) ? ast.as.AsIfStatement(node)?.Expression
+      : forConditions === undefined ? undefined : forConditions[forConditions.length - 1];
     const result = expression === undefined ? undefined : policy.types.nativeGuardResult(expression);
     if (expression !== undefined && result !== undefined) producer.nativeGuardResult.selected(expression, result);
   }
