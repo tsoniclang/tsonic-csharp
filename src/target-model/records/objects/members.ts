@@ -1,6 +1,6 @@
 import type { CsharpConversionSelection } from "../../conversions/selection.js";
 import type { CsharpProviderTargetRelation, CsharpTargetReceiverRelation } from "../../identities/provider-relations.js";
-import type { CsharpTargetMember, CsharpTargetParameter, TargetTypeRef } from "../../types/model.js";
+import type { CsharpTargetMember, CsharpTargetParameter, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../types/model.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { Node, Type } from "@tsonic/tsts";
 
@@ -33,6 +33,7 @@ export type CsharpTargetElementInvocation =
     };
 
 export interface CsharpSelectedTargetCallBase {
+  readonly discardResult?: true;
   readonly sequenceArguments?: readonly {
     readonly sourceArgumentIndex: number;
     readonly expression: Node;
@@ -91,10 +92,24 @@ export type CsharpSelectedTargetMethodTypeArgument =
     };
 
 export interface CsharpSelectedCallArgument {
+  readonly projection?: CsharpCallArgumentProjection;
   readonly sourceArgumentIndex: number;
   readonly effectiveArgumentIndex: number;
   readonly sourceForm: "value" | "spread-element" | "spread-sequence";
   readonly spreadElementIndex?: number;
   readonly targetParameterIndex: number;
   readonly targetParameter: CsharpTargetParameter;
+}
+
+export interface CsharpCallArgumentProjection {
+  readonly source: Node;
+  readonly declaration: Node;
+  readonly values: readonly {
+    readonly expression: Node;
+    readonly type: TargetTypeRef;
+    readonly member?: CsharpObjectShapeMemberFact;
+    readonly optional: boolean;
+  }[];
+  readonly resultIndex: number | undefined;
+  readonly target: TargetTypeRef;
 }

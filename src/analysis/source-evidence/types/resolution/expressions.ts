@@ -3,7 +3,7 @@ import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../../target-model/types/model.js";
-import { csharpSourcePrimitiveTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
+import { csharpSourcePrimitiveTargetType, csharpVoidTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
 
 import { nextState } from "./state.js";
 import { resolveBinaryTargetRepresentation, commonTargetRepresentation } from "../../../../policy/types/resolution/representation.js";
@@ -52,7 +52,7 @@ export function resolveSelectedExpressionResult(
     if (selection.kind === "resolved") {
       const result = host.ast.is.IsNewExpression(node)
         ? selection.call.targetMember.declaringType ?? selection.call.targetMember.returnType
-        : selection.call.targetMember.returnType;
+        : selection.call.discardResult === true ? csharpVoidTargetType() : selection.call.targetMember.returnType;
       if (host.ast.is.IsNewExpression(node)) return csharpSourceValueResult(result);
       const selected = resolveSourceCallResultWithState(selection.source, queries.sourceFile, state, result);
       return refineCsharpSourceValueResult(selected, optionalAccessTargetType(selected?.selectedType, selection.source.optionalChain));

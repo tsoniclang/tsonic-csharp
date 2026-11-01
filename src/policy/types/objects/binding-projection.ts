@@ -1,5 +1,5 @@
 import type {
-  CsharpBindingElementProjection, CsharpBindingPatternSource, CsharpTupleDefaultUse, CsharpDefaultValueContract,
+  CsharpBindingElementProjection, CsharpBindingPatternSource, CsharpTupleDefaultUse, CsharpDefaultValueContract, CsharpNativeBindingProperty,
 } from "../../../target-model/records/objects/value-projections.js";
 
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
@@ -13,7 +13,7 @@ import { csharpAbsenceTargetType, isCsharpAbsenceTargetType, isCsharpJsValueTarg
 import { getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
 import { tryCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 
-import type { TargetTypeRef, CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../../target-model/types/model.js";
+import type { TargetTypeRef, CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetMember } from "../../../target-model/types/model.js";
 import { type CsharpArrayBindingCarrier } from "../../../target-model/types/carriers/binding-array-carrier.js";
 import { csharpArrayBindingProjectionTarget, resolveCsharpArrayBindingCarrier } from "../collections/binding-array-carrier.js";
 
@@ -22,6 +22,8 @@ type BindingPatternProjectionRequest =
   | { readonly kind: "array-element"; readonly carrier: CsharpArrayBindingCarrier; readonly index: number;
       readonly rest: boolean; readonly hasDefault: boolean }
   | { readonly kind: "object-source"; readonly shape: CsharpObjectShapeFact | undefined; readonly sourceOwned: boolean }
+  | { readonly kind: "native-source"; readonly carrier: TargetTypeRef | undefined }
+  | { readonly kind: "native-member"; readonly property: Omit<CsharpNativeBindingProperty, "member"> & { readonly member: CsharpTargetMember } }
   | { readonly kind: "object-member"; readonly shape: CsharpObjectShapeFact; readonly sourceName: string;
       readonly description: string; readonly permitsAbsence: boolean }
   | { readonly kind: "object-rest"; readonly source: CsharpObjectShapeFact; readonly rest: CsharpObjectShapeFact;
@@ -33,6 +35,10 @@ type BindingPatternProjectionSelection =
   | { readonly kind: "source"; readonly source: CsharpBindingPatternSource }
   | { readonly kind: "element"; readonly element: CsharpBindingElementProjection }
   | { readonly kind: "unresolved"; readonly reasons: readonly string[] };
+
+function hasNativeBindingMemberTypes(member: CsharpTargetMember): member is CsharpNativeBindingProperty["member"] {
+  return member.declaringType !== undefined && member.returnType !== undefined;
+}
 
 export function selectCsharpBindingPatternDefault(carrier: TargetTypeRef): CsharpTupleDefaultUse {
   const element = getCsharpNullableElementTargetType(carrier);
@@ -83,6 +89,22 @@ export function selectCsharpBindingPatternProjection(input: BindingPatternProjec
     case "object-source":
       return input.shape !== undefined ? source({ kind: "object-shape-source", shape: input.shape })
         : input.sourceOwned ? source({ kind: "source-owned-source" }) : unresolved();
+    case "native-source":
+      return input.carrier === undefined ? unresolved() : source({ kind: "native-source", carrier: input.carrier });
+    case "native-member": {
+      const { member, receiver, invocation, declaration } = input.property;
+      if (declaration === undefined || !hasNativeBindingMemberTypes(member))
+        return unresolved("A native binding requires its exact checked member and receiver relation.");
+      const valid = invocation.kind === "member"
+        ? member.kind === "property" && member.static !== true && member.parameters.length === 0 && receiver.kind === "instance"
+        : member.kind === "property" && member.readonly === true && member.static !== true && member.parameters.length === 0 &&
+          receiver.kind === "instance" && invocation.call !== undefined && invocation.call.kind === "method" &&
+          invocation.call.static !== true && invocation.call.declaringType !== undefined && invocation.call.parameters.length === 0 &&
+          (invocation.call.typeParameters?.length ?? 0) === 0 && invocation.call.returnType !== undefined &&
+          targetTypeRefEquals(invocation.call.returnType, member.declaringType);
+      return valid ? element({ kind: "native-member", property: Object.freeze({ ...input.property, member }) })
+        : unresolved("A native binding requires its exact checked member and receiver relation.");
+    }
     case "object-member": {
       if (typeof input.permitsAbsence !== "boolean") return unresolved("An object binding requires its checked absence permission.");
       const selected = resolveCsharpObjectShapeMemberBySourceContract(input.shape, input.sourceName, "checked-object-binding-property");

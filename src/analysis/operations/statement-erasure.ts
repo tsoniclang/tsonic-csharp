@@ -6,6 +6,7 @@ import type { CsharpOperationIssue } from "../../target-model/records/operations
 import type { CsharpSafetyApplicationFactIndex } from "../../target-model/records/storage/safety.js";
 
 export interface CsharpOperationErasureIndexes {
+  readonly nativeErrorNameInitializations: ReadonlySet<Node>;
   readonly attributeApplications: TsonicAttributeApplicationFactIndex;
   readonly safetyApplications: Pick<CsharpSafetyApplicationFactIndex, "safetyOperation">;
 }
@@ -21,6 +22,7 @@ export function createCsharpOperationErasure(
   issues: CsharpOperationIssue[],
 ): CsharpOperationErasure {
   return Object.freeze({
+    nativeErrorNameInitializations: indexes.nativeErrorNameInitializations,
     attributeApplications: indexes.attributeApplications,
     safetyApplications: indexes.safetyApplications,
     demandedInvocations: new Set(indexes.attributeApplications.all.flatMap(application =>
@@ -34,6 +36,7 @@ export function csharpErasedExpressionStatement(
   statement: Node,
   indexes: CsharpOperationErasureIndexes,
 ): boolean {
+  if (indexes.nativeErrorNameInitializations.has(statement)) return true;
   const expression = ast.as.AsExpressionStatement(statement)?.Expression;
   if (expression === undefined) return false;
   if (indexes.attributeApplications.forSubject(expression) !== undefined) return true;

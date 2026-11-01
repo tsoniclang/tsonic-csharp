@@ -1,14 +1,18 @@
 import { csharpRegExpReceiverHasNativeExecution } from "../../../operations/source-profiles/js/regexp-execution.js";
 import type { Node, Type, SourceFile } from "@tsonic/tsts";
-import { sourceCallArgumentCorrespondences } from "@tsonic/target-api/source";
+import { sourceCallArgumentCorrespondences, sourceExpressionValueInputs } from "@tsonic/target-api/source";
 import type { CsharpProviderCallSelectionHost } from "../../../../policy/model/provider-calls.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
 import type { CsharpSourceProfileInputFacts, CsharpSourceProfileInputRequirements, CsharpCustomRegExpProtocol, CustomRegExpProtocolKind } from "../../../../target-model/records/program/source-profile-inputs.js";
 import { csharpSourceHasNumericConstraint } from "../../../source-evidence/types/resolution/numeric-constraint-evidence.js";
 import { isCsharpThrowableType } from "../../../project-types/throwable-types.js";
-import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
-import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
+import { getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
+import { csharpExceptionTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
+import { namedTargetTypeImplicitlyAccepts } from "../../../../policy/conversions/carriers.js";
+import { csharpSourceProfileDeclarationIdentity } from "../../../../policy/identities/selected-source.js";
+import type { CsharpCallArgumentProjection } from "../../../../target-model/records/objects/members.js";
 import { getCsharpDelegateSignature } from "../../../../target-model/types/carriers/delegates.js";
 import { analyzeCsharpCustomRegExpProtocol } from "../../../operations/source-profiles/js/regexp-protocol.js";
 export function createCsharpSourceProfileInputs(
@@ -88,6 +92,8 @@ export function createCsharpSourceProfileInputs(
   });
   const regexp = new Map<number, Map<CustomRegExpProtocolKind, CsharpCustomRegExpProtocol>>();
   const inputs: CsharpSourceProfileInputFacts = Object.freeze({
+    errorCause: requirements.errorCause === true && source !== undefined && source.sourceArguments[1] !== undefined
+      ? analyzeCsharpErrorCauseArgument(host, file, source) : Object.freeze({ kind: "not-applicable" as const }),
     values, numberLikeTypes, identicalTypes, nativeRegExpReceivers, types: Object.freeze({ get: (type: Type | undefined) => type === undefined ? undefined : types.get(type) }),
     nodes: Object.freeze({ get: (node: Node | undefined) => node === undefined ? undefined : nodes.get(node) }),
     selectedType: Object.freeze({ get: (node: Node | undefined, type: Type | undefined) =>
@@ -108,4 +114,78 @@ export function createCsharpSourceProfileInputs(
     }
   }
   return inputs;
+}
+
+function analyzeCsharpErrorCauseArgument(host: CsharpProviderCallSelectionHost, file: SourceFile,
+  source: ResolvedSourceCallInfo): CsharpSourceProfileInputFacts["errorCause"] {
+  const unresolved = (reason: string) => Object.freeze({ kind: "unresolved" as const, reason });
+  const argument = source.sourceArguments[1];
+  const parameter = source.sourceSelectedSignatureParameters[1];
+  if (argument === undefined || parameter?.selectedType === undefined) return unresolved("An Error cause requires its checked options signature slot.");
+  const queries = host.semantics(file);
+  const selectedType = queries.types.nonNullableType(parameter.selectedType) ?? parameter.selectedType;
+  const members = queries.types.propertyInfos(selectedType).filter(member => member.name === "cause");
+  const member = members.length === 1 ? members[0] : undefined;
+  const declarations = member === undefined ? [] : queries.declarations.symbolDeclarations(member.symbol);
+  const declaration = declarations.length === 1 ? declarations[0] : undefined;
+  const identity = declaration === undefined ? undefined : csharpSourceProfileDeclarationIdentity(host.ast, queries, host.sourceFacts, declaration);
+  if (declaration === undefined || identity?.declaringName !== "ErrorOptions" || identity.name !== "cause")
+    return unresolved("An Error cause requires the original selected ErrorOptions.cause declaration.");
+  const native = host.providers.publishNativeIdentities(csharpExceptionTargetType());
+  if (native.kind !== "resolved") return unresolved("An Error cause requires its exact native Exception relation.");
+  const target = csharpNullableTargetType(native.value);
+  const values: CsharpCallArgumentProjection["values"][number][] = [];
+  let resultIndex: number | undefined;
+  if (host.ast.is.IsObjectLiteralExpression(argument.expression)) {
+    if (host.ast.children(argument.expression).some(member => member === undefined ||
+      !host.ast.is.IsPropertyAssignment(member) && !host.ast.is.IsShorthandPropertyAssignment(member)))
+      return unresolved("Error options require the checked direct member values, including every evaluated cause read.");
+    const inputs = sourceExpressionValueInputs(host.ast, argument.expression);
+    if (inputs === undefined) return unresolved("Error options require their exact checked member evaluation order.");
+    for (const entry of inputs) {
+      if (entry.slot.kind !== "member") return unresolved("Error options require an exact native member projection.");
+      const property = host.ast.children(argument.expression)[entry.slot.index];
+      const name = property === undefined ? undefined : host.ast.name(property);
+      const key = name === undefined ? undefined : queries.propertyNames.get(name);
+      const text = name !== undefined && (host.ast.is.IsIdentifier(name) || host.ast.is.IsStringLiteral(name)) ? host.ast.text(name)
+        : key?.kind === "resolved" ? key.name : undefined;
+      if (property === undefined || text === undefined || host.ast.is.IsSpreadAssignment(property))
+        return unresolved("Error options require their selected native field and complete source evaluation evidence.");
+      if (name !== undefined && host.ast.is.IsComputedPropertyName(name)) {
+        const key = host.ast.as.AsComputedPropertyName(name)?.Expression;
+        const type = key === undefined ? undefined : host.types.resolveNode(key, file)?.sourceResult?.selectedType;
+        if (key === undefined || type === undefined) return unresolved("An Error options key requires its checked native evaluation carrier.");
+        values.push(Object.freeze({ expression: key, type, optional: false }));
+      }
+      const type = host.types.resolveNode(entry.expression, file)?.sourceResult?.selectedType;
+      if (type === undefined) return unresolved("An Error options member requires its checked native expression carrier.");
+      if (text === "cause") resultIndex = values.length;
+      values.push(Object.freeze({ expression: entry.expression, type, optional: false }));
+    }
+  } else if (!queries.types.isNullish(argument.type)) {
+    const type = host.types.resolveSelectedValue(argument.expression, argument.type, file);
+    const shape = host.objectShapes?.resolveNode(argument.expression, file) ?? host.objectShapes?.resolveTarget(type);
+    const actualType = queries.types.nonNullableType(argument.type) ?? argument.type;
+    const actualMembers = queries.types.propertyInfos(actualType).filter(member => member.name === "cause");
+    const actualDeclarations = actualMembers.length === 1 ? queries.declarations.symbolDeclarations(actualMembers[0]!.symbol) : [];
+    const fields = shape?.members.filter(field => field.sourceDeclarations?.some(source => actualDeclarations.includes(source))) ?? [];
+    const field = fields.length === 1 ? fields[0] : undefined;
+    if (type === undefined || shape === undefined || actualMembers.length > 1 || actualMembers.length === 1 &&
+      (actualDeclarations.length === 0 || field === undefined || field.memberKind !== "property"))
+      return unresolved("An Error options read requires its exact checked native cause-member correspondence.");
+    values.push(Object.freeze({ expression: argument.expression, type, member: field,
+      optional: getCsharpNullableElementTargetType(type) !== undefined }));
+    if (field !== undefined) resultIndex = 0;
+  } else {
+    const type = host.types.resolveNode(argument.expression, file)?.sourceResult?.selectedType;
+    if (type === undefined) return unresolved("An absent Error options argument requires its exact native absence carrier.");
+    values.push(Object.freeze({ expression: argument.expression, type, optional: false }));
+  }
+  const result = resultIndex === undefined ? undefined : values[resultIndex];
+  const carrier = result?.member?.type ?? result?.type;
+  const present = getCsharpNullableElementTargetType(carrier) ?? carrier;
+  if (present !== undefined && !namedTargetTypeImplicitlyAccepts(host, present, native.value, new Set()) &&
+    !isCsharpAbsenceTargetType(present)) return unresolved("The selected Error cause must have a proven native Exception reference relation.");
+  return Object.freeze({ kind: "resolved", projection: Object.freeze({ source: argument.expression, declaration,
+    values: Object.freeze(values), resultIndex, target }) });
 }

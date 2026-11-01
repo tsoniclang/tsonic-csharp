@@ -134,7 +134,6 @@ export function resolveTypeWithState(
     return resolveSourceProfileType(
       profileType,
       targetTypeArguments,
-      state.sourceStorageSubject,
     );
   }
   const constructor = resolveCsharpConstructorValueType(scope, type, queries, state);

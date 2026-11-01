@@ -4,7 +4,7 @@ import type { ExtensionDiagnostic } from "@tsonic/tsts";
 
 export type CsharpTargetPropertyInvocation =
   | { readonly kind: "member" }
-  | { readonly kind: "receiver-call" }
+  | { readonly kind: "receiver-call"; readonly call: CsharpTargetMember }
   | { readonly kind: "array-like"; readonly projection: import("../../conversions/selection.js").CsharpArrayLikeUnionProjection }
   | { readonly kind: "source-name-indexer"; readonly optionalRead: boolean };
 

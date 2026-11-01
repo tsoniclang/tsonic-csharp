@@ -24,7 +24,7 @@ import { analyzeCsharpSourceModuleConstructions } from "../source-modules/index.
 import { composeCsharpBinaryExecutionDriver } from "../../target-model/metadata/binary-execution-drivers.js";
 import { analyzeCsharpModuleInitialization } from "../module-initialization/index.js";
 import { createCsharpSourceProfileCallableAliasQuery } from "../operations/source-profiles/callable-aliases.js";
-import { createCsharpErrorStorageDemandQuery } from "../objects/error-storage-demands.js";
+import { analyzeCsharpNativeErrorAdmission, createCsharpErrorStorageDemandQuery } from "../objects/error-storage-demands.js";
 import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
 import { createCsharpSourceProfileStorageEffects } from "../operations/source-profiles/source-storage-effects.js";
 import { analyzeCsharpPromiseResults } from "../callables/async/promise-results.js";
@@ -74,6 +74,8 @@ function analyzeCsharpTargetProgramBeforeSeal(
     ...targetDiagnosticFromExtension(diagnostic.nodeOrSpan, diagnostic), code: diagnostic.publicCode,
   })));
   if (source.semantics.enumConstants.issues.length !== 0) return rejectedTargetStage(source.semantics.enumConstants.issues);
+  const nativeErrors = analyzeCsharpNativeErrorAdmission(source);
+  if (nativeErrors.issues.length !== 0) return rejectedTargetStage(nativeErrors.issues);
   const memoryBindings = createTsonicMemoryBindingIndex(source);
   const sourceAttributeApplications = createCsharpSourceAttributeApplicationIndex(source, source.navigation.sourceFiles);
   const safetyApplications = createCsharpSafetyApplicationFactIndex({
@@ -82,7 +84,8 @@ function analyzeCsharpTargetProgramBeforeSeal(
     sourceFacts: source.sourceFacts,
     navigation: source.navigation,
   });
-  const statementErasure = Object.freeze({ attributeApplications: sourceAttributeApplications, safetyApplications });
+  const statementErasure = Object.freeze({ attributeApplications: sourceAttributeApplications, safetyApplications,
+    nativeErrorNameInitializations: nativeErrors.nameInitializations });
   const sourceFiles = Object.freeze([...source.navigation.sourceFiles]);
   const sourceNodes = source.navigation.nodesForFiles(sourceFiles);
   const moduleCallables = analyzeCsharpModuleCallables(source.ast, sourceNodes);
