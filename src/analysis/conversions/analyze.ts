@@ -31,9 +31,6 @@ import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import { csharpDelegateSignatureHasSupportedPassingModes, getCsharpDelegateSignature } from "../../target-model/types/carriers/delegates.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/carriers/nullable.js";
 import { isCsharpVoidTargetType } from "../../target-model/types/identity.js";
-import { collectCsharpGeneratedHelpers } from "./generated-helpers.js";
-import { createCsharpGeneratedHelperRecords } from "../program/records/program/generated-helpers.js";
-import type { CsharpGeneratedHelper } from "../../target-model/records/program/generated-helpers.js";
 import { createCsharpDelegateContractProducer } from "../program/records/callables/callable-conversions.js";
 import { admitCsharpDelegateEmission, admitCsharpDelegateOperand } from "./callable-emission.js";
 import { sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
@@ -107,7 +104,6 @@ export function analyzeCsharpConversions(
   let preparedClassifications: CsharpPreparedConversionClassifications | undefined;
   let preparedValueReads: CsharpValueReadClassifications | undefined;
   let sealedClassifications: CsharpConversionClassifications | undefined;
-  const requiredHelpers = new Set<CsharpGeneratedHelper>();
   const literalRequests = createCsharpExactLiteralRequestCollector(policy.literalValues);
   const conversionPolicy = Object.freeze({
     integerRanges: policy.integerRanges,
@@ -120,8 +116,6 @@ export function analyzeCsharpConversions(
     ...delegateContracts.records,
     get propertyProjectionRoots() { return Object.freeze([...propertyProjectionRoots].flatMap(([node, types]) =>
       [...types.values()].map(carrier => Object.freeze({ node, carrier })))); },
-    generatedHelpers: Object.freeze({ get: () => Object.freeze([...requiredHelpers].sort()) }),
-    generatedHelper: Object.freeze({ get: (helper: CsharpGeneratedHelper) => requiredHelpers.has(helper) ? true : undefined }),
     issues,
     propertyProjection: Object.freeze({ get: (expression, source) => propertyProjections.get(expression)?.get(targetTypeRefKey(source)) }),
     delegateAdapters: Object.freeze({ get: scope => delegateAdapters.get(scope) ?? [] }),
@@ -169,7 +163,6 @@ export function analyzeCsharpConversions(
         if (selected === undefined) return undefined;
         admitCsharpDelegateEmission(delegateContracts, source, target, selected);
         issues.push(...admitCsharpDelegateOperand(policy.ast, captures, creations, delegateContracts, expression, source, target, selected));
-        collectCsharpGeneratedHelpers(selected, requiredHelpers);
         if (boundary === undefined && sourceCompletion?.kind !== "void") classifyPair(source, target, mode, expression);
         const key = csharpConversionKey(source, target, mode);
         if (boundary !== undefined) {
@@ -183,7 +176,6 @@ export function analyzeCsharpConversions(
         return classification === undefined ? undefined : Object.freeze({ key, classification });
       }, (expression, source, target) => {
         const selected = classifyPair(source, target, "implicit", expression);
-        if (selected !== undefined) collectCsharpGeneratedHelpers(selected, requiredHelpers);
         return selected;
       }, requiredRecords, issues, callConversions, { ast: policy.ast, navigation: policy.navigation,
         semanticsFor: policy.semanticsFor, objectShapes });
@@ -195,7 +187,6 @@ export function analyzeCsharpConversions(
       sealedClassifications = sealCsharpConversionClassifications({
         ...delegateContracts.records,
         propertyProjectionRoots: openClassifications.propertyProjectionRoots,
-        ...createCsharpGeneratedHelperRecords(requiredHelpers),
         issues,
         propertyProjection: openClassifications.propertyProjection,
         delegateAdapters: openClassifications.delegateAdapters,

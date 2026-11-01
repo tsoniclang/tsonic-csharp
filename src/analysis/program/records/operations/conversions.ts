@@ -11,8 +11,6 @@ export function sealCsharpConversionClassifications(input: CsharpConversionPubli
   return Object.freeze({
     delegateContract: input.delegateContract,
     propertyProjectionRoots: Object.freeze([...input.propertyProjectionRoots]),
-    generatedHelpers: input.generatedHelpers,
-    generatedHelper: input.generatedHelper,
     issues: Object.freeze([...input.issues]),
     propertyProjection: input.propertyProjection,
     delegateAdapters: input.delegateAdapters,

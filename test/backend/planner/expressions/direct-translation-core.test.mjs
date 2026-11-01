@@ -15,7 +15,7 @@ test("direct C# translation preserves authored primitive aliases and array carri
 {
     public static class Index
     {
-        public static int[] tail
+        internal static int[] tail
         {
             get;
             private set;
@@ -285,7 +285,7 @@ namespace Tsonic.Generated
 {
     public static class Index
     {
-        public static int one
+        internal static int one
         {
             get;
             private set;

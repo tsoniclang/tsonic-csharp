@@ -172,3 +172,50 @@ export function run(): boolean {
 }
 ` }), "mapped-source-strings");
 });
+
+for (const surface of [undefined, "js"]) {
+  test(`bigint literals retain exact native integral construction and allocation on ${surface ?? "native"}`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+export function zero(): bigint { return 0n; }
+export function small(): bigint { return 42n; }
+export function wide(): bigint { return 9007199254740993n; }
+export function negative(): bigint { return -9007199254740993n; }
+export function signedMaximum(): bigint { return 9223372036854775807n; }
+export function unsignedStart(): bigint { return 9223372036854775808n; }
+export function unsignedMaximum(): bigint { return 18446744073709551615n; }
+export function arbitrary(): bigint { return 18446744073709551616n; }
+` });
+    const generated = [...compiled.artifacts.values()].join("\n");
+    assert.doesNotMatch(generated, /\.Parse\("(?:0|42|9007199254740993|9223372036854775807|9223372036854775808|18446744073709551615)"\)/u);
+    assert.match(generated, /\.Parse\("18446744073709551616"\)/u);
+    assert.doesNotMatch(generated, /Convert\.ToDouble|\(double\)/u);
+    executeCsharpConstruction(compiled, `native-bigint-literals-${surface ?? "native"}`, false, false, [], `
+using System;
+using System.Numerics;
+using Index = Tsonic.Generated.Index;
+Check(Index.zero, static () => new BigInteger(0L));
+Check(Index.small, static () => new BigInteger(42L));
+Check(Index.wide, static () => new BigInteger(9007199254740993L));
+Check(Index.negative, static () => -new BigInteger(9007199254740993L));
+Check(Index.signedMaximum, static () => new BigInteger(long.MaxValue));
+Check(Index.unsignedStart, static () => new BigInteger(9223372036854775808UL));
+Check(Index.unsignedMaximum, static () => new BigInteger(ulong.MaxValue));
+Check(Index.arbitrary, static () => BigInteger.Parse("18446744073709551616"));
+static void Check(Func<BigInteger> generated, Func<BigInteger> native)
+{
+    var expected = native();
+    for (var iteration = 0; iteration < 10000; iteration++)
+        if (generated() != expected || native() != expected) throw new Exception("bigint value");
+    var before = GC.GetAllocatedBytesForCurrentThread();
+    for (var iteration = 0; iteration < 4096; iteration++)
+        if (generated() != expected) throw new Exception("generated bigint");
+    var actual = GC.GetAllocatedBytesForCurrentThread() - before;
+    before = GC.GetAllocatedBytesForCurrentThread();
+    for (var iteration = 0; iteration < 4096; iteration++)
+        if (native() != expected) throw new Exception("native bigint");
+    var reference = GC.GetAllocatedBytesForCurrentThread() - before;
+    if (actual != reference) throw new Exception($"bigint allocation {actual} != {reference}");
+}
+`);
+  });
+}

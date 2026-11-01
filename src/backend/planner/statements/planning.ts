@@ -123,8 +123,8 @@ export function planBlockStatements(
         diagnostics,
         state,
       ), input, state), ...planCsharpDelegateAdapterDeclarations(blockNode, sourceFile, input, diagnostics, state, statement)],
-    ), ...functions.flatMap(statement => planLocalFunctionDeclaration(statement, sourceFile, input, diagnostics, state))],
-  )];
+    )],
+  ), ...functions.flatMap(statement => planLocalFunctionDeclaration(statement, sourceFile, input, diagnostics, state))];
   const ordered = (): readonly CsharpStatement[] => {
     const statements = plan();
     return [...statements.filter(statement => statement.kind !== "LocalFunctionStatement"),

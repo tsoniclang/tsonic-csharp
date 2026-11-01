@@ -25,10 +25,6 @@ import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import {
   qualifiedCsharpType,
 } from "../types/index.js";
-import {
-  csharpGeneratedConversionHelperName,
-  csharpGeneratedHelperNamespace,
-} from "../../../target-model/records/program/generated-helpers.js";
 import type {
   CsharpPlanningContext,
 } from "../context.js";
@@ -374,30 +370,18 @@ function applyLiftedProviderArgumentAdapter(
       `Exact lifted provider argument adapter '${selection.adapter.id}' requires renderable source, result, and declaring types.`,
       node);
   }
-  if (input.program.records.generatedHelper.get("lifted-provider-argument-adapter") === undefined)
-    failCsharpPlannerInvariant("An admitted lifted provider argument adapter requires its sealed helper demand.", node);
+  const name = input.names.temporaryName(`__tsonic_nullable_${input.program.source.ast.pos(node)}`);
   return {
-    kind: "InvocationExpression",
-    callee: {
-      kind: "SimpleMemberAccessExpression",
-      receiver: qualifiedCsharpType(
-        csharpGeneratedHelperNamespace,
-        csharpGeneratedConversionHelperName,
-      ),
-      name: "LiftNullable",
-      typeArguments: [sourceElement, targetElement],
+    kind: "ConditionalExpression",
+    condition: {
+      kind: "IsPatternExpression", expression, type: sourceElement, designation: name,
     },
-    arguments: [
-      { kind: "Argument", expression },
-      {
-        kind: "Argument",
-        expression: {
-          kind: "SimpleMemberAccessExpression",
-          receiver: declaringType,
-          name: selection.adapter.targetName,
-        },
-      },
-    ],
+    whenTrue: {
+      kind: "InvocationExpression",
+      callee: { kind: "SimpleMemberAccessExpression", receiver: declaringType, name: selection.adapter.targetName },
+      arguments: [{ kind: "Argument", expression: { kind: "IdentifierName", name } }],
+    },
+    whenFalse: { kind: "DefaultExpression", type: { kind: "NullableType", inner: targetElement } },
   };
 }
 
