@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { join } from "node:path";
-import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { assertCsharpCheckingSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { testRepositoryRoots } from "../../../../tsonic/test/scripts/workspace-layout.mjs";
 import { valueStructProofFiles } from "../../../../tsonic/test/fixtures/value-structs.mjs";
 import { valueRecordMemoryProofFiles } from "../../../../tsonic/test/fixtures/value-record-memory.mjs";
@@ -46,17 +46,32 @@ test("number-domain scalar boxing preserves complete values and evaluation order
 });
 
 test("broad values collapse absence and preserve source reference identity", { timeout: 300_000 }, () => {
-  executeCsharpConstruction(compileCsharpSource({ surface: "js", sourceText: `
+  const sourceForEmpty = annotation => `
 class Item { value = 3; }
 function absent(value: unknown): boolean { return value === undefined && value === null; }
 function nil(value: unknown): boolean { return value === null && value === undefined; }
 function same(left: unknown, right: unknown): boolean { return left === right; }
 export function run(): boolean {
   const value = new Item();
-  const empty = {};
+  const empty${annotation} = {};
   return absent(undefined) && absent(null) && nil(null) && nil(undefined) &&
     same(value, value) && !same(value, new Item()) && same(empty, empty) && !same(empty, {});
-}` }), "broad-reference-nullish");
+}`;
+  const sourceText = sourceForEmpty("");
+  const original = compileCsharpSource({ surface: "js", sourceText });
+  assertCsharpCheckingSucceeded(original);
+  const issues = original.targetDiagnostics.filter(diagnostic => diagnostic.category === "error");
+  assert.equal(issues.length, 1, "one opaque empty producer owns the refusal");
+  const issue = issues[0];
+  assert.equal(issue.code, "TSONIC_UNTYPED_OBJECT_LITERAL");
+  assert.equal(issue.message, "This object literal has no target type. Declare a type for 'empty' at this initializer.");
+  const range = issue.sourceNode === undefined ? undefined : original.source.ast.authoredRange(issue.sourceNode);
+  const start = sourceText.indexOf("{}", sourceText.indexOf("const empty"));
+  assert.equal(range?.kind === "authored" && range.start === start && range.end === start + 2, true,
+    "the original empty initializer owns the opaque escape refusal");
+  assert.equal(original.result.program === undefined && original.result.plan === undefined && original.artifacts.size === 0,
+    true, "an untyped opaque escape publishes nothing");
+  executeCsharpConstruction(compileCsharpSource({ surface: "js", sourceText: sourceForEmpty(": object") }), "broad-reference-nullish");
 });
 
 test("inferred pointer loads preserve concrete conditional aliases and native widths", { timeout: 300_000 }, () => {

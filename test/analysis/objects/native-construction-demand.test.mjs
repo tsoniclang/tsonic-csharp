@@ -4,6 +4,7 @@ import { providerVirtualDeclarationFactKey, sourcePrimitiveFactKey } from "@tson
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { createCsharpNativeConstructionDemandQuery } from "../../../dist/analysis/objects/native-construction-demand.js";
 import { createCsharpObjectShapeMemberResolver } from "../../../dist/analysis/objects/shapes/member-evidence.js";
+import { createCsharpLiteralShapeResolver } from "../../../dist/analysis/objects/shapes/literal-construction.js";
 import { mergeCsharpObjectShapeSubjects } from "../../../dist/analysis/objects/shapes/construction.js";
 import { checkCsharpSource, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
@@ -57,7 +58,11 @@ function fixture() {
     const selected = { kind, properties: Array(rows.get(canonical(type))?.fields.length ?? 0).fill({}) };
     nodes.push(selected);
     types.set(selected, type);
-    if (context !== undefined) contexts.set(selected, context);
+    if (context !== undefined) {
+      contexts.set(selected, context);
+      selected.parent = { kind: "variable", Initializer: selected,
+        typeNode: { kind: "annotation", literal: selected } };
+    }
     return selected;
   };
   const semantics = {
@@ -70,11 +75,11 @@ function fixture() {
       isNullish: type => type.absent === true,
       isAny: type => type.any === true,
       isUnknown: type => type.unknown === true,
+      isNonPrimitive: type => type.object === true,
       isNumberLike: type => type === primitive,
       propertyInfos: type => rows.get(canonical(type))?.fields.map(field => field.property) ?? [],
       expressionType: selected => types.get(selected),
-      contextualValueSelection: selected => contexts.has(selected)
-        ? { kind: "selected", component: { selectedType: contexts.get(selected) } } : { kind: "unavailable" },
+      authoredType: selected => contexts.get(selected.literal),
       isIdentical: (source, destination) => canonical(source) === canonical(destination),
       constructSignatures: type => rows.get(canonical(type))?.constructs ?? [],
       structuralMembers(source, destination, purpose) {
@@ -97,18 +102,41 @@ function fixture() {
     ast: {
       is: {
         IsObjectLiteralExpression: selected => selected?.kind === "literal",
+        IsArrayLiteralExpression: selected => selected?.kind === "array",
+        IsPropertyAssignment: selected => selected?.kind === "property",
+        IsPropertyDeclaration: selected => selected?.kind === "property-declaration",
+        IsObjectBindingPattern: selected => selected?.kind === "object-binding",
+        IsSpreadAssignment: selected => selected?.kind === "spread",
+        IsSpreadElement: selected => selected?.kind === "spread-element",
+        IsGetAccessorDeclaration: selected => selected?.kind === "getter",
+        IsSetAccessorDeclaration: selected => selected?.kind === "setter",
+        IsIdentifier: selected => selected?.kind === "identifier",
+        IsSatisfiesExpression: selected => selected?.kind === "satisfies",
+        IsAsExpression: selected => selected?.kind === "assertion",
+        IsTypeAssertion: selected => selected?.kind === "type-assertion",
+        IsBinaryExpression: selected => selected?.kind === "binary",
+        IsCallExpression: selected => selected?.kind === "call",
+        IsNewExpression: selected => selected?.kind === "new",
         IsVariableDeclaration: selected => selected?.kind === "variable",
         IsVariableDeclarationList: () => false,
         IsVariableStatement: () => false,
         IsParenthesizedExpression: () => false,
         IsBlock: () => false,
         IsBindingElement: () => false,
-        IsReturnStatement: () => false,
+        IsReturnStatement: selected => selected?.kind === "return",
         IsArrowFunction: () => false,
         IsFunctionExpression: () => false,
       },
-      as: { AsVariableDeclaration: selected => selected?.kind === "variable" ? selected : undefined },
+      as: { AsVariableDeclaration: selected => selected?.kind === "variable" ? selected : undefined,
+        AsPropertyDeclaration: selected => selected?.kind === "property-declaration" ? selected : undefined },
       parent: selected => selected?.parent,
+      name: selected => selected?.name,
+      text: selected => selected?.text,
+      typeNode: selected => selected?.typeNode,
+      kindName: selected => selected?.kind === "function" ? "KindFunctionDeclaration"
+        : selected?.kind === "file" ? "KindSourceFile" : selected.kind,
+      variableDeclarationKind: selected => selected?.declarationKind,
+      hasModifierKind: (selected, kind) => selected?.modifiers?.includes(kind) === true,
       children: () => [],
       forEachChild: (selected, visit) => { if (selected === sourceFile) nodes.forEach(visit); },
       properties: selected => selected.properties ?? [],
@@ -116,6 +144,11 @@ function fixture() {
     navigation: {
       isProjectDeclaration: selected => !foreign.has(selected),
       referencesToDeclaration: selected => references.get(selected) ?? [],
+      expressionValueFlow: selected => ({
+        aliasDeclarations: selected.parent?.kind === "variable" ? [selected.parent] : [],
+        uses: [], exported: false, hasUnclassifiedUse: false,
+      }),
+      declarationUseSummary: () => ({ bindingWritten: false }),
     },
     providers: { resolveType(fact) { return { kind: "resolved", relations: [{ kind: "type",
       objectLiteralConstruction: { kind: "object-initializer" }, targetBinding: fact.target }] }; } },
@@ -128,17 +161,28 @@ function fixture() {
       const shape = rows.get(canonical(type))?.shape;
       return shape === undefined || canonical(type) === type ? shape : { ...shape, sourceType: type };
     },
-    resolveLiteralShape: shape => ({ kind: "resolved", shape }),
+    resolveLiteralShape: shapes => {
+      assert.equal(shapes.length, 1, "this fixture models one actual authored identity requirement");
+      return { kind: "resolved", shape: shapes[0] };
+    },
+    selectTargetCall: () => { throw new Error("this fixture has no call argument uses"); },
+    types: { resolveSourceCallArgumentParameter: () => { throw new Error("this fixture has no call argument uses"); } },
     scopedTargetType: selected => existing.get(selected),
     retainSourceShape: (_node, _type, shape) => shape,
   };
   return {
     row, node, rows, types, contexts, references, existing, explicit, primitive, foreign, semantics, host,
     declare(literal) {
-      const declaration = { kind: "variable", Initializer: literal };
+      const declaration = literal.parent?.kind === "variable" ? literal.parent
+        : { kind: "variable", Initializer: literal };
       literal.parent = declaration;
       types.set(declaration, types.get(literal));
       return declaration;
+    },
+    untypedReturn(literal) {
+      const callable = { kind: "function" };
+      literal.parent = { kind: "return", Expression: literal, parent: callable };
+      return literal;
     },
     freeze: () => createCsharpNativeConstructionDemandQuery(host),
     queryCount: () => relationshipQueries,
@@ -253,7 +297,7 @@ test("an unrelated annotation issue never hides another literal's valid record",
   const expected = value.row([{ identity: "user", optional: true }], native, { provider: true });
   const source = value.row([]);
   const valid = value.node(source, expected);
-  const invalid = value.node(source);
+  const invalid = value.untypedReturn(value.node(source));
   const selected = value.freeze();
   assert.equal(selected.issues.length, 1);
   assert.equal(selected.issues[0].node === invalid, true);
@@ -293,7 +337,7 @@ test("unrelated checked values never instantiate native object shapes", () => {
 
 test("an untyped empty literal is not assigned an arbitrary native destination", () => {
   const value = fixture();
-  const literal = value.node(value.row([]));
+  const literal = value.untypedReturn(value.node(value.row([])));
   value.node(value.row([], native, { provider: true }), undefined, "parameter");
   const selected = value.freeze();
   assert.equal(selected.issues[0].code, "TSONIC_UNTYPED_OBJECT_LITERAL");
@@ -376,7 +420,7 @@ test("an open parameter sharing the same checker type gains no allocation author
 
 test("observed callers cannot supply an untyped producer's annotation", () => {
   const value = fixture();
-  const literal = value.node(value.row([]));
+  const literal = value.untypedReturn(value.node(value.row([])));
   value.node(value.row([], native, { provider: true }), undefined, "call");
   const selected = value.freeze();
   assert.equal(selected.issues[0].node === literal, true);
@@ -517,7 +561,7 @@ function memberProvenanceFixture() {
   const queries = source.semantics.forNode(declarations.get("omitted"));
   const owner = name => queries.types.authoredType(ast.typeNode(declarations.get(name)));
   const actual = name => queries.types.expressionType(ast.as.AsVariableDeclaration(declarations.get(name)).Initializer);
-  const resolver = createCsharpObjectShapeMemberResolver({});
+  const resolver = createCsharpObjectShapeMemberResolver({ ast });
   const member = ownerType => {
     const selected = queries.types.structuralMembers(ownerType, ownerType, "correspondence");
     assert.equal(selected.kind === "available" && selected.members.length === 1 && selected.members[0].kind === "present",
@@ -534,7 +578,8 @@ function memberProvenanceFixture() {
     assert.equal(selected !== undefined, true, "the declared member has checked typed ownership evidence");
     return selected;
   };
-  return { queries, resolver, owner, actual, declared };
+  return { queries, resolver, owner, actual, declared, ast,
+    literal: name => ast.as.AsVariableDeclaration(declarations.get(name)).Initializer };
 }
 
 test("typed optional member evidence survives literal, declared value and read publication", () => {
@@ -629,4 +674,47 @@ test("ambiguous optional declaration owners never choose a first matching proof"
     { targetType: structural, sourceType: actual, members: second });
   assert.equal(value.resolver.instantiateMemberEvidence(merged.members, actual, value.queries, actual) === undefined,
     true, "different checked owners associated with the same source are ambiguous, not a success fallback");
+});
+
+test("literal construction reads its own checked source type independently of a canonical native shape", () => {
+  const value = memberProvenanceFixture();
+  const owner = value.owner("omitted");
+  const literal = value.literal("omitted");
+  const actual = value.actual("omitted");
+  const expected = { targetType: { ...structural, csharpStructuralContract: true },
+    sourceType: owner, members: value.declared(owner) };
+  const other = { ...expected, sourceType: value.actual("present") };
+  for (const [label, selectedShape] of [["unavailable native shape", undefined], ["another checked source", other]]) {
+    const select = createCsharpLiteralShapeResolver({
+      ast: value.ast, semantics: () => value.queries,
+      typeParameterConstraints: () => ({ kind: "resolved", constraints: [] }),
+    }, {
+      resolveNode: () => selectedShape,
+      deriveMembers: value.resolver.deriveMembers,
+    retainLiteralMemberEvidence: value.resolver.retainLiteralMemberEvidence,
+      instantiateMemberEvidence: value.resolver.instantiateMemberEvidence,
+      rememberTargetShape: shape => shape,
+    });
+    const selected = select([expected], literal, value.queries.sourceFile);
+    assert.equal(selected.kind === "resolved", true, label);
+    assert.equal(selected.shape.sourceType === actual, true, `${label}: the original literal owns its checked Type`);
+    const evidence = selected.shape.members[0].sourceMemberEvidence[0];
+    assert.equal(evidence.sourceType === actual && evidence.ownerType === owner &&
+      evidence.correspondence.kind === "absent", true,
+    `${label}: an actual omitted slot is not replaced by a native shape's representative source`);
+  }
+  const unavailable = { ...value.queries, types: { ...value.queries.types, expressionType: () => undefined } };
+  const selectMissing = createCsharpLiteralShapeResolver({
+    ast: value.ast, semantics: () => unavailable,
+    typeParameterConstraints: () => ({ kind: "resolved", constraints: [] }),
+  }, {
+    resolveNode: () => other,
+    deriveMembers: value.resolver.deriveMembers,
+    retainLiteralMemberEvidence: value.resolver.retainLiteralMemberEvidence,
+    instantiateMemberEvidence: value.resolver.instantiateMemberEvidence,
+    rememberTargetShape: shape => shape,
+  });
+  const missing = selectMissing([expected], literal, value.queries.sourceFile);
+  assert.equal(missing.kind === "rejected" && missing.subject === literal, true,
+    "missing checked literal type cannot borrow a native shape's type or a declared-owner fallback");
 });

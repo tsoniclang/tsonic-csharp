@@ -239,7 +239,8 @@ export function resolveMemberAccessTargetType(
       host.ast.questionToken(declaration) === undefined
       ? getCsharpMethodValue(type)?.contract ?? type : type;
   };
-  if (host.projectTypeCatalog.definitionContainingDeclaration(selection.source.selectedDeclaration) !== undefined) {
+  if (host.projectTypeCatalog.definitionForTarget(getCsharpNullableElementTargetType(receiverType) ?? receiverType) !== undefined &&
+      host.projectTypeCatalog.definitionContainingDeclaration(selection.source.selectedDeclaration) !== undefined) {
     const member = resolveSelectedDeclarationResult(selection.source.selectedDeclaration, selectedSourceType ?? declaredMemberType, queries, state, receiverType,
       declaredMemberType);
     return member === undefined ? undefined : optionalAccessTargetType(invocationType(member), selection.source.optionalChain);

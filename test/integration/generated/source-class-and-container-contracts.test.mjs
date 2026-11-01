@@ -150,15 +150,15 @@ test("BigInt construction preserves native integer widths and closed numeric uni
   ` }), "bigint-construction");
 });
 
-test("length constructors initialize elements and generic fill preserves token identity", { timeout: 300_000 }, () => {
-  executeCsharpConstruction(compileCsharpSource({ surface: "js", sourceText: `
+function arrayTokenConstructionSource(beforeFreeze, afterFreeze) {
+  return `
     import type { int64 } from "@tsonic/core/types.js";
     function filled<T>(length: number, value: T): T[] { return new Array<T>(length).fill(value); }
     function retain(token: object): object { return token; }
     export function run(): boolean {
       const first: object = {};
       const alias = retain(first);
-      if (Object.isFrozen(alias)) return false;
+      if (${beforeFreeze}) return false;
       const frozen = Object.freeze(first);
       const second: object = Object.freeze({});
       const tokens = new Set<object>();
@@ -177,13 +177,65 @@ test("length constructors initialize elements and generic fill preserves token i
       const integerItems = new Array<int64>(integer);
       let rejected = false;
       try { new Array<object>(1.5); } catch { rejected = true; }
-      return rejected && frozen === alias && Object.isFrozen(alias) && second !== first &&
+      return rejected && frozen === alias && ${afterFreeze} && second !== first &&
         tokens.has(alias) && !tokens.has(second) && slots[0] === alias && slots[2] === alias &&
         generic[0] === second && generic[1] === second && empty.length === 0 &&
         items.length === 2 && single.length === 1 && called.length === 2 &&
         integerItems.length === 1 && integerItems[0] === integer;
     }
-  ` }), "array-token-construction");
+  `;
+}
+
+test("length constructors initialize elements and generic fill preserves token identity", { timeout: 300_000 }, () => {
+  const original = compileCsharpSource({ surface: "js", sourceText:
+    arrayTokenConstructionSource("Object.isFrozen(alias)", "Object.isFrozen(alias)") });
+  assert.equal(original.sourceDiagnosticsText, "");
+  const issues = original.result.diagnostics.filter(issue => issue.category === "error");
+  assert.equal(issues.length, 2, "both original runtime freeze-state inspections are refused");
+  for (const issue of issues) {
+    assert.equal(issue.code, "TSONIC_IS_FROZEN_UNSUPPORTED");
+    assert.equal(issue.message, "Object.isFrozen has no native equivalent; immutability is a compile-time property. Use readonly declarations instead.");
+    const range = original.source.ast.authoredRange(issue.sourceNode);
+    assert.equal(range.kind, "authored");
+    const file = original.source.ast.getSourceFile(issue.sourceNode);
+    assert.equal(original.source.ast.getSourceText(file).slice(range.start, range.end).includes("Object.isFrozen"), true);
+  }
+  assert.equal(original.result.program === undefined && original.result.plan === undefined && original.artifacts.size === 0, true);
+  const native = compileCsharpSource({ surface: "js", sourceText:
+    arrayTokenConstructionSource("alias !== first", "frozen === first") + `
+export function createFrozenToken(): object { const first: object = {}; return Object.freeze(first); }
+export function freezeToken(value: object): object { return Object.freeze(value); }
+` });
+  executeCsharpConstruction(native, "array-token-construction", false, false, [], `
+using System;
+using Tsonic.CSharp.Runtime;
+using Index = Tsonic.Generated.Index;
+if (!Index.run()) throw new Exception("original array, token, fill, absence and freeze identity predicates");
+object token = new EmptyObject();
+for (int iteration = 0; iteration < 4096; iteration++) {
+    Escape.Value = Index.createFrozenToken();
+    Escape.Value = new EmptyObject();
+    Escape.Value = Index.freezeToken(token);
+    Escape.Value = token;
+}
+long before = GC.GetAllocatedBytesForCurrentThread();
+for (int iteration = 0; iteration < 8192; iteration++) Escape.Value = Index.createFrozenToken();
+long actual = GC.GetAllocatedBytesForCurrentThread() - before;
+before = GC.GetAllocatedBytesForCurrentThread();
+for (int iteration = 0; iteration < 8192; iteration++) Escape.Value = new EmptyObject();
+long reference = GC.GetAllocatedBytesForCurrentThread() - before;
+if (actual != reference) throw new Exception($"frozen token native allocation {actual} != {reference}");
+before = GC.GetAllocatedBytesForCurrentThread();
+for (int iteration = 0; iteration < 8192; iteration++) Escape.Value = Index.freezeToken(token);
+actual = GC.GetAllocatedBytesForCurrentThread() - before;
+if (!ReferenceEquals(Escape.Value, token)) throw new Exception("freeze retains the original token");
+before = GC.GetAllocatedBytesForCurrentThread();
+for (int iteration = 0; iteration < 8192; iteration++) Escape.Value = token;
+reference = GC.GetAllocatedBytesForCurrentThread() - before;
+if (actual != reference || actual != 0) throw new Exception($"freeze identity allocation {actual} != {reference}");
+static class Escape { public static object Value = null!; }
+`);
+  assert.doesNotMatch([...native.artifacts.values()].join("\n"), /EmptyObject\.Freeze|\.isFrozen\(/u);
 });
 
 test("same-spelled local functions and object members remain ordinary source", { timeout: 300_000 }, () => {
@@ -223,17 +275,48 @@ test("stored Error throws preserve identity across parameters, return values and
   ` }), "stored-error-transport");
 });
 
-test("open objects cannot silently use a closed frozen carrier", () => {
-  for (const sourceText of [
-    `function freeze(value: object): object { return Object.freeze(value); } export function example(): object { return freeze({ count: 1 }); }`,
-    `export function freeze(value: object): object { return Object.freeze(value); }`,
-    `type Open = object; export function freeze(value: Open): Open { const alias = value; return Object.freeze(alias); }`,
-    `export function frozen(value: { inner: object }): boolean { return Object.isFrozen(value.inner); }`,
+test("open objects cannot silently use a closed frozen carrier", { timeout: 300_000 }, () => {
+  for (const [name, sourceText] of [
+    ["fresh", `function freeze(value: object): object { return Object.freeze(value); } export function example(): object { return freeze({ count: 1 }); }`],
+    ["parameter", `export function freeze(value: object): object { return Object.freeze(value); }`],
+    ["alias", `type Open = object; export function freeze(value: Open): Open { const alias = value; return Object.freeze(alias); }`],
+    ["inspection", `export function frozen(value: { inner: object }): boolean { return Object.isFrozen(value.inner); }`],
   ]) {
     const compiled = compileCsharpSource({ surface: "js", sourceText });
     assert.equal(compiled.sourceDiagnosticsText, "");
-    assert(compiled.extensionDiagnostics.length + compiled.targetDiagnostics.length > 0);
-    assert.equal(compiled.artifacts.size, 0);
+    if (name === "inspection") {
+      const issues = compiled.result.diagnostics.filter(issue => issue.category === "error");
+      assert.equal(issues.length, 1);
+      assert.equal(issues[0].code, "TSONIC_IS_FROZEN_UNSUPPORTED");
+      assert.equal(issues[0].message, "Object.isFrozen has no native equivalent; immutability is a compile-time property. Use readonly declarations instead.");
+      assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true);
+      continue;
+    }
+    assert.equal(compiled.result.diagnostics.some(issue => issue.category === "error"), false);
+    assert.equal(compiled.result.program !== undefined && compiled.artifacts.size > 0, true);
+    assert.doesNotMatch([...compiled.artifacts.values()].join("\n"), /EmptyObject\.Freeze|\.isFrozen\(|TsObject|CreateDynamicObject/u);
+    const generated = name === "fresh" ? "Tsonic.Generated.Index.example()" : "Tsonic.Generated.Index.freeze(token)";
+    const handwritten = name === "fresh" ? "new NativeCount { count = 1 }" : "token";
+    executeCsharpConstruction(compiled, `open-native-freeze-${name}`, false, false, [], `
+using System;
+object token = new object();
+for (int iteration = 0; iteration < 4096; iteration++) {
+    Escape.Value = ${generated};
+    Escape.Value = ${handwritten};
+}
+long before = GC.GetAllocatedBytesForCurrentThread();
+for (int iteration = 0; iteration < 8192; iteration++) Escape.Value = ${generated};
+long actual = GC.GetAllocatedBytesForCurrentThread() - before;
+object first = Escape.Value;
+before = GC.GetAllocatedBytesForCurrentThread();
+for (int iteration = 0; iteration < 8192; iteration++) Escape.Value = ${handwritten};
+long native = GC.GetAllocatedBytesForCurrentThread() - before;
+if (actual != native) throw new Exception($"native freeze allocation {actual} != {native}");
+${name === "fresh" ? 'if (ReferenceEquals(first, Tsonic.Generated.Index.example())) throw new Exception("fresh allocation identity");'
+  : 'if (!ReferenceEquals(first, token)) throw new Exception("native freeze alias identity");'}
+static class Escape { public static object Value = null!; }
+sealed class NativeCount { public double count; }
+`);
   }
 });
 

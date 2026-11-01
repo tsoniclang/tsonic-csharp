@@ -20,6 +20,6 @@ export function resolveCsharpContextualLiteralCarrier(
   if (isCsharpRecordDictionaryTargetType(carrier)) return carrier;
   const shape = host.objectShapes.resolveTarget(carrier);
   const construction = shape === undefined ? undefined
-    : host.objectShapes.resolveObjectLiteralTargetShape(shape, node, host.semanticsFor(node).sourceFile);
+    : host.objectShapes.resolveObjectLiteralTargetShape([shape], node, host.semanticsFor(node).sourceFile);
   return construction?.kind === "resolved" ? carrier : undefined;
 }

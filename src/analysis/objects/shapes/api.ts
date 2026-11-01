@@ -4,7 +4,7 @@ import { createStructuralObjectShapeTarget, mergeCsharpObjectShapeSubjects } fro
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { csharpObjectShapesEqual } from "../../../target-model/types/object-shape-equality.js";
 import { csharpObjectShapeContractKey } from "../../../target-model/types/object-shape-identity.js";
-import { isProjectSourceTargetType, projectClassIsObjectInitializable, requiresUnresolvedStructuralProjection, selectedObjectShapeSource, sourceSubjects, typeHasProjectOwnedShapeDeclaration, typeIsExcludedFromObjectShape } from "./source-evidence.js";
+import { isProjectSourceTargetType, projectClassIsObjectInitializable, requiresUnresolvedStructuralProjection, sourceSubjects, typeHasProjectOwnedShapeDeclaration, typeIsExcludedFromObjectShape } from "./source-evidence.js";
 import { readCsharpSourceField, readCsharpSourceStruct } from "../../../source/extension/markers.js";
 import { Node_Initializer } from "@tsonic/target-api/source";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
@@ -93,14 +93,15 @@ export function createCsharpObjectShapePolicy(
         remember(node, directStruct);
         return directStruct;
       }
-      const source = selectedObjectShapeSource(node, queries, host, state);
-      const selectedTarget = host.ast.is.IsClassDeclaration(node) || host.ast.is.IsClassExpression(node)
-        ? host.typeResolver.resolveType(source.type, queries.sourceFile, nextState(state))
+      const classDeclaration = host.ast.is.IsClassDeclaration(node) || host.ast.is.IsClassExpression(node);
+      const sourceType = classDeclaration ? queries.declarations.declaredType(node) : queries.types.expressionType(node);
+      const selectedTarget = classDeclaration
+        ? host.typeResolver.resolveType(sourceType, queries.sourceFile, nextState(state))
         : host.typeResolver.resolveNode(node, queries.sourceFile, nextState(state));
       const selectedShape = resolveTarget(selectedTarget);
-      if (selectedShape !== undefined && source.type !== undefined &&
+      if (selectedShape !== undefined && sourceType !== undefined &&
         (!host.ast.is.IsObjectLiteralExpression(node) || selectedShape.constructible === true)) {
-        const actualType = host.ast.is.IsObjectLiteralExpression(node) ? queries.types.expressionType(node) : source.type;
+        const actualType = sourceType;
         const members = actualType === undefined ? undefined
           : instantiateMemberEvidence(selectedShape.members, actualType, queries, selectedShape.sourceType);
         if (members !== undefined) return state.sourceBindings === undefined
@@ -112,11 +113,11 @@ export function createCsharpObjectShapePolicy(
         ? undefined
         : host.ast.typeNode(declaration);
       const shape = resolveSemanticShape(
-        source.type,
+        sourceType,
         node,
         queries,
         state,
-        source.contextualTarget ?? selectedTarget,
+        selectedTarget,
         authoredTypeRoot,
       );
       if (shape !== undefined) {
@@ -207,7 +208,7 @@ export function createCsharpObjectShapePolicy(
     return shape === undefined ? undefined : rememberTargetShape(shape);
   }
 
-  const resolveObjectLiteralTargetShape = createCsharpLiteralShapeResolver(host, { resolveNode, retainLiteralMemberEvidence, instantiateMemberEvidence, rememberTargetShape });
+  const resolveObjectLiteralTargetShape = createCsharpLiteralShapeResolver(host, { resolveNode, deriveMembers, retainLiteralMemberEvidence, instantiateMemberEvidence, rememberTargetShape });
   const resolveProjectConstructibleSelectedType = createCsharpProjectShapeProjection(host, deriveMembers);
 
   function remember(
@@ -365,6 +366,17 @@ export function createCsharpObjectShapePolicy(
     }
     activeTypes.add(type);
     try {
+      const transformation = queries.types.standardTransformation(authoredTypeRoot, type) ??
+        queries.types.standardTransformation(undefined, type);
+      if (transformation?.kind === "component" && transformation.component.selectedType !== type) {
+        const component = transformation.component;
+        const underlying = resolveSemanticShape(component.selectedType, undefined, queries, nextState(state),
+          selectedTarget, component.authoredTypeNode);
+        const members = underlying === undefined ? undefined
+          : instantiateMemberEvidence(underlying.members, type, queries, underlying.sourceType);
+        return underlying === undefined || members === undefined ? undefined
+          : { ...underlying, sourceType: type, members };
+      }
       const selectedType = selectedTarget ?? (authoredTypeRoot === undefined
         ? host.typeResolver.resolveType(
           type,
@@ -472,7 +484,7 @@ export function createCsharpObjectShapePolicy(
         ...(implemented === undefined ? {} : { implements: implemented }),
       };
       if (authoredLiteral !== undefined) {
-        const selected = resolveObjectLiteralTargetShape(shape, authoredLiteral, queries.sourceFile);
+        const selected = resolveObjectLiteralTargetShape([shape], authoredLiteral, queries.sourceFile);
         if (selected.kind !== "resolved") return undefined;
         const members = instantiateMemberEvidence(selected.shape.members, type, queries, selected.shape.sourceType);
         return members === undefined ? undefined : { ...selected.shape, sourceType: type, members };

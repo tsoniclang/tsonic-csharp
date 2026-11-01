@@ -36,6 +36,12 @@ export interface CsharpStructuralObjectEmission {
   readonly methodValues: readonly CsharpStructuralPropertyEmission[];
   readonly methods: ReadonlyMap<CsharpObjectShapeMemberFact, CsharpStructuralMethodEmission>;
   readonly contracts: readonly CsharpMethodValueContractEmission[];
+  readonly dynamicMembers: readonly {
+    readonly key: string;
+    readonly name: string;
+    readonly type: TargetTypeRef;
+    readonly writable: boolean;
+  }[] | undefined;
 }
 
 export interface CsharpStructuralObjectEmissionRecords {

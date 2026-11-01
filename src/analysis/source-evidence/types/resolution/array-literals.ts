@@ -88,11 +88,12 @@ export function resolveCsharpArrayLiteralSelection(
   if (selected.some(group => group === undefined)) return unavailable;
   const contributions = selected.flatMap(group => group ?? []);
   const elements = contributions.map(member => member.carrier);
-  const context = selectCsharpLiteralDeclarationContext(node, queries, host);
+  const context = selectCsharpLiteralDeclarationContext(node, host);
   const destination = selectArrayElementDestination(scope, node, queries, state, context, sourceElements.length === 0);
+  if (destination.kind === "rejected") return destination;
   if (elements.length === 0) {
     if (sourceElements.length === 0 && destination.kind === "unavailable" &&
-      context === undefined) {
+      context.requirements.length === 0) {
       state.rejectNativeResolution?.(Object.freeze({ kind: "rejected", subject: node,
         code: "TSONIC_UNTYPED_ARRAY_LITERAL",
         reason: "This empty array has no element type. Declare one, e.g. 'function emptyBuffer(): number[]'." }));
@@ -109,6 +110,7 @@ export function resolveCsharpArrayLiteralSelection(
   const contributionCarriers = numeric.kind === "unavailable" ? numeric.carriers : elements;
   const element = destination.kind === "resolved" ? destination.carrier
     : isCsharpJsValueTargetType(sourceElement) ? sourceElement
+    : context.unclassified.length > 0 && numeric.kind === "resolved" && sourceElement !== undefined ? sourceElement
     : numeric.kind === "resolved" ? numeric.carrier : combineCsharpTargetUnionMembers(contributionCarriers);
   if (element === undefined) return unavailable;
   const retained = sourceUnions.retain(element, contributions.map((member, index) =>
@@ -129,6 +131,51 @@ function selectArrayElementDestination(
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
   context: ReturnType<typeof selectCsharpLiteralDeclarationContext>,
+  empty: boolean,
+): { readonly kind: "resolved"; readonly carrier: TargetTypeRef } | { readonly kind: "unavailable" } |
+  { readonly kind: "rejected"; readonly reason: string } {
+  const declaration = scope.host.ast.parent(expression);
+  const own = context.requirements.filter(requirement => requirement.component.declaration === declaration &&
+    requirement.component.authoredTypeNode !== undefined);
+  const requirements = [...(own.length > 0 ? own : context.requirements)].sort((left, right) => {
+    const first = scope.host.ast.authoredRange(left.source);
+    const second = scope.host.ast.authoredRange(right.source);
+    return first.kind === "authored" && second.kind === "authored" ? first.start - second.start : 0;
+  });
+  if (requirements.length === 0) return selectArrayElementRequirement(scope, expression, queries, state,
+    undefined, context.declarations, empty);
+  const resolved = requirements.flatMap(requirement => {
+    const selection = selectArrayElementRequirement(scope, expression, queries, state,
+      requirement, context.declarations, empty);
+    return selection.kind === "resolved" ? [{ ...selection, requirement }] : [];
+  });
+  if (resolved.length === 0 || own.length === 0 && context.unclassified.length > 0) return { kind: "unavailable" };
+  const first = resolved[0]!;
+  if (resolved.some(selection => !targetTypeRefEquals(selection.carrier, first.carrier))) {
+    const destinations = resolved.map(selection => {
+      const argument = sourceExpressionCallArgument(selection.requirement.returnedFrom ?? selection.requirement.source,
+        { ast: scope.host.ast, semantics: { forNode: scope.host.semanticsFor } });
+      const subject = argument?.call ?? selection.requirement.source;
+      const range = scope.host.ast.authoredRange(subject);
+      const site = range.kind === "authored" ? scope.host.ast.getSourceText(scope.host.ast.getSourceFile(subject))
+        .slice(range.start, range.end) : "the declared identity slot";
+      const carrier = selection.carrier;
+      const name = carrier.kind === "source-primitive" ? carrier.name : "the declared element type";
+      const array = selectedCsharpSourceProfileOwner(scope.host.target) === "js" ? `JSArray<${name}>` : `${name}[]`;
+      return `'${site}' requires ${array}`;
+    });
+    return { kind: "rejected", reason: `Native array construction has conflicting identity destinations: ${destinations.join("; ")}. Declare an exact native array type for this binding.` };
+  }
+  return first;
+}
+
+function selectArrayElementRequirement(
+  scope: CsharpTypeResolutionScope,
+  expression: Node,
+  queries: SourceFileSemantics,
+  state: CsharpTypeResolutionState,
+  context: ReturnType<typeof selectCsharpLiteralDeclarationContext>["requirements"][number] | undefined,
+  declarations: readonly Node[],
   empty: boolean,
 ): { readonly kind: "resolved"; readonly carrier: TargetTypeRef } | { readonly kind: "unavailable" } {
   const { host } = scope;
@@ -152,7 +199,7 @@ function selectArrayElementDestination(
     if (call === undefined || bindings.length !== 1) return { kind: "unavailable" };
     const excluded = empty ? undefined : new Set([argument.argumentIndex, ...call.sourceArguments.flatMap((argument, index) => {
       const declaration = host.navigation.referenceFor(argument.expression)?.declaration;
-      return declaration !== undefined && context?.declarations.includes(declaration) === true ? [index] : [];
+      return declaration !== undefined && declarations.includes(declaration) ? [index] : [];
     })]);
     const parameter = scope.resolveSourceCallArgumentParameter(call, bindings[0]!, callQueries.sourceFile, excluded);
     const result = context?.returnedFrom === undefined ? parameter

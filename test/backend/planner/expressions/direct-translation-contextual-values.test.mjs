@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   compileCsharpSource,
 } from "../../../helpers/direct-csharp-session.mjs";
+import { executeCsharpConstruction } from "../../../helpers/native-construction.mjs";
 
 test("direct C# translation separates flow-selected values from nullable storage and contextual contracts", () => {
   const compiled = compileCsharpSource({
@@ -83,7 +84,7 @@ test("direct C# translation separates flow-selected values from nullable storage
   );
 });
 
-test("direct C# translation preserves authored primitive aliases through structural property flow", () => {
+test("direct C# translation preserves authored primitive aliases through structural property flow", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({
     sourceText: `
       import type { int } from "@tsonic/csharp/types.js";
@@ -103,11 +104,11 @@ test("direct C# translation preserves authored primitive aliases through structu
 {
     public static class Index
     {
-        internal static ObjectShape_1e4714b9b387<int> nextId
+        internal static ObjectShape_273d884bcc44 nextId
         {
             get;
             private set;
-        } = default(ObjectShape_1e4714b9b387<int>)!;
+        } = default(ObjectShape_273d884bcc44)!;
         public static int takeNext()
         {
             int id = global::Tsonic.Generated.Index.nextId.value;
@@ -149,6 +150,37 @@ test("direct C# translation preserves authored primitive aliases through structu
 }
 `,
   );
+  executeCsharpConstruction(compiled, "authored-primitive-structural-flow", false, false, [], `
+using System;
+using Index = Tsonic.Generated.Index;
+Index.__tsonic_module_init();
+var original = Index.nextId;
+if (Index.takeNext() != 1 || Index.takeNext() != 2 || !ReferenceEquals(original, Index.nextId))
+    throw new Exception("the original int32 storage retains mutation and reference identity");
+for (int iteration = 0; iteration < 10000; iteration++) {
+    Index.takeNext();
+    Native.TakeNext();
+}
+long before = GC.GetAllocatedBytesForCurrentThread();
+long actualSum = 0;
+for (int iteration = 0; iteration < 4096; iteration++) actualSum += Index.takeNext();
+long actual = GC.GetAllocatedBytesForCurrentThread() - before;
+before = GC.GetAllocatedBytesForCurrentThread();
+long nativeSum = 0;
+for (int iteration = 0; iteration < 4096; iteration++) nativeSum += Native.TakeNext();
+long reference = GC.GetAllocatedBytesForCurrentThread() - before;
+if (actualSum != nativeSum || !ReferenceEquals(original, Index.nextId) || actual != reference || actual != 0)
+    throw new Exception($"native int32 mutation/identity/allocation {actual} != {reference}");
+static class Native {
+    private static readonly Counter Value = new Counter { value = 3 };
+    public static int TakeNext() {
+        int previous = Value.value;
+        Value.value = previous + 1;
+        return previous;
+    }
+    private sealed class Counter { public int value; }
+}
+`);
 });
 
 test("direct C# translation consumes exact non-null expression refinements", () => {

@@ -24,16 +24,19 @@ export function read(): unknown { const value: any = make(); return value.child;
     assert.equal(literals.length, 2, "the container and payload are distinct checked allocations");
     const container = program.records.nativeExpression.get(literals[0])?.physical;
     const payload = program.records.nativeExpression.get(literals[1])?.physical;
-    assert.equal(container !== undefined && container.kind !== "erased" && container.dynamicObject !== undefined,
-      true, "only the receiver of the actual dynamic child read needs dynamic construction");
-    assert.equal(payload !== undefined && payload.kind !== "erased" && payload.dynamicObject === undefined &&
-      payload.objectShape !== undefined, true, "syntactic nesting does not create a dynamic receiver obligation");
+    assert.equal(container !== undefined && container.dynamicObject === undefined && container.objectShape !== undefined,
+      true, "the checked broad receiver retains its direct native object construction");
+    assert.equal(payload !== undefined && payload.dynamicObject === undefined && payload.objectShape !== undefined &&
+      payload.objectShape !== container.objectShape, true,
+      "syntactic nesting does not impose the container's native field contract on its distinct payload");
     const count = payload.objectShape.members.find(member => member.sourceName === "count");
     assert.equal(count?.type.kind === "source-primitive" && count.type.name === "int32", true,
       "the untouched native payload retains its exact int32 field");
     const generated = [...compiled.artifacts.values()].join("\n");
-    assert.equal((generated.match(/new Tsonic\.CSharp\.Runtime\.TsObject\(\)/gu) ?? []).length, 1,
-      "only the actual dynamic receiver allocates TsObject");
+    assert.equal((generated.match(/new ObjectShape_[a-f0-9]+\b/gu) ?? []).length, 2,
+      "the container and payload each have exactly one native allocation");
+    assert.equal(/new Tsonic\.CSharp\.Runtime\.TsObject\b|\.CreateDynamicObject\(|\.WriteDynamicSlot\("/u.test(generated), false,
+      "neither native construction allocates a dictionary carrier or a copied dynamic projection");
     executeCsharpConstruction(compiled, `nested-dynamic-origins-${surface}`, false, false, [], `
 var container = Tsonic.Generated.Index.make();
 var first = container.ReadDynamicSlot("child").unwrap();
@@ -45,3 +48,4 @@ if (Tsonic.Generated.Index.read().unwrap() is not Tsonic.CSharp.Runtime.ITsClose
 `);
   });
 }
+

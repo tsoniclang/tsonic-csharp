@@ -26,7 +26,6 @@ import { instantiateCsharpObjectShape } from "../../policy/types/objects/instant
 import type { CsharpProjectTypeIssue } from "../../target-model/records/types/project-types.js";
 import { namedTargetTypeImplicitlyAccepts } from "../../policy/conversions/carriers.js";
 
-const noExpectedShape = "<none>";
 const maximumObjectShapeClassifications = 131_072;
 
 export function analyzeCsharpObjectShapes(
@@ -322,19 +321,20 @@ export function analyzeCsharpObjectShapes(
       contextualShape,
     ]);
     for (const shape of expectedShapes) {
-      classifyLiteral(shape, literal);
+      classifyLiteral(shape === undefined ? [] : [shape], literal);
     }
-    const selectedLiteral = classifyLiteral(contextualShape ?? byNode.get(literal), literal);
+    const selectedShape = contextualShape ?? byNode.get(literal);
+    const selectedLiteral = classifyLiteral(selectedShape === undefined ? [] : [selectedShape], literal);
     if (selectedLiteral?.kind === "rejected") literalIssues.push(Object.freeze({
       node: selectedLiteral.subject, code: "CSHARP_UNSUPPORTED_AST", message: selectedLiteral.reason,
     }));
   }
 
-  function classifyLiteral(expected: CsharpObjectShapeFact | undefined, literal: Node): CsharpObjectLiteralTargetShapeResolution | undefined {
+  function classifyLiteral(expected: readonly CsharpObjectShapeFact[], literal: Node): CsharpObjectLiteralTargetShapeResolution | undefined {
     const results = literalResults.get(literal);
     const sourceFile = objectLiterals.get(literal);
     if (results === undefined || sourceFile === undefined) return undefined;
-    const key = expected === undefined ? noExpectedShape : csharpObjectShapeContractKey(expected);
+    const key = JSON.stringify(expected.map(csharpObjectShapeContractKey).sort());
     const previous = results.get(key);
     if (previous !== undefined) return previous;
     reserveClassification();
@@ -414,7 +414,17 @@ export function analyzeCsharpObjectShapes(
         const canonical = byTarget.get(targetTypeRefKey(shape.targetType)) ?? shape;
         const existing = completedShapes.get(canonical);
         if (existing !== undefined) return existing;
-        const selected = Object.freeze(withInterfaces(canonical)!);
+        const materialized = withInterfaces(canonical)!;
+        for (const member of materialized.members) {
+          if (member.sourceSubjects !== undefined) Object.freeze(member.sourceSubjects);
+          if (member.sourceDeclarations !== undefined) Object.freeze(member.sourceDeclarations);
+          if (member.sourceTypes !== undefined) Object.freeze(member.sourceTypes);
+          if (member.sourceMemberEvidence !== undefined) Object.freeze(member.sourceMemberEvidence);
+          if (member.accessor !== undefined) Object.freeze(member.accessor);
+          Object.freeze(member);
+        }
+        Object.freeze(materialized.members);
+        const selected = Object.freeze(materialized);
         completedShapes.set(canonical, selected);
         return selected;
       };
@@ -549,13 +559,10 @@ export function analyzeCsharpObjectShapes(
       if (!sealed && shape !== undefined) admittedShapes.add(shape);
       return withInterfaces(shape);
     },
-    resolveObjectLiteralTargetShape(expectedShape, objectLiteral) {
-      if (published !== undefined) return published.resolveObjectLiteralTargetShape(expectedShape, objectLiteral);
-      const original = expectedShape === undefined ? undefined
-        : byTarget.get(targetTypeRefKey(expectedShape.targetType)) ?? expectedShape;
-      const key = original === undefined
-        ? noExpectedShape
-        : csharpObjectShapeContractKey(original);
+    resolveObjectLiteralTargetShape(expectedShapes, objectLiteral) {
+      if (published !== undefined) return published.resolveObjectLiteralTargetShape(expectedShapes, objectLiteral);
+      const original = expectedShapes.map(shape => byTarget.get(targetTypeRefKey(shape.targetType)) ?? shape);
+      const key = JSON.stringify(original.map(csharpObjectShapeContractKey).sort());
       const result = literalResults.get(objectLiteral)?.get(key) ?? classifyLiteral(original, objectLiteral);
       return result?.kind === "resolved"
         ? { ...result, shape: withInterfaces(result.shape)! } : result;

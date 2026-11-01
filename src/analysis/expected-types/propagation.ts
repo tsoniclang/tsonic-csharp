@@ -201,7 +201,7 @@ export function createCsharpExpectedTypePropagation(
     const expectedShape = isCsharpJsValueTargetType(carrier) || targetTypeRefEquals(carrier, csharpObjectTargetType())
       ? objectShapes.resolveNode(expression) : objectShapes.resolveTarget(construction);
     const resolution = objectShapes.resolveObjectLiteralTargetShape(
-      expectedShape,
+      expectedShape === undefined ? [] : [expectedShape],
       expression,
     );
     if (resolution?.kind !== "resolved") {
@@ -304,7 +304,8 @@ export function createCsharpExpectedTypePropagation(
 
   function recordIntrinsicObjectLiteralMembers(node: Node): void {
     if (!policy.ast.is.IsObjectLiteralExpression(node)) return;
-    const resolution = objectShapes.resolveObjectLiteralTargetShape(objectShapes.resolveNode(node), node);
+    const shape = objectShapes.resolveNode(node);
+    const resolution = objectShapes.resolveObjectLiteralTargetShape(shape === undefined ? [] : [shape], node);
     if (resolution?.kind === "resolved") {
       markIntrinsic(node, resolution.shape.targetType);
       record(node, resolution.shape.targetType, "contextual", undefined);

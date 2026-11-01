@@ -74,9 +74,9 @@ export function sealCsharpObjectShapeClassifications(input: {
     resolveTarget(type: TargetTypeRef | undefined): CsharpObjectShapeFact | undefined {
       return type === undefined ? undefined : targetShapes[targetTypeRefKey(getCsharpNullableElementTargetType(type) ?? type)];
     },
-    resolveObjectLiteralTargetShape(expected: CsharpObjectShapeFact | undefined, literal: Node): CsharpObjectLiteralTargetShapeResolution | undefined {
-      const original = expected === undefined ? undefined : targets.get(targetTypeRefKey(expected.targetType)) ?? expected;
-      const key = original === undefined ? "<none>" : csharpObjectShapeContractKey(original);
+    resolveObjectLiteralTargetShape(expected: readonly CsharpObjectShapeFact[], literal: Node): CsharpObjectLiteralTargetShapeResolution | undefined {
+      const original = expected.map(shape => targets.get(targetTypeRefKey(shape.targetType)) ?? shape);
+      const key = JSON.stringify(original.map(csharpObjectShapeContractKey).sort());
       return literals.get(literal)?.results.get(key);
     },
   });

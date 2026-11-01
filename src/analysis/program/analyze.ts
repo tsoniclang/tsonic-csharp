@@ -219,7 +219,6 @@ function analyzeCsharpTargetProgramBeforeSeal(
     ...memoryBindings.issues.map(issue => ({ node: issue.node, message: issue.reason, code: "CSHARP_MEMORY_BINDING_NOT_PROVEN" })),
     ...analysis.sourceEvidence.memoryMetadataIssues,
     ...analysis.typeSystem.projectTypes.issues,
-    ...analysis.typeSystem.nativeConstruction.issues,
     ...analysis.operations.issues,
     ...analysis.expectedTypes.issues,
     ...analysis.conversions.issues,
@@ -272,7 +271,8 @@ function analyzeCsharpTargetProgramBeforeSeal(
     })));
   }
   const { classFactories, captureStorage, nativeDemand, bindingPatterns } = analysis;
-  const flowReads = analyzeCsharpFlowReadProjections({ ...callablePolicy, sourceFiles: analysis.policy.sourceFiles },
+  const flowReads = analyzeCsharpFlowReadProjections({ ...callablePolicy, sourceFiles: analysis.policy.sourceFiles,
+    semanticsFor: analysis.policy.semanticsFor },
     analysis.sourceEvidence, analysis.operations, analysis.valueReads);
   if (classFactories.issues.length > 0) return rejectedTargetStage(classFactories.issues.map(issue => ({
     code: issue.code, category: "error" as const, source: "tsonic-csharp", sourceNode: issue.node, message: issue.message,

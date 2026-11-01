@@ -15,6 +15,7 @@ import type {
   CsharpRecursiveObjectShapePolicy,
 } from "../objects/shapes/model.js";
 import { createCsharpObjectShapePolicy } from "../objects/shapes/api.js";
+import { selectCsharpTargetCall } from "../operations/members/selected-members.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/object-shape-members.js";
 import { csharpObjectShapeMemberRetainsNativeReference } from "../../policy/types/objects/member-reads.js";
 import { resolveCsharpObjectShapeMemberReadTargetType } from "../operations/members/object-shape-members.js";
@@ -256,10 +257,15 @@ export function createCsharpTypeAnalysis(
   const system = createCsharpTypeSystem(host, catalog, selectedRepresentations);
   nativeConstruction = createCsharpNativeConstructionDemandQuery({
     ...host,
+    types: system.analysisTypes,
     scopedTargetType: representations.scopedTargetType,
     resolveShape: system.objectShapes.resolveType,
     resolveLiteralShape: system.objectShapes.resolveObjectLiteralTargetShape,
     retainSourceShape: system.objectShapes.retainConstructionSource,
+    selectTargetCall(node, sourceFile) {
+      return selectCsharpTargetCall({ ...host, types: system.analysisTypes,
+        projectTypes: system.projectTypes, objectShapes: system.objectShapes }, node, sourceFile);
+    },
   });
   return Object.freeze({ ...system, nativeConstruction });
 }

@@ -165,8 +165,17 @@ export function analyzeCsharpStructuralObjectEmission(input: {
         }
       }
     }
+    const dynamicMembers = artifact?.materialization === "synthetic" && !structural &&
+      artifact.capabilities.includes("reference-identity") ? Object.freeze(shape.members.flatMap(member => {
+        if (member.sourceKey.kind !== "property" || member.memberKind === "method" &&
+            csharpObjectShapeMethodDeclaration(shape, member) !== undefined && member.methodValueStorage === undefined) return [];
+        return [Object.freeze({ key: member.sourceKey.name, name: member.memberKind === "method"
+          ? objectShapeStorageMemberName(shape, member) : member.targetName,
+          type: member.methodValueStorage?.type ?? member.type,
+          writable: member.readonly !== true && member.accessor?.setter !== false })];
+      })) : undefined;
     values.set(key, Object.freeze({ members: Object.freeze(interfaceMembers), methodValues: Object.freeze(methodValues), methods,
-      contracts: Object.freeze(contracts) }));
+      contracts: Object.freeze(contracts), dynamicMembers }));
   }
   return Object.freeze({ records: createCsharpStructuralObjectEmissionRecords(values), issues: Object.freeze(issues) });
 }

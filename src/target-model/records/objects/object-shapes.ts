@@ -35,7 +35,7 @@ export interface CsharpObjectShapeClassifications<StructuralImplementation = imp
     type: TargetTypeRef | undefined,
   ): CsharpObjectShapeFact | undefined;
   resolveObjectLiteralTargetShape(
-    expectedShape: CsharpObjectShapeFact | undefined,
+    expectedShapes: readonly CsharpObjectShapeFact[],
     objectLiteral: Node,
     sourceFile?: SourceFile,
   ): CsharpObjectLiteralTargetShapeResolution | undefined;
@@ -84,7 +84,7 @@ export interface CsharpObjectShapePolicy {
     sourceKey: CsharpSourceMemberKey,
   ): CsharpObjectShapeMemberFact | undefined;
   resolveObjectLiteralTargetShape(
-    expectedShape: CsharpObjectShapeFact | undefined,
+    expectedShapes: readonly CsharpObjectShapeFact[],
     objectLiteral: Node,
     sourceFile: SourceFile,
   ): CsharpObjectLiteralTargetShapeResolution;

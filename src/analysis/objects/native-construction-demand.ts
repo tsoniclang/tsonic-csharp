@@ -1,8 +1,9 @@
 import { providerVirtualDeclarationFactKey, type Node, type SourceFile, type Type } from "@tsonic/tsts";
 import { sourceDeclarationIsModuleScoped, sourceEnclosingCallable,
-  type SourceFileSemantics, type SourceTypeComponentEvidence } from "@tsonic/target-api/source";
-import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/model.js";
-import { targetTypeRefEquals } from "../../target-model/types/equality.js";
+  sourceExpressionCallArgument, sourceCallArgumentCorrespondences,
+  type SourceTypeComponentEvidence } from "@tsonic/target-api/source";
+import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
+import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 import { csharpNullableTargetType } from "../../target-model/types/carriers/nullable.js";
 import { createCsharpMetadataBudget, maximumCsharpMetadataEntries } from "../../target-model/metadata/immutable.js";
 import type { CsharpTypePolicyBaseHost } from "../source-evidence/types/resolution/model.js";
@@ -12,142 +13,207 @@ import type { CsharpNativeConstructionDemandQueries, CsharpNativeConstructionIss
   CsharpNativeConstructionSelection } from "../../target-model/records/native/native-construction.js";
 import type { CsharpObjectLiteralTargetShapeResolution } from "../../target-model/records/objects/object-shapes.js";
 import { createCsharpNativeConstructionRecords } from "../program/records/native/native-construction.js";
+import type { CsharpTargetCallSelection } from "../../target-model/records/operations/member-selections.js";
+import type { CsharpTypeQueries } from "../../policy/model/type-resolution.js";
 
 type LiteralContextHost = Pick<CsharpTypePolicyBaseHost, "ast" | "navigation" | "semanticsFor">;
 
-interface CsharpLiteralContext {
+interface CsharpLiteralRequirement {
   readonly component: SourceTypeComponentEvidence;
-  readonly declarations: readonly Node[];
   readonly source: Node;
   readonly returnedFrom?: Node;
+  readonly sourceAnnotation?: Node;
+}
+
+interface CsharpLiteralContext {
+  readonly requirements: readonly CsharpLiteralRequirement[];
+  readonly directRequirements: readonly CsharpLiteralRequirement[];
+  readonly declarations: readonly Node[];
+  readonly unclassified: readonly Node[];
+  readonly untypedReturns: readonly Node[];
 }
 
 export function selectCsharpLiteralDeclarationContext(
   expression: Node,
-  queries: SourceFileSemantics,
   host: LiteralContextHost,
-): CsharpLiteralContext | undefined {
+): CsharpLiteralContext {
   const { ast, navigation } = host;
-  let current = expression;
-  while (ast.is.IsParenthesizedExpression(ast.parent(current))) current = ast.parent(current)!;
-  const declaration = ast.parent(current);
-  const variable = declaration !== undefined && ast.is.IsVariableDeclaration(declaration)
-    ? ast.as.AsVariableDeclaration(declaration) : undefined;
-  if (ast.is.IsObjectLiteralExpression(expression)) {
-    let initializer = current;
-    let owner = declaration;
-    while (owner !== undefined && !ast.is.IsVariableDeclaration(owner)) {
-      if (!ast.is.IsPropertyAssignment(owner) || ast.as.AsPropertyAssignment(owner)?.Initializer !== initializer) break;
-      const literal = ast.parent(owner);
-      if (literal === undefined || !ast.is.IsObjectLiteralExpression(literal)) break;
-      initializer = literal;
-      while (ast.is.IsParenthesizedExpression(ast.parent(initializer))) initializer = ast.parent(initializer)!;
-      owner = ast.parent(initializer);
+  const flow = navigation.expressionValueFlow(expression);
+  const declarations = flow.aliasDeclarations;
+  const requirements: CsharpLiteralRequirement[] = [];
+  const unclassified = new Set<Node>();
+  const untypedReturns = new Set<Node>();
+  const addType = (node: Node, typeNode: Node, declaration: Node, returnedFrom?: Node): boolean => {
+    const selectedType = host.semanticsFor(typeNode).types.authoredType(typeNode);
+    if (selectedType === undefined) {
+      unclassified.add(node);
+      return false;
     }
-    const binding = owner !== undefined && ast.is.IsVariableDeclaration(owner)
-      ? ast.as.AsVariableDeclaration(owner) : undefined;
-    if (binding?.Initializer === initializer && binding.Type !== undefined &&
-      ast.is.IsObjectBindingPattern(ast.name(owner!))) {
-      const selectedType = queries.types.expressionType(expression);
-      return selectedType === undefined ? undefined : { component: { selectedType, declaration: owner },
-        declarations: [], source: expression };
-    }
-  }
-  const declarations = variable?.Initializer === current ? [declaration!] : [];
-  const returnContext = (callable: Node, locals: readonly Node[]): CsharpLiteralContext | undefined => {
-    const authoredTypeNode = ast.typeNode(callable);
-    if (authoredTypeNode !== undefined) {
-      const selectedType = host.semanticsFor(authoredTypeNode).types.authoredType(authoredTypeNode);
-      return selectedType === undefined ? undefined : { component: { selectedType, authoredTypeNode, declaration: callable },
-        declarations: locals, source: expression, returnedFrom: callable };
-    }
-    const callableQueries = host.semanticsFor(callable);
-    const contextual = callableQueries.types.contextualValueSelection(callable);
-    const signature = contextual.kind === "selected" ? callableQueries.types.callable(contextual.component.selectedType) : undefined;
-    return signature === undefined ? undefined : { component: signature.result, declarations: locals,
-      source: expression, returnedFrom: callable };
+    requirements.push({ component: { selectedType, authoredTypeNode: typeNode, declaration },
+      source: node, ...(returnedFrom === undefined ? {} : { returnedFrom }),
+      ...(node === expression ? { sourceAnnotation: typeNode } : {}) });
+    return true;
   };
-  const parent = ast.parent(current);
-  const returning = parent !== undefined && ast.is.IsReturnStatement(parent) ||
-    parent !== undefined && (ast.is.IsArrowFunction(parent) || ast.is.IsFunctionExpression(parent)) && ast.body(parent) === current;
-  if (returning) {
-    const callable = parent !== undefined && (ast.is.IsArrowFunction(parent) || ast.is.IsFunctionExpression(parent))
-      ? parent : sourceEnclosingCallable(expression, ast);
-    const selected = callable === undefined ? undefined : returnContext(callable, declarations);
-    if (selected !== undefined) return selected;
-  }
-  const direct = queries.types.contextualValueSelection(expression);
-  if (direct.kind === "selected") return { component: direct.component, declarations, source: expression };
-  if (declarations.length === 0) return undefined;
-  const list = ast.parent(declaration!);
-  const statement = ast.parent(list);
-  const block = ast.parent(statement);
-  if (list === undefined || statement === undefined || block === undefined ||
-    !ast.is.IsVariableDeclarationList(list) || !ast.is.IsVariableStatement(statement) ||
-    !ast.is.IsBlock(block)) return undefined;
-  const siblings = ast.children(block).filter((node): node is Node => node !== undefined);
-  const position = siblings.indexOf(statement);
-  if (position < 0) return undefined;
-  const next = siblings[position + 1];
-  if (next === undefined) return undefined;
-  const immediate = ast.is.IsReturnStatement(next) ? ast.as.AsReturnStatement(next)?.Expression
-    : ast.is.IsExpressionStatement(next) ? ast.as.AsExpressionStatement(next)?.Expression : undefined;
-  const call = immediate !== undefined && ast.is.IsCallExpression(immediate) ? ast.as.AsCallExpression(immediate) : undefined;
-  if (call !== undefined) {
-    for (const argument of call.Arguments?.Nodes ?? []) {
-      if (argument === undefined || !ast.is.IsIdentifier(argument) ||
-        navigation.referenceFor(argument)?.declaration !== declaration) continue;
-      const checked = host.semanticsFor(argument).types.contextualValueSelection(argument);
-      if (checked.kind === "selected") return { component: checked.component, declarations, source: argument };
+  const addArgument = (node: Node, returnedFrom?: Node): boolean => {
+    const argument = sourceExpressionCallArgument(node, { ast, semantics: { forNode: host.semanticsFor } });
+    if (argument === undefined) return false;
+    const semantics = host.semanticsFor(argument.call);
+    const call = semantics.operations.call(argument.call);
+    const rows = call === undefined ? undefined : sourceCallArgumentCorrespondences({ ast, semantics }, call);
+    const selected = rows?.filter(row => row.argument.expression === ast.arguments(argument.call)[argument.argumentIndex] &&
+      row.binding.sourceForm === "value");
+    if (call === undefined || selected?.length !== 1) {
+      unclassified.add(node);
+      return false;
     }
-    return undefined;
+    const row = selected[0]!;
+    const formal = row.binding.selectedParameterType;
+    const component = returnedFrom === undefined
+      ? { selectedType: formal, declaration: row.parameter.parameterDeclaration,
+          authoredTypeNode: row.parameter.authoredTypeNode, contextualCall: call }
+      : semantics.types.callable(formal)?.result;
+    if (component === undefined) {
+      unclassified.add(node);
+      return false;
+    }
+    requirements.push({ component, source: node, ...(returnedFrom === undefined ? {} : { returnedFrom }) });
+    return true;
+  };
+  const addReturn = (node: Node, callable: Node): boolean => {
+    const typeNode = ast.typeNode(callable);
+    if (typeNode !== undefined) return addType(node, typeNode, callable, callable);
+    if (addArgument(callable, callable)) return true;
+    untypedReturns.add(node);
+    return false;
+  };
+  const addContext = (node: Node): boolean => {
+    let current = node;
+    let parent = ast.parent(current);
+    const seen = new Set<Node>();
+    while (parent !== undefined && (ast.is.IsParenthesizedExpression(parent) ||
+        ast.is.IsSatisfiesExpression(parent))) {
+      if (seen.has(parent)) return false;
+      seen.add(parent);
+      current = parent;
+      parent = ast.parent(current);
+    }
+    if (parent === undefined) return false;
+    if (ast.is.IsAsExpression(parent) || ast.is.IsTypeAssertion(parent)) {
+      const typeNode = ast.typeNode(parent);
+      return typeNode !== undefined && addType(node, typeNode, parent);
+    }
+    if ((ast.is.IsVariableDeclaration(parent) && ast.as.AsVariableDeclaration(parent)?.Initializer === current) ||
+        ast.is.IsPropertyDeclaration(parent) && ast.as.AsPropertyDeclaration(parent)?.Initializer === current) {
+      const typeNode = ast.typeNode(parent);
+      return typeNode !== undefined && addType(node, typeNode, parent);
+    }
+    if (ast.is.IsReturnStatement(parent) || (ast.is.IsArrowFunction(parent) || ast.is.IsFunctionExpression(parent)) &&
+        ast.body(parent) === current) {
+      const callable = ast.is.IsReturnStatement(parent) ? sourceEnclosingCallable(parent, ast) : parent;
+      return callable !== undefined && addReturn(node, callable);
+    }
+    if (addArgument(current)) return true;
+    if (ast.is.IsBinaryExpression(parent) && ast.operatorKindName(parent) === "KindEqualsToken" &&
+        ast.as.AsBinaryExpression(parent)?.Right === current) {
+      const left = ast.as.AsBinaryExpression(parent)?.Left;
+      const selectedType = left === undefined ? undefined : host.semanticsFor(left).types.expressionType(left);
+      if (selectedType === undefined) return false;
+      requirements.push({ component: { selectedType }, source: node });
+      return true;
+    }
+    if (ast.is.IsArrayLiteralExpression(parent)) {
+      const index = ast.elements(parent).indexOf(current);
+      const outer = selectCsharpLiteralDeclarationContext(parent, host);
+      for (const requirement of outer.requirements) {
+        const semantics = host.semanticsFor(requirement.source);
+        const type = requirement.component.selectedType;
+        const selectedType = semantics.types.isTuple(type) ? semantics.types.tupleElementTypes(type)[index]
+          : semantics.types.isArrayLike(type) ? semantics.types.typeArguments(type)[0] : undefined;
+        if (selectedType !== undefined) requirements.push({ component: { selectedType,
+          declaration: requirement.component.declaration }, source: node,
+          ...(node === expression && requirement.sourceAnnotation !== undefined
+            ? { sourceAnnotation: requirement.sourceAnnotation } : {}) });
+      }
+      return requirements.length > 0;
+    }
+    if (ast.is.IsPropertyAssignment(parent) && ast.as.AsPropertyAssignment(parent)?.Initializer === current) {
+      const literal = ast.parent(parent);
+      const name = ast.name(parent);
+      if (literal === undefined || name === undefined || !ast.is.IsObjectLiteralExpression(literal) ||
+          !ast.is.IsIdentifier(name) && !ast.is.IsStringLiteral(name)) return false;
+      const outer = selectCsharpLiteralDeclarationContext(literal, host);
+      for (const requirement of outer.requirements) {
+        const semantics = host.semanticsFor(requirement.source);
+        const properties = semantics.types.propertyInfos(requirement.component.selectedType)
+          .filter(property => property.name === ast.text(name));
+        if (properties.length === 1) requirements.push({ component: { selectedType: properties[0]!.type,
+          declaration: requirement.component.declaration }, source: node,
+          ...(node === expression && requirement.sourceAnnotation !== undefined
+            ? { sourceAnnotation: requirement.sourceAnnotation } : {}) });
+      }
+      return requirements.length > 0;
+    }
+    return false;
+  };
+  addContext(expression);
+  const directRequirements = Object.freeze([...requirements]);
+  for (const declaration of declarations) {
+    const typeNode = ast.typeNode(declaration);
+    if (typeNode !== undefined) addType(declaration, typeNode, declaration);
+    else if (declaration !== ast.parent(expression)) {
+      const list = ast.parent(declaration);
+      if (list === undefined || ast.variableDeclarationKind(list) !== "const") unclassified.add(declaration);
+    }
+    if (typeNode === undefined && navigation.declarationUseSummary(declaration).bindingWritten) unclassified.add(declaration);
   }
-  if (ast.is.IsReturnStatement(next)) {
-    const returned = ast.as.AsReturnStatement(next)?.Expression;
-    if (returned === undefined || !ast.is.IsIdentifier(returned) ||
-      navigation.referenceFor(returned)?.declaration !== declaration) return undefined;
-    const callable = sourceEnclosingCallable(next, ast);
-    return callable === undefined ? undefined : returnContext(callable, declarations);
+  if (flow.exported || flow.hasUnclassifiedUse) unclassified.add(expression);
+  for (const use of flow.uses) {
+    if (use.throughMember || use.kind === "type-only" || use.role === "source-linkage" ||
+        use.role === "type-only" || use.role === "receiver" || use.role === "condition" ||
+        use.role === "call-target") continue;
+    if (use.role === "comparison") continue;
+    if (use.role === "write" && !use.throughMember) {
+      const declaration = navigation.referenceFor(use.reference)?.declaration;
+      if (declaration !== undefined && ast.typeNode(declaration) !== undefined) continue;
+    }
+    if (use.role === "storage") {
+      const parent = ast.parent(use.reference);
+      if (parent !== undefined && declarations.includes(parent)) continue;
+    }
+    if (use.role === "argument" && ast.is.IsSpreadElement(ast.parent(use.reference))) continue;
+    if (!addContext(use.reference) && use.role !== "return") unclassified.add(use.reference);
   }
-  if (!ast.is.IsVariableStatement(next)) return undefined;
-  const nextList = ast.as.AsVariableStatement(next)?.DeclarationList;
-  if (nextList === undefined || ast.variableDeclarationKind(nextList) !== "const") return undefined;
-  const variables = ast.children(nextList).filter((node): node is Node =>
-    node !== undefined && ast.is.IsVariableDeclaration(node));
-  const nextDeclaration = variables.length === 1 ? variables[0] : undefined;
-  const nextVariable = nextDeclaration === undefined ? undefined : ast.as.AsVariableDeclaration(nextDeclaration);
-  const initializer = nextVariable?.Initializer;
-  if (initializer === undefined || !ast.is.IsIdentifier(initializer) ||
-    navigation.referenceFor(initializer)?.declaration !== declaration) return undefined;
-  const authoredTypeNode = nextVariable?.Type;
-  if (authoredTypeNode === undefined) {
-    if (!ast.is.IsArrayLiteralExpression(expression)) return undefined;
-    const following = siblings[position + 2];
-    const returned = following !== undefined && ast.is.IsReturnStatement(following)
-      ? ast.as.AsReturnStatement(following)?.Expression : undefined;
-    if (returned === undefined || !ast.is.IsIdentifier(returned) ||
-      navigation.referenceFor(returned)?.declaration !== nextDeclaration) return undefined;
-    const callable = sourceEnclosingCallable(following!, ast);
-    return callable === undefined || ast.typeNode(callable) === undefined ||
-      sourceEnclosingCallable(expression, ast) !== callable ? undefined
-      : returnContext(callable, [...declarations, nextDeclaration!]);
-  }
-  const selectedType = host.semanticsFor(authoredTypeNode).types.authoredType(authoredTypeNode);
-  return selectedType === undefined ? undefined : { component: { selectedType, authoredTypeNode,
-    declaration: nextDeclaration }, declarations, source: expression };
+  return Object.freeze({ requirements: Object.freeze(requirements), directRequirements, declarations,
+    unclassified: Object.freeze([...unclassified]), untypedReturns: Object.freeze([...untypedReturns]) });
 }
 
 interface CsharpNativeConstructionHost extends Pick<CsharpTypePolicyBaseHost,
   "ast" | "navigation" | "providers" | "sourceFacts" | "sourceFiles" | "semanticsFor"> {
   resolveShape(type: Type, file: SourceFile, authoredTypeRoot?: Node): CsharpObjectShapeFact | undefined;
-  resolveLiteralShape(shape: CsharpObjectShapeFact, node: Node, file: SourceFile): CsharpObjectLiteralTargetShapeResolution;
+  resolveLiteralShape(shapes: readonly CsharpObjectShapeFact[], node: Node, file: SourceFile): CsharpObjectLiteralTargetShapeResolution;
   retainSourceShape(node: Node, type: Type, shape: CsharpObjectShapeFact, file: SourceFile): CsharpObjectShapeFact | undefined;
   scopedTargetType(node: Node): TargetTypeRef | undefined;
+  selectTargetCall(node: Node, sourceFile: SourceFile): CsharpTargetCallSelection;
+  readonly types: Pick<CsharpTypeQueries, "resolveSourceCallArgumentParameter">;
 }
 
-export function csharpUntypedObjectLiteralIssue(node: Node): CsharpNativeConstructionIssue {
+function literalTypeHint(node: Node, host: Pick<CsharpTypePolicyBaseHost, "ast">): string {
+  let current = node;
+  while (host.ast.is.IsParenthesizedExpression(host.ast.parent(current))) current = host.ast.parent(current)!;
+  const declaration = host.ast.parent(current);
+  const binding = declaration !== undefined && host.ast.is.IsVariableDeclaration(declaration) ? declaration : undefined;
+  const name = host.ast.name(binding);
+  if (name !== undefined && host.ast.is.IsIdentifier(name))
+    return `Declare a type for '${host.ast.text(name)}' at this initializer.`;
+  const callable = sourceEnclosingCallable(node, host.ast);
+  const callableName = host.ast.name(callable);
+  return callableName === undefined ? "Declare a type at this initializer."
+    : `Declare a return type for '${host.ast.text(callableName)}' at its declaration.`;
+}
+
+function csharpUntypedObjectLiteralIssue(node: Node, host: Pick<CsharpTypePolicyBaseHost, "ast">): CsharpNativeConstructionIssue {
   return Object.freeze({ node, code: "TSONIC_UNTYPED_OBJECT_LITERAL",
-    message: "This object literal has no target type. Declare one, e.g. 'function baseOptions(): MakeDirectoryOptions'." });
+    message: "This object literal has no target type. " + literalTypeHint(node, host) });
 }
 
 export function createCsharpNativeConstructionDemandQuery(
@@ -163,7 +229,8 @@ export function createCsharpNativeConstructionDemandQuery(
     const source = queries.types.expressionType(node);
     const members = source === undefined ? [] : queries.types.isUnion(source)
       ? queries.types.unionOrIntersectionTypes(source).filter(type => !queries.types.isNullish(type)) : [source];
-    if (members.length !== 1) return;
+    if (members.length !== 1 || queries.types.isUnknown(members[0]!) ||
+      queries.types.isAny(members[0]!) || queries.types.isNonPrimitive(members[0]!)) return;
     const existing = host.scopedTargetType(node);
     if (existing !== undefined && !targetTypeRefEquals(existing, shape.targetType)) {
       const original = host.resolveShape(members[0]!, queries.sourceFile, node);
@@ -182,72 +249,170 @@ export function createCsharpNativeConstructionDemandQuery(
     const targetType = source !== members[0] ? csharpNullableTargetType(retained.targetType) : retained.targetType;
     constructions.set(node, Object.freeze({ targetType, shape: retained }));
   };
+  const selectedCallUsesValue = (requirement: CsharpLiteralRequirement, declarations: readonly Node[]): boolean => {
+    const argument = sourceExpressionCallArgument(requirement.source,
+      { ast: host.ast, semantics: { forNode: host.semanticsFor } });
+    if (argument === undefined) return false;
+    const semantics = host.semanticsFor(argument.call);
+    const call = semantics.operations.call(argument.call);
+    const rows = call === undefined ? undefined : sourceCallArgumentCorrespondences({ ast: host.ast, semantics }, call);
+    const row = rows?.find(candidate => candidate.binding.sourceArgumentIndex === argument.argumentIndex &&
+      candidate.binding.sourceForm === "value");
+    if (call !== undefined && row !== undefined && requirement.returnedFrom === undefined) {
+      const excluded = new Set([argument.argumentIndex, ...call.sourceArguments.flatMap((source, index) => {
+        const declaration = host.navigation.referenceFor(source.expression)?.declaration;
+        return declaration !== undefined && declarations.includes(declaration) ? [index] : [];
+      })]);
+      const independent = host.types.resolveSourceCallArgumentParameter(call, row.binding, semantics.sourceFile, excluded);
+      if (independent?.kind === "type-parameter") return true;
+    }
+    const selected = host.selectTargetCall(argument.call, host.semanticsFor(argument.call).sourceFile);
+    if (selected.kind !== "resolved") return false;
+    if (selected.call.targetMember.csharpInvocation?.kind === "value-identity") return true;
+    const arguments_ = selected.call.arguments.filter(entry => entry.sourceArgumentIndex === argument.argumentIndex);
+    return arguments_.length > 0 && arguments_.every(entry => {
+      const parameter = selected.call.targetMember.parameters[entry.targetParameterIndex];
+      return parameter?.csharpAcceptsClosedSourceArgument === true && parameter.csharpValueProjection === "properties";
+    });
+  };
   const select = (node: Node): void => {
     if (!host.navigation.isProjectDeclaration(node)) return;
     const queries = host.semanticsFor(node);
     const source = queries.types.expressionType(node);
     if (source === undefined || queries.types.constructSignatures(source).length !== 0) return;
-    const context = selectCsharpLiteralDeclarationContext(node, queries, host);
-    const contextual = context?.component.selectedType;
-    const asynchronous = context?.returnedFrom !== undefined && host.ast.hasModifierKind(context.returnedFrom, "async");
-    const selected = contextual !== undefined && asynchronous ? queries.types.typeArguments(contextual)[0] : contextual;
-    if (selected !== undefined && queries.types.isAny(selected)) {
+    const context = selectCsharpLiteralDeclarationContext(node, host);
+    const ownDeclaration = host.ast.parent(node);
+    const ownCallable = sourceEnclosingCallable(node, host.ast);
+    const ownRequirements = context.directRequirements.filter(requirement =>
+      requirement.component.declaration === ownDeclaration ||
+      requirement.sourceAnnotation !== undefined ||
+      requirement.returnedFrom !== undefined && requirement.returnedFrom === ownCallable);
+    const selectedType = (requirement: CsharpLiteralRequirement): Type | undefined =>
+      requirement.returnedFrom !== undefined && host.ast.hasModifierKind(requirement.returnedFrom, "async")
+        ? queries.types.typeArguments(requirement.component.selectedType)[0] : requirement.component.selectedType;
+    if (ownRequirements.some(requirement => {
+      const selected = selectedType(requirement);
+      return selected !== undefined && queries.types.isAny(selected);
+    })) {
       issue(node, "TSONIC_ANY_UNSUPPORTED", "'any' has no native representation. Declare the type, or use 'unknown' and narrow it.");
       return;
     }
-    if (host.ast.properties(node).length === 0 && selected === undefined) {
-      issues.push(csharpUntypedObjectLiteralIssue(node));
+    const requirements = context.requirements.filter(requirement => !selectedCallUsesValue(requirement, context.declarations));
+    const broad = requirements.some(requirement => {
+      const selected = selectedType(requirement);
+      return selected !== undefined && (queries.types.isUnknown(selected) || queries.types.isAny(selected) ||
+        queries.types.isNonPrimitive(selected));
+    });
+    if (broad && host.ast.properties(node).some(property => property !== undefined &&
+        (host.ast.is.IsGetAccessorDeclaration(property) || host.ast.is.IsSetAccessorDeclaration(property) ||
+          host.ast.is.IsSpreadAssignment(property)))) {
+      issue(node, "CSHARP_UNSUPPORTED_AST",
+        "Dynamic object construction supports only named data properties with closed native value carriers.");
       return;
     }
-    const native = selected !== undefined && queries.facts.typeSubjects(selected).some(subject => {
-      const fact = host.sourceFacts?.getFact(subject, providerVirtualDeclarationFactKey);
-      if (fact === undefined) return false;
-      const provider = host.providers.resolveType(fact);
-      return provider.kind === "resolved" && provider.relations.some(relation =>
-        relation.kind === "type" && relation.objectLiteralConstruction?.kind === "object-initializer");
+    const candidates = requirements.flatMap(requirement => {
+      const selected = selectedType(requirement);
+      if (selected === undefined || queries.types.isUnknown(selected) || queries.types.isAny(selected) ||
+          queries.types.isNonPrimitive(selected)) return [];
+      const native = queries.facts.typeSubjects(selected).some(subject => {
+        const fact = host.sourceFacts?.getFact(subject, providerVirtualDeclarationFactKey);
+        if (fact === undefined) return false;
+        const provider = host.providers.resolveType(fact);
+        return provider.kind === "resolved" && provider.relations.some(relation =>
+          relation.kind === "type" && relation.objectLiteralConstruction?.kind === "object-initializer");
+      });
+      const shape = host.resolveShape(selected, queries.sourceFile,
+        requirement.returnedFrom !== undefined && host.ast.hasModifierKind(requirement.returnedFrom, "async")
+          ? undefined : requirement.component.authoredTypeNode);
+      return shape === undefined ? [] : [{ requirement, shape, native }];
     });
-    if (native && selected !== undefined) {
-      const shape = host.resolveShape(selected, queries.sourceFile, asynchronous ? undefined : context?.component.authoredTypeNode);
+    const nominal = candidates.filter(candidate => candidate.native);
+    const sourceRequirements = candidates.filter(candidate => !candidate.native);
+    const selectedNominal = sourceRequirements.length === 0 ? nominal[0] : undefined;
+    if (selectedNominal !== undefined) {
+      if (nominal.some(candidate => !targetTypeRefEquals(candidate.shape.targetType, selectedNominal.shape.targetType))) {
+        const names = [...new Map(nominal.map(candidate => {
+          const node = candidate.requirement.component.authoredTypeNode;
+          const range = node === undefined ? undefined : host.ast.authoredRange(node);
+          const rendering = candidate.shape.targetType.kind === "target-named"
+            ? (candidate.shape.targetType as CsharpTargetNamedTypeRef).csharpRender : undefined;
+          const name = node !== undefined && range?.kind === "authored"
+            ? host.ast.getSourceText(host.ast.getSourceFile(node)).slice(range.start, range.end)
+            : rendering?.kind === "named" ? rendering.name : "the declared native type";
+          return [targetTypeRefKey(candidate.shape.targetType), name];
+        })).values()];
+        issue(node, "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN",
+          `Native construction has conflicting exact identity requirements '${names.join("' and '")}'. ` + literalTypeHint(node, host));
+        return;
+      }
+      if (context.unclassified.length > 0 && !ownRequirements.some(requirement =>
+          requirement.component.authoredTypeNode !== undefined)) {
+        issue(node, "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN",
+          "Native construction escapes its closed const-alias use set. " + literalTypeHint(node, host));
+        return;
+      }
       const original = host.resolveShape(source, queries.sourceFile, node);
       const budget = createCsharpMetadataBudget();
       let compatible = false;
       try {
-        compatible = shape !== undefined && csharpNativeConstructionMembersMatch(source, original, shape, queries, host, budget.reserve);
+        compatible = csharpNativeConstructionMembersMatch(source, original, selectedNominal.shape, queries, host, budget.reserve);
       } catch (error) {
         if (!(error instanceof TypeError) || error.message !== "C# immutable metadata exceeds its finite resource budget.") throw error;
         issue(node, "TSONIC_COMPILER_RESOURCE_LIMIT",
           `Native construction of this object literal exceeded the finite metadata limit of ${maximumCsharpMetadataEntries} entries.`);
         return;
       }
-      if (shape === undefined || !compatible) {
+      if (!compatible) {
         issue(node, "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN",
           "The declared native construction cannot retain all exact fields, absence and native storage without a copied or adapted object.");
         return;
       }
-      publish(node, shape);
-      for (const declaration of context?.declarations ?? []) {
-        publish(declaration, shape);
-        for (const reference of host.navigation.referencesToDeclaration(declaration)) publish(reference, shape);
+      publish(node, selectedNominal.shape);
+      for (const declaration of context.declarations) {
+        publish(declaration, selectedNominal.shape);
+        for (const reference of host.navigation.referencesToDeclaration(declaration)) publish(reference, selectedNominal.shape);
       }
       return;
     }
-    if (selected !== undefined && !queries.types.isUnknown(selected)) {
-      const expected = host.resolveShape(selected, queries.sourceFile, asynchronous ? undefined : context?.component.authoredTypeNode);
-      const resolved = expected === undefined ? undefined : host.resolveLiteralShape(expected, node, queries.sourceFile);
-      if (resolved?.kind === "rejected") {
-        issue(resolved.subject, "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN", resolved.reason);
-        return;
-      }
-      if (resolved?.kind === "resolved") {
-        publish(node, resolved.shape);
-        for (const declaration of context?.declarations ?? []) {
-          publish(declaration, resolved.shape);
-          for (const reference of host.navigation.referencesToDeclaration(declaration)) publish(reference, resolved.shape);
-        }
-        return;
-      }
+    const empty = host.ast.properties(node).length === 0;
+    const ownAnnotation = ownRequirements.some(requirement => requirement.sourceAnnotation !== undefined ||
+      requirement.component.authoredTypeNode !== undefined);
+    const opaque = requirements.some(requirement => {
+      const selected = selectedType(requirement);
+      if (selected === undefined) return false;
+      if (requirement.component.declaration !== undefined && context.declarations.includes(requirement.component.declaration))
+        return false;
+      if (queries.types.isUnknown(selected) || queries.types.isAny(selected) || queries.types.isNonPrimitive(selected)) return true;
+      return sourceExpressionCallArgument(requirement.source,
+        { ast: host.ast, semantics: { forNode: host.semanticsFor } }) !== undefined &&
+        queries.types.propertyInfos(selected).length === 0;
+    });
+    if (empty && !ownAnnotation && (opaque || context.untypedReturns.length > 0 || context.unclassified.length > 0)) {
+      issues.push(csharpUntypedObjectLiteralIssue(node, host));
+      return;
     }
-    if (context !== undefined) return;
+    const structural = sourceRequirements.length > 0 ? sourceRequirements : candidates;
+    const own = structural.filter(candidate => ownRequirements.includes(candidate.requirement));
+    const expected = [...new Map((own.length > 0 ? own : structural).map(candidate =>
+      [targetTypeRefKey(candidate.shape.targetType), candidate.shape])).values()];
+    if (expected.length === 0) {
+      const checked = host.resolveShape(source, queries.sourceFile, node);
+      if (checked !== undefined) expected.push(checked);
+    }
+    const resolved = expected.length === 0 ? undefined : host.resolveLiteralShape(expected, node, queries.sourceFile);
+    if (resolved?.kind === "rejected") {
+      issue(resolved.subject, "CSHARP_NATIVE_CONSTRUCTION_NOT_PROVEN", resolved.reason);
+      return;
+    }
+    if (resolved?.kind === "resolved") {
+      publish(node, resolved.shape);
+      if (context.unclassified.length > 0) return;
+      for (const declaration of context.declarations) {
+        publish(declaration, resolved.shape);
+        for (const reference of host.navigation.referencesToDeclaration(declaration)) publish(reference, resolved.shape);
+      }
+      return;
+    }
     const declaration = host.ast.parent(node);
     const variable = declaration === undefined || !host.ast.is.IsVariableDeclaration(declaration)
       ? undefined : host.ast.as.AsVariableDeclaration(declaration);

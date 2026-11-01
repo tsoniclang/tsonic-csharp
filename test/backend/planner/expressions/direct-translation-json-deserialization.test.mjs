@@ -168,7 +168,7 @@ test("provider arguments retain an object literal's contextual project interface
   assert.match(shapes, new RegExp(`public class ${selectedCarrier} : ErrorResponse`, "u"));
 });
 
-test("JS structural views retain one closed value carrier through assertions, flow, mutation, identity, and literals", () => {
+test("JS structural views retain one closed value carrier through assertions, flow, mutation, identity, and literals", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({
     surface: "js",
     sourceText: `
@@ -230,7 +230,7 @@ test("JS structural views retain one closed value carrier through assertions, fl
         }
         public static string create()
         {
-            ObjectShape_64173a5b655b<Tsonic.CSharp.Runtime.TsValue> obj = new ObjectShape_b1754c0ee162
+            ObjectShape_b1754c0ee162 obj = new ObjectShape_b1754c0ee162
             {
                 title = Tsonic.CSharp.Js.JSON.parse("\\\"created\\\""),
             };
@@ -249,25 +249,63 @@ if (Index.parse(@"{""title"":""kept""}") != "kept" || Index.parse(@"{""title"":7
     throw new System.Exception("checked JSON field refinement");
 if (Index.update(@"{""title"":""kept""}") != "number" || !Index.identity(@"{""title"":""kept""}"))
     throw new System.Exception("original JSON mutation and alias identity");
+if (Index.create() != "string") throw new System.Exception("the original closed literal retains its JSON field payload");
+for (int iteration = 0; iteration < 10000; iteration++) {
+    Escape.Value = Index.create();
+    Escape.Value = Native.Create();
+}
+long before = System.GC.GetAllocatedBytesForCurrentThread();
+for (int iteration = 0; iteration < 4096; iteration++) Escape.Value = Index.create();
+long actual = System.GC.GetAllocatedBytesForCurrentThread() - before;
+before = System.GC.GetAllocatedBytesForCurrentThread();
+for (int iteration = 0; iteration < 4096; iteration++) Escape.Value = Native.Create();
+long reference = System.GC.GetAllocatedBytesForCurrentThread() - before;
+if (Escape.Value != "string" || actual != reference)
+    throw new System.Exception($"native closed JSON construction allocation {actual} != {reference}");
+static class Escape { public static string? Value; }
+static class Native {
+    public static string Create() {
+        var value = new Closed { title = Tsonic.CSharp.Js.JSON.parse(@"""created""") };
+        return Tsonic.CSharp.Runtime.TsValue.ApplyDynamicTypeof(value.title);
+    }
+    private sealed class Closed { public Tsonic.CSharp.Runtime.TsValue title; }
+}
 `);
 });
 
 test("broad value object literals lower directly into nested closed JS-value carriers", () => {
-  const compiled = compileCsharpSource({
-    sourceText: `
+  const constructionSource = resultType => `
       export function createUnknown(): unknown {
         return { value: 1, child: { label: "ready" } };
       }
-      export function createAny(): any {
+      export function createAny(): ${resultType} {
         return { enabled: true };
       }
-    `,
-  });
-
+    `;
+  const originalSource = constructionSource("any");
+  const compiled = compileCsharpSource({ sourceText: originalSource });
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
-  assert.deepEqual(compiled.targetDiagnostics, []);
-  const source = compiled.artifacts.get("src/Index.cs") ?? "";
+  const issues = compiled.result.diagnostics.filter(issue => issue.category === "error");
+  assert.equal(issues.length, 1, "only the original explicit-any literal is refused");
+  assert.equal(issues[0].code, "TSONIC_ANY_UNSUPPORTED");
+  assert.equal(issues[0].message,
+    "'any' has no native representation. Declare the type, or use 'unknown' and narrow it.");
+  const ast = compiled.source.ast;
+  assert.equal(ast.is.IsObjectLiteralExpression(issues[0].sourceNode), true,
+    "the original literal owns the refusal, not its supported broad sibling");
+  const range = ast.authoredRange(issues[0].sourceNode);
+  assert.equal(range.kind === "authored", true);
+  assert.deepEqual({ start: range.start, end: range.end },
+    { start: originalSource.indexOf("{ enabled: true }"), end: originalSource.indexOf("{ enabled: true }") + "{ enabled: true }".length });
+  assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0,
+    true, "an explicit-any construction publishes no executable partial program");
+
+  const supported = compileCsharpSource({ sourceText: constructionSource("unknown") });
+  assert.equal(supported.sourceDiagnosticsText, "");
+  assert.deepEqual(supported.extensionDiagnostics, []);
+  assert.deepEqual(supported.targetDiagnostics, []);
+  const source = supported.artifacts.get("src/Index.cs") ?? "";
   assert.match(
     source,
     /TsValue createUnknown\(\)[\s\S]*TsValue\.from\(new ObjectShape_[a-f0-9]+\s*\{\s*value = 1,\s*child = new ObjectShape_[a-f0-9]+\s*\{\s*label = "ready",\s*\},\s*\}\)/u,
@@ -276,7 +314,14 @@ test("broad value object literals lower directly into nested closed JS-value car
     source,
     /TsValue createAny\(\)[\s\S]*TsValue\.from\(new ObjectShape_[a-f0-9]+\s*\{\s*enabled = true,\s*\}\)/u,
   );
-  assert.equal(compiled.artifacts.has("generated/TsonicObjectShapes.cs"), true,
+  assert.equal(supported.artifacts.has("generated/TsonicObjectShapes.cs"), true,
     "broad result boxing does not erase the closed native field inventories");
   assert.doesNotMatch(source, /CreateDynamicObject|ReadDynamicSlot|WriteDynamicSlot|System\.Reflection/u);
+  executeCsharpConstruction(supported, "broad-unknown-native-construction", false, false, [], `
+var nested = Tsonic.Generated.Index.createUnknown();
+if (System.Convert.ToInt64(nested.ReadDynamicSlot("value").unwrap()) != 1 ||
+    nested.ReadDynamicSlot("child").ReadDynamicSlotAs<string>("label") != "ready" ||
+    !Tsonic.Generated.Index.createAny().ReadDynamicSlotAs<bool>("enabled"))
+    throw new System.Exception("original closed native broad fields retain exact payloads");
+`);
 });

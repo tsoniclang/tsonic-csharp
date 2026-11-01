@@ -191,18 +191,26 @@ test(`${surface} incompatible actual native destinations refuse one physical arr
     const ast = compiled.nativeStage.source.ast;
     const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
     const text = range?.kind !== "authored" ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode)).slice(range.start, range.end);
-    const owner = issue?.sourceNode === undefined ? undefined : ast.parent(issue.sourceNode);
-    const ownerRange = owner === undefined ? undefined : ast.authoredRange(owner);
-    const ownerText = ownerRange?.kind !== "authored" ? undefined
-      : ast.getSourceText(ast.getSourceFile(owner)).slice(ownerRange.start, ownerRange.end);
     const expected = surface === "native"
-      ? "No exact C# implicit conversion relates 'array:1:source:float32' to 'array:1:source:float64'."
-      : "No exact C# implicit conversion relates 'target:Tsonic.CSharp.Js.JSArray`1<source:float32>' to 'target:Tsonic.CSharp.Js.JSArray`1<source:float64>'.";
-    assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "CSHARP_UNSUPPORTED_AST" &&
-      issue.message === expected && text === "values" && ownerText === "double(values)", true,
-      `the incompatible native use is refused without retyping the earlier literal, copying its array or repairing storage; ${diagnosticLabel(compiled)}`);
+      ? "Native array construction has conflicting identity destinations: 'single(values)' requires float32[]; 'double(values)' requires float64[]. Declare an exact native array type for this binding."
+      : "Native array construction has conflicting identity destinations: 'single(values)' requires JSArray<float32>; 'double(values)' requires JSArray<float64>. Declare an exact native array type for this binding.";
+    const errors = compiled.result.diagnostics.filter(diagnostic => diagnostic.category === "error");
+    assert.equal(errors.length === 1 && issue.code === "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH" &&
+      issue.message === expected && text === "[narrow, signed]", true,
+      `the complete conflicting identity-use set is refused at its one physical construction without retyping, copying or storage repair; ${diagnosticLabel(compiled)}`);
     assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
       "one physical construction is either closed or precisely refused before publication");
+    for (const [callee, element] of [["single", "float32"], ["double", "float64"]]) {
+      const program = accepted(compile(surface, `function single(values: float32[]): void {}
+      function double(values: number[]): void {}
+      export function run(narrow: float32, signed: int32): void {
+        const values = [narrow, signed]; ${callee}(values); }`));
+      const storage = arrays(program).get("values");
+      const construction = constructedArrays(program).get("values");
+      assert.equal(storage?.kind === "source-primitive" && storage.name === element &&
+        construction?.kind === "source-primitive" && construction.name === element, true,
+        `${callee}: the sole independent native identity requirement selects the same physical construction and storage carrier`);
+    }
   });
 
 test(`${surface} an erased callable does not admit or reject its numeric body`, () => {

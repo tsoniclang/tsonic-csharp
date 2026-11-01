@@ -267,7 +267,7 @@ export function analyzeCsharpStorage(
       ...expectedTypes.expectedType.get(owner).flatMap((targetType) => {
         const expectedShape = objectShapes.resolveTarget(targetType);
         const resolution = objectShapes.resolveObjectLiteralTargetShape(
-          expectedShape,
+          expectedShape === undefined ? [] : [expectedShape],
           owner,
         );
         return resolution?.kind === "resolved" ? [resolution.shape] : [];
