@@ -2,7 +2,6 @@ import { selectCsharpFlowReadConversion } from "../../conversions/expression.js"
 import type { CsharpFlowReadProjection, CsharpValueRefinementClassification } from "../../../target-model/records/program/source-evidence.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import type { SourceAbsenceUse } from "@tsonic/target-api/source";
 
 export function selectCsharpFlowReadProjection(
   policy: Parameters<typeof selectCsharpFlowReadConversion>[0],
@@ -11,10 +10,8 @@ export function selectCsharpFlowReadProjection(
   refinement: CsharpValueRefinementClassification | undefined,
   deferredConstructorField: boolean,
   selectedThrowable: boolean,
-  absenceUse: SourceAbsenceUse,
 ): CsharpFlowReadProjection {
   if (storageType === undefined) return { kind: "identity" };
-  if (absenceUse !== undefined) return { kind: "identity" };
   if (storageType.kind === "type-parameter" && selectedType !== undefined &&
       targetTypeRefEquals(storageType, selectedType) && deferredConstructorField) return { kind: "non-null" };
   if (refinement === undefined) return { kind: "rejected",

@@ -8,10 +8,9 @@ import type { CsharpTargetOperationClassifications } from "../../target-model/re
 import type { CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
 import { admitCsharpConversionSelection } from "./validation.js";
-import { sourceAbsenceUse } from "@tsonic/target-api/source";
 
 export function analyzeCsharpFlowReadProjections(
-  policy: Pick<CsharpPolicyContext, "ast" | "sourceFiles" | "navigation" | "typeDefinitions" | "projectTypes" | "providers" | "target" | "semanticsFor"> & {
+  policy: Pick<CsharpPolicyContext, "ast" | "sourceFiles" | "navigation" | "typeDefinitions" | "projectTypes" | "providers" | "target"> & {
     readonly objectShapes: Pick<CsharpObjectShapeClassifications, "resolveNode" | "resolveTarget">;
   },
   evidence: CsharpSourceEvidenceIndex,
@@ -32,7 +31,6 @@ export function analyzeCsharpFlowReadProjections(
       const selected = selectCsharpFlowReadProjection(
         policy, read?.flowReadStorage, read?.flowReadValue, evidence.valueRefinement.get(node), deferredConstructorFieldRead(policy.ast, node),
         isCsharpThrowableType(policy, evidence.valueRefinement.get(node)?.flowReadTargetType),
-        sourceAbsenceUse(node, policy),
       );
       const projection = selected.kind === "conversion"
         ? { ...selected, selection: admitCsharpConversionSelection(policy, selected.source, selected.target, selected.selection) }

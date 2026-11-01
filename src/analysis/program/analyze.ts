@@ -272,8 +272,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     })));
   }
   const { classFactories, captureStorage, nativeDemand, bindingPatterns } = analysis;
-  const flowReads = analyzeCsharpFlowReadProjections({ ...callablePolicy, sourceFiles: analysis.policy.sourceFiles,
-    semanticsFor: analysis.policy.semanticsFor },
+  const flowReads = analyzeCsharpFlowReadProjections({ ...callablePolicy, sourceFiles: analysis.policy.sourceFiles },
     analysis.sourceEvidence, analysis.operations, analysis.valueReads);
   if (classFactories.issues.length > 0) return rejectedTargetStage(classFactories.issues.map(issue => ({
     code: issue.code, category: "error" as const, source: "tsonic-csharp", sourceNode: issue.node, message: issue.message,
