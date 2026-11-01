@@ -36,5 +36,5 @@ test("direct C# translation lowers exact wide source literals without broad BigI
   assert.match(source, /asserted = 3L;/u);
   assert.match(source, /asserted128 = new Int128\(9223372036854775808UL, 0UL\);/u);
   assert.match(source, /values = new long\[\] \{ 4L, 5L \};/u);
-  assert.match(source, /broad = System\.Numerics\.BigInteger\.Parse\("6"\);/u);
+  assert.match(source, /broad = new System\.Numerics\.BigInteger\(6L\);/u);
 });
