@@ -13,17 +13,22 @@ function inputs(options = {}) {
   const file = {};
   const argument = { expression: {}, type: {} };
   const binding = { sourceArgumentIndex: 0, effectiveArgumentIndex: 0, sourceParameterIndex: 0,
-    sourceForm: "value", ...options.binding };
+    sourceForm: "value" };
   const call = {};
-  const source = { call, sourceSelectedSignatureKind: "resolved", sourceArguments: [argument], sourceArgumentBindings: options.bindings ?? [binding],
-    sourceSelectedSignatureParameters: [{ parameterIndex: options.parameterIndex ?? 0 }] };
+  const canonical = { call, sourceSelectedSignatureKind: "resolved", sourceArguments: [argument], sourceArgumentBindings: [binding],
+    sourceSelectedSignatureParameters: [{ parameterIndex: 0 }] };
+  const source = options.binding === undefined && options.bindings === undefined && options.parameterIndex === undefined
+    ? canonical : { ...canonical, sourceArgumentBindings: options.bindings ?? [{ ...binding, ...options.binding }],
+      sourceSelectedSignatureParameters: [{ parameterIndex: options.parameterIndex ?? 0 }] };
   let reads = 0;
   const host = {
-    ast: { is: { IsSpreadElement: () => false }, arguments: node => {
+    ast: { getSourceFile: node => node === call ? file : undefined,
+      is: { IsSpreadElement: () => false }, arguments: node => {
       assert.equal(node === call, true, "only the original checked call owns these arguments");
       return [argument.expression];
     } },
-    semantics: () => ({ types: { isNumberLike: () => false,
+    semantics: () => ({ sourceFile: file, operations: { call: node => node === call ? canonical : undefined },
+      types: { isNumberLike: () => false,
       callable: type => type === argument.type && options.callable !== false ? {} : undefined } }),
     types: { resolveSelectedValue: () => undefined, resolveType: () => undefined, resolveNode: () => undefined,
       resolveSourceCallTypeArguments: () => [],
