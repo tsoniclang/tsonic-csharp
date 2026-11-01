@@ -26,7 +26,6 @@ import { csharpConditionalDeclaration, resolveCsharpConditionalApplication } fro
 import { csharpSourceStorageContext, csharpSourceStorageComponentContext } from "./source-storage-projection.js";
 import { bindCsharpSourceTypeArguments } from "./generic-arguments.js";
 import { csharpTargetParameterValueType } from "../../../../target-model/types/member-facts.js";
-import { typeIsExcludedFromObjectShape } from "../../../objects/shapes/source-evidence.js";
 import { getCsharpCallableValueSignature } from "../../../../target-model/types/carriers/delegates.js";
 
 export function resolveTypeReferenceNode(
@@ -249,7 +248,7 @@ export function resolveStandardSourceTypeTransformation(
   >,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
-  authoredRoot: Node | undefined,
+  authoredRoot: Node,
   selectedType: Type,
 ): TargetTypeRef | undefined {
   if (transformation.kind === "unresolved") {
@@ -261,13 +260,6 @@ export function resolveStandardSourceTypeTransformation(
     return getCsharpNullableElementTargetType(input) ?? input;
   }
   if (transformation.kind === "component") {
-    if (!typeIsExcludedFromObjectShape(selectedType, queries, host)) {
-      const members = queries.types.structuralMembers(selectedType, transformation.component.selectedType, "correspondence");
-      if (members.kind === "available" && members.members.some(pair => pair.kind === "present" &&
-        pair.source.property.readonly !== pair.destination.property.readonly)) {
-        return host.structuralTypes.resolveType(selectedType, queries.sourceFile, nextState(state), authoredRoot);
-      }
-    }
     return resolveSourceTypeComponentEvidence(
       transformation.component,
       queries,

@@ -110,7 +110,7 @@ export function requiresUnresolvedStructuralProjection(
 export function typeIsExcludedFromObjectShape(
   type: Type,
   queries: SourceFileSemantics,
-  host: Pick<CsharpObjectShapePolicyHost, "ast">,
+  host: CsharpObjectShapePolicyHost,
 ): boolean {
   const profile = classifyCsharpSourceProfileType(type, queries, host.ast);
   return queries.types.isAny(type) ||

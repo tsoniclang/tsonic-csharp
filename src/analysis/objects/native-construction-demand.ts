@@ -180,24 +180,27 @@ export function selectCsharpLiteralDeclarationContext(
         continue;
       }
     }
-    const context = selectCsharpLiteralDeclarationContext(reference, host.semanticsFor(reference), host);
-    if (context?.kind === "rejected") return context;
-    if (context === undefined) return reject(reference, "has an unresolved identity use");
-    if (use.role === "storage" && parent !== undefined && aliases.has(parent) &&
-      queries.types.isNonPrimitive(context.component.selectedType)) continue;
     const argument = use.role === "argument" ? sourceExpressionCallArgument(reference,
       { ast, semantics: { forNode: host.semanticsFor } }) : undefined;
     const callQueries = argument === undefined ? undefined : host.semanticsFor(argument.call);
     const call = argument === undefined ? undefined : callQueries?.operations.call(argument.call);
+    const rows = call === undefined || callQueries === undefined ? undefined
+      : sourceCallArgumentCorrespondences({ ast, semantics: callQueries }, call)?.filter(row =>
+        row.binding.sourceArgumentIndex === argument!.argumentIndex && row.binding.sourceForm === "value");
+    const context = call !== undefined && rows?.length === 1
+      ? selected({ component: { selectedType: rows[0]!.binding.selectedParameterType, contextualCall: call },
+        source: reference }, [], [])
+      : selectCsharpLiteralDeclarationContext(reference, host.semanticsFor(reference), host);
+    if (context?.kind === "rejected") return context;
+    if (context === undefined) return reject(reference, "has an unresolved identity use");
+    if (use.role === "storage" && parent !== undefined && aliases.has(parent) &&
+      queries.types.isNonPrimitive(context.component.selectedType)) continue;
     const target = argument === undefined || callQueries === undefined ? undefined
       : host.selectTargetCall(argument.call, callQueries.sourceFile);
     const projected = target?.kind !== "resolved" ? [] : target.call.arguments.filter(selected =>
       selected.sourceArgumentIndex === argument!.argumentIndex && selected.sourceForm === "value");
     if (projected.length === 1 && projected[0]!.targetParameter.csharpAcceptsClosedSourceArgument === true &&
       projected[0]!.targetParameter.csharpValueProjection === "properties") continue;
-    const rows = call === undefined || callQueries === undefined ? undefined
-      : sourceCallArgumentCorrespondences({ ast, semantics: callQueries }, call)?.filter(row =>
-        row.binding.sourceArgumentIndex === argument!.argumentIndex && row.binding.sourceForm === "value");
     const formal = rows?.length === 1 ? rows[0]!.parameter.authoredTypeNode : undefined;
     const authored = formal === undefined ? undefined : host.semanticsFor(formal).types.authoredType(formal);
     const inferred = authored === undefined ? undefined : call?.sourceSelectedMethodTypeArguments?.find(binding =>
