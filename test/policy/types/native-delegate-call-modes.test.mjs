@@ -15,6 +15,7 @@ function fixture(modes, slots) {
     sourceCallee: { expression, type: {}, selectedDeclaration },
     sourceSelectedSignatureParameters: [{ parameterIndex: 7, parameterDeclaration: sourceParameter }] };
   const scope = { host: {
+    moduleCallables: Object.freeze({ get: () => undefined }),
     ast: { is: { IsNewExpression: () => false, IsFunctionDeclaration: () => false, IsMethodDeclaration: () => false,
       IsClassDeclaration: () => false, IsVariableDeclaration: node => node === declaration },
       parent: () => undefined, name: node => node?.name, kindName: () => "KindVariableDeclaration" },

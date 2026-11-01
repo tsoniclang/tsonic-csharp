@@ -53,8 +53,8 @@ function fixture(text) {
     assert.equal(selected !== undefined, true, `original checked declaration ${name}/${index}`);
     return selected;
   };
-  const owner = name => {
-    const selected = binding(name);
+  const owner = (name, index = 0) => {
+    const selected = binding(name, index);
     return source.ast.as.AsVariableDeclaration(selected)?.Initializer ??
       source.ast.as.AsParameterDeclaration(selected)?.Initializer ?? selected;
   };
@@ -344,8 +344,8 @@ test("activation methods seal one stable ordinal identity before native spelling
     }`);
   const result = input.evaluate();
   assert.equal(result.issues.length, 0);
-  const read = result.captureClosure.get(input.owner("read"));
-  const change = result.captureClosure.get(input.owner("change"));
+  const read = result.captureClosure.get(input.owner("read", 1));
+  const change = result.captureClosure.get(input.owner("change", 1));
   assert.equal(read !== undefined && change !== undefined, true, "both checked callback owners retain their constructor activation");
   assert.equal(read.frame === change.frame, true, "one native frame is shared, without another environment");
   assert.equal(read.method.identity.kind === "activation" && change.method.identity.kind === "activation", true);

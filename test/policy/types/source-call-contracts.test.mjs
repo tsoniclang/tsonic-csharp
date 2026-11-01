@@ -83,6 +83,7 @@ function fixture(carrier = csharpDelegateTargetType("System.Func", [integer], in
     nativeSignature: Object.freeze({ methodTypeParameterIdentities: [], methodAllowsRefLikeTypeArguments: [] }), parameters: [sourceParameter],
     nativeParameters: [{ sourceParameter, targetParameter: { name: "value", type: outer, passingMode: "by-value" } }], returnType: outer };
   const scope = { host: {
+    moduleCallables: Object.freeze({ get: () => undefined }),
     ast: { typeParameters: () => [], is: { IsNewExpression: () => false, IsFunctionDeclaration: node => node?.kind === "function",
       IsMethodDeclaration: () => false, IsClassDeclaration: () => false,
       IsVariableDeclaration: node => node?.kind === "variable" },
