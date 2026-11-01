@@ -4,7 +4,6 @@ import type {
 } from "@tsonic/tsts";
 import type {
   CsharpObjectShapeFact,
-  TargetTypeRef,
 } from "../../../target-model/types/index.js";
 import type {
   CsharpPlanningContext,
@@ -16,11 +15,4 @@ export function getCsharpObjectShapeFactForNode(
   input: CsharpPlanningContext,
 ): CsharpObjectShapeFact | undefined {
   return input.program.records.nodeObjectShape.get(node, sourceFile);
-}
-
-export function getCsharpObjectShapeFactForTargetType(
-  targetType: TargetTypeRef | undefined,
-  input: CsharpPlanningContext,
-): CsharpObjectShapeFact | undefined {
-  return input.program.records.targetObjectShape.get(targetType);
 }

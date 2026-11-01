@@ -32,14 +32,6 @@ export function isPlainCsharpIdentifier(value: string): boolean {
   return tryCsharpIdentifier(value) === value;
 }
 
-export function sanitizePathSegment(value: string): string {
-  const identifier = tryCsharpIdentifier(value);
-  if (identifier === undefined || identifier.startsWith("@")) {
-    throw new Error(`Invalid C# path segment '${value}'. C# output paths must use canonical generated identities.`);
-  }
-  return identifier;
-}
-
 export function toPascalCase(value: string): string {
   const words = value.split(/[^A-Za-z0-9]+/).filter((word) => word.length > 0);
   const name = words.map((word) => `${word[0]!.toUpperCase()}${word.slice(1)}`).join("");

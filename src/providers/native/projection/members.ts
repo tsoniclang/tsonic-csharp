@@ -3,7 +3,7 @@ import type { CsharpTargetConversionOperatorFact, CsharpTargetMember, CsharpTarg
 import type { DotnetConversionOperatorDeclaration, DotnetFunctionDeclaration, DotnetMemberDeclaration, DotnetParameterDeclaration, DotnetSignatureDeclaration, DotnetTypeRef } from "../model/types.js";
 import { dotnetAttributeToTargetAttribute, dotnetUnsupportedAttributeToTargetUnsupportedAttribute } from "./attributes.js";
 import { type DotnetTargetTypeParameter, dotnetTypeParameterToTargetTypeParameter } from "./constraints.js";
-import { dotnetTypeRefToTargetTypeRef } from "./index.js";
+import { dotnetTypeRefToTargetTypeRef } from "./type-ref.js";
 import { dotnetMethodTypeArgumentProjections } from "./method-type-argument-policy.js";
 
 export type DotnetTargetParameter = CsharpTargetParameter;

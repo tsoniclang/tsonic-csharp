@@ -1,8 +1,8 @@
-import type { CsharpObjectShapeDemandScope } from "./native-demand-batches.js";
-import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/index.js";
-import { isCsharpValueTypeTargetType, targetTypeRefEquals, targetTypeRefKey, isSourceDeclaredNominalShape } from "../../target-model/types/index.js";
-import { objectShapeArtifactKey } from "../../target-model/records/objects/object-shape-keys.js";
-import { maximumArtifactCount } from "./native-demand-batches.js";
+import type { CsharpObjectShapeDemandScope } from "./batches.js";
+import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/index.js";
+import { isCsharpValueTypeTargetType, targetTypeRefEquals, targetTypeRefKey, isSourceDeclaredNominalShape } from "../../../target-model/types/index.js";
+import { objectShapeArtifactKey } from "../../../target-model/records/objects/object-shape-keys.js";
+import { maximumArtifactCount } from "./batches.js";
 
 export function collectCsharpReferenceClosure(
   scope: CsharpObjectShapeDemandScope,

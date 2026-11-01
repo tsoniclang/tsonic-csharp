@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCsharpObjectShapeDemandEngine } from "../../../../dist/analysis/objects/native-demand-requests.js";
+import { createCsharpObjectShapeDemandEngine } from "../../../../dist/analysis/objects/native-demand/requests.js";
 import { publishCsharpNativeArtifactDemand } from "../../../../dist/analysis/program/records/native/native-demand.js";
 import { selectCsharpObjectShapePublication } from "../../../../dist/analysis/names/object-shapes.js";
 import { csharpJsArrayTargetType } from "../../../../dist/target-model/types/carriers/js.js";

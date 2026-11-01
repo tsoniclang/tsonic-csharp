@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { createCompilerSessionFromFiles, formatDiagnostics } from "@tsonic/tsts";
 import { createTargetSourceProgram, Node_Initializer } from "@tsonic/target-api/source";
 import { createSourceStorageQuery } from "@tsonic/target-api/analysis";
-import { csharpValueDomainHasTargetType as selectedValueDomainHasTargetType } from "../../../dist/policy/types/objects/value-domain-carrier.js";
+import { selectedValueDomainHasTargetType } from "../../helpers/value-domain-carriers.mjs";
 import { analyzeCsharpValueDomainCarriers, projectCsharpNativeSourceStorageCarrier } from "../../../dist/analysis/objects/value-domain-carriers.js";
 import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpEmptyObjectTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";

@@ -5,6 +5,9 @@ import test from "node:test";
 import {
   evaluateArchitecture,
   evaluateBarrelModules,
+  evaluateModuleLiveness,
+  evaluateFunctionLiveness,
+  evaluateSelfBarrelImports,
   formatArchitectureFindings,
 } from "../../../tsonic/test/architecture/tooling/architecture-rules.mjs";
 import { collectFiles, readSourceInventory } from "../../../tsonic/test/architecture/tooling/file-inventory.mjs";
@@ -69,6 +72,11 @@ test("C# product imports conform to the declared architecture", () => {
     ...classification.findings,
     ...architecture.findings,
     ...barrelFindings,
+    ...evaluateModuleLiveness({ modules: moduleAnalysis.modules, edges: moduleAnalysis.edges,
+      entrypoints: ["src/index.ts", "src/public/provider.ts", "src/public/provider-dotnet.ts"] }),
+    ...evaluateFunctionLiveness({ modules: moduleAnalysis.modules,
+      entrypoints: ["src/index.ts", "src/public/provider.ts", "src/public/provider-dotnet.ts"] }),
+    ...evaluateSelfBarrelImports({ modules: moduleAnalysis.modules, edges: moduleAnalysis.edges }),
   ];
   assert.deepEqual(findings, [], formatArchitectureFindings(findings));
 });

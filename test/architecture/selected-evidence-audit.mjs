@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
-import { maskNonCode } from "./source-code-mask.mjs";
+import { createSourceCodeMask } from "./source-code-mask.mjs";
 
 export const selectedEvidenceClassifications = Object.freeze([
   "shared-source-semantics-query",
@@ -69,15 +69,20 @@ export function buildSelectedEvidenceAuditRows(repoRoot) {
 }
 
 export function collectSelectedEvidenceFindings(repoRoot) {
-  return sourceFiles(join(repoRoot, "src")).flatMap((filePath) => {
+  const sources = new Map(sourceFiles(join(repoRoot, "src")).map(filePath => {
     const file = relative(repoRoot, filePath).split(sep).join("/");
-    const text = readFileSync(filePath, "utf8");
-    return collectSelectedEvidenceFindingsForSource(file, text);
-  });
+    return [file, readFileSync(filePath, "utf8")];
+  }));
+  const mask = createSourceCodeMask(sources);
+  return [...sources].flatMap(([file, text]) => collectMaskedSelectedEvidenceFindings(file, text, mask(file)));
 }
 
 export function collectSelectedEvidenceFindingsForSource(file, text) {
-  const code = maskNonCode(text);
+  const mask = createSourceCodeMask(new Map([[file, text]]));
+  return collectMaskedSelectedEvidenceFindings(file, text, mask(file));
+}
+
+function collectMaskedSelectedEvidenceFindings(file, text, code) {
   return selectedEvidenceRiskRules.flatMap((rule) => {
     rule.pattern.lastIndex = 0;
     return [...code.matchAll(rule.pattern)].map((match) => ({

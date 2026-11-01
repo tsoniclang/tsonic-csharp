@@ -62,7 +62,7 @@ export function analyzeCsharpOperationConstruct(
   erasure: CsharpOperationErasure,
   producer: CsharpOperationProducer,
   binaryExecutionDrivers:
-    import("../../target-model/metadata/provider-metadata.js").CsharpTargetBinaryExecutionDriver[],
+    import("../../target-model/types/binary-execution.js").CsharpTargetBinaryExecutionDriver[],
   scopeIssues: CsharpOperationIssue[] | undefined,
 ): void {
   if (evidence.compileTimeMetadata.get(node)) return;

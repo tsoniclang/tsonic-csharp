@@ -113,7 +113,7 @@ import { analyzeCsharpPromiseResults } from "../callables/async/promise-results.
 import { csharpJsEventLoopBinaryExecutionDriver } from "../../target-model/project/binary-execution-drivers.js";
 import { analyzeCsharpFlowReadProjections } from "../conversions/flow-read-projections.js";
 
-import { analyzeCsharpNativeArtifactDemand } from "../objects/native-demand.js";
+import { analyzeCsharpNativeArtifactDemand } from "../objects/native-demand/analyze.js";
 import { selectCsharpObjectShapePublication } from "../names/object-shapes.js";
 import { publishCsharpNativeArtifactDemand } from "./records/native/native-demand.js";
 export function finalizeCsharpNativeEmission(

@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { builtinModules } from "node:module";
 import { join, relative, sep } from "node:path";
-import { maskNonCode } from "./source-code-mask.mjs";
+import { createSourceCodeMask } from "./source-code-mask.mjs";
 
 export const approvedProductPackages = Object.freeze([
   "@tsonic/csharp-js",
@@ -172,7 +172,9 @@ export function collectNativeProductBoundarySourceFindings(repoRoot) {
 }
 
 export function collectNativeProductBoundaryFindingsFromSources(sources) {
-  return sortFindings(sources.flatMap((source) => collectSourceFileFindings(source.file, source.text)));
+  const mask = createSourceCodeMask(new Map(sources.map((source, index) => [`${index}/${source.file}`, source.text])));
+  return sortFindings(sources.flatMap((source, index) =>
+    collectSourceFileFindings(source.file, source.text, mask(`${index}/${source.file}`))));
 }
 
 export function collectNativeProductManifestFindings(repoRoot) {
@@ -220,8 +222,7 @@ export function formatNativeProductBoundaryFinding(finding) {
   return `${finding.file}:${finding.line} ${finding.ruleId}: ${finding.snippet} -> ${finding.replacement}`;
 }
 
-function collectSourceFileFindings(file, text) {
-  const codeText = maskNonCode(text);
+function collectSourceFileFindings(file, text, codeText) {
   const commentText = maskStringsAndBlockComments(text);
   return [
     ...nativeProductBoundaryFileRules.flatMap((rule) => collectFileRuleFinding(file, rule)),

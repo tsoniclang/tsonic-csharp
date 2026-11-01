@@ -1,4 +1,5 @@
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpNativeLocationSelection } from "../../../target-model/records/native/native-locations.js";
 import type { CsharpArgument, CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../target-ast/syntax/index.js";
 
 export type CsharpPlannedCompletion =
@@ -51,7 +52,7 @@ export interface CsharpPlannedArgument extends CsharpPlannedValue {
   readonly passing?: CsharpArgument["passing"];
   readonly nativeBinding?: CsharpTypeNode;
   readonly suspends?: true;
-  readonly nativeLocation?: Extract<import("../../../target-model/records/native/native-locations.js").CsharpNativeLocationSelection, { readonly kind: "resolved" }>;
+  readonly nativeLocation?: Extract<CsharpNativeLocationSelection, { readonly kind: "resolved" }>;
 }
 
 export interface CsharpPlannedCapture {

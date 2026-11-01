@@ -1,8 +1,4 @@
-import {
-  HasSyntacticModifier,
-  ModifierFlagsAsync,
-} from "@tsonic/target-api/source";
-import type { AstReader, Node } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
 import type { CsharpNativeMemberIdentity } from "../../../target-model/names/model.js";
 import type { CsharpSourceNameRecords } from "../../../target-model/records/names.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
@@ -32,11 +28,4 @@ export function planCsharpArtifactMemberHiding(names: CsharpNativeMemberHidingRe
   shape: CsharpObjectShapeFact, name: string): readonly "new"[] {
   return planCsharpNativeMemberHiding(names,
     { kind: "artifact", container: objectShapeArtifactKey(shape), member: name, role: "member" });
-}
-
-export function isAsyncNode(
-  ast: AstReader,
-  node: Node,
-): boolean {
-  return HasSyntacticModifier(ast, node, ModifierFlagsAsync);
 }
