@@ -252,10 +252,9 @@ test("using in a for initializer is disposed after the complete loop", () => {
   `);
 
   const registration = source.indexOf("Resource resource =");
-  const loop = source.indexOf("for (; false; )");
-  const disposal = source.indexOf(".Dispose()", loop);
-  assert.equal(registration >= 0 && registration < loop, true);
-  assert.equal(loop < disposal, true);
+  const disposal = source.indexOf(".Dispose()", registration);
+  assert.equal(registration >= 0 && registration < disposal, true);
+  assert.doesNotMatch(source, /for\s*\(\s*;\s*false\s*;\s*\)/u);
 });
 
 test("using declarations in for-of bindings dispose once per iteration", () => {
@@ -469,5 +468,40 @@ export async function run(): Promise<boolean> {
     const emitted = [...compiled.artifacts.values()].join("\n");
     assert.doesNotMatch(emitted, /ResourceStack|DisposeAndThrow|AddAsync</u);
     executeCsharpConstruction(compiled, `native-async-lexical-disposal-${surface ?? "native"}`, true);
+  });
+}
+
+for (const surface of [undefined, "js"]) {
+  test(`native zero-iteration for guards preserve calls, sequence effects and failure identity on ${surface ?? "native"}`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+import { Exception } from "@tsonic/dotnet/System.js";
+import type { int } from "@tsonic/csharp/types.js";
+let evaluations: int = 0;
+let disposed: int = 0;
+let entered: int = 0;
+const failure = new Exception("condition");
+class Resource { [Symbol.dispose](): void { disposed++; } }
+function count(): int { return evaluations; }
+function reject(): false {
+  evaluations++;
+  if (count() === 3) throw failure;
+  return false;
+}
+export function run(): boolean {
+  for (using active = new Resource(); reject();) { entered++; void active; }
+  if (count() !== 1 || disposed !== 1 || entered !== 0) return false;
+  for (using active = new Resource(); (evaluations++, false);) { entered++; void active; }
+  if (count() !== 2 || disposed !== 2 || entered !== 0) return false;
+  try {
+    for (using active = new Resource(); reject();) { entered++; void active; }
+    return false;
+  } catch (caught) {
+    return count() === 3 && disposed === 3 && entered === 0 && caught === failure;
+  }
+}
+` });
+    const source = compiled.artifacts.get("src/Index.cs") ?? "";
+    assert.doesNotMatch(source, /for\s*\(\s*;\s*false\s*;\s*\)/u);
+    executeCsharpConstruction(compiled, `native-zero-iteration-guard-effects-${surface ?? "native"}`);
   });
 }
