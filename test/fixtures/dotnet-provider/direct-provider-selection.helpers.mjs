@@ -13,7 +13,6 @@ import {
   csharpVoidTargetType,
   targetMethod,
   targetParameter,
-  targetProperty,
 } from "../../../dist/policy/types/index.js";
 import { selectCsharpProviderCall } from "../../../dist/analysis/operations/members/calls/selection.js";
 import { selectCsharpProviderElement } from "../../../dist/analysis/operations/members/element-selection.js";
@@ -41,7 +40,6 @@ export {
   selectCsharpTargetProperty,
   targetMethod,
   targetParameter,
-  targetProperty,
   test,
 };
 

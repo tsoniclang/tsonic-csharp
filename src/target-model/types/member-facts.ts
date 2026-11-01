@@ -27,28 +27,6 @@ export function targetMethod(
   };
 }
 
-export function targetProperty(
-  id: string,
-  sourceName: string,
-  targetName: string,
-  returnType: TargetTypeRef,
-  options: {
-    readonly declaringType?: TargetTypeRef;
-    readonly static?: boolean;
-  } = {},
-): CsharpTargetMember {
-  return {
-    id,
-    sourceName,
-    targetName,
-    kind: "property",
-    parameters: [],
-    returnType,
-    ...(options.declaringType !== undefined ? { declaringType: options.declaringType } : {}),
-    ...(options.static !== undefined ? { static: options.static } : {}),
-  };
-}
-
 export function targetParameter(
   name: string,
   type: TargetTypeRef,
