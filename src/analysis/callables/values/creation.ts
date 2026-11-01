@@ -59,7 +59,8 @@ export function analyzeCsharpCallableCreations(input: CsharpCallableCreationInpu
       ? input.operations.selectedConstruction.get(argument.call) : input.operations.selectedCall.get(argument.call);
     const nativeArguments = operation?.sourceArgumentParameterTypes;
     const checked = argument === undefined ? undefined : input.source.semantics.forNode(argument.call).operations.call(argument.call);
-    const nativeBindings = checked === undefined ? undefined : sourceCallArgumentCorrespondences(ast, checked)?.filter(row =>
+    const nativeBindings = checked === undefined ? undefined : sourceCallArgumentCorrespondences({ ast,
+      semantics: input.source.semantics.forNode(checked.call) }, checked)?.filter(row =>
       argument !== undefined && row.binding.sourceArgumentIndex === argument.argumentIndex && row.binding.sourceForm === "value" &&
       row.argument.expression === argument.argument);
     const immediate = nativeBindings?.length === 1 ? nativeArguments?.[nativeBindings[0]!.bindingIndex] : undefined;

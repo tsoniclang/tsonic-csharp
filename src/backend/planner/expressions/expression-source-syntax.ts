@@ -8,7 +8,7 @@ import { AsAwaitExpression, AsNoSubstitutionTemplateLiteral, AsStringLiteral,
   Node_Text, SourceKind } from "@tsonic/target-api/source";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { ExpressionPlanner } from "./expression-planner-types.js";
-import { planCsharpExactLiteralRecipe } from "./literal-conversions.js";
+import { planCsharpExactLiteralRecipe, planIntegerLiteral } from "./literal-conversions.js";
 import { requireCsharpStringRuntimeCarrier } from "./expression-literal-carriers.js";
 import { csharpTypeFromTargetTypeRef } from "../types/render.js";
 import { planThisExpression } from "./expression-this.js";
@@ -39,6 +39,13 @@ export function tryPlanSourceSyntaxExpression(node: Node, sourceFile: SourceFile
       }
       const type = csharpTypeFromTargetTypeRef(selection.carrier, input.scope.typeParameterNames)
         ?? failCsharpPlannerInvariant("An admitted bigint requires its native value type.", node);
+      const integer = BigInt(selection.decimal);
+      if (integer >= -(1n << 63n) && integer < (1n << 64n)) {
+        const literal = planIntegerLiteral(input.scope.typeParameterNames, integer, {
+          kind: "source-primitive", name: integer < (1n << 63n) ? "int64" : "uint64",
+        }) ?? failCsharpPlannerInvariant("An admitted bigint constructor requires its exact native integer literal.", node);
+        return value({ kind: "ObjectCreationExpression", type, arguments: [{ kind: "Argument", expression: literal }] });
+      }
       return value({ kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression", receiver: type, name: "Parse" },
         arguments: [{ kind: "Argument", expression: { kind: "LiteralExpression", value: selection.decimal } }] });
     }

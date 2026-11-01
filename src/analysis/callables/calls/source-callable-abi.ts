@@ -66,7 +66,7 @@ export function selectCsharpSourceCallableAbi(
   const quantified = policy.ast.typeParameters(declaration).length !== 0;
   const call = contextual?.contextualCall;
   if (call !== undefined) {
-    const bindings = sourceCallArgumentCorrespondences(policy.ast, call)?.filter(binding => {
+    const bindings = sourceCallArgumentCorrespondences({ ast: policy.ast, semantics: policy.semantics(sourceFile) }, call)?.filter(binding => {
       let expression = binding.argument.expression;
       for (let inner = sourceTransparentExpressionOperand(policy.ast, expression); inner !== undefined;
         inner = sourceTransparentExpressionOperand(policy.ast, expression)) expression = inner;

@@ -17,9 +17,6 @@ import {
   sourceFileArtifactPath,
 } from "../artifacts/source-paths.js";
 import {
-  planCsharpGeneratedHelperSourceFile,
-} from "../artifacts/generated-helper-source.js";
-import {
   applyCsharpObjectShapeDisplayNames,
 } from "../../target-ast/normalization/object-shape-names.js";
 export type CsharpPlanningResult = TargetStageResult<CsharpOutputPlan>;
@@ -35,7 +32,6 @@ export function planCsharpOutput(input: CsharpPlanningContext): CsharpPlanningRe
   }
   const plannedSources = reconstructed.sourceFiles;
   const objectShapes = reconstructed.objectShapes;
-  const generatedHelpers = planCsharpGeneratedHelperSourceFile(input);
   const sourceUnions = planCsharpSourceUnionFile(input);
   const startup = planCsharpStartupSourceFile(
     input,
@@ -55,7 +51,6 @@ export function planCsharpOutput(input: CsharpPlanningContext): CsharpPlanningRe
       unit: source.unit,
     })),
     ...(objectShapes === undefined ? [] : [objectShapes.source]),
-    ...(generatedHelpers === undefined ? [] : [generatedHelpers]),
     ...(sourceUnions === undefined ? [] : [sourceUnions.source]),
     ...(startup === undefined ? [] : [startup]),
   ];

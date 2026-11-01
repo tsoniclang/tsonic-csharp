@@ -49,10 +49,10 @@ test("direct C# translation qualifies same-module values through exact generated
 {
     public static class Index
     {
-        public static double offset
+        internal static double offset
         {
             get;
-            internal set;
+            set;
         } = default(double)!;
         public static double top(double value)
         {

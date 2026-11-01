@@ -46,7 +46,7 @@ function deferredOriginalDeclarations(scope: Node, children: readonly Node[], in
       return;
     }
     const place = input.program.records.capturedPlace.get(declaration);
-    if (place?.scope === scope && place.initialization === "deferred" &&
+    if (place?.scope === scope && (place.initialization === "deferred" || input.program.records.resourceScope.get(scope) !== undefined) &&
         input.program.records.capturedBinding.get(declaration) === undefined) declarations.push(declaration);
   };
   for (const child of children) {

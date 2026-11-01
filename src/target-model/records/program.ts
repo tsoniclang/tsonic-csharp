@@ -66,8 +66,6 @@ export interface CsharpProgramRecords extends CsharpSourceNameRecords, CsharpSta
   readonly templateString: import("./operations/template-strings.js").CsharpTemplateStringRecords["templateString"];
   readonly arraySpread: import("./operations/array-literals.js").CsharpArrayLiteralRecords["arraySpread"];
   readonly borrowedSequenceEmission: import("./operations/array-literals.js").CsharpArrayLiteralRecords["borrowedSequenceEmission"];
-  readonly generatedHelpers: import("./program/generated-helpers.js").CsharpGeneratedHelperRecords["generatedHelpers"];
-  readonly generatedHelper: import("./program/generated-helpers.js").CsharpGeneratedHelperRecords["generatedHelper"];
   readonly unsafeEmission: import("./storage/safety-emission.js").CsharpSafetyEmissionRecords["unsafeEmission"];
   readonly unsafeShape: import("./storage/safety-emission.js").CsharpSafetyEmissionRecords["unsafeShape"];
   readonly unsafeCompilation: import("./storage/safety-emission.js").CsharpSafetyEmissionRecords["unsafeCompilation"];

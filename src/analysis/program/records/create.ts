@@ -165,8 +165,6 @@ export function createCsharpProgramRecords(
     ...input.templateStrings,
     ...input.dictionaryLiterals,
     ...input.sourceArtifacts,
-    generatedHelpers: input.conversions.generatedHelpers,
-    generatedHelper: input.conversions.generatedHelper,
     ...input.safetyEmission,
     ...input.startup,
     ...input.projectEmission,
