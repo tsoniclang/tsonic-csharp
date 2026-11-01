@@ -17,6 +17,27 @@ for (const surface of [undefined, "js"]) {
     assertCsharpCompilationSucceeded(compiled);
     executeCsharpConstruction(compiled, `native-guard-getter-effects-${surface ?? "native"}`);
   });
+  test(`folded native guards evaluate throwing calls exactly once on ${surface ?? "native"}`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+let calls = 0;
+const failure = new Error("guard call");
+function count(): number { return calls; }
+function next(): string {
+  calls++;
+  if (count() === 3) throw failure;
+  return "kept";
+}
+function inspect(): boolean { return typeof next() === "string"; }
+export function run(): boolean {
+  if (!inspect() || count() !== 1) return false;
+  if (!inspect() || count() !== 2) return false;
+  try { inspect(); return false; }
+  catch (caught) { return count() === 3 && caught === failure; }
+}
+` });
+    assertCsharpCompilationSucceeded(compiled);
+    executeCsharpConstruction(compiled, `native-guard-call-effects-${surface ?? "native"}`);
+  });
 }
 
 test("exact native header provider omits the impossible number and array paths", { timeout: 300_000 }, () => {

@@ -20,6 +20,10 @@ import {
   test,
 } from "../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
 import { instantiateCsharpProviderCall } from "../../../dist/analysis/operations/members/calls/instantiation.js";
+import { applyCsharpConversionSelection } from "../../../dist/backend/planner/expressions/conversions.js";
+import { printCsharpExpression } from "../../../dist/print/source/printer.js";
+import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import {
   csharpNullableReferenceTargetType,
   csharpNullableValueTargetType,
@@ -383,6 +387,83 @@ test("provider calls lift exact static argument adapters over nullable value car
     sourceElementType: csharpSourcePrimitiveTargetType("float64"),
     targetElementType: csharpSourcePrimitiveTargetType("int32"),
   });
+});
+
+test("lifted provider adapters use one native operand and preserve absence rounding throw identity and allocation", { timeout: 300_000 }, () => {
+  const sourceType = csharpNullableValueTargetType(csharpSourcePrimitiveTargetType("float64"));
+  const targetType = csharpNullableValueTargetType(csharpSourcePrimitiveTargetType("int32"));
+  const fixture = createCallFixture({
+    sourceArgumentTargets: [sourceType],
+    targetParameters: [targetParameter("value", targetType)],
+    sourceParametersRelations: [parameterRelation({ argumentAdapter: int32ProviderAdapter() })],
+  });
+  const selected = selectCsharpProviderCall(fixture.host, fixture.call, fixture.sourceFile);
+  assert.equal(selected.kind, "resolved");
+  const conversion = selected.call.argumentMappings[0].conversion;
+  assert.equal(conversion.kind, "lifted-provider-argument-adapter");
+  let nextName = 0;
+  const input = {
+    program: { source: { ast: { pos: () => 0 } }, records: {} },
+    scope: {},
+    names: { temporaryName: name => name + "_" + nextName++ },
+  };
+  const render = name => {
+    const diagnostics = [];
+    const prelude = [];
+    const operand = { kind: "InvocationExpression", callee: { kind: "IdentifierName", name }, arguments: [] };
+    const expression = applyCsharpConversionSelection(fixture.call, fixture.sourceFile, input, diagnostics,
+      sourceType, targetType, conversion, operand, prelude, "snapshot");
+    assert.deepEqual(diagnostics, []);
+    assert.deepEqual(prelude, []);
+    assert.equal(expression.kind, "ConditionalExpression");
+    assert.equal(expression.condition.expression === operand, true, "the selected source operand is consumed exactly once");
+    assert.equal(expression.whenTrue.arguments[0].expression.name, expression.condition.designation,
+      "the exact bound native payload reaches the selected adapter");
+    assert.equal(expression.whenFalse.kind, "DefaultExpression");
+    const printed = printCsharpExpression(expression);
+    assert.equal((printed.match(new RegExp(name + "\\(\\)", "gu")) ?? []).length, 1, "one native source call");
+    assert.doesNotMatch(printed, /LiftNullable|=>/u);
+    return printed;
+  };
+  const generated = render("Read");
+  const cost = render("CostRead");
+  executeCsharpConstruction(compileCsharpSource({ sourceText: "export function run(): boolean { return true; }" }),
+    "native-lifted-provider-conversion", false, false, [], `
+using System;
+var calls = 0;
+var failure = new Exception("operand");
+double? Read()
+{
+    calls++;
+    if (calls == 3) throw failure;
+    return calls == 2 ? null : 2.5D;
+}
+int? Generated() => ${generated};
+if (Generated() != 2 || calls != 1 || Generated() is not null || calls != 2)
+    throw new Exception("nullable conversion value/absence/effects");
+try { Generated(); throw new Exception("missing operand failure"); }
+catch (Exception error) { if (!ReferenceEquals(error, failure) || calls != 3) throw; }
+var costCalls = 0;
+double? CostRead() { costCalls++; return 2.5D; }
+int? GeneratedCost() => ${cost};
+int? NativeCost()
+{
+    var value = CostRead();
+    return value.HasValue ? Convert.ToInt32(value.Value) : null;
+}
+for (var iteration = 0; iteration < 10000; iteration++)
+    if (GeneratedCost() != 2 || NativeCost() != 2) throw new Exception("native rounding");
+var before = GC.GetAllocatedBytesForCurrentThread();
+for (var iteration = 0; iteration < 4096; iteration++)
+    if (GeneratedCost() != 2) throw new Exception("generated conversion");
+var actual = GC.GetAllocatedBytesForCurrentThread() - before;
+before = GC.GetAllocatedBytesForCurrentThread();
+for (var iteration = 0; iteration < 4096; iteration++)
+    if (NativeCost() != 2) throw new Exception("native conversion");
+var reference = GC.GetAllocatedBytesForCurrentThread() - before;
+if (actual != reference || actual != 0 || costCalls != 28192)
+    throw new Exception($"nullable conversion allocation/calls {actual} != {reference}; {costCalls}");
+`);
 });
 
 test("provider calls reject nullable adapter lifting when element identities differ", () => {

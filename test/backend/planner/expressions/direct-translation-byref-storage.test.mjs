@@ -46,7 +46,7 @@ test("selected nullable target outputs reconstruct exact source storage", () => 
 {
     public static class Index
     {
-        public static System.Collections.Generic.Dictionary<int, Todo> todos
+        internal static System.Collections.Generic.Dictionary<int, Todo> todos
         {
             get;
             private set;
@@ -113,7 +113,7 @@ test("public storage changes reconstruct transitive module callers to a fixed po
 {
     public static class State
     {
-        public static System.Collections.Generic.Dictionary<int, Todo> values
+        internal static System.Collections.Generic.Dictionary<int, Todo> values
         {
             get;
             private set;

@@ -72,7 +72,7 @@ export function planTopLevelVariableStatement(
         (binding, sourceDeclaration) => retainedFields.push(topLevelBindingMember(
           binding.name,
           binding.type,
-          "public",
+          moduleBindingVisibility(sourceDeclaration, input),
           planCsharpNativeMemberHiding(input.program.records.nativeMemberHiding, { kind: "source", declaration: sourceDeclaration, role: "member" }),
           reassignable,
           input.program.records.nativeModuleField.get(sourceDeclaration),
@@ -89,7 +89,7 @@ export function planTopLevelVariableStatement(
     moduleMembers.push(topLevelBindingMember(
       field.name,
       field.type,
-      "public",
+      moduleBindingVisibility(declaration, input),
       planCsharpNativeMemberHiding(input.program.records.nativeMemberHiding, { kind: "source", declaration, role: "member" }),
       reassignable,
       input.program.records.nativeModuleField.get(declaration),
@@ -111,10 +111,17 @@ export function planTopLevelVariableStatement(
   }
 }
 
+function moduleBindingVisibility(declaration: Node, input: CsharpPlanningContext): "public" | "internal" {
+  const visibility = input.program.records.memberModifiers.get(declaration)?.member[0];
+  if (visibility !== "public" && visibility !== "internal")
+    failCsharpPlannerInvariant("An admitted module binding requires its sealed native visibility.", declaration);
+  return visibility;
+}
+
 export function topLevelBindingMember(
   name: string,
   type: CsharpTypeNode,
-  accessibility: "public" | "private",
+  accessibility: "public" | "private" | "internal",
   hiding: readonly "new"[],
   reassignable = false,
   nativeField = false,
@@ -135,9 +142,11 @@ export function topLevelBindingMember(
     initializer,
     autoGetter: true,
     autoSetter: true,
-    ...(accessibility === "public"
+    ...(!reassignable && accessibility !== "private"
+      ? { autoSetterModifiers: ["private"] as const }
+      : accessibility === "public"
       ? {
-          autoSetterModifiers: [reassignable ? "internal" : "private"] as const,
+          autoSetterModifiers: ["internal"] as const,
         }
       : {}),
   };
