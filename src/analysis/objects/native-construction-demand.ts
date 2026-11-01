@@ -61,10 +61,10 @@ export function selectCsharpLiteralDeclarationContext(
       owner = ast.parent(initializer);
     }
   }
-  const binding = owner !== undefined && ast.is.IsVariableDeclaration(owner)
+  const patternBinding = owner !== undefined && ast.is.IsVariableDeclaration(owner)
     ? ast.as.AsVariableDeclaration(owner) : undefined;
   const bindingName = owner === undefined ? undefined : ast.name(owner);
-  if (binding?.Initializer === initializer && bindingName !== undefined &&
+  if (patternBinding?.Initializer === initializer && bindingName !== undefined &&
     (ast.is.IsObjectBindingPattern(bindingName) || ast.is.IsArrayBindingPattern(bindingName))) {
     const source = ast.is.IsIdentifier(expression) ? navigation.referenceFor(expression)?.declaration : undefined;
     const selectedType = source === undefined ? queries.types.expressionType(expression)
@@ -128,7 +128,7 @@ export function selectCsharpLiteralDeclarationContext(
   if (checked === undefined) return undefined;
   const flow = navigation.expressionValueFlow(expression);
   const typedSlots = new Set(flow.aliasDeclarations.filter(alias => alias !== declaration &&
-    ast.variableDeclarationKind(alias) !== "const" && ast.typeNode(alias) !== undefined));
+    ast.typeNode(alias) !== undefined));
   const aliases = new Set(flow.aliasDeclarations.filter(alias => !typedSlots.has(alias)));
   const name = ast.name(declaration!);
   const binding = name !== undefined && ast.is.IsIdentifier(name) ? ast.text(name) : "value";
@@ -151,6 +151,12 @@ export function selectCsharpLiteralDeclarationContext(
     const declarations = symbol === undefined ? [] : semantics.declarations.symbolDeclarations(symbol);
     return !declarations.some(declaration => ast.is.IsClassDeclaration(declaration) || ast.is.IsInterfaceDeclaration(declaration));
   };
+  const hasNativeIdentityRequirement = (type: Type, semantics: SourceFileSemantics): boolean => {
+    if (semantics.types.isAny(type) || semantics.types.isUnknown(type)) return false;
+    return !opaqueType(type, semantics) || semantics.types.propertyInfos(type).length !== 0 ||
+      semantics.types.signatureInfos(type, "call").length !== 0 || semantics.types.signatureInfos(type, "construct").length !== 0 ||
+      semantics.types.indexInfos(type).length !== 0;
+  };
   for (const use of flow.uses) {
     const owner = navigation.referenceFor(use.reference)?.declaration;
     if (owner !== undefined && typedSlots.has(owner)) continue;
@@ -172,7 +178,7 @@ export function selectCsharpLiteralDeclarationContext(
         continue;
       }
       if (opaqueType(context.component.selectedType, host.semanticsFor(reference))) opaqueUses.push(reference);
-      if (!queries.types.isUnknown(context.component.selectedType) && !queries.types.isAny(context.component.selectedType)) identityUses.push(context);
+      if (hasNativeIdentityRequirement(context.component.selectedType, host.semanticsFor(reference))) identityUses.push(context);
       continue;
     }
     if (use.role === "comparison" && parent !== undefined && ast.is.IsBinaryExpression(parent)) {
@@ -212,11 +218,11 @@ export function selectCsharpLiteralDeclarationContext(
     const inferred = authored === undefined ? undefined : call?.sourceSelectedMethodTypeArguments?.find(binding =>
       binding.explicitTypeNode === undefined && binding.typeParameter === authored &&
       callQueries!.types.isIdentical(binding.selectedType, rows![0]!.binding.selectedArgumentType));
-    if (inferred === undefined && opaqueType(context.component.selectedType, host.semanticsFor(reference))) opaqueUses.push(reference);
+    if (inferred !== undefined) continue;
+    if (opaqueType(context.component.selectedType, host.semanticsFor(reference))) opaqueUses.push(reference);
     opaqueUses.push(...context.opaqueUses);
-    if (!queries.types.isUnknown(context.component.selectedType) && !queries.types.isAny(context.component.selectedType)) {
-      identityUses.push(...context.identityUses);
-    }
+    identityUses.push(...context.identityUses.filter(use => hasNativeIdentityRequirement(use.component.selectedType,
+      host.semanticsFor(use.source))));
   }
   const first = identityUses[0] ?? { component: { selectedType: checked }, source: expression };
   return selected(first, [...aliases], opaqueUses, identityUses);
@@ -367,6 +373,13 @@ export function createCsharpNativeConstructionDemandQuery(
       }
       return;
     }
+    if (context === undefined || context.identityUses.length === 0) {
+      const declaration = host.ast.parent(node);
+      const variable = declaration === undefined || !host.ast.is.IsVariableDeclaration(declaration)
+        ? undefined : host.ast.as.AsVariableDeclaration(declaration);
+      if (variable?.Initializer === node) selectLocalValue(declaration!, source, node);
+      if (constructions.has(node)) return;
+    }
     if (selected !== undefined && !queries.types.isUnknown(selected)) {
       const expected = requiredShape?.shape ?? host.resolveShape(selected, queries.sourceFile,
         asynchronous ? undefined : context?.component.authoredTypeNode);
@@ -384,11 +397,6 @@ export function createCsharpNativeConstructionDemandQuery(
         return;
       }
     }
-    if (context !== undefined && context.identityUses.length !== 0) return;
-    const declaration = host.ast.parent(node);
-    const variable = declaration === undefined || !host.ast.is.IsVariableDeclaration(declaration)
-      ? undefined : host.ast.as.AsVariableDeclaration(declaration);
-    if (variable?.Initializer === node) selectLocalValue(declaration!, source, node);
   };
   const selectLocalValue = (declaration: Node, source: Type, expression?: Node): void => {
     if (sourceDeclarationIsModuleScoped(declaration, host.ast)) return;

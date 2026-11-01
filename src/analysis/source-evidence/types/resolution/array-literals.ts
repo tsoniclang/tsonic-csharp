@@ -32,9 +32,14 @@ export function resolveCsharpArrayLiteralSelection(
 ): CsharpArrayLiteralSelection {
   const { host, resolveNodeWithState, resolveTypeWithState, sourceUnions } = scope;
   if (!host.ast.is.IsArrayLiteralExpression(node)) return unavailable;
+  const sourceElements = host.ast.elements(node);
+  if (sourceElements.some(element => element === undefined || host.ast.kindName(element) === "KindOmittedExpression")) {
+    state.rejectNativeResolution?.(Object.freeze({ kind: "rejected", subject: node, code: "CSHARP_UNSUPPORTED_AST",
+      reason: "Sparse array literal elisions require closed JSArray hole construction facts before C# emission; dense array carriers must not compact holes." }));
+    return unavailable;
+  }
   const sourceType = queries.types.expressionType(node);
   if (sourceType === undefined) return unavailable;
-  const sourceElements = host.ast.elements(node);
   const resolved = (carrier: TargetTypeRef, elementCarriers: readonly TargetTypeRef[]): CsharpArrayLiteralSelection =>
     Object.freeze({ kind: "resolved", carrier, elementCarriers: Object.freeze([...elementCarriers]) });
   if (queries.types.isTuple(sourceType)) {

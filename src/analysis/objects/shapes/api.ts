@@ -222,8 +222,6 @@ export function createCsharpObjectShapePolicy(
   function rememberTargetShape(
     shape: CsharpObjectShapeFact,
   ): CsharpObjectShapeFact {
-    const immutable = (value: CsharpObjectShapeFact): CsharpObjectShapeFact => Object.freeze({ ...value,
-      members: Object.freeze(value.members.map(member => Object.freeze(member))) });
     if (
       isCsharpJsValueTargetType(shape.targetType) ||
       shape.targetType.kind === "type-parameter"
@@ -233,7 +231,8 @@ export function createCsharpObjectShapePolicy(
     if (shape.declarationTemplate !== undefined) {
       shape = { ...shape, declarationTemplate: rememberTargetShape(shape.declarationTemplate) };
     }
-    shape = immutable(retainCsharpMethodValueContracts(shape, rememberTargetShape, environment, host.sourceStorage));
+    const retained = retainCsharpMethodValueContracts(shape, rememberTargetShape, environment, host.sourceStorage);
+    shape = Object.freeze({ ...retained, members: Object.freeze(retained.members.map(member => Object.freeze(member))) });
     const key = targetTypeRefKey(shape.targetType);
     const existing = targetShapes.get(key);
     if (existing !== undefined && !csharpObjectShapesEqual(existing, shape)) {
@@ -254,7 +253,7 @@ export function createCsharpObjectShapePolicy(
     }
     const canonical = existing === undefined
       ? shape
-      : immutable(mergeCsharpObjectShapeSubjects(existing, shape));
+      : mergeCsharpObjectShapeSubjects(existing, shape);
     targetShapes.set(key, canonical);
     if (canonical.targetType.kind === "target-named" &&
       (canonical.targetType.typeArguments?.length ?? 0) > 0 &&

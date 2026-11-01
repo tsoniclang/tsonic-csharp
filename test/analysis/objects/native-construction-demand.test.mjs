@@ -527,7 +527,7 @@ function memberProvenanceFixture() {
   const queries = source.semantics.forNode(declarations.get("omitted"));
   const owner = name => queries.types.authoredType(ast.typeNode(declarations.get(name)));
   const actual = name => queries.types.expressionType(ast.as.AsVariableDeclaration(declarations.get(name)).Initializer);
-  const resolver = createCsharpObjectShapeMemberResolver({});
+  const resolver = createCsharpObjectShapeMemberResolver({ ast });
   const member = ownerType => {
     const selected = queries.types.structuralMembers(ownerType, ownerType, "correspondence");
     assert.equal(selected.kind === "available" && selected.members.length === 1 && selected.members[0].kind === "present",

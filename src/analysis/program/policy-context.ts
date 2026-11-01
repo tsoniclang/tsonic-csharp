@@ -7,6 +7,7 @@ import type { CsharpSourceIdentityPolicy } from "../../source/extension/identiti
 import type { CsharpTypeSystem } from "./type-system.js";
 import { analyzeCsharpValueDomainCarriers } from "../objects/value-domain-carriers.js";
 import type { CsharpValueDomainCarrierIssue } from "../../target-model/records/types/value-domains.js";
+import { sourceTransparentExpressionOperand } from "@tsonic/target-api/source";
 
 export interface CsharpAnalysisPolicyContextInput {
   readonly integerRanges: CsharpPolicyContext["integerRanges"];
@@ -30,9 +31,15 @@ export function createCsharpAnalysisPolicyContext(
 ): CsharpAnalysisPolicyContextResult {
   const { input, sourceFiles, providers, sourceIdentities, typeSystem } = context;
   const source = input.source;
+  const assertedValues = context.sourceStorage.nodes.flatMap(node => {
+    if (!source.ast.is.IsAsExpression(node) && !source.ast.is.IsTypeAssertion(node)) return [];
+    const operand = sourceTransparentExpressionOperand(source.ast, node);
+    return operand === undefined ? [] : [operand];
+  });
   const valueDomainCarriers = analyzeCsharpValueDomainCarriers({ sourceStorage: context.sourceStorage,
     types: typeSystem.analysisTypes, objectShapes: typeSystem.objectShapes, semantics: source.semantics.forFile },
-    context.sourceStorage.invocations.flatMap(node => source.ast.arguments(node).filter((argument): argument is NonNullable<typeof argument> => argument !== undefined)));
+    [...context.sourceStorage.invocations.flatMap(node => source.ast.arguments(node)
+      .filter((argument): argument is NonNullable<typeof argument> => argument !== undefined)), ...assertedValues]);
   const policy: CsharpPolicyContext = Object.freeze({
     selectTargetCall: typeSystem.selectTargetCall,
     integerRanges: context.integerRanges,

@@ -23,9 +23,16 @@ const methodValueUses = new WeakMap<SourceStorageQueries, {
 function structuralBoundariesAreExportOnly(source: TargetSourceProgram,
   boundaries: readonly Pick<SourceStorageDomainBoundary, "kind" | "exposure">[] | undefined): boolean {
   const { ast } = source;
-  return boundaries !== undefined && boundaries.length !== 0 && boundaries.every(boundary => boundary.kind === "external-write" &&
-    (ast.is.IsVariableDeclaration(boundary.exposure) || ast.is.IsFunctionDeclaration(boundary.exposure) ||
-      ast.is.IsClassDeclaration(boundary.exposure)) && source.navigation.declarationUseSummary(boundary.exposure).exported);
+  return boundaries !== undefined && boundaries.length !== 0 && boundaries.every(boundary => {
+    if (boundary.kind !== "external-write" || !(ast.is.IsVariableDeclaration(boundary.exposure) ||
+      ast.is.IsFunctionDeclaration(boundary.exposure) || ast.is.IsClassDeclaration(boundary.exposure)) ||
+      !source.navigation.declarationUseSummary(boundary.exposure).exported) return false;
+    const queries = source.semantics.forNode(boundary.exposure);
+    const declared = queries.declarations.declaredValueType(boundary.exposure);
+    const type = !ast.is.IsFunctionDeclaration(boundary.exposure) ? declared : declared === undefined
+      ? undefined : queries.types.callable(declared)?.result.selectedType;
+    return type !== undefined && !queries.types.isAny(type) && !queries.types.isUnknown(type);
+  });
 }
 
 function selectMethodValueUses(storage: SourceStorageQueries) {
@@ -193,11 +200,11 @@ export function retainCsharpMethodValueContracts(
     const writes = subject?.kind === "resolved" ? sourceStorage.memberWritesFor(subject.subject) : undefined;
     const quantified = (member.typeParameters?.length ?? 0) > 0;
     const requiresProtocol = quantified || member.methodValueContract !== undefined;
-    const nativeMethod = csharpObjectMethodHasFixedNativeExposure(writes);
-    const valueUses = !nativeInterface && !requiresProtocol && !nativeMethod && (member.sourceDeclarations?.length ?? 0) > 0
+    const valueUses = !nativeInterface && !requiresProtocol && (member.sourceDeclarations?.length ?? 0) > 0
       ? selectMethodValueUses(sourceStorage).retained : undefined;
     const needsValue = member.methodValueStorage?.kind === "delegate" ||
       member.sourceDeclarations?.some(source => valueUses?.has(source) === true) === true;
+    const nativeMethod = !needsValue && csharpObjectMethodHasFixedNativeExposure(writes);
     if (!requiresProtocol && !nativeMethod && (member.optional === true || needsValue || declaration !== undefined)) {
       const { methodValueContract: _contract, ...value } = member;
       return { ...value, methodValueStorage: Object.freeze({ kind: "delegate" as const,

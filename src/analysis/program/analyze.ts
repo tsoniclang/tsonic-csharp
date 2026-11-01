@@ -216,7 +216,6 @@ function analyzeCsharpTargetProgramBeforeSeal(
     ...memoryBindings.issues.map(issue => ({ node: issue.node, message: issue.reason, code: "CSHARP_MEMORY_BINDING_NOT_PROVEN" })),
     ...analysis.sourceEvidence.memoryMetadataIssues,
     ...analysis.typeSystem.projectTypes.issues,
-    ...analysis.typeSystem.nativeConstruction.issues,
     ...analysis.operations.issues,
     ...analysis.expectedTypes.issues,
     ...analysis.conversions.issues,

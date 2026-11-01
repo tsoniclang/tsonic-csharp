@@ -134,6 +134,7 @@ export function analyzeCsharpRepresentationIteration(
     createCsharpProjectTypeCatalog(typeHost, previous?.typeProjections),
     representations,
   );
+  if (typeSystem.nativeConstruction.issues.length > 0) return rejectCsharpAnalysisIssues(typeSystem.nativeConstruction.issues);
   const policyContext = createCsharpAnalysisPolicyContext({
     integerRanges: typeHost.integerRanges,
     literalValues: typeHost.literalValues,

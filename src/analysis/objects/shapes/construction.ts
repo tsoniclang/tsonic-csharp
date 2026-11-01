@@ -39,14 +39,14 @@ export function mergeCsharpObjectShapeSubjects(
       member,
     ]),
   );
-  return {
+  return Object.freeze({
     ...left,
     ...(left.sourceType === undefined && right.sourceType !== undefined ? { sourceType: right.sourceType } : {}),
     ...(right.declarationTemplate === undefined ? {} : {
       declarationTemplate: left.declarationTemplate === undefined ? right.declarationTemplate
         : mergeCsharpObjectShapeSubjects(left.declarationTemplate, right.declarationTemplate),
     }),
-    members: left.members.map((member) => {
+    members: Object.freeze(left.members.map((member) => {
       const other = rightMembers.get(
         csharpObjectShapeMemberContractKey(member),
       )!;
@@ -66,7 +66,7 @@ export function mergeCsharpObjectShapeSubjects(
         .filter((evidence, index, alternatives) => alternatives.findIndex(candidate =>
           candidate.ownerType === evidence.ownerType && candidate.sourceType === evidence.sourceType &&
           candidate.correspondence === evidence.correspondence) === index);
-      return {
+      return Object.freeze({
         ...member,
         ...(sourceMemberEvidence.length === 0 ? {} : { sourceMemberEvidence: Object.freeze(sourceMemberEvidence) }),
         ...(subjects.size === 0
@@ -78,7 +78,7 @@ export function mergeCsharpObjectShapeSubjects(
         ...(sourceDeclarations.size === 0
           ? {}
           : { sourceDeclarations: Object.freeze([...sourceDeclarations]) }),
-      };
-    }),
-  };
+      });
+    })),
+  });
 }

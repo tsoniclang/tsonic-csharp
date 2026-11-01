@@ -3,7 +3,7 @@ import type { Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { selectCsharpConversion, selectCsharpExpressionConversion } from "../../policy/conversions/index.js";
 import type { CsharpConversionMode, CsharpConversionSelection } from "../../target-model/conversions/selection.js";
-import { csharpTargetBindingFact, isCsharpReferenceCarrier, targetTypeRefKey, targetTypeRefEquals, getCsharpRuntimeUnionArms } from "../../policy/types/index.js";
+import { csharpTargetBindingFact, isCsharpReferenceCarrier, isCsharpJsValueTargetType, targetTypeRefKey, targetTypeRefEquals, getCsharpRuntimeUnionArms } from "../../policy/types/index.js";
 import { isSourceOwnedCallableRuntimeCarrierSubject, isSourceOwnedProjectReference } from "../source-evidence/types/resolution/source-ownership.js";
 
 import type { TargetTypeRef } from "../../target-model/types/model.js";
@@ -330,11 +330,12 @@ export function analyzeCsharpConversions(
       visited.add(key);
       const source = getCsharpNullableElementTargetType(pair.source) ?? pair.source;
       const target = getCsharpNullableElementTargetType(pair.target) ?? pair.target;
-      const shape = objectShapes.resolveTarget(source);
+      const nativeSource = isCsharpJsValueTargetType(source) ? policy.valueDomainCarriers?.carrierFor(expression) : source;
+      const shape = nativeSource === undefined ? undefined : objectShapes.resolveTarget(nativeSource);
       const contract = objectShapes.resolveTarget(target);
-      if (shape?.sourceType !== undefined && contract !== undefined && !targetTypeRefEquals(source, target) &&
+      if (nativeSource !== undefined && shape?.sourceType !== undefined && contract !== undefined && !targetTypeRefEquals(nativeSource, target) &&
         shape.implements?.some(implemented => targetTypeRefEquals(implemented, target)) !== true) {
-        objectShapes.registerStructuralInterface(expression, pair.source, pair.target, shape.sourceType);
+        objectShapes.registerStructuralInterface(expression, nativeSource, pair.target, shape.sourceType);
       }
       const from = getCsharpDelegateSignature(source);
       const to = getCsharpDelegateSignature(target);
