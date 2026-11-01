@@ -62,7 +62,7 @@ test(`logical accessor assignments preserve both lanes and short-circuit effects
 test(`non-nullish unknown retains its value and identity in ${surface ?? "native"}`, { timeout: 300_000 }, () => {
     const original = compileCsharpSource({ surface, sourceText: broadValueNarrowingSource });
     assertCsharpCheckingSucceeded(original);
-    const issues = original.targetDiagnostics.filter(diagnostic => diagnostic.category === "error");
+    const issues = original.result.diagnostics.filter(diagnostic => diagnostic.category === "error");
     assert.equal(issues.length, 1, "one opaque empty producer owns the refusal");
     const issue = issues[0];
     assert.equal(issue.code, "TSONIC_UNTYPED_OBJECT_LITERAL");

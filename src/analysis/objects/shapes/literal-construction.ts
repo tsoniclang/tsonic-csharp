@@ -107,14 +107,9 @@ export function createCsharpLiteralShapeResolver(
         };
       }
     }
-    const ownShape = expectedShapes.find(expected => expected.sourceType === sourceType);
-    const actualMembers = ownShape === undefined
-      ? deriveMembers(sourceType, queries, { depth: 0 }, objectLiteral)
-      : instantiateMemberEvidence(ownShape.members, sourceType, queries, sourceType);
-    if (actualMembers === undefined) return { kind: "rejected", subject: objectLiteral,
+    const additionalMembers = deriveMembers(sourceType, queries, { depth: 0 }, objectLiteral, undefined, expectedMembers);
+    if (additionalMembers === undefined) return { kind: "rejected", subject: objectLiteral,
       reason: "Object-literal construction requires its original checked member correspondence." };
-    const additionalMembers = actualMembers.filter(actual =>
-      !expectedMembers.some(expected => csharpSourceMemberKeysEqual(expected.sourceKey, actual.sourceKey)));
     const members = [...retainLiteralMemberEvidence([...expectedMembers, ...additionalMembers], objectLiteral, queries)];
     const nativeMethodLiteral = members.some(member => member.memberKind === "method" &&
       member.sourceDeclarations?.some(declaration => host.ast.is.IsMethodDeclaration(declaration) &&

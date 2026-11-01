@@ -315,7 +315,7 @@ if (actual != native) throw new Exception($"native freeze allocation {actual} !=
 ${name === "fresh" ? 'if (ReferenceEquals(first, Tsonic.Generated.Index.example())) throw new Exception("fresh allocation identity");'
   : 'if (!ReferenceEquals(first, token)) throw new Exception("native freeze alias identity");'}
 static class Escape { public static object Value = null!; }
-sealed class NativeCount { public double count; }
+sealed class NativeCount { public double count = 0; }
 `);
   }
 });

@@ -50,6 +50,7 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     state: CsharpTypeResolutionState,
     authoredTypeRoot?: Node,
     receiver?: TargetTypeRef,
+    retained: readonly CsharpObjectShapeMemberFact[] = [],
   ): readonly CsharpObjectShapeMemberFact[] | undefined {
     const symbol = queries.declarations.typeSymbol(ownerType);
     const literals = symbol === undefined ? [] : queries.declarations.symbolDeclarations(symbol)
@@ -57,6 +58,8 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     if (literals.length > 1) return undefined;
     const members: CsharpObjectShapeMemberFact[] = [];
     for (const property of queries.types.propertyInfos(ownerType)) {
+      if (retained.some(member => member.sourceSubjects?.some(subject => subject === property.symbol ||
+          property.rootSymbols.some(symbol => symbol === subject)) === true)) continue;
       const declarations = queries.declarations.symbolDeclarations(property.symbol);
       if (declarations.length !== 0 && declarations.every(declaration => sourceClassFieldIsTypeOnly(host.ast, declaration))) continue;
       const member = deriveMember(property, queries, state, authoredTypeRoot, literals[0], receiver);

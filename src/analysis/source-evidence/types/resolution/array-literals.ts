@@ -110,7 +110,6 @@ export function resolveCsharpArrayLiteralSelection(
   const contributionCarriers = numeric.kind === "unavailable" ? numeric.carriers : elements;
   const element = destination.kind === "resolved" ? destination.carrier
     : isCsharpJsValueTargetType(sourceElement) ? sourceElement
-    : context.unclassified.length > 0 && numeric.kind === "resolved" && sourceElement !== undefined ? sourceElement
     : numeric.kind === "resolved" ? numeric.carrier : combineCsharpTargetUnionMembers(contributionCarriers);
   if (element === undefined) return unavailable;
   const retained = sourceUnions.retain(element, contributions.map((member, index) =>
@@ -143,10 +142,10 @@ function selectArrayElementDestination(
     return first.kind === "authored" && second.kind === "authored" ? first.start - second.start : 0;
   });
   if (requirements.length === 0) return selectArrayElementRequirement(scope, expression, queries, state,
-    undefined, context.declarations, empty);
+    undefined, context, empty);
   const resolved = requirements.flatMap(requirement => {
     const selection = selectArrayElementRequirement(scope, expression, queries, state,
-      requirement, context.declarations, empty);
+      requirement, context, empty);
     return selection.kind === "resolved" ? [{ ...selection, requirement }] : [];
   });
   if (resolved.length === 0 || own.length === 0 && context.unclassified.length > 0) return { kind: "unavailable" };
@@ -175,7 +174,7 @@ function selectArrayElementRequirement(
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
   context: ReturnType<typeof selectCsharpLiteralDeclarationContext>["requirements"][number] | undefined,
-  declarations: readonly Node[],
+  uses: ReturnType<typeof selectCsharpLiteralDeclarationContext>,
   empty: boolean,
 ): { readonly kind: "resolved"; readonly carrier: TargetTypeRef } | { readonly kind: "unavailable" } {
   const { host } = scope;
@@ -199,7 +198,12 @@ function selectArrayElementRequirement(
     if (call === undefined || bindings.length !== 1) return { kind: "unavailable" };
     const excluded = empty ? undefined : new Set([argument.argumentIndex, ...call.sourceArguments.flatMap((argument, index) => {
       const declaration = host.navigation.referenceFor(argument.expression)?.declaration;
-      return declaration !== undefined && declarations.includes(declaration) ? [index] : [];
+      return declaration !== undefined && uses.declarations.includes(declaration) ? [index] : [];
+    }), ...uses.requirements.flatMap(requirement => {
+      if (requirement.returnedFrom === undefined) return [];
+      const callback = sourceExpressionCallArgument(requirement.returnedFrom,
+        { ast: host.ast, semantics: { forNode: host.semanticsFor } });
+      return callback?.call === argument.call ? [callback.argumentIndex] : [];
     })]);
     const parameter = scope.resolveSourceCallArgumentParameter(call, bindings[0]!, callQueries.sourceFile, excluded);
     const result = context?.returnedFrom === undefined ? parameter

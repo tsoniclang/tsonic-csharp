@@ -99,7 +99,7 @@ test("own-property admission includes closed covariant native implementations wi
 test("native property projections preserve selected generic inherited getters and exact failure identity", { timeout: 300_000 }, () => {
   const original = compileCsharpSource({ surface: "js", sourceText: nativePropertyProjectionSource });
   assertCsharpCheckingSucceeded(original);
-  const issues = original.targetDiagnostics.filter(diagnostic => diagnostic.category === "error");
+  const issues = original.result.diagnostics.filter(diagnostic => diagnostic.category === "error");
   assert.equal(issues.length, 1, "only the inferred cross-function empty return is refused");
   const issue = issues[0];
   assert.equal(issue.code, "TSONIC_UNTYPED_OBJECT_LITERAL");

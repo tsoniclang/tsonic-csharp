@@ -6,7 +6,7 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 
 function assertOpaqueEmptyRefusals(compiled, sourceText, names) {
   assertCsharpCheckingSucceeded(compiled);
-  const issues = compiled.targetDiagnostics.filter(diagnostic => diagnostic.category === "error");
+  const issues = compiled.result.diagnostics.filter(diagnostic => diagnostic.category === "error");
   assert.equal(issues.length, names.length, "only the original opaque empty producers are refused");
   for (const name of names) {
     const start = sourceText.indexOf("{}", sourceText.indexOf(`const ${name}`));

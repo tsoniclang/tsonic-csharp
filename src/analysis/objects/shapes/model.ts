@@ -32,5 +32,6 @@ export interface CsharpRecursiveObjectShapePolicy extends CsharpObjectShapePolic
     sourceFile: SourceFile,
     authoredTypeRoot: Node | undefined,
     state: CsharpTypeResolutionState,
+    selectedTarget?: TargetTypeRef,
   ): CsharpObjectShapeFact | undefined;
 }

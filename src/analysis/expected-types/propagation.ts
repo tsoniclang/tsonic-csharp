@@ -298,6 +298,8 @@ export function createCsharpExpectedTypePropagation(
   function recordObjectShape(expression: Node, targetType: TargetTypeRef, shape: CsharpObjectShapeFact): void {
     recordObjectCarrier(expression, targetType, shape.targetType);
     const shapes = objectConstructions.get(expression) ?? new Map<string, CsharpObjectShapeFact>();
+    for (const member of shape.members) Object.freeze(member);
+    Object.freeze(shape.members);
     shapes.set(targetTypeRefKey(targetType), Object.freeze(shape));
     objectConstructions.set(expression, shapes);
   }

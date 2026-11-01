@@ -13,7 +13,7 @@ import { csharpObjectShapeMethodDeclaration, csharpPresentObjectShapeMethod } fr
 import { objectShapeMethodInvocationName, objectShapeStorageMemberName } from "../../target-model/names/object-members.js";
 import { csharpTargetTypeRenderingRejection } from "../../policy/types/model/renderability.js";
 import { createCsharpStructuralObjectEmissionRecords } from "../program/records/objects/structural-object-emission.js";
-import { selectCsharpObjectMethodSignature } from "../../policy/types/objects/object-members.js";
+import { selectCsharpObjectMethodSignature, selectCsharpStableNativeMethodValue } from "../../policy/types/objects/object-members.js";
 
 export function analyzeCsharpStructuralObjectEmission(input: {
   readonly shapes: CsharpObjectShapeClassifications;
@@ -168,11 +168,14 @@ export function analyzeCsharpStructuralObjectEmission(input: {
     const dynamicMembers = artifact?.materialization === "synthetic" && !structural &&
       artifact.capabilities.includes("reference-identity") ? Object.freeze(shape.members.flatMap(member => {
         if (member.sourceKey.kind !== "property" || member.memberKind === "method" &&
-            csharpObjectShapeMethodDeclaration(shape, member) !== undefined && member.methodValueStorage === undefined) return [];
-        return [Object.freeze({ key: member.sourceKey.name, name: member.memberKind === "method"
-          ? objectShapeStorageMemberName(shape, member) : member.targetName,
-          type: member.methodValueStorage?.type ?? member.type,
-          writable: member.readonly !== true && member.accessor?.setter !== false })];
+            !hasMethodValues(shape) && member.methodValueStorage === undefined) return [];
+        const stable = member.memberKind !== "method" || csharpObjectShapeMethodDeclaration(shape, member) === undefined ? undefined
+          : selectCsharpStableNativeMethodValue(shape, member, hasMethodValues(shape));
+        return [Object.freeze({ key: member.sourceKey.name, name: stable?.valueName ?? (member.memberKind === "method"
+          ? objectShapeStorageMemberName(shape, member) : member.targetName),
+          type: stable?.type ?? member.methodValueStorage?.type ?? member.type,
+          writable: member.readonly !== true && member.accessor?.setter !== false &&
+            (member.memberKind !== "method" || member.methodValueStorage !== undefined) })];
       })) : undefined;
     values.set(key, Object.freeze({ members: Object.freeze(interfaceMembers), methodValues: Object.freeze(methodValues), methods,
       contracts: Object.freeze(contracts), dynamicMembers }));

@@ -82,9 +82,11 @@ export function addShapeCapabilities(
   shapes: ReadonlyMap<string, CsharpObjectShapeFact>,
   capability: CsharpObjectShapeCapability,
 ): void {
-  for (const key of shapes.keys()) {
+  for (const [key, shape] of shapes) {
     const capabilities = target.get(key) ?? new Set<CsharpObjectShapeCapability>();
     capabilities.add(capability);
+    if (capability === "reference-identity" && shape.methodImplementation !== undefined &&
+        shape.members.some(member => member.memberKind === "method")) capabilities.add("method-values");
     target.set(key, capabilities);
   }
 }

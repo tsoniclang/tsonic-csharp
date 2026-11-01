@@ -23,7 +23,7 @@ import { csharpFixedArrayRepresentationRejection } from "../../policy/types/coll
 import { readCsharpSourceDefaultValue, readCsharpSourceField, readCsharpSourceFixedArrayType, readCsharpSourceStruct } from "../../source/extension/markers.js";
 
 const missing = Symbol("csharp.source-evidence.missing");
-import { createTsonicMemoryMetadataIndex, createTsonicPointerBackingDemands, createTsonicClosedArrayStorageQueries } from "@tsonic/source-core/facts";
+import { type TsonicMemoryMetadataIndex, createTsonicPointerBackingDemands, createTsonicClosedArrayStorageQueries } from "@tsonic/source-core/facts";
 import type { CsharpPointerReturnContract } from "../../target-model/records/calls/pointer-return.js";
 import { analyzeCsharpTypeOnlyDeclarations } from "../declarations/type-only.js";
 type Cached<Value> = Value | typeof missing;
@@ -33,8 +33,8 @@ export function analyzeCsharpSourceEvidence(
   sourceFiles: readonly SourceFile[],
   types: CsharpTypePolicy,
   policy: CsharpPolicyContext,
+  memoryMetadata: TsonicMemoryMetadataIndex,
 ): CsharpSourceEvidenceResult {
-  const memoryMetadata = createTsonicMemoryMetadataIndex(source);
   const pointerBacking = createTsonicPointerBackingDemands(source);
   const arrayStorage = createTsonicClosedArrayStorageQueries(source, 131_072);
   const typeOnlyDeclarations = analyzeCsharpTypeOnlyDeclarations(source, sourceFiles);

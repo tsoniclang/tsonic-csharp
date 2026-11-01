@@ -115,6 +115,8 @@ function fixture() {
         IsAsExpression: selected => selected?.kind === "assertion",
         IsTypeAssertion: selected => selected?.kind === "type-assertion",
         IsBinaryExpression: selected => selected?.kind === "binary",
+        IsConditionalExpression: selected => selected?.kind === "conditional",
+        IsParameterDeclaration: selected => selected?.kind === "parameter",
         IsCallExpression: selected => selected?.kind === "call",
         IsNewExpression: selected => selected?.kind === "new",
         IsVariableDeclaration: selected => selected?.kind === "variable",
@@ -128,6 +130,7 @@ function fixture() {
         IsFunctionExpression: () => false,
       },
       as: { AsVariableDeclaration: selected => selected?.kind === "variable" ? selected : undefined,
+        AsParameterDeclaration: selected => selected?.kind === "parameter" ? selected : undefined,
         AsPropertyDeclaration: selected => selected?.kind === "property-declaration" ? selected : undefined },
       parent: selected => selected?.parent,
       name: selected => selected?.name,
@@ -166,6 +169,7 @@ function fixture() {
       return { kind: "resolved", shape: shapes[0] };
     },
     selectTargetCall: () => { throw new Error("this fixture has no call argument uses"); },
+    isCompileTimeMetadata: () => false,
     types: { resolveSourceCallArgumentParameter: () => { throw new Error("this fixture has no call argument uses"); } },
     scopedTargetType: selected => existing.get(selected),
     retainSourceShape: (_node, _type, shape) => shape,
@@ -680,13 +684,20 @@ test("literal construction reads its own checked source type independently of a 
   const value = memberProvenanceFixture();
   const owner = value.owner("omitted");
   const literal = value.literal("omitted");
-  const actual = value.actual("omitted");
   const expected = { targetType: { ...structural, csharpStructuralContract: true },
     sourceType: owner, members: value.declared(owner) };
   const other = { ...expected, sourceType: value.actual("present") };
   for (const [label, selectedShape] of [["unavailable native shape", undefined], ["another checked source", other]]) {
+    let actual;
+    let observations = 0;
+    const queries = { ...value.queries, types: { ...value.queries.types, expressionType(node) {
+      assert.equal(node === literal, true, `${label}: only the original checked literal supplies its source Type`);
+      observations += 1;
+      actual = value.queries.types.expressionType(node);
+      return actual;
+    } } };
     const select = createCsharpLiteralShapeResolver({
-      ast: value.ast, semantics: () => value.queries,
+      ast: value.ast, semantics: () => queries,
       typeParameterConstraints: () => ({ kind: "resolved", constraints: [] }),
     }, {
       resolveNode: () => selectedShape,
@@ -695,8 +706,9 @@ test("literal construction reads its own checked source type independently of a 
       instantiateMemberEvidence: value.resolver.instantiateMemberEvidence,
       rememberTargetShape: shape => shape,
     });
-    const selected = select([expected], literal, value.queries.sourceFile);
+    const selected = select([expected], literal, queries.sourceFile);
     assert.equal(selected.kind === "resolved", true, label);
+    assert.equal(observations === 1 && actual !== undefined, true, `${label}: one real checked source observation owns the construction`);
     assert.equal(selected.shape.sourceType === actual, true, `${label}: the original literal owns its checked Type`);
     const evidence = selected.shape.members[0].sourceMemberEvidence[0];
     assert.equal(evidence.sourceType === actual && evidence.ownerType === owner &&

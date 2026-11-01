@@ -3,6 +3,9 @@ import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef, TargetTypeRef } f
 import { isCsharpValueTypeTargetType, targetTypeRefEquals, targetTypeRefKey, isSourceDeclaredNominalShape } from "../../../target-model/types/index.js";
 import { objectShapeArtifactKey } from "../../../target-model/records/objects/object-shape-keys.js";
 import { maximumArtifactCount } from "./batches.js";
+import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
+import { getCsharpCollectionElementTargetType } from "../../../target-model/types/carriers/collections.js";
+import { getCsharpRuntimeUnionArms } from "../../../target-model/types/carriers/runtime-carriers.js";
 
 export function collectCsharpReferenceClosure(
   scope: CsharpObjectShapeDemandScope,
@@ -27,14 +30,34 @@ export function collectCsharpReferenceClosure(
   }
   const work = [root];
   const queued = new Set([objectShapeArtifactKey(root)]);
+  const memberTypes: TargetTypeRef[] = [];
+  const checkedMemberTypes = new Set<string>();
   const enqueue = (shape: CsharpObjectShapeFact): void => {
     const key = objectShapeArtifactKey(shape);
     if (queued.has(key)) return;
     queued.add(key);
     work.push(shape);
   };
-  for (let index = 0; index < work.length; index++) {
-    const shape = work[index]!;
+  for (let index = 0, memberIndex = 0; index < work.length || memberIndex < memberTypes.length;) {
+    if (index >= work.length) {
+      const type = memberTypes[memberIndex++]!;
+      const key = targetTypeRefKey(type);
+      if (checkedMemberTypes.has(key)) continue;
+      if (checkedMemberTypes.size >= maximumArtifactCount) return { kind: "rejected",
+        reason: `The ${capability} reference closure exceeds its finite ${maximumArtifactCount}-shape budget.` };
+      checkedMemberTypes.add(key);
+      const present = getCsharpNullableElementTargetType(type) ?? type;
+      const shape = scope.host.objectShapes.resolveTarget(present);
+      if (shape !== undefined && !isCsharpValueTypeTargetType(shape.targetType)) enqueue(shape);
+      else {
+        const element = getCsharpCollectionElementTargetType(present);
+        if (element !== undefined) memberTypes.push(element);
+        if (present.kind === "tuple") memberTypes.push(...present.elements);
+        memberTypes.push(...getCsharpRuntimeUnionArms(present, scope.host.typeDefinitions) ?? []);
+      }
+      continue;
+    }
+    const shape = work[index++]!;
     const key = objectShapeArtifactKey(shape);
     if (shapes.has(key)) continue;
     if (shapes.size >= maximumArtifactCount) {
@@ -52,7 +75,8 @@ export function collectCsharpReferenceClosure(
       return { kind: "rejected", reason: `The ${capability} capability cannot use native value storage.` };
     }
     shapes.set(key, shape);
-    if (capability === "method-values") {
+    if (capability === "reference-identity") memberTypes.push(...shape.members.map(member => member.methodValueStorage?.type ?? member.type));
+    if (capability === "method-values" || capability === "reference-identity" && shape.methodImplementation !== undefined) {
       if (shape.declarationTemplate !== undefined) enqueue(shape.declarationTemplate);
       for (const member of shape.members) {
         if (member.methodValueContract === undefined) continue;

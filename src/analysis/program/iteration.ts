@@ -134,7 +134,6 @@ export function analyzeCsharpRepresentationIteration(
     createCsharpProjectTypeCatalog(typeHost, previous?.typeProjections),
     representations,
   );
-  if (typeSystem.nativeConstruction.issues.length > 0) return rejectCsharpAnalysisIssues(typeSystem.nativeConstruction.issues);
   const policyContext = createCsharpAnalysisPolicyContext({
     moduleCallables: typeHost.moduleCallables,
     integerRanges: typeHost.integerRanges,
@@ -154,10 +153,13 @@ export function analyzeCsharpRepresentationIteration(
     sourceFiles,
     typeSystem.analysisTypes,
     policy,
+    typeSystem.memoryMetadata,
   );
   const sourceEvidence = evidence.index;
   if (sourceEvidence.fixedArrayIssues.length > 0) return rejectCsharpAnalysisIssues(sourceEvidence.fixedArrayIssues);
   const operations = analyzeCsharpTargetOperations(policy, sourceEvidence, statementErasure, sourceStorage.nodes, requiredRecords);
+  if (operations.issues.length > 0) return rejectCsharpAnalysisIssues(operations.issues);
+  if (typeSystem.nativeConstruction.issues.length > 0) return rejectCsharpAnalysisIssues(typeSystem.nativeConstruction.issues);
   const valueReadStages = analyzeCsharpValueReadStages(policy, sourceEvidence, operations);
   const optionalLocals = analyzeCsharpOptionalLocals(policy, sourceEvidence, sourceStorage.nodes, names, operations);
   const typeProjections = analyzeCsharpTypeProjections(input.source, sourceEvidence, operations, optionalLocals);

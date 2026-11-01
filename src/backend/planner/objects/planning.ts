@@ -40,7 +40,7 @@ import { renderCsharpMethodValueContracts } from "./method-values.js";
 import { csharpEnumerableKeysContract, renderCsharpEnumerableKeys } from "./enumerable-keys.js";
 import { renderCsharpAuthoredObjectMethods } from "./authored-methods.js";
 import { renderCsharpCaptureFrameMethods } from "./capture-methods.js";
-import { csharpDynamicObjectInterfaceType, renderCsharpDynamicObjectMembers } from "./dynamic-members.js";
+import { csharpNativeSlotInterfaceType, renderCsharpNativeSlotMembers } from "./native-slots.js";
 
 export function csharpTypeFromObjectShapeFact(
   input: CsharpPlanningContext,
@@ -158,7 +158,7 @@ function renderObjectShapeDeclaration(
   const genericMethods = renderCsharpAuthoredObjectMethods(fact, input, diagnostics);
   const captureMethods = renderCsharpCaptureFrameMethods(fact, input, diagnostics);
   const enumerableKeys = capabilities.includes("enumerable-keys") ? renderCsharpEnumerableKeys(fact, input) : [];
-  const dynamicMembers = renderCsharpDynamicObjectMembers(input.scope.typeParameterNames, fact, input.program.records);
+  const dynamicMembers = renderCsharpNativeSlotMembers(input.scope.typeParameterNames, fact, input.program.records);
   if (
     interfaces === undefined ||
     typeParameters === undefined ||
@@ -180,7 +180,7 @@ function renderObjectShapeDeclaration(
             ...interfaces,
             ...(jsonSerializable ? [csharpJsonValueInterfaceType()] : []),
             ...(referenceIdentity ? [csharpClosedValueCarrierInterfaceType()] : []),
-            ...(dynamicMembers.length === 0 ? [] : [csharpDynamicObjectInterfaceType()]),
+    ...(dynamicMembers.length === 0 ? [] : [csharpNativeSlotInterfaceType()]),
           ],
         }),
     members: [

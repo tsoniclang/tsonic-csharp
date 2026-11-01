@@ -34,6 +34,7 @@ export function analyzeCsharpObjectMemberEmission(input: {
       const selection = selectCsharpObjectMemberEmission({ shape, member,
         receiverBound: artifact?.receiverBoundMethodKeys.includes(csharpObjectShapeMemberContractKey(member)) === true,
         authored: csharpObjectShapeMethodDeclaration(shape, member) !== undefined, deferred: deferred.has(member.targetName),
+        retainMethodValue: artifact?.capabilities.includes("method-values") === true,
         implementsInterface: (shape.implements?.length ?? 0) !== 0, nativeField: input.storage.nativeField.get(shape.targetType, member.targetName) });
       if (selection.kind === "rejected") {
         if (generated || member.bound === true) issues.push({ code: "CSHARP_UNSUPPORTED_AST", category: "error", source: "tsonic-csharp",

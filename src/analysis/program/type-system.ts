@@ -1,4 +1,5 @@
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
+import { createTsonicMemoryMetadataIndex } from "@tsonic/source-core/facts";
 import {
   createCsharpNativeConstructionDemandQuery,
 } from "../objects/native-construction-demand.js";
@@ -240,6 +241,7 @@ function createCsharpTypeSystem(
 
 export interface CsharpTypeAnalysis extends CsharpTypeSystem {
   readonly nativeConstruction: CsharpNativeConstructionDemandQueries;
+  readonly memoryMetadata: import("@tsonic/source-core/facts").TsonicMemoryMetadataIndex;
 }
 
 export function createCsharpTypeAnalysis(
@@ -255,10 +257,12 @@ export function createCsharpTypeAnalysis(
     },
   });
   const system = createCsharpTypeSystem(host, catalog, selectedRepresentations);
+  const memoryMetadata = createTsonicMemoryMetadataIndex(host.sourceStorage.source);
   nativeConstruction = createCsharpNativeConstructionDemandQuery({
     ...host,
     types: system.analysisTypes,
     scopedTargetType: representations.scopedTargetType,
+    isCompileTimeMetadata: node => memoryMetadata.declaration(node) !== undefined || memoryMetadata.isCompileTimeExpression(node),
     resolveShape: system.objectShapes.resolveType,
     resolveLiteralShape: system.objectShapes.resolveObjectLiteralTargetShape,
     retainSourceShape: system.objectShapes.retainConstructionSource,
@@ -267,6 +271,6 @@ export function createCsharpTypeAnalysis(
         projectTypes: system.projectTypes, objectShapes: system.objectShapes }, node, sourceFile);
     },
   });
-  return Object.freeze({ ...system, nativeConstruction });
+  return Object.freeze({ ...system, nativeConstruction, memoryMetadata });
 }
 import { csharpSourceValueResult } from "../source-evidence/types/resolution/call-results.js";

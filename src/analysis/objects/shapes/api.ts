@@ -172,12 +172,14 @@ export function createCsharpObjectShapePolicy(
     type: Type | undefined,
     sourceFile: SourceFile,
     authoredTypeRoot?: Node,
+    selectedTarget?: TargetTypeRef,
   ): CsharpObjectShapeFact | undefined {
     return resolveTypeWithState(
       type,
       sourceFile,
       authoredTypeRoot,
       { depth: 0 },
+      selectedTarget,
     );
   }
 
@@ -186,6 +188,7 @@ export function createCsharpObjectShapePolicy(
     sourceFile: SourceFile,
     authoredTypeRoot: Node | undefined,
     state: CsharpTypeResolutionState,
+    selectedTarget?: TargetTypeRef,
   ): CsharpObjectShapeFact | undefined {
     if (type === undefined) {
       return undefined;
@@ -202,7 +205,7 @@ export function createCsharpObjectShapePolicy(
       authoredLiteral,
       host.semantics(sourceFile),
       state,
-      undefined,
+      selectedTarget,
       authoredLiteral === undefined ? authoredTypeRoot : undefined,
     );
     return shape === undefined ? undefined : rememberTargetShape(shape);
@@ -366,17 +369,6 @@ export function createCsharpObjectShapePolicy(
     }
     activeTypes.add(type);
     try {
-      const transformation = queries.types.standardTransformation(authoredTypeRoot, type) ??
-        queries.types.standardTransformation(undefined, type);
-      if (transformation?.kind === "component" && transformation.component.selectedType !== type) {
-        const component = transformation.component;
-        const underlying = resolveSemanticShape(component.selectedType, undefined, queries, nextState(state),
-          selectedTarget, component.authoredTypeNode);
-        const members = underlying === undefined ? undefined
-          : instantiateMemberEvidence(underlying.members, type, queries, underlying.sourceType);
-        return underlying === undefined || members === undefined ? undefined
-          : { ...underlying, sourceType: type, members };
-      }
       const selectedType = selectedTarget ?? (authoredTypeRoot === undefined
         ? host.typeResolver.resolveType(
           type,
@@ -387,6 +379,12 @@ export function createCsharpObjectShapePolicy(
       const targetType = selectedType === undefined
         ? undefined
         : getCsharpNullableElementTargetType(selectedType) ?? selectedType;
+      if (node === undefined && targetType !== undefined) {
+        const retained = resolveTarget(targetType);
+        const members = retained === undefined ? undefined
+          : instantiateMemberEvidence(retained.members, type, queries, retained.sourceType);
+        if (retained !== undefined && members !== undefined) return { ...retained, sourceType: type, members };
+      }
       const providerShape = resolveProviderObjectLiteralShape({
         type,
         queries,

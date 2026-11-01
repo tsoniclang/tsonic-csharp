@@ -18,6 +18,7 @@ import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target
 const methodValueUses = new WeakMap<SourceStorageQueries, {
   readonly retained: ReadonlySet<Node>;
   readonly extracted: ReadonlySet<Node>;
+  readonly observed: ReadonlySet<Node>;
 }>();
 
 function structuralBoundariesAreExportOnly(source: TargetSourceProgram,
@@ -35,18 +36,21 @@ function selectMethodValueUses(storage: SourceStorageQueries) {
   const { ast } = source;
   const values = new Set<Node>();
   const extracted = new Set<Node>();
-  const pending: { readonly declaration: Node; readonly extracted: boolean }[] = [];
-  const add = (declaration: Node, firstClass: boolean): void => {
+  const observed = new Set<Node>();
+  const pending: { readonly declaration: Node; readonly extracted: boolean; readonly observed: boolean }[] = [];
+  const add = (declaration: Node, firstClass: boolean, actual = false): void => {
     if ((!ast.is.IsMethodDeclaration(declaration) && !ast.is.IsMethodSignatureDeclaration(declaration)) ||
-      values.has(declaration) && (!firstClass || extracted.has(declaration))) return;
+      values.has(declaration) && (!firstClass || extracted.has(declaration)) && (!actual || observed.has(declaration))) return;
     values.add(declaration);
     if (firstClass) extracted.add(declaration);
-    pending.push({ declaration, extracted: firstClass });
+    if (actual) observed.add(declaration);
+    pending.push({ declaration, extracted: firstClass, observed: actual });
   };
   for (const node of storage.nodes) {
     if (ast.is.IsMethodDeclaration(node) || ast.is.IsMethodSignatureDeclaration(node)) {
       const uses = source.navigation.declarationUseSummary(node);
-      if (uses.firstClassUseCount > 0 || uses.exported || uses.memberWritten) add(node, true);
+      if (uses.firstClassUseCount > 0 || uses.memberWritten) add(node, true, true);
+      else if (uses.exported) add(node, true);
       else {
         const subject = storage.memberSubjectFor(node);
         const domain = subject.kind === "resolved" ? storage.closedOriginsFor(subject.subject) : undefined;
@@ -66,7 +70,7 @@ function selectMethodValueUses(storage: SourceStorageQueries) {
     const type = semantics.types.expressionType(expression) ?? semantics.types.authoredType(expression);
     if (type === undefined) continue;
     for (const property of semantics.types.propertyInfos(type)) {
-      for (const declaration of semantics.declarations.symbolDeclarations(property.symbol)) add(declaration, false);
+      for (const declaration of semantics.declarations.symbolDeclarations(property.symbol)) add(declaration, false, true);
     }
   }
   for (let index = 0; index < pending.length; index++) {
@@ -76,11 +80,11 @@ function selectMethodValueUses(storage: SourceStorageQueries) {
     const origins = storage.originSubjectsFor(subject.subject);
     if (origins.kind !== "resolved") continue;
     for (const origin of origins.subjects) {
-      add(origin.node, current.extracted);
-      for (const component of origin.projection) if (component.kind === "method-value") add(component.declaration, current.extracted);
+      add(origin.node, current.extracted, current.observed);
+      for (const component of origin.projection) if (component.kind === "method-value") add(component.declaration, current.extracted, current.observed);
     }
   }
-  const selected = Object.freeze({ retained: values, extracted });
+  const selected = Object.freeze({ retained: values, extracted, observed });
   methodValueUses.set(storage, selected);
   return selected;
 }
@@ -195,7 +199,7 @@ export function retainCsharpMethodValueContracts(
     const requiresProtocol = quantified || member.methodValueContract !== undefined;
     const nativeMethod = csharpObjectMethodHasFixedNativeExposure(writes);
     const valueUses = !nativeInterface && !requiresProtocol && (member.sourceDeclarations?.length ?? 0) > 0
-      ? selectMethodValueUses(sourceStorage).retained : undefined;
+      ? nativeMethod ? selectMethodValueUses(sourceStorage).observed : selectMethodValueUses(sourceStorage).retained : undefined;
     const needsValue = member.methodValueStorage?.kind === "delegate" ||
       member.sourceDeclarations?.some(source => valueUses?.has(source) === true) === true;
     if (!requiresProtocol && (!nativeMethod || needsValue) && (member.optional === true || needsValue || declaration !== undefined)) {

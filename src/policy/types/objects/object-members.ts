@@ -4,7 +4,7 @@ import { csharpDelegateTargetType, getCsharpDelegateSignature, getCsharpNullable
 import { csharpNullableTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { csharpRuntimeLocationTargetType, csharpRuntimeRecordFieldTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpTargetTypeRenderingRejection } from "../model/renderability.js";
-import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { SourceStorageMemberWritesSelection } from "@tsonic/target-api/analysis";
 import { objectShapeMethodBodyName, objectShapeMethodInvocationName, objectShapeMethodValueStorageNames } from "../../../target-model/names/object-members.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
@@ -34,6 +34,13 @@ export function csharpObjectMethodHasFixedNativeExposure(writes: SourceStorageMe
     (writes.kind === "complete" || writes.boundaries.length > 0 && writes.boundaries.every(boundary => boundary.kind === "external-write"));
 }
 
+export function selectCsharpStableNativeMethodValue(shape: CsharpObjectShapeFact, member: CsharpObjectShapeMemberFact,
+  required: boolean): { readonly type: TargetTypeRef; readonly valueName: string } | undefined {
+  if (!required || member.methodValueStorage !== undefined || (member.typeParameters?.length ?? 0) !== 0 ||
+      selectCsharpObjectMethodSignature(member.type) === undefined) return undefined;
+  return Object.freeze({ type: member.type, valueName: objectShapeMethodValueStorageNames(shape, member).valueName });
+}
+
 export function selectCsharpObjectMemberEmission(input: CsharpObjectMemberPolicyInput):
   | { readonly kind: "selected"; readonly value: CsharpObjectMemberEmission }
   | { readonly kind: "rejected"; readonly reason: string } {
@@ -49,8 +56,13 @@ export function selectCsharpObjectMemberEmission(input: CsharpObjectMemberPolicy
   if (member.memberKind === "method" && input.authored) {
     const selected = selectCsharpObjectMethodSignature(member.type);
     if (receiverBound || selected === undefined) return reject("An authored native method requires its exact closed receiver and callable signature.");
-    if (member.methodValueStorage === undefined) return emit({ kind: "authored", bodyName: member.targetName, signature: selected,
-      value: Object.freeze({ kind: "fixed" }) });
+    if (member.methodValueStorage === undefined) {
+      const stableValue = selectCsharpStableNativeMethodValue(shape, member, input.retainMethodValue);
+      if (stableValue !== undefined && !renderable([stableValue.type]))
+        return reject("An observed native method requires its exact renderable stable delegate carrier.");
+      return emit({ kind: "authored", bodyName: member.targetName, signature: selected,
+        value: Object.freeze({ kind: "fixed", ...(stableValue === undefined ? {} : { stableValue }) }) });
+    }
     const storage = member.methodValueStorage;
     const expected = member.methodValueContract ?? member.type;
     const stored = getCsharpNullableElementTargetType(storage.type) ?? storage.type;
