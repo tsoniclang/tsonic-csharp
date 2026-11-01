@@ -1,3 +1,4 @@
+import { csharpSourceValueResult } from "../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { sourceValueDeclaration } from "../../../dist/analysis/source-evidence/types/resolution/calls.js";
@@ -74,7 +75,7 @@ test("project storage queries use the selected declaration's file, not another r
     scope.resolveNode = (selected, file) => {
       assert.equal(selected === declaration, true, `${kind}: exact storage declaration`);
       assert.equal(file === declarationFile, true, `${kind}: exact checked declaration file`);
-      return { kind: "resolved", type: carrier };
+      return { kind: "resolved", sourceResult: csharpSourceValueResult(carrier) };
     };
     assert.equal(resolveStorage(scope, expression, {}) === carrier, true, `${kind}: native carrier`);
   }

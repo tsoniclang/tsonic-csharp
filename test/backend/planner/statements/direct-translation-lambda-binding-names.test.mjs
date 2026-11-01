@@ -29,7 +29,7 @@ test("expression-bodied call arguments retain their exact authored lambda bindin
         public static Tsonic.CSharp.Js.JSArray<int> map(int language)
         {
             Tsonic.CSharp.Js.JSArray<int> values = Tsonic.CSharp.Js.JSArray<int>.of([1, 2]);
-            return Tsonic.CSharp.Js.JSArrayStatics.fromDense<int, int>(values, (int language, int __tsonic_param0) => language + 1);
+            return Tsonic.CSharp.Js.JSArrayStatics.fromDense<int, int>(values, (int language, int unused) => language + 1);
         }
     }
 }
@@ -51,7 +51,7 @@ test("an exported dense integer array retains exact callback and result carriers
   assert.deepEqual(compiled.targetDiagnostics, []);
   const source = compiled.artifacts.get("src/Index.cs");
   assert.match(source, /JSArray<int> map\(Tsonic\.CSharp\.Js\.JSArray<int> values, int language\)/u);
-  assert.match(source, /fromDense<int, int>\(values, \(int language, int __tsonic_param0\) => language \+ 1\)/u);
+  assert.match(source, /fromDense<int, int>\(values, \(int language, int unused\) => language \+ 1\)/u);
   assert.doesNotMatch(source, /__tsonic_callable_|SwitchExpression|\bswitch\s*\{/u, "the exact authored inline callback adds no helper or switch-as-let");
   assert.doesNotMatch(source, /new Func|Dictionary|Reflection|\.Invoke/u, "sealed invocation-only binding has no fresh delegate or adapter cost");
   assert.doesNotMatch(source, /JSArray<double>|JSArray<int\?>/u);

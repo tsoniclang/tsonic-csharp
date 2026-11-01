@@ -121,7 +121,7 @@ for (const surface of ["native", "js"]) {
       assert.equal(csharpConstructorRequiresPreparation(ast, constructor, program.records, program.records,
         parameter => program.records.capturedBinding.get(parameter) !== undefined), false,
       "the existing entry owner, not a new selector, establishes the direct-only correction domain");
-      const call = csharpConstructorBaseCall(ast, constructor);
+      const call = csharpConstructorBaseCall(ast, constructor)?.call;
       const argument = ast.as.AsCallExpression(call).Arguments.Nodes[0];
       assert.equal(program.records.sourceArgument.get(argument)?.argument.passingMode,
         ["byref-readwrite", "byref-readonly", "byref-writeonly-must-init"][index],
@@ -131,7 +131,7 @@ for (const surface of ["native", "js"]) {
     for (const mode of ["ref", "in", "out"]) assert.match(output, new RegExp(`: base\\(${mode} value\\)`, "u"),
       `${mode}: one native argument is forwarded without a packet or value copy`);
     const constructor = constructors[0];
-    const argument = ast.as.AsCallExpression(csharpConstructorBaseCall(ast, constructor)).Arguments.Nodes[0];
+    const argument = ast.as.AsCallExpression(csharpConstructorBaseCall(ast, constructor)?.call).Arguments.Nodes[0];
     // A missing sealed mode record is a planner invariant (RULINGS: missing records are refused, never relabeled).
     assert.throws(() => planConstructorDeclarations(constructor, "RefDerived", ast.getSourceFile(constructor),
       createCsharpPlanningContext({ ...program, records: { ...program.records,

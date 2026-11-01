@@ -1,5 +1,5 @@
 import { csharpProviderBindingFromResolution } from "../../../../providers/model/relation-resolver.js";
-import type { CsharpTargetNamedTypeRef, CsharpTargetParameter, TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { CsharpTargetParameter, TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import { retainCsharpUnionObjectShapes } from "./source-union-refinement.js";
@@ -11,7 +11,8 @@ import { combineCsharpTargetUnionMembers } from "../../../../target-model/types/
 import { csharpDelegateTargetType } from "../../../../target-model/types/carriers/delegates.js";
 
 import { csharpNullableTargetType } from "../../../../target-model/types/carriers/nullable.js";
-import { csharpExceptionTargetType, csharpRuntimeErrorTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
+import { csharpExceptionTargetType, csharpRuntimeErrorTargetType, isCsharpNeverTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
+import { isCsharpVoidTargetType } from "../../../../target-model/types/identity.js";
 import { csharpTargetTypeFromBinding } from "../../../../policy/types/storage/bindings.js";
 import { definedValues } from "./source-evidence.js";
 import { nextState } from "./state.js";
@@ -173,8 +174,7 @@ export function resolveCallableEvidence(
       ? {}
       : { restParameterIndex: restParameterIndexes[0] }),
   };
-  const signature = returnType.kind === "target-named" &&
-      (returnType as CsharpTargetNamedTypeRef).csharpSpecialType === "void"
+  const signature = isCsharpVoidTargetType(returnType) || isCsharpNeverTargetType(returnType)
     ? csharpDelegateTargetType(
         "System.Action",
         parameterTypes,

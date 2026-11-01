@@ -456,11 +456,13 @@ function nativeCreations(value, overrides = {}) {
       parameters, nativeParameters, returnType: result.type,
     };
   };
-  return analyzeCsharpCallableCreations({ source: value.source, nodes: value.nodes,
+  const creationResult = analyzeCsharpCallableCreations({ source: value.source, nodes: value.nodes,
     captures: records, contracts: { get: identity => contract(identity.declaration), closedInputType: () => undefined },
     operations: { selectedCall: { get: () => undefined }, selectedConstruction: { get: () => undefined } },
     storage: records, expectedTypes: value.expected, evidence: records, conversions: records,
     literals: value.literalValues, ...overrides });
+  assert.equal(creationResult.kind, "resolved", "the original creation fixture has no quotation syntax refusal");
+  return creationResult.value;
 }
 
 for (const surface of ["native", "js"]) {

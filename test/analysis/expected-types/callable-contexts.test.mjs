@@ -106,7 +106,7 @@ function fixture(body, overrides = {}) {
   const contract = analyzed.get({ kind: "declaration", declaration: lambda });
   assert.equal(contract !== undefined, true, "the original declaration has its completed native ABI");
   const nativeCarrier = csharpCallableValueType(contract);
-  const creations = analyzeCsharpCallableCreations({ source, nodes, contracts: analyzed, operations,
+  const creationResult = analyzeCsharpCallableCreations({ source, nodes, contracts: analyzed, operations,
     captures: { captureClosure: { get: () => undefined }, namedSelf: { get: () => undefined },
       lexicalCaptures: [{ owner: lambda, values: [], receivers: [] }] },
     storage: { lambdaParameterType: { get: parameter => contract.nativeParameters.find(entry => entry.sourceParameter === parameter)?.targetParameter.type },
@@ -115,6 +115,8 @@ function fixture(body, overrides = {}) {
     expectedTypes: { requiredExpectedType: { get: () => [] } },
     evidence, conversions: { conversion: { get: (sourceType, targetType) => targetTypeRefEquals(sourceType, targetType) ? { kind: "identity" } : undefined } },
     literals: { literalValue: { get: () => undefined } } });
+  assert.equal(creationResult.kind, "resolved", "the original creation fixture has no quotation syntax refusal");
+  const creations = creationResult.value;
   return { scopedType, creation: creations.callableCreation.get(lambda), nativeCarrier, contract, lambda, source,
     closedType: analyzed.closedInputType(lambda),
     destinationReads, sourceParameter: overrides.sourceParameter ?? scopedBinder ?? scalar,
