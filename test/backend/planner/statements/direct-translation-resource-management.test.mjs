@@ -482,6 +482,8 @@ let entered: int = 0;
 const failure = new Exception("condition");
 class Resource { [Symbol.dispose](): void { disposed++; } }
 function count(): int { return evaluations; }
+function disposedCount(): int { return disposed; }
+function enteredCount(): int { return entered; }
 function reject(): false {
   evaluations++;
   if (count() === 3) throw failure;
@@ -489,14 +491,14 @@ function reject(): false {
 }
 export function run(): boolean {
   for (using active = new Resource(); reject();) { entered++; void active; }
-  if (count() !== 1 || disposed !== 1 || entered !== 0) return false;
+  if (count() !== 1 || disposedCount() !== 1 || enteredCount() !== 0) return false;
   for (using active = new Resource(); (evaluations++, false);) { entered++; void active; }
-  if (count() !== 2 || disposed !== 2 || entered !== 0) return false;
+  if (count() !== 2 || disposedCount() !== 2 || enteredCount() !== 0) return false;
   try {
     for (using active = new Resource(); reject();) { entered++; void active; }
     return false;
   } catch (caught) {
-    return count() === 3 && disposed === 3 && entered === 0 && caught === failure;
+    return count() === 3 && disposedCount() === 3 && enteredCount() === 0 && caught === failure;
   }
 }
 ` });
