@@ -221,11 +221,13 @@ export function analyzeCsharpRepresentationIteration(
     storagePreparation.captures, names, operations, requiredRecords);
   const captureStorage = analyzeCsharpCaptureStorage(source, objectShapes, storagePreparation.captures, sourceEvidence,
     classFactories.factories.flatMap(factory => factory.captures), callables, operations.erasedStatement, operations);
-  const callableCreations = analyzeCsharpCallableCreations({
+  const callableCreationResult = analyzeCsharpCallableCreations({
     source, nodes: sourceStorage.nodes, captures: captureStorage, contracts: callables,
     operations, storage: storageRepresentations, expectedTypes, evidence: sourceEvidence, conversions: preparedConversions,
     literals: typeHost.literalValues,
   });
+  if (callableCreationResult.kind === "rejected") return callableCreationResult;
+  const callableCreations = callableCreationResult.value;
   expectedTypes.completeReturns(callableCreations.callableCreation);
   const participation = analyzeCsharpNativeParticipation({
     ast: source.ast, storage: sourceStorage, navigation: source.navigation,

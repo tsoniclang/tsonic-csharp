@@ -1,3 +1,4 @@
+import { csharpSourceValueResult } from "../../../../dist/analysis/source-evidence/types/resolution/call-results.js";
 import { assertNoTargetDiagnostics } from "../../../../../tsonic/test/scripts/diagnostic-assertions.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -15,7 +16,7 @@ const effect = name => ({ kind: "ExpressionStatement", expression: { kind: "Invo
 const nodes = value => value === null || typeof value !== "object" ? [] : [value, ...Object.values(value).flatMap(nodes)];
 
 test("closed logical RHS statement regions execute only in their selected native branch", () => {
-  const policy = { types: { resolveNode: () => ({ kind: "resolved", type: carrier }), resolveReadStorage: () => undefined } };
+  const policy = { types: { resolveNode: () => ({ kind: "resolved", sourceResult: csharpSourceValueResult(carrier) }), resolveReadStorage: () => undefined } };
   for (const [operator, expectedBranch] of [["&&", "thenBody"], ["||", "elseBody"], ["??", "thenBody"]]) {
     let count = 0;
     const leftNode = {};

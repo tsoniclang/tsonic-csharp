@@ -245,7 +245,7 @@ export function resolveSourceCallSelectedType(
   if (
     authored !== undefined &&
     instantiated !== undefined &&
-    !targetTypeRefEquals(authored, instantiated)
+    (instantiation.sourceArguments.length > 0 || !targetTypeRefEquals(authored, instantiated))
   ) {
     return instantiated;
   }

@@ -33,17 +33,6 @@ export function analyzeCsharpLambdaEmission(input: { readonly source: TargetSour
     const creation = input.creations.callableCreation.get(node);
     if (creation?.kind === "discarded") continue;
     if (creation?.kind !== "selected") { refuse(node, "Lambda emission requires its completed native creation fact."); continue; }
-    if (creation.allocation.kind === "quotation") {
-      if (ast.is.IsFunctionExpression(node)) {
-        refuse(node, "A native expression-tree quotation requires expression-bodied arrow syntax, not a function-expression statement body.");
-        continue;
-      }
-      const body = ast.body(node);
-      if (body === undefined || ast.is.IsBlock(body) || HasSyntacticModifier(ast, node, ModifierFlagsAsync)) {
-        refuse(node, "A native expression-tree quotation requires a synchronous expression-bodied lambda without statement preparation.");
-        continue;
-      }
-    }
     const carrier = creation.carrier;
     const signature = carrier === undefined ? undefined : input.types.typeEmission.get(carrier)?.lambda;
     if (signature === undefined) { refuse(node, "Lambda emission requires a contextual function/delegate type from TSTS or provider facts before C# emission."); continue; }
