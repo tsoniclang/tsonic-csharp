@@ -4,7 +4,6 @@ import {
   combineCsharpTargetUnionMembers,
   csharpAbsenceTargetType,
   csharpNullableTargetType,
-  csharpRuntimeUnionTargetType,
   csharpSourcePrimitiveTargetType,
   csharpTargetNamedType,
   csharpVoidTargetType,
@@ -19,13 +18,13 @@ const reference = csharpTargetNamedType("fixture.Record", undefined, undefined, 
 
 test("nullable union leaves share one native absence without changing payloads", () => {
   for (const second of [integer, reference]) {
-    const expected = csharpNullableTargetType(csharpRuntimeUnionTargetType([boolean, second]));
+    const expected = csharpNullableTargetType(combineCsharpTargetUnionMembers([boolean, second]));
     for (const members of [
       [boolean, csharpNullableTargetType(second)],
       [csharpNullableTargetType(second), boolean],
       [csharpNullableTargetType(boolean), csharpNullableTargetType(second)],
       [boolean, csharpNullableTargetType(second), csharpAbsenceTargetType()],
-      [csharpNullableTargetType(csharpRuntimeUnionTargetType([boolean, second])), second],
+      [csharpNullableTargetType(combineCsharpTargetUnionMembers([boolean, second])), second],
     ]) {
       const actual = combineCsharpTargetUnionMembers(members);
       assert.equal(targetTypeRefEquals(actual, expected), true, second.id);
