@@ -30,7 +30,7 @@ export function run(): boolean {
   ["open borrowed return and one absence state", `
 import type { Pointer, uint32 } from "@tsonic/core/types.js";
 import { allocateptr, loadptr, storeptr, equalptr } from "@tsonic/core/lang.js";
-export function borrowed(pointer: Pointer<uint32> | undefined) { return pointer; }
+export function borrowed(pointer: Pointer<uint32> | null | undefined) { return pointer; }
 export function run(): boolean {
   const original = allocateptr<uint32>(3);
   const alias = borrowed(original);
