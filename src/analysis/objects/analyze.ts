@@ -415,8 +415,9 @@ export function analyzeCsharpObjectShapes(
         const existing = completedShapes.get(canonical);
         if (existing !== undefined) return existing;
         const completed = withInterfaces(canonical)!;
-        const selected = Object.freeze({ ...completed,
-          members: Object.freeze(completed.members.map(member => Object.freeze(member))) });
+        for (const member of completed.members) Object.freeze(member);
+        Object.freeze(completed.members);
+        const selected = Object.freeze(completed);
         completedShapes.set(canonical, selected);
         return selected;
       };
