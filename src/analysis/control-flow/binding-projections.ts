@@ -15,8 +15,9 @@ import { nextState } from "../source-evidence/types/resolution/state.js";
 import { csharpSourceProfileDeclarationIdentity } from "../../policy/identities/selected-source.js";
 import { selectCsharpErrorNativeProperty } from "../../policy/operations/source-profiles/error-source-profile.js";
 import { selectCsharpBindingPatternProjection } from "../../policy/types/objects/binding-projection.js";
+import { resolveCsharpBindingSourceType } from "./binding-source-types.js";
 
-export interface CsharpBindingProjectionPolicyHost extends Pick<CsharpTypePolicyBaseHost, "providers" | "sourceFacts"> {
+export interface CsharpBindingProjectionPolicyHost extends Pick<CsharpTypePolicyBaseHost, "providers" | "sourceFacts" | "semanticsFor"> {
   readonly ast: AstReader;
   readonly navigation: SourceProgramNavigation;
   readonly typeResolver: CsharpRecursiveTypeResolver;
@@ -214,7 +215,7 @@ function resolveNativeBindingProjection(
   const owner = pattern === undefined ? undefined : host.ast.parent(pattern);
   if (receiverCarrier === undefined || sourceFile === undefined || owner === undefined) return { kind: "unresolved" };
   const queries = host.semantics(sourceFile);
-  const checked = queries.declarations.declaredValueType(owner);
+  const checked = resolveCsharpBindingSourceType(pattern!, host.ast, host.semanticsFor);
   if (checked === undefined) return { kind: "not-native" };
   const correspondence = queries.types.structuralMembers(checked, checked, "read");
   if (correspondence.kind !== "available") return { kind: "not-native" };

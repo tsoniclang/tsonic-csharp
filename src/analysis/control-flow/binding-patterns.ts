@@ -49,6 +49,7 @@ import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpStorageClassifications } from "../../target-model/records/storage/storage.js";
 import { selectCsharpConversion } from "../../policy/conversions/core.js";
 import { admitCsharpConversionSelection } from "../conversions/validation.js";
+import { resolveCsharpBindingSourceType } from "./binding-source-types.js";
 
 export interface CsharpBindingPatternAnalysisInput {
   readonly ast: AstReader;
@@ -458,42 +459,9 @@ export function analyzeCsharpBindingPatterns(
 
   function checkedPatternType(pattern: Node): Type | undefined {
     if (checkedPatternTypes.has(pattern)) return checkedPatternTypes.get(pattern);
-    const selected = selectCheckedPatternType(pattern);
+    const selected = resolveCsharpBindingSourceType(pattern, ast, input.semanticsFor);
     checkedPatternTypes.set(pattern, selected);
     return selected;
-  }
-
-  function selectCheckedPatternType(pattern: Node): Type | undefined {
-    const owner = ast.parent(pattern);
-    if (owner === undefined) return undefined;
-    const semantics = input.semanticsFor(owner);
-    const element = AsBindingElement(ast, owner);
-    if (element !== undefined) {
-      const parentPattern = ast.parent(owner);
-      const parentType = parentPattern === undefined ? undefined : checkedPatternType(parentPattern);
-      if (parentPattern === undefined || parentType === undefined) return undefined;
-      let selected: Type | undefined;
-      if (HasSourceKind(ast, parentPattern, KindObjectBindingPattern)) {
-        const name = objectShapePropertyName(owner)?.sourceName;
-        const members = name === undefined ? [] : semantics.types.propertyInfos(parentType).filter(member => member.name === name);
-        selected = members.length === 1 ? members[0]!.type : undefined;
-      } else if (HasSourceKind(ast, parentPattern, KindArrayBindingPattern)) {
-        const index = AsBindingPattern(ast, parentPattern)?.Elements?.Nodes.indexOf(owner);
-        if (index === undefined || index < 0) return undefined;
-        if (semantics.types.isTuple(parentType)) selected = semantics.types.tupleElementInfos(parentType)[index]?.type;
-        else {
-          const indices = semantics.types.indexInfos(parentType).filter(info => info.keyType !== undefined && semantics.types.isNumberLike(info.keyType));
-          selected = indices.length === 1 ? indices[0]!.valueType : undefined;
-        }
-      }
-      return selected === undefined || element.Initializer === undefined ? selected
-        : semantics.types.withoutMissingOrUndefined(selected);
-    }
-    const declaration = AsVariableDeclaration(ast, owner) ?? AsParameterDeclaration(ast, owner);
-    if (declaration?.Type !== undefined) return semantics.types.authoredType(declaration.Type);
-    const iteration = forOfHeadStatement(owner);
-    if (iteration !== undefined) return semantics.operations.iteration(iteration)?.sourceElementType;
-    return declaration?.Initializer === undefined ? undefined : semantics.types.expressionType(declaration.Initializer);
   }
 
   function analyzeObjectShapeRest(
