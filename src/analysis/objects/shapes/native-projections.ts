@@ -10,7 +10,7 @@ import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target
 import { csharpObjectShapeMethodDeclaration, csharpPresentObjectShapeMethod } from "../../../target-model/types/method-values.js";
 import { csharpObjectMethodHasFixedNativeExposure } from "../../../policy/types/objects/object-members.js";
 import { createStructuralObjectShapeTarget, mergeCsharpObjectShapeSubjects } from "./construction.js";
-import { csharpObjectMethodValueIsExtracted, selectCsharpWritableMethodContract } from "./method-values.js";
+import { csharpObjectMethodValueIsExtracted, resolveCsharpWritableMethodContract } from "./method-values.js";
 import { projectCsharpNativeSourceStorageCarrier } from "../value-domain-carriers.js";
 import { createCsharpMetadataBudget } from "../../../target-model/metadata/immutable.js";
 
@@ -52,7 +52,7 @@ export function createCsharpNativeShapeProjections(
       if (selected.member.memberKind === "method" && !written.includes(selected.member)) written.push(selected.member);
     }
     const view = nativeMethodParameterView(shape, parameter, written);
-    const selected = selectCsharpWritableMethodContract(view, written, environment);
+    const selected = resolveCsharpWritableMethodContract(view, written, environment);
     if (selected === undefined) return rejected("A native method-write destination requires an exact writable source method contract.");
     if (selected === shape) return Object.freeze({ kind: "resolved", type });
     const resolved = rememberTargetShape(selected).targetType;
@@ -179,7 +179,7 @@ export function createCsharpNativeShapeProjections(
       });
     });
     if (written.length === 0) return unchanged;
-    const selected = selectCsharpWritableMethodContract(shape, written, environment);
+    const selected = resolveCsharpWritableMethodContract(shape, written, environment);
     if (selected === undefined) return Object.freeze({ kind: "rejected", subject: declaration,
       code: "CSHARP_SOURCE_STORAGE_NOT_PROVEN", reason: "A native return requires the exact common writable source method contract of every reaching producer." });
     const resolved = rememberTargetShape(selected).targetType;
