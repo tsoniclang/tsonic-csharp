@@ -7,6 +7,7 @@ import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { sourceTypeIsAuthoredEmptyObject } from "@tsonic/target-api/source";
 import { nextState } from "../../source-evidence/types/resolution/state.js";
 import { classifyCsharpSourceProfileType } from "../../../policy/identities/source-types.js";
+import { csharpSourceProfileDeclarationIdentity } from "../../../policy/identities/selected-source.js";
 
 interface SelectedObjectShapeSource {
   readonly type: Type | undefined;
@@ -164,11 +165,28 @@ export function typeHasProjectOwnedShapeDeclaration(
     ...queries.declarations.symbolDeclarations(property.symbol),
     ...property.rootSymbols.flatMap(symbol => queries.declarations.symbolDeclarations(symbol)),
   ])]);
+  const sourceProfileDataMember = (declaration: Node): boolean => {
+    const file = host.ast.getSourceFile(declaration);
+    if (file === undefined || !host.hasSemantics(file) || host.ast.kindName(declaration) !== "KindPropertySignature") return false;
+    const parent = host.ast.parent(declaration);
+    if (parent === undefined) return false;
+    const literal = host.ast.is.IsTypeLiteralNode(parent);
+    const owner = literal ? host.ast.parent(parent) : parent;
+    if (owner === undefined || (literal
+      ? !host.ast.is.IsTypeAliasDeclaration(owner) || host.ast.as.AsTypeAliasDeclaration(owner)?.Type !== parent
+      : !host.ast.is.IsInterfaceDeclaration(owner))) return false;
+    const identity = csharpSourceProfileDeclarationIdentity(host.ast, host.semantics(file), host.sourceFacts, owner);
+    const members = host.ast.members(parent);
+    return identity?.kind === "type" && identity.declaration === owner && members.includes(declaration) &&
+      members.every(member => member !== undefined && host.ast.kindName(member) === "KindPropertySignature") &&
+      queries.types.callSignatures(type).length === 0 && queries.types.constructSignatures(type).length === 0 &&
+      queries.types.indexInfos(type).length === 0;
+  };
   if (!memberDeclarations.every(declarations => declarations.every(declaration => {
     if (declaration === undefined) return false;
     if (host.navigation.isProjectDeclaration(declaration)) return true;
     const identity = host.sourceFacts?.getFact(declaration, providerVirtualDeclarationFactKey);
-    if (identity === undefined) return false;
+    if (identity === undefined) return sourceProfileDataMember(declaration);
     const selection = host.providers.resolveMember(identity);
     return selection.kind === "resolved" && selection.relations.length === 1 &&
       selection.relations[0]!.kind === "member";

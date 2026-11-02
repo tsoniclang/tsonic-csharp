@@ -187,10 +187,10 @@ function resolveObjectBindingProjection(
   } else if (host.ast.is.IsIdentifier(property) || host.ast.is.IsStringLiteral(property)) {
     sourceName = host.ast.text(property);
   } else return undefined;
+  const native = resolveNativeErrorBindingProjection(binding, sourceName, ownerType, host);
+  if (native !== undefined) return native;
   const shape = host.objectShapes.resolveTarget(ownerType);
-  if (shape === undefined) {
-    return resolveNativeErrorBindingProjection(binding, sourceName, ownerType, host);
-  }
+  if (shape === undefined) return undefined;
   const selected = resolveCsharpObjectShapeMemberBySourceContract(
     shape,
     sourceName,
@@ -237,7 +237,7 @@ function resolveNativeErrorBindingProjection(
     const file = host.ast.getSourceFile(declaration);
     if (file === undefined || !host.hasSemantics(file)) return [];
     const identity = csharpSourceProfileDeclarationIdentity(host.ast, host.semantics(file), host.sourceFacts, declaration);
-    return identity?.kind === "member" && identity.declaringName === "Error" && identity.name === sourceName ? [identity] : [];
+    return identity?.kind === "member" && identity.name === sourceName ? [identity] : [];
   });
   const identity = identities.length === 1 ? identities[0] : undefined;
   const selected = identity === undefined ? undefined : selectCsharpErrorNativeProperty({ providers: host.providers,

@@ -20,6 +20,8 @@ export type CsharpTargetInvocationEmission =
   | { readonly kind: "event"; readonly owner: TargetTypeRef | undefined; readonly name: string; readonly add: boolean }
   | { readonly kind: "operator"; readonly form: "prefix" | "binary"; readonly operator: CsharpSourceOperator; readonly checked: boolean; readonly operands: readonly number[] }
   | { readonly kind: "static-member"; readonly owner: TargetTypeRef; readonly name: string; readonly operation: "call" | "property-get" | "property-set" | "event-add" | "event-remove" }
+  | { readonly kind: "guarded-method"; readonly owner: TargetTypeRef; readonly name: string;
+      readonly condition: NonNullable<CsharpSelectedTargetCall["condition"]> }
   | { readonly kind: "method"; readonly owner: TargetTypeRef | undefined; readonly name: string };
 
 export interface CsharpTargetCallEmission {

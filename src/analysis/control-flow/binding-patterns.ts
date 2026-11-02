@@ -430,6 +430,17 @@ export function analyzeCsharpBindingPatterns(
         continue;
       }
       if (name === undefined) continue;
+      const native = input.evidence.bindingProjection.get(elementNode);
+      if (native?.kind === "native-member") {
+        if (native.node !== elementNode || !targetTypeRefEquals(native.receiverCarrier, shape.targetType)) {
+          issue(elementNode, "An Error binding requires its exact published native member and input carrier.", [], "CSHARP_ERROR_BINDING_NOT_PROVEN");
+          continue;
+        }
+        recordElement(elementNode, { kind: "native-member", property: native.property }, element.Initializer);
+        const value = element.Initializer === undefined ? native.storageCarrier : facts.get(elementNode)?.defaultValue?.target;
+        analyzeNested(name, elementNode, sourceFile, value);
+        continue;
+      }
       const property = objectShapePropertyName(elementNode);
       if (property?.sourceName === undefined) {
         if (property?.reason !== undefined) {

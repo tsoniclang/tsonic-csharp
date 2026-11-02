@@ -104,6 +104,9 @@ function errorCapturePolicy(owner: CsharpSourceProfileOwner): CsharpSourceProfil
   return Object.freeze({
     source: { owner, kind: "member" as const, declaringName: "ErrorConstructor", name: "captureStackTrace" },
     select(context: CsharpSourceProfileCallPolicyContext): CsharpSourceProfileCallPolicyResult {
+      const unresolved = (): CsharpSourceProfileCallPolicyResult => ({ kind: "rejected",
+        diagnostic: csharpSourceProfileDiagnostic("CSHARP_ERROR_CAPTURE_CONTRACT", 9100952,
+          "Error.captureStackTrace requires the exact selected Error parameter contract.", []) });
       const member = context.host.providers.publishNativeIdentities<CsharpTargetMember>({
         id: "System.Runtime.ExceptionServices.ExceptionDispatchInfo.SetCurrentStackTrace",
         sourceName: "captureStackTrace",
@@ -115,12 +118,14 @@ function errorCapturePolicy(owner: CsharpSourceProfileOwner): CsharpSourceProfil
         returnType: exceptionType,
       });
       if (member.kind === "rejected") return member;
-      const call = member.kind === "resolved" ? csharpSourceProfileCall(context.source, member.value, noReceiver) : undefined;
-      return call === undefined ? {
-        kind: "rejected",
-        diagnostic: csharpSourceProfileDiagnostic("CSHARP_ERROR_CAPTURE_CONTRACT", 9100952,
-          "Error.captureStackTrace requires the exact selected Error parameter contract.", []),
-      } : { kind: "resolved", call: Object.freeze({ ...call, discardResult: true as const }) };
+      const property = context.host.providers.publishNativeIdentities(
+        errorProperties.find(property => property.sourceName === "stack")!.native.targetMember);
+      if (property.kind === "rejected") return property;
+      if (member.kind !== "resolved" || property.kind !== "resolved") return unresolved();
+      const call = csharpSourceProfileCall(context.source, member.value, noReceiver);
+      return call === undefined ? unresolved() : { kind: "resolved", call: Object.freeze({ ...call, discardResult: true as const,
+        condition: Object.freeze({ kind: "argument-property-absent" as const, targetParameterIndex: 0,
+          property: property.value }) }) };
     },
   });
 }

@@ -34,6 +34,11 @@ export type CsharpTargetElementInvocation =
 
 export interface CsharpSelectedTargetCallBase {
   readonly discardResult?: true;
+  readonly condition?: {
+    readonly kind: "argument-property-absent";
+    readonly targetParameterIndex: number;
+    readonly property: CsharpTargetMember;
+  };
   readonly sequenceArguments?: readonly {
     readonly sourceArgumentIndex: number;
     readonly expression: Node;
