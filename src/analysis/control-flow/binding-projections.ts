@@ -13,7 +13,6 @@ import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpArrayBindingProjectionTarget, resolveCsharpArrayBindingCarrier } from "../../policy/types/collections/binding-array-carrier.js";
 import { nextState } from "../source-evidence/types/resolution/state.js";
 import type { CsharpProjectTypePolicy } from "../../target-model/records/types/project-types.js";
-import { classifyCsharpSourceProfileType } from "../../policy/identities/source-types.js";
 import { csharpSourceProfileDeclarationIdentity } from "../../policy/identities/selected-source.js";
 import { selectCsharpErrorNativeProperty } from "../../policy/operations/source-profiles/error-source-profile.js";
 import { selectCsharpBindingPatternProjection } from "../../policy/types/objects/binding-projection.js";
@@ -229,7 +228,7 @@ function resolveNativeErrorBindingProjection(
   } else if (host.ast.is.IsBindingElement(owner)) {
     checked = queries.declarations.declaredValueType(owner);
   }
-  if (checked === undefined || classifyCsharpSourceProfileType(checked, queries, host.ast)?.kind !== "error") return undefined;
+  if (checked === undefined) return undefined;
   const members = queries.types.propertyInfos(checked).filter(member => member.name === sourceName);
   const member = members.length === 1 ? members[0] : undefined;
   const declarations = member === undefined ? [] : [...new Set([...queries.declarations.symbolDeclarations(member.symbol),

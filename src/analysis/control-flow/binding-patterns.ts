@@ -351,7 +351,10 @@ export function analyzeCsharpBindingPatterns(
     }
     const checked = checkedPatternType(pattern);
     const queries = input.semanticsFor(pattern);
-    if (checked !== undefined && classifyCsharpSourceProfileType(checked, queries, ast)?.kind === "error") {
+    const elements = ast.elements(pattern);
+    const nativeMembers = elements.length > 0 && elements.every(element => element !== undefined &&
+      input.evidence.bindingProjection.get(element)?.kind === "native-member");
+    if (nativeMembers || checked !== undefined && classifyCsharpSourceProfileType(checked, queries, ast)?.kind === "error") {
       const carrier = sourceCarrier ?? input.evidence.nodeTargetType.get(sourceNode);
       analyzeNativeErrorPattern(pattern, sourceFile, carrier);
       return;
@@ -541,6 +544,14 @@ export function analyzeCsharpBindingPatterns(
       const name = element.name;
       if (name === undefined) continue;
       const propertyName = element.PropertyName ?? name;
+      const native = input.evidence.bindingProjection.get(elementNode);
+      if (native?.kind === "native-member") {
+        if (native.node !== elementNode) failTargetAnalysisInvariant("tsonic-csharp", "A native binding requires its original checked element.", elementNode);
+        recordElement(elementNode, { kind: "native-member", property: native.property }, element.Initializer);
+        const carrier = element.Initializer === undefined ? native.property.member.returnType : facts.get(elementNode)?.defaultValue?.target;
+        analyzeNested(name, elementNode, sourceFile, carrier);
+        continue;
+      }
       const identifier = HasSourceKind(ast, propertyName, KindIdentifier);
       const property = bindingPropertySourceName(propertyName);
       if (property.reason !== undefined) {
