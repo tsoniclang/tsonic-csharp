@@ -475,6 +475,7 @@ export function directProviderHost(options = {}) {
   const semanticTypes = new Map(options.semanticTypes ?? []);
   const signatureDeclarations = new Map(options.signatureDeclarations ?? []);
   const callEvidenceByNode = new Map(options.calls ?? []);
+  const callTypeArguments = new Map(options.callTypeArguments ?? []);
   const propertyEvidenceByNode = new Map(options.properties ?? []);
   const elementEvidenceByNode = new Map(options.elements ?? []);
   const providers = providerResolver(catalog, bindings);
@@ -532,6 +533,9 @@ export function directProviderHost(options = {}) {
       }),
       target: options.target ?? { id: "csharp" },
       types: Object.freeze({
+        resolveSourceCallTypeArguments(source) {
+          return callTypeArguments.get(source.call);
+        },
         resolveNode(node) {
           const type = nodeTypes.get(node);
           return type === undefined ? undefined : { kind: "resolved", sourceResult: csharpSourceValueResult(type) };

@@ -3,6 +3,47 @@ import test from "node:test";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
 import { checkCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { analyzeCsharpBinaryEmission } from "../../../dist/analysis/operations/binary-emission.js";
+import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
+
+function assignmentFixture(storage, destination) {
+  const left = {};
+  const right = {};
+  const assignment = {};
+  const none = Object.freeze({ get: () => undefined });
+  const selection = { kind: "resolved", sourceOperator: "=", targetOperation: { kind: "operator", operator: "=" },
+    left, right, leftType: storage, leftInputType: storage, rightType: csharpSourcePrimitiveTargetType("int64"),
+    rightInputType: destination, resultType: storage };
+  const input = {
+    source: { ast: { is: { IsBinaryExpression: node => node === assignment, IsParenthesizedExpression: () => false },
+      as: { AsBinaryExpression: () => ({ Left: left, Right: right }) }, operatorKindName: () => "KindEqualsToken" },
+    navigation: { expressionEffects: () => ({ suspends: false }) } },
+    nodes: [assignment], admitted: () => true, optionalLocals: none,
+    operations: { borrowedSequence: none, operatorForm: none, switchStatement: none,
+      binaryOperation: { get: node => node === assignment ? { target: selection } : undefined } },
+    demand: { entries: [], nativeUse: { expression: node => node === right ? { use: { kind: "converted", expression: right,
+      carrier: csharpSourcePrimitiveTargetType("int64"), input: { kind: "value", type: csharpSourcePrimitiveTargetType("int64") },
+      target: destination, completion: { kind: "value", type: destination } } } : undefined } },
+    storage: { nativeLocation: { get: node => node === left
+      ? { kind: "resolved", expression: left, storageType: storage, writable: true } : undefined } },
+    constants: { nativeAbsence: none },
+  };
+  return { input, assignment, selection };
+}
+
+test("native assignment publication checks the completed conversion destination, not the raw operand", () => {
+  const floating = csharpSourcePrimitiveTargetType("float64");
+  const value = assignmentFixture(floating, floating);
+  const result = analyzeCsharpBinaryEmission(value.input);
+  assert.deepEqual(result.issues, []);
+  assert.equal(result.records.nativeBinaryEmission.get(value.assignment, value.selection)?.location?.storageType === floating, true,
+    "an admitted long-to-double conversion retains the exact double physical destination");
+});
+
+test("native assignment publication rejects a completed destination that differs from physical storage", () => {
+  const value = assignmentFixture(csharpSourcePrimitiveTargetType("int64"), csharpSourcePrimitiveTargetType("float64"));
+  assert.throws(() => analyzeCsharpBinaryEmission(value.input),
+    /An admitted native assignment conversion must complete at its physical storage carrier\./u);
+});
 
 test("binary emission defers only the exact selected optional local operation to its physical owner", () => {
   const checked = checkCsharpSource({ sourceText: `

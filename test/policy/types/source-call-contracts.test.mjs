@@ -112,12 +112,14 @@ function fixture(carrier = csharpDelegateTargetType("System.Func", [integer], in
     nativeParameters: [{ sourceParameter, targetParameter: { name: "value", type: outer, passingMode: "by-value" } }], returnType: outer };
   const scope = { host: {
     moduleCallables: Object.freeze({ get: () => undefined }),
-    ast: { typeParameters: () => [], is: { IsNewExpression: () => false, IsFunctionDeclaration: node => node?.kind === "function",
+    ast: { typeParameters: () => [], as: { AsTypeParameterDeclaration: () => ({}) },
+      is: { IsNewExpression: () => false, IsFunctionDeclaration: node => node?.kind === "function",
       IsMethodDeclaration: () => false, IsClassDeclaration: () => false,
       IsVariableDeclaration: node => node?.kind === "variable" },
       parent: () => undefined, name: node => node?.name, kindName: node => node?.kind },
     navigation: { sourceReferenceFor: () => ({ declaration }), isProjectDeclaration: node => direct && node === declaration },
-    semantics: () => ({ declarations: { signatureDeclaration: () => signatureDeclaration }, operations: {
+    semantics: () => ({ declarations: { signatureDeclaration: () => signatureDeclaration,
+      typeSymbol: () => undefined, symbolDeclarations: () => [] }, types: { authoredType: () => undefined }, operations: {
       callResult: () => undefined, callParameterSlots: selected => selectSourceCallParameterSlots(selected, { isTuple: () => false }),
     } }),
     projectTypes: () => ({ catalog: { definitionForTarget: () => undefined } }),
@@ -211,7 +213,7 @@ test("stored quantified protocols retain closed outer bindings and exact invocat
       assert.deepEqual(identities, [binder.identity]);
       assert.equal(targetTypeRefEquals(contract.nativeParameters[0].targetParameter.type, binder), true, "native inference pattern");
       assert.equal(targetTypeRefEquals(contract.returnType.elements[0], environment), true, "closed environment at inference");
-      return { arguments: [integer], substitutions: new Map([[binder.identity, integer]]) };
+      return { arguments: [integer], substitutions: new Map([[binder.identity, integer]]), sourceArguments: [], state: _state };
     };
     assert.deepEqual(resolveSourceCallTypeArguments(scope, source, {}), [integer]);
   }

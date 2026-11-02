@@ -280,6 +280,7 @@ test("selected method type arguments close generic target methods directly", () 
       explicitTypeNode,
     }],
     additionalNodeTypes: [[explicitTypeNode, int32]],
+    nativeTypeArguments: [int32],
     additionalSemanticTypes: [[selectedType, csharpStringTargetType()]],
   });
   const selected = selectCsharpProviderCall(
@@ -298,7 +299,7 @@ test("selected method type arguments close generic target methods directly", () 
   assert.deepEqual(selected.call.targetMember.returnType, int32);
 });
 
-test("inferred provider method bounds use one order-independent implicit target", () => {
+test("provider formation consumes the canonical order-independent native argument vector", () => {
   const int32 = csharpSourcePrimitiveTargetType("int32");
   const uint32 = csharpSourcePrimitiveTargetType("uint32");
   const int64 = csharpSourcePrimitiveTargetType("int64");
@@ -325,6 +326,7 @@ test("inferred provider method bounds use one order-independent implicit target"
       member: method,
       targetParameters: method.parameters,
       sourceArgumentTargets,
+      nativeTypeArguments: [expected],
       methodTypeArguments: [{ typeParameterName: "T", typeParameter: {}, selectedType }],
       additionalSemanticTypes: [[selectedType, selectedTarget]],
     });
@@ -349,6 +351,7 @@ test("inferred provider method bounds cannot widen invariant native carriers", (
     member: method,
     targetParameters: method.parameters,
     sourceArgumentTargets: [invariant(csharpSourcePrimitiveTargetType("int32")), invariant(float64)],
+    nativeTypeArguments: [float64],
     methodTypeArguments: [{ typeParameterName: "T", typeParameter: {}, selectedType }],
     additionalSemanticTypes: [[selectedType, float64]],
   });
@@ -521,6 +524,7 @@ test("generic constructor families close from selected operation type arguments"
       explicitTypeNode,
     }],
     additionalNodeTypes: [[explicitTypeNode, stringType]],
+    nativeTypeArguments: [stringType],
     additionalSemanticTypes: [[selectedType, stringType]],
   });
   const selected = selectCsharpProviderCall(
@@ -631,6 +635,7 @@ function createCallFixture(options = {}) {
     relations,
     facts,
     calls: [[source.call, source.evidence]],
+    callTypeArguments: [[source.call, options.nativeTypeArguments ?? []]],
     signatureDeclarations: [[
       source.evidence.selectedSignature,
       source.signatureDeclaration,

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assertNumericLiteralRefusal, numericPromiseRefusal } from "../../helpers/numeric-literal-rulings.mjs";
+import { assertNumericLiteralRefusal, numericPromiseRefusal, numericCompoundRefusal } from "../../helpers/numeric-literal-rulings.mjs";
 
 import {
   assertCsharpCompilationSucceeded,
@@ -8,7 +8,9 @@ import {
   compileCsharpSource,
 } from "../../helpers/direct-csharp-session.mjs";
 
-test("the JavaScript surface closes identity, binary, collection, Date, and object APIs", () => {
+for (const ownNumber of [false, true]) {
+test(ownNumber ? "the JavaScript surface closes identity, binary, collection, Date, and object APIs with an own-number accumulator"
+  : "the JavaScript surface closes identity, binary, collection, Date, and object APIs", () => {
   const compiled = compileCsharpSource({
     surface: "js",
     sourceText: `
@@ -42,7 +44,7 @@ test("the JavaScript surface closes identity, binary, collection, Date, and obje
         const right = new Set<number>([2, 3]);
         const union = left.union(right);
         const intersection = left.intersection(right);
-        let seen = 0;
+        let seen${ownNumber ? ": number" : ""} = 0;
         const map = new Map<string, number>([["one", 1]]);
         map.forEach((value, key, selected) => {
           if (selected === map && key === "one") seen += value;
@@ -62,6 +64,10 @@ test("the JavaScript surface closes identity, binary, collection, Date, and obje
     `,
   });
 
+  if (!ownNumber) {
+    assertNumericLiteralRefusal(compiled, [numericCompoundRefusal("+=", "seen += value"), numericCompoundRefusal("+=", "seen += value")]);
+    return;
+  }
   assertCsharpCompilationSucceeded(compiled);
   const source = compiled.artifacts.get("src/Index.cs") ?? "";
   assert.match(source, /Tsonic\.CSharp\.Js\.Symbol/u);
@@ -75,6 +81,7 @@ test("the JavaScript surface closes identity, binary, collection, Date, and obje
   assert.match(source, /\.__tsonicObjectAssign_/u);
   assert.match(source, /object\.ReferenceEquals/u);
 });
+}
 
 test("JavaScript capability globals remain absent from the native C# source profile", () => {
   const checked = checkCsharpSource({

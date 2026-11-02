@@ -61,7 +61,7 @@ test("direct C# translation qualifies same-module values through exact generated
         private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
         private static object? __tsonic_module_init_core()
         {
-            offset = 8;
+            offset = 8D;
             return null;
         }
         public static void __tsonic_module_init()

@@ -101,7 +101,7 @@ namespace Tsonic.Generated
         }
         public static double walk(string[] values)
         {
-            double count = 0;
+            long count = 0L;
             Action<double> visit = default(Action<double>)!;
             visit = (double index) =>
             {
@@ -110,9 +110,9 @@ namespace Tsonic.Generated
                     return;
                 }
                 count++;
-                visit(index + 1);
+                visit(index + 1L);
             };
-            visit(0);
+            visit(0D);
             return count;
         }
     }

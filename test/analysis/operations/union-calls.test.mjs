@@ -170,7 +170,7 @@ test("one early union method owner supplies the same checked members and results
   const scope = { host: { ...input.policy, projectTypes: () => input.policy.projectTypes },
     sourceCallSelectedDeclaration: () => input.declarations[0],
     resolveSelectedValueWithState: (...arguments_) => input.policy.types.resolveSelectedValue(...arguments_),
-    resolveSourceCallInstantiation: () => ({ arguments: [] }),
+    resolveSourceCallInstantiation: (_source, _file, state) => ({ arguments: [], substitutions: new Map(), sourceArguments: [], state }),
     resolveNodeWithState: (declaration, file) => input.policy.types.resolveNode(declaration, file)?.sourceResult?.selectedType };
   const early = resolveSourceCallResultWithState(scope, input.source, input.sourceFile, { depth: 0 }, undefined);
   const operation = input.select();

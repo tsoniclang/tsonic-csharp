@@ -14,6 +14,7 @@ import { memoryAbiCapability } from "../../helpers/memory-abi.mjs";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 import { emissionPrograms, discardedPrograms, owners } from "./native-use-closure.fixtures.mjs";
+import { assertNumericLiteralRefusal, numericCarrierRefusal, numericSpreadRefusal } from "../../helpers/numeric-literal-rulings.mjs";
 
 for (const surface of Array.from(["js", "native"]).slice(0, 2)) {
 for (const [label, program] of Array.from(emissionPrograms).slice(0, 16)) {
@@ -24,11 +25,40 @@ test(
         delete values["key"]; void value; return typeof value; }`
     : surface === "native" && label === "sequence spread" ? program.replace("values.length", "values.Length") : program;
   const compiled = compileCsharpSource({ sourceText, surface });
+  if (label === "sequence spread") {
+    assertNumericLiteralRefusal(compiled, [numericSpreadRefusal(surface, "result")]);
+    return;
+  }
+  if (label === "accessor bodies") {
+    assertNumericLiteralRefusal(compiled, [numericCarrierRefusal(csharpSourcePrimitiveTargetType("float64"),
+      csharpSourcePrimitiveTargetType("int64"), "next")]);
+    return;
+  }
   assert.equal(compiled.sourceDiagnosticsText === "", true, `${label}: ${compiled.sourceDiagnosticsText}`);
   const errors = compiled.result.diagnostics.filter(diagnostic => diagnostic.category === "error");
   assert.equal(errors.length, 0, `${label}: ${errors.map(diagnostic => `${diagnostic.code}: ${diagnostic.message}`).join("; ")}`);
   assert.equal(compiled.result.program !== undefined && [...compiled.artifacts.keys()].some(path => path.endsWith(".cs")), true,
     `${label}: one sealed program reaches native source emission`);
+});
+if (label === "sequence spread") test(
+  `${surface} sealed sequence spread retains the complete own-number array contract`, () => {
+  const sourceText = program.replace("const result =", "const result: number[] =");
+  const compiled = compileCsharpSource({ surface, sourceText: surface === "native"
+    ? sourceText.replace("values.length", "values.Length") : sourceText });
+  assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
+  const errors = compiled.result.diagnostics.filter(diagnostic => diagnostic.category === "error");
+  assert.equal(errors.length, 0, errors.map(diagnostic => `${diagnostic.code}: ${diagnostic.message}`).join("; "));
+  assert.equal(compiled.result.program !== undefined && [...compiled.artifacts.keys()].some(path => path.endsWith(".cs")), true,
+    "the complete spread program reaches sealed native source emission without a conversion copy");
+});
+if (label === "accessor bodies") test(
+  `${surface} sealed accessor bodies retain their own-number storage contract`, () => {
+  const compiled = compileCsharpSource({ surface, sourceText: program.replace("stored = 1;", "stored: number = 1;") });
+  assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
+  const errors = compiled.result.diagnostics.filter(diagnostic => diagnostic.category === "error");
+  assert.equal(errors.length, 0, errors.map(diagnostic => `${diagnostic.code}: ${diagnostic.message}`).join("; "));
+  assert.equal(compiled.result.program !== undefined && [...compiled.artifacts.keys()].some(path => path.endsWith(".cs")), true,
+    "the complete accessor program reaches sealed native source emission");
 });
 }
 }
@@ -50,10 +80,12 @@ test(
 }
 
 for (const surface of Array.from(["native", "js"]).slice(0, 2)) {
-test(`${surface} discarded callable branches retain every condition and operand effect`,
+for (const ownNumber of [false, true]) {
+test(ownNumber ? `${surface} own-number discarded callable branches retain every condition and operand effect`
+  : `${surface} discarded callable branches retain every condition and operand effect`,
   { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ sourceText: `
-    let trace = 0;
+    let trace${ownNumber ? ": number" : ""} = 0;
     function tick(value: number): number { trace = trace * 10 + value; return value; }
     function condition(value: boolean, mark: number): boolean { tick(mark); return value; }
     function ready(): number { return 1; }
@@ -74,11 +106,17 @@ test(`${surface} discarded callable branches retain every condition and operand 
       return trace === (flag ? 123567123 : 12457823);
     }
   `, surface });
+  if (!ownNumber) {
+    assertNumericLiteralRefusal(compiled, [numericCarrierRefusal(csharpSourcePrimitiveTargetType("float64"),
+      csharpSourcePrimitiveTargetType("int64"), "trace * 10 + value")]);
+    return;
+  }
   assert.equal(compiled.sourceDiagnosticsText === "" && compiled.targetDiagnostics.length === 0, true,
     `${surface}: ${compiled.sourceDiagnosticsText}; ${compiled.targetDiagnostics.map(({ code, message }) => `${code}: ${message}`).join("; ")}`);
   executeCsharpConstruction(compiled, `discarded-callable-effect-order-${surface}`, false, false, [],
     `if (!Tsonic.Generated.Index.run(true) || !Tsonic.Generated.Index.run(false)) throw new System.Exception("discarded callable effect order");`);
 });
+}
 }
 
 for (const surface of Array.from(["native", "js"]).slice(0, 2)) {

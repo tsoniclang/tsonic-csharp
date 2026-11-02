@@ -4,6 +4,8 @@ import { receiverFieldFreezeEdges } from "../../../../tsonic/test/fixtures/recei
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { inheritedFixture, examples } from "./frozen-native-inheritance.fixtures.mjs";
+import { assertNumericLiteralRefusal, numericCarrierRefusal } from "../../helpers/numeric-literal-rulings.mjs";
+import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 
 for (const example of Array.from(examples).slice(8, 9)) {
 test(`native readonly inheritance preserves ${example.name}`, { timeout: 300_000 }, () => {
@@ -17,8 +19,10 @@ test(`native readonly inheritance preserves ${example.name}`, { timeout: 300_000
 }
 
 for (const surface of Array.from(["native", "js"]).slice(0, 2)) {
-test(`native inheritance without a freeze demand has no freeze guards in ${surface}`, () => {
-    const compiled = compileCsharpSource({ surface, sourceText: `
+for (const ownNumber of [false, true]) {
+test(ownNumber ? `native own-number inheritance without a freeze demand has no freeze guards in ${surface}`
+  : `native inheritance without a freeze demand has no freeze guards in ${surface}`, () => {
+    const sourceText = `
 class Base {
   value = 1;
   change = (next: number): void => { this.value = next; };
@@ -30,9 +34,17 @@ export function run(): boolean {
   base.change(3);
   return value.value === 3;
 }
-` });
+`;
+    const compiled = compileCsharpSource({ surface, sourceText: ownNumber
+      ? sourceText.replace("value = 1;", "value: number = 1;") : sourceText });
+    if (!ownNumber) {
+      assertNumericLiteralRefusal(compiled, [numericCarrierRefusal(csharpSourcePrimitiveTargetType("float64"),
+        csharpSourcePrimitiveTargetType("int64"), "next")]);
+      return;
+    }
     assertCsharpCompilationSucceeded(compiled);
     assert.equal(/FrozenObject|CheckWrite|ConditionalWeakTable|WeakReference/u
       .test([...compiled.artifacts.values()].join("\n")), false, "no unused freeze identity or guard");
   });
+}
 }

@@ -19,7 +19,7 @@ import {
   targetParameter,
   test,
 } from "../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
-import { instantiateCsharpProviderCall } from "../../../dist/analysis/operations/members/calls/instantiation.js";
+import { formCsharpProviderCallSignature, instantiateCsharpProviderCall } from "../../../dist/analysis/operations/members/calls/instantiation.js";
 import {
   csharpNullableReferenceTargetType,
   csharpNullableValueTargetType,
@@ -63,6 +63,7 @@ test("target operations can consume selected method type arguments as structural
       explicitTypeNode,
     }],
     additionalNodeTypes: [[explicitTypeNode, int32]],
+    nativeTypeArguments: [int32],
     additionalSemanticTypes: [[selectedType, int32]],
     bindingTypeArgumentSource: "selected-operation-type-arguments",
     bindingTypeParameters: [{
@@ -171,9 +172,17 @@ test("exact generated object-shape contracts satisfy their implemented target in
     fixture.sourceFile,
   );
   assert.equal(selected.kind, "resolved");
-  const instantiated = instantiateCsharpProviderCall(
+  const formation = formCsharpProviderCallSignature(
     fixture.host,
     fixture.relation,
+    fixture.source,
+    fixture.sourceFile,
+    [],
+  );
+  assert.equal(formation.kind, "resolved");
+  const instantiated = instantiateCsharpProviderCall(
+    fixture.host,
+    formation.signature,
     fixture.source,
     fixture.sourceFile,
   );
@@ -278,6 +287,7 @@ function createCallFixture(options = {}) {
     relations,
     facts,
     calls: [[source.call, source.evidence]],
+    callTypeArguments: [[source.call, options.nativeTypeArguments ?? []]],
     signatureDeclarations: [[
       source.evidence.selectedSignature,
       source.signatureDeclaration,

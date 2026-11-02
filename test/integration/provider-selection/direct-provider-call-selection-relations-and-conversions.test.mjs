@@ -823,6 +823,7 @@ test("static-interface dispatch validates the exact selected invocation type", (
     member,
     receiver: false,
     methodTypeArguments: [{ selectedType }],
+    nativeTypeArguments: [implementation],
     invocationTypeParameters: [{
       sourceTypeParameterIndex: 0,
       targetTypeParameterIndex: 0,
@@ -868,6 +869,7 @@ function createConstrainedMethodFixture(
   return createCallFixture({
     member,
     methodTypeArguments: [{ selectedType }],
+    nativeTypeArguments: [targetType],
     additionalSemanticTypes: [[selectedType, targetType]],
     ...options,
   });
@@ -976,6 +978,7 @@ function createCallFixture(options = {}) {
     relations,
     facts,
     calls: [[source.call, source.evidence]],
+    callTypeArguments: [[source.call, options.nativeTypeArguments ?? []]],
     signatureDeclarations: [[
       source.evidence.selectedSignature,
       source.signatureDeclaration,

@@ -232,7 +232,7 @@ test("direct C# translation selects exact provider overloads and source-core att
             string[] parts = path.Split("/");
             bool ok = path.StartsWith("/");
             System.Console.WriteLine(parts.Length);
-            return ok ? parts.Length : 0;
+            return ok ? parts.Length : 0D;
         }
         public static int parse(string text)
         {
@@ -285,11 +285,11 @@ namespace Tsonic.Generated
 {
     public static class Index
     {
-        internal static int one
+        internal static long one
         {
             get;
             private set;
-        } = default(int)!;
+        } = default(long)!;
         public static int second((string, int) pair)
         {
             return pair.Item2;
@@ -301,7 +301,7 @@ namespace Tsonic.Generated
         private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
         private static object? __tsonic_module_init_core()
         {
-            one = 1;
+            one = 1L;
             return null;
         }
         public static void __tsonic_module_init()

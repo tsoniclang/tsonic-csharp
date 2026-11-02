@@ -3,6 +3,7 @@ import test from "node:test";
 import { absenceCallableConversionSource, broadCallableConversionSource, broadAsyncCallableConversionSource, nativeCallableAdapterCostSource, nativeCallableInputBorrowSource } from "../../../../tsonic/test/fixtures/callable-conversion-evaluation.mjs";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { assertNumericLiteralRefusal, numericDefaultCallableRefusal } from "../../helpers/numeric-literal-rulings.mjs";
 
 for (const surface of Array.from([undefined, "js"]).slice(0, 2)) {
 const lane = surface ?? "native";
@@ -50,6 +51,12 @@ test("nested native callback adapters preserve captures without colliding names"
 
 test("native callable adapters invoke static, inline, captured and defaulted bodies without per-call allocation", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ sourceText: nativeCallableAdapterCostSource });
+  assertNumericLiteralRefusal(compiled, [numericDefaultCallableRefusal("defaulted")]);
+});
+
+test("own-number defaulted native callable adapters retain all four zero-allocation bodies", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ sourceText: nativeCallableAdapterCostSource.replace("defaulted(value = 5)",
+    "defaulted(value: number = 5)") });
   assertCsharpCompilationSucceeded(compiled);
   const artifacts = new Map(compiled.artifacts);
   artifacts.set("generated/TsonicEntrypoint.cs", `

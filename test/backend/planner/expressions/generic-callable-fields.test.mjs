@@ -33,7 +33,7 @@ test("generic callable fields retain their receiver and escaped storage without 
   assert.match(source, /choose\s*(?:\{|=)/u);
   assert.doesNotMatch(source, /\bchoose<T>\(/u);
   assert.match(source, /choose\.__tsonic_invoke_body_Invoke<string>\("left", "right"\)/u);
-  assert.match(source, /choose\.__tsonic_invoke_body_Invoke<double>\(3(?:\.0)?, 4(?:\.0)?\)/u);
+  assert.match(source, /choose\.__tsonic_invoke_body_Invoke<long>\(3L, 4L\)/u);
   assert.match(owners, /\bInvoke<T>\(T left, T right\)/u);
   assert.match(owners, /receiver0\.first/u);
   assert.match(source, /receiver0 = this/u);
@@ -54,7 +54,7 @@ test("reassigned generic callable fields preserve old aliases and exact alpha-eq
       return identical && before(1, 2) === 2 && value.choose("left", "right") === "right";
     }
   `);
-  assert.match(source, /before\.__tsonic_invoke_body_Invoke<double>\(/u);
+  assert.match(source, /before\.__tsonic_invoke_body_Invoke<long>\(/u);
   assert.match(source, /value\.choose\.__tsonic_invoke_body_Invoke<string>\(/u);
   assert.match(source, /value\.choose = new /u);
   assert.match(owners, /\bInvoke<U>\(U left, U right\)/u);
@@ -107,7 +107,7 @@ test("nested generic callable owners are discovered before the synthetic source 
       return choose("left", "right");
     }
   `);
-  assert.match(source, /Index\.create<double>\(3\)/u);
+  assert.match(source, /Index\.create<long>\(3L\)/u);
   assert.match(source, /choose\.__tsonic_invoke_body_Invoke<string>\(/u);
   assert.match(source, /public static [^\n]+ create<Outer>\(Outer seed\)/u);
   assert.doesNotMatch(source, /create\.__tsonic_invoke_body_Invoke/u);
@@ -164,12 +164,12 @@ test("nested generic callable owners retain outer payloads and distinct invocati
       return left.seed === 3 && left.value === "left" && right.seed === "seed" && right.value === 7;
     }
   `);
-  assert.match(source, /Index\.create<double>\(3\)/u);
+  assert.match(source, /Index\.create<long>\(3L\)/u);
   assert.match(source, /public static [^\n]+ create<Outer>\(Outer seed\)/u);
   assert.doesNotMatch(source, /create\.__tsonic_invoke_body_Invoke/u);
   assert.match(source, /Index\.create<string>\("seed"\)/u);
   assert.match(source, /first\.__tsonic_invoke_body_Invoke<string>\(/u);
-  assert.match(source, /second\.__tsonic_invoke_body_Invoke<double>\(/u);
+  assert.match(source, /second\.__tsonic_invoke_body_Invoke<long>\(/u);
   assert.match(owners, /value0/u);
   assert.doesNotMatch(owners, /System\.Object|\bdynamic\b/u);
 });

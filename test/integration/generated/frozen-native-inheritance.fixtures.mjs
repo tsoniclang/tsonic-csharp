@@ -3,6 +3,8 @@ import test from "node:test";
 import { receiverFieldFreezeEdges } from "../../../../tsonic/test/fixtures/receiver-field-capture-edges.mjs";
 import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { numericCarrierRefusal } from "../../helpers/numeric-literal-rulings.mjs";
+import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 
 const inheritedFixture = receiverFieldFreezeEdges.find(example => example.name === "inherited-identity");
 
@@ -151,5 +153,31 @@ export async function run(): Promise<boolean> {
 }
 ` },
 ];
+
+export function numericFieldCase(example) {
+  if (example.name === "overridden-base-view") return {
+    before: "value = 1;", after: "value: number = 1;",
+    refusals: [
+      {
+        "code": "CSHARP_UNSUPPORTED_AST",
+        "message": "No exact C# implicit conversion relates 'source:float64' to 'source:int64'.",
+        "text": "next"
+      },
+      {
+        "code": "CSHARP_UNSUPPORTED_AST",
+        "message": "No exact C# implicit conversion relates 'target:tsonic.source:/project/index.ts\u0000264\u000087\u0000138<>' to 'target:tsonic.shape:1e4714b9b38764d7b4ada6364e5b5c685696911a5233e595d5cba4163369a303<source:float64>'.",
+        "text": "value"
+      }
+    ],
+  };
+  const text = example.name === "escaped-base-storage" ? "next"
+    : example.name === "shallow-accessor-private-storage" ? "value"
+    : example.name === "reentrant-base-write" ? "next()" : undefined;
+  return text === undefined ? undefined : {
+    before: example.name === "shallow-accessor-private-storage" ? "#private = 1;" : "value = 1;",
+    after: example.name === "shallow-accessor-private-storage" ? "#private: number = 1;" : "value: number = 1;",
+    refusals: [numericCarrierRefusal(csharpSourcePrimitiveTargetType("float64"), csharpSourcePrimitiveTargetType("int64"), text)],
+  };
+}
 
 export { inheritedFixture, examples };

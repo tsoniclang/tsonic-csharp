@@ -14,16 +14,19 @@ import { memoryAbiCapability } from "../../helpers/memory-abi.mjs";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 import { emissionPrograms, discardedPrograms, owners } from "./native-use-closure.fixtures.mjs";
+import { assertNumericLiteralRefusal, numericSpreadRefusal } from "../../helpers/numeric-literal-rulings.mjs";
 
 for (const surface of Array.from(["native", "js"]).slice(0, 2)) {
-test(`${surface} numeric spread carriers are order-independent without erasing genuine native unions`,
+for (const ownNumber of [false, true]) {
+test(ownNumber ? `${surface} own-number numeric spreads retain every order and native-union control`
+  : `${surface} numeric spread carriers are order-independent without erasing genuine native unions`,
   { timeout: 300_000 }, () => {
   const sourceText = `
     import type { int32, uint32, int64, float64 } from "@tsonic/core/types.js";
     function sum(...values: number[]): number { return values.length; }
     export function run(values: number[]): number {
-      const prefix = [1, ...values, 2];
-      const suffix = [...values, 1, 2];
+      const prefix${ownNumber ? ": number[]" : ""} = [1, ...values, 2];
+      const suffix${ownNumber ? ": number[]" : ""} = [...values, 1, 2];
       return sum(...prefix) + sum(...suffix);
     }
     export function permutations(signed: int32, unsigned: uint32): boolean {
@@ -69,6 +72,10 @@ test(`${surface} numeric spread carriers are order-independent without erasing g
     export const homogeneousWide = [wide, wide];
   `;
   const compiled = compileCsharpSource({ sourceText: surface === "native" ? sourceText.replace("values.length", "values.Length") : sourceText, surface });
+  if (!ownNumber) {
+    assertNumericLiteralRefusal(compiled, [numericSpreadRefusal(surface, "prefix"), numericSpreadRefusal(surface, "suffix")]);
+    return;
+  }
   assert.equal(compiled.sourceDiagnosticsText === "", true, compiled.sourceDiagnosticsText);
   const program = compiled.result.program;
   assert.equal(compiled.targetDiagnostics.length === 0 && program !== undefined, true,
@@ -93,11 +100,13 @@ test(`${surface} numeric spread carriers are order-independent without erasing g
   for (const name of ["narrowReverse", "narrowLeft", "narrowMiddle", "narrowRight"]) assert.equal(
     arrays.get(name)?.kind === "source-primitive" && arrays.get(name)?.name === "int32", true,
     `${name}: native int32 and representable integer literals retain their carrier in every peer position`);
-  for (const name of ["boundary", "explicitDouble", "signedZeros"]) assert.equal(
+  assert.equal(arrays.get("boundary")?.kind === "source-primitive" && arrays.get("boundary")?.name === "int64", true,
+    "an integer beyond int32 retains its exact int64 carrier without a floating route");
+  for (const name of ["explicitDouble", "signedZeros"]) assert.equal(
     arrays.get(name)?.kind === "source-primitive" && arrays.get(name)?.name === "float64", true,
     `${name}: native range, explicit float64 and signed zero prevent integral literal retargeting`);
   if (surface === "js") assert.equal(arrays.get("authoredZeros")?.kind === "source-primitive" &&
-    arrays.get("authoredZeros")?.name === "float64", true, "the actual JS float64 negative-zero literal keeps its native floating carrier");
+    arrays.get("authoredZeros")?.name === "int32", true, "unannotated negative zero is integral zero at its exact native peer");
   const bare = getCsharpRuntimeUnionArms(arrays.get("bare"), program.typeDefinitions);
   assert.equal(bare?.length === 2 && bare.some(type => type.kind === "source-primitive" && type.name === "int32") &&
     bare.some(type => type.kind === "source-primitive" && type.name === "uint32"), true,
@@ -117,9 +126,10 @@ test(`${surface} numeric spread carriers are order-independent without erasing g
       !Tsonic.Generated.Index.nativePairs(-7, 4294967295U) ||
       !Tsonic.Generated.Index.literalBoundaries(-7) ||
       System.BitConverter.DoubleToInt64Bits(Tsonic.Generated.Index.preserveNegativeZero(-7)) != long.MinValue ||
-      ${surface !== "js" ? "" : "System.BitConverter.DoubleToInt64Bits(Tsonic.Generated.Index.authoredNegativeZero(-7)) != long.MinValue ||"}
+      ${surface !== "js" ? "" : "System.BitConverter.DoubleToInt64Bits(Tsonic.Generated.Index.authoredNegativeZero(-7)) != 0L ||"}
       Tsonic.Generated.Index.homogeneousWide[0] != 9007199254740993L) throw new System.Exception("native array common carrier");`);
 });
+}
 }
 
 for (const surface of Array.from(["native", "js"]).slice(0, 2)) {

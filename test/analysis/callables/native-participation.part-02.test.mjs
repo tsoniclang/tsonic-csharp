@@ -7,10 +7,14 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 import { analyzeCsharpNativeParticipation } from "../../../dist/analysis/callables/calls/participation.js";
 import { analyzeCsharpTypeOnlyDeclarations } from "../../../dist/analysis/declarations/type-only.js";
 import { analyze, labels, ambientOriginal, ambientCases } from "./native-participation.fixtures.mjs";
+import { assertNumericLiteralRefusal, numericCarrierRefusal } from "../../helpers/numeric-literal-rulings.mjs";
+import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 
 for (const surface of Array.from(["native", "js"]).slice(0, 1)) {
-test(`${surface} abstract accessors keep native signatures and concrete invocation`, { timeout: 300_000 }, () => {
-    const value = analyze(`
+for (const ownNumber of [false, true]) {
+test(ownNumber ? `${surface} own-number abstract accessors keep native signatures and concrete invocation`
+  : `${surface} abstract accessors keep native signatures and concrete invocation`, { timeout: 300_000 }, () => {
+    const sourceText = `
       export abstract class Base {
         abstract get value(): number;
         abstract set value(next: number);
@@ -23,7 +27,14 @@ test(`${surface} abstract accessors keep native signatures and concrete invocati
         read(): number { return this.value; }
       }
       export function run(): number { const value = new Concrete(); value.value = 7; return value.read(); }
-    `, surface);
+    `;
+    if (!ownNumber) {
+      assertNumericLiteralRefusal(compileCsharpSource({ surface, sourceText }), [
+        numericCarrierRefusal(csharpSourcePrimitiveTargetType("float64"), csharpSourcePrimitiveTargetType("int64"), "next"),
+      ]);
+      return;
+    }
+    const value = analyze(sourceText.replace("private current = 1;", "private current: number = 1;"), surface);
     assert.deepEqual(labels(value).filter(label => label.endsWith(":signature")), [
       "KindGetAccessor:value:signature",
       "KindSetAccessor:value:signature",
@@ -33,6 +44,7 @@ test(`${surface} abstract accessors keep native signatures and concrete invocati
     executeCsharpConstruction(value.compiled, `abstract-participation-${surface}`, false, false, [],
       'if (Tsonic.Generated.Index.run() != 7) throw new System.Exception("abstract accessor participation");');
   });
+}
 }
 
 for (const surface of Array.from(["native", "js"]).slice(1, 2)) {
@@ -110,8 +122,10 @@ test(`${surface} a local function that owns a capture frame keeps a frame body`,
       "approved C-1420: the same original native body has no ordinary protocol frame");
   });
 
-test(`${surface} abstract accessors keep native signatures and concrete invocation`, { timeout: 300_000 }, () => {
-    const value = analyze(`
+for (const ownNumber of [false, true]) {
+test(ownNumber ? `${surface} own-number abstract accessors keep native signatures and concrete invocation`
+  : `${surface} abstract accessors keep native signatures and concrete invocation`, { timeout: 300_000 }, () => {
+    const sourceText = `
       export abstract class Base {
         abstract get value(): number;
         abstract set value(next: number);
@@ -124,7 +138,14 @@ test(`${surface} abstract accessors keep native signatures and concrete invocati
         read(): number { return this.value; }
       }
       export function run(): number { const value = new Concrete(); value.value = 7; return value.read(); }
-    `, surface);
+    `;
+    if (!ownNumber) {
+      assertNumericLiteralRefusal(compileCsharpSource({ surface, sourceText }), [
+        numericCarrierRefusal(csharpSourcePrimitiveTargetType("float64"), csharpSourcePrimitiveTargetType("int64"), "next"),
+      ]);
+      return;
+    }
+    const value = analyze(sourceText.replace("private current = 1;", "private current: number = 1;"), surface);
     assert.deepEqual(labels(value).filter(label => label.endsWith(":signature")), [
       "KindGetAccessor:value:signature",
       "KindSetAccessor:value:signature",
@@ -134,6 +155,7 @@ test(`${surface} abstract accessors keep native signatures and concrete invocati
     executeCsharpConstruction(value.compiled, `abstract-participation-${surface}`, false, false, [],
       'if (Tsonic.Generated.Index.run() != 7) throw new System.Exception("abstract accessor participation");');
   });
+}
 }
 
 test("the participation lookup is sealed, stable and ignores foreign nodes", () => {

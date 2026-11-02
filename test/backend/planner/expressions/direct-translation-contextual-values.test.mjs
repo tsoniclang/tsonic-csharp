@@ -504,9 +504,9 @@ test("direct C# translation preserves inferred integral storage across mutable i
     {
         public static double sum(double[] values)
         {
-            double result = 0;
+            double result = 0D;
             {
-                int index = 0;
+                long index = 0L;
                 for (; index < values.Length; index++)
                 {
                     result += values[index];
