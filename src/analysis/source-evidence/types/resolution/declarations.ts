@@ -7,7 +7,6 @@ import { nextState } from "./state.js";
 import { readCsharpSourceField } from "../../../../source/extension/markers.js";
 import { sourceRefinementOnlyRemovesNullish } from "./source-union-refinement.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
-import { csharpAbsenceTargetType } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { getCsharpGenericOptionalParts } from "../../../../target-model/types/projections.js";
 import { csharpSourceStorageContext } from "./source-storage-projection.js";
 
@@ -63,9 +62,6 @@ export function resolveSelectedDeclarationResult(
     sourceRefinementOnlyRemovesNullish(declaredMemberType, semanticType, queries);
   const refinement = !unchanged && declaredMemberType !== undefined && semanticType !== undefined
     ? queries.types.refinement(declaredMemberType, semanticType) : undefined;
-  if (semanticType !== undefined && queries.types.isNullish(semanticType) &&
-      (unchanged || refinement?.kind === "members" && refinement.types.length > 0 &&
-        refinement.types.every(type => queries.types.isNullish(type)))) return csharpAbsenceTargetType();
   const excludesNullish = refinement?.kind === "members" && refinement.types.length > 0 &&
     refinement.types.every(type => !queries.types.isNullish(type));
   const authoredState = declarationType !== undefined && (unchanged || removesNullish)
