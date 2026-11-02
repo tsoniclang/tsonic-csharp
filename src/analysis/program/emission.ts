@@ -317,6 +317,10 @@ export function finalizeCsharpNativeEmission(
   const memberReceivers = analyzeCsharpMemberReceivers({ source, nodes: sourceStorage.nodes, operations: admittedOperations,
     references: sourceReferences.records, receivers: receiverTypes, admitted: admittedControlNode });
   if (memberReceivers.issues.length !== 0) return rejectedTargetStage(memberReceivers.issues);
+  const elementAdmission = analyzeCsharpElementAdmission({ ast: source.ast, nodes: sourceStorage.nodes, operations: admittedOperations,
+    demand: nativeDemand, admitted: admittedControlNode, receivers: memberReceivers.records, navigation: source.navigation,
+    policy: analysis.policy });
+  if (elementAdmission.issues.length !== 0) return rejectedTargetStage(elementAdmission.issues);
   const propertyAdmission = analyzeCsharpPropertyAdmission({ ast: source.ast, nodes: sourceStorage.nodes,
     operations: admittedOperations, admitted: admittedControlNode, projectDeclaration: node => source.navigation.isProjectDeclaration(node), receivers: memberReceivers.records, jsCalls: jsCalls.records,
     modules: sourceReferences.records.sourceModuleReference, evidence: analysis.sourceEvidence });
@@ -327,10 +331,6 @@ export function finalizeCsharpNativeEmission(
     rendered: node => propertyAdmission.records.sourceMemberEmission.get(node)?.kind === "member" ||
       memberReceivers.records.nativeMethodCallee.get(node) !== undefined });
   if (memberNames.issues.length !== 0) return rejectedTargetStage(memberNames.issues);
-  const elementAdmission = analyzeCsharpElementAdmission({ ast: source.ast, nodes: sourceStorage.nodes, operations: admittedOperations,
-    demand: nativeDemand, admitted: admittedControlNode, receivers: memberReceivers.records, navigation: source.navigation,
-    policy: analysis.policy });
-  if (elementAdmission.issues.length !== 0) return rejectedTargetStage(elementAdmission.issues);
   const typeParameterEmission = analyzeCsharpTypeParameterEmission({ ast: source.ast, nodes: sourceStorage.nodes,
     evidence: analysis.sourceEvidence, admitted: admittedControlNode });
   if (typeParameterEmission.issues.length !== 0) return rejectedTargetStage(typeParameterEmission.issues);
