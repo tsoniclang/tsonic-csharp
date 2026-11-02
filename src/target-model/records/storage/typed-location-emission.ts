@@ -8,6 +8,7 @@ export interface CsharpTypedStorageEmission {
   readonly carrier: TargetTypeRef;
   readonly address: { readonly kind: "managed" | "native-array" | "native-local" } | { readonly kind: "native-field"; readonly name: string };
   readonly bound: { readonly name: string; readonly carrier: TargetTypeRef } | undefined;
+  readonly memberName: string | undefined;
 }
 
 export interface CsharpTypedLocationEmission {
