@@ -86,7 +86,7 @@ test("type transformations retain the selected value owner independently of meta
       assert.equal(selected.sourceBindings === bindings, true, mode);
     };
     const result = resolveSourceTypeComponentEvidence({
-      host: { ast: { getSourceFile: () => file, is: typeOnlyPredicates } },
+      host: { ast: { getSourceFile: () => file, is: typeOnlyPredicates }, hasSemantics: selected => selected === file },
       resolvePointerReturn(declaration, selected) {
         assert.equal(declaration === owner, true, mode);
         assertOwner(selected);
@@ -134,7 +134,7 @@ test("callable parameters establish their exact entry input while tuple transfor
   }
 });
 
-test("recognized Error profiles reject unavailable checked storage instead of manufacturing an object shape", () => {
+test("recognized Error profiles retain exact native identity without consulting checked storage", () => {
   const file = {};
   const owner = subject({}, "input");
   let queries = 0;
@@ -143,11 +143,17 @@ test("recognized Error profiles reject unavailable checked storage instead of ma
     errorStorageDemands: { storageFor(selected) { queries += 1; assert.equal(selected === owner, true);
       return { kind: "unresolved", reason: "exact storage unavailable" }; } } } };
   const identity = { kind: "error", sourceName: "Error", errorName: "Error", baseException: true };
-  assert.equal(resolveSourceProfileType(scope, identity, [], owner) === undefined, true);
-  assert.equal(queries, 1);
+  assert.equal(resolveSourceProfileType(scope, identity, [])?.id, "System.Exception");
+  assert.equal(queries, 0, "source history cannot select the native Error representation");
   scope.host.hasSemantics = () => false;
-  assert.equal(resolveSourceProfileType(scope, identity, [], owner)?.id, "System.Exception");
-  assert.equal(queries, 1, "provider signature evidence is not a checked runtime storage subject");
+  assert.equal(resolveSourceProfileType(scope, identity, [])?.id, "System.Exception");
+  assert.equal(queries, 0, "provider signature evidence is not a checked runtime storage subject");
+  for (const kind of ["missing", "rejected"]) {
+    scope.host.providers = { publishNativeIdentities: () => ({ kind }) };
+    assert.equal(resolveSourceProfileType(scope, identity, []) === undefined, true,
+      "missing or rejected physical native identity never manufactures an Error carrier");
+  }
+  assert.equal(queries, 0, "native refusal still does not query storage origins");
 });
 
 test("callable results establish their own storage owner rather than retaining the enclosing delegate owner", () => {
@@ -184,7 +190,7 @@ test("declaration-free transformations retain the current exact storage componen
   const state = { depth: 2, sourceStorageSubject: owner };
   const carrier = { kind: "source-primitive", name: "uint64" };
   const result = resolveSourceTypeComponentEvidence({
-    host: { ast: { is: typeOnlyPredicates } },
+    host: { ast: { is: typeOnlyPredicates }, hasSemantics: selected => selected === file },
     resolvePointerReturn() { assert.fail("a declaration-free transformation has no new pointer return owner"); },
     resolveTypeWithState(selectedType, selectedFile, selected) {
       assert.equal(selectedType === type && selectedFile === file, true);
@@ -212,5 +218,49 @@ test("component context preserves each exact source role through only the owning
     assert.equal(csharpSourceStorageComponentContext(host, state, component).sourceStorageSubject === projected, true, kind);
     assert.equal(state.sourceStorageSubject === owner && owner.projection.length === 1, true, kind);
     assert.equal(calls, 1, kind);
+  }
+});
+
+test("authored component provenance preserves the original selected instantiation and its real contexts", () => {
+  for (const declared of [false, true]) {
+    const authored = {};
+    const defining = {};
+    const importer = {};
+    const type = { instantiated: true };
+    const declaration = {};
+    const bindings = new Map();
+    const state = { depth: 3, sourceBindings: bindings };
+    const carrier = { kind: "target-named", id: "native.exact-instantiation", typeArguments: [] };
+    let reads = 0;
+    const result = resolveSourceTypeComponentEvidence({
+      host: { ast: { getSourceFile: node => node === authored ? defining : undefined, is: typeOnlyPredicates },
+        hasSemantics: file => file === defining || file === importer },
+      resolvePointerReturn: () => undefined,
+      resolveAuthoredAndSelectedSourceType(node, file, selected, selectedFile, selectedState) {
+        reads++;
+        assert.equal(node === authored && file === defining && selected === type, true,
+          "the original authored node and already instantiated selected Type are unchanged");
+        assert.equal(selectedFile === (declared ? importer : defining), true,
+          "signature-derived and declaration-free authored selections keep their distinct actual contexts");
+        assert.equal(selectedState.sourceBindings === bindings, true, "generic bindings retain identity");
+        return carrier;
+      },
+    }, { authoredTypeNode: authored, selectedType: type, ...(declared ? { declaration } : {}) },
+    { sourceFile: importer }, state);
+    assert.equal(result === carrier && reads === 1, true, "one canonical selected component is consumed");
+  }
+});
+
+test("authored component provenance rejects missing and foreign owners without importer fallback", () => {
+  for (const missing of [false, true]) {
+    const authored = {};
+    const foreign = {};
+    const importer = {};
+    const result = resolveSourceTypeComponentEvidence({
+      host: { ast: { getSourceFile: () => missing ? undefined : foreign, is: typeOnlyPredicates },
+        hasSemantics: file => file === importer },
+      resolveAuthoredAndSelectedSourceType() { assert.fail("unproved authored ownership cannot reach selection"); },
+    }, { authoredTypeNode: authored, selectedType: {} }, { sourceFile: importer }, { depth: 0 });
+    assert.equal(result === undefined, true, "missing or foreign authored facts remain unresolved");
   }
 });

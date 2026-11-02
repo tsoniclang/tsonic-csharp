@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { isCsharpVoidTargetType } from "../../../dist/target-model/types/index.js";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
 for (const surface of [undefined, "js"]) {
@@ -18,21 +19,26 @@ using System;
 using Generated = Tsonic.Generated.Index;
 using RuntimeError = Tsonic.CSharp.Runtime.Error;
 
-var source = new RuntimeError("original");
+var source = new MutableException("original");
 Exception retained = source;
-if (Generated.name(retained) != "Error" || Generated.message(retained) != "original" || Generated.stack(retained) is not null)
+if (Generated.name(retained) != nameof(MutableException) || Generated.message(retained) != "original" || Generated.stack(retained) is not null)
     throw new Exception("original observations");
-source.name = "UpdatedError";
-source.message = "updated";
-source.stack = "authored stack";
-if (Generated.name(retained) != source.name || Generated.message(retained) != source.message || Generated.stack(retained) != source.stack)
+source.CurrentMessage = "updated";
+source.CurrentStack = "authored stack";
+if (Generated.name(retained) != source.GetType().Name || Generated.message(retained) != source.Message || Generated.stack(retained) != source.StackTrace)
     throw new Exception("live observations");
 if (Generated.optionalName(null) is not null || Generated.optionalStack(null) is not null ||
-    Generated.optionalName(retained) != source.name || Generated.optionalStack(retained) != source.stack)
+    Generated.optionalName(retained) != source.GetType().Name || Generated.optionalStack(retained) != source.StackTrace)
     throw new Exception("native optional observations");
 var native = new InvalidOperationException("native failure");
 if (Generated.name(native) != nameof(InvalidOperationException) || Generated.message(native) != native.Message || Generated.stack(native) is not null)
     throw new Exception("native original observations");
+if (!ReferenceEquals(retained, source)) throw new Exception("native observer identity");
+var runtime = new RuntimeError("original");
+Exception runtimeView = runtime;
+runtime.name = "UpdatedError"; runtime.message = "updated"; runtime.stack = "authored stack";
+if (Generated.name(runtimeView) != runtime.GetType().Name || Generated.message(runtimeView) != runtimeView.Message ||
+    Generated.stack(runtimeView) != runtimeView.StackTrace) throw new Exception("explicit runtime object retains its native Exception view");
 ObservationBytes(retained);
 for (var replay = 0; replay < 3; replay++)
     if (ObservationBytes(retained) != 0) throw new Exception("unexpected observation allocation");
@@ -45,6 +51,14 @@ static long ObservationBytes(Exception error) {
     }
     return GC.GetAllocatedBytesForCurrentThread() - before;
 }
+
+sealed class MutableException : Exception {
+    public MutableException(string message) : base(message) { CurrentMessage = message; }
+    public string CurrentMessage;
+    public string? CurrentStack;
+    public override string Message => CurrentMessage;
+    public override string? StackTrace => CurrentStack;
+}
 `);
   });
 
@@ -54,14 +68,25 @@ static long ObservationBytes(Exception error) {
     ` });
     assertCsharpCompilationSucceeded(compiled);
     const emitted = [...compiled.artifacts.values()].join("\n");
-    assert.match(emitted, /capture\(Tsonic\.CSharp\.Runtime\.Error error\)/u);
+    assert.match(emitted, /capture\(System\.Exception error\)/u);
+    const program = compiled.result.program;
+    const captures = program.source.navigation.nodes.filter(node => program.source.ast.is.IsCallExpression(node))
+      .map(node => ({ node, selected: program.records.selectedCall.get(node)?.target }))
+      .filter(entry => entry.selected?.kind === "resolved" &&
+        entry.selected.call.targetMember.id.endsWith("System.Runtime.ExceptionServices.ExceptionDispatchInfo.SetCurrentStackTrace"));
+    assert.equal(captures.length, 1, "the actual native capture call has one completed selection");
+    assert.equal(captures[0].selected.call.discardResult, true, "the source void contract discards the real physical result");
+    assert.equal(captures[0].selected.call.targetMember.returnType.id.endsWith("System.Exception"), true,
+      "the physical native member still returns the original Exception");
+    assert.equal(isCsharpVoidTargetType(program.records.nodeTargetType.get(captures[0].node)), true,
+      "the same completed call owns the source void expression result");
     executeCsharpConstruction(compiled, `native-error-capture-${surface ?? "native"}`, false, false, [], `
 using System;
-var original = new Tsonic.CSharp.Runtime.Error("source");
+var original = new Exception("source");
 var alias = original;
-if (alias.stack is not null) throw new Exception("implicit stack capture");
+if (alias.StackTrace is not null) throw new Exception("implicit stack capture");
 Tsonic.Generated.Index.capture(alias);
-if (!ReferenceEquals(alias, original) || original.stack is null) throw new Exception("explicit capture lost");
+if (!ReferenceEquals(alias, original) || original.StackTrace is null) throw new Exception("explicit capture lost");
 `);
   });
 }

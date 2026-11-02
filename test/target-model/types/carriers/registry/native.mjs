@@ -1,6 +1,13 @@
 // Carrier registry rows (native): test and audit data for this compiler only; product code never reads it.
 export const nativeCarrierRegistry = Object.freeze([
   {
+    id: "src/target-model/types/carriers/scalar-types.ts#csharpSourceErrorTargetType",
+    kinds: ["target-named"],
+    declaration: { module: "src/target-model/types/carriers/scalar-types.ts", symbol: "csharpSourceErrorTargetType" },
+    responsibility: "vocabulary/source-error-target-type",
+    frozen: false,
+  },
+  {
     id: "src/target-model/types/factories.ts#csharpTargetNamedType",
     kinds: ["target-named"],
     declaration: { module: "src/target-model/types/factories.ts", symbol: "csharpTargetNamedType" },
