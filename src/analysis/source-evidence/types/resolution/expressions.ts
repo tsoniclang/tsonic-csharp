@@ -239,11 +239,6 @@ export function resolveMemberAccessTargetType(
       host.ast.questionToken(declaration) === undefined
       ? getCsharpMethodValue(type)?.contract ?? type : type;
   };
-  if (host.projectTypeCatalog.definitionContainingDeclaration(selection.source.selectedDeclaration) !== undefined) {
-    const member = resolveSelectedDeclarationResult(selection.source.selectedDeclaration, selectedSourceType ?? declaredMemberType, queries, state, receiverType,
-      declaredMemberType);
-    return member === undefined ? undefined : optionalAccessTargetType(invocationType(member), selection.source.optionalChain);
-  }
   const structuralMemberType = host.structuralTypes.resolveSelectedProperty(
     receiverType,
     queries.facts.selectedSubjects(
@@ -254,6 +249,14 @@ export function resolveMemberAccessTargetType(
     queries.sourceFile,
     declaredMemberType,
   );
+  if (structuralMemberType !== undefined) {
+    return optionalAccessTargetType(invocationType(structuralMemberType), selection.source.optionalChain);
+  }
+  if (host.projectTypeCatalog.definitionContainingDeclaration(selection.source.selectedDeclaration) !== undefined) {
+    const member = resolveSelectedDeclarationResult(selection.source.selectedDeclaration, selectedSourceType ?? declaredMemberType, queries, state, receiverType,
+      declaredMemberType);
+    return member === undefined ? undefined : optionalAccessTargetType(invocationType(member), selection.source.optionalChain);
+  }
   const selectedSymbolType = selectedSourceType === undefined ||
       selection.source.selectedSymbol === undefined
     ? undefined
@@ -264,7 +267,7 @@ export function resolveMemberAccessTargetType(
         state,
       );
   return optionalAccessTargetType(
-    invocationType(structuralMemberType ?? selectedSymbolType ??
+    invocationType(selectedSymbolType ??
       resolveSelectedDeclarationResult(
         selection.source.selectedDeclaration,
         selectedSourceType ?? declaredMemberType,
