@@ -67,9 +67,10 @@ export function resolveSourceCallInstantiation(
       state,
     };
   }
-  const parameterIdentities = sourceCallTypeParameterIdentities(scope, source, callable,
+  const parameterEvidence = sourceCallTypeParameterEvidence(scope, source, callable,
     callable === undefined ? "value" : "declaration");
-  if (parameterIdentities === undefined) return undefined;
+  if (parameterEvidence === undefined) return undefined;
+  const parameterIdentities = parameterEvidence.identities;
   const identities = [...parameterIdentities, ...projections.map(projection => projection.identity)];
   if (
     expectedTypeParameterIdentities !== undefined &&
@@ -308,13 +309,13 @@ export function inferSourceCallTargetTypeArguments(
 ): ReadonlyMap<string, TargetTypeRef> | undefined {
   const inferred = new Map<string, TargetTypeRef>();
   const checkedBindings = new Map<string, TargetTypeRef>();
-  const identities = sourceCallTypeParameterIdentities(scope, source, callable,
+  const parameterEvidence = sourceCallTypeParameterEvidence(scope, source, callable,
     callable === undefined ? "value" : "declaration");
-  if (identities === undefined) return undefined;
-  for (const [index, argument] of (source.sourceSelectedMethodTypeArguments ?? []).entries()) {
+  if (parameterEvidence === undefined) return undefined;
+  for (const [index, argument] of parameterEvidence.selected.entries()) {
     const checked = scope.resolveAuthoredAndSelectedSourceType(argument.explicitTypeNode, sourceFile,
       argument.selectedType, sourceFile, nextState(state));
-    if (checked !== undefined) checkedBindings.set(identities[index]!, checked);
+    if (checked !== undefined) checkedBindings.set(parameterEvidence.identities[index]!, checked);
   }
   const inferencePairs: CsharpSourceArgumentInferencePair[] = [];
   const conflicts = new Set<string>();
@@ -547,8 +548,9 @@ export function sourceCallableTypeParametersMatch(
   }
   const selected = source.sourceSelectedMethodTypeArguments ?? [];
   const { host } = scope;
-  const identities = sourceCallTypeParameterIdentities(scope, source, callable, kind);
-  if (identities === undefined) return false;
+  const parameterEvidence = sourceCallTypeParameterEvidence(scope, source, callable, kind);
+  if (parameterEvidence === undefined) return false;
+  const identities = parameterEvidence.identities;
   const projections = callable.sourceDeclaration === undefined ? []
     : host.representations.genericProjections(callable.sourceDeclaration);
   const native = callable.nativeSignature.methodTypeParameterIdentities;
@@ -558,14 +560,14 @@ export function sourceCallableTypeParametersMatch(
     identities.every((identity, index) => identity === callable.nativeSignature.methodTypeParameterIdentities[index]);
 }
 
-function sourceCallTypeParameterIdentities(
+function sourceCallTypeParameterEvidence(
   { host }: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   callable: SourceCallableContract | undefined,
   kind: "declaration" | "value",
-): readonly string[] | undefined {
+) {
   const selected = source.sourceSelectedMethodTypeArguments ?? [];
-  if (selected.length === 0) return [];
+  if (selected.length === 0) return { identities: [], selected };
   const file = host.ast.getSourceFile(source.sourceCallee.expression);
   if (file === undefined) return undefined;
   const queries = host.semantics(file);
@@ -594,7 +596,8 @@ function sourceCallTypeParameterIdentities(
     if (checkedParameter?.identity !== parameter.identity) return undefined;
     return csharpSourceTypeParameter(host.ast.typeParameters(callable!.sourceDeclaration!)[index]!, host.ast)?.identity;
   });
-  return identities.some(identity => identity === undefined) ? undefined : identities as readonly string[];
+  return identities.some(identity => identity === undefined)
+    ? undefined : { identities: identities as readonly string[], selected };
 }
 
 export function sourceValueDeclaration(
