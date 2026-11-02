@@ -214,16 +214,32 @@ test("native backing uses one neutral identity relation without the legacy layou
 
 test("scalar and scalar-array backing consumes declared geometry and only checks later descriptors", () => {
   const backing = readFileSync(join(sourceRoot, "analysis/storage/native-backing.ts"), "utf8");
-  assert.match(backing, /const declared = selectCsharpDeclaredNativeMemoryLayout\(policy, operation\.pointeeType,/u);
+  assert.match(backing, /const selected = selectCsharpDeclaredNativeMemoryLayout\(policy, operation\.pointeeType,/u);
   assert.match(backing, /declared\.stride !== layout\.stride \|\| !csharpNativeMemoryLayoutsEqual\(declared\.layout, descriptor\)/u);
-  assert.match(backing, /const selected = declared\.kind === "declared" \? declared\.layout : descriptor/u);
-  assert.match(backing, /const stride = declared\.kind === "declared" \? declared\.stride : layout\.stride/u);
-  assert.match(backing, /declared\.kind === "deferred-struct" && !retainLayout/u);
+  assert.match(backing, /const \{ layout: selected, stride \} = declared/u);
+  assert.doesNotMatch(backing, /deferred-struct|declared\.kind === "declared" \? declared\.layout : descriptor/u);
   const owner = readFileSync(join(sourceRoot, "analysis/operations/pointers/native-memory.ts"), "utf8");
   const declared = owner.slice(owner.indexOf("export function selectCsharpDeclaredNativeMemoryLayout("),
     owner.indexOf("function csharpNativeScalarByteSize("));
-  assert.match(declared, /input\.types\.selectFixedArray\(selectedType, sourceFile\)/u);
-  assert.match(declared, /csharpNativeScalarByteSize\(carrier, dataLayout\.addressWidth\)/u);
+  assert.match(declared, /input\.types\.selectFixedArray\(work\.sourceType, work\.sourceFile\)/u);
+  assert.match(declared, /csharpNativeScalarByteSize\(work\.carrier, dataLayout\.addressWidth\)/u);
   assert.doesNotMatch(declared, /TsonicMemoryLayoutFact|byteSize|byteAlignment|layout\.stride|selectCsharpNativeMemoryLayout/u);
 });
 
+
+
+test("declared struct raw footprint consumes sealed carriers in checked declaration order", () => {
+  const owner = readFileSync(join(sourceRoot, "analysis/operations/pointers/native-memory.ts"), "utf8");
+  const declared = owner.slice(owner.indexOf("export function selectCsharpDeclaredNativeMemoryLayout("),
+    owner.indexOf("function csharpNativeScalarByteSize("));
+  assert.match(declared, /input\.projectTypes\.catalog\.definitionForTarget\(work\.carrier\)/u);
+  assert.match(declared, /readCsharpSourceStruct\(input\.sourceFacts, project\.declaration\)/u);
+  assert.match(declared, /for \(const field of declaration\.fields\)/u);
+  assert.match(declared, /const carrier = valueRead\.get\(field\.sourceType\)\?\.value/u);
+  assert.match(declared, /const offset = \(size \+ fieldAlignment - 1n\) \/ fieldAlignment \* fieldAlignment/u);
+  assert.doesNotMatch(declared, /csharpNativeMemoryFieldIds|findTargetBindingByTargetId|selectCsharpNativeMemoryLayout/u);
+  assert.match(owner, /completeFields\.map\(identity => usedFields\.get\(identity\)!\)/u);
+  const iteration = readFileSync(join(sourceRoot, "analysis/program/iteration.ts"), "utf8");
+  assert.match(iteration, /const valueReads = valueReadStages\.seal\(storageRepresentations\)/u);
+  assert.match(iteration, /prepareCsharpStorage\(policy, backingEvidence, operations, storageRepresentations, valueReads\.valueRead\)/u);
+});

@@ -13,7 +13,8 @@ import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import type { CsharpPolicyContext } from "../../../policy/model/context.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpTargetBindingFact } from "../../../target-model/types/model.js";
-import type { CsharpNativeMemoryLayout } from "../../../target-model/operations/native-memory.js";
+import type { CsharpNativeMemoryField, CsharpNativeMemoryLayout } from "../../../target-model/operations/native-memory.js";
+import type { CsharpValueReadClassifications } from "../../../target-model/records/operations/conversions.js";
 
 import { readCsharpRawLocation } from "../../../source/extension/native-memory.js";
 export function selectCsharpNativeMemoryLayout(
@@ -56,7 +57,7 @@ export function selectCsharpNativeMemoryLayout(
     const project = input.projectTypes.catalog.definitionForTarget(pointeeType);
     const sourceStruct = project?.kind === "struct"
       ? readCsharpSourceStruct(input.sourceFacts, project.declaration) : undefined;
-    const usedFields = new Set<string>();
+    const usedFields = new Map<string, CsharpNativeMemoryField>();
     const targetFields = csharpTargetBindingFact(csharpProviderBindingFromResolution(input.providers.findTargetBindingByTargetId(pointeeType.id, "ordinary")));
     const completeFields: readonly string[] | undefined = sourceStruct?.valueType
       ? sourceStruct.fields.map(field => field.sourceName)
@@ -99,11 +100,13 @@ export function selectCsharpNativeMemoryLayout(
       }
       if (usedFields.has(identity) || fields.some(field => field.name === name) ||
         type === undefined || !targetTypeRefEquals(type, child.pointeeType)) return undefined;
-      usedFields.add(identity);
-      fields.push(Object.freeze({ name, offset: field.byteOffset, alignment: field.byteAlignment, layout: child }));
+      const selectedField = Object.freeze({ name, offset: field.byteOffset, alignment: field.byteAlignment, layout: child });
+      usedFields.set(identity, selectedField);
+      fields.push(selectedField);
     }
     if (completeFields === undefined || completeFields.length !== fields.length ||
       completeFields.some(identity => !usedFields.has(identity))) return undefined;
+    fields.splice(0, fields.length, ...completeFields.map(identity => usedFields.get(identity)!));
   }
   const result: CsharpNativeMemoryLayout = Object.freeze({ kind: pointeeType.kind === "source-primitive" ? "scalar" : "record",
     pointeeType, size: layout.byteSize, alignment: layout.byteAlignment,
@@ -114,57 +117,100 @@ export function selectCsharpNativeMemoryLayout(
 
 type CsharpDeclaredNativeMemoryLayoutSelection =
   | { readonly kind: "declared"; readonly layout: CsharpNativeMemoryLayout; readonly stride: bigint }
-  | { readonly kind: "deferred-struct" }
   | { readonly kind: "rejected"; readonly reason: string };
+
+type CsharpDeclaredNativeMemoryWork =
+  | { readonly kind: "select"; readonly carrier: TargetTypeRef; readonly sourceType: Type; readonly sourceFile: SourceFile }
+  | { readonly kind: "array"; readonly carrier: Extract<TargetTypeRef, { readonly kind: "array" }>;
+      readonly sourceType: Type; readonly length: bigint }
+  | { readonly kind: "record"; readonly carrier: Extract<TargetTypeRef, { readonly kind: "target-named" }>;
+      readonly sourceType: Type; readonly fields: readonly string[] };
 
 export function selectCsharpDeclaredNativeMemoryLayout(
   input: CsharpPolicyContext, pointeeType: TargetTypeRef, sourceType: Type,
-  sourceFile: SourceFile, dataLayout: TsonicDataLayoutFact,
+  sourceFile: SourceFile, dataLayout: TsonicDataLayoutFact, valueRead: CsharpValueReadClassifications["valueRead"],
 ): CsharpDeclaredNativeMemoryLayoutSelection {
-  const visited = new Set<Type>();
-  const arrays: { readonly carrier: Extract<TargetTypeRef, { readonly kind: "array" }>; readonly length: bigint }[] = [];
-  let carrier = pointeeType;
-  let selectedType = sourceType;
-  let layout: CsharpNativeMemoryLayout;
-  let stride: bigint;
-  for (;;) {
-    if (visited.has(selectedType)) {
-      return { kind: "rejected", reason: "The declared native backing requires a finite closed physical type." };
+  const active = new Set<Type>();
+  const pending: CsharpDeclaredNativeMemoryWork[] = [{ kind: "select", carrier: pointeeType, sourceType, sourceFile }];
+  const completed: { readonly layout: CsharpNativeMemoryLayout; readonly stride: bigint }[] = [];
+  const maximum = (1n << BigInt(dataLayout.addressWidth)) - 1n;
+  const reject = (reason: string): CsharpDeclaredNativeMemoryLayoutSelection => ({ kind: "rejected", reason });
+  while (pending.length > 0) {
+    const work = pending.pop()!;
+    if (work.kind === "array") {
+      const element = completed.pop();
+      if (element === undefined) return reject("The declared native array has no completed element footprint.");
+      const size = element.stride * work.length;
+      if (size > maximum) return reject("The declared native array backing exceeds its exact address width.");
+      completed.push({ layout: Object.freeze({ kind: "array", pointeeType: work.carrier,
+        length: work.length.toString(), stride: element.stride, element: element.layout,
+        size, alignment: element.layout.alignment, width: dataLayout.addressWidth,
+        littleEndian: dataLayout.byteOrder === "little" }), stride: size });
+      active.delete(work.sourceType);
+      continue;
     }
-    visited.add(selectedType);
-    const size = csharpNativeScalarByteSize(carrier, dataLayout.addressWidth);
+    if (work.kind === "record") {
+      if (completed.length < work.fields.length) return reject("The declared native struct has incomplete field footprints.");
+      const children = completed.splice(completed.length - work.fields.length, work.fields.length);
+      const fields: CsharpNativeMemoryField[] = [];
+      let size = 0n;
+      let alignment = 1n;
+      for (const [index, name] of work.fields.entries()) {
+        const child = children[index]!;
+        const fieldAlignment = child.layout.alignment;
+        const offset = (size + fieldAlignment - 1n) / fieldAlignment * fieldAlignment;
+        fields.push(Object.freeze({ name, offset, alignment: fieldAlignment, layout: child.layout }));
+        size = offset + child.stride;
+        if (fieldAlignment > alignment) alignment = fieldAlignment;
+      }
+      size = (size + alignment - 1n) / alignment * alignment;
+      if (size > maximum) return reject("The declared native struct backing exceeds its exact address width.");
+      completed.push({ layout: Object.freeze({ kind: "record", pointeeType: work.carrier, size, alignment,
+        width: dataLayout.addressWidth, littleEndian: dataLayout.byteOrder === "little", fields: Object.freeze(fields) }), stride: size });
+      active.delete(work.sourceType);
+      continue;
+    }
+    const size = csharpNativeScalarByteSize(work.carrier, dataLayout.addressWidth);
     if (size !== undefined) {
-      layout = Object.freeze({ kind: "scalar", pointeeType: carrier, size, alignment: size,
-        width: dataLayout.addressWidth, littleEndian: dataLayout.byteOrder === "little", fields: Object.freeze([]) });
-      stride = size;
-      break;
+      completed.push({ layout: Object.freeze({ kind: "scalar", pointeeType: work.carrier, size, alignment: size,
+        width: dataLayout.addressWidth, littleEndian: dataLayout.byteOrder === "little", fields: Object.freeze([]) }), stride: size });
+      continue;
     }
-    if (carrier.kind === "target-named") return { kind: "deferred-struct" };
-    if (carrier.kind !== "array" || (carrier.rank ?? 1) !== 1) {
-      return { kind: "rejected", reason: "Physical backing requires an exact declared native scalar or closed scalar-array type." };
+    if (active.has(work.sourceType)) return reject("The declared native backing requires a finite closed physical type.");
+    active.add(work.sourceType);
+    if (work.carrier.kind === "array" && (work.carrier.rank ?? 1) === 1) {
+      const selected = input.types.selectFixedArray(work.sourceType, work.sourceFile);
+      if (selected?.kind !== "selected") return reject("Native array backing requires its own exact declared fixed-array extent.");
+      const reason = csharpFixedArrayRepresentationRejection(selected.fact);
+      if (reason !== undefined) return reject(reason);
+      pending.push({ kind: "array", carrier: work.carrier, sourceType: work.sourceType, length: selected.fact.length });
+      pending.push({ kind: "select", carrier: work.carrier.element, sourceType: selected.fact.elementSourceType, sourceFile: work.sourceFile });
+      continue;
     }
-    const selected = input.types.selectFixedArray(selectedType, sourceFile);
-    if (selected?.kind !== "selected") {
-      return { kind: "rejected", reason: "Native array backing requires its own exact declared fixed-array extent." };
+    if (work.carrier.kind !== "target-named") return reject("Physical backing requires an exact closed declared native scalar, fixed-array or struct type.");
+    const project = input.projectTypes.catalog.definitionForTarget(work.carrier);
+    const declaration = project?.kind === "struct" ? readCsharpSourceStruct(input.sourceFacts, project.declaration) : undefined;
+    if (declaration?.valueType !== true) return reject("Declared raw storage requires a complete compiler-owned native struct field declaration.");
+    const fields: Extract<CsharpDeclaredNativeMemoryWork, { readonly kind: "select" }>[] = [];
+    for (const field of declaration.fields) {
+      const carrier = valueRead.get(field.sourceType)?.value;
+      const fieldFile = input.ast.getSourceFile(field.sourceType);
+      const checked = fieldFile === undefined ? undefined : input.semantics(fieldFile).types.expressionType(field.sourceType);
+      if (field.readonly || carrier === undefined || fieldFile === undefined || checked === undefined) {
+        return reject("Declared native struct backing requires complete mutable native field carriers and checked declaration identities.");
+      }
+      fields.push({ kind: "select", carrier, sourceType: checked, sourceFile: fieldFile });
     }
-    const reason = csharpFixedArrayRepresentationRejection(selected.fact);
-    if (reason !== undefined) return { kind: "rejected", reason };
-    arrays.push({ carrier, length: selected.fact.length });
-    carrier = carrier.element;
-    selectedType = selected.fact.elementSourceType;
+    if (new Set(declaration.fields.map(field => field.sourceName)).size !== fields.length) {
+      return reject("Declared native struct backing requires unique checked field declarations.");
+    }
+    pending.push({ kind: "record", carrier: work.carrier, sourceType: work.sourceType,
+      fields: declaration.fields.map(field => field.sourceName) });
+    for (let index = fields.length - 1; index >= 0; index--) pending.push(fields[index]!);
   }
-  for (let index = arrays.length - 1; index >= 0; index--) {
-    const array = arrays[index]!;
-    const arraySize = stride * array.length;
-    if (arraySize > (1n << BigInt(dataLayout.addressWidth)) - 1n) {
-      return { kind: "rejected", reason: "The declared native array backing exceeds its exact address width." };
-    }
-    layout = Object.freeze({ kind: "array", pointeeType: array.carrier, length: array.length.toString(),
-      stride, element: layout, size: arraySize, alignment: layout.alignment,
-      width: dataLayout.addressWidth, littleEndian: dataLayout.byteOrder === "little" });
-    stride = arraySize;
-  }
-  return Object.freeze({ kind: "declared", layout, stride });
+  const selected = completed.pop();
+  return selected === undefined || completed.length !== 0 ? reject("The declared native backing has no unique completed footprint.")
+    : Object.freeze({ kind: "declared", ...selected });
 }
 
 function csharpNativeScalarByteSize(carrier: TargetTypeRef, addressWidth: 32 | 64): bigint | undefined {
