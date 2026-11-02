@@ -107,9 +107,9 @@ const packedWord = memorylayout<uint32>({ datalayout: abi, bytesize: 4, bytealig
 const header = memorylayout<typeof Header>({ datalayout: abi, bytesize: 8, bytealignment: 4, stride: 8, fields: [
   memoryfield({ select: (value: typeof Header) => value.tag, byteoffset: 0, bytealignment: 1, fieldlayout: byte }),
   memoryfield({ select: (value: typeof Header) => value.count, byteoffset: 4, bytealignment: 4, fieldlayout: word })] });
-const envelope = memorylayout<typeof Envelope>({ datalayout: abi, bytesize: 9, bytealignment: 1, stride: 9, fields: [
+const envelope = memorylayout<typeof Envelope>({ datalayout: abi, bytesize: 12, bytealignment: 4, stride: 12, fields: [
   memoryfield({ select: (value: typeof Envelope) => value.prefix, byteoffset: 0, bytealignment: 1, fieldlayout: byte }),
-  memoryfield({ select: (value: typeof Envelope) => value.header, byteoffset: 1, bytealignment: 1, fieldlayout: header })] });
+  memoryfield({ select: (value: typeof Envelope) => value.header, byteoffset: 4, bytealignment: 4, fieldlayout: header })] });
 export function run(): boolean {
   unsafecontext();
   let value: typeof Envelope = defaultvalue<typeof Envelope>();
@@ -122,7 +122,7 @@ export function run(): boolean {
   const raw = torawptr(pointer, envelope);
   const saved = loadptr(pointer);
   const alias = reinterpretrawptr(raw, envelope);
-  const count = reinterpretrawptr(offsetrawptr(raw, 5, abi), packedWord);
+  const count = reinterpretrawptr(offsetrawptr(raw, 8, abi), packedWord);
   if (alias === undefined || count === undefined) return false;
   storeptr(count, 9);
   if (loadptr(pointer).header.count !== 9) return false;
@@ -163,6 +163,24 @@ export function run(): boolean {
   if (loadptr(pointer).header.count !== 9) return false;
   storeptr(alias, create(3, 4, 11));
   return saved.header.count === 7 && loadptr(count) === 11 &&
+    loadptr(pointer).prefix === 3 && equalptr(pointer, alias);
+}
+`;
+
+export const nativeProviderRecordNoRawProofSource = `
+import { create } from "test:records";
+import type { Envelope } from "test:records";
+import { allocateptr, loadptr, storeptr, equalptr, unsafecontext } from "@tsonic/core/lang.js";
+export function run(): boolean {
+  unsafecontext();
+  const value: Envelope = create(1, 2, 7);
+  const pointer = allocateptr<Envelope>(value);
+  const saved = loadptr(pointer);
+  const alias = pointer;
+  storeptr(pointer, create(1, 2, 9));
+  if (loadptr(pointer).header.count !== 9) return false;
+  storeptr(alias, create(3, 4, 11));
+  return saved.header.count === 7 && loadptr(alias).header.count === 11 &&
     loadptr(pointer).prefix === 3 && equalptr(pointer, alias);
 }
 `;

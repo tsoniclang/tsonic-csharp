@@ -6,6 +6,7 @@ import type { CsharpObjectShapeClassifications } from "../../target-model/record
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { CsharpSourceEvidenceAnalysis } from "../source-evidence/model.js";
 import type { CsharpStorageClassifications, CsharpStorageRepresentationClassifications } from "../../target-model/records/storage/storage.js";
+import type { CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
 import { prepareCsharpNativeBacking } from "./native-backing.js";
 import { classifyCsharpNativeLocation } from "./native-locations.js";
 import { classifyCsharpModuleFieldDemand } from "./module-fields.js";
@@ -24,8 +25,9 @@ export function prepareCsharpStorage(
   evidence: CsharpSourceEvidenceAnalysis,
   operations: CsharpTargetOperationClassifications,
   representations: CsharpStorageRepresentationClassifications,
+  valueRead: CsharpValueReadClassifications["valueRead"],
 ): CsharpStoragePreparation {
-  const backing = prepareCsharpNativeBacking(policy, evidence, operations);
+  const backing = prepareCsharpNativeBacking(policy, evidence, operations, valueRead);
   const identities = new Set(representations.contracts.filter(contract => contract.typedLocationIdentity &&
     backing.get(contract.declaration) === undefined && backing.array(contract.declaration) === undefined)
     .map(contract => contract.declaration));
