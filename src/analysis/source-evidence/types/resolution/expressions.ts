@@ -1,7 +1,7 @@
 import type { CsharpTypeResolutionScope } from "./scope.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, Type } from "@tsonic/tsts";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import { sourceExpressionCallArgument, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../../target-model/types/model.js";
 import { csharpSourcePrimitiveTargetType } from "../../../../target-model/types/carriers/scalar-types.js";
 
@@ -68,7 +68,7 @@ export function resolveSelectedExpressionResult(
 }
 
 function resolveSelectedExpressionCarrier(
-  { host, resolveNodeWithState, resolveNodeValueWithState, resolveReadStorage, resolveNonNullExpressionType, resolveMemberAccessTargetType, sourceUnions }: CsharpTypeResolutionScope,
+  { host, resolveNodeWithState, resolveNodeValueWithState, resolveReadStorage, resolveNonNullExpressionType, resolveMemberAccessTargetType, resolveSourceCallArgumentParameter, resolveSelectedType, sourceUnions }: CsharpTypeResolutionScope,
   node: Node,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
@@ -147,7 +147,7 @@ function resolveSelectedExpressionCarrier(
   ) {
     const literal = host.literalValues.literalValue.get(node);
     const literalType = literal?.numeric?.kind === "authored"
-      ? resolveCsharpSourceLiteralTargetType(host, literal) : undefined;
+      ? resolveCsharpSourceLiteralCarrier({ host, resolveSourceCallArgumentParameter, resolveSelectedType }, node, queries) : undefined;
     if (literalType !== undefined) return literalType;
     const operand = host.ast.is.IsPrefixUnaryExpression(node)
       ? host.ast.as.AsPrefixUnaryExpression(node)?.Operand
@@ -176,6 +176,32 @@ function resolveSelectedExpressionCarrier(
     return resolveMemberAccessTargetType(node, queries, state, "selected");
   }
   return undefined;
+}
+
+export function resolveCsharpSourceLiteralCarrier(
+  { host, resolveSourceCallArgumentParameter, resolveSelectedType }: Pick<CsharpTypeResolutionScope,
+    "host" | "resolveSourceCallArgumentParameter" | "resolveSelectedType">,
+  node: Node,
+  queries: SourceFileSemantics,
+): TargetTypeRef | undefined {
+  const literal = host.literalValues.literalValue.get(node);
+  const defaultType = resolveCsharpSourceLiteralTargetType(literal);
+  if (literal?.numeric === undefined) return defaultType;
+  const argument = sourceExpressionCallArgument(node, { ast: host.ast, semantics: { forNode: host.semanticsFor } });
+  if (argument === undefined) {
+    const contextual = queries.types.contextualValueSelection(node);
+    if (contextual.kind !== "selected") return defaultType;
+    const selected = resolveSelectedType(contextual.component.authoredTypeNode,
+      contextual.component.selectedType, queries.sourceFile);
+    return selected?.kind === "source-primitive" && selected.name !== "bool" ? selected : defaultType;
+  }
+  const call = host.semanticsFor(argument.call).operations.call(argument.call);
+  const bindings = call?.sourceArgumentBindings.filter(binding =>
+    binding.sourceArgumentIndex === argument.argumentIndex && binding.sourceForm === "value") ?? [];
+  if (call === undefined || bindings.length !== 1) return defaultType;
+  const selected = resolveSourceCallArgumentParameter(call, bindings[0]!, queries.sourceFile,
+    new Set([argument.argumentIndex]));
+  return selected?.kind === "source-primitive" && selected.name !== "bool" ? selected : defaultType;
 }
 
 export function resolveMemberAccessTargetType(

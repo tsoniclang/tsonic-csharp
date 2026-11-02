@@ -4,6 +4,7 @@ import { createCsharpNumericLiteralToken, type CsharpNumericLiteralToken } from 
 import { csharpBigIntFitsSourcePrimitive, csharpNumericLiteralFitsSourcePrimitive } from "./literal-range.js";
 import type { TargetTypeRef } from "../types/index.js";
 import { getCsharpArrayLiteralElementTargetType, getCsharpNullableElementTargetType, isCsharpStringTargetType } from "../../target-model/types/index.js";
+import { isCsharpIntegralTargetType } from "../../target-model/types/carriers/scalar-types.js";
 
 export function csharpLiteralIsRepresentableAs(
   value: SourceLiteralValue | undefined,
@@ -74,6 +75,7 @@ const sourceRepresentation: CsharpExactLiteralSelection = Object.freeze({ kind: 
 export function selectCsharpExactLiteralConversion(
   literal: SourceLiteralValue | undefined,
   target: TargetTypeRef | undefined,
+  source: TargetTypeRef | undefined,
 ): CsharpExactLiteralSelection {
   if (target === undefined) {
     return notApplicable;
@@ -81,6 +83,15 @@ export function selectCsharpExactLiteralConversion(
   const targetType = getCsharpNullableElementTargetType(target) ?? target;
   if (targetType.kind !== "source-primitive") {
     return classifiedLiteralRepresentation(literal);
+  }
+  const sourceType = getCsharpNullableElementTargetType(source) ?? source;
+  const integralZero = literal?.integer === 0n && sourceType !== undefined && isCsharpIntegralTargetType(sourceType);
+  if (integralZero && Object.is(literal?.number, -0)) {
+    if (targetType.name === "float16") return resolvedFloat16Literal(targetType, 0, createCsharpNumericLiteralToken("0"), false);
+    if (targetType.name === "float32" || targetType.name === "float64" || targetType.name === "decimal") {
+      return resolved({ kind: "float", target: targetType, precision: targetType.name,
+        token: createCsharpNumericLiteralToken("0"), negative: false });
+    }
   }
   if ((literal?.form === "binary" || literal?.form === "parenthesized" && literal.integer === undefined) &&
     literal.integerConstant !== undefined && csharpBigIntFitsSourcePrimitive(literal.integerConstant, targetType.name)) {
@@ -104,7 +115,9 @@ export function selectCsharpExactLiteralConversion(
     return resolvedFloat16Literal(targetType, magnitude, createCsharpNumericLiteralToken(magnitude.toString()), token.negative);
   }
   if (Object.is(literal?.number, -0)) {
-    if (targetType.name === "float64") {
+    const floatingSource = sourceType?.kind === "source-primitive" &&
+      (sourceType.name === "float16" || sourceType.name === "float32" || sourceType.name === "float64" || sourceType.name === "decimal");
+    if (targetType.name === "float64" && floatingSource) {
       return resolved({ kind: "signed-zero", target: targetType, precision: targetType.name });
     }
     if (targetType.name === "float16") return resolvedFloat16Literal(targetType, 0, createCsharpNumericLiteralToken("0"), true);

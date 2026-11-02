@@ -72,7 +72,7 @@ export function collectCsharpConversionRequirements(input: CsharpConversionRequi
       const carrier = expectedTypes.arrayLiteralCarrier.get(node, target);
       return carrier === undefined ? [target] : [target, carrier];
     }) : expectedTargets;
-    literalRequests.requestReads(node, sourceTypes, literalTargets, operations);
+    literalRequests.requestReads(node, sourceTypes, literalTargets, operations, valueReads.valueRead.get(node)?.source);
     if (policy.literalValues.literalValue.get(node) !== undefined) {
       const source = valueReads.valueRead.get(node)?.value;
       if (source !== undefined) for (const target of expectedTypes.expectedType.get(node)) {

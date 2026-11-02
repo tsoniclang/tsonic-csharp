@@ -79,8 +79,7 @@ export function resolveSourceCallInstantiation(
   const inferredParameterIdentities = new Set(
     selectedArguments.flatMap((argument, index) => argument.explicitTypeNode === undefined ? [parameterIdentities[index]!] : []),
   );
-  const inferredTargetArguments = inferredParameterIdentities.size === 0 ||
-      callable === undefined && excludedSourceArgumentIndexes === undefined
+  const inferredTargetArguments = inferredParameterIdentities.size === 0
     ? new Map<string, TargetTypeRef>()
     : inferSourceCallTargetTypeArguments(
         source,
@@ -405,7 +404,11 @@ function sourceArgumentInferencePairs(
   if (!host.ast.is.IsObjectLiteralExpression(literal)) {
     const type = host.semantics(sourceFile).types.expressionType(literal);
     const actual = type === undefined ? undefined : resolveSelectedValueWithState(literal, type, sourceFile, nextState(state));
-    return actual === undefined ? undefined : [{ pattern, actual }];
+    if (actual === undefined) return undefined;
+    const shape = actual.kind === "target-named" ? host.structuralTypes.resolveTarget(actual) : undefined;
+    const implemented = pattern.kind === "target-named" && shape !== undefined && targetTypeRefEquals(shape.targetType, actual)
+      ? (shape.implements ?? []).filter(carrier => carrier.kind === "target-named" && carrier.id === pattern.id) : [];
+    return [{ pattern, actual }, ...implemented.map(carrier => ({ pattern, actual: carrier }))];
   }
   const elements = host.ast.properties(literal).map(element => {
     if (element === undefined) return undefined;

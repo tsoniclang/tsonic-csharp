@@ -39,11 +39,18 @@ export type CsharpExactLiteralSelection =
   | { readonly kind: "rejected"; readonly reason: string }
   | { readonly kind: "resolved"; readonly recipe: CsharpExactLiteralRecipe };
 
-export interface CsharpExactLiteralRequest {
+export interface CsharpExactLiteralValueRequest {
   readonly expression: Node;
   readonly target?: TargetTypeRef;
-  readonly propertyKey?: SourcePropertyNameSelection;
+  readonly source: TargetTypeRef | undefined;
+  readonly propertyKey?: undefined;
 }
+
+export type CsharpExactLiteralRequest = CsharpExactLiteralValueRequest | {
+  readonly expression: Node;
+  readonly target?: TargetTypeRef;
+  readonly propertyKey: SourcePropertyNameSelection;
+};
 
 export interface CsharpNativePropertyKeyBinding {
   readonly property: Node;

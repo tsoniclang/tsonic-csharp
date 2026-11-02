@@ -605,7 +605,29 @@ export function resolveSourceValueResult(
     return csharpSourceValueResult(resolveCsharpNativeParameterCarrier(scope, declaration, retainCsharpBroadValueCarrier(declaredTarget, selected,
       selectedSource !== undefined && queries.types.isNonPrimitive(selectedSource)) ?? selected ?? declaredTarget, state));
   }
+  let inheritedTarget: TargetTypeRef | undefined;
+  if (syntax.type === undefined && host.ast.is.IsPropertyDeclaration(declaration)) {
+    const contracts = host.navigation.memberContracts(declaration);
+    if (contracts.kind !== "resolved") return undefined;
+    if (contracts.contracts.length !== 0) {
+      const owner = host.projectTypeCatalog.definitionContainingDeclaration(declaration);
+      const receiver = owner === undefined ? undefined : host.projectTypeCatalog.targetTypeForDeclaration(
+        owner.declaration, owner.typeParameterBindings);
+      if (receiver === undefined) return undefined;
+      for (const contract of contracts.contracts) {
+        const contractFile = host.ast.getSourceFile(contract);
+        const type = contractFile === undefined ? undefined : resolveNodeWithState(contract, contractFile, nextState(state));
+        if (type === undefined) return undefined;
+        const selected = host.projectTypes().instantiateMemberType(contract, receiver, type);
+        if (selected.kind !== "resolved" || inheritedTarget !== undefined && !targetTypeRefEquals(inheritedTarget, selected.type)) {
+          return undefined;
+        }
+        inheritedTarget = selected.type;
+      }
+    }
+  }
   const arrayInitializer = host.ast.is.IsArrayLiteralExpression(syntax.initializer);
+  const numericInitializer = syntax.type === undefined && host.literalValues.literalValue.get(syntax.initializer)?.numeric !== undefined;
   const declarationKind = host.ast.variableDeclarationKind(declaration);
   const mutableVariable = syntax.type === undefined && host.ast.is.IsVariableDeclaration(declaration) &&
     (declarationKind === "let" || declarationKind === "var");
@@ -620,7 +642,8 @@ export function resolveSourceValueResult(
   const declaredCallable = mutableVariable && getCsharpCallableValueSignature(
     getCsharpNullableElementTargetType(declaredTarget) ?? declaredTarget,
   ) !== undefined;
-  const initializerResult = arrayInitializer
+  const initializerResult = inheritedTarget !== undefined ? csharpSourceValueResult(inheritedTarget)
+    : arrayInitializer || numericInitializer
     ? resolveNodeValueWithState(syntax.initializer, sourceFile, nextState(state))
     : widenedInitializer ? csharpSourceValueResult(declaredTarget)
     : csharpSourceValueResult(resolveDirectSourceFacts([syntax.initializer], sourceFile, nextState(state))) ??
@@ -630,7 +653,7 @@ export function resolveSourceValueResult(
         : resolveNodeValueWithState(syntax.initializer, sourceFile, nextState(state)));
   const initializerTarget = initializerResult?.selectedType;
   if (initializerTarget === undefined) {
-    return arrayInitializer ? undefined : csharpSourceValueResult(declaredTarget);
+    return arrayInitializer || numericInitializer ? undefined : csharpSourceValueResult(declaredTarget);
   }
   if (node === declaration) {
     return initializerResult;

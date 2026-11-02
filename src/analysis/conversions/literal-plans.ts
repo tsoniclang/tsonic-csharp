@@ -16,10 +16,15 @@ export function analyzeCsharpExactLiteralSelections(
   for (const request of requests) {
     const literal = literalValues.literalValue.get(request.expression);
     if (literal === undefined && request.propertyKey === undefined) continue;
+    producer.request(request);
+  }
+  for (const request of producer.requests()) {
+    const literal = literalValues.literalValue.get(request.expression);
     const role = request.propertyKey === undefined ? "value" : "property-key";
-    if (producer.has(request.expression, request.target, role)) continue;
-    producer.select(request.expression, request.target, role,
-      request.propertyKey === undefined ? selectCsharpExactLiteralConversion(literal, request.target)
+    const source = request.propertyKey === undefined ? request.source : undefined;
+    if (producer.has(request.expression, request.target, role, source)) continue;
+    producer.select(request.expression, request.target, role, source,
+      request.propertyKey === undefined ? selectCsharpExactLiteralConversion(literal, request.target, request.source)
         : selectCsharpExactPropertyKeyConversion(request.propertyKey, request.target));
   }
   return producer.seal();

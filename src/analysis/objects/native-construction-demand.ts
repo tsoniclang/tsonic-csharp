@@ -90,18 +90,6 @@ export function selectCsharpLiteralDeclarationContext(
   if (position < 0) return undefined;
   const next = siblings[position + 1];
   if (next === undefined) return undefined;
-  const immediate = ast.is.IsReturnStatement(next) ? ast.as.AsReturnStatement(next)?.Expression
-    : ast.is.IsExpressionStatement(next) ? ast.as.AsExpressionStatement(next)?.Expression : undefined;
-  const call = immediate !== undefined && ast.is.IsCallExpression(immediate) ? ast.as.AsCallExpression(immediate) : undefined;
-  if (call !== undefined) {
-    for (const argument of call.Arguments?.Nodes ?? []) {
-      if (argument === undefined || !ast.is.IsIdentifier(argument) ||
-        navigation.referenceFor(argument)?.declaration !== declaration) continue;
-      const checked = host.semanticsFor(argument).types.contextualValueSelection(argument);
-      if (checked.kind === "selected") return { component: checked.component, declarations, source: argument };
-    }
-    return undefined;
-  }
   if (ast.is.IsReturnStatement(next)) {
     const returned = ast.as.AsReturnStatement(next)?.Expression;
     if (returned === undefined || !ast.is.IsIdentifier(returned) ||

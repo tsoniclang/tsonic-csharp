@@ -2,10 +2,10 @@ import type { Node } from "@tsonic/tsts";
 import type { SourceLiteralIndex } from "@tsonic/target-api/source";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
 import type { CsharpConversionSelection } from "../../target-model/conversions/selection.js";
-import type { CsharpExactLiteralRequest } from "../../target-model/conversions/exact-literals.js";
+import type { CsharpExactLiteralRequest, CsharpExactLiteralValueRequest } from "../../target-model/conversions/exact-literals.js";
 import type { CsharpTargetOperationClassifications } from "../../target-model/records/operations/operations.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import { targetTypeRefKey } from "../../target-model/types/equality.js";
+import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 
 export interface CsharpExactLiteralRequestCollector {
   readonly requests: readonly CsharpExactLiteralRequest[];
@@ -15,6 +15,7 @@ export interface CsharpExactLiteralRequestCollector {
     sourceTypes: readonly TargetTypeRef[],
     expectedTypes: readonly TargetTypeRef[],
     operations: Pick<CsharpTargetOperationClassifications, "unaryOperation">,
+    source: TargetTypeRef | undefined,
   ) => void;
   readonly requestConversion: (
     expression: Node,
@@ -25,8 +26,8 @@ export interface CsharpExactLiteralRequestCollector {
 }
 
 export function createCsharpExactLiteralRequestCollector(literalValues: SourceLiteralIndex): CsharpExactLiteralRequestCollector {
-  const requests: CsharpExactLiteralRequest[] = [];
-  const requestedTargets = new WeakMap<Node, Set<string>>();
+  const requests: CsharpExactLiteralValueRequest[] = [];
+  const requestedTargets = new WeakMap<Node, Map<string, number>>();
   let closed = false;
   return Object.freeze({ requests, requestReads, requestConversion, seal });
 
@@ -36,20 +37,31 @@ export function createCsharpExactLiteralRequestCollector(literalValues: SourceLi
     return Object.freeze(requests);
   }
 
-  function request(expression: Node, target?: TargetTypeRef): void {
+  function request(expression: Node, target: TargetTypeRef | undefined, source: TargetTypeRef | undefined): void {
     const key = target === undefined ? "" : targetTypeRefKey(target);
     let targets = requestedTargets.get(expression);
-    if (closed) {
-      if (targets?.has(key) !== true) failTargetAnalysisInvariant("tsonic-csharp",
-        "A consumed native literal conversion requires its exact endpoint before literal publication.", expression);
+    const index = targets?.get(key);
+    if (index !== undefined) {
+      const previous = requests[index]!;
+      if (previous.source !== undefined && source !== undefined && !targetTypeRefEquals(previous.source, source)) {
+        failTargetAnalysisInvariant("tsonic-csharp", "An exact literal endpoint requires one completed native source carrier.", expression);
+      }
+      if (previous.source === undefined && source !== undefined) {
+        if (closed) failTargetAnalysisInvariant("tsonic-csharp", "A closed exact literal endpoint cannot acquire source evidence.", expression);
+        requests[index] = Object.freeze({ ...previous, source });
+      }
       return;
     }
+    if (closed) {
+      return failTargetAnalysisInvariant("tsonic-csharp",
+        "A consumed native literal conversion requires its exact endpoint before literal publication.", expression);
+    }
     if (targets === undefined) {
-      targets = new Set();
+      targets = new Map();
       requestedTargets.set(expression, targets);
     }
-    targets.add(key);
-    requests.push(Object.freeze({ expression, ...(target === undefined ? {} : { target }) }));
+    targets.set(key, requests.length);
+    requests.push(Object.freeze({ expression, source, ...(target === undefined ? {} : { target }) }));
   }
 
   function requestReads(
@@ -57,14 +69,15 @@ export function createCsharpExactLiteralRequestCollector(literalValues: SourceLi
     sourceTypes: readonly TargetTypeRef[],
     expectedTypes: readonly TargetTypeRef[],
     operations: Pick<CsharpTargetOperationClassifications, "unaryOperation">,
+    source: TargetTypeRef | undefined,
   ): void {
     if (closed) return failTargetAnalysisInvariant("tsonic-csharp", "Closed native literal requests cannot read another source use.", expression);
     if (literalValues.literalValue.get(expression) === undefined) return;
-    request(expression);
-    for (const target of sourceTypes) request(expression, target);
-    for (const target of expectedTypes) request(expression, target);
+    request(expression, undefined, source);
+    for (const target of sourceTypes) request(expression, target, source);
+    for (const target of expectedTypes) request(expression, target, source);
     const unary = operations.unaryOperation.get(expression)?.target;
-    if (unary?.kind === "resolved") request(expression, unary.resultType);
+    if (unary?.kind === "resolved") request(expression, unary.resultType, source);
   }
 
   function requestConversion(
@@ -79,9 +92,9 @@ export function createCsharpExactLiteralRequestCollector(literalValues: SourceLi
     for (let entry = pending.pop(); entry !== undefined; entry = pending.pop()) {
       const current = entry.selection;
       if (current.kind === "implicit" && current.proof === "literal") {
-        request(expression, entry.target);
+        request(expression, entry.target, source);
       } else if (current.kind === "js-value-box") {
-        request(expression, entry.source);
+        request(expression, entry.source, source);
       } else if (current.kind === "nullable-map") {
         pending.push({ source: current.sourceElement, target: current.targetElement, selection: current.conversion });
       } else if (current.kind === "implicit" && current.proof === "runtime-union-arm") {

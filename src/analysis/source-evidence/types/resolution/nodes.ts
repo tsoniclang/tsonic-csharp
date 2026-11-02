@@ -10,7 +10,7 @@ import { csharpJsArrayTargetType } from "../../../../target-model/types/carriers
 import { csharpNullableTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { maximumTypeResolutionDepth } from "./model.js";
 import { nextState } from "./state.js";
-import { resolveCsharpSourceLiteralTargetType } from "../../../../policy/conversions/source-literals.js";
+import { resolveCsharpSourceLiteralCarrier } from "./expressions.js";
 import { resolveKeywordType } from "../../../../policy/types/resolution/source-primitives.js";
 import { selectedCsharpSourceProfileOwner } from "../../../../policy/identities/source-types.js";
 import { sourceFactSubjectsForNode } from "./source-evidence.js";
@@ -104,7 +104,7 @@ function resolveNodeResultWithState(
   if (direct !== undefined) {
     return csharpSourceValueResult(direct);
   }
-  const scalar = resolveCsharpSourceLiteralTargetType(host, host.literalValues.literalValue.get(node)) ??
+  const scalar = resolveCsharpSourceLiteralCarrier(scope, node, queries) ??
     resolveKeywordType(host.ast.kindName(node));
   if (scalar !== undefined) {
     return csharpSourceValueResult(scalar);

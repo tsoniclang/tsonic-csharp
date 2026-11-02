@@ -1,7 +1,7 @@
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpRuntimeUnionTargetTypeRef, CsharpTargetNamedTypeRef, CsharpTaskTargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpNullableTargetType, isCsharpNullableReferenceTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
-import { getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { combineCsharpTargetUnionMembers, getCsharpRuntimeUnionArms, isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { csharpTypeProjection, getCsharpGenericOptionalParts, type CsharpOptionalTypeProjection } from "../../../target-model/types/projections.js";
 import { resolveCsharpOptionalStorage } from "../storage/optional-storage.js";
@@ -33,6 +33,15 @@ export function substituteTargetTypeParameters(
         ? csharpNullableTargetType(substitution)
         : substitution;
     case "target-named":
+      const unionArms = getCsharpRuntimeUnionArms(type);
+      if (unionArms !== undefined) {
+        const substituted = unionArms.map(arm => substituteTargetTypeParameters(arm, substitutions));
+        if (substituted.some((arm, index) => !targetTypeRefEquals(arm, unionArms[index]!))) {
+          const selected = combineCsharpTargetUnionMembers(substituted);
+          if (selected === undefined) throw new Error("A substituted union has no canonical native representation.");
+          return selected;
+        }
+      }
       const arrayLiteralElementType = (type as CsharpTargetNamedTypeRef).csharpArrayLiteralElementType;
       const arrayLiteralConstructionType = (type as CsharpTargetNamedTypeRef).csharpArrayLiteralConstructionType;
       const implicitArrayInputElementType = (type as CsharpTargetNamedTypeRef).csharpImplicitArrayInputElementType;
@@ -189,6 +198,23 @@ export function inferCsharpTargetTypeParameterBindings(
         match(optional, getCsharpGenericOptionalParts(right)?.element ?? getCsharpNullableElementTargetType(right) ?? right);
     }
     const patternArms = getCsharpRuntimeUnionArms(left);
+    const actualArms = getCsharpRuntimeUnionArms(right);
+    if (patternArms !== undefined && actualArms !== undefined) {
+      if (patternArms.length !== actualArms.length) return false;
+      const remaining = [...actualArms];
+      const unbound: TargetTypeRef[] = [];
+      for (const arm of patternArms) {
+        const parameter = arm.kind === "type-parameter" && parameterIdentities.has(arm.identity);
+        const bound = parameter ? bindings.get(arm.identity) : undefined;
+        if (parameter && bound === undefined) { unbound.push(arm); continue; }
+        const expected = bound ?? substituteTargetTypeParameters(arm, bindings);
+        const index = remaining.findIndex(candidate => targetTypeRefEquals(expected, candidate));
+        if (index < 0) return false;
+        remaining.splice(index, 1);
+      }
+      if (unbound.length === 0) return remaining.length === 0;
+      return unbound.length === 1 && remaining.length === 1 && match(unbound[0]!, remaining[0]!);
+    }
     if (patternArms !== undefined && getCsharpRuntimeUnionArms(right) === undefined) {
       const candidates = patternArms.flatMap(arm => {
         const selected = inferCsharpTargetTypeParameterBindings(arm, right, parameterIdentities);
