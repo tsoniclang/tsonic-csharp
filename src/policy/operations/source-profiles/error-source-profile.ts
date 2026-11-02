@@ -11,6 +11,7 @@ import type { CsharpTargetMember, TargetTypeRef } from "../../../target-model/ty
 import { csharpTargetId } from "../../../target-model/identities/target.js";
 import { csharpSourceErrorNames, type CsharpSourceErrorName } from "../../../target-model/identities/source-errors.js";
 import { snapshotCsharpMetadata } from "../../../target-model/metadata/immutable.js";
+import { namedTargetTypeImplicitlyAccepts } from "../../conversions/carriers.js";
 
 const errorType = csharpRuntimeErrorTargetType();
 const exceptionType = csharpExceptionTargetType();
@@ -139,13 +140,28 @@ export const csharpErrorSourceProfilePropertyPolicies:
   );
 
 export function selectCsharpErrorNativeProperty(
-  host: Pick<CsharpSourceProfilePropertyPolicyContext["host"], "providers">,
+  host: Pick<CsharpSourceProfilePropertyPolicyContext["host"], "providers" | "projectTypes" | "typeDefinitions">,
   identity: CsharpSourceProfileDeclarationIdentity,
   receiverType: TargetTypeRef,
 ): CsharpSourceProfilePropertyPolicyResult | { readonly kind: "unresolved" } | undefined {
   if (!owners.includes(identity.owner) || identity.kind !== "member" || identity.declaringName !== "Error") return undefined;
   const property = errorProperties.find(property => property.sourceName === identity.name);
-  return property === undefined ? undefined : selectErrorProperty(host, property, receiverType, "read") ?? { kind: "unresolved" };
+  if (property === undefined) return undefined;
+  const exception = host.providers.publishNativeIdentities(exceptionType);
+  if (exception.kind === "rejected") return exception;
+  const receiver = getCsharpNullableElementTargetType(receiverType) ?? receiverType;
+  if (exception.kind !== "resolved" || !namedTargetTypeImplicitlyAccepts(host, receiver, exception.value, new Set())) {
+    return { kind: "unresolved" };
+  }
+  return publishNativeErrorRead(host, property) ?? { kind: "unresolved" };
+}
+
+function publishNativeErrorRead(
+  host: Pick<CsharpSourceProfilePropertyPolicyContext["host"], "providers">,
+  property: Pick<typeof errorProperties[number], "native">,
+): CsharpSourceProfilePropertyPolicyResult | undefined {
+  const published = host.providers.publishNativeIdentities(property.native);
+  return published.kind === "resolved" ? published.value : published.kind === "rejected" ? published : undefined;
 }
 
 function selectErrorProperty(
@@ -165,8 +181,7 @@ function selectErrorProperty(
       diagnostic: csharpSourceProfileDiagnostic("CSHARP_ERROR_READONLY_STORAGE", 9100953,
         "The selected native Exception storage does not admit source Error field mutation.", []),
     };
-    const published = host.providers.publishNativeIdentities(native);
-    return published.kind === "resolved" ? published.value : published.kind === "rejected" ? published : undefined;
+    return publishNativeErrorRead(host, { native });
   }
   const published = host.providers.publishNativeIdentities({
     kind: "resolved" as const,

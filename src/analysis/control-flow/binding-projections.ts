@@ -16,14 +16,16 @@ import { csharpSourceProfileDeclarationIdentity } from "../../policy/identities/
 import { selectCsharpErrorNativeProperty } from "../../policy/operations/source-profiles/error-source-profile.js";
 import { selectCsharpBindingPatternProjection } from "../../policy/types/objects/binding-projection.js";
 import { resolveCsharpBindingSourceType } from "./binding-source-types.js";
+import type { CsharpProjectTypePolicy } from "../../target-model/records/types/project-types.js";
 
-export interface CsharpBindingProjectionPolicyHost extends Pick<CsharpTypePolicyBaseHost, "providers" | "sourceFacts" | "semanticsFor"> {
+export interface CsharpBindingProjectionPolicyHost extends Pick<CsharpTypePolicyBaseHost, "providers" | "sourceFacts" | "semanticsFor" | "typeDefinitions"> {
   readonly ast: AstReader;
   readonly navigation: SourceProgramNavigation;
   readonly typeResolver: CsharpRecursiveTypeResolver;
   readonly objectShapes: CsharpRecursiveObjectShapePolicy;
   scopedTargetType(node: Node): TargetTypeRef | undefined;
   semantics(sourceFile: SourceFile): SourceFileSemantics;
+  projectTypes(): CsharpProjectTypePolicy;
 }
 
 export interface CsharpBindingProjectionPolicy {
@@ -213,9 +215,9 @@ function resolveNativeBindingProjection(
   const sourceFile = host.ast.getSourceFile(binding);
   const pattern = host.ast.parent(binding);
   const owner = pattern === undefined ? undefined : host.ast.parent(pattern);
-  if (receiverCarrier === undefined || sourceFile === undefined || owner === undefined) return { kind: "unresolved" };
+  if (receiverCarrier === undefined || sourceFile === undefined || pattern === undefined || owner === undefined) return { kind: "unresolved" };
   const queries = host.semantics(sourceFile);
-  const checked = resolveCsharpBindingSourceType(pattern!, host.ast, host.semanticsFor);
+  const checked = resolveCsharpBindingSourceType(pattern, host.ast, host.semanticsFor);
   if (checked === undefined) return { kind: "not-native" };
   const correspondence = queries.types.structuralMembers(checked, checked, "read");
   if (correspondence.kind !== "available") return { kind: "not-native" };
@@ -225,7 +227,8 @@ function resolveNativeBindingProjection(
   const selections = [...new Set(member.source.declarations)].flatMap(declaration => {
     const identity = csharpSourceProfileDeclarationIdentity(host.ast, queries, host.sourceFacts, declaration);
     if (identity?.kind !== "member") return [];
-    const selected = selectCsharpErrorNativeProperty(host, identity, receiverCarrier);
+    const selected = selectCsharpErrorNativeProperty({ providers: host.providers, projectTypes: host.projectTypes(),
+      typeDefinitions: host.typeDefinitions }, identity, receiverCarrier);
     return selected === undefined ? [] : [{ identity, selected }];
   });
   if (selections.length === 0) return { kind: "not-native" };

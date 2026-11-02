@@ -221,6 +221,7 @@ function createCsharpTypeSystem(
   });
   bindingProjections = createCsharpBindingProjectionPolicy({
     ...host,
+    projectTypes: requireProjectTypes,
     typeResolver: typeResolution.recursive,
     objectShapes,
     scopedTargetType: representations.scopedTargetType,
