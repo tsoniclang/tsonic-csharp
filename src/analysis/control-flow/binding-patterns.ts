@@ -494,7 +494,7 @@ export function analyzeCsharpBindingPatterns(
     else if (selected.kind === "unresolved") for (const reason of selected.reasons) issue(elementNode, reason);
   }
 
-  function analyzeSourceOwnedPattern(pattern: Node, sourceNode: Node, sourceFile: SourceFile, carrier: TargetTypeRef | undefined): void {
+  function analyzeSourceOwnedPattern(pattern: Node, sourceNode: Node, sourceFile: SourceFile, receiverCarrier: TargetTypeRef | undefined): void {
     recordSource(pattern, { kind: "source-owned-source" });
     const semantics = input.semanticsFor(sourceNode);
     const sourceType = ast.is.IsParameterDeclaration(sourceNode) || ast.is.IsBindingElement(sourceNode)
@@ -507,8 +507,8 @@ export function analyzeCsharpBindingPatterns(
       const name = element.name;
       if (name === undefined) continue;
       if (input.evidence.bindingProjection.get(elementNode)?.nativeRead !== undefined) {
-        if (carrier === undefined) issue(elementNode, "A native member binding requires its exact finalized input carrier.");
-        else analyzeNativeElement(elementNode, sourceFile, carrier);
+        if (receiverCarrier === undefined) issue(elementNode, "A native member binding requires its exact finalized input carrier.");
+        else analyzeNativeElement(elementNode, sourceFile, receiverCarrier);
         continue;
       }
       const propertyName = element.PropertyName ?? name;

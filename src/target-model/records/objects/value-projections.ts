@@ -8,7 +8,7 @@ import type { CsharpTargetPropertyInvocation } from "../program/source-profile-i
 
 export interface CsharpNativeBindingProperty {
   readonly declaration: Node;
-  readonly member: CsharpTargetMember;
+  readonly member: CsharpTargetMember & { readonly returnType: TargetTypeRef };
   readonly receiver: CsharpTargetReceiverRelation;
   readonly invocation: Extract<CsharpTargetPropertyInvocation, { readonly kind: "member" | "receiver-call" }>;
 }

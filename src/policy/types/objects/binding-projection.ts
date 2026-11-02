@@ -13,10 +13,16 @@ import { csharpAbsenceTargetType, isCsharpAbsenceTargetType, isCsharpJsValueTarg
 import { getCsharpGenericOptionalParts } from "../../../target-model/types/projections.js";
 import { tryCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 
-import type { TargetTypeRef, CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../../target-model/types/model.js";
+import type { TargetTypeRef, CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetMember } from "../../../target-model/types/model.js";
 import { type CsharpArrayBindingCarrier } from "../../../target-model/types/carriers/binding-array-carrier.js";
 import { csharpArrayBindingProjectionTarget, resolveCsharpArrayBindingCarrier } from "../collections/binding-array-carrier.js";
 import { csharpTargetTypeRenderingRejection } from "../model/renderability.js";
+
+type NativeBindingPropertyCandidate = Omit<CsharpNativeBindingProperty, "member"> & { readonly member: CsharpTargetMember };
+
+function nativeBindingPropertyHasValue(property: NativeBindingPropertyCandidate): property is CsharpNativeBindingProperty {
+  return property.member.returnType !== undefined;
+}
 
 type BindingPatternProjectionRequest =
   | { readonly kind: "array-source"; readonly carrier: TargetTypeRef | undefined }
@@ -24,7 +30,7 @@ type BindingPatternProjectionRequest =
       readonly rest: boolean; readonly hasDefault: boolean }
   | { readonly kind: "object-source"; readonly shape: CsharpObjectShapeFact | undefined; readonly sourceOwned: boolean }
   | { readonly kind: "native-source"; readonly carrier: TargetTypeRef | undefined }
-  | { readonly kind: "native-member"; readonly property: CsharpNativeBindingProperty }
+  | { readonly kind: "native-member"; readonly property: NativeBindingPropertyCandidate }
   | { readonly kind: "object-member"; readonly shape: CsharpObjectShapeFact; readonly sourceName: string;
       readonly description: string; readonly permitsAbsence: boolean }
   | { readonly kind: "object-rest"; readonly source: CsharpObjectShapeFact; readonly rest: CsharpObjectShapeFact;
@@ -90,6 +96,7 @@ export function selectCsharpBindingPatternProjection(input: BindingPatternProjec
       return input.carrier === undefined || csharpTargetTypeRenderingRejection(input.carrier) !== undefined ? unresolved()
         : source({ kind: "native-source", carrier: input.carrier });
     case "native-member": {
+      if (!nativeBindingPropertyHasValue(input.property)) return unresolved();
       const { member, receiver, invocation } = input.property;
       if (csharpTargetTypeRenderingRejection(member.returnType) !== undefined) return unresolved();
       if (invocation.kind === "member") {
