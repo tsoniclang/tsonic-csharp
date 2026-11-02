@@ -56,13 +56,13 @@ export function selectCsharpStructuralInterface(
     const destinationMember = destinationTemplate === undefined ? write
       : resolveCsharpObjectShapeMemberBySelectedSubject(destinationTemplate, destinationSubjects);
     if (write.kind !== "resolved" || destinationMember.kind !== "resolved") return undefined;
-    const native = resolveCsharpCheckedNativePropertyRead(sourceType, pair.source.property.name, source.targetType, semantics, policy);
-    if (native.kind === "unresolved") return undefined;
-    if (native.kind === "resolved") {
+    if (read.kind !== "resolved") {
+      const native = resolveCsharpCheckedNativePropertyRead(sourceType, pair.source.property.name, source.targetType, semantics, policy);
+      if (native.kind !== "resolved") return undefined;
       members.push(Object.freeze({ native: native.property, destination: write.member, openDestination: destinationMember.member }));
       continue;
     }
-    if (read.kind !== "resolved" || open.kind !== "resolved") return undefined;
+    if (open.kind !== "resolved") return undefined;
     if (write.member.methodValueStorage !== undefined && (read.member.methodValueStorage === undefined ||
       read.member.methodValueStorage.kind !== write.member.methodValueStorage.kind ||
       !targetTypeRefEquals(read.member.methodValueStorage.type, write.member.methodValueStorage.type))) return undefined;
