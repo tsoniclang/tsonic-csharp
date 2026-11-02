@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { selectCsharpPropertyProjections } from "../../../dist/analysis/conversions/property-projections.js";
-import { csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTsValueTargetType } from "../../../dist/target-model/types/index.js";
+import { csharpNullableTargetType, csharpRuntimeUnionTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTsValueTargetType } from "../../../dist/target-model/types/index.js";
 
 function fixture() {
   const source = { kind: "target-named", csharpAllowsRefLikeTypeArguments: [], id: "Options" };
@@ -17,7 +17,7 @@ function fixture() {
   const member = { read: "property", property: { symbol, rootSymbols: [], optional: false }, declarations: [declaration] };
   const correspondence = { kind: "available", destination: { calls: [], constructs: [], indexes: [] },
     members: [{ kind: "present", source: member, destination: member }] };
-  const policy = { semanticsFor: () => ({ types: { nonNullableType: type => type, expressionType: () => sourceType,
+  const policy = { semanticsFor: () => ({ types: { nonNullableType: type => type, expressionType: () => sourceType, isUnion: () => false,
     structuralMembers(actual, required, purpose) {
       assert.equal(purpose, "read", "property projection requires readable source values");
       assert.equal(actual === sourceType && required === destination, true, "exact selected source and destination identity");
@@ -122,4 +122,73 @@ test("property projections reject missing checked expression evidence without a 
   input.policy.semanticsFor = () => semantics;
   assert.equal(selectCsharpPropertyProjections({}, input.source, input.destination, input.policy, input.shapes) === undefined,
     true, "retained carrier provenance cannot replace missing current source evidence");
+});
+
+function unionFixture() {
+  const input = fixture();
+  const firstCarrier = input.source;
+  const secondCarrier = { ...firstCarrier, id: "OtherOptions" };
+  const carrier = csharpRuntimeUnionTargetType([firstCarrier, secondCarrier]);
+  const firstType = input.shape.sourceType;
+  const secondType = {};
+  const checked = {};
+  const sourceFile = {};
+  const secondMember = input.shape.members[0];
+  const secondProperty = { read: "property",
+    property: { symbol: secondMember.sourceSubjects[0], rootSymbols: [], optional: false },
+    declarations: secondMember.sourceDeclarations };
+  const secondCorrespondence = { kind: "available", destination: { calls: [], constructs: [], indexes: [] },
+    members: [{ kind: "present", source: secondProperty, destination: secondProperty }] };
+  const types = input.policy.semanticsFor().types;
+  types.expressionType = () => checked;
+  types.isUnion = type => type === checked;
+  types.unionOrIntersectionTypes = () => [firstType, secondType];
+  types.structuralMembers = (actual, required, purpose) => {
+    assert.equal(required === input.destination && purpose === "read", true, "same selected destination");
+    assert.equal(actual === firstType || actual === secondType, true, "a checked arm, never the whole union");
+    return actual === firstType ? input.correspondence : secondCorrespondence;
+  };
+  input.policy.semanticsFor = () => ({ types, sourceFile });
+  input.policy.types = { selectSourceUnionMember(source, selected, file) {
+    assert.equal(source === carrier && file === sourceFile, true, "existing retained source-union index");
+    return { kind: "resolved", carrier: selected === firstType ? firstCarrier : secondCarrier };
+  } };
+  input.shapes = { resolveTarget: selected => selected === firstCarrier ? input.shape
+    : selected === secondCarrier ? { ...input.shape, targetType: secondCarrier, sourceType: secondType, members: [secondMember] } : undefined };
+  return { ...input, source: carrier, firstCarrier, secondCarrier, firstType, secondType, secondMember, types };
+}
+
+test("optional property projection uses the existing non-nullable checked source", () => {
+  const input = fixture();
+  const optional = {};
+  const semantics = input.policy.semanticsFor();
+  semantics.types.expressionType = () => optional;
+  semantics.types.nonNullableType = type => type === optional ? input.shape.sourceType : type;
+  input.policy.semanticsFor = () => semantics;
+  const projected = selectCsharpPropertyProjections({}, csharpNullableTargetType(input.source), input.destination, input.policy, input.shapes);
+  assert.equal(projected?.length === 1 && projected[0].members[0] === input.selected, true, "native present member identity");
+});
+
+test("union property projections consume each exact retained checked source arm", () => {
+  const input = unionFixture();
+  const projected = selectCsharpPropertyProjections({}, input.source, input.destination, input.policy, input.shapes);
+  assert.equal(projected?.length, 2);
+  assert.equal(projected.find(part => part.source === input.firstCarrier)?.members[0] === input.selected, true, "first exact native arm");
+  assert.equal(projected.find(part => part.source === input.secondCarrier)?.members[0] === input.secondMember, true, "second exact native arm");
+});
+
+test("union property projection refuses missing conflicting or multiply-mapped checked source evidence", () => {
+  for (const kind of ["unavailable", "rejected", "multiple"]) {
+    const input = unionFixture();
+    if (kind === "multiple") {
+      const alias = {};
+      input.types.unionOrIntersectionTypes = () => [input.firstType, input.secondType, alias];
+      const select = input.policy.types.selectSourceUnionMember;
+      input.policy.types.selectSourceUnionMember = (source, selected, file) => select(source, selected === alias ? input.firstType : selected, file);
+    } else {
+      input.policy.types.selectSourceUnionMember = () => ({ kind });
+    }
+    assert.equal(selectCsharpPropertyProjections({}, input.source, input.destination, input.policy, input.shapes) === undefined,
+      true, kind);
+  }
 });
