@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { assertNumericLiteralRefusal, numericPromiseRefusal } from "../../helpers/numeric-literal-rulings.mjs";
 
 import {
   assertCsharpCompilationSucceeded,
@@ -93,10 +94,7 @@ test("JavaScript capability globals remain absent from the native C# source prof
 });
 
 test("the JavaScript surface closes Promise, Intl, JSON, console, and timer APIs", () => {
-  const compiled = compileCsharpSource({
-    surface: "js",
-    targetOptions: { outputType: "Exe" },
-    sourceText: `
+  const originalSourceText = `
       export async function asynchronous(): Promise<string> {
         const first = Promise.resolve(1);
         const second = Promise.resolve(2);
@@ -131,7 +129,16 @@ test("the JavaScript surface closes Promise, Intl, JSON, console, and timer APIs
         console.timeEnd("build");
         return date + number + json;
       }
-    `,
+    `;
+  assertNumericLiteralRefusal(compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" },
+    sourceText: originalSourceText }), [
+    numericPromiseRefusal("second"), numericPromiseRefusal("first"),
+  ]);
+  const compiled = compileCsharpSource({
+    surface: "js",
+    targetOptions: { outputType: "Exe" },
+    sourceText: originalSourceText.replace("Promise.resolve(1)", "Promise.resolve<number>(1)")
+      .replace("Promise.resolve(2)", "Promise.resolve<number>(2)"),
   });
 
   assertCsharpCompilationSucceeded(compiled);

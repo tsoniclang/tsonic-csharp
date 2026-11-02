@@ -17,7 +17,7 @@ import { csharpNumericReturnBaselineCovered } from "../../../dist/policy/convers
 import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
 import { header, emptyProviders, compile, diagnosticLabel, accepted, arrays, constructedArrays, destinationBodies, actualDestinationEvidence, actualUnionDestinationEvidence,
-  numericRangeReason, numericCommonReason, refused, arrayRefusal, contextualSource, laterArgumentContexts, arrayConversionRefusal, inferredTextUnion, declaredTextUnion } from "./inferred-numeric-array-elements.fixtures.mjs";
+  numericRangeReason, numericCommonReason, refused, arrayRefusal, contextualSource, laterArgumentContexts, laterLiteralContexts, arrayConversionRefusal, inferredTextUnion, declaredTextUnion } from "./inferred-numeric-array-elements.fixtures.mjs";
 
 for (const surface of ["native", "js"]){
 for (const [name, body] of [
@@ -50,7 +50,10 @@ for (const [name, body] of Object.entries(destinationBodies)){
 test(`${surface} actual ${name} closed union destination preserves explicit native rounding`, () => {
     const source = body("(string | number)", "run").replaceAll("[narrow, signed]",
       '["text", 9007199254740993, -9007199254740993, 1e100]');
-    const program = accepted(compile(surface, source));
+    if (laterLiteralContexts.has(name)) refused(compile(surface, source), [arrayRefusal(
+      "An inferred numeric union requires an exact canonical carrier for every authored integer literal.",
+      '["text", 9007199254740993, -9007199254740993, 1e100]')]);
+    const program = accepted(compile(surface, laterLiteralContexts.has(name) ? contextualSource(source, "(string | number)") : source));
     actualUnionDestinationEvidence(program, name);
   });
 }

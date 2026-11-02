@@ -1,3 +1,4 @@
+import { assertNumericLiteralRefusal, numericCompoundRefusal } from "../../helpers/numeric-literal-rulings.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { nativeIntegerSelectionSource } from "../../../../tsonic/test/fixtures/native-integer-selection.mjs";
@@ -5,7 +6,15 @@ import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../hel
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 
 test("native counters, conditional joins and integer floor preserve exact carriers and fractional controls", { timeout: 300_000 }, () => {
-  const compiled = compileCsharpSource({ surface: "js", sourceText: nativeIntegerSelectionSource });
+  assertNumericLiteralRefusal(compileCsharpSource({ surface: "js", sourceText: nativeIntegerSelectionSource }),
+    [{ code: "CSHARP_UNSUPPORTED_AST", message: "No exact C# implicit conversion relates 'source:int64' to 'source:int32'.", text: "index" },
+      numericCompoundRefusal("+=", "result += index / 2"), numericCompoundRefusal("+=", "index += 0.5")]);
+  const typedSource = nativeIntegerSelectionSource
+    .replace("for (let index = 0; index < bound", "for (let index: int32 = 0; index < bound")
+    .replace("export function annotated(values: string[]): number {\n  let result = 0;", "export function annotated(values: string[]): number {\n  let result: number = 0;")
+    .replace("export function fractional(values: string[]): number {\n  let result = 0;\n  for (let index = 0;", "export function fractional(values: string[]): number {\n  let result: number = 0;\n  for (let index: number = 0;")
+    .replace("export function mutableCounter(values: string[]): number {\n  let result = 0;\n  for (let index = 0;", "export function mutableCounter(values: string[]): number {\n  let result: number = 0;\n  for (let index: number = 0;");
+  const compiled = compileCsharpSource({ surface: "js", sourceText: typedSource });
   assertCsharpCompilationSucceeded(compiled);
   const output = compiled.artifacts.get("src/Index.cs");
   for (const name of ["integralFloor", "compoundFloor", "negatedFloor", "calledConditional", "calledConditionalLiteral", "conditional", "conditionalLiteral", "nested"]) {
@@ -15,8 +24,8 @@ test("native counters, conditional joins and integer floor preserve exact carrie
   for (const name of ["optional", "optionalBranch"]) assert.match(output, new RegExp(`int\\? ${name}\\(`, "u"), name);
   for (const name of ["conditionalFraction", "explicitFloat", "fractionalFloor"]) assert.match(output, new RegExp(`double ${name}\\(`, "u"), name);
   const counted = output.slice(output.indexOf("string counted("), output.indexOf("string growing("));
-  assert.equal(/\{\s*int index = 0;\s*for \(; index < values\.length; index\+\+\)\s*\{\s*result \+= values\[index\];\s*\}\s*\}\s*return result;/u.test(counted),
-    true, "the inferred int32 induction variable remains in its lexical stack scope with direct reads and increments");
+  assert.equal(/\{\s*long index = 0L;\s*for \(; index < values\.length; index\+\+\)\s*\{\s*result \+= values\[index\];\s*\}\s*\}\s*return result;/u.test(counted),
+    true, "the inferred int64 induction variable remains in its lexical stack scope with direct reads and increments");
   assert.doesNotMatch(counted, /double|Convert\.To/u);
   const floor = output.slice(output.indexOf("int integralFloor("), output.indexOf("double fractionalFloor("));
   assert.doesNotMatch(floor, /Math\.floor|double/u);

@@ -27,7 +27,10 @@ test(`${surface} an actual generic union argument selects the literal's physical
       export function run(): number {
         const values = ["text", 9007199254740993, -9007199254740993, 1e100]; consume<number>(values); return 7;
       }`;
-    const program = accepted(compile(surface, originalSource));
+    refused(compile(surface, originalSource), [arrayRefusal(
+      "An inferred numeric union requires an exact canonical carrier for every authored integer literal.",
+      '["text", 9007199254740993, -9007199254740993, 1e100]')]);
+    const program = accepted(compile(surface, contextualSource(originalSource, "(string | number)")));
     const ast = program.source.ast;
     let call;
     let array;
@@ -56,7 +59,10 @@ for (const [name, source] of [
         const values = ["text", 9007199254740993, -9007199254740993, 1e100]; return receiver.accept(values); }`],
   ]){
 test(`${surface} actual ${name} union bindings are authoritative native destinations`, () => {
-    actualUnionDestinationEvidence(accepted(compile(surface, source)), name);
+    refused(compile(surface, source), [arrayRefusal(
+      "An inferred numeric union requires an exact canonical carrier for every authored integer literal.",
+      '["text", 9007199254740993, -9007199254740993, 1e100]')]);
+    actualUnionDestinationEvidence(accepted(compile(surface, contextualSource(source, "(string | number)"))), name);
   });
 }
 

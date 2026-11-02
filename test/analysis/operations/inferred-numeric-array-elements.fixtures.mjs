@@ -53,6 +53,8 @@ const arrayRefusal = (message, text) => ({ code: "CSHARP_ARRAY_ELEMENT_CARRIER_M
 const contextualSource = (source, element) => source.replaceAll("const values = [", `const values: ${element}[] = [`);
 const laterArgumentContexts = new Set(["argument", "explicit generic argument", "native generic receiver",
   "nested generic argument", "nested generic receiver"]);
+const laterLiteralContexts = new Set([...laterArgumentContexts, "return", "async", "nested",
+  "explicit generic callback", "typed callback", "nested generic callback"]);
 const arrayConversionRefusal = (surface, source, target) => {
   const wrap = element => surface === "native" ? { kind: "array", element } : csharpJsArrayTargetType(element);
   return { code: "CSHARP_UNSUPPORTED_AST", message:
@@ -181,4 +183,4 @@ function actualUnionDestinationEvidence(program, label) {
 }
 
 export { header, emptyProviders, compile, diagnosticLabel, accepted, arrays, constructedArrays, destinationBodies, actualDestinationEvidence, actualUnionDestinationEvidence,
-  numericRangeReason, numericCommonReason, refused, arrayRefusal, contextualSource, laterArgumentContexts, arrayConversionRefusal, inferredTextUnion, declaredTextUnion };
+  numericRangeReason, numericCommonReason, refused, arrayRefusal, contextualSource, laterArgumentContexts, laterLiteralContexts, arrayConversionRefusal, inferredTextUnion, declaredTextUnion };

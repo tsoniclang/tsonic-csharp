@@ -141,6 +141,11 @@ for (const program of destinationPrograms) if (["Argument", "GenericArgument", "
   supportedSourceText = supportedSourceText.replace(program.source,
     program.source.replace("const values = [", `const values: ${program.native === "float" ? "float32" : "number"}[] = [`));
 }
+for (const program of unionDestinationPrograms) if (["Argument", "Return", "Async", "Nested", "GenericArgument", "GenericCallback",
+  "Receiver", "TypedCallback", "NestedGenericArgument", "NestedGenericCallback", "NestedGenericReceiver"].includes(program.context)) {
+  supportedSourceText = supportedSourceText.replace(program.source,
+    program.source.replace("const values = [", "const values: (string | number)[] = ["));
+}
 supportedSourceText += `
 export function writtenNegativeZero() { return -0.0; }
 export function declaredNegativeZero(): number { return -0; }

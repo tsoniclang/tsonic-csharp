@@ -4,6 +4,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { compileCsharpNativeUseSource } from "../../helpers/expected-native-uses.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { assertNumericLiteralRefusal } from "../../helpers/numeric-literal-rulings.mjs";
 import { getCsharpArrayLiteralElementTargetType } from "../../../dist/target-model/types/carriers/collections.js";
 import { getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
@@ -35,6 +36,9 @@ test(`${surface} inferred numeric arrays preserve values, physical arms, roundin
         "An inferred numeric array literal is outside its declared or default native element range.",
       text: "[signed, unsigned, 1606938044258990275541962092341162602522202993782792835301376]" },
       ...Array.from({ length: 6 }, () => ({ code: "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH", message: common, text: "[narrow, signed]" })),
+      ...Array.from({ length: 11 }, () => ({ code: "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH",
+        message: "An inferred numeric union requires an exact canonical carrier for every authored integer literal.",
+        text: '["text", 9007199254740993, -9007199254740993, 1e100]' })),
     ];
     assert.deepEqual(evidence.map(({ code, message, text }) => ({ code, message, text })), expected,
       "the unchanged complete original source retains every exact range/later-context negative");
@@ -245,7 +249,12 @@ test(`${surface} a nested generic union argument compiles in its actual native a
       export function run(): number {
         const values = ["text", 9007199254740993, -9007199254740993, 1e100]; consume<number>(values); return 7;
       }`;
-    const compiled = compileCsharpNativeUseSource({ surface, sourceText: originalSource });
+    const original = compileCsharpNativeUseSource({ surface, sourceText: originalSource });
+    assertNumericLiteralRefusal(original, [{ code: "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH",
+      message: "An inferred numeric union requires an exact canonical carrier for every authored integer literal.",
+      text: '["text", 9007199254740993, -9007199254740993, 1e100]' }]);
+    const compiled = compileCsharpNativeUseSource({ surface,
+      sourceText: originalSource.replace("const values = [", "const values: (string | number)[] = [") });
     assertCsharpCompilationSucceeded(compiled);
     const output = executeCsharpConstruction(compiled, `C01-selected-generic-array-layout-${surface}`, false, false, [], `
       if (Tsonic.Generated.Index.run() != 7D) throw new System.Exception("the actual generic array boundary did not compile and run");
