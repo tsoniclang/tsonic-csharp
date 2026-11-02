@@ -303,7 +303,7 @@ export function createCsharpTypeResolutionServices(
     resolveSelectedType: methods.resolveSelectedType,
     resolveSelectedResult: methods.resolveSelectedResult,
     resolvePointerReturn: (declaration: Node) => methods.resolvePointerReturn(declaration, { depth: 0 }),
-    resolvePointerStoragePointee: producer => resolveCsharpPointerStoragePointee(scope, producer.storage, { depth: 0 }),
+    resolvePointerStoragePointee: producer => resolveCsharpPointerStoragePointee(scope, producer, { depth: 0 }),
     resolveTypedLocationOperationPointee: methods.resolveTypedLocationOperationPointee,
     resolveSourceCallTypeArguments: methods.resolveSourceCallTypeArguments,
     resolveSourceCallParameter: methods.resolveSourceCallParameter,

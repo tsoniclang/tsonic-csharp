@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
-import { sameBackingLayout } from "@tsonic/source-core/facts";
-import type { TsonicMemoryLayoutFact } from "@tsonic/source-core/facts";
+import { tsonicDataLayoutFactKey } from "@tsonic/source-core/facts";
+import type { TsonicDataLayoutFact, TsonicMemoryLayoutFact } from "@tsonic/source-core/facts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { csharpNativeArrayMemoryLayoutRejection, selectCsharpDeclaredNativeMemoryLayout, selectCsharpNativeMemoryLayout, selectCsharpRawLocation } from "../operations/pointers/native-memory.js";
 import type { CsharpNativeMemoryLayout } from "../../target-model/operations/native-memory.js";
@@ -35,21 +35,23 @@ export function prepareCsharpNativeBacking(
   const backings = new Map<Node, CsharpNativeBackingGeometry>();
   const fieldDemands: CsharpNativeFieldDemand[] = [];
   const arrays = new Map<Node, CsharpNativeArrayStorage>();
-  const retainedLayouts = new Map<Node, TsonicMemoryLayoutFact>();
+  const retainedLayouts = new Map<Node, { readonly layout: CsharpNativeMemoryLayout;
+    readonly dataLayout: TsonicDataLayoutFact; readonly stride: bigint }>();
   const rejectedLayouts = new Set<Node>();
   const issues: CsharpStorageIssue[] = [];
   const reject = (node: Node, message: string): void => {
     issues.push(Object.freeze({ node, code: "CSHARP_NATIVE_BACKING_NOT_PROVEN", message }));
   };
-  const retainLayout = (origin: Node, use: Node, layout: TsonicMemoryLayoutFact): boolean => {
+  const retainLayout = (origin: Node, use: Node, layout: TsonicMemoryLayoutFact, native: CsharpNativeMemoryLayout): boolean => {
     const previous = retainedLayouts.get(origin);
-    if (previous !== undefined && (policy.sourceFacts === undefined ||
-      !sameBackingLayout(policy.sourceFacts, previous, layout))) {
+    if (previous !== undefined && (previous.stride !== layout.stride ||
+      !tsonicDataLayoutFactKey.equals(previous.dataLayout, layout.dataLayout) ||
+      !csharpNativeMemoryLayoutsEqual(previous.layout, native))) {
       issues.push(Object.freeze({ node: use, code: "CSHARP_POINTER_BACKING_NOT_PROVEN",
         message: "One pointer origin has incompatible physical layout demands." }));
       return false;
     }
-    retainedLayouts.set(origin, layout);
+    retainedLayouts.set(origin, { layout: native, dataLayout: layout.dataLayout, stride: layout.stride });
     return true;
   };
   for (const use of evidence.pointerBackingUses) {
@@ -73,7 +75,7 @@ export function prepareCsharpNativeBacking(
         continue;
       }
       if (origin.operation === "reinterpret") {
-        if (!retainLayout(origin.call, use.call, layout)) continue;
+        if (!retainLayout(origin.call, use.call, layout, descriptor)) continue;
         const restored = selectCsharpRawLocation(policy, origin.call, originFile);
         if (restored?.kind !== "raw-location" || !csharpNativeMemoryLayoutsEqual(descriptor, restored.layout)) {
           reject(origin.call, "The reinterpreted location does not prove the demanded physical layout.");

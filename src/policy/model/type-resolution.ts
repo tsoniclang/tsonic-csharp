@@ -1,6 +1,7 @@
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 
-import type { TsonicFixedArraySelection, TsonicPointerStorageProducer } from "@tsonic/source-core/facts";
+import type { TsonicFixedArraySelection } from "@tsonic/source-core/facts";
+import type { SourceStorageProducer } from "@tsonic/target-api/analysis";
 import type { CsharpPointerReturnContract } from "../../target-model/records/calls/pointer-return.js";
 
 import type { CsharpSourceTypedLocationOperation } from "../../source/extension/typed-locations.js";
@@ -28,7 +29,7 @@ export interface CsharpTypeQueries {
   resolveBindingProjection(node: Node, sourceFile: SourceFile): import("../../target-model/records/storage/binding-projection-policy.js").CsharpBindingProjection | undefined;
   selectFixedArray(type: Type, sourceFile: SourceFile): TsonicFixedArraySelection | undefined;
   resolvePointerReturn(declaration: Node): CsharpPointerReturnContract | undefined;
-  resolvePointerStoragePointee(producer: TsonicPointerStorageProducer): import("../../target-model/records/storage/pointer-storage.js").CsharpPointerStoragePointeeSelection;
+  resolvePointerStoragePointee(producer: SourceStorageProducer): import("../../target-model/records/storage/pointer-storage.js").CsharpPointerStoragePointeeSelection;
   resolveNode(node: Node | undefined, sourceFile?: SourceFile): CsharpNodeTypeResolution | undefined;
   resolveStorage(node: Node | undefined, sourceFile?: SourceFile): TargetTypeRef | undefined;
   resolveReadStorage(node: Node | undefined, sourceFile?: SourceFile): TargetTypeRef | undefined;

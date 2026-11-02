@@ -9,7 +9,7 @@ import { analyzeCsharpProjectCallableAdapters } from "../project-types/callable-
 
 import { analyzeSourceLiteralValues } from "@tsonic/target-api/source";
 
-import { createTsonicPointerStorageRelation, createTsonicMemoryBindingIndex } from "@tsonic/source-core/facts";
+import { createTsonicPointerStorageRelation, createTsonicMemoryBindingFactsIndex } from "@tsonic/source-core/facts";
 import { rejectedTargetStage, resolvedTargetStage, failTargetAnalysisInvariant, targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
 import { resolveTargetContractFixedPoint } from "@tsonic/target-api/analysis";
 import type { TargetStageResult, TargetDiagnostic } from "@tsonic/target-api/artifacts";
@@ -74,7 +74,7 @@ function analyzeCsharpTargetProgramBeforeSeal(
     ...targetDiagnosticFromExtension(diagnostic.nodeOrSpan, diagnostic), code: diagnostic.publicCode,
   })));
   if (source.semantics.enumConstants.issues.length !== 0) return rejectedTargetStage(source.semantics.enumConstants.issues);
-  const memoryBindings = createTsonicMemoryBindingIndex(source);
+  const memoryBindings = createTsonicMemoryBindingFactsIndex(source);
   const sourceAttributeApplications = createCsharpSourceAttributeApplicationIndex(source, source.navigation.sourceFiles);
   const safetyApplications = createCsharpSafetyApplicationFactIndex({
     ast: source.ast,

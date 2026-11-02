@@ -142,6 +142,7 @@ export function analyzeCsharpRepresentationIteration(
     input,
     sourceFiles,
     sourceStorage,
+    pointerStorage: typeHost.pointerStorage,
     providers,
     sourceIdentities,
     typeSystem,

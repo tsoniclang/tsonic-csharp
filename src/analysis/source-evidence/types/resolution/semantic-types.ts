@@ -29,7 +29,7 @@ import { readCsharpSourceRawAddress } from "../../../../source/extension/raw-add
 import { selectCsharpLayoutObservation } from "../../../../policy/operations/pointers/layout-observations.js";
 import { readCsharpRawLocation } from "../../../../source/extension/native-memory.js";
 import { resolveTypeParameter, definedValues } from "./source-evidence.js";
-import { tsonicMemoryFieldBindingFactKey, tsonicMemoryRecordBindingFactKey, selectTsonicMemoryFieldBinding, selectTsonicMemoryRecordBinding } from "@tsonic/source-core/facts";
+import { tsonicMemoryFieldBindingFactKey, tsonicMemoryRecordBindingFactKey, selectTsonicMemoryFieldBindingFacts, selectTsonicMemoryRecordBindingFacts } from "@tsonic/source-core/facts";
 
 import { csharpSourceStorageComponentContext } from "./source-storage-projection.js";
 
@@ -192,7 +192,7 @@ export function resolveDirectSourceFacts(
   for (const subject of subjects) {
     const record = host.sourceFacts?.getFact(subject, tsonicMemoryRecordBindingFactKey);
     if (record !== undefined && host.sourceFacts !== undefined) {
-      const selected = selectTsonicMemoryRecordBinding(host.ast, host.sourceFacts, record.call);
+      const selected = selectTsonicMemoryRecordBindingFacts(host.ast, host.sourceFacts, record.call);
       if (selected?.kind !== "resolved") return undefined;
       const typeNode = selected.operation.layout.explicitTypeNode;
       return typeNode === undefined
@@ -201,7 +201,7 @@ export function resolveDirectSourceFacts(
     }
     const binding = host.sourceFacts?.getFact(subject, tsonicMemoryFieldBindingFactKey);
     if (binding !== undefined && host.sourceFacts !== undefined) {
-      const selected = selectTsonicMemoryFieldBinding(host.ast, host.sourceFacts, binding.call);
+      const selected = selectTsonicMemoryFieldBindingFacts(host.ast, host.sourceFacts, binding.call);
       if (selected?.kind !== "resolved") return undefined;
       const typeNode = host.ast.typeNode(selected.operation.field.selectedDeclaration) ??
         readCsharpSourceField(host.sourceFacts, [selected.operation.field.selectedDeclaration])?.sourceType;

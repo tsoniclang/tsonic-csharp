@@ -485,10 +485,11 @@ export function analyzeCsharpSourceEvidence(
     }
   }
 
+  const pointerBackingRecords = pointerBacking.seal();
   const index: CsharpSourceEvidenceIndex = {
     bindingProjection: Object.freeze({ get: node => bindingProjections.get(node) }),
-    pointerBackingUses: pointerBacking.uses(),
-    memoryMetadataIssues: Object.freeze([...memoryMetadataIssues, ...pointerBacking.issues().map(issue => ({
+    pointerBackingUses: pointerBackingRecords.uses,
+    memoryMetadataIssues: Object.freeze([...memoryMetadataIssues, ...pointerBackingRecords.issues.map(issue => ({
       node: issue.node, code: "CSHARP_POINTER_BACKING_NOT_PROVEN", message: issue.reason,
     }))]),
     fixedArrayIssues: Object.freeze(fixedArrayIssues),
