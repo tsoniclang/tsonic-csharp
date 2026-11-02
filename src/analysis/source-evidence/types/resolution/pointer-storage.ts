@@ -33,8 +33,10 @@ function pointerStorageStates(
     const queries = host.semanticsFor(activation.invocation);
     const call = queries.operations.call(activation.invocation);
     if (call === undefined) return undefined;
+    const callable = host.representations.sourceCallable(call, queries.sourceFile, "checked");
     for (const callerState of callerStates) {
-      const vector = scope.resolveSourceCallInstantiation(call, queries.sourceFile, nextState(callerState));
+      const vector = scope.resolveSourceCallInstantiation(call, queries.sourceFile, nextState(callerState),
+        callable?.nativeSignature.methodTypeParameterIdentities, callable);
       if (vector === undefined) return undefined;
       const bound = bindCsharpSourceDeclarationArguments(scope, activation.declaration,
         vector.arguments.slice(0, vector.sourceArguments.length), vector.sourceArguments, callerState);
