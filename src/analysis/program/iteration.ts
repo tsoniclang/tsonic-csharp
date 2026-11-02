@@ -217,7 +217,7 @@ export function analyzeCsharpRepresentationIteration(
     valueReads,
   });
   const backingEvidence = Object.freeze({ ...sourceEvidence, inspectClosedArrayStorage: evidence.inspectClosedArrayStorage });
-  const storagePreparation = prepareCsharpStorage(policy, backingEvidence, operations, storageRepresentations);
+  const storagePreparation = prepareCsharpStorage(policy, backingEvidence, operations, storageRepresentations, valueReads.valueRead);
   const classFactories = analyzeCsharpClassFactories(source, typeSystem.projectTypes.catalog, sourceEvidence,
     storagePreparation.captures, names, operations, requiredRecords);
   const captureStorage = analyzeCsharpCaptureStorage(source, objectShapes, storagePreparation.captures, sourceEvidence,

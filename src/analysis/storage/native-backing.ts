@@ -4,6 +4,7 @@ import type { TsonicMemoryLayoutFact } from "@tsonic/source-core/facts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { csharpNativeArrayMemoryLayoutRejection, selectCsharpDeclaredNativeMemoryLayout, selectCsharpNativeMemoryLayout, selectCsharpRawLocation } from "../operations/pointers/native-memory.js";
 import type { CsharpNativeMemoryLayout } from "../../target-model/operations/native-memory.js";
+import type { CsharpValueReadClassifications } from "../../target-model/records/operations/conversions.js";
 import { csharpNativeMemoryLayoutsEqual } from "../../target-model/operations/native-memory.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { csharpStructuralObjectShapeIdentity } from "../../target-model/types/object-shape-identity.js";
@@ -19,13 +20,19 @@ interface CsharpNativeFieldDemand {
   readonly call: Node;
   readonly expression: Node;
   readonly layout: CsharpNativeMemoryLayout;
+  readonly stride: bigint;
+}
+
+interface CsharpNativeBackingGeometry {
+  readonly layout: CsharpNativeMemoryLayout;
+  readonly stride: bigint;
 }
 
 export function prepareCsharpNativeBacking(
   policy: CsharpPolicyContext, evidence: CsharpSourceEvidenceAnalysis,
-  operations: CsharpTargetOperationClassifications,
+  operations: CsharpTargetOperationClassifications, valueRead: CsharpValueReadClassifications["valueRead"],
 ) {
-  const backings = new Map<Node, CsharpNativeMemoryLayout>();
+  const backings = new Map<Node, CsharpNativeBackingGeometry>();
   const fieldDemands: CsharpNativeFieldDemand[] = [];
   const arrays = new Map<Node, CsharpNativeArrayStorage>();
   const retainedLayouts = new Map<Node, TsonicMemoryLayoutFact>();
@@ -78,21 +85,32 @@ export function prepareCsharpNativeBacking(
         reject(origin.call, "The physical storage origin and layout have different exact native value types.");
         continue;
       }
-      const declared = selectCsharpDeclaredNativeMemoryLayout(policy, operation.pointeeType,
-        origin.pointeeType, originFile, layout.dataLayout);
-      if (declared.kind === "rejected" || declared.kind === "declared" &&
-        (declared.stride !== layout.stride || !csharpNativeMemoryLayoutsEqual(declared.layout, descriptor))) {
+      const storage = operation.kind === "location-address" ? operation.storage : undefined;
+      let subject = storage?.kind === "direct-storage" && storage.identity.kind === "local-storage"
+        ? storage.identity.declaration : origin.call;
+      let declared: CsharpNativeBackingGeometry | undefined = storage?.kind === "reference-element-storage"
+        ? arrays.get(storage.expression) : storage?.kind === "reference-property-storage"
+          ? fieldDemands.find(demand => demand.call === origin.call) : backings.get(subject);
+      if (declared === undefined) {
+        const selected = selectCsharpDeclaredNativeMemoryLayout(policy, operation.pointeeType,
+          origin.pointeeType, originFile, layout.dataLayout, valueRead);
+        if (selected.kind === "rejected") {
+          if (!rejectedLayouts.has(use.call)) {
+            rejectedLayouts.add(use.call);
+            reject(use.call, selected.reason);
+          }
+          continue;
+        }
+        declared = Object.freeze({ layout: selected.layout, stride: selected.stride });
+      }
+      if (declared.stride !== layout.stride || !csharpNativeMemoryLayoutsEqual(declared.layout, descriptor)) {
         if (!rejectedLayouts.has(use.call)) {
           rejectedLayouts.add(use.call);
-          reject(use.call, declared.kind === "rejected" ? declared.reason :
-            "The raw-use descriptor does not equal the storage's declared native layout.");
+          reject(use.call, "The raw-use descriptor does not equal the storage's declared native layout.");
         }
         continue;
       }
-      const selected = declared.kind === "declared" ? declared.layout : descriptor;
-      const stride = declared.kind === "declared" ? declared.stride : layout.stride;
-      if (declared.kind === "deferred-struct" && !retainLayout(origin.call, use.call, layout)) continue;
-      let subject = origin.call;
+      const { layout: selected, stride } = declared;
       if (operation.kind === "location-address") {
         const storage = operation.storage;
         if (storage.kind === "reference-element-storage") {
@@ -119,7 +137,9 @@ export function prepareCsharpNativeBacking(
           continue;
         }
         if (storage.kind === "reference-property-storage") {
-          fieldDemands.push(Object.freeze({ call: origin.call, expression: storage.expression, layout: selected }));
+          if (!fieldDemands.some(demand => demand.call === origin.call)) {
+            fieldDemands.push(Object.freeze({ call: origin.call, expression: storage.expression, layout: selected, stride }));
+          }
           continue;
         }
         if (storage.kind !== "direct-storage" || storage.identity.kind !== "local-storage" ||
@@ -149,9 +169,9 @@ export function prepareCsharpNativeBacking(
         }
       }
       const previous = backings.get(subject);
-      if (previous !== undefined && !csharpNativeMemoryLayoutsEqual(previous, selected)) {
+      if (previous !== undefined && (previous.stride !== stride || !csharpNativeMemoryLayoutsEqual(previous.layout, selected))) {
         reject(origin.call, "One exact storage declaration has incompatible native layout requirements.");
-      } else backings.set(subject, selected);
+      } else backings.set(subject, declared);
     }
   }
   let finalized = false;
@@ -164,8 +184,8 @@ export function prepareCsharpNativeBacking(
       finalized = true;
       return finalizeCsharpNativeFieldBacking(policy, evidence, operations, objectShapes, fieldDemands);
     },
-    entries: Object.freeze([...backings].map(([subject, layout]) => Object.freeze({ subject, layout }))),
-    get: (subject: Node) => backings.get(subject) });
+    entries: Object.freeze([...backings].map(([subject, geometry]) => Object.freeze({ subject, layout: geometry.layout }))),
+    get: (subject: Node) => backings.get(subject)?.layout });
 }
 
 function finalizeCsharpNativeFieldBacking(
