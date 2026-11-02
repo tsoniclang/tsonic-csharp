@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { compileCsharpSource, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
+import { compileCsharpSource, assertCsharpCheckingSucceeded, assertCsharpCompilationSucceeded } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { memoryAbiCapability } from "../../helpers/memory-abi.mjs";
 import { nativeRecordProvider } from "../../helpers/native-record-proof.mjs";
@@ -78,6 +78,35 @@ export function run(): boolean {
 }
 `;
 
+const higherOrderSource = `
+import { abi } from "test:abi";
+import { allocateptr, equalptr, loadptr, memorylayout, reinterpretrawptr, storeptr,
+  torawptr, unsafecontext } from "@tsonic/core/lang.js";
+import type { uint32 } from "@tsonic/core/types.js";
+const word = memorylayout<uint32>({ datalayout: abi, bytesize: 4, bytealignment: 4, stride: 4, fields: [] });
+function invoke<T>(factory: () => T): T { return factory(); }
+export function run(): boolean {
+  unsafecontext();
+  const pointer = invoke(() => allocateptr<uint32>(7));
+  const alias = reinterpretrawptr(torawptr(pointer, word), word);
+  if (alias === undefined || !equalptr(pointer, alias)) return false;
+  storeptr(alias, 11);
+  return loadptr(pointer) === 11 && loadptr(alias) === 11;
+}
+`;
+
+const logicalRawSource = `
+import { abi } from "test:abi";
+import { bindptr, memorylayout, torawptr } from "@tsonic/core/lang.js";
+import type { uint32 } from "@tsonic/core/types.js";
+const word = memorylayout<uint32>({ datalayout: abi, bytesize: 4, bytealignment: 4, stride: 4, fields: [] });
+export function expose() {
+  let value: uint32 = 7;
+  const pointer = bindptr<uint32>({ identity: 1 }, () => value, next => { value = next; });
+  return torawptr(pointer, word);
+}
+`;
+
 const costProgram = `
 using System.Runtime.CompilerServices;
 using Tsonic.CSharp.Runtime;
@@ -129,5 +158,29 @@ for (const surface of ["native", "js"]) {
     const native = { ...compiled, artifacts: new Map([...compiled.artifacts,
       ["Provider.cs", readFileSync(new URL("../../fixtures/native-memory/Provider.cs", import.meta.url), "utf8")]]) };
     executeCsharpConstruction(native, `pointer-storage-provider-field-${surface}`, false, true);
+  });
+}
+
+for (const surface of ["native", "js"]) {
+  test(`higher-order factory pointer domains complete after source checking (${surface})`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ sourceText: higherOrderSource, surface,
+      capabilities: [memoryAbiCapability("csharp")] });
+    assertCsharpCompilationSucceeded(compiled);
+    executeCsharpConstruction(compiled, `pointer-storage-higher-order-${surface}`, false, true);
+  });
+
+  test(`logical pointer domains do not acquire physical raw backing (${surface})`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ sourceText: logicalRawSource, surface,
+      capabilities: [memoryAbiCapability("csharp")] });
+    assertCsharpCheckingSucceeded(compiled);
+    const diagnostics = compiled.result.diagnostics.map(issue => {
+      const range = issue.sourceNode === undefined ? undefined : compiled.source.ast.authoredRange(issue.sourceNode);
+      return { code: issue.code, message: issue.message,
+        text: range?.kind === "authored" ? logicalRawSource.slice(range.start, range.end) : undefined };
+    });
+    assert.deepEqual(diagnostics, [{ code: "CSHARP_POINTER_BACKING_NOT_PROVEN",
+      message: "Physical pointer backing requires an allocation, address or reinterpretation, not a logical pointer.",
+      text: "torawptr(pointer, word)" }]);
+    assert.equal(compiled.artifacts.size, 0);
   });
 }
