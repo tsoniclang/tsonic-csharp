@@ -3,6 +3,7 @@ import type { SourceStorageBindings, SourceStorageProducer } from "@tsonic/targe
 import { sourceEnclosingCallable } from "@tsonic/target-api/source";
 import type { CsharpPointerStoragePointeeSelection } from "../../../../target-model/records/storage/pointer-storage.js";
 import { csharpRuntimeLocationPointee } from "../../../../target-model/types/carriers/runtime-carriers.js";
+import { getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import { bindCsharpSourceDeclarationArguments } from "./generic-arguments.js";
 import type { CsharpTypeResolutionScope } from "./scope.js";
@@ -53,10 +54,13 @@ export function resolveCsharpPointerStoragePointee(
   if (states === undefined || states.length === 0) return {
     kind: "unresolved", reason: "The pointer producer has no complete canonical native activation bindings.",
   };
-  const pointees = states.map(bound => csharpRuntimeLocationPointee(scope.resolveSelectedValueWithState(
-    storage.subject.node, storage.type, storage.sourceFile,
-    { ...nextState(bound), sourceStorageSubject: storage.subject },
-  )));
+  const pointees = states.map(bound => {
+    const context = { ...nextState(bound), sourceStorageSubject: storage.subject };
+    const carrier = storage.subject.projection.length === 0
+      ? scope.resolveSelectedValueWithState(storage.subject.node, storage.type, storage.sourceFile, context)
+      : scope.resolveTypeWithState(storage.type, storage.sourceFile, context);
+    return csharpRuntimeLocationPointee(getCsharpNullableElementTargetType(carrier) ?? carrier);
+  });
   const first = pointees[0];
   if (first === undefined || pointees.some(pointee => pointee === undefined || !targetTypeRefEquals(pointee, first))) return {
     kind: "unresolved", reason: "The pointer producer does not have one exact native pointee carrier in every activation.",
