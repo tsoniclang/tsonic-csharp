@@ -1,8 +1,8 @@
 import { csharpProviderBindingFromResolution } from "../../../providers/model/relation-resolver.js";
 import type { CsharpRawLocationSelection } from "../../../target-model/records/native/native-memory.js";
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import { countTsonicMemoryLayoutValues } from "@tsonic/source-core/facts";
-import type { TsonicMemoryLayoutFact } from "@tsonic/source-core/facts";
+import type { TsonicDataLayoutFact, TsonicMemoryLayoutFact } from "@tsonic/source-core/facts";
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
 import { csharpFixedArrayRepresentationRejection } from "../../../policy/types/collections/fixed-arrays.js";
 import { readCsharpSourceStruct } from "../../../source/extension/markers.js";
@@ -46,14 +46,9 @@ export function selectCsharpNativeMemoryLayout(
     selected.set(layout, result);
     return result;
   }
-  const sizes: Readonly<Partial<Record<string, bigint>>> = {
-    int8: 1n, uint8: 1n, int16: 2n, uint16: 2n, int32: 4n, uint32: 4n,
-    int64: 8n, uint64: 8n, int128: 16n, uint128: 16n, float16: 2n, float32: 4n, float64: 8n,
-    "native-int": BigInt(layout.dataLayout.addressWidth) / 8n, "native-uint": BigInt(layout.dataLayout.addressWidth) / 8n,
-  };
   const fields: import("../../../target-model/operations/native-memory.js").CsharpNativeMemoryField[] = [];
   if (pointeeType.kind === "source-primitive") {
-    if (layout.fields.length !== 0 || sizes[pointeeType.name] !== layout.byteSize) return undefined;
+    if (layout.fields.length !== 0 || csharpNativeScalarByteSize(pointeeType, layout.dataLayout.addressWidth) !== layout.byteSize) return undefined;
   } else {
     if (pointeeType.kind !== "target-named") return undefined;
     const queries = input.semantics(sourceFile);
@@ -115,6 +110,71 @@ export function selectCsharpNativeMemoryLayout(
     width: layout.dataLayout.addressWidth, littleEndian: layout.dataLayout.byteOrder === "little", fields: Object.freeze(fields) });
   selected.set(layout, result);
   return result;
+}
+
+type CsharpDeclaredNativeMemoryLayoutSelection =
+  | { readonly kind: "declared"; readonly layout: CsharpNativeMemoryLayout; readonly stride: bigint }
+  | { readonly kind: "deferred-struct" }
+  | { readonly kind: "rejected"; readonly reason: string };
+
+export function selectCsharpDeclaredNativeMemoryLayout(
+  input: CsharpPolicyContext, pointeeType: TargetTypeRef, sourceType: Type,
+  sourceFile: SourceFile, dataLayout: TsonicDataLayoutFact,
+): CsharpDeclaredNativeMemoryLayoutSelection {
+  const visited = new Set<Type>();
+  const arrays: { readonly carrier: Extract<TargetTypeRef, { readonly kind: "array" }>; readonly length: bigint }[] = [];
+  let carrier = pointeeType;
+  let selectedType = sourceType;
+  let layout: CsharpNativeMemoryLayout;
+  let stride: bigint;
+  for (;;) {
+    if (visited.has(selectedType)) {
+      return { kind: "rejected", reason: "The declared native backing requires a finite closed physical type." };
+    }
+    visited.add(selectedType);
+    const size = csharpNativeScalarByteSize(carrier, dataLayout.addressWidth);
+    if (size !== undefined) {
+      layout = Object.freeze({ kind: "scalar", pointeeType: carrier, size, alignment: size,
+        width: dataLayout.addressWidth, littleEndian: dataLayout.byteOrder === "little", fields: Object.freeze([]) });
+      stride = size;
+      break;
+    }
+    if (carrier.kind === "target-named") return { kind: "deferred-struct" };
+    if (carrier.kind !== "array" || (carrier.rank ?? 1) !== 1) {
+      return { kind: "rejected", reason: "Physical backing requires an exact declared native scalar or closed scalar-array type." };
+    }
+    const selected = input.types.selectFixedArray(selectedType, sourceFile);
+    if (selected?.kind !== "selected") {
+      return { kind: "rejected", reason: "Native array backing requires its own exact declared fixed-array extent." };
+    }
+    const reason = csharpFixedArrayRepresentationRejection(selected.fact);
+    if (reason !== undefined) return { kind: "rejected", reason };
+    arrays.push({ carrier, length: selected.fact.length });
+    carrier = carrier.element;
+    selectedType = selected.fact.elementSourceType;
+  }
+  for (let index = arrays.length - 1; index >= 0; index--) {
+    const array = arrays[index]!;
+    const arraySize = stride * array.length;
+    if (arraySize > (1n << BigInt(dataLayout.addressWidth)) - 1n) {
+      return { kind: "rejected", reason: "The declared native array backing exceeds its exact address width." };
+    }
+    layout = Object.freeze({ kind: "array", pointeeType: array.carrier, length: array.length.toString(),
+      stride, element: layout, size: arraySize, alignment: layout.alignment,
+      width: dataLayout.addressWidth, littleEndian: dataLayout.byteOrder === "little" });
+    stride = arraySize;
+  }
+  return Object.freeze({ kind: "declared", layout, stride });
+}
+
+function csharpNativeScalarByteSize(carrier: TargetTypeRef, addressWidth: 32 | 64): bigint | undefined {
+  if (carrier.kind !== "source-primitive") return undefined;
+  if (carrier.name === "native-int" || carrier.name === "native-uint") return BigInt(addressWidth) / 8n;
+  const sizes: Readonly<Partial<Record<string, bigint>>> = {
+    int8: 1n, uint8: 1n, int16: 2n, uint16: 2n, int32: 4n, uint32: 4n,
+    int64: 8n, uint64: 8n, int128: 16n, uint128: 16n, float16: 2n, float32: 4n, float64: 8n,
+  };
+  return sizes[carrier.name];
 }
 
 export function csharpNativeArrayMemoryLayoutRejection(root: TsonicMemoryLayoutFact): string | undefined {

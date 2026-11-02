@@ -72,7 +72,7 @@ export interface CsharpSourceEvidenceIndex {
   readonly bindingProjection: { readonly get: (node: Node) => import("../storage/binding-projection-policy.js").CsharpBindingProjection | undefined };
   readonly memoryMetadataIssues: readonly { readonly node: Node; readonly code: string; readonly message: string }[];
   readonly fixedArrayIssues: readonly { readonly node: Node; readonly code: string; readonly message: string }[];
-  readonly pointerBackingDemands: readonly import("@tsonic/source-core/facts").TsonicPointerBackingDemand[];
+  readonly pointerBackingUses: readonly import("@tsonic/source-core/facts").TsonicDeclaredPointerBackingUse[];
   readonly compileTimeMetadata: { readonly get: (node: Node) => boolean };
   readonly targetTypes: readonly TargetTypeRef[];
   readonly nodeTargetType: { readonly get: (node: Node) => TargetTypeRef | undefined };

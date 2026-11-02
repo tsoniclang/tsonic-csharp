@@ -1,6 +1,8 @@
 import type { Node } from "@tsonic/tsts";
+import { sameBackingLayout } from "@tsonic/source-core/facts";
+import type { TsonicMemoryLayoutFact } from "@tsonic/source-core/facts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import { csharpNativeArrayMemoryLayoutRejection, selectCsharpNativeMemoryLayout, selectCsharpRawLocation } from "../operations/pointers/native-memory.js";
+import { csharpNativeArrayMemoryLayoutRejection, selectCsharpDeclaredNativeMemoryLayout, selectCsharpNativeMemoryLayout, selectCsharpRawLocation } from "../operations/pointers/native-memory.js";
 import type { CsharpNativeMemoryLayout } from "../../target-model/operations/native-memory.js";
 import { csharpNativeMemoryLayoutsEqual } from "../../target-model/operations/native-memory.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
@@ -26,96 +28,131 @@ export function prepareCsharpNativeBacking(
   const backings = new Map<Node, CsharpNativeMemoryLayout>();
   const fieldDemands: CsharpNativeFieldDemand[] = [];
   const arrays = new Map<Node, CsharpNativeArrayStorage>();
+  const retainedLayouts = new Map<Node, TsonicMemoryLayoutFact>();
+  const rejectedLayouts = new Set<Node>();
   const issues: CsharpStorageIssue[] = [];
   const reject = (node: Node, message: string): void => {
     issues.push(Object.freeze({ node, code: "CSHARP_NATIVE_BACKING_NOT_PROVEN", message }));
   };
-  for (const { origin, layout } of evidence.pointerBackingDemands) {
+  const retainLayout = (origin: Node, use: Node, layout: TsonicMemoryLayoutFact): boolean => {
+    const previous = retainedLayouts.get(origin);
+    if (previous !== undefined && (policy.sourceFacts === undefined ||
+      !sameBackingLayout(policy.sourceFacts, previous, layout))) {
+      issues.push(Object.freeze({ node: use, code: "CSHARP_POINTER_BACKING_NOT_PROVEN",
+        message: "One pointer origin has incompatible physical layout demands." }));
+      return false;
+    }
+    retainedLayouts.set(origin, layout);
+    return true;
+  };
+  for (const use of evidence.pointerBackingUses) {
+    const layout = use.layout;
     const layoutFile = policy.ast.getSourceFile(layout.call);
-    const originFile = policy.ast.getSourceFile(origin.call);
-    if (layoutFile === undefined || originFile === undefined) {
-      reject(origin.call, "The native backing descriptor and origin require exact source files.");
+    if (layoutFile === undefined) {
+      reject(use.call, "The native backing descriptor and origin require exact source files.");
       continue;
     }
-    const selected = selectCsharpNativeMemoryLayout(policy, layout, layoutFile);
-    if (selected === undefined) {
-      reject(origin.call, csharpNativeArrayMemoryLayoutRejection(layout) ??
+    const descriptor = selectCsharpNativeMemoryLayout(policy, layout, layoutFile);
+    if (descriptor === undefined) {
+      reject(use.call, csharpNativeArrayMemoryLayoutRejection(layout) ??
         "Physical backing requires an exact closed all-bit-pattern native layout.");
       continue;
     }
-    if (origin.operation === "reinterpret") {
-      const restored = selectCsharpRawLocation(policy, origin.call, originFile);
-      if (restored?.kind !== "raw-location" || !csharpNativeMemoryLayoutsEqual(selected, restored.layout)) {
-        reject(origin.call, "The reinterpreted location does not prove the demanded physical layout.");
-      }
-      continue;
-    }
-    const operation = operations.typedLocation.get(origin.call);
-    if ((operation?.kind !== "location-allocate" && operation?.kind !== "location-address") ||
-      !targetTypeRefEquals(selected.pointeeType, operation.pointeeType)) {
-      reject(origin.call, "The physical storage origin and layout have different exact native value types.");
-      continue;
-    }
-    let subject = origin.call;
-    if (operation.kind === "location-address") {
-      const storage = operation.storage;
-      if (storage.kind === "reference-element-storage") {
-        const component = evidence.inspectClosedArrayStorage(storage.expression);
-        if (component.kind !== "closed") { reject(origin.call, component.reason); continue; }
-        const subjects: [Node, CsharpNativeArrayStorage["kind"]][] = [
-          ...component.declarations.map(node => [node, "binding"] as [Node, "binding"]),
-          ...component.references.map(node => [node, "reference"] as [Node, "reference"]),
-          ...component.literals.map(node => [node, "literal"] as [Node, "literal"]),
-          ...component.elements.map(element => [element.expression, "element"] as [Node, "element"]),
-        ];
-        const valid = component.declarations.every(node => {
-          const carrier = evidence.storageTargetType.get(node);
-          return carrier?.kind === "array" && targetTypeRefEquals(carrier.element, selected.pointeeType);
-        }) && component.elements.every(element => {
-          const target = operations.selectedElement.get(element.expression);
-          return target?.receiverType?.kind === "array" && targetTypeRefEquals(target.receiverType.element, selected.pointeeType);
-        }) && subjects.every(([node]) => {
-          const previous = arrays.get(node);
-          return previous === undefined || previous.stride === layout.stride && csharpNativeMemoryLayoutsEqual(previous.layout, selected);
-        });
-        if (!valid) { reject(origin.call, "Native array aliases require one exact element carrier, stride and layout."); continue; }
-        for (const [subject, kind] of subjects) arrays.set(subject, Object.freeze({ kind, layout: selected, stride: layout.stride }));
+    for (const origin of use.origins) {
+      const originFile = policy.ast.getSourceFile(origin.call);
+      if (originFile === undefined) {
+        reject(use.call, "The native backing descriptor and origin require exact source files.");
         continue;
       }
-      if (storage.kind === "reference-property-storage") {
-        fieldDemands.push(Object.freeze({ call: origin.call, expression: storage.expression, layout: selected }));
+      if (origin.operation === "reinterpret") {
+        if (!retainLayout(origin.call, use.call, layout)) continue;
+        const restored = selectCsharpRawLocation(policy, origin.call, originFile);
+        if (restored?.kind !== "raw-location" || !csharpNativeMemoryLayoutsEqual(descriptor, restored.layout)) {
+          reject(origin.call, "The reinterpreted location does not prove the demanded physical layout.");
+        }
         continue;
       }
-      if (storage.kind !== "direct-storage" || storage.identity.kind !== "local-storage" ||
-        (!policy.ast.is.IsVariableDeclaration(storage.identity.declaration) && !policy.ast.is.IsParameterDeclaration(storage.identity.declaration)) ||
-        !policy.ast.is.IsIdentifier(storage.expression)) {
-        reject(origin.call, "This addressable storage requires a native field, element, parameter or provider backing contract.");
+      const operation = operations.typedLocation.get(origin.call);
+      if ((operation?.kind !== "location-allocate" && operation?.kind !== "location-address") ||
+        !targetTypeRefEquals(descriptor.pointeeType, operation.pointeeType)) {
+        reject(origin.call, "The physical storage origin and layout have different exact native value types.");
         continue;
       }
-      subject = storage.identity.declaration;
-      if (policy.ast.is.IsParameterDeclaration(subject)) {
-        const owner = policy.ast.parent(subject);
-        if (owner === undefined || (!policy.ast.is.IsFunctionDeclaration(owner) && !policy.ast.is.IsMethodDeclaration(owner)) ||
-          policy.ast.body(owner) === undefined || !policy.ast.is.IsIdentifier(policy.ast.name(subject))) {
-          reject(origin.call, "Native parameter backing requires an exact by-value source function or method parameter.");
+      const declared = selectCsharpDeclaredNativeMemoryLayout(policy, operation.pointeeType,
+        origin.pointeeType, originFile, layout.dataLayout);
+      if (declared.kind === "rejected" || declared.kind === "declared" &&
+        (declared.stride !== layout.stride || !csharpNativeMemoryLayoutsEqual(declared.layout, descriptor))) {
+        if (!rejectedLayouts.has(use.call)) {
+          rejectedLayouts.add(use.call);
+          reject(use.call, declared.kind === "rejected" ? declared.reason :
+            "The raw-use descriptor does not equal the storage's declared native layout.");
+        }
+        continue;
+      }
+      const selected = declared.kind === "declared" ? declared.layout : descriptor;
+      const stride = declared.kind === "declared" ? declared.stride : layout.stride;
+      if (declared.kind === "deferred-struct" && !retainLayout(origin.call, use.call, layout)) continue;
+      let subject = origin.call;
+      if (operation.kind === "location-address") {
+        const storage = operation.storage;
+        if (storage.kind === "reference-element-storage") {
+          const component = evidence.inspectClosedArrayStorage(storage.expression);
+          if (component.kind !== "closed") { reject(origin.call, component.reason); continue; }
+          const subjects: [Node, CsharpNativeArrayStorage["kind"]][] = [
+            ...component.declarations.map(node => [node, "binding"] as [Node, "binding"]),
+            ...component.references.map(node => [node, "reference"] as [Node, "reference"]),
+            ...component.literals.map(node => [node, "literal"] as [Node, "literal"]),
+            ...component.elements.map(element => [element.expression, "element"] as [Node, "element"]),
+          ];
+          const valid = component.declarations.every(node => {
+            const carrier = evidence.storageTargetType.get(node);
+            return carrier?.kind === "array" && targetTypeRefEquals(carrier.element, selected.pointeeType);
+          }) && component.elements.every(element => {
+            const target = operations.selectedElement.get(element.expression);
+            return target?.receiverType?.kind === "array" && targetTypeRefEquals(target.receiverType.element, selected.pointeeType);
+          }) && subjects.every(([node]) => {
+            const previous = arrays.get(node);
+            return previous === undefined || previous.stride === stride && csharpNativeMemoryLayoutsEqual(previous.layout, selected);
+          });
+          if (!valid) { reject(origin.call, "Native array aliases require one exact element carrier, stride and layout."); continue; }
+          for (const [subject, kind] of subjects) arrays.set(subject, Object.freeze({ kind, layout: selected, stride }));
           continue;
         }
-      } else {
-        const list = policy.ast.parent(subject);
-        const statement = list === undefined ? undefined : policy.ast.parent(list);
-        const container = statement === undefined ? undefined : policy.ast.parent(statement);
-        if (statement === undefined || !policy.ast.is.IsVariableStatement(statement) ||
-          container === undefined || !policy.ast.is.IsBlock(container) ||
-          policy.ast.as.AsVariableDeclaration(subject)?.Initializer === undefined) {
-          reject(origin.call, "Native local backing requires an initialized block-local binding.");
+        if (storage.kind === "reference-property-storage") {
+          fieldDemands.push(Object.freeze({ call: origin.call, expression: storage.expression, layout: selected }));
           continue;
         }
+        if (storage.kind !== "direct-storage" || storage.identity.kind !== "local-storage" ||
+          (!policy.ast.is.IsVariableDeclaration(storage.identity.declaration) && !policy.ast.is.IsParameterDeclaration(storage.identity.declaration)) ||
+          !policy.ast.is.IsIdentifier(storage.expression)) {
+          reject(origin.call, "This addressable storage requires a native field, element, parameter or provider backing contract.");
+          continue;
+        }
+        subject = storage.identity.declaration;
+        if (policy.ast.is.IsParameterDeclaration(subject)) {
+          const owner = policy.ast.parent(subject);
+          if (owner === undefined || (!policy.ast.is.IsFunctionDeclaration(owner) && !policy.ast.is.IsMethodDeclaration(owner)) ||
+            policy.ast.body(owner) === undefined || !policy.ast.is.IsIdentifier(policy.ast.name(subject))) {
+            reject(origin.call, "Native parameter backing requires an exact by-value source function or method parameter.");
+            continue;
+          }
+        } else {
+          const list = policy.ast.parent(subject);
+          const statement = list === undefined ? undefined : policy.ast.parent(list);
+          const container = statement === undefined ? undefined : policy.ast.parent(statement);
+          if (statement === undefined || !policy.ast.is.IsVariableStatement(statement) ||
+            container === undefined || !policy.ast.is.IsBlock(container) ||
+            policy.ast.as.AsVariableDeclaration(subject)?.Initializer === undefined) {
+            reject(origin.call, "Native local backing requires an initialized block-local binding.");
+            continue;
+          }
+        }
       }
+      const previous = backings.get(subject);
+      if (previous !== undefined && !csharpNativeMemoryLayoutsEqual(previous, selected)) {
+        reject(origin.call, "One exact storage declaration has incompatible native layout requirements.");
+      } else backings.set(subject, selected);
     }
-    const previous = backings.get(subject);
-    if (previous !== undefined && !csharpNativeMemoryLayoutsEqual(previous, selected)) {
-      reject(origin.call, "One exact storage declaration has incompatible native layout requirements.");
-    } else backings.set(subject, selected);
   }
   let finalized = false;
   Object.freeze(fieldDemands);
