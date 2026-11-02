@@ -170,19 +170,17 @@ export function run(): boolean {
 export const nativeProviderRecordNoRawProofSource = `
 import { create } from "test:records";
 import type { Envelope } from "test:records";
-import { addressof, loadptr, storeptr, equalptr, unsafecontext } from "@tsonic/core/lang.js";
+import { allocateptr, loadptr, storeptr, equalptr, unsafecontext } from "@tsonic/core/lang.js";
 export function run(): boolean {
   unsafecontext();
-  let value: Envelope = create(1, 2, 7);
-  const pointer = addressof(value);
+  const value: Envelope = create(1, 2, 7);
+  const pointer = allocateptr<Envelope>(value);
   const saved = loadptr(pointer);
-  const alias = addressof(value);
-  const count = addressof(value.header.count);
-  if (alias === undefined || count === undefined) return false;
-  storeptr(count, 9);
+  const alias = pointer;
+  storeptr(pointer, create(1, 2, 9));
   if (loadptr(pointer).header.count !== 9) return false;
   storeptr(alias, create(3, 4, 11));
-  return saved.header.count === 7 && loadptr(count) === 11 &&
+  return saved.header.count === 7 && loadptr(alias).header.count === 11 &&
     loadptr(pointer).prefix === 3 && equalptr(pointer, alias);
 }
 `;
