@@ -1,8 +1,8 @@
 import type { Node, Type } from "@tsonic/tsts";
-import type { CsharpPropertyProjection } from "../../target-model/records/objects/property-projections.js";
+import type { CsharpPropertyProjection, CsharpPropertyProjectionMember } from "../../target-model/records/objects/property-projections.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
-import type { CsharpObjectShapeMemberFact, TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/model.js";
 import {
   getCsharpNullableElementTargetType,
   isCsharpAbsenceTargetType,
@@ -14,6 +14,7 @@ import {
   targetTypeRefKey,
 } from "../../target-model/types/index.js";
 import { csharpUnionLeaves } from "../../target-model/types/union-relations.js";
+import { resolveCsharpCheckedNativePropertyRead } from "../objects/native-property-reads.js";
 
 export function selectCsharpPropertyProjections(
   expression: Node,
@@ -51,7 +52,6 @@ export function selectCsharpPropertyProjections(
       continue;
     }
     const shape = shapes.resolveTarget(selected);
-    if (shape?.sourceType === undefined) return undefined;
     const checked = semantics.types.expressionType(expression);
     const presentSource = checked === undefined ? undefined : semantics.types.nonNullableType(checked);
     if (presentSource === undefined) return undefined;
@@ -67,13 +67,20 @@ export function selectCsharpPropertyProjections(
     const correspondence = semantics.types.structuralMembers(sourceType, destinationType, "read");
     if (correspondence.kind !== "available" || correspondence.destination.calls.length !== 0 ||
       correspondence.destination.constructs.length !== 0 || correspondence.destination.indexes.length !== 0) return undefined;
-    const members: CsharpObjectShapeMemberFact[] = [];
+    const members: CsharpPropertyProjectionMember[] = [];
     for (const pair of correspondence.members) {
       if (pair.kind === "absent") {
         if (!pair.destination.property.optional) return undefined;
         continue;
       }
       if (pair.destination.read !== "property" || pair.source.read === "method" || pair.source.read === "unavailable") return undefined;
+      const native = resolveCsharpCheckedNativePropertyRead(sourceType, pair.source.property.name, selected, semantics, policy);
+      if (native.kind === "unresolved") return undefined;
+      if (native.kind === "resolved") {
+        members.push(Object.freeze({ native: native.property, sourceName: pair.source.property.name }));
+        continue;
+      }
+      if (shape === undefined) return undefined;
       const member = resolveCsharpObjectShapeMemberBySelectedSubject(shape,
         [pair.source.property.symbol, ...pair.source.property.rootSymbols, ...pair.source.declarations]);
       if (member.kind !== "resolved" || member.member.memberKind !== "property") return undefined;

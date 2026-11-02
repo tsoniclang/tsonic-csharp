@@ -7,6 +7,7 @@ import { getCsharpTaskResultTargetType, csharpTaskTargetType } from "../../../ta
 import { csharpVoidTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 import { isCsharpVoidTargetType } from "../../../target-model/types/identity.js";
 import { isCsharpAbsenceTargetType } from "../../../target-model/types/carriers/runtime-carriers.js";
+import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 
 export function selectCsharpTargetCallEmission(input: CsharpTargetCallEmissionInput):
   | { readonly kind: "selected"; readonly value: CsharpTargetCallEmission }
@@ -19,11 +20,27 @@ export function selectCsharpTargetCallEmission(input: CsharpTargetCallEmissionIn
     return refuse(`Checked call selected C# ${member.kind} '${member.id}', not an invocable method.`);
   const instance = selection.receiver.kind === "instance";
   if (instance && source.sourceReceiver === undefined) return refuse("Selected instance call requires its exact native receiver acquisition.");
-  const result = member.kind === "constructor" ? member.declaringType : member.returnType;
-  if (result === undefined) return refuse("Selected native call requires its exact physical completion carrier.");
+  const physicalResult = member.kind === "constructor" ? member.declaringType : member.returnType;
+  if (physicalResult === undefined) return refuse("Selected native call requires its exact physical completion carrier.");
+  const result = selection.discardResult ? csharpVoidTargetType() : physicalResult;
   const selected = member.csharpInvocation;
   let invocation: CsharpTargetInvocationEmission;
-  if (selected?.kind === "value-identity") {
+  if (selection.condition !== undefined) {
+    const condition = selection.condition;
+    const property = condition.property;
+    const parameter = member.parameters[condition.targetParameterIndex];
+    if (instance || input.optional || member.static !== true || member.kind !== "method" || member.declaringType === undefined ||
+      !selection.discardResult || count !== 1 || condition.targetParameterIndex !== 0 || parameter === undefined || passing[0] ||
+      parameter.passingMode !== "by-value" || member.parameters.length !== 1 ||
+      property.kind !== "property" || property.readonly !== true || property.static === true || property.parameters.length !== 0 ||
+      property.declaringType === undefined || !targetTypeRefEquals(property.declaringType, parameter.type) ||
+      getCsharpNullableElementTargetType(property.returnType) === undefined ||
+      !selectCsharpTypeEmission({ carrier: member.declaringType }) || !selectCsharpTypeEmission({ carrier: parameter.type })) {
+      return refuse("A guarded native call requires one exact by-value argument and its read-only nullable property.");
+    }
+    invocation = { kind: "guarded-method", owner: member.declaringType, name: member.targetName,
+      argumentIndex: condition.targetParameterIndex, argumentType: parameter.type, propertyName: property.targetName };
+  } else if (selected?.kind === "value-identity") {
     if (!member.static || instance || member.parameters.length !== 1 || count !== 1 || passing[0] ||
       !targetTypeRefEquals(member.parameters[0]!.type, result) || !selectCsharpTypeEmission({ carrier: result }))
       return refuse("A selected value identity requires one by-value operand and its identical native result carrier.");

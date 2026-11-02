@@ -328,7 +328,8 @@ export function finalizeCsharpNativeEmission(
       memberReceivers.records.nativeMethodCallee.get(node) !== undefined });
   if (memberNames.issues.length !== 0) return rejectedTargetStage(memberNames.issues);
   const elementAdmission = analyzeCsharpElementAdmission({ ast: source.ast, nodes: sourceStorage.nodes, operations: admittedOperations,
-    demand: nativeDemand, admitted: admittedControlNode, receivers: memberReceivers.records, navigation: source.navigation });
+    demand: nativeDemand, admitted: admittedControlNode, receivers: memberReceivers.records, navigation: source.navigation,
+    policy: analysis.policy });
   if (elementAdmission.issues.length !== 0) return rejectedTargetStage(elementAdmission.issues);
   const typeParameterEmission = analyzeCsharpTypeParameterEmission({ ast: source.ast, nodes: sourceStorage.nodes,
     evidence: analysis.sourceEvidence, admitted: admittedControlNode });

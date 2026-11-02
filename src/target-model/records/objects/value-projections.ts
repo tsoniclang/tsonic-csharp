@@ -2,16 +2,7 @@ import type { Node } from "@tsonic/tsts";
 import type { CsharpArrayBindingCarrier } from "../../types/carriers/binding-array-carrier.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../types/model.js";
 import type { CsharpConversionSelection } from "../../conversions/selection.js";
-import type { CsharpTargetMember } from "../../types/model.js";
-import type { CsharpTargetReceiverRelation } from "../../identities/provider-relations.js";
-import type { CsharpTargetPropertyInvocation } from "../program/source-profile-invocations.js";
-
-export interface CsharpNativeBindingProperty {
-  readonly declaration: Node;
-  readonly member: CsharpTargetMember & { readonly returnType: TargetTypeRef };
-  readonly receiver: CsharpTargetReceiverRelation;
-  readonly invocation: Extract<CsharpTargetPropertyInvocation, { readonly kind: "member" | "receiver-call" }>;
-}
+import type { CsharpNativePropertyRead } from "../program/source-profile-invocations.js";
 
 export type CsharpBindingPatternSource =
   | {
@@ -37,7 +28,7 @@ export type CsharpBindingElementProjection =
   | { readonly kind: "array-rest"; readonly start: number; readonly restCarrier: TargetTypeRef }
   | { readonly kind: "tuple-rest"; readonly start: number; readonly restCarrier: Extract<TargetTypeRef, { readonly kind: "tuple" }> }
   | { readonly kind: "object-shape-member"; readonly member: CsharpObjectShapeMemberFact }
-  | { readonly kind: "native-member"; readonly property: CsharpNativeBindingProperty }
+  | { readonly kind: "native-member"; readonly property: CsharpNativePropertyRead }
   | { readonly kind: "object-shape-absence"; readonly carrier: TargetTypeRef }
   | {
       readonly kind: "object-shape-rest";
