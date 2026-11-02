@@ -57,6 +57,7 @@ export function selectCsharpStructuralInterface(
       : resolveCsharpObjectShapeMemberBySelectedSubject(destinationTemplate, destinationSubjects);
     if (write.kind !== "resolved" || destinationMember.kind !== "resolved") return undefined;
     if (read.kind !== "resolved") {
+      if (read.reason !== "not-in-finalized-shape") return undefined;
       const native = resolveCsharpCheckedNativePropertyRead(sourceType, pair.source.property.name, source.targetType, semantics, policy);
       if (native.kind !== "resolved") return undefined;
       members.push(Object.freeze({ native: native.property, destination: write.member, openDestination: destinationMember.member }));

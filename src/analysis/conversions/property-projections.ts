@@ -52,6 +52,7 @@ export function selectCsharpPropertyProjections(
       continue;
     }
     const shape = shapes.resolveTarget(selected);
+    if (shape !== undefined && shape.sourceType === undefined) return undefined;
     const checked = semantics.types.expressionType(expression);
     const presentSource = checked === undefined ? undefined : semantics.types.nonNullableType(checked);
     if (presentSource === undefined) return undefined;
@@ -74,17 +75,17 @@ export function selectCsharpPropertyProjections(
         continue;
       }
       if (pair.destination.read !== "property" || pair.source.read === "method" || pair.source.read === "unavailable") return undefined;
-      const native = resolveCsharpCheckedNativePropertyRead(sourceType, pair.source.property.name, selected, semantics, policy);
-      if (native.kind === "unresolved") return undefined;
-      if (native.kind === "resolved") {
-        members.push(Object.freeze({ native: native.property, sourceName: pair.source.property.name }));
+      const member = shape === undefined ? undefined : resolveCsharpObjectShapeMemberBySelectedSubject(shape,
+        [pair.source.property.symbol, ...pair.source.property.rootSymbols, ...pair.source.declarations]);
+      if (member?.kind === "resolved") {
+        if (member.member.memberKind !== "property") return undefined;
+        members.push(member.member);
         continue;
       }
-      if (shape === undefined) return undefined;
-      const member = resolveCsharpObjectShapeMemberBySelectedSubject(shape,
-        [pair.source.property.symbol, ...pair.source.property.rootSymbols, ...pair.source.declarations]);
-      if (member.kind !== "resolved" || member.member.memberKind !== "property") return undefined;
-      members.push(member.member);
+      if (member !== undefined && member.reason !== "not-in-finalized-shape") return undefined;
+      const native = resolveCsharpCheckedNativePropertyRead(sourceType, pair.source.property.name, selected, semantics, policy);
+      if (native.kind !== "resolved") return undefined;
+      members.push(Object.freeze({ native: native.property, sourceName: pair.source.property.name }));
     }
     if (new Set(members.map(member => member.sourceName)).size !== members.length) return undefined;
     projections.push(Object.freeze({ source: selected, members: Object.freeze(members) }));
