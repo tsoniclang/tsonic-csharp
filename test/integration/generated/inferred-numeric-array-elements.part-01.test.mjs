@@ -6,37 +6,60 @@ import { compileCsharpNativeUseSource } from "../../helpers/expected-native-uses
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
 import { getCsharpArrayLiteralElementTargetType } from "../../../dist/target-model/types/carriers/collections.js";
 import { getCsharpRuntimeUnionArms } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
-import { csharpSourcePrimitiveTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
+import { csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { csharpJsArrayTargetType } from "../../../dist/target-model/types/carriers/js.js";
 import { csharpEnumerableTargetType } from "../../../dist/target-model/types/carriers/collections.js";
-import { combineCsharpTargetUnionMembers } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { combineCsharpTargetUnionMembers, csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
 import { targetTypeRefKey } from "../../../dist/target-model/types/equality.js";
 import { isCsharpStringTargetType, isCsharpJsStringTargetType } from "../../../dist/target-model/types/identity.js";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
-import { destinationBodies, destinationPrograms, unionDestinationPrograms, sourceText, carriers, nativeArrayElements, physicalForms, operationControls, expectedOperationRefusals } from "./inferred-numeric-array-elements.fixtures.mjs";
+import { destinationBodies, destinationPrograms, unionDestinationPrograms, sourceText, supportedSourceText, carriers, nativeArrayElements, physicalForms, operationControls, expectedOperationRefusals } from "./inferred-numeric-array-elements.fixtures.mjs";
 
 for (const surface of Array.from(["native", "js"]).slice(0, 2)) {
 test(`${surface} inferred numeric arrays preserve values, physical arms, rounding boundaries and native costs`,
   { timeout: 300_000 }, () => {
-    const compiled = compileCsharpNativeUseSource({ sourceText, surface });
+    const original = compileCsharpNativeUseSource({ sourceText, surface });
+    assert.equal(original.sourceDiagnosticsText, "");
+    const ast = original.nativeStage.source.ast;
+    const evidence = original.nativeStage.diagnostics.map(issue => {
+      const range = ast.authoredRange(issue.sourceNode);
+      const file = ast.getSourceFile(issue.sourceNode);
+      return { code: issue.code, message: issue.message,
+        text: range?.kind === "authored" ? ast.getSourceText(file).slice(range.start, range.end) : undefined,
+        start: range?.kind === "authored" ? range.start : undefined };
+    });
+    const common = "Inferred array elements require an exact common native numeric carrier; an explicit native array destination is required for a rounding conversion.";
+    const expected = [
+      { code: "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH", message: common, text: "[narrow, 16777217]" },
+      { code: "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH", message:
+        "An inferred numeric array literal is outside its declared or default native element range.",
+      text: "[signed, unsigned, 1606938044258990275541962092341162602522202993782792835301376]" },
+      ...Array.from({ length: 6 }, () => ({ code: "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH", message: common, text: "[narrow, signed]" })),
+    ];
+    assert.deepEqual(evidence.map(({ code, message, text }) => ({ code, message, text })), expected,
+      "the unchanged complete original source retains every exact range/later-context negative");
+    assert.equal(new Set(evidence.map(issue => issue.start)).size === expected.length &&
+      original.result.program === undefined && original.artifacts.size === 0, true,
+    "every original failing expression is distinct and no invalid program or copied array is published");
+    const compiled = compileCsharpNativeUseSource({ sourceText: supportedSourceText, surface });
     assertCsharpCompilationSucceeded(compiled);
     const selected = carriers(compiled.result.program);
     const arms = name => {
       const result = getCsharpRuntimeUnionArms(selected.get(name), compiled.result.program.typeDefinitions);
       assert.equal(result !== undefined && result.every(arm => arm.kind === "source-primitive" &&
-        ["int32", "uint32", "float64"].includes(arm.name)), true, `${name}: exact native primitive physical arms`);
+        ["int32", "uint32", "int64", "float64"].includes(arm.name)), true, `${name}: exact native primitive physical arms`);
       return result;
     };
-    const types = { int32: "int", uint32: "uint", float64: "double" };
+    const types = { int32: "int", uint32: "uint", int64: "long", float64: "double" };
     const methods = [
       ["bare", "bareValues", ["int32", "uint32"]],
       ["reverse", "reverseValues", ["uint32", "int32"]],
-      ["left", "leftValues", ["int32", "uint32", "float64"]],
-      ["middle", "middleValues", ["int32", "float64", "uint32"]],
-      ["right", "rightValues", ["float64", "int32", "uint32"]],
-      ["wrapped", "wrappedValues", ["int32", "uint32", "float64"]],
+      ["left", "leftValues", ["int32", "uint32", "int64"]],
+      ["middle", "middleValues", ["int32", "int64", "uint32"]],
+      ["right", "rightValues", ["int64", "int32", "uint32"]],
+      ["wrapped", "wrappedValues", ["int32", "uint32", "int64"]],
       ["exactHuge", "hugeValues", ["int32", "uint32", "float64"], "System.Math.ScaleB(1D, 200)"],
-    ].map(([method, name, values, literal = "1D"]) => {
+    ].map(([method, name, values, literal = "1L"]) => {
       const members = arms(name);
       assert.equal(members.length === values.length && new Set(members.map(arm => arm.name)).size === values.length, true,
         `${name}: the actual constructor uses the required complete physical union`);
@@ -162,7 +185,9 @@ if (!decimalUnion[1].Is${exactDecimal}() || decimalUnion[1].As${exactDecimal}() 
 var inferredUnion = Subject.inferredHeterogeneous(0.5D);
 if (inferredUnion[1].As${inferredDouble}() != 0.5D || inferredUnion[2].As${inferredDouble}() != 9007199254740994D ||
     inferredUnion[3].As${inferredDouble}() != 0.1D ||
-    System.BitConverter.DoubleToUInt64Bits(inferredUnion[4].As${inferredDouble}()) != 0x8000000000000000UL)
+    System.BitConverter.DoubleToUInt64Bits(inferredUnion[4].As${inferredDouble}()) != 0x0UL ||
+    System.BitConverter.DoubleToUInt64Bits(Subject.writtenNegativeZero()) != 0x8000000000000000UL ||
+    System.BitConverter.DoubleToUInt64Bits(Subject.declaredNegativeZero()) != 0x8000000000000000UL)
     throw new System.Exception("exact inferred heterogeneous tokens, computed values or signed zero changed");
 for (int index = 0; index < 512; index++) {
 ${methods.map(({ method }) => `System.GC.KeepAlive(Subject.${method}(-1, 4294967295U)); System.GC.KeepAlive(Baseline_${method}(-1, 4294967295U));`).join("\n")}
@@ -203,7 +228,8 @@ if (counterBytes <= native_bare) throw new System.Exception("the native allocati
 System.Console.WriteLine("numeric arrays: exact native values and costs");`;
     const root = new URL(`../../../.temp/C01-inferred-numeric-array-elements/${surface}/`, import.meta.url);
     mkdirSync(root, { recursive: true });
-    writeFileSync(new URL("source-and-native.json", root), JSON.stringify({ sourceText, nativeProgram, artifacts: [...compiled.artifacts] }, null, 2));
+    writeFileSync(new URL("source-and-native.json", root), JSON.stringify({ originalSourceText: sourceText,
+      originalDiagnostics: evidence, sourceText: supportedSourceText, nativeProgram, artifacts: [...compiled.artifacts] }, null, 2));
     const output = executeCsharpConstruction(compiled, `C01-inferred-numeric-${surface}`, false, false, [], nativeProgram);
     writeFileSync(new URL("native-output.txt", root), output);
     assert.equal(output.trim().endsWith("numeric arrays: exact native values and costs"), true,
@@ -214,11 +240,12 @@ System.Console.WriteLine("numeric arrays: exact native values and costs");`;
 for (const surface of Array.from(["native", "js"]).slice(0, 2)) {
 test(`${surface} a nested generic union argument compiles in its actual native array layout`,
   { timeout: 300_000 }, () => {
-    const compiled = compileCsharpNativeUseSource({ surface, sourceText: `
+    const originalSource = `
       function consume<T>(values: (string | T)[]): void {}
       export function run(): number {
         const values = ["text", 9007199254740993, -9007199254740993, 1e100]; consume<number>(values); return 7;
-      }` });
+      }`;
+    const compiled = compileCsharpNativeUseSource({ surface, sourceText: originalSource });
     assertCsharpCompilationSucceeded(compiled);
     const output = executeCsharpConstruction(compiled, `C01-selected-generic-array-layout-${surface}`, false, false, [], `
       if (Tsonic.Generated.Index.run() != 7D) throw new System.Exception("the actual generic array boundary did not compile and run");

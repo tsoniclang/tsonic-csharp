@@ -7,11 +7,36 @@ import { createStructuralObjectShapeTarget } from "../../../dist/analysis/object
 import { csharpMethodValueType } from "../../../dist/target-model/types/method-values.js";
 import { csharpDelegateTargetType, getCsharpDelegateSignature } from "../../../dist/target-model/types/carriers/delegates.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
-import { csharpVoidTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
+import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../../dist/policy/types/resolution/substitution.js";
+import { combineCsharpTargetUnionMembers, csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpVoidTargetType } from "../../../dist/target-model/types/carriers/scalar-types.js";
 import { assertCsharpCompilationSucceeded, compileCsharpSource, withCsharpSessionRequest } from "../../helpers/direct-csharp-session.mjs";
 import { csharpProviderBindingFromResolution } from "../../../dist/providers/model/relation-resolver.js";
 import { csharpTargetTypeFromBinding } from "../../../dist/policy/types/storage/bindings.js";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+
+test("canonical native union inference rejects ambiguous arms and conflicting existing bindings", () => {
+  const first = { kind: "type-parameter", identity: "union:First", name: "First" };
+  const second = { kind: "type-parameter", identity: "union:Second", name: "Second" };
+  const integer = csharpSourcePrimitiveTargetType("int64");
+  const text = csharpStringTargetType();
+  const actual = combineCsharpTargetUnionMembers([integer, text]);
+  const pattern = csharpRuntimeUnionTargetType([text, first]);
+  const ambiguous = csharpRuntimeUnionTargetType([first, second]);
+  assert.equal(actual !== undefined && pattern !== undefined && ambiguous !== undefined, true,
+    "every supplied native sum is an existing admitted carrier");
+  const inferred = inferCsharpTargetTypeParameterBindings(pattern, actual, new Set([first.identity]));
+  assert.equal(inferred !== undefined && targetTypeRefEquals(inferred.get(first.identity), integer), true,
+    "the one remaining native integer arm binds by identity rather than its physical position");
+  assert.equal(targetTypeRefEquals(substituteTargetTypeParameters(pattern, inferred), actual), true,
+    "substitution uses the same canonical native sum as the actual argument");
+  assert.equal(inferCsharpTargetTypeParameterBindings(ambiguous, actual,
+    new Set([first.identity, second.identity])) === undefined, true,
+    "two remaining native arms do not choose a first-sibling or guessed binder");
+  assert.equal(inferCsharpTargetTypeParameterBindings({ kind: "tuple", elements: [first, pattern] },
+    { kind: "tuple", elements: [csharpSourcePrimitiveTargetType("int32"), actual] }, new Set([first.identity])) === undefined, true,
+    "a pre-existing exact integer binding cannot be overwritten by a conflicting union arm");
+});
 
 const policy = { projectTypes: { directSupertypes: () => [] }, providers: {
   findTargetBindingByTargetId: () => ({ kind: "missing" }),
@@ -61,6 +86,86 @@ test("one native method instantiation owns exact callback signatures, constraint
 });
 
 for (const surface of ["native", "js"]) {
+  test(`inferred generic union inputs retain completed native integer bindings on ${surface}`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+function nested<Value>(values: (string | Value)[]): (string | Value)[] { return values; }
+function fromCallback<Value>(make: () => (string | Value)[]): (string | Value)[] { return make(); }
+export function run(): boolean {
+  const values = ["text", 9007199254740993];
+  const direct = nested(values);
+  const called = fromCallback(() => values);
+  const before = direct[1];
+  direct[1] = 9007199254740995;
+  return direct === values && called === values && before === 9007199254740993 &&
+    called[1] === 9007199254740995 && called[0] === "text";
+}` });
+    assertCsharpCompilationSucceeded(compiled);
+    const generated = [...compiled.artifacts.values()].join("\n");
+    assert.equal(/\.ToArray\(|\.Clone\(|Convert\.ToDouble/u.test(generated), false,
+      "the existing generic body consumes the original exact native array without copying or floating repair");
+    executeCsharpConstruction(compiled, `generic-inferred-integer-union-${surface}`);
+  });
+  test(`a bare quantified input retains its native carrier rather than its implemented views on ${surface}`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+import type { int64 } from "@tsonic/core/types.js";
+interface Score { score: int64; }
+class Entry implements Score { score: int64 = 9007199254740993n; }
+function identity<Value>(value: Value): Value { return value; }
+function replace<Value extends object>(value: Value, replacement: Value): Value { return replacement; }
+function read<Value extends Score>(value: Value): int64 { return value.score; }
+export function run(): boolean {
+  const entry = new Entry();
+  const replacement = new Entry();
+  const selected = replace(entry, replacement);
+  return identity(entry) === entry && selected === replacement && selected !== entry &&
+    read(entry) === 9007199254740993n && read(selected) === 9007199254740993n;
+}` });
+    assertCsharpCompilationSucceeded(compiled);
+    assert.equal(/DynamicInvoke|TsValue|Convert\.ToDouble|\.ToArray\(|\.Clone\(/u.test([...compiled.artifacts.values()].join("\n")), false,
+      "direct quantified inputs retain exact native identity and widths without a copied implemented-view transport");
+    executeCsharpConstruction(compiled, `generic-direct-native-input-${surface}`);
+  });
+  test(`generic input binding uses its existing exact native implemented view on ${surface}`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+import type { int32, int64 } from "@tsonic/core/types.js";
+type Box<Value> = { value: Value };
+function first<Value>(box: Box<Value>): Value { return box.value; }
+function change<Value>(box: Box<Value>, value: Value): Box<Value> { box.value = value; return box; }
+export function run(): boolean {
+  const narrow: Box<int32> = { value: 7 as int32 };
+  const wide: Box<int64> = { value: 9007199254740993n as int64 };
+  const text: Box<string> = { value: "before" };
+  const alias = wide;
+  const before = first(wide);
+  const changed = change(wide, 9007199254740995n as int64);
+  return first(narrow) === 7 && before === 9007199254740993n && changed === wide && alias === wide &&
+    alias.value === 9007199254740995n && first(text) === "before" && change(text, "after") === text && text.value === "after";
+}` });
+    assertCsharpCompilationSucceeded(compiled);
+    assert.equal(/DynamicInvoke|TsValue|Convert\.ToDouble|\.ToArray\(|\.Select\(/u.test([...compiled.artifacts.values()].join("\n")), false,
+      "the selected input retains native width, original reference identity and the existing one generic body");
+    executeCsharpConstruction(compiled, `generic-implemented-native-input-${surface}`);
+  });
+  test(`native implemented input evidence cannot override explicit or conflicting generic bindings on ${surface}`, () => {
+    for (const [label, invocation] of [["explicit", "first<number>(signed)"], ["conflicting", "pair(signed, unsigned)"]]) {
+      const compiled = compileCsharpSource({ surface, sourceText: `
+import type { int32, uint32 } from "@tsonic/core/types.js";
+type Box<Value> = { value: Value };
+function first<Value>(box: Box<Value>): Value { return box.value; }
+function pair<Value>(left: Box<Value>, right: Box<Value>): Value { return left.value; }
+export function run(): boolean {
+  const signed: Box<int32> = { value: 7 as int32 };
+  const unsigned: Box<uint32> = { value: 9 as uint32 };
+  return ${invocation} === 7;
+}` });
+      assert.equal(compiled.sourceDiagnosticsText, "", `${label}: the checker admits the original logical number domain`);
+      assert.equal(compiled.targetDiagnostics.some(diagnostic => diagnostic.category === "error"), true,
+        `${label}: exact conflicting native evidence cannot choose the first input or change the explicit declaration contract`);
+      assert.equal(compiled.targetDiagnostics.every(diagnostic => diagnostic.code === "CSHARP_UNSUPPORTED_AST"), true,
+        `${label}: only the exact existing native admission refusal is expected, never an unrelated resource or invariant failure`);
+      assert.equal(compiled.artifacts.size, 0, `${label}: failed exact native admission publishes no artifacts`);
+    }
+  });
   test(`closed generic callback constraints use actual native numeric implementation metadata on ${surface}`, { timeout: 300_000 }, () => {
     const { compiled, value: numericBinding } = withCsharpSessionRequest({ surface, sourceText: `
 import type { int32, int64 } from "@tsonic/core/types.js";

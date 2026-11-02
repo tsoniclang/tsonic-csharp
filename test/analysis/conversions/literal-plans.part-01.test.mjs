@@ -51,7 +51,7 @@ test("an exact property-key requirement cannot borrow the same node's value lite
   const expression = value.names[2];
   const target = primitive("int64");
   const literalValues = analyzeSourceLiteralValues(value.source.ast, value.source.navigation.sourceFiles);
-  const onlyValue = analyzeCsharpExactLiteralSelections(literalValues, [{ expression, target }], value.nodes);
+  const onlyValue = analyzeCsharpExactLiteralSelections(literalValues, [{ expression, target, source: target }], value.nodes);
   assert.equal(onlyValue.exactLiteral.get(expression, target)?.kind, "resolved", "the sibling value-purpose record really exists");
   assert.equal(onlyValue.exactLiteral.get(expression, target, "property-key") === undefined, true,
     "the property-key purpose never falls back to value evidence");
@@ -98,7 +98,8 @@ test("Half authored midpoint neighbors follow native Double-to-Half semantics in
   const expected = [0x3c00, 0x3c00, 0x8000, 1];
   const nodeBits = spellings.map(token => new Uint16Array(new Float16Array([Math.f16round(Number(token))]).buffer)[0]);
   assert.deepEqual(nodeBits, expected, "Node parses each authored Double before rounding it to native Half");
-  const selected = checkedSourceLiteralValues(spellings).map(value => selectCsharpExactLiteralConversion(value, primitive("float16")));
+  const selected = checkedSourceLiteralValues(spellings).map(value =>
+    selectCsharpExactLiteralConversion(value, primitive("float16"), primitive("float16")));
   const expressions = selected.map((selection, index) => {
     assert.equal(selection.kind === "resolved" && selection.recipe.kind === "float" && selection.recipe.bits === expected[index], true,
       `${index}: the checked Double-to-Half value is selected before rendering`);

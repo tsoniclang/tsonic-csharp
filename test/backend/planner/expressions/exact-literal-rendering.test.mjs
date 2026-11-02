@@ -36,7 +36,7 @@ for (const [name, minimum, maximum] of [
     test(`native constant admission: ${name} ${boundary}`, () => {
       const target = primitive(name);
       const literal = { form: "numeric", number: value, integer: BigInt(value) };
-      const selected = selectCsharpExactLiteralConversion(literal, target);
+      const selected = selectCsharpExactLiteralConversion(literal, target, target);
       assert.equal(selected.kind, expected ? "resolved" : "rejected", "native integer range is decided before rendering");
       const admitted = analyzeCsharpLiteralAdmission({
         ast: { is: { IsNumericLiteral: () => true, IsBigIntLiteral: () => false,
@@ -166,9 +166,9 @@ test("sealed native constant proofs distinguish scalar recipes from source value
   for (const name of ["int8", "uint8", "int16", "uint16", "uint32"]) {
     const target = primitive(name);
     assert.equal(analyzeConstant(node, target, selectCsharpExactLiteralConversion(
-      { form: "numeric", integer: 0n, number: 0 }, target)), true, name + ": builtin integer recipe");
+      { form: "numeric", integer: 0n, number: 0 }, target, target)), true, name + ": builtin integer recipe");
     for (const literal of [{ form: "numeric", number: 0.5 }, { form: "numeric", number: Infinity }, undefined]) {
-      assert.equal(analyzeConstant(node, target, selectCsharpExactLiteralConversion(literal, target), literal), false,
+      assert.equal(analyzeConstant(node, target, selectCsharpExactLiteralConversion(literal, target, target), literal), false,
         name + ": unproven or non-integer values are not scalar constants");
     }
   }

@@ -16,6 +16,7 @@ import { nullishMemberStorageSource } from "../../../../tsonic/test/fixtures/nul
 import { contextualClassArgumentsSource } from "../../../../tsonic/test/fixtures/contextual-class-arguments.mjs";
 import { classUnionUpcastSource, anonymousClassUnionUpcastSource } from "../../../../tsonic/test/fixtures/class-union-upcasts.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { compileCsharpNativeUseSource } from "../../helpers/expected-native-uses.mjs";
 
 test("shared mutable arrays cannot silently widen their native element storage", () => {
   const compiled = compileCsharpSource({ surface: "js", capabilities: [nodejsCapability()],
@@ -25,8 +26,7 @@ test("shared mutable arrays cannot silently widen their native element storage",
 });
 
 for (const surface of Array.from([undefined, "js"]).slice(0, 2)) {
-test(`source rest arguments preserve native expansion and direct sequence transport (${surface ?? "native"})`, { timeout: 300_000 }, () => {
-    const compiled = compileCsharpSource({ ...(surface === undefined ? {} : { surface }), sourceText: `
+  const sourceText = `
       function sum(...values: number[]): number {
         let total = 0;
         for (const value of values) total += value;
@@ -40,20 +40,44 @@ test(`source rest arguments preserve native expansion and direct sequence transp
           sum(1, ...values, 4) === 10 && callable() === 0 && callable(1, 2) === 3 &&
           callable(...values) === 5 && callable(1, ...values) === 6;
       }
-    ` });
-    executeCsharpConstruction(compiled, `native-rest-boundary-${surface ?? "native"}`);
-    const source = compiled.artifacts.get("src/Index.cs");
-    // The native surface prints the int tokens; the js surface, where the literals read as float64, prints 1D
-    // (RULINGS 2026-10-22, native integer literal printing).
-    assert.match(source, surface === undefined ? /sum\(1, 2, 3\)/u : /sum\(1D, 2D, 3D\)/u);
-    assert.match(source, /return global::Tsonic\.Generated\.Index\.sum\(values\);/u);
-    assert.doesNotMatch(source, /sum\(\[\.\. values\]\)/u);
+    `;
+  test(`source rest arguments preserve native expansion and direct sequence transport (${surface ?? "native"})`, { timeout: 300_000 }, () => {
+    const original = compileCsharpNativeUseSource({ surface, sourceText });
+    assert.equal(original.sourceDiagnosticsText, "");
+    const expected = surface === "js"
+      ? "No exact C# implicit conversion relates 'target:Tsonic.CSharp.Js.JSArray`1<source:int64>' to 'target:Tsonic.CSharp.Js.JSArray`1<source:float64>'."
+      : "No exact C# implicit conversion relates 'array:1:source:int64' to 'array:1:source:float64'.";
+    const ast = original.nativeStage.source.ast;
+    const positions = original.nativeStage.diagnostics.map(issue => {
+      const range = issue.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
+      const source = issue.sourceNode === undefined ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode));
+      assert.equal(issue.code === "CSHARP_UNSUPPORTED_AST" && issue.message === expected &&
+        range?.kind === "authored" && source.slice(range.start, range.end) === "values", true,
+        "each original rest mismatch names both exact native carriers at the original array argument");
+      return range?.kind === "authored" ? range.start : undefined;
+    });
+    assert.equal(positions.length === 4 && new Set(positions).size === 4, true,
+      "all four original direct/spread/delegate boundaries are independently refused, not omitted or duplicated");
+    assert.equal(original.result.program === undefined && original.artifacts.size === 0, true,
+      "incompatible native arrays are never copied, silently widened or emitted with a fabricated conversion");
   });
+  for (const [variant, supportedSource] of [
+      ["declared", sourceText.replace("const values = [2, 3];", "const values: number[] = [2, 3];")],
+      ["written", sourceText.replace("const values = [2, 3];", "const values = [2.0, 3.0];")],
+    ]) test(`${variant} floating rest arguments preserve native expansion and direct sequence transport (${surface ?? "native"})`,
+    { timeout: 300_000 }, () => {
+      const compiled = compileCsharpSource({ surface,
+        sourceText: supportedSource.replace("let total = 0;", "let total: number = 0;") });
+      executeCsharpConstruction(compiled, `native-rest-boundary-${variant}-${surface ?? "native"}`);
+      const source = compiled.artifacts.get("src/Index.cs");
+      assert.match(source, /sum\(1D, 2D, 3D\)/u);
+      assert.match(source, /return global::Tsonic\.Generated\.Index\.sum\(values\);/u);
+      assert.doesNotMatch(source, /sum\(\[\.\. values\]\)/u);
+    });
 }
 
 for (const surface of Array.from([undefined, "js"]).slice(0, 2)) {
-test(`dense destructuring defaults preserve explicit absence, null and lazy evaluation (${surface ?? "native"})`, { timeout: 300_000 }, () => {
-    executeCsharpConstruction(compileCsharpSource({ ...(surface === undefined ? {} : { surface }), sourceText: `
+  const denseSource = `
       import { Exception } from "@tsonic/dotnet/System.js";
       let calls = 0;
       function fallback(): number { calls += 1; return calls; }
@@ -73,7 +97,27 @@ test(`dense destructuring defaults preserve explicit absence, null and lazy eval
         if (selected !== 4) throw new Exception("undefined-only default");
         return true;
       }
-    ` }), `dense-defaults-${surface ?? "native"}`);
+    `;
+  test(`dense destructuring defaults preserve explicit absence, null and lazy evaluation (${surface ?? "native"})`, () => {
+    const compiled = compileCsharpNativeUseSource({ surface, sourceText: denseSource });
+    assert.equal(compiled.sourceDiagnosticsText, "");
+    const issue = compiled.nativeStage.diagnostics[0];
+    const ast = compiled.nativeStage.source.ast;
+    const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
+    const owner = issue?.sourceNode === undefined ? undefined : ast.parent(issue.sourceNode);
+    const ownerRange = owner === undefined ? undefined : ast.authoredRange(owner);
+    const source = issue?.sourceNode === undefined ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode));
+    assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "CSHARP_UNSUPPORTED_AST" &&
+      issue.message === "No exact C# implicit conversion relates 'source:float64' to 'source:int64'." &&
+      range?.kind === "authored" && source.slice(range.start, range.end) === "assigned" &&
+      ownerRange?.kind === "authored" && source.slice(ownerRange.start, ownerRange.end) === "assigned = fallback()", true,
+      "the original later float assignment is refused at its exact int64 destination, not by retyping its earlier initializer");
+    assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
+      "a refused native assignment publishes no retargeted storage or partial program");
+  });
+  test(`declared floating dense defaults preserve explicit absence, null and lazy evaluation (${surface ?? "native"})`, { timeout: 300_000 }, () => {
+    executeCsharpConstruction(compileCsharpSource({ surface,
+      sourceText: denseSource.replace("let assigned = 0;", "let assigned: number = 0;") }), `dense-defaults-${surface ?? "native"}`);
   });
 }
 

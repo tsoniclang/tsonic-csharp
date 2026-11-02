@@ -16,7 +16,8 @@ import { csharpNullableTargetType } from "../../../dist/target-model/types/carri
 import { csharpNumericReturnBaselineCovered } from "../../../dist/policy/conversions/union-relations.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
-import { header, emptyProviders, compile, diagnosticLabel, accepted, arrays, constructedArrays, destinationBodies, actualDestinationEvidence, actualUnionDestinationEvidence } from "./inferred-numeric-array-elements.fixtures.mjs";
+import { header, emptyProviders, compile, diagnosticLabel, accepted, arrays, constructedArrays, destinationBodies, actualDestinationEvidence, actualUnionDestinationEvidence,
+  numericRangeReason, numericCommonReason, refused, arrayRefusal, contextualSource, laterArgumentContexts, arrayConversionRefusal, inferredTextUnion, declaredTextUnion } from "./inferred-numeric-array-elements.fixtures.mjs";
 
 test("inferred numeric return coverage preserves complete native union layouts without converting their arrays", () => {
   const integer = csharpSourcePrimitiveTargetType("int32");
@@ -171,14 +172,34 @@ test("authored native generic return ABIs are not rewritten by a nested logical 
 });
 
 for (const surface of ["native", "js"]){
-test(`${surface} inferred array binding and field storage retain their actual construction carrier`, () => {
-    const program = accepted(compile(surface, `
+  const originalStorageSource = `
       function select(values: number[]): number[] { return values; }
       export function local() { let localValues = [1, 2]; localValues[0] = 3; return localValues[0]; }
       export function authored() { let authoredValues: number[] = [1, 2]; authoredValues[0] = 1.5; return authoredValues; }
       export function destination() { let demandedValues = [1, 2]; return select(demandedValues); }
       export class Counter { values = [1, 2]; current() { return this.values[0]; } }
-    `));
+    `;
+  test(`${surface} inferred array binding and field storage retain their actual construction carrier`, () => {
+    const compiled = compile(surface, originalStorageSource);
+    assert.equal(compiled.sourceDiagnosticsText, "");
+    const issue = compiled.nativeStage.diagnostics[0];
+    const ast = compiled.nativeStage.source.ast;
+    const range = issue?.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
+    const source = issue?.sourceNode === undefined ? undefined : ast.getSourceText(ast.getSourceFile(issue.sourceNode));
+    const expected = surface === "native"
+      ? "No exact C# implicit conversion relates 'array:1:source:int64' to 'array:1:source:float64'."
+      : "No exact C# implicit conversion relates 'target:Tsonic.CSharp.Js.JSArray`1<source:int64>' to 'target:Tsonic.CSharp.Js.JSArray`1<source:float64>'.";
+    assert.equal(compiled.targetDiagnostics.length === 1 && issue.code === "CSHARP_UNSUPPORTED_AST" &&
+      issue.message === expected && range?.kind === "authored" && source.slice(range.start, range.end) === "demandedValues", true,
+      `the original later number[] call is refused at its exact int64-array argument, without retargeting storage; ${diagnosticLabel(compiled)}`);
+    assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
+      "the incompatible array conversion publishes no partial program or copied construction");
+  });
+  for (const [variant, sourceText] of [
+    ["declared", originalStorageSource.replace("let demandedValues = [1, 2]", "let demandedValues: number[] = [1, 2]")],
+    ["written", originalStorageSource.replace("let demandedValues = [1, 2]", "let demandedValues = [1.0, 2.0]")],
+  ]) test(`${surface} ${variant} floating destination preserves independent native integer storage`, () => {
+    const program = accepted(compile(surface, sourceText));
     const ast = program.source.ast;
     const found = new Set();
     const visit = node => {
@@ -188,8 +209,7 @@ test(`${surface} inferred array binding and field storage retain their actual co
         const initializer = declaration?.Initializer;
         if (initializer !== undefined && ast.is.IsArrayLiteralExpression(initializer)) {
           const name = ast.text(ast.name(node));
-          const expected = name === "localValues" || name === "values"
-            ? surface === "native" ? "int32" : "float64" : "float64";
+          const expected = name === "authoredValues" || name === "demandedValues" ? "float64" : "int64";
           const construction = program.records.nativeExpression.get(initializer)?.use;
           const stored = program.records.storageType.get(node);
           const read = program.records.valueRead.get(initializer)?.value;
@@ -197,7 +217,7 @@ test(`${surface} inferred array binding and field storage retain their actual co
             getCsharpArrayLiteralElementTargetType(construction.carrier)?.name === expected &&
             getCsharpArrayLiteralElementTargetType(stored)?.name === expected &&
             getCsharpArrayLiteralElementTargetType(read)?.name === expected, true,
-          `${name}: inferred mutable storage and fields consume the original native construction without a copy or a checker-number substitution`);
+          `${name}: declared/written floating values and unannotated native integers retain distinct original storage without copying`);
           found.add(name);
         }
       }
@@ -225,7 +245,7 @@ test(`${surface} inferred float32/${type} refuses precision loss (${order})`, ()
 }
 
 test(`${surface} native float32 inference and actual explicit destinations preserve their distinct contracts`, () => {
-    const program = accepted(compile(surface, `
+    const originalSource = `
       export function inferred(narrow: float32, signed: int16, unsigned: uint16): number {
         const narrowSigned = [narrow, signed]; const narrowUnsigned = [unsigned, narrow];
         const signedNarrow = [signed, narrow]; const unsignedNarrow = [narrow, unsigned];
@@ -238,7 +258,9 @@ test(`${surface} native float32 inference and actual explicit destinations prese
       export function explicit(narrow: float32, signed: int32): number {
         const actualDouble: number[] = [narrow, signed]; const actualSingle: float32[] = [narrow, signed];
         return actualDouble[1] + actualSingle[1];
-      }`));
+      }`;
+    refused(compile(surface, originalSource), [arrayRefusal(numericCommonReason, "[narrow, 16777217]")]);
+    const program = accepted(compile(surface, originalSource.replace("const integerPastSingle = [", "const integerPastSingle: number[] = [")));
     const carriers = arrays(program);
     for (const name of ["narrowSigned", "narrowUnsigned", "signedNarrow", "unsignedNarrow", "half", "quarter", "halfReverse", "actualSingle"]) assert.equal(
       carriers.get(name)?.kind === "source-primitive" && carriers.get(name)?.name === "float32", true,
@@ -273,9 +295,9 @@ test(`${surface} bare two arms and integer literal three arms retain every physi
     }
     for (const name of ["left", "middle", "right", "wrapped"]) {
       const arms = getCsharpRuntimeUnionArms(carriers.get(name), program.typeDefinitions);
-      assert.equal(arms?.length === 3 && ["int32", "uint32", "float64"].every(kind =>
+      assert.equal(arms?.length === 3 && ["int32", "uint32", "int64"].every(kind =>
         arms.some(arm => arm.kind === "source-primitive" && arm.name === kind)), true,
-      `${name}: actual integer peers and the canonical f64 literal arm remain distinct`);
+      `${name}: actual integer peers and the canonical int64 literal arm remain distinct`);
     }
     const genuine = getCsharpRuntimeUnionArms(carriers.get("genuine"), program.typeDefinitions);
     assert.equal(genuine?.length === 2 && ["int32", "int64"].every(kind => genuine.some(arm =>

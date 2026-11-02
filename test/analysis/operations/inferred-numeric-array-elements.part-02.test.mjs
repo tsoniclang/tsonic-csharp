@@ -16,7 +16,8 @@ import { csharpNullableTargetType } from "../../../dist/target-model/types/carri
 import { csharpNumericReturnBaselineCovered } from "../../../dist/policy/conversions/union-relations.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
-import { header, emptyProviders, compile, diagnosticLabel, accepted, arrays, constructedArrays, destinationBodies, actualDestinationEvidence, actualUnionDestinationEvidence } from "./inferred-numeric-array-elements.fixtures.mjs";
+import { header, emptyProviders, compile, diagnosticLabel, accepted, arrays, constructedArrays, destinationBodies, actualDestinationEvidence, actualUnionDestinationEvidence,
+  numericRangeReason, numericCommonReason, refused, arrayRefusal, contextualSource, laterArgumentContexts, arrayConversionRefusal, inferredTextUnion, declaredTextUnion } from "./inferred-numeric-array-elements.fixtures.mjs";
 
 for (const surface of ["native", "js"]){
 for (const [name, body] of [
@@ -34,7 +35,13 @@ test(`${surface} actual ${name} destination reaches the same numeric owner`, () 
 
 for (const [name, body] of Object.entries(destinationBodies)){
 test(`${surface} actual ${name} destination changes physical i32 element storage`, () => {
-    const program = accepted(compile(surface, body("float32", "runSingle") + body("number", "runDouble")));
+    const originalSource = body("float32", "runSingle") + body("number", "runDouble");
+    if (laterArgumentContexts.has(name)) refused(compile(surface, originalSource), [
+      arrayRefusal(numericCommonReason, "[narrow, signed]"), arrayRefusal(numericCommonReason, "[narrow, signed]"),
+    ]);
+    const program = accepted(compile(surface, laterArgumentContexts.has(name)
+      ? contextualSource(body("float32", "runSingle"), "float32") + contextualSource(body("number", "runDouble"), "number")
+      : originalSource));
     actualDestinationEvidence(program, ["float32", "float64"], name);
   });
 }

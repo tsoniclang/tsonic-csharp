@@ -16,6 +16,8 @@ import { csharpNullableTargetType } from "../../../dist/target-model/types/carri
 import { csharpNumericReturnBaselineCovered } from "../../../dist/policy/conversions/union-relations.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/core.js";
 import { createCsharpProviderRelationResolver } from "../../../dist/providers/native/projection/relation-resolution.js";
+import { combineCsharpTargetUnionMembers } from "../../../dist/target-model/types/carriers/runtime-carriers.js";
+import { getCsharpNullableElementTargetType } from "../../../dist/target-model/types/carriers/nullable.js";
 
 const header = 'import type { float32, float64, int16, uint16, int32, uint32, int64 } from "@tsonic/core/types.js";';
 
@@ -32,6 +34,33 @@ const accepted = compiled => {
     compiled.targetDiagnostics.map(issue => `${issue.code}: ${issue.message}`).join(" | "));
   return compiled.result.program;
 };
+const numericRangeReason = "An inferred numeric array literal is outside its declared or default native element range.";
+const numericCommonReason = "Inferred array elements require an exact common native numeric carrier; an explicit native array destination is required for a rounding conversion.";
+const refused = (compiled, expected) => {
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  const ast = compiled.nativeStage.source.ast;
+  const actual = compiled.nativeStage.diagnostics.map(issue => {
+    const range = issue.sourceNode === undefined ? undefined : ast.authoredRange(issue.sourceNode);
+    const file = issue.sourceNode === undefined ? undefined : ast.getSourceFile(issue.sourceNode);
+    return { code: issue.code, message: issue.message,
+      text: range?.kind === "authored" && file !== undefined ? ast.getSourceText(file).slice(range.start, range.end) : undefined };
+  });
+  assert.deepEqual(actual, expected, "every exact local diagnostic retains its native reason and authored expression");
+  assert.equal(compiled.result.program === undefined && compiled.artifacts.size === 0, true,
+    "failed native admission publishes no program, copied array or partial artifacts");
+};
+const arrayRefusal = (message, text) => ({ code: "CSHARP_ARRAY_ELEMENT_CARRIER_MISMATCH", message, text });
+const contextualSource = (source, element) => source.replaceAll("const values = [", `const values: ${element}[] = [`);
+const laterArgumentContexts = new Set(["argument", "explicit generic argument", "native generic receiver",
+  "nested generic argument", "nested generic receiver"]);
+const arrayConversionRefusal = (surface, source, target) => {
+  const wrap = element => surface === "native" ? { kind: "array", element } : csharpJsArrayTargetType(element);
+  return { code: "CSHARP_UNSUPPORTED_AST", message:
+    `No exact C# implicit conversion relates '${targetTypeRefKey(wrap(source))}' to '${targetTypeRefKey(wrap(target))}'.`, text: "values" };
+};
+const inferredTextUnion = () => combineCsharpTargetUnionMembers([csharpStringTargetType(),
+  csharpSourcePrimitiveTargetType("int64"), csharpSourcePrimitiveTargetType("float64")]);
+const declaredTextUnion = () => combineCsharpTargetUnionMembers([csharpStringTargetType(), csharpSourcePrimitiveTargetType("float64")]);
 
 function arrays(program) {
   const selected = new Map();
@@ -143,11 +172,13 @@ function actualUnionDestinationEvidence(program, label) {
   for (const node of ast.elements(expression).slice(1)) {
     const literal = program.records.exactLiteral.get(node, csharpSourcePrimitiveTargetType("float64"));
     const native = program.records.nativeExpression.get(node)?.use;
+    const expected = "float64";
     assert.equal(literal?.kind === "source-representation" && native?.kind === "converted" &&
-      native.input.kind === "value" && native.input.type.kind === "source-primitive" && native.input.type.name === "float64" &&
+      native.input.kind === "value" && native.input.type.kind === "source-primitive" && native.input.type.name === expected &&
       targetTypeRefKey(native.target) === targetTypeRefKey(element), true,
-    `${label}: source-representation literals reach their actual admitted native double union endpoint`);
+    `${label}: written floating array syntax gives every unannotated token its native double union endpoint`);
   }
 }
 
-export { header, emptyProviders, compile, diagnosticLabel, accepted, arrays, constructedArrays, destinationBodies, actualDestinationEvidence, actualUnionDestinationEvidence };
+export { header, emptyProviders, compile, diagnosticLabel, accepted, arrays, constructedArrays, destinationBodies, actualDestinationEvidence, actualUnionDestinationEvidence,
+  numericRangeReason, numericCommonReason, refused, arrayRefusal, contextualSource, laterArgumentContexts, arrayConversionRefusal, inferredTextUnion, declaredTextUnion };

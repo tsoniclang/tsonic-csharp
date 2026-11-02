@@ -134,6 +134,18 @@ export function effects(): boolean {
 ` + destinationPrograms.map(program => program.source).join("\n") + "\n" +
   unionDestinationPrograms.map(program => program.source).join("\n");
 
+let supportedSourceText = sourceText
+  .replace("export function integerPastSingle(narrow: float32) {", "export function integerPastSingle(narrow: float32): number[] {")
+  .replace("const hugeValues = [", "const hugeValues: (int32 | uint32 | number)[] = [");
+for (const program of destinationPrograms) if (["Argument", "GenericArgument", "Receiver"].includes(program.context)) {
+  supportedSourceText = supportedSourceText.replace(program.source,
+    program.source.replace("const values = [", `const values: ${program.native === "float" ? "float32" : "number"}[] = [`));
+}
+supportedSourceText += `
+export function writtenNegativeZero() { return -0.0; }
+export function declaredNegativeZero(): number { return -0; }
+`;
+
 function carriers(program) {
   const result = new Map();
   const ast = program.source.ast;
@@ -196,7 +208,7 @@ const operationControls = [
 function expectedOperationRefusals(operation, size) {
   const primitive = csharpSourcePrimitiveTargetType;
   const union = combineCsharpTargetUnionMembers([primitive("int32"), primitive("uint32"),
-    ...(size === 3 ? [primitive("float64")] : [])]);
+    ...(size === 3 ? [primitive("int64")] : [])]);
   const refused = (message, text, code = "CSHARP_UNSUPPORTED_AST") => ({ code, message, text });
   const conversion = (text, source = union, target = primitive("float64")) => refused(
     `No exact C# implicit conversion relates '${targetTypeRefKey(source)}' to '${targetTypeRefKey(target)}'.`, text);
@@ -221,4 +233,4 @@ function expectedOperationRefusals(operation, size) {
   }
 }
 
-export { destinationBodies, destinationPrograms, unionDestinationPrograms, sourceText, carriers, nativeArrayElements, physicalForms, operationControls, expectedOperationRefusals };
+export { destinationBodies, destinationPrograms, unionDestinationPrograms, sourceText, supportedSourceText, carriers, nativeArrayElements, physicalForms, operationControls, expectedOperationRefusals };
