@@ -416,7 +416,6 @@ export function analyzeCsharpObjectShapes(
         return Object.freeze(shape);
       };
       const completeShape = (shape: CsharpObjectShapeFact): CsharpObjectShapeFact => {
-        freezeShape(shape);
         const canonical = byTarget.get(targetTypeRefKey(shape.targetType)) ?? shape;
         const existing = completedShapes.get(canonical);
         if (existing !== undefined) return existing;
@@ -424,6 +423,13 @@ export function analyzeCsharpObjectShapes(
         completedShapes.set(canonical, selected);
         return selected;
       };
+      for (const literal of objectLiterals.keys()) {
+        const shape = byNode.get(literal);
+        if (shape !== undefined) freezeShape(shape);
+        for (const result of literalResults.get(literal)?.values() ?? []) {
+          if (result.kind === "resolved") freezeShape(result.shape);
+        }
+      }
       for (const shape of admittedShapes) completeShape(shape);
       for (const [node, shape] of byNode) {
         const completed = completeShape(shape);
