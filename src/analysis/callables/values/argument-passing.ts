@@ -7,7 +7,7 @@ import type { CsharpStorageClassifications } from "../../../target-model/records
 import type { CsharpTargetOperationClassifications } from "../../../target-model/records/operations/operations.js";
 import type { CsharpElementAdmissionRecords } from "../../../target-model/records/objects/element-admission.js";
 import type { CsharpTargetParameter } from "../../../target-model/types/model.js";
-import { isCsharpJsValueTargetType, csharpSourcePrimitiveTargetType } from "../../../target-model/types/index.js";
+import { isCsharpJsValueTargetType } from "../../../target-model/types/index.js";
 import { csharpConstructorBaseCall } from "../emission/constructor-entry.js";
 import { createCsharpArgumentPassingRecords } from "../../program/records/calls/argument-passing.js";
 import { failTargetAnalysisInvariant } from "@tsonic/target-api/artifacts";
@@ -99,7 +99,7 @@ export function analyzeCsharpArgumentPassing(input: { readonly source: TargetSou
     const deletion = input.operations.elementDeletion.get(node);
     if (deletion?.kind === "resolved") requests.push({ node: deletion.index, target: deletion.keyType, passing: "by-value", parameter: undefined });
     const mutation = input.operations.jsArrayMutation.get(node);
-    if (mutation?.kind === "set-length") requests.push({ node: mutation.value, target: csharpSourcePrimitiveTargetType("float64"), passing: "by-value", parameter: undefined });
+    if (mutation?.kind === "set-length") requests.push({ node: mutation.value, target: mutation.valueType, passing: "by-value", parameter: undefined });
   }
   const passing = new Map<Node, CsharpArgumentPassing>();
   const projections = new Map<Node, Map<CsharpTargetParameter, boolean>>();

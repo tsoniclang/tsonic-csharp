@@ -4,6 +4,7 @@ import type { Node } from "@tsonic/tsts";
 import { getCsharpJsArrayMutationPolicy } from "../../types/index.js";
 
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/carriers/scalar-types.js";
 export function selectCsharpNativeArrayLengthWrite(
   receiver: TargetTypeRef | undefined, receiverExpression: Node, value: Node,
 ): CsharpJsArrayMutationSelection {
@@ -19,6 +20,7 @@ export function selectCsharpNativeArrayLengthWrite(
     kind: "set-length",
     receiver: receiverExpression,
     value,
+    valueType: csharpSourcePrimitiveTargetType("float64"),
     targetMemberName: mutation.setLengthMemberName,
   };
 }

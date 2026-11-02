@@ -16,7 +16,7 @@ import { csharpNeverTargetType } from "../../../../target-model/types/carriers/s
 import { nextState } from "./state.js";
 import { sourceFactSubjectsForNode, definedValues, resolveCsharpUnionMemberCarrier } from "./source-evidence.js";
 import { sourcePrimitiveFactKey } from "@tsonic/tsts";
-import { sourceTransformedTypeFactEvidenceNodes, sourceTupleElementTypeEvidenceNodes, sourceTypeSyntaxIsCompositional, sourceTypeSyntaxRoot, sourceIntegerInduction, sourceCallableValueParameters } from "@tsonic/target-api/source";
+import { sourceTransformedTypeFactEvidenceNodes, sourceTupleElementTypeEvidenceNodes, sourceTypeSyntaxIsCompositional, sourceTypeSyntaxRoot, sourceIntegerInduction, sourceCallableValueParameters, sourceExpressionCallArgument } from "@tsonic/target-api/source";
 import { substituteTargetTypeParameters } from "../../../../policy/types/resolution/substitution.js";
 import { targetTypeRefKey, targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 import { reconcileCsharpSelectedTargetType, retainCsharpBroadValueCarrier } from "../../../../policy/types/resolution/selected-type-evidence.js";
@@ -495,7 +495,14 @@ export function selectCsharpContextualParameterCarrier(
   const callable = queries.types.callable(contextual.component.selectedType);
   const restBinding = host.ast.as.AsParameterDeclaration(declaration)?.DotDotDotToken !== undefined;
   if (index < 0 || callable === undefined) return { kind: "not-applicable" };
-  let parameterState = bindCsharpSourceTypeArguments(scope, contextual.component.selectedType, queries, nextState(state));
+  const argument = sourceExpressionCallArgument(owner, { ast: host.ast, semantics: { forNode: host.semanticsFor } });
+  const call = argument === undefined ? undefined : host.semanticsFor(argument.call).operations.call(argument.call);
+  const slots = call?.sourceArgumentBindings.filter(binding => binding.sourceArgumentIndex === argument?.argumentIndex && binding.sourceForm === "value");
+  const contextualCarrier = argument === undefined
+    ? scope.resolveSourceTypeComponentEvidence(contextual.component, queries, nextState(state))
+    : call === undefined || slots?.length !== 1 ? undefined
+      : scope.resolveSourceCallArgumentParameter(call, slots[0]!, queries.sourceFile, new Set([argument.argumentIndex]));
+  let parameterState = bindCsharpSourceTypeArguments(scope, contextual.component.selectedType, contextualCarrier, queries, nextState(state));
   const ownParameters = host.ast.typeParameters(owner);
   if (ownParameters.length !== 0) {
     const contextualParameters = callable?.result.declaration === undefined ? []
@@ -510,7 +517,8 @@ export function selectCsharpContextualParameterCarrier(
     parameterState = csharpSourceBindings(contextualParameters as readonly Node[], ownSources as readonly Type[],
       ownTargets as readonly TargetTypeRef[], parameterState);
   }
-  const nativeContract = parameterState === undefined ? undefined : scope.resolveCallableEvidence(callable, queries, parameterState);
+  const nativeContract = parameterState === undefined ? undefined : ownParameters.length === 0 ? contextualCarrier
+    : scope.resolveCallableEvidence(callable, queries, parameterState);
   const signature = getCsharpCallableValueSignature(nativeContract);
   const restIndex = signature?.restParameterIndex;
   const nativeParameter = signature?.parameters[restIndex !== undefined && index >= restIndex ? restIndex : index];
@@ -564,7 +572,9 @@ export function resolveSourceValueResult(
     return csharpSourceValueResult(host.bindingProjection(declaration, sourceFile)?.bindingCarrier);
   }
   const declarationQueries = host.semantics(sourceFile);
-  const induction = sourceIntegerInduction(declaration, host.ast, host.navigation, {
+  const numericInitializer = syntax.type === undefined && syntax.initializer !== undefined &&
+    host.literalValues.literalValue.get(syntax.initializer)?.numeric !== undefined;
+  const induction = numericInitializer ? undefined : sourceIntegerInduction(declaration, host.ast, host.navigation, {
     sourceFacts: host.sourceFacts, semanticsFor: host.semanticsFor,
   });
   if (induction !== undefined) {
@@ -627,7 +637,6 @@ export function resolveSourceValueResult(
     }
   }
   const arrayInitializer = host.ast.is.IsArrayLiteralExpression(syntax.initializer);
-  const numericInitializer = syntax.type === undefined && host.literalValues.literalValue.get(syntax.initializer)?.numeric !== undefined;
   const declarationKind = host.ast.variableDeclarationKind(declaration);
   const mutableVariable = syntax.type === undefined && host.ast.is.IsVariableDeclaration(declaration) &&
     (declarationKind === "let" || declarationKind === "var");

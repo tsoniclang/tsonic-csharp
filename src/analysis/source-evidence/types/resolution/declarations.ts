@@ -53,7 +53,9 @@ export function resolveSelectedDeclarationResult(
       !host.navigation.isProjectDeclaration(declaration)
     ? undefined
     : declarationResultTypeNode(declaration);
-  const declarationSourceFile = declarationType === undefined
+  const completedDeclaration = declaration !== undefined && declarationType === undefined &&
+    host.ast.is.IsPropertyDeclaration(declaration) && host.navigation.isProjectDeclaration(declaration);
+  const declarationSourceFile = declaration === undefined
     ? queries.sourceFile
     : host.ast.getSourceFile(declaration) ?? queries.sourceFile;
   const unchanged = declaredMemberType !== undefined && semanticType !== undefined &&
@@ -64,10 +66,11 @@ export function resolveSelectedDeclarationResult(
     ? queries.types.refinement(declaredMemberType, semanticType) : undefined;
   const excludesNullish = refinement?.kind === "members" && refinement.types.length > 0 &&
     refinement.types.every(type => !queries.types.isNullish(type));
-  const authoredState = declarationType !== undefined && (unchanged || removesNullish)
+  const authoredState = completedDeclaration || declarationType !== undefined && (unchanged || removesNullish)
     ? csharpSourceStorageContext(host, { ...state, sourceStorageSubject: undefined }, declaration)
     : state;
-  const authored = resolveAuthoredAndSelectedSourceType(
+  const authored = completedDeclaration ? resolveNodeWithState(declaration, declarationSourceFile, nextState(authoredState))
+    : resolveAuthoredAndSelectedSourceType(
     declarationType,
     declarationSourceFile,
     declarationType !== undefined && (unchanged || removesNullish) ? undefined : semanticType,
@@ -77,7 +80,7 @@ export function resolveSelectedDeclarationResult(
   const selected = authored !== undefined && declaration !== undefined && host.ast.questionToken(declaration) !== undefined
     ? csharpNullableTargetType(authored) : authored;
   const result = instantiate(selected);
-  return declarationType !== undefined && (removesNullish || excludesNullish) && result !== undefined
+  return (declarationType !== undefined || completedDeclaration) && (removesNullish || excludesNullish) && result !== undefined
     ? getCsharpNullableElementTargetType(result) ?? getCsharpGenericOptionalParts(result)?.element ?? result
     : result;
 }

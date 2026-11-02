@@ -12,7 +12,8 @@ import { csharpRuntimeLocationTargetType } from "../../../../target-model/types/
 
 import { validateCsharpProviderConstraints } from "./constraint-satisfaction.js";
 
-import type { CsharpProviderArgumentMapping, CsharpSelectedTargetCall } from "../../../../target-model/records/objects/members.js";
+import type { CsharpProviderArgumentMapping, CsharpSelectedTargetCall, CsharpSelectedTargetMethodTypeArgument } from "../../../../target-model/records/objects/members.js";
+import type { CsharpTargetMember, TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { ResolvedSourceCallInfo } from "../../../../target-model/records/calls/source-calls.js";
 
 type CsharpProviderSignatureRelation = Extract<
@@ -40,12 +41,22 @@ import type { CsharpProviderCallInstantiationHost } from "../../../../policy/mod
 import { resolveProviderBindingTypeArguments, resolveMethodTypeArguments, resolveInvocationTypeArguments } from "./type-arguments.js";
 import { targetTypeParameterSubstitutions, relateCallArguments } from "../../../../policy/operations/members/instantiation-arguments.js";
 import { validateArgumentsTargetSelectedParameters } from "./arguments.js";
-export function instantiateCsharpProviderCall(
+export interface CsharpFormedProviderCallSignature {
+  readonly relation: CsharpProviderSignatureRelation;
+  readonly targetMember: CsharpTargetMember;
+  readonly bindingArguments: readonly CsharpSelectedTargetMethodTypeArgument[];
+  readonly methodArguments: readonly CsharpSelectedTargetMethodTypeArgument[];
+  readonly invocationArguments: readonly CsharpSelectedTargetMethodTypeArgument[];
+}
+
+export function formCsharpProviderCallSignature(
   host: CsharpProviderCallInstantiationHost,
   relation: CsharpProviderSignatureRelation,
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
-): CsharpProviderCallInstantiation {
+  nativeArguments: readonly TargetTypeRef[],
+): { readonly kind: "resolved"; readonly signature: CsharpFormedProviderCallSignature } |
+  { readonly kind: "rejected"; readonly reason: string } {
   const relationError = validateProviderCallRelation(
     host.sourceFacts,
     relation,
@@ -59,6 +70,7 @@ export function instantiateCsharpProviderCall(
     relation,
     source,
     sourceFile,
+    nativeArguments,
   );
   if (bindingArguments === undefined) {
     return {
@@ -68,11 +80,9 @@ export function instantiateCsharpProviderCall(
     };
   }
   const methodArguments = resolveMethodTypeArguments(
-    host,
     relation,
     source,
-    sourceFile,
-    bindingArguments.map(argument => argument.targetType),
+    nativeArguments,
   );
   if (methodArguments === undefined) {
     return {
@@ -82,10 +92,9 @@ export function instantiateCsharpProviderCall(
     };
   }
   const invocationArguments = resolveInvocationTypeArguments(
-    host.types,
     relation,
     source,
-    sourceFile,
+    nativeArguments,
   );
   if (invocationArguments === undefined) {
     return {
@@ -121,6 +130,16 @@ export function instantiateCsharpProviderCall(
   if (constraintError !== undefined) {
     return { kind: "rejected", reason: constraintError };
   }
+  return { kind: "resolved", signature: { relation, targetMember, bindingArguments, methodArguments, invocationArguments } };
+}
+
+export function instantiateCsharpProviderCall(
+  host: CsharpProviderCallInstantiationHost,
+  signature: CsharpFormedProviderCallSignature,
+  source: ResolvedSourceCallInfo,
+  sourceFile: SourceFile,
+): CsharpProviderCallInstantiation {
+  const { relation, targetMember, bindingArguments, methodArguments, invocationArguments } = signature;
   const arguments_ = relateCallArguments(relation, targetMember, source);
   if (arguments_ === undefined) {
     return {

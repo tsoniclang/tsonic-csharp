@@ -6,7 +6,7 @@ import type { CsharpProviderOperationResolution } from "../relations.js";
 import { resolveCsharpProviderCallRelations } from "../relations.js";
 
 import type { CsharpInstantiatedProviderCall, CsharpProviderCallInstantiation } from "./instantiation.js";
-import { compareInstantiatedProviderCalls, instantiateCsharpProviderCall } from "./instantiation.js";
+import { compareInstantiatedProviderCalls, formCsharpProviderCallSignature, instantiateCsharpProviderCall } from "./instantiation.js";
 import { selectCsharpInheritedConstructorTarget } from "./implicit-super.js";
 
 type ResolvedSourceCallInfo = NonNullable<
@@ -122,14 +122,15 @@ function selectResolvedProviderCall(
     { readonly kind: "resolved" }
   >,
 ): CsharpProviderCallSelection {
+  const nativeArguments = host.types.resolveSourceCallTypeArguments(source, sourceFile);
+  if (nativeArguments === undefined) return { kind: "missing",
+    reason: "The selected provider source signature has no complete canonical native type-argument vector." };
   const candidates = resolution.relations
     .filter((relation) => relation.kind === "signature")
-    .map((relation) => instantiateCsharpProviderCall(
-      host,
-      relation,
-      source,
-      sourceFile,
-    ));
+    .map((relation) => {
+      const formation = formCsharpProviderCallSignature(host, relation, source, sourceFile, nativeArguments);
+      return formation.kind === "rejected" ? formation : instantiateCsharpProviderCall(host, formation.signature, source, sourceFile);
+    });
   const accepted = candidates
     .filter((candidate): candidate is Extract<
       CsharpProviderCallInstantiation,

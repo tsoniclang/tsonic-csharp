@@ -1,5 +1,5 @@
 import { providerVirtualDeclarationFactKey, type Node, type SourceFile, type Type } from "@tsonic/tsts";
-import { sourceDeclarationIsModuleScoped, sourceEnclosingCallable,
+import { Node_Initializer, sourceDeclarationIsModuleScoped, sourceEnclosingCallable,
   type SourceFileSemantics, type SourceTypeComponentEvidence } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
@@ -17,6 +17,7 @@ type LiteralContextHost = Pick<CsharpTypePolicyBaseHost, "ast" | "navigation" | 
 
 interface CsharpLiteralContext {
   readonly component: SourceTypeComponentEvidence;
+  readonly own: boolean;
   readonly declarations: readonly Node[];
   readonly source: Node;
   readonly returnedFrom?: Node;
@@ -29,10 +30,20 @@ export function selectCsharpLiteralDeclarationContext(
 ): CsharpLiteralContext | undefined {
   const { ast, navigation } = host;
   let current = expression;
-  while (ast.is.IsParenthesizedExpression(ast.parent(current))) current = ast.parent(current)!;
+  for (let parent = ast.parent(current); parent !== undefined; parent = ast.parent(current)) {
+    const conditional = ast.is.IsConditionalExpression(parent) ? ast.as.AsConditionalExpression(parent) : undefined;
+    if (!ast.is.IsParenthesizedExpression(parent) && conditional?.WhenTrue !== current && conditional?.WhenFalse !== current) break;
+    current = parent;
+  }
   const declaration = ast.parent(current);
   const variable = declaration !== undefined && ast.is.IsVariableDeclaration(declaration)
     ? ast.as.AsVariableDeclaration(declaration) : undefined;
+  const ownType = declaration === undefined ? undefined : ast.typeNode(declaration);
+  if (ownType !== undefined && Node_Initializer(ast, declaration) === current) {
+    const selectedType = queries.types.authoredType(ownType);
+    return selectedType === undefined ? undefined : { component: { selectedType, authoredTypeNode: ownType, declaration },
+      own: true, declarations: variable === undefined ? [] : [declaration!], source: expression };
+  }
   if (ast.is.IsObjectLiteralExpression(expression)) {
     let initializer = current;
     let owner = declaration;
@@ -49,7 +60,7 @@ export function selectCsharpLiteralDeclarationContext(
     if (binding?.Initializer === initializer && binding.Type !== undefined &&
       ast.is.IsObjectBindingPattern(ast.name(owner!))) {
       const selectedType = queries.types.expressionType(expression);
-      return selectedType === undefined ? undefined : { component: { selectedType, declaration: owner },
+      return selectedType === undefined ? undefined : { component: { selectedType, declaration: owner }, own: true,
         declarations: [], source: expression };
     }
   }
@@ -59,12 +70,14 @@ export function selectCsharpLiteralDeclarationContext(
     if (authoredTypeNode !== undefined) {
       const selectedType = host.semanticsFor(authoredTypeNode).types.authoredType(authoredTypeNode);
       return selectedType === undefined ? undefined : { component: { selectedType, authoredTypeNode, declaration: callable },
+        own: locals.every(declaration => ast.typeNode(declaration) !== undefined),
         declarations: locals, source: expression, returnedFrom: callable };
     }
     const callableQueries = host.semanticsFor(callable);
     const contextual = callableQueries.types.contextualValueSelection(callable);
     const signature = contextual.kind === "selected" ? callableQueries.types.callable(contextual.component.selectedType) : undefined;
-    return signature === undefined ? undefined : { component: signature.result, declarations: locals,
+    return signature === undefined ? undefined : { component: signature.result,
+      own: locals.every(declaration => ast.typeNode(declaration) !== undefined), declarations: locals,
       source: expression, returnedFrom: callable };
   };
   const parent = ast.parent(current);
@@ -76,8 +89,9 @@ export function selectCsharpLiteralDeclarationContext(
     const selected = callable === undefined ? undefined : returnContext(callable, declarations);
     if (selected !== undefined) return selected;
   }
-  const direct = queries.types.contextualValueSelection(expression);
-  if (direct.kind === "selected") return { component: direct.component, declarations, source: expression };
+  const direct = queries.types.contextualValueSelection(current);
+  if (direct.kind === "selected") return { component: direct.component,
+    own: variable?.Initializer !== current || variable.Type !== undefined, declarations, source: expression };
   if (declarations.length === 0) return undefined;
   const list = ast.parent(declaration!);
   const statement = ast.parent(list);
@@ -122,7 +136,7 @@ export function selectCsharpLiteralDeclarationContext(
   }
   const selectedType = host.semanticsFor(authoredTypeNode).types.authoredType(authoredTypeNode);
   return selectedType === undefined ? undefined : { component: { selectedType, authoredTypeNode,
-    declaration: nextDeclaration }, declarations, source: expression };
+    declaration: nextDeclaration }, own: false, declarations, source: expression };
 }
 
 interface CsharpNativeConstructionHost extends Pick<CsharpTypePolicyBaseHost,

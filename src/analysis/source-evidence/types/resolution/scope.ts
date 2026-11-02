@@ -271,6 +271,7 @@ export interface CsharpTypeResolutionScope {
       readonly arguments: readonly TargetTypeRef[];
       readonly substitutions: ReadonlyMap<string, TargetTypeRef>;
       readonly sourceArguments: readonly Type[];
+      readonly state: CsharpTypeResolutionState;
     }
   | undefined;
   resolveSourceCallSelectedType(

@@ -72,8 +72,21 @@ export function collectCsharpConversionRequirements(input: CsharpConversionRequi
       const carrier = expectedTypes.arrayLiteralCarrier.get(node, target);
       return carrier === undefined ? [target] : [target, carrier];
     }) : expectedTargets;
-    literalRequests.requestReads(node, sourceTypes, literalTargets, operations, valueReads.valueRead.get(node)?.source);
-    if (policy.literalValues.literalValue.get(node) !== undefined) {
+    const literal = policy.literalValues.literalValue.get(node);
+    let literalRoot = node;
+    if (literal !== undefined) {
+      for (let parent = policy.ast.parent(literalRoot); parent !== undefined; parent = policy.ast.parent(literalRoot)) {
+        if (!policy.ast.is.IsParenthesizedExpression(parent) &&
+          !(policy.ast.is.IsPrefixUnaryExpression(parent) && policy.literalValues.literalValue.get(parent) !== undefined)) break;
+        literalRoot = parent;
+      }
+    }
+    const literalParent = policy.ast.parent(literalRoot);
+    const propertyName = literalParent !== undefined && policy.ast.is.IsComputedPropertyName(literalParent) &&
+      policy.ast.as.AsComputedPropertyName(literalParent)?.Expression === literalRoot ? literalParent : literalRoot;
+    const propertyKeyOnly = literal !== undefined && policy.semanticsFor(propertyName).propertyNames.get(propertyName) !== undefined;
+    if (!propertyKeyOnly) literalRequests.requestReads(node, sourceTypes, literalTargets, operations, valueReads.valueRead.get(node)?.source);
+    if (literal !== undefined && !propertyKeyOnly) {
       const source = valueReads.valueRead.get(node)?.value;
       if (source !== undefined) for (const target of expectedTypes.expectedType.get(node)) {
         classifyExpression(node, source, target, "implicit", expectedTypes.exactIntegerConversion.get(node, target));

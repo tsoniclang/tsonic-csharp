@@ -1,5 +1,6 @@
 import type { CsharpTypedArrayMutation, CsharpTypedArrayUpdate } from "./typed-array-mutations.js";
 import type { Node } from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../types/model.js";
 
 export type CsharpJsArrayMutationSelection =
   | CsharpTypedArrayMutation
@@ -8,6 +9,7 @@ export type CsharpJsArrayMutationSelection =
       readonly kind: "set-length";
       readonly receiver: Node;
       readonly value: Node;
+      readonly valueType: TargetTypeRef;
       readonly targetMemberName: string;
     }
   | {

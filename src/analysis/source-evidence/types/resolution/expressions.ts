@@ -26,6 +26,10 @@ import { getCsharpNullableElementTargetType } from "../../../../target-model/typ
 import { resolveCsharpContextualLiteralCarrier } from "./contextual-literals.js";
 import { resolveCsharpSourceLiteralTargetType } from "../../../../policy/conversions/source-literals.js";
 import { csharpLiteralIsRepresentableAs } from "../../../../policy/conversions/literals.js";
+import { selectCsharpLiteralDeclarationContext } from "../../../objects/native-construction-demand.js";
+import { csharpUnionLeaves } from "../../../../target-model/types/union-relations.js";
+import { getCsharpTaskResultTargetType } from "../../../../target-model/types/carriers/delegates.js";
+import { selectCsharpJsArrayMutation } from "../../../operations/collections/js-array-mutations.js";
 
 export function resolveSelectedExpressionType(
   scope: CsharpTypeResolutionScope,
@@ -69,11 +73,12 @@ export function resolveSelectedExpressionResult(
 }
 
 function resolveSelectedExpressionCarrier(
-  { host, resolveNodeWithState, resolveNodeValueWithState, resolveReadStorage, resolveNonNullExpressionType, resolveMemberAccessTargetType, resolveSourceCallArgumentParameter, resolveSelectedType, sourceUnions }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   node: Node,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
+  const { host, resolveNodeWithState, resolveNodeValueWithState, resolveReadStorage, resolveNonNullExpressionType, resolveMemberAccessTargetType, sourceUnions } = scope;
   if (
     host.ast.is.IsAsExpression(node) ||
     host.ast.is.IsTypeAssertion(node)
@@ -148,7 +153,7 @@ function resolveSelectedExpressionCarrier(
   ) {
     const literal = host.literalValues.literalValue.get(node);
     const literalType = literal?.numeric?.kind === "authored"
-      ? resolveCsharpSourceLiteralCarrier({ host, resolveSourceCallArgumentParameter, resolveSelectedType, resolveReadStorage }, node, queries) : undefined;
+      ? resolveCsharpSourceLiteralCarrier(scope, node, queries) : undefined;
     if (literalType !== undefined) return literalType;
     const operand = host.ast.is.IsPrefixUnaryExpression(node)
       ? host.ast.as.AsPrefixUnaryExpression(node)?.Operand
@@ -180,11 +185,11 @@ function resolveSelectedExpressionCarrier(
 }
 
 export function resolveCsharpSourceLiteralCarrier(
-  { host, resolveSourceCallArgumentParameter, resolveSelectedType, resolveReadStorage }: Pick<CsharpTypeResolutionScope,
-    "host" | "resolveSourceCallArgumentParameter" | "resolveSelectedType" | "resolveReadStorage">,
+  scope: CsharpTypeResolutionScope,
   node: Node,
   queries: SourceFileSemantics,
 ): TargetTypeRef | undefined {
+  const { host, resolveSourceCallArgumentParameter, resolveReadStorage } = scope;
   const literal = host.literalValues.literalValue.get(node);
   const defaultType = resolveCsharpSourceLiteralTargetType(literal);
   if (literal?.numeric === undefined) return defaultType;
@@ -194,7 +199,10 @@ export function resolveCsharpSourceLiteralCarrier(
   const binary = parent === undefined ? undefined : host.ast.as.AsBinaryExpression(parent);
   const operator = parent === undefined ? undefined : sourceOperatorFromKindName(host.ast.operatorKindName(parent));
   if (binary?.Right === current && operator !== undefined && isCsharpAssignmentOperator(operator)) {
-    const target = resolveReadStorage(binary.Left, queries.sourceFile);
+    const mutation = binary.Left !== undefined && host.ast.is.IsPropertyAccessExpression(binary.Left)
+      ? selectCsharpJsArrayMutation({ ...host, projectTypes: host.projectTypes(), types: scope.policy }, parent!, queries.sourceFile)
+      : undefined;
+    const target = mutation?.kind === "set-length" ? mutation.valueType : resolveReadStorage(binary.Left, queries.sourceFile);
     const present = getCsharpNullableElementTargetType(target) ?? target;
     return present?.kind === "source-primitive" && present.name !== "bool" &&
       !(defaultType?.kind === "source-primitive" && defaultType.name === "float64" && isCsharpIntegralTargetType(present)) &&
@@ -203,12 +211,15 @@ export function resolveCsharpSourceLiteralCarrier(
   }
   const argument = sourceExpressionCallArgument(node, { ast: host.ast, semantics: { forNode: host.semanticsFor } });
   if (argument === undefined) {
-    const contextual = queries.types.contextualValueSelection(node);
-    if (contextual.kind !== "selected") return defaultType;
-    const selected = resolveSelectedType(contextual.component.authoredTypeNode,
-      contextual.component.selectedType, queries.sourceFile);
-    const present = getCsharpNullableElementTargetType(selected) ?? selected;
-    return present?.kind === "source-primitive" && present.name !== "bool" ? present : defaultType;
+    const context = selectCsharpLiteralDeclarationContext(node, queries, host);
+    if (context?.own !== true) return defaultType;
+    const selected = scope.resolveSourceTypeComponentEvidence(context.component, queries, { depth: 0 });
+    const destination = context.returnedFrom !== undefined && host.ast.hasModifierKind(context.returnedFrom, "async")
+      ? getCsharpTaskResultTargetType(selected) : selected;
+    const present = getCsharpNullableElementTargetType(destination) ?? destination;
+    const numeric = present === undefined ? [] : csharpUnionLeaves(present, host.typeDefinitions)?.flatMap(leaf =>
+      leaf.carrier.kind === "source-primitive" && leaf.carrier.name !== "bool" ? [leaf.carrier] : []) ?? [];
+    return numeric.length === 1 ? numeric[0] : defaultType;
   }
   const call = host.semanticsFor(argument.call).operations.call(argument.call);
   const bindings = call?.sourceArgumentBindings.filter(binding =>

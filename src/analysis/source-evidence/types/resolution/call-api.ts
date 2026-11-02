@@ -19,6 +19,8 @@ import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/carrie
 import { selectCsharpConversion } from "../../../../policy/conversions/core.js";
 import { csharpConversionIsApplicable } from "../../../../policy/conversions/applicability.js";
 import { selectCsharpUnionCallMethods } from "./union-call-methods.js";
+import { resolveCsharpProviderCallRelations } from "../../../operations/members/relations.js";
+import { formCsharpProviderCallSignature } from "../../../operations/members/calls/instantiation.js";
 
 export function resolveSourceCallTypeArguments(
   { resolveSourceCallContract, resolveSourceCallInstantiation }: CsharpTypeResolutionScope,
@@ -140,17 +142,36 @@ export function resolveSourceCallParameters(
 }
 
 export function resolveSourceCallArgumentParameter(
-  { resolveSourceCallContract, resolveSourceCallableContractType, resolveSourceCallSelectedType, sourceCallableTypeParametersMatch }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   binding: ResolvedSourceCallInfo["sourceArgumentBindings"][number],
   sourceFile: SourceFile,
   excludedSourceArgumentIndexes?: ReadonlySet<number>,
 ): TargetTypeRef | undefined {
+  const { host, policy, resolveSourceCallContract, resolveSourceCallableContractType, resolveSourceCallSelectedType,
+    sourceCallableTypeParametersMatch, resolveSourceCallInstantiation } = scope;
   const parameter = source.sourceSelectedSignatureParameters[
     binding.sourceParameterIndex
   ];
   if (parameter === undefined) {
     return undefined;
+  }
+  const nativeHost = { ...host, projectTypes: host.projectTypes(), types: policy };
+  const resolution = resolveCsharpProviderCallRelations(nativeHost, source.call, sourceFile);
+  if (resolution.kind === "conflict" || resolution.kind === "rejected") return undefined;
+  if (resolution.kind === "resolved") {
+    const instantiation = resolveSourceCallInstantiation(source, sourceFile, { depth: 0 },
+      undefined, undefined, excludedSourceArgumentIndexes);
+    if (instantiation === undefined) return undefined;
+    const parameters = resolution.relations.flatMap(relation => {
+      if (relation.kind !== "signature") return [];
+      const formation = formCsharpProviderCallSignature(nativeHost, relation, source, sourceFile, instantiation.arguments);
+      if (formation.kind !== "resolved") return [];
+      const mapping = relation.parameters.find(selected => selected.sourceParameterIndex === binding.sourceParameterIndex);
+      const selected = mapping === undefined ? undefined : formation.signature.targetMember.parameters[mapping.targetParameterIndex];
+      return selected === undefined ? [] : [csharpTargetParameterValueType(selected, binding.sourceForm)];
+    });
+    return parameters.length === 1 ? parameters[0] : undefined;
   }
   const selected = resolveSourceCallContract(source, sourceFile, { depth: 0 }, "implementation");
   if (selected.kind === "rejected") return undefined;

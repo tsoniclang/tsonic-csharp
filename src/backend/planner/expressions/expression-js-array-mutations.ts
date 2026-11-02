@@ -7,9 +7,7 @@ import type { CsharpPlannedValue } from "./planned-values.js";
 import { buildCsharpPlannedValue } from "./planned-value-composition.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "./expression-planner-types.js";
-import {
-  csharpSourcePrimitiveTargetType,
-} from "../../../target-model/types/index.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
 
 export function tryPlanJsArrayMutationExpression(
   node: Node,
@@ -45,6 +43,7 @@ export function tryPlanJsArrayMutationExpression(
   );
   const argument = planMutationArgument(
     selection.value,
+    selection.valueType,
     sourceFile,
     input,
     diagnostics,
@@ -66,12 +65,12 @@ export function tryPlanJsArrayMutationExpression(
 
 function planMutationArgument(
   node: Node,
+  targetType: TargetTypeRef,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planCallArgument: CallArgumentPlanner,
 ) {
-  const targetType = csharpSourcePrimitiveTargetType("float64");
   const argument = planCallArgument(node, sourceFile, input, diagnostics, targetType, "by-value"
   );
   if (argument?.passing !== undefined) {

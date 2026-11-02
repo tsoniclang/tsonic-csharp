@@ -26,6 +26,7 @@ import { getCsharpNullableElementTargetType } from "../../../../target-model/typ
 import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/carriers/runtime-carriers.js";
 import { csharpFreeTypeParameterIdentities } from "../../../../target-model/types/generic-references.js";
 import { selectCsharpConversion } from "../../../../policy/conversions/core.js";
+import { selectCsharpLiteralDeclarationContext } from "../../../objects/native-construction-demand.js";
 
 export function resolveSourceCallInstantiation(
   scope: CsharpTypeResolutionScope,
@@ -40,9 +41,20 @@ export function resolveSourceCallInstantiation(
       readonly arguments: readonly TargetTypeRef[];
       readonly substitutions: ReadonlyMap<string, TargetTypeRef>;
       readonly sourceArguments: readonly Type[];
+      readonly state: CsharpTypeResolutionState;
     }
   | undefined {
   const { host, inferSourceCallTargetTypeArguments, resolveAuthoredAndSelectedSourceType } = scope;
+  const queries = host.semantics(sourceFile);
+  const receiver = source.sourceReceiver ?? source.sourceCalleeAccess?.receiver;
+  const declaration = source.sourceCalleeAccess?.selectedDeclaration ?? source.sourceCallee.selectedDeclaration;
+  if (receiver !== undefined && (declaration === undefined || !host.navigation.isProjectDeclaration(declaration)) &&
+    (queries.types.typeArgumentBindings(receiver.type)?.length ?? 0) !== 0) {
+    const actual = scope.resolveSourceCallReceiverTargetType(source, sourceFile, nextState(state));
+    const bound = bindCsharpSourceTypeArguments(scope, receiver.type, actual, queries, state);
+    if (bound === undefined) return undefined;
+    state = bound;
+  }
   const selectedArguments = source.sourceSelectedMethodTypeArguments ?? [];
   const sourceArguments = Object.freeze(selectedArguments.map(argument => argument.selectedType));
   const owner = callable?.sourceDeclaration ?? source.sourceCalleeAccess?.selectedDeclaration ?? source.sourceCallee.selectedDeclaration;
@@ -52,6 +64,7 @@ export function resolveSourceCallInstantiation(
       arguments: Object.freeze([]),
       substitutions: new Map(),
       sourceArguments,
+      state,
     };
   }
   const parameterIdentities = sourceCallTypeParameterIdentities(scope, source, callable,
@@ -77,6 +90,7 @@ export function resolveSourceCallInstantiation(
       arguments: Object.freeze([]),
       substitutions: new Map(),
       sourceArguments,
+      state,
     };
   }
   const inferredParameterIdentities = new Set(
@@ -98,6 +112,29 @@ export function resolveSourceCallInstantiation(
   const selectedParameters = new Set<Type>();
   const arguments_: TargetTypeRef[] = [];
   const substitutions = new Map<string, TargetTypeRef>();
+  let parameterDeclarations: readonly Node[] = [];
+  const candidates = selectedArguments.map((selected, index) => {
+    const parameterIdentity = parameterIdentities[index]!;
+    const target = selected.explicitTypeNode === undefined ? inferredTargetArguments.get(parameterIdentity)
+      : resolveAuthoredAndSelectedSourceType(selected.explicitTypeNode, sourceFile, selected.selectedType, sourceFile, nextState(state));
+    if (target !== undefined || excludedSourceArgumentIndexes === undefined || selected.explicitTypeNode !== undefined) return target;
+    const declaration = callable?.sourceDeclaration === undefined ? undefined : host.ast.typeParameters(callable.sourceDeclaration)[index];
+    const native = declaration === undefined ? undefined : csharpSourceTypeParameter(declaration, host.ast);
+    if (native?.identity === parameterIdentity) return native;
+    const checked = resolveTypeParameter(selected.typeParameter, queries, host.ast, host.typeParameterConstraints);
+    return checked?.kind === "type-parameter" && checked.identity === parameterIdentity ? checked : undefined;
+  });
+  if (selectedArguments.length !== 0) {
+    const declarations = [...new Set([callable?.sourceDeclaration, queries.declarations.signatureDeclaration(source.selectedSignature)])]
+      .filter((declaration): declaration is Node => declaration !== undefined &&
+        host.ast.typeParameters(declaration).length === selectedArguments.length && host.ast.typeParameters(declaration).every((parameter, index) =>
+          parameter !== undefined && csharpSourceTypeParameter(parameter, host.ast)?.identity === parameterIdentities[index]));
+    if (declarations.length !== 1) return undefined;
+    parameterDeclarations = host.ast.typeParameters(declarations[0]!) as readonly Node[];
+    const bound = bindCsharpSourceDeclarationArguments(scope, declarations[0]!, candidates, sourceArguments, state);
+    if (bound === undefined) return undefined;
+    state = bound;
+  }
   for (const [index, selected] of selectedArguments.entries()) {
     const parameterIdentity = parameterIdentities[index]!;
     if (
@@ -107,30 +144,7 @@ export function resolveSourceCallInstantiation(
     ) {
       return undefined;
     }
-    let targetArgument = selected.explicitTypeNode === undefined
-      ? inferredTargetArguments.get(parameterIdentity) ??
-        (excludedSourceArgumentIndexes === undefined ? resolveAuthoredAndSelectedSourceType(
-          undefined,
-          sourceFile,
-          selected.selectedType,
-          sourceFile,
-          nextState(state),
-        ) : undefined)
-      : resolveAuthoredAndSelectedSourceType(
-          selected.explicitTypeNode,
-          sourceFile,
-          selected.selectedType,
-          sourceFile,
-          nextState(state),
-        );
-    if (targetArgument === undefined && excludedSourceArgumentIndexes !== undefined && selected.explicitTypeNode === undefined) {
-      const declared = callable?.sourceDeclaration === undefined ? undefined
-        : host.ast.typeParameters(callable.sourceDeclaration)[index];
-      const native = declared === undefined ? undefined : csharpSourceTypeParameter(declared, host.ast);
-      const checked = resolveTypeParameter(selected.typeParameter, host.semantics(sourceFile), host.ast, host.typeParameterConstraints);
-      targetArgument = native?.identity === parameterIdentity ? native
-        : checked?.kind === "type-parameter" && checked.identity === parameterIdentity ? checked : undefined;
-    }
+    const targetArgument = state.sourceBindings?.get(parameterDeclarations[index]!)?.targetType;
     if (targetArgument === undefined) {
       return undefined;
     }
@@ -150,6 +164,7 @@ export function resolveSourceCallInstantiation(
     arguments: Object.freeze((expectedTypeParameterIdentities ?? identities).map(identity => substitutions.get(identity)!)),
     substitutions,
     sourceArguments,
+    state,
   };
 }
 export function resolveSourceCallSelectedType(
@@ -174,20 +189,15 @@ export function resolveSourceCallSelectedType(
   if (instantiation === undefined) {
     return undefined;
   }
-  const receiver = source.sourceReceiver ?? source.sourceCalleeAccess?.receiver;
-  if (receiver !== undefined && (declaration === undefined || !host.navigation.isProjectDeclaration(declaration))) {
-    const bound = bindCsharpSourceTypeArguments(scope, receiver.type, host.semantics(selectedSourceFile), state);
-    if (bound === undefined) return undefined;
-    state = bound;
-  }
+  state = instantiation.state;
+  const receiverType = resolveSourceCallReceiverTargetType(source, selectedSourceFile, nextState(state));
   if (authoredTypeNode !== undefined && host.ast.is.IsThisTypeNode(authoredTypeNode)) {
     if (selectedType === undefined) return undefined;
-    const receiverType = resolveSourceCallReceiverTargetType(source, selectedSourceFile, nextState(state));
     return source.optionalChain ? getCsharpNullableElementTargetType(receiverType) ?? receiverType : receiverType;
   }
   const authoredSourceFile = host.ast.getSourceFile(authoredTypeNode) ??
     selectedSourceFile;
-  if (authoredTypeNode !== undefined && host.hasSemantics(authoredSourceFile) && instantiation.sourceArguments.length > 0) {
+  if (authoredTypeNode !== undefined && instantiation.sourceArguments.length > 0) {
     const selectedDeclaration = source.sourceSelectedSignatureKind === "resolved"
       ? host.semantics(selectedSourceFile).declarations.signatureDeclaration(source.selectedSignature) : undefined;
     if (selectedDeclaration === undefined) return undefined;
@@ -197,8 +207,7 @@ export function resolveSourceCallSelectedType(
     if (bound === undefined) return undefined;
     state = bound;
   }
-  const authored = authoredTypeNode === undefined ||
-      !host.hasSemantics(authoredSourceFile)
+  const authored = authoredTypeNode === undefined
     ? undefined
     : resolveNodeWithState(
         authoredTypeNode,
@@ -211,11 +220,6 @@ export function resolveSourceCallSelectedType(
         authored,
         instantiation.substitutions,
       );
-  const receiverType = resolveSourceCallReceiverTargetType(
-    source,
-    selectedSourceFile,
-    state,
-  );
   const receiverInstantiation = instantiated === undefined
     ? { kind: "not-project-member" as const }
     : host.projectTypes().instantiateMemberType(
@@ -229,27 +233,11 @@ export function resolveSourceCallSelectedType(
   if (receiverInstantiation.kind === "resolved") {
     return receiverInstantiation.type;
   }
-  // A provider declaration has no semantics, so its authored parameter type is not resolved above, and the checker's
-  // instantiated parameter type loses source primitive aliases (`int32[]` reads as `number[]`). The declared (generic)
-  // parameter type with the call's own type-argument substitutions is the exact parameter.
-  if (authored === undefined && authoredTypeNode !== undefined && declaration !== undefined &&
-    !host.hasSemantics(authoredSourceFile)) {
-    const declared = host.semantics(selectedSourceFile).declarations.declaredValueType(declaration);
-    const generic = declared === undefined ? undefined : scope.resolveTypeWithState(declared, selectedSourceFile, nextState(state));
-    const substituted = generic === undefined ? undefined : substituteTargetTypeParameters(generic, instantiation.substitutions);
-    if (generic !== undefined && substituted !== undefined && !targetTypeRefEquals(generic, substituted)) return substituted;
-  }
   if (excludedSourceArgumentIndexes !== undefined) {
     if (authored !== undefined) return instantiated;
     if (source.sourceSelectedMethodTypeArguments?.some(argument => argument.explicitTypeNode === undefined)) return undefined;
   }
-  if (
-    authored !== undefined &&
-    instantiated !== undefined &&
-    (instantiation.sourceArguments.length > 0 || !targetTypeRefEquals(authored, instantiated))
-  ) {
-    return instantiated;
-  }
+  if (authoredTypeNode !== undefined) return instantiated;
   return resolveAuthoredAndSelectedSourceType(
     authoredTypeNode,
     authoredSourceFile,
@@ -283,6 +271,7 @@ export function resolveSourceCallableContractType(
     type,
     instantiation.substitutions,
   );
+  state = instantiation.state;
   const receiverType = resolveSourceCallReceiverTargetType(
     source,
     selectedSourceFile,
@@ -330,12 +319,13 @@ export function inferSourceCallTargetTypeArguments(
   const inferencePairs: CsharpSourceArgumentInferencePair[] = [];
   const conflicts = new Set<string>();
   const queries = scope.host.semantics(sourceFile);
-  const context = queries.types.contextualValueSelection(source.call);
-  const authoredContext = context.kind === "selected" ? context.component.authoredTypeNode : undefined;
+  const selection = selectCsharpLiteralDeclarationContext(source.call, queries, scope.host);
+  const context = selection?.own === true ? selection : undefined;
+  const authoredContext = context?.component.authoredTypeNode;
   const contextFile = authoredContext === undefined ? undefined : scope.host.ast.getSourceFile(authoredContext);
   const argumentContext = sourceExpressionCallArgument(source.call,
     { ast: scope.host.ast, semantics: { forNode: scope.host.semanticsFor } });
-  const outerCall = context.kind === "selected" ? context.component.contextualCall : undefined;
+  const outerCall = context?.component.contextualCall;
   const outerBindings = argumentContext === undefined ? [] : outerCall?.sourceArgumentBindings.filter(binding =>
     binding.sourceArgumentIndex === argumentContext.argumentIndex && binding.sourceForm === "value") ?? [];
   const parameterContext = outerCall === undefined || argumentContext === undefined || outerBindings.length !== 1 ? undefined

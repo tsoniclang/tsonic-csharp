@@ -90,14 +90,12 @@ export function resolveCsharpArrayLiteralSelection(
   const contributions = selected.flatMap(group => group ?? []);
   const elements = contributions.map(member => member.carrier);
   const context = selectCsharpLiteralDeclarationContext(node, queries, host);
-  const unannotatedBinding = context?.declarations.some(declaration => host.ast.is.IsVariableDeclaration(declaration) &&
-    host.ast.typeNode(declaration) === undefined) === true;
   const authoredInteger = contributions.some(contribution => {
     const selected = contribution.literal?.numeric?.kind === "authored"
       ? resolveCsharpSourceLiteralTargetType(contribution.literal) : undefined;
     return selected?.kind === "source-primitive" && selected.name === "int64";
   });
-  const destination = unannotatedBinding && authoredInteger ? unavailable
+  const destination = context?.own === false && authoredInteger ? unavailable
     : selectArrayElementDestination(scope, node, queries, state, context, sourceElements.length === 0);
   if (elements.length === 0) {
     if (sourceElements.length === 0 && destination.kind === "unavailable" &&

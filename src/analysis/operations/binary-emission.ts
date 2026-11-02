@@ -58,6 +58,10 @@ export function analyzeCsharpBinaryEmission(input: { readonly source: TargetSour
     if (syntax === "assignment" && rightSuspends && location?.kind === "resolved" && location.opaque === true) {
       refuse(node, "An opaque native ref-return address cannot be held across asynchronous suspension."); return;
     }
+    if (operator === "=" && location?.kind === "resolved" && right !== undefined && right.kind !== "erased" && right.completion.kind === "value") {
+      if (!targetTypeRefEquals(right.completion.type, location.storageType))
+        failTargetAnalysisInvariant("tsonic-csharp", "An admitted native assignment conversion must complete at its physical storage carrier.", node);
+    }
     entries.set(selection, { selection, syntax, storage, location: location?.kind === "resolved" ? location : undefined, rightSuspends,
       narrowedCoalescing: operator === "??=" && left !== undefined && left.kind !== "erased" && !targetTypeRefEquals(selection.resultType, left.carrier),
       nativeBoolean: left !== undefined && left.kind !== "erased" && right !== undefined && right.kind !== "erased" &&

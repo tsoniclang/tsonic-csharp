@@ -3,13 +3,7 @@ import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { CsharpProviderTargetRelation } from "../../../../target-model/identities/provider-relations.js";
 import type { TargetTypeRef } from "../../../../policy/types/index.js";
 
-import type { CsharpTypeQueries } from "../../../../policy/model/type-resolution.js";
-
-import { csharpTargetBindingSubstitutions, csharpTargetParameterValueType, substituteCsharpTargetMember, targetTypeRefEquals } from "../../../../policy/types/index.js";
-
-import { selectCsharpCommonImplicitTarget } from "../../../conversions/common-target.js";
-
-import { inferCsharpTargetTypeParameterBindings } from "../../../../policy/types/resolution/substitution.js";
+import { targetTypeRefEquals } from "../../../../policy/types/index.js";
 
 import { resolveCsharpTargetBindingArguments } from "./binding-instantiation.js";
 
@@ -27,6 +21,7 @@ export function resolveProviderBindingTypeArguments(
   relation: CsharpProviderSignatureRelation,
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
+  nativeArguments: readonly TargetTypeRef[],
 ): readonly CsharpSelectedTargetMethodTypeArgument[] | undefined {
   if (
     relation.bindingTypeArgumentSource !==
@@ -82,82 +77,34 @@ export function resolveProviderBindingTypeArguments(
     return Object.freeze(resolved);
   }
   return resolveSelectedTypeArguments(
-    host.types,
+    nativeArguments,
     source.sourceSelectedMethodTypeArguments ?? [],
     relation.bindingTypeParameters,
     relation.targetBinding.typeParameters?.length ?? 0,
     relation.selectedTypeParameterCount,
-    sourceFile,
   );
 }
 
 export function resolveMethodTypeArguments(
-  host: CsharpProviderCallInstantiationHost,
   relation: CsharpProviderSignatureRelation,
   source: ResolvedSourceCallInfo,
-  sourceFile: SourceFile,
-  bindingArguments: readonly TargetTypeRef[],
+  nativeArguments: readonly TargetTypeRef[],
 ): readonly CsharpSelectedTargetMethodTypeArgument[] | undefined {
   const sourceArguments = source.sourceSelectedMethodTypeArguments ?? [];
   const targetArity = relation.targetMember.typeParameters?.length ?? 0;
-  const bindingSubstitutions = csharpTargetBindingSubstitutions(relation.targetBinding, bindingArguments);
-  if (bindingSubstitutions === undefined) return undefined;
-  const member = substituteCsharpTargetMember(relation.targetMember, bindingSubstitutions);
-  const inferredSourceArguments = new Map(relation.methodTypeParameters.flatMap(mapping => {
-    const selected = sourceArguments[mapping.sourceTypeParameterIndex];
-    const parameter = member.typeParameters?.[mapping.targetTypeParameterIndex];
-    return selected !== undefined && selected.explicitTypeNode === undefined && parameter !== undefined
-      ? [[parameter.identity, selected] as const] : [];
-  }));
-  const inferredNames = new Set(inferredSourceArguments.keys());
-  const bounds = new Map<string, TargetTypeRef[]>();
-  if (inferredNames.size !== 0) {
-    for (const binding of source.sourceArgumentBindings) {
-      const mapping = relation.parameters.find(value => value.sourceParameterIndex === binding.sourceParameterIndex);
-      const parameter = mapping === undefined ? undefined : member.parameters[mapping.targetParameterIndex];
-      const argument = source.sourceArguments[binding.sourceArgumentIndex];
-      if (parameter === undefined || argument === undefined) return undefined;
-      const actual = host.types.resolveSelectedValue(argument.expression, argument.type, sourceFile);
-      if (actual === undefined) continue;
-      const candidates = inferCsharpTargetTypeParameterBindings(
-        csharpTargetParameterValueType(parameter, binding.sourceForm), actual, inferredNames);
-      for (const [name, carrier] of candidates ?? []) {
-        const previous = bounds.get(name);
-        if (previous === undefined) bounds.set(name, [carrier]);
-        else previous.push(carrier);
-      }
-    }
-  }
-  const inferred = new Map<string, TargetTypeRef>();
-  for (const [name, candidates] of bounds) {
-    const selected = inferredSourceArguments.get(name)!;
-    const selectedTarget = host.types.resolveSelectedType(undefined, selected.selectedType, sourceFile);
-    const common = selectCsharpCommonImplicitTarget(host, candidates,
-      selectedTarget === undefined ? candidates : [...candidates, selectedTarget]);
-    if (common.kind === "rejected") return undefined;
-    inferred.set(name, common.target);
-  }
-  const refinements = new Map(relation.methodTypeParameters.flatMap(mapping => {
-    const parameter = member.typeParameters?.[mapping.targetTypeParameterIndex];
-    const carrier = parameter === undefined ? undefined : inferred.get(parameter.identity);
-    return carrier === undefined ? [] : [[mapping.sourceTypeParameterIndex, carrier] as const];
-  }));
   return resolveSelectedTypeArguments(
-    host.types,
+    nativeArguments,
     sourceArguments,
     relation.methodTypeParameters,
     targetArity,
     relation.selectedTypeParameterCount,
-    sourceFile,
-    refinements,
   );
 }
 
 export function resolveInvocationTypeArguments(
-  types: CsharpTypeQueries,
   relation: CsharpProviderSignatureRelation,
   source: ResolvedSourceCallInfo,
-  sourceFile: SourceFile,
+  nativeArguments: readonly TargetTypeRef[],
 ): readonly CsharpSelectedTargetMethodTypeArgument[] | undefined {
   const targetArity = relation.targetMember.csharpInvocation?.kind ===
       "static-member" &&
@@ -166,17 +113,16 @@ export function resolveInvocationTypeArguments(
     ? 1
     : 0;
   return resolveSelectedTypeArguments(
-    types,
+    nativeArguments,
     source.sourceSelectedMethodTypeArguments ?? [],
     relation.invocationTypeParameters,
     targetArity,
     relation.selectedTypeParameterCount,
-    sourceFile,
   );
 }
 
 function resolveSelectedTypeArguments(
-  types: CsharpTypeQueries,
+  nativeArguments: readonly TargetTypeRef[],
   sourceArguments: readonly {
     readonly selectedType: Type;
     readonly explicitTypeNode?: Node;
@@ -186,11 +132,10 @@ function resolveSelectedTypeArguments(
   ],
   targetArity: number,
   sourceArity: number,
-  sourceFile: SourceFile,
-  refinements: ReadonlyMap<number, TargetTypeRef> = new Map(),
 ): readonly CsharpSelectedTargetMethodTypeArgument[] | undefined {
   if (
     sourceArguments.length !== sourceArity ||
+    nativeArguments.length !== sourceArity ||
     relations.length !== targetArity
   ) {
     return undefined;
@@ -207,11 +152,7 @@ function resolveSelectedTypeArguments(
     ) {
       return undefined;
     }
-    const targetArgument = refinements.get(typeParameterRelation.sourceTypeParameterIndex) ?? types.resolveSelectedType(
-      sourceArgument.explicitTypeNode,
-      sourceArgument.selectedType,
-      sourceFile,
-    );
+    const targetArgument = nativeArguments[typeParameterRelation.sourceTypeParameterIndex];
     if (targetArgument === undefined) {
       return undefined;
     }
