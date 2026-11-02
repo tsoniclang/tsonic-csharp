@@ -69,6 +69,11 @@ export function prepareCsharpNativeBacking(
     }
     for (const producer of use.producers) {
       const origin = producer.source.operation;
+      if (origin.operation === "bind-pointer" || origin.operation === "project-pointer") {
+        issues.push(Object.freeze({ node: use.call, code: "CSHARP_POINTER_BACKING_NOT_PROVEN",
+          message: "Physical pointer backing requires an allocation, address or reinterpretation, not a logical pointer." }));
+        continue;
+      }
       const originFile = producer.source.storage.sourceFile;
       if (originFile !== policy.ast.getSourceFile(origin.call)) {
         reject(use.call, "The native backing descriptor and origin require exact source files.");
