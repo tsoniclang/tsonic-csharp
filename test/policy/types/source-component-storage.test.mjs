@@ -234,7 +234,11 @@ test("authored component provenance preserves the original selected instantiatio
     let reads = 0;
     const result = resolveSourceTypeComponentEvidence({
       host: { ast: { getSourceFile: node => node === authored ? defining : undefined, is: typeOnlyPredicates },
-        hasSemantics: file => file === defining || file === importer },
+        hasSemantics: file => file === defining || file === importer,
+        sourceStorage: { storageSubjectFor: node => {
+          assert.equal(node === declaration, true, "only the original declaration supplies its storage context");
+          return { kind: "unresolved", reason: "no value storage for this declaration fixture" };
+        } } },
       resolvePointerReturn: () => undefined,
       resolveAuthoredAndSelectedSourceType(node, file, selected, selectedFile, selectedState) {
         reads++;
@@ -276,7 +280,11 @@ test("checked declaration components retain selected context without requiring a
   let reads = 0;
   const result = resolveSourceTypeComponentEvidence({
     host: { ast: { getSourceFile: node => node === authored ? defining : undefined, is: typeOnlyPredicates },
-      hasSemantics: file => file === selectedFile },
+      hasSemantics: file => file === selectedFile,
+      sourceStorage: { storageSubjectFor: node => {
+        assert.equal(node === declaration, true, "the required storage query retains the actual checked declaration");
+        return { kind: "unresolved", reason: "no value storage for this declaration fixture" };
+      } } },
     resolvePointerReturn: () => undefined,
     resolveAuthoredAndSelectedSourceType(node, authoredFile, type, context, state) {
       reads++;

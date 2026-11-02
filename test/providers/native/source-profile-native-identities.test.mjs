@@ -76,8 +76,8 @@ test("source-profile peers and foreign provider relations publish one physical n
     const constructor = csharpErrorSourceProfileCallPolicies.find(policy => policy.source.kind === "construct" &&
       policy.source.owner === "csharp" && policy.source.declaringName === "ErrorConstructor").inheritableConstructor;
     const inherited = providers.publishNativeIdentities(constructor);
-    assert.equal(inherited.kind === "resolved" && targetTypeRefEquals(inherited.value.declaringType, selected.value.source) &&
-      targetTypeRefEquals(inherited.value.returnType, selected.value.source), true,
+    assert.equal(inherited.kind === "resolved" && targetTypeRefEquals(inherited.value.declaringType, selected.value.exception) &&
+      targetTypeRefEquals(inherited.value.returnType, selected.value.exception), true,
     "the inherited constructor and ordinary construction publish one physical source Error contract");
     assert.equal(input.reads.get("System.Exception"), 1, "all peers and consumers acquire Exception metadata once");
     assert.equal(input.reads.get("Tsonic.CSharp.Runtime.Error"), 1, "all peers and consumers acquire runtime Error metadata once");

@@ -4,7 +4,7 @@ export const nativeCarrierRegistry = Object.freeze([
     id: "src/target-model/types/carriers/scalar-types.ts#csharpSourceErrorTargetType",
     kinds: ["target-named"],
     declaration: { module: "src/target-model/types/carriers/scalar-types.ts", symbol: "csharpSourceErrorTargetType" },
-    responsibility: "vocabulary/source-error-target-type",
+    responsibility: "vocabulary/error-value",
     frozen: false,
   },
   {

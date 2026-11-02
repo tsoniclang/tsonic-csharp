@@ -47,8 +47,8 @@ for (const jsEnabled of [false, true]) {
     `, files: { "helpers.ts": `
       export interface SourceBox<Value> { readonly value: Value; }
       export interface DestinationBox<Value> { readonly value: Value; }
-      export function transport(value: SourceBox<SourceBox<Error>>): DestinationBox<DestinationBox<Error>> { return value; }
-      export function read(value: DestinationBox<DestinationBox<Error>>): Error { return value.value.value; }
+      export function transport(value: SourceBox<SourceBox<Error>>): SourceBox<SourceBox<Error>> { return value; }
+      export function read(value: SourceBox<SourceBox<Error>>): Error { return value.value.value; }
     ` } });
     assertCsharpCompilationSucceeded(compiled);
     const emitted = [...compiled.artifacts.values()].join("\n");
@@ -61,6 +61,31 @@ var original = new Exception("original");
 if (!Generated.run() || !ReferenceEquals(Generated.observe(original), original))
     throw new Exception("cross-file nested readonly Error lost native identity");
 `);
+  });
+  test(`C# ${jsEnabled ? "JS" : "native"} distinct readonly interface nesting retains its measured native forwarding refusal`, () => {
+    const compiled = compileCsharpSource({ surface: jsEnabled ? "js" : "native", sourceText: `
+      import { transport, read } from "./helpers.js";
+      export function observe(original: Error): Error { return read(transport({ value: { value: original } })); }
+      export function run(): boolean {
+        const original = new Error("original");
+        const alias = observe(original);
+        return alias === original && alias.message === "original";
+      }
+    `, files: { "helpers.ts": `
+      export interface SourceBox<Value> { readonly value: Value; }
+      export interface DestinationBox<Value> { readonly value: Value; }
+      export function transport(value: SourceBox<SourceBox<Error>>): DestinationBox<DestinationBox<Error>> { return value; }
+      export function read(value: DestinationBox<DestinationBox<Error>>): Error { return value.value.value; }
+    ` } });
+    assert.equal(compiled.sourceDiagnosticsText, "", "the original distinct-interface program remains checked and preserved");
+    assert.equal(compiled.result.diagnostics.length, 3, "the three measured open and nested forwarding relations remain explicit");
+    for (const diagnostic of compiled.result.diagnostics) {
+      assert.equal(diagnostic.code, "CSHARP_UNSUPPORTED_AST");
+      assert.equal(diagnostic.message, "An analyzed interface property has no exact native forwarding conversion.");
+      assert.equal(diagnostic.sourceNode !== undefined, true, "the existing native forwarding owner retains its actual source");
+    }
+    assert.equal(compiled.result.program === undefined && compiled.result.plan === undefined && compiled.artifacts.size === 0, true,
+      "unsupported native variance never publishes invalid C# or a wrapper");
   });
 }
 

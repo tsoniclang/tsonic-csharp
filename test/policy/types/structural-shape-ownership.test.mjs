@@ -33,7 +33,8 @@ function fixture() {
     types: { propertyInfos: () => properties, standardTransformation: () => undefined },
   };
   const host = {
-    ast: { is: { IsObjectLiteralExpression: node => node === selectedNode, IsTypeLiteralNode: () => false } },
+    ast: { getSourceFile: () => undefined,
+      is: { IsObjectLiteralExpression: node => node === selectedNode, IsTypeLiteralNode: () => false } },
     navigation: {
       isProjectDeclaration: node => projectDeclarations.has(node),
       declarationFor: node => node === selectedNode ? aliasDeclaration : undefined,
@@ -120,4 +121,86 @@ test("direct provider types cannot be reconstructed as project structural object
   value.projectDeclarations.add(value.foreignField);
   value.facts.set(value.type, value.identity);
   assert.equal(owns(value), false, "native provider construction remains its existing exact owner");
+});
+
+function checkedDataFixture(alias = false) {
+  const type = {};
+  const symbol = {};
+  const propertySymbol = {};
+  const file = {};
+  const owner = {};
+  const literal = {};
+  const field = {};
+  const name = {};
+  const fields = [field];
+  const data = {
+    filename: "/project/.tsonic/source-profiles/js/data.d.ts",
+    checked: true,
+    fields,
+    calls: [],
+    constructors: [],
+    indexes: [],
+  };
+  const queries = {
+    declarations: {
+      typeAliasSymbol: () => alias ? symbol : undefined,
+      typeSymbol: () => alias ? undefined : symbol,
+      symbolDeclarations: selected => selected === symbol ? [owner] : selected === propertySymbol ? [field] : [],
+    },
+    types: {
+      propertyInfos: () => [{ symbol: propertySymbol, rootSymbols: [] }],
+      standardTransformation: () => undefined,
+      callSignatures: () => data.calls,
+      constructSignatures: () => data.constructors,
+      indexInfos: () => data.indexes,
+    },
+  };
+  const host = {
+    ast: {
+      getSourceFile: node => node === field || node === owner ? file : undefined,
+      getFileName: node => { assert.equal(node === file, true); return data.filename; },
+      parent: node => node === field ? alias ? literal : owner : node === literal ? owner : node === owner ? file : undefined,
+      kindName: node => node === field ? "KindPropertySignature" : node === file ? "KindSourceFile" :
+        node === owner ? alias ? "KindTypeAliasDeclaration" : "KindInterfaceDeclaration" :
+        node === literal ? "KindTypeLiteral" : node === name ? "KindIdentifier" : "KindMethodSignature",
+      name: node => node === owner ? name : undefined,
+      text: node => { assert.equal(node === name, true); return "FiniteData"; },
+      members: node => { assert.equal(node === (alias ? literal : owner), true); return data.fields; },
+      is: {
+        IsObjectLiteralExpression: () => false,
+        IsTypeLiteralNode: node => alias && node === literal,
+        IsTypeAliasDeclaration: node => alias && node === owner,
+        IsInterfaceDeclaration: node => !alias && node === owner,
+      },
+      as: { AsTypeAliasDeclaration: node => alias && node === owner ? { Type: literal } : undefined },
+    },
+    hasSemantics: node => node === file && data.checked,
+    semantics: node => { assert.equal(node === file && data.checked, true); return queries; },
+    navigation: { isProjectDeclaration: () => false, declarationFor: () => undefined },
+    sourceFacts: { getFact: () => undefined },
+    providers: { resolveMember: () => { assert.fail("a source-profile data declaration is not a fabricated native provider member"); } },
+  };
+  return { data, host, queries, type };
+}
+
+test("checked source-profile property-only interfaces and aliases retain the existing structural owner", () => {
+  for (const alias of [false, true]) {
+    const value = checkedDataFixture(alias);
+    assert.equal(owns(value), true, "the exact checked declaration is admitted without an ErrorOptions name branch");
+    value.data.filename = "/project/foreign/data.d.ts";
+    assert.equal(owns(value), false, "the same declaration spelling in a foreign file grants no ownership");
+    value.data.filename = "/project/.tsonic/source-profiles/js/data.d.ts";
+    value.data.checked = false;
+    assert.equal(owns(value), false, "an unchecked source-profile file grants no ownership");
+  }
+});
+
+test("source-profile data admission rejects methods and call, construct or index signatures", () => {
+  for (const alias of [false, true]) {
+    for (const kind of ["fields", "calls", "constructors", "indexes"]) {
+      const value = checkedDataFixture(alias);
+      value.data[kind].push({});
+      assert.equal(owns(value), false, `${kind}: only checked finite data declarations are admitted`);
+    }
+  }
 });

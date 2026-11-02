@@ -92,7 +92,9 @@ foreach (string? message in new string?[] { null, "", "café😀 message" }) {
         if (value.Message != expectedMessage || value.StackTrace is not null) throw new Exception("native message");
         GC.KeepAlive(value);
     }
-    if (actual != GC.GetAllocatedBytesForCurrentThread() - before) throw new Exception("construction cost");
+    var reference = GC.GetAllocatedBytesForCurrentThread() - before;
+    Console.WriteLine($"construction allocation generated={actual}, handwritten={reference}, absent={message is null}");
+    if (actual != reference) throw new Exception("construction cost");
 }
 var text = "café😀 message";
 var required = Generated.makeRequired(text);
