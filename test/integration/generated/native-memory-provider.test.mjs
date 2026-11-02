@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 import { assertCsharpCheckingSucceeded, assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { memoryAbiCapability } from "../../helpers/memory-abi.mjs";
 import { nativeMemoryProvider, nativeProviderProofSource, nativeProviderInferredProofSource } from "../../helpers/native-memory-provider.mjs";
-import { nativeRecordProvider, nativeProviderRecordProofSource } from "../../helpers/native-record-proof.mjs";
+import { nativeRecordProvider, nativeProviderRecordProofSource, nativeProviderRecordNoRawProofSource } from "../../helpers/native-record-proof.mjs";
 import { testRepositoryRoots } from "../../../../tsonic/test/scripts/workspace-layout.mjs";
 import { createTestWorkspace } from "../../../../tsonic/test/scripts/test-workspaces.mjs";
 
@@ -16,7 +16,7 @@ function compile(options = {}, sourceText = nativeProviderProofSource, records =
     capabilities: [memoryAbiCapability("csharp"), records ? nativeRecordProvider(options) : nativeMemoryProvider(options)] });
 }
 
-function verifyProviderSource(sourceText, records = false) {
+function verifyProviderSource(sourceText, records = false, raw = true) {
   const compiled = compile({}, sourceText, records);
   assertCsharpCompilationSucceeded(compiled);
   const repository = fileURLToPath(new URL("../../../", import.meta.url));
@@ -29,7 +29,8 @@ function verifyProviderSource(sourceText, records = false) {
   }
   const source = compiled.artifacts.get("src/Index.cs");
   assert.match(source, records ? /NativeMemoryProof.Provider.CreateEnvelope/u : /NativeMemoryProof.Provider.Acquire/u);
-  assert.match(source, records ? /NativeLayout<.*Envelope>/u : /NativeLocation.Reinterpret<uint>/u);
+  if (raw) assert.match(source, records ? /NativeLayout<.*Envelope>/u : /NativeLocation.Reinterpret<uint>/u);
+  else assert.doesNotMatch(source, /NativeLayout|RawPointer|NativeMemory\.Allocate/u);
   writeFileSync(join(root, "Provider.cs"), readFileSync(new URL("../../fixtures/native-memory/Provider.cs", import.meta.url)));
   writeFileSync(join(root, "Program.cs"), records
     ? `if (!Tsonic.Generated.Index.run()) throw new System.Exception("native record storage");`
@@ -55,8 +56,31 @@ static bool ExecuteTyped() => Tsonic.Generated.Index.ordinaryLocation();
   assert.equal(native.status, 0, `${native.error ?? ""}\n${native.stdout}\n${native.stderr}`);
 }
 
-test("selected native provider records preserve packed nested fields and value copies", { timeout: 300_000 },
-  () => verifyProviderSource(nativeProviderRecordProofSource, true));
+test("selected native provider records preserve packed nested fields and value copies", () => {
+  const sourceText = nativeProviderRecordProofSource;
+  const compiled = compile({}, sourceText, true);
+  assertCsharpCheckingSucceeded(compiled);
+  const diagnostics = compiled.result.diagnostics.map(issue => {
+    const range = issue.sourceNode === undefined ? undefined : compiled.source.ast.authoredRange(issue.sourceNode);
+    const start = range?.kind === "authored" ? range.start : undefined;
+    const end = range?.kind === "authored" ? range.end : undefined;
+    return { code: issue.code, message: issue.message, start, end,
+      text: start === undefined || end === undefined ? undefined : sourceText.slice(start, end) };
+  });
+  assert.deepEqual(diagnostics, [
+  {
+    "code": "CSHARP_NATIVE_BACKING_NOT_PROVEN",
+    "message": "Declared raw storage requires a complete compiler-owned native struct field declaration.",
+    "start": 1489,
+    "end": 1516,
+    "text": "torawptr(pointer, envelope)"
+  }
+]);
+  assert.equal(compiled.artifacts.size, 0);
+});
+
+test("selected native provider records retain complete value copies and aliases without raw views", { timeout: 300_000 },
+  () => verifyProviderSource(nativeProviderRecordNoRawProofSource, true, false));
 
 for (const options of [{ missingField: true }, { wrongField: true }, { missingContract: true }]) {
   test(`native record rejects ${Object.keys(options)[0]} before publishing artifacts`, () => {
