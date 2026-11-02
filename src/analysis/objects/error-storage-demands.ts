@@ -2,6 +2,7 @@ import type { Node, Type } from "@tsonic/tsts";
 import type { TargetSourceProgram, SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { classifyCsharpSourceProfileType } from "../../policy/identities/source-types.js";
+import { csharpSourceProfileDeclarationIdentity } from "../../policy/identities/selected-source.js";
 import { sourceOperatorFromKindName } from "../../target-model/syntax/operators.js";
 
 export function analyzeCsharpNativeErrorAdmission(source: TargetSourceProgram): {
@@ -45,16 +46,15 @@ export function analyzeCsharpNativeErrorAdmission(source: TargetSourceProgram): 
     const property = queries.operations.propertyAccess(node);
     if (property === undefined || property.accessMode === "read") continue;
     const declaration = property.selectedWriteDeclaration ?? property.selectedDeclaration;
-    const name = declaration === undefined ? undefined : ast.name(declaration);
-    const memberName = name !== undefined && (ast.is.IsIdentifier(name) || ast.is.IsStringLiteral(name)) ? ast.text(name) : undefined;
-    if (memberName !== "message" && memberName !== "stack" && memberName !== "name") continue;
+    const identity = csharpSourceProfileDeclarationIdentity(ast, queries, source.sourceFacts, declaration);
+    if (identity?.kind !== "member" || identity.declaringName !== "Error") continue;
     const owner = errorOwner(property.receiver.type, queries);
     if (owner === undefined) continue;
     const assignment = ast.parent(node);
     const binary = assignment === undefined ? undefined : ast.as.AsBinaryExpression(assignment);
     const statement = assignment === undefined ? undefined : ast.parent(assignment);
     const className = ast.name(owner.declaration);
-    if (memberName === "name" && !owner.plain && ast.kindName(property.receiver.expression) === "KindThisKeyword" &&
+    if (identity.name === "name" && !owner.plain && ast.kindName(property.receiver.expression) === "KindThisKeyword" &&
       binary?.Left === node && sourceOperatorFromKindName(ast.operatorKindName(assignment!)) === "=" &&
       ast.is.IsStringLiteral(binary.Right) && className !== undefined && ast.text(binary.Right) === ast.text(className) &&
       statement !== undefined && ast.is.IsExpressionStatement(statement)) {
