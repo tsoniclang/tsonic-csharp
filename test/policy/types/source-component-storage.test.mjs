@@ -264,3 +264,46 @@ test("authored component provenance rejects missing and foreign owners without i
     assert.equal(result === undefined, true, "missing or foreign authored facts remain unresolved");
   }
 });
+
+test("checked declaration components retain selected context without requiring authored declaration-file semantics", () => {
+  const authored = {};
+  const defining = {};
+  const selectedFile = {};
+  const declaration = {};
+  const selectedType = { instantiated: true };
+  const bindings = new Map();
+  const carrier = { kind: "source-primitive", name: "int32" };
+  let reads = 0;
+  const result = resolveSourceTypeComponentEvidence({
+    host: { ast: { getSourceFile: node => node === authored ? defining : undefined, is: typeOnlyPredicates },
+      hasSemantics: file => file === selectedFile },
+    resolvePointerReturn: () => undefined,
+    resolveAuthoredAndSelectedSourceType(node, authoredFile, type, context, state) {
+      reads++;
+      assert.equal(node === authored && authoredFile === defining, true, "the original declaration's authored location is retained");
+      assert.equal(type === selectedType && context === selectedFile, true, "the checked selected Type and its supplied context are not replaced");
+      assert.equal(state.sourceBindings === bindings, true, "actual generic bindings retain identity");
+      return carrier;
+    },
+  }, { authoredTypeNode: authored, declaration, selectedType }, { sourceFile: selectedFile },
+  { depth: 0, sourceBindings: bindings });
+  assert.equal(result === carrier && reads === 1, true, "one existing canonical selected-value owner resolves the declaration");
+});
+
+test("inferred components without authored evidence retain the supplied selected Type and context", () => {
+  const selectedType = { instantiated: true };
+  const selectedFile = {};
+  const bindings = new Map();
+  const carrier = { kind: "source-primitive", name: "uint32" };
+  let reads = 0;
+  const result = resolveSourceTypeComponentEvidence({
+    host: { ast: { is: typeOnlyPredicates }, hasSemantics: () => false },
+    resolveTypeWithState(type, context, state) {
+      reads++;
+      assert.equal(type === selectedType && context === selectedFile, true, "no-authored evidence keeps its actual selected authority");
+      assert.equal(state.sourceBindings === bindings, true, "original source bindings are unchanged");
+      return carrier;
+    },
+  }, { selectedType }, { sourceFile: selectedFile }, { depth: 0, sourceBindings: bindings });
+  assert.equal(result === carrier && reads === 1, true, "the existing selected-type resolver is used once");
+});
