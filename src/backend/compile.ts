@@ -1,8 +1,9 @@
-import { rejectedTargetStage, runTargetCompilationStages, targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
+import { TargetCompilerResourceLimitFailure, rejectedTargetStage, runTargetCompilationStages, targetDiagnosticFromExtension } from "@tsonic/target-api/artifacts";
 import type {
   TargetCompilationObserver,
   TargetCompileResult,
 } from "@tsonic/target-api/artifacts";
+import { CsharpMetadataResourceLimitFailure } from "../target-model/metadata/immutable.js";
 import { analyzeCsharpTargetProgram } from "../analysis/program/index.js";
 import type { CsharpTargetAnalysisRequest } from "../analysis/program/index.js";
 import type { CsharpTargetProgram } from "../target-model/records/target-program.js";
@@ -21,7 +22,14 @@ export function compileCsharpTarget(
     analyze: () => analyzeCsharpTargetProgram(request),
     plan: program => planCsharpOutput(createCsharpPlanningContext(program)),
     materialize: materializeCsharpOutputPlan,
+    compilerResourceFailure: csharpMetadataResourceFailure,
   }, observer));
+}
+
+export function csharpMetadataResourceFailure(failure: unknown): TargetCompilerResourceLimitFailure | undefined {
+  return failure instanceof CsharpMetadataResourceLimitFailure
+    ? new TargetCompilerResourceLimitFailure("tsonic-csharp", failure.operation, failure.dimension, failure.limit)
+    : undefined;
 }
 
 /**

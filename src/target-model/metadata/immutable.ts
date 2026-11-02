@@ -1,4 +1,15 @@
-import { failTargetCompilerResourceLimit } from "@tsonic/target-api/artifacts";
+export class CsharpMetadataResourceLimitFailure extends Error {
+  constructor(readonly operation: string, readonly dimension: "entries" | "depth", readonly limit: number) {
+    super(`${operation} exceeded its finite resource budget ${dimension}=${limit}.`);
+    this.name = "CsharpMetadataResourceLimitFailure";
+  }
+}
+
+export function failCsharpMetadataResourceLimit(
+  operation: string, dimension: "entries" | "depth", limit: number,
+): never {
+  throw new CsharpMetadataResourceLimitFailure(operation, dimension, limit);
+}
 
 export function csharpMetadataDescriptors(input: object): Readonly<Record<string, PropertyDescriptor>> {
   const prototype = Object.getPrototypeOf(input);
@@ -35,10 +46,10 @@ export function snapshotCsharpMetadata<Value>(
     active.add(input);
     let result: unknown;
     if (Array.isArray(projected)) {
-      if (projected.length > budget.remaining()) failTargetCompilerResourceLimit("tsonic-csharp", "C# immutable metadata snapshot", "entries", maximumCsharpMetadataEntries);
       if (keys.length !== projected.length + 1) {
         throw new TypeError("C# immutable metadata requires bounded dense arrays.");
       }
+      if (projected.length > budget.remaining()) failCsharpMetadataResourceLimit("C# immutable metadata snapshot", "entries", maximumCsharpMetadataEntries);
       const entries: unknown[] = [];
       for (let index = 0; index < projected.length; index += 1) {
         const descriptor = descriptors[String(index)];
@@ -71,8 +82,8 @@ export function createCsharpMetadataBudget(): {
     reserve(entries, depth = 0): void {
       if (!Number.isInteger(entries) || entries < 0 || !Number.isInteger(depth) || depth < 0)
         throw new TypeError("C# immutable metadata requires nonnegative integer resource accounting.");
-      if (entries > remaining) failTargetCompilerResourceLimit("tsonic-csharp", "C# immutable metadata snapshot", "entries", maximumCsharpMetadataEntries);
-      if (depth > maximumCsharpMetadataDepth) failTargetCompilerResourceLimit("tsonic-csharp", "C# immutable metadata snapshot", "depth", maximumCsharpMetadataDepth);
+      if (entries > remaining) failCsharpMetadataResourceLimit("C# immutable metadata snapshot", "entries", maximumCsharpMetadataEntries);
+      if (depth > maximumCsharpMetadataDepth) failCsharpMetadataResourceLimit("C# immutable metadata snapshot", "depth", maximumCsharpMetadataDepth);
       remaining -= entries;
     },
     remaining: () => remaining,

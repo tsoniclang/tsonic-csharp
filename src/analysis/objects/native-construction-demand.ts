@@ -4,7 +4,7 @@ import { sourceDeclarationIsModuleScoped, sourceEnclosingCallable,
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { csharpNullableTargetType } from "../../target-model/types/carriers/nullable.js";
-import { createCsharpMetadataBudget, maximumCsharpMetadataEntries } from "../../target-model/metadata/immutable.js";
+import { CsharpMetadataResourceLimitFailure, createCsharpMetadataBudget, maximumCsharpMetadataEntries } from "../../target-model/metadata/immutable.js";
 import type { CsharpTypePolicyBaseHost } from "../source-evidence/types/resolution/model.js";
 import { csharpNativeConstructionMembersMatch } from "./native-construction-members.js";
 import { createCsharpObjectShapeValueStorage } from "../../policy/types/objects/shape-carriers.js";
@@ -214,7 +214,7 @@ export function createCsharpNativeConstructionDemandQuery(
       try {
         compatible = shape !== undefined && csharpNativeConstructionMembersMatch(source, original, shape, queries, host, budget.reserve);
       } catch (error) {
-        if (!(error instanceof TypeError) || error.message !== "C# immutable metadata exceeds its finite resource budget.") throw error;
+        if (!(error instanceof CsharpMetadataResourceLimitFailure)) throw error;
         issue(node, "TSONIC_COMPILER_RESOURCE_LIMIT",
           `Native construction of this object literal exceeded the finite metadata limit of ${maximumCsharpMetadataEntries} entries.`);
         return;

@@ -230,8 +230,8 @@ test("finite value-domain budgets distinguish exact completion from source-owned
   const failed = analyzeCsharpValueDomainCarriers(selected.host, [selected.expression, next], exhausted);
   assert.equal(failed.issues.length, 1, "one precise issue, not one diagnostic per lost fact");
   assert.equal(failed.issues[0].node === next, true, "the actual demand exhausting the budget owns the diagnostic");
-  assert.equal(failed.issues[0].code, "CSHARP_VALUE_DOMAIN_METADATA_BUDGET_EXHAUSTED");
-  assert.equal(failed.issues[0].message, "C# value-domain carrier analysis exceeds its finite target metadata budget.");
+  assert.equal(failed.issues[0].code, "TSONIC_COMPILER_RESOURCE_LIMIT");
+  assert.equal(failed.issues[0].message, "C# value-domain carrier analysis exceeded the compiler resource limit entries=1048576.");
   assert.equal(Object.isFrozen(failed.issues) && Object.isFrozen(failed.issues[0]), true);
   assert.equal(failed.carrierFor(selected.expression) === undefined, true, "partial facts are never treated as a complete proof");
   assert.equal(failed.carrierFor(next) === undefined, true);
@@ -298,7 +298,7 @@ test("value-domain budget exhaustion rejects program publication instead of emit
     assertCsharpCheckingSucceeded(compiled);
     assert.equal(failures, 1, "the first owner failure stops closure before a later pass could lose it");
     assert.equal(compiled.targetDiagnostics.length, 1, "one bounded pre-publication diagnostic");
-    assert.equal(compiled.targetDiagnostics[0].code, "CSHARP_VALUE_DOMAIN_METADATA_BUDGET_EXHAUSTED");
+    assert.equal(compiled.targetDiagnostics[0].code, "TSONIC_COMPILER_RESOURCE_LIMIT");
     assert.equal(compiled.targetDiagnostics[0].source, "tsonic-csharp");
     assert.equal(compiled.targetDiagnostics[0].category, "error");
     assert.equal(compiled.result.diagnostics[0].sourceNode === failureNode, true,
