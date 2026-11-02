@@ -1,4 +1,5 @@
 import type { CsharpObjectShapeMemberFact, TargetTypeRef } from "../../types/model.js";
+import type { CsharpNativeBindingProperty } from "./value-projections.js";
 
 export type CsharpClosedShapeConversion =
   | { readonly kind: "identity" }
@@ -6,10 +7,12 @@ export type CsharpClosedShapeConversion =
   | { readonly kind: "runtime-union"; readonly target: TargetTypeRef; readonly constructor: string; readonly operand: CsharpClosedShapeConversion }
   | { readonly kind: "js-value"; readonly target: TargetTypeRef };
 
-export interface CsharpClosedShapeMemberProjection {
-  readonly member: CsharpObjectShapeMemberFact;
+export type CsharpClosedShapeMemberProjection = {
   readonly conversion: CsharpClosedShapeConversion;
-}
+} & (
+  | { readonly member: CsharpObjectShapeMemberFact; readonly native?: never; readonly sourceName?: never }
+  | { readonly native: CsharpNativeBindingProperty; readonly sourceName: string; readonly member?: never }
+);
 
 export type CsharpObjectProjectionEmission =
   | { readonly kind: "keys"; readonly element: TargetTypeRef; readonly keys: readonly string[] }

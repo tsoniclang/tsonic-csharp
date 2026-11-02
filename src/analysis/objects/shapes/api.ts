@@ -4,7 +4,7 @@ import { createStructuralObjectShapeTarget, mergeCsharpObjectShapeSubjects } fro
 import { getCsharpNullableElementTargetType } from "../../../target-model/types/carriers/nullable.js";
 import { csharpObjectShapesEqual } from "../../../target-model/types/object-shape-equality.js";
 import { csharpObjectShapeContractKey } from "../../../target-model/types/object-shape-identity.js";
-import { isProjectSourceTargetType, projectClassIsObjectInitializable, requiresUnresolvedStructuralProjection, selectedObjectShapeSource, sourceSubjects, typeHasProjectOwnedShapeDeclaration, typeIsExcludedFromObjectShape } from "./source-evidence.js";
+import { isCsharpNativeSourceProfileMemberDeclaration, isProjectSourceTargetType, projectClassIsObjectInitializable, requiresUnresolvedStructuralProjection, selectedObjectShapeSource, sourceSubjects, typeHasProjectOwnedShapeDeclaration, typeIsExcludedFromObjectShape } from "./source-evidence.js";
 import { readCsharpSourceField, readCsharpSourceStruct } from "../../../source/extension/markers.js";
 import { Node_Initializer } from "@tsonic/target-api/source";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../target-model/types/equality.js";
@@ -222,6 +222,10 @@ export function createCsharpObjectShapePolicy(
   function rememberTargetShape(
     shape: CsharpObjectShapeFact,
   ): CsharpObjectShapeFact {
+    if (shape.members.some(member => member.sourceDeclarations?.some(declaration =>
+      isCsharpNativeSourceProfileMemberDeclaration(declaration, host.ast)) === true)) {
+      failTargetAnalysisInvariant("tsonic-csharp", "A physical object-shape member cannot be owned by a native-mapped source-profile declaration.");
+    }
     if (
       isCsharpJsValueTargetType(shape.targetType) ||
       shape.targetType.kind === "type-parameter"

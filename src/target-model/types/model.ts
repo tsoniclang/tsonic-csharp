@@ -89,11 +89,13 @@ export interface CsharpStructuralInterfaceImplementation {
   readonly sourceNode: Node;
   readonly sourceType: TargetTypeRef;
   readonly interfaceType: TargetTypeRef;
-  readonly properties: readonly {
-    readonly sourceName: string;
+  readonly properties: readonly ({
     readonly sourceType: TargetTypeRef;
     readonly member: CsharpObjectShapeMemberFact;
-  }[];
+  } & (
+    | { readonly sourceName: string; readonly native?: never }
+    | { readonly native: import("../records/objects/value-projections.js").CsharpNativeBindingProperty; readonly sourceName?: never }
+  ))[];
   readonly methods: readonly {
     readonly sourceName: string;
     readonly declaration: Node;

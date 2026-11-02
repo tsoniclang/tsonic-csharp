@@ -6,7 +6,7 @@ import type { ExtensionFactSubject, Node, Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { sourceTypeIsAuthoredEmptyObject } from "@tsonic/target-api/source";
 import { nextState } from "../../source-evidence/types/resolution/state.js";
-import { classifyCsharpSourceProfileType } from "../../../policy/identities/source-types.js";
+import { classifyCsharpSourceProfileDeclaration, classifyCsharpSourceProfileType } from "../../../policy/identities/source-types.js";
 import { csharpSourceProfileDeclarationIdentity } from "../../../policy/identities/selected-source.js";
 
 interface SelectedObjectShapeSource {
@@ -130,6 +130,15 @@ export function typeIsExcludedFromObjectShape(
     queries.types.constructSignatures(type).length > 0;
 }
 
+export function isCsharpNativeSourceProfileMemberDeclaration(
+  declaration: Node,
+  ast: CsharpObjectShapePolicyHost["ast"],
+): boolean {
+  const parent = ast.parent(declaration);
+  const owner = parent !== undefined && ast.is.IsTypeLiteralNode(parent) ? ast.parent(parent) : parent;
+  return owner !== undefined && classifyCsharpSourceProfileDeclaration(owner, ast) !== undefined;
+}
+
 export function typeHasProjectOwnedShapeDeclaration(
   type: Type,
   node: Node | undefined,
@@ -177,7 +186,8 @@ export function typeHasProjectOwnedShapeDeclaration(
       : !host.ast.is.IsInterfaceDeclaration(owner))) return false;
     const identity = csharpSourceProfileDeclarationIdentity(host.ast, host.semantics(file), host.sourceFacts, owner);
     const members = host.ast.members(parent);
-    return identity?.kind === "type" && identity.declaration === owner && members.includes(declaration) &&
+    return identity?.kind === "type" && identity.declaration === owner &&
+      classifyCsharpSourceProfileDeclaration(owner, host.ast) === undefined && members.includes(declaration) &&
       members.every(member => member !== undefined && host.ast.kindName(member) === "KindPropertySignature") &&
       queries.types.callSignatures(type).length === 0 && queries.types.constructSignatures(type).length === 0 &&
       queries.types.indexInfos(type).length === 0;
@@ -185,6 +195,7 @@ export function typeHasProjectOwnedShapeDeclaration(
   if (!memberDeclarations.every(declarations => declarations.every(declaration => {
     if (declaration === undefined) return false;
     if (host.navigation.isProjectDeclaration(declaration)) return true;
+    if (isCsharpNativeSourceProfileMemberDeclaration(declaration, host.ast)) return true;
     const identity = host.sourceFacts?.getFact(declaration, providerVirtualDeclarationFactKey);
     if (identity === undefined) return sourceProfileDataMember(declaration);
     const selection = host.providers.resolveMember(identity);

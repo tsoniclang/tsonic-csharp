@@ -8,6 +8,20 @@ import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import type { ExpressionPlanner } from "../expressions/expression-planner-types.js";
 import { planCsharpBindingDefaultValue } from "./optional-values.js";
 import { consumeCsharpPlannedValue } from "../statements/statement-output.js";
+import type { CsharpNativeBindingProperty } from "../../../target-model/records/objects/value-projections.js";
+
+export function planCsharpNativePropertyRead(
+  property: CsharpNativeBindingProperty,
+  sourceExpression: CsharpExpression,
+  sourceNode: Node,
+): CsharpExpression {
+  const { member, receiver, invocation } = property;
+  if (receiver.kind !== "instance") return failCsharpPlannerInvariant("An admitted native property read requires its exact receiver relation.", sourceNode);
+  if (invocation.kind === "member") return { kind: "SimpleMemberAccessExpression", receiver: sourceExpression, name: member.targetName };
+  return { kind: "SimpleMemberAccessExpression", receiver: { kind: "InvocationExpression",
+    callee: { kind: "SimpleMemberAccessExpression", receiver: sourceExpression, name: invocation.call.targetName },
+    arguments: [] }, name: member.targetName };
+}
 
 export function planObjectBindingElement(
   elementNode: Node,
@@ -24,15 +38,7 @@ export function planObjectBindingElement(
   if (element?.name === undefined || selected?.kind !== "source-owned-member" && selected?.kind !== "native-member") return failCsharpPlannerInvariant(
     "Source-owned binding requires its admitted direct member projection.", elementNode);
   if (selected.kind === "native-member") {
-    const { member, receiver, invocation } = selected.property;
-    let value: CsharpExpression;
-    if (invocation.kind === "member" && receiver.kind === "instance") {
-      value = { kind: "SimpleMemberAccessExpression", receiver: sourceExpression, name: member.targetName };
-    } else if (invocation.kind === "receiver-call" && receiver.kind === "instance") {
-      value = { kind: "SimpleMemberAccessExpression", receiver: { kind: "InvocationExpression",
-        callee: { kind: "SimpleMemberAccessExpression", receiver: sourceExpression, name: invocation.call.targetName },
-        arguments: [] }, name: member.targetName };
-    } else return failCsharpPlannerInvariant("An admitted native binding requires its exact receiver relation.", elementNode);
+    const value = planCsharpNativePropertyRead(selected.property, sourceExpression, elementNode);
     if (element.Initializer === undefined) return planBindingNameFromProjection(element.name, value,
       elementNode, sourceFile, input, diagnostics, state);
     const contract = input.program.records.bindingPatternProjection.get(elementNode)?.defaultValue;

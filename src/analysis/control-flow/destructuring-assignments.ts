@@ -5,6 +5,7 @@ import { AsBinaryExpression, AsObjectLiteralExpression, AsPropertyAssignment, As
   KindSpreadAssignment, KindSpreadElement, Node_Expression } from "@tsonic/target-api/source";
 import { selectCsharpBindingPatternProjection } from "../../policy/types/objects/binding-projection.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../target-model/types/index.js";
+import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import type { CsharpBindingElementProjection, CsharpBindingPatternSource, CsharpBindingProjectionFact,
   CsharpDestructuringAssignmentArrayElement, CsharpDestructuringAssignmentObjectElement,
   CsharpDestructuringAssignmentPattern, CsharpDestructuringAssignmentTarget } from "../../target-model/records/objects/value-projections.js";
@@ -54,7 +55,7 @@ export function createCsharpDestructuringAssignmentAnalysis(input: CsharpBinding
     if (pattern.kind === "array") {
       analyzeArrayAssignmentPattern(pattern, sourceNode, sourceFile, sourceCarrier);
     } else {
-      analyzeObjectAssignmentPattern(pattern, sourceNode, sourceFile);
+      analyzeObjectAssignmentPattern(pattern, sourceNode, sourceFile, sourceCarrier);
     }
   }
 
@@ -102,13 +103,15 @@ export function createCsharpDestructuringAssignmentAnalysis(input: CsharpBinding
     pattern: Extract<CsharpDestructuringAssignmentPattern, { readonly kind: "object" }>,
     sourceNode: Node,
     sourceFile: SourceFile,
+    sourceCarrier: TargetTypeRef | undefined,
   ): void {
-    const shape = input.objectShapes.resolveNode(sourceNode, sourceFile);
-    if (shape === undefined) {
+    const shape = sourceCarrier === undefined ? input.objectShapes.resolveNode(sourceNode, sourceFile) : input.objectShapes.resolveTarget(sourceCarrier);
+    const carrier = sourceCarrier ?? input.valueReads.valueRead.get(sourceNode)?.value;
+    if (shape === undefined && carrier === undefined) {
       issue(pattern.sourceNode, "Object destructuring assignment requires finalized provider object-shape facts before C# emission.");
       return;
     }
-    recordSource(pattern.sourceNode, { kind: "object-shape-source", shape });
+    recordSource(pattern.sourceNode, shape === undefined ? { kind: "native-source", carrier: carrier! } : { kind: "object-shape-source", shape });
     const extractedSourceNames = new Set<string>();
     for (const element of pattern.elements) {
       if (element.kind === "object-rest") continue;
@@ -117,7 +120,26 @@ export function createCsharpDestructuringAssignmentAnalysis(input: CsharpBinding
     }
     for (const element of pattern.elements) {
       if (element.kind === "object-rest") {
+        if (shape === undefined) {
+          issue(element.sourceNode, "Object rest destructuring requires finalized provider object-spread semantics before C# emission.");
+          continue;
+        }
         analyzeObjectAssignmentRest(element, shape, extractedSourceNames, sourceFile);
+        continue;
+      }
+      const native = input.evidence.bindingProjection.get(element.sourceNode);
+      if (native?.kind === "native-member") {
+        if (native.node !== element.sourceNode || carrier === undefined || !targetTypeRefEquals(native.receiverCarrier, carrier)) {
+          issue(element.sourceNode, "A native assignment property requires its exact admitted source carrier.");
+          continue;
+        }
+        recordElement(element.sourceNode, { kind: "native-member", property: native.property }, element.initializer);
+        const value = element.initializer === undefined ? native.property.member.returnType : draftFor(element.sourceNode)?.defaultValue?.target;
+        analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, value);
+        continue;
+      }
+      if (shape === undefined) {
+        issue(element.sourceNode, "Object destructuring assignment requires its exact admitted native member projection.");
         continue;
       }
       const property = assignmentPropertyName(element);
@@ -136,10 +158,10 @@ export function createCsharpDestructuringAssignmentAnalysis(input: CsharpBinding
         if (selected.kind === "unresolved") for (const reason of selected.reasons) issue(element.sourceNode, reason);
         continue;
       }
-      const carrier = selected.element.kind === "object-shape-member" ? selected.element.member.type : selected.element.carrier;
+      const memberCarrier = selected.element.kind === "object-shape-member" ? selected.element.member.type : selected.element.carrier;
       recordElement(element.sourceNode, selected.element, element.initializer);
       if (element.initializer === undefined) {
-        analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, carrier);
+        analyzeAssignmentTarget(element.target, element.sourceNode, sourceFile, memberCarrier);
         continue;
       }
       const defaultValue = draftFor(element.sourceNode)?.defaultValue;

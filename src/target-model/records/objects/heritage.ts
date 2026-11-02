@@ -4,14 +4,16 @@ import type { SourceCallableContract, SourceCallableSourceContract } from "../ca
 import type { CsharpCallableParameterAdapter, CsharpCallableValueAdapter } from "../callables/callable-adapters.js";
 import type { CsharpDefaultParameterContract } from "../program/declarations.js";
 import type { CsharpExplicitImplementationConstraint } from "../../types/generic-constraints.js";
+import type { CsharpNativeBindingProperty } from "./value-projections.js";
 
-export interface CsharpStructuralInterfaceMemberEvidence {
-  readonly source: CsharpObjectShapeMemberFact;
+export type CsharpStructuralInterfaceMemberEvidence = {
   readonly destination: CsharpObjectShapeMemberFact;
-  readonly openSource: CsharpObjectShapeMemberFact;
   readonly openDestination: CsharpObjectShapeMemberFact;
   readonly declaration?: Node;
-}
+} & (
+  | { readonly source: CsharpObjectShapeMemberFact; readonly openSource: CsharpObjectShapeMemberFact; readonly native?: never }
+  | { readonly native: CsharpNativeBindingProperty; readonly source?: never; readonly openSource?: never }
+);
 
 export interface CsharpStructuralInterfaceEvidence {
   readonly sourceNode: Node;

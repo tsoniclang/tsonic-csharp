@@ -8,7 +8,7 @@ import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { csharpSourceMemberDisplayName } from "../../../target-model/types/source-member-keys.js";
 import { nextState } from "../../source-evidence/types/resolution/state.js";
 import { objectShapeMemberTargetNameForKey } from "../../../policy/identities/source-member-names.js";
-import { typeIncludesNullish } from "./source-evidence.js";
+import { isCsharpNativeSourceProfileMemberDeclaration, typeIncludesNullish } from "./source-evidence.js";
 import { resolveObjectShapeSourceMemberKey } from "../../../source/extension/member-keys.js";
 import { resolveCsharpCallableTypeParameters } from "../../source-evidence/types/resolution/callable-type-parameters.js";
 import { csharpMethodValueCoversContract, getCsharpMethodValue } from "../../../target-model/types/method-values.js";
@@ -57,8 +57,15 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     if (literals.length > 1) return undefined;
     const members: CsharpObjectShapeMemberFact[] = [];
     for (const property of queries.types.propertyInfos(ownerType)) {
-      const declarations = queries.declarations.symbolDeclarations(property.symbol);
+      const declarations = [...new Set([
+        ...queries.declarations.symbolDeclarations(property.symbol),
+        ...property.rootSymbols.flatMap(symbol => queries.declarations.symbolDeclarations(symbol)),
+      ])].filter((declaration): declaration is Node => declaration !== undefined);
       if (declarations.length !== 0 && declarations.every(declaration => sourceClassFieldIsTypeOnly(host.ast, declaration))) continue;
+      if (declarations.some(declaration => isCsharpNativeSourceProfileMemberDeclaration(declaration, host.ast))) {
+        if (!declarations.every(declaration => isCsharpNativeSourceProfileMemberDeclaration(declaration, host.ast))) return undefined;
+        continue;
+      }
       const member = deriveMember(property, queries, state, authoredTypeRoot, literals[0], receiver);
       if (member === undefined) return undefined;
       members.push(member);

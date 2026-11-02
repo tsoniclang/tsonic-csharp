@@ -1,11 +1,12 @@
 import type { Node } from "@tsonic/tsts";
 import type { CsharpCallArtifactRequirement, CsharpObjectShapeProjectionKind, CsharpTargetInvocation, CsharpTargetMember, TargetTypeRef } from "../../../types/index.js";
-import { csharpObjectTargetType, csharpQualifiedTypeRenderShape, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTsValueTargetType, csharpTargetNamedType, csharpTaskTargetType, getCsharpTaskResultTargetType, getCsharpDelegateSignature, isCsharpRecordDictionaryTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/index.js";
+import { csharpExceptionTargetType, csharpObjectTargetType, csharpQualifiedTypeRenderShape, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTsValueTargetType, csharpTargetNamedType, csharpTaskTargetType, getCsharpTaskResultTargetType, getCsharpDelegateSignature, isCsharpRecordDictionaryTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/index.js";
 import { csharpJsArrayTargetType } from "../../../../target-model/types/carriers/js.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../../target-model/types/carriers/nullable.js";
 import type { CsharpSourceProfileCallPolicy } from "../../../model/source-profiles.js";
-import { csharpSourceProfileDiagnostic, resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
-import { closedObjectParameter, jsCallIdentity, jsCallPolicy, jsConstructIdentity, jsMemberIdentity, jsRuntimeTargetType, jsUnsupportedCallPolicy, receiverHelperMethod, staticMethod, targetParameter } from "./common.js";
+import { csharpSourceProfileCall, csharpSourceProfileDiagnostic, resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
+import { namedTargetTypeImplicitlyAccepts } from "../../../conversions/carriers.js";
+import { closedObjectParameter, jsCallIdentity, jsCallPolicy, jsConstructIdentity, jsMemberIdentity, jsRuntimeTargetType, jsUnsupportedCallPolicy, receiverHelperMethod, staticMethod, targetParameter, type JsSourceProfileTargetMemberFactory } from "./common.js";
 
 const stringType = csharpStringTargetType();
 const boolType = csharpSourcePrimitiveTargetType("bool");
@@ -47,6 +48,10 @@ const unsupportedObjectMethods = [
   "preventExtensions",
   "seal",
 ] as const;
+
+const ordinaryObjectToStringPolicy = jsCallPolicy(
+  jsMemberIdentity("Object", "toString"), objectToStringMember, firstParameterReceiver,
+);
 
 export const csharpJsObjectCallPolicies:
   readonly CsharpSourceProfileCallPolicy[] = Object.freeze([
@@ -101,11 +106,7 @@ export const csharpJsObjectCallPolicies:
       (context) => objectPrototypeHasOwnMember(context),
       firstParameterReceiver,
     ),
-    jsCallPolicy(
-      jsMemberIdentity("Object", "toString"),
-      (context) => objectToStringMember(context),
-      firstParameterReceiver,
-    ),
+    Object.freeze({ ...ordinaryObjectToStringPolicy, select: selectObjectToString }),
     ...unsupportedObjectMethods.map((name) =>
       jsUnsupportedCallPolicy(
         jsMemberIdentity("ObjectConstructor", name),
@@ -156,12 +157,14 @@ export const csharpJsObjectCallPolicies:
 function objectCollectionMember(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
   row: typeof objectCollectionRows[number],
-): CsharpTargetMember | undefined {
+): ReturnType<JsSourceProfileTargetMemberFactory> {
   const argumentType = resolveCsharpSelectedSourceValue(
     context,
     context.source.sourceArguments[0],
   );
   const resultType = context.inputs.types.get(context.source.sourceResultType);
+  const refusal = exceptionOwnSetRefusal(context, [argumentType]);
+  if (refusal !== undefined) return refusal;
   const refinedResultType = argumentType === undefined || resultType === undefined
     ? undefined
     : objectCollectionResultType(row.result, argumentType, resultType);
@@ -214,11 +217,13 @@ function objectCollectionResultType(
 
 function objectHasOwnMember(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
-): CsharpTargetMember | undefined {
+): ReturnType<JsSourceProfileTargetMemberFactory> {
   const valueType = resolveCsharpSelectedSourceValue(
     context,
     context.source.sourceArguments[0],
   );
+  const refusal = exceptionOwnSetRefusal(context, [valueType]);
+  if (refusal !== undefined) return refusal;
   return valueType === undefined
     ? undefined
     : staticMethod(
@@ -243,7 +248,7 @@ function objectHasOwnMember(
 
 function objectAssignMember(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
-): CsharpTargetMember | undefined {
+): ReturnType<JsSourceProfileTargetMemberFactory> {
   const targetType = resolveCsharpSelectedSourceValue(
     context,
     context.source.sourceArguments[0],
@@ -252,6 +257,8 @@ function objectAssignMember(
     context,
     context.source.sourceArguments[1],
   );
+  const refusal = exceptionOwnSetRefusal(context, [targetType, sourceType]);
+  if (refusal !== undefined) return refusal;
   if (
     targetType !== undefined &&
     sourceType !== undefined &&
@@ -316,11 +323,13 @@ function objectAssignMember(
 
 function objectPrototypeHasOwnMember(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
-): CsharpTargetMember | undefined {
+): ReturnType<JsSourceProfileTargetMemberFactory> {
   const receiverType = resolveCsharpSelectedSourceValue(
     context,
     context.source.sourceReceiver,
   );
+  const refusal = exceptionOwnSetRefusal(context, [receiverType]);
+  if (refusal !== undefined) return refusal;
   return receiverType === undefined
     ? undefined
     : receiverHelperMethod(
@@ -340,6 +349,42 @@ function objectPrototypeHasOwnMember(
           { kind: "receiver" },
         ),
       );
+}
+
+function isExceptionCarrier(
+  context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
+  carrier: TargetTypeRef | undefined,
+): boolean {
+  const present = getCsharpNullableElementTargetType(carrier) ?? carrier;
+  return present !== undefined && namedTargetTypeImplicitlyAccepts(context.host, present, csharpExceptionTargetType(), new Set());
+}
+
+function exceptionOwnSetRefusal(
+  context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
+  carriers: readonly (TargetTypeRef | undefined)[],
+): Extract<ReturnType<JsSourceProfileTargetMemberFactory>, { readonly kind: "rejected" }> | undefined {
+  return carriers.some(carrier => isExceptionCarrier(context, carrier)) ? {
+    kind: "rejected",
+    diagnostic: csharpSourceProfileDiagnostic("CSHARP_ERROR_OWN_SET_UNSUPPORTED", 9100960,
+      "Native Exception values do not expose a closed source own-property set; read their declared native properties directly."),
+  } : undefined;
+}
+
+function selectObjectToString(
+  context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
+): ReturnType<CsharpSourceProfileCallPolicy["select"]> {
+  const receiver = resolveCsharpSelectedSourceValue(context, context.source.sourceReceiver);
+  if (!isExceptionCarrier(context, receiver)) return ordinaryObjectToStringPolicy.select(context);
+  const member: CsharpTargetMember = { id: "System.Exception.ToString", sourceName: "toString", targetName: "ToString",
+    kind: "method", declaringType: csharpExceptionTargetType(), parameters: [], returnType: stringType };
+  const published = context.host.providers.publishNativeIdentities(member);
+  if (published.kind === "rejected") return published;
+  const call = published.kind === "resolved"
+    ? csharpSourceProfileCall(context.source, published.value, { kind: "instance" }) : undefined;
+  return call === undefined ? { kind: "rejected",
+    diagnostic: csharpSourceProfileDiagnostic("CSHARP_ERROR_NATIVE_STORAGE_NOT_PROVEN", 9100954,
+      "The selected Error string conversion requires its exact native Exception.ToString invocation."),
+  } : { kind: "resolved", call };
 }
 
 function objectToStringMember(

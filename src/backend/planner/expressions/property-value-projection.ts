@@ -16,6 +16,7 @@ import { planCsharpUnionPattern } from "./union-patterns.js";
 import { renderCsharpClosedShapeConversion } from "../objects/closed-object-shapes.js";
 import { failCsharpPlannerInvariant } from "../diagnostics.js";
 import { planCsharpPlannedDiscard } from "../statements/statement-output.js";
+import { planCsharpNativePropertyRead } from "../bindings/binding-object-source-patterns.js";
 
 export function planCsharpPropertyValueProjection(node: Node, sourceFile: SourceFile, input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[], targetType: TargetTypeRef, planExpression: ExpressionPlanner,
@@ -56,6 +57,7 @@ export function planCsharpPropertyValueProjection(node: Node, sourceFile: Source
       ?? failCsharpPlannerInvariant("An admitted property projection requires its native closed result type.", node);
     const arguments_: CsharpExpression[] = [];
     for (const projection of selected.members) {
+      if (projection.native !== undefined) failCsharpPlannerInvariant("An admitted inline literal projection requires physical storage members only.", node);
       const value = values.get(projection)
         ?? failCsharpPlannerInvariant("An admitted literal projection requires every exact native member initializer.", node);
       arguments_.push({ kind: "LiteralExpression", value: projection.member.sourceName },
@@ -106,10 +108,14 @@ function renderCsharpPropertyValueProjection(node: Node, sourceFile: SourceFile,
   if (selected.kind === "boxed") return planCsharpJsValueBox(node, input, diagnostics, sourceType, expression);
   const name = input.names.temporaryName(`__tsonic_properties_${input.program.source.ast.pos(node)}`);
   const values: CsharpExpression[] = [];
-  for (const { member, conversion } of selected.members) values.push({ kind: "LiteralExpression", value: member.sourceName },
-    renderCsharpClosedShapeConversion(input.scope.typeParameterNames, conversion, {
-      kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name }, name: member.targetName,
-    }));
+  for (const projection of selected.members) {
+    const receiver: CsharpExpression = { kind: "IdentifierName", name };
+    const value = projection.native === undefined
+      ? { kind: "SimpleMemberAccessExpression" as const, receiver, name: projection.member.targetName }
+      : planCsharpNativePropertyRead(projection.native, receiver, node);
+    values.push({ kind: "LiteralExpression", value: projection.native === undefined ? projection.member.sourceName : projection.sourceName },
+      renderCsharpClosedShapeConversion(input.scope.typeParameterNames, projection.conversion, value));
+  }
   return { kind: "SwitchExpression", expression, arms: [{
     pattern: selected.members.length === 0 ? { kind: "DiscardPattern" } : { kind: "VarPattern", designation: name },
     expression: { kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression", receiver: resultSyntax, name: "CreateDynamicObject" },

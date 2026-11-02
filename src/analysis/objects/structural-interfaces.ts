@@ -5,6 +5,7 @@ import type { CsharpStructuralInterfaceMemberEvidence } from "../../target-model
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/object-shape-members.js";
 import { selectCsharpStructuralInterfaceImplementation } from "../../policy/types/objects/structural-implementation.js";
 import { targetTypeRefKey, targetTypeRefEquals } from "../../target-model/types/equality.js";
+import { resolveCsharpNativePropertyRead } from "../control-flow/binding-projections.js";
 
 export function collectCsharpInheritedInterfaces(
   policy: Pick<CsharpPolicyContext, "projectTypes">,
@@ -54,6 +55,12 @@ export function selectCsharpStructuralInterface(
     const open = resolveCsharpObjectShapeMemberBySelectedSubject(template, sourceSubjects);
     const destinationMember = destinationTemplate === undefined ? write
       : resolveCsharpObjectShapeMemberBySelectedSubject(destinationTemplate, destinationSubjects);
+    if (read.kind !== "resolved" && write.kind === "resolved" && destinationMember.kind === "resolved" && pair.source.read === "property") {
+      const native = resolveCsharpNativePropertyRead(pair.source.declarations, source.targetType, policy);
+      if (native === undefined) return undefined;
+      members.push(Object.freeze({ native, destination: write.member, openDestination: destinationMember.member }));
+      continue;
+    }
     if (read.kind !== "resolved" || write.kind !== "resolved" || open.kind !== "resolved" ||
       destinationMember.kind !== "resolved") return undefined;
     if (write.member.methodValueStorage !== undefined && (read.member.methodValueStorage === undefined ||

@@ -207,7 +207,7 @@ export function analyzeCsharpSourceEvidence(
       return;
     }
     const semantics = source.semantics.forFile(sourceFile);
-    if (source.ast.is.IsBindingElement(node)) {
+    if (source.ast.is.IsBindingElement(node) || source.ast.is.IsPropertyAssignment(node) || source.ast.is.IsShorthandPropertyAssignment(node)) {
       const projection = types.resolveBindingProjection(node, sourceFile);
       if (projection !== undefined) {
         recordTargetType(projection.storageCarrier);

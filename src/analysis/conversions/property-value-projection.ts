@@ -25,9 +25,14 @@ export function analyzeCsharpPropertyValueProjection(conversions: CsharpConversi
     const literal = literals.objectLiteral.get(shape, node);
     if (literal?.kind !== "native" || !literal.initialization.inlineUnique || literal.initialization.deferred.length !== 0 ||
       literal.members.length !== members.length || literal.initialization.slots.length !== members.length) return undefined;
-    const projected = new Map(members.map(member => [csharpObjectShapeMemberContractKey(member.member), member]));
+    const projected = new Map<string, Extract<CsharpClosedShapeMemberProjection, { readonly native?: never }>>();
+    for (const member of members) {
+      if (member.native !== undefined) return undefined;
+      projected.set(csharpObjectShapeMemberContractKey(member.member), member);
+    }
     if (projected.size !== members.length) return undefined;
-    const values: { readonly initializer: Node; readonly projection: CsharpClosedShapeMemberProjection }[] = [];
+    const values: { readonly initializer: Node;
+      readonly projection: Extract<CsharpClosedShapeMemberProjection, { readonly native?: never }> }[] = [];
     for (const member of literal.members) {
       if (member.kind !== "value" || member.member.memberKind !== "property" || member.member.accessor !== undefined ||
         member.member.bound === true) return undefined;

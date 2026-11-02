@@ -2,7 +2,8 @@ import type { Node, Type } from "@tsonic/tsts";
 import type { CsharpPropertyProjection } from "../../target-model/records/objects/property-projections.js";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpObjectShapeClassifications } from "../../target-model/records/objects/object-shapes.js";
-import type { CsharpObjectShapeMemberFact, TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type { CsharpPropertyProjectionMember } from "../../target-model/records/objects/property-projections.js";
 import {
   getCsharpNullableElementTargetType,
   isCsharpAbsenceTargetType,
@@ -13,6 +14,7 @@ import {
   targetTypeRefKey,
 } from "../../target-model/types/index.js";
 import { csharpUnionLeaves } from "../../target-model/types/union-relations.js";
+import { resolveCsharpNativePropertyRead } from "../control-flow/binding-projections.js";
 
 export function selectCsharpPropertyProjections(
   expression: Node,
@@ -54,7 +56,7 @@ export function selectCsharpPropertyProjections(
     const correspondence = semantics.types.structuralMembers(shape.sourceType, destinationType, "read");
     if (correspondence.kind !== "available" || correspondence.destination.calls.length !== 0 ||
       correspondence.destination.constructs.length !== 0 || correspondence.destination.indexes.length !== 0) return undefined;
-    const members: CsharpObjectShapeMemberFact[] = [];
+    const members: CsharpPropertyProjectionMember[] = [];
     for (const pair of correspondence.members) {
       if (pair.kind === "absent") {
         if (!pair.destination.property.optional) return undefined;
@@ -63,8 +65,12 @@ export function selectCsharpPropertyProjections(
       if (pair.destination.read !== "property" || pair.source.read === "method" || pair.source.read === "unavailable") return undefined;
       const member = resolveCsharpObjectShapeMemberBySelectedSubject(shape,
         [pair.source.property.symbol, ...pair.source.property.rootSymbols, ...pair.source.declarations]);
-      if (member.kind !== "resolved" || member.member.memberKind !== "property") return undefined;
-      members.push(member.member);
+      if (member.kind === "resolved" && member.member.memberKind === "property") members.push(member.member);
+      else {
+        const native = resolveCsharpNativePropertyRead(pair.source.declarations, selected, policy);
+        if (native === undefined) return undefined;
+        members.push(Object.freeze({ native, sourceName: pair.source.property.name }));
+      }
     }
     if (new Set(members.map(member => member.sourceName)).size !== members.length) return undefined;
     projections.push(Object.freeze({ source: selected, members: Object.freeze(members) }));

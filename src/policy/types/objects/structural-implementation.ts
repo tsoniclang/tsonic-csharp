@@ -26,9 +26,27 @@ export function selectCsharpStructuralInterfaceImplementation(
   const methods: CsharpStructuralInterfaceImplementation["methods"][number][] = [];
   const properties: CsharpStructuralInterfaceImplementation["properties"][number][] = [];
   for (const pair of evidence.members) {
-    const read = pair.source;
     const write = pair.destination;
     const readonlyDestination = write.readonly === true || write.accessor?.setter === false;
+    if (pair.native !== undefined) {
+      if (!readonlyDestination || write.memberKind !== "property") return undefined;
+      if (destinationTemplate !== undefined && [...csharpFreeTypeParameterIdentities([pair.openDestination.type])]
+        .some(identity => parameterIdentities.has(identity))) {
+        const bindings = inferCsharpTargetTypeParameterBindings(pair.openDestination.type, pair.native.member.returnType, parameterIdentities);
+        if (bindings === undefined) return undefined;
+        for (const [identity, type] of bindings) {
+          if (ambiguousArguments.has(identity)) continue;
+          const existing = inferredArguments.get(identity);
+          if (existing !== undefined && !targetTypeRefEquals(existing, type)) {
+            inferredArguments.delete(identity);
+            ambiguousArguments.add(identity);
+          } else inferredArguments.set(identity, type);
+        }
+      }
+      properties.push({ native: pair.native, sourceType: pair.native.member.returnType, member: pair.openDestination });
+      continue;
+    }
+    const read = pair.source;
     if (read.targetName !== write.targetName || read.memberKind !== write.memberKind ||
       (!readonlyDestination && (read.readonly === true || read.accessor?.setter === false))) return undefined;
     if (destinationTemplate !== undefined) {

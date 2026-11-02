@@ -8,6 +8,7 @@ import { failCsharpPlannerInvariant } from "../../diagnostics.js";
 import { planCsharpCallableArguments } from "../callables/parameter-adapters.js";
 import { applyCsharpConversionSelection } from "../../expressions/conversions.js";
 import { renderCsharpExplicitImplementationTypeParameters } from "../../types/type-parameters.js";
+import { planCsharpNativePropertyRead } from "../../bindings/binding-object-source-patterns.js";
 
 export function planCsharpStructuralInterfaceMembers(
   shape: CsharpObjectShapeFact,
@@ -26,8 +27,10 @@ export function planCsharpStructuralInterfaceMembers(
       if (explicitInterface === undefined || type === undefined) {
         return failCsharpPlannerInvariant("An admitted structural property lost its exact native forwarding type.", implementation.sourceNode);
       }
-      const access: CsharpExpression = { kind: "SimpleMemberAccessExpression",
-        receiver: { kind: "IdentifierName", name: "this" }, name: property.sourceName };
+      const receiver: CsharpExpression = { kind: "IdentifierName", name: "this" };
+      const access: CsharpExpression = property.native === undefined
+        ? { kind: "SimpleMemberAccessExpression", receiver, name: property.sourceName }
+        : planCsharpNativePropertyRead(property.native, receiver, implementation.sourceNode);
       const prelude: CsharpStatement[] = [];
       const value = applyCsharpConversionSelection(implementation.sourceNode, sourceFile, input, diagnostics,
         property.read.source, property.read.target, property.read.conversion, access, prelude, "snapshot");
