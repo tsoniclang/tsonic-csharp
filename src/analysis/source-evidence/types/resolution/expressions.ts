@@ -219,8 +219,9 @@ export function resolveCsharpSourceLiteralCarrier(
     const destination = context.returnedFrom !== undefined && host.ast.hasModifierKind(context.returnedFrom, "async")
       ? getCsharpTaskResultTargetType(selected) : selected;
     const present = getCsharpNullableElementTargetType(destination) ?? destination;
-    const numeric = present === undefined ? [] : csharpUnionLeaves(present, host.typeDefinitions)?.flatMap(leaf =>
-      leaf.carrier.kind === "source-primitive" && leaf.carrier.name !== "bool" ? [leaf.carrier] : []) ?? [];
+    const leaves = present === undefined ? [] : csharpUnionLeaves(present, host.typeDefinitions) ?? [{ carrier: present }];
+    const numeric = leaves.flatMap(leaf =>
+      leaf.carrier.kind === "source-primitive" && leaf.carrier.name !== "bool" ? [leaf.carrier] : []);
     return numeric.length === 1 ? numeric[0] : defaultType;
   }
   const call = host.semanticsFor(argument.call).operations.call(argument.call);

@@ -23,13 +23,11 @@ import { resolveCsharpProviderCallRelations } from "../../../operations/members/
 import { formCsharpProviderCallSignature } from "../../../operations/members/calls/instantiation.js";
 
 export function resolveSourceCallTypeArguments(
-  { resolveSourceCallContract, resolveSourceCallInstantiation }: CsharpTypeResolutionScope,
+  { host, resolveSourceCallInstantiation }: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
 ): readonly TargetTypeRef[] | undefined {
-  const selected = resolveSourceCallContract(source, sourceFile, { depth: 0 }, "checked");
-  if (selected.kind === "rejected") return undefined;
-  const callable = selected.contract;
+  const callable = host.representations.sourceCallable(source, sourceFile, "checked");
   return resolveSourceCallInstantiation(
     source,
     sourceFile,
