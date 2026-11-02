@@ -2,15 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompilerSessionFromFiles } from "@tsonic/tsts";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
-import { createSourceStorageQuery, defaultSourceStorageLimits } from "@tsonic/target-api/analysis";
+import { createSourceErrorStorageDemandQuery, createSourceStorageQuery, defaultSourceStorageLimits } from "@tsonic/target-api/analysis";
 import { requiredStorageSubject } from "../../../../tsonic/test/fixtures/source-navigation.mjs";
 import { collectTargetSourceProfileContributions } from "../../../../tsonic/packages/host/dist/target/source-profile.js";
 import { errorConstructorFootprintSource, errorOriginDomainSource } from "../../../../tsonic/test/fixtures/error-origin-domains.mjs";
-import { createCsharpErrorStorageDemandQuery } from "../../../dist/analysis/objects/error-storage-demands.js";
 import { resolveSourceProfileType } from "../../../dist/analysis/source-evidence/types/resolution/source-profiles.js";
 import { createCsharpSourceProfileStorageEffects } from "../../../dist/analysis/operations/source-profiles/source-storage-effects.js";
 import { csharpSourceProfileContributions, csharpJsSurfaceSourceProfileContributions } from "../../../dist/source/profiles/declarations.js";
-import { createSourceErrorProviderFixture } from "../../fixtures/dotnet-provider/source-error-bindings.mjs";
+import { createSourceErrorProviderFixture, sourceErrorProtocolFixture } from "../../fixtures/dotnet-provider/source-error-bindings.mjs";
 
 for (const jsEnabled of [false, true]) {
   for (const called of [false, true]) {
@@ -28,14 +27,14 @@ for (const jsEnabled of [false, true]) {
     const providers = createSourceErrorProviderFixture();
     const storage = createSourceStorageQuery(source, [file], defaultSourceStorageLimits,
       createCsharpSourceProfileStorageEffects(source, providers));
-    const demand = createCsharpErrorStorageDemandQuery(source, storage);
+    const demand = createSourceErrorStorageDemandQuery(source, sourceErrorProtocolFixture(source), storage);
     const declaration = name => source.ast.statements(file).find(node => source.ast.is.IsFunctionDeclaration(node) &&
       source.ast.text(source.ast.name(node)) === name);
     const host = { ast: source.ast, hasSemantics: file => source.semantics.includes(file), errorStorageDemands: demand,
       providers };
     const identity = { kind: "error", sourceName: "Error", errorName: "Error", baseException: true };
     for (const [name, expectedDomain, expectedCarrier] of [
-      ["inspect", "open", "System.Exception"], ["privateInspect", "complete", "Tsonic.CSharp.Runtime.Error"],
+      ["inspect", "open", "System.Exception"], ["privateInspect", "complete", "System.Exception"],
     ]) {
       const formal = source.ast.parameters(declaration(name))[0];
       const observed = demand.storageOriginsFor(requiredStorageSubject(storage, formal));
@@ -43,7 +42,7 @@ for (const jsEnabled of [false, true]) {
         observed.origins.every(origin => demand.isNativeConstructor(origin.node)), true, `${name}: same observed native roots`);
       const domain = demand.closedStorageOriginsFor(requiredStorageSubject(storage, formal));
       assert.equal(domain.kind === expectedDomain, true, `${name}: exact admission proof`);
-      const carrier = resolveSourceProfileType({ host }, identity, [], requiredStorageSubject(storage, formal));
+      const carrier = resolveSourceProfileType({ host }, identity, []);
       assert.equal(carrier?.id === expectedCarrier, true, `${name}: canonical physical Error carrier`);
     }
     let aliased;
@@ -80,7 +79,7 @@ for (const jsEnabled of [false, true]) {
       const file = source.sourceFiles.find(file => source.ast.getFileName(file) === "/src/index.ts");
       const storage = createSourceStorageQuery(source, [file], defaultSourceStorageLimits,
         createCsharpSourceProfileStorageEffects(source, createSourceErrorProviderFixture()));
-      const demand = createCsharpErrorStorageDemandQuery(source, storage);
+      const demand = createSourceErrorStorageDemandQuery(source, sourceErrorProtocolFixture(source), storage);
       const declarations = new Map();
       const visit = node => {
         if (source.ast.is.IsVariableDeclaration(node)) declarations.set(source.ast.text(source.ast.name(node)), node);
