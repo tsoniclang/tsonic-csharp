@@ -34,7 +34,7 @@ export function borrowed(pointer: Pointer<uint32> | null | undefined) { return p
 export function run(): boolean {
   const original = allocateptr<uint32>(3);
   const alias = borrowed(original);
-  if (alias === undefined) return false;
+  if (alias === undefined || alias === null) return false;
   storeptr(alias, 9);
   return equalptr(original, alias) && loadptr(original) === 9 &&
     borrowed(undefined) === undefined && borrowed(null) === undefined;
