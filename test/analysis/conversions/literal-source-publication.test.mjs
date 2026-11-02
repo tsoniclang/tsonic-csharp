@@ -170,8 +170,8 @@ test("integral zero is positive at every float endpoint and floating zeros retai
 for (const surface of ["native", "js"]) test(`${surface} completed integral zero and declared floating zero keep native bits without allocation`,
   { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface, sourceText: `
-    import type { int64, float64 } from "@tsonic/core/types.js";
-    export function integralZero(): float64 { return -0 as int64; }
+    import type { int32, float64 } from "@tsonic/core/types.js";
+    export function integralZero(): float64 { return -0 as int32; }
     export function declaredZero(): float64 { const value: float64 = -0; return value; }
     export function writtenZero(): float64 { return -0.0; }
   ` });
@@ -185,7 +185,7 @@ for (const surface of ["native", "js"]) test(`${surface} completed integral zero
         (BitConverter.DoubleToInt64Bits(Tsonic.Generated.Index.declaredZero()) ^ long.MinValue) |
         (BitConverter.DoubleToInt64Bits(Tsonic.Generated.Index.writtenZero()) ^ long.MinValue);
       [MethodImpl(MethodImplOptions.NoInlining)]
-      static long Handwritten() => BitConverter.DoubleToInt64Bits((double)0L) |
+      static long Handwritten() => BitConverter.DoubleToInt64Bits((double)0) |
         (BitConverter.DoubleToInt64Bits(-0D) ^ long.MinValue) |
         (BitConverter.DoubleToInt64Bits(-0D) ^ long.MinValue);
       static void Main() {
