@@ -6,6 +6,8 @@ import { targetTypeRefEquals } from "../../../policy/types/index.js";
 import { instantiateCsharpProviderBindingMember } from "./calls/binding-instantiation.js";
 import type { CsharpProviderCallSelectionHost } from "../../../policy/model/provider-calls.js";
 import { resolveCsharpProviderElementRelations } from "./relations.js";
+import { selectCsharpProviderArgumentConversion } from "../../../policy/conversions/expression.js";
+import { csharpConversionIsApplicable } from "../../../policy/conversions/applicability.js";
 
 type ResolvedSourceElementAccessInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["elementAccess"]>
@@ -161,9 +163,13 @@ function instantiateProviderElement(
       source.argument.type,
       sourceFile,
     );
+    const literal = host.literalValues.literalValue.get(source.argument.expression);
+    const conversion = literal?.numeric === undefined ? undefined : selectCsharpProviderArgumentConversion(
+      host, source.argument.expression, sourceArgumentType, targetParameter.type, undefined);
     if (
       sourceArgumentType === undefined ||
-      !targetTypeRefEquals(sourceArgumentType, targetParameter.type)
+      !targetTypeRefEquals(sourceArgumentType, targetParameter.type) &&
+        (conversion === undefined || !csharpConversionIsApplicable(conversion, "implicit"))
     ) {
       return undefined;
     }

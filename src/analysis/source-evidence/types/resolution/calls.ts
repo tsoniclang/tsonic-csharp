@@ -13,7 +13,7 @@ import { nextState } from "./state.js";
 
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 
-import { Node_Expression, ObjectLiteralProperty_Value, sourceCallableValueParameters } from "@tsonic/target-api/source";
+import { Node_Expression, ObjectLiteralProperty_Value, sourceCallableValueParameters, sourceExpressionCallArgument } from "@tsonic/target-api/source";
 import { getCsharpCallableValueSignature } from "../../../../target-model/types/carriers/delegates.js";
 import { selectCsharpObjectLiteralUnionCarrier, csharpObjectLiteralDestinationDeclarations } from "../../../objects/shapes/union-construction.js";
 import { getCsharpArrayLiteralElementTargetType } from "../../../../target-model/types/carriers/collections.js";
@@ -315,6 +315,30 @@ export function inferSourceCallTargetTypeArguments(
   excludedSourceArgumentIndexes?: ReadonlySet<number>,
 ): ReadonlyMap<string, TargetTypeRef> | undefined {
   const inferred = new Map<string, TargetTypeRef>();
+  const queries = scope.host.semantics(sourceFile);
+  const context = queries.types.contextualValueSelection(source.call);
+  const authoredContext = context.kind === "selected" ? context.component.authoredTypeNode : undefined;
+  const contextFile = authoredContext === undefined ? undefined : scope.host.ast.getSourceFile(authoredContext);
+  const argumentContext = sourceExpressionCallArgument(source.call,
+    { ast: scope.host.ast, semantics: { forNode: scope.host.semanticsFor } });
+  const outerCall = context.kind === "selected" ? context.component.contextualCall : undefined;
+  const outerBindings = argumentContext === undefined ? [] : outerCall?.sourceArgumentBindings.filter(binding =>
+    binding.sourceArgumentIndex === argumentContext.argumentIndex && binding.sourceForm === "value") ?? [];
+  const parameterContext = outerCall === undefined || argumentContext === undefined || outerBindings.length !== 1 ? undefined
+    : scope.resolveSourceCallArgumentParameter(outerCall, outerBindings[0]!, sourceFile, new Set([argumentContext.argumentIndex]));
+  const declaredContext = authoredContext === undefined || contextFile === undefined ? parameterContext
+    : scope.resolveNodeWithState(authoredContext, contextFile, nextState(state));
+  const resultNode = queries.operations.callResult(source)?.authoredTypeNode;
+  const resultFile = resultNode === undefined ? undefined : scope.host.ast.getSourceFile(resultNode);
+  const resultPattern = callable?.nativeSignature.sourceReturnType ?? callable?.returnType ??
+    (declaredContext === undefined || resultNode === undefined || resultFile === undefined ? undefined
+      : scope.resolveNodeWithState(resultNode, resultFile, nextState(state)));
+  const declaredBindings = declaredContext === undefined || resultPattern === undefined ? undefined
+    : inferCsharpTargetTypeParameterBindings(resultPattern, declaredContext, parameterIdentities);
+  if (authoredContext !== undefined && (declaredContext === undefined || resultPattern === undefined || declaredBindings === undefined)) {
+    return undefined;
+  }
+  for (const [name, carrier] of declaredBindings ?? []) inferred.set(name, carrier);
   const contextual = (binding: ResolvedSourceCallInfo["sourceArgumentBindings"][number]): boolean => {
     const argument = source.sourceArguments[binding.sourceArgumentIndex]?.expression;
     const parameter = callable === undefined ? undefined
@@ -342,10 +366,11 @@ export function inferSourceCallTargetTypeArguments(
     if (parameter === undefined || argument === undefined) {
       return undefined;
     }
-    const pattern = csharpTargetParameterValueType(
+    const declaredPattern = csharpTargetParameterValueType(
       parameter,
       binding.sourceForm,
     );
+    const pattern = declaredBindings === undefined ? declaredPattern : substituteTargetTypeParameters(declaredPattern, declaredBindings);
     const pairs = sourceArgumentInferencePairs(scope, argument.expression, pattern, sourceFile, state);
     if (pairs === undefined) continue;
     for (const pair of pairs) {
@@ -370,7 +395,10 @@ function sourceArgumentInferencePairs(
 ): readonly { readonly pattern: TargetTypeRef; readonly actual: TargetTypeRef }[] | undefined {
   const { host, resolveSelectedValueWithState } = scope;
   const literalValue = host.literalValues.literalValue.get(literal);
-  if (literalValue?.number !== undefined || literalValue?.integer !== undefined) return [];
+  if (literalValue?.number !== undefined || literalValue?.integer !== undefined) {
+    const actual = scope.resolveNodeWithState(literal, sourceFile, nextState(state));
+    return actual === undefined ? undefined : [{ pattern, actual }];
+  }
   if (host.ast.is.IsParenthesizedExpression(literal) || host.ast.is.IsSatisfiesExpression(literal)) {
     const inner = Node_Expression(host.ast, literal);
     return inner === undefined ? undefined : sourceArgumentInferencePairs(scope, inner, pattern, sourceFile, nextState(state));

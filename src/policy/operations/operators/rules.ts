@@ -13,6 +13,7 @@ import { sourceBooleanShortCircuitBranch as csharpBooleanShortCircuitBranch } fr
 import { selectCsharpReferenceEquality } from "./reference-equality.js";
 import { selectCsharpUnionEquality } from "./union-equality.js";
 import { selectCsharpExpressionConversion } from "../../conversions/expression.js";
+import { selectCsharpConversion } from "../../conversions/core.js";
 import { csharpConversionIsApplicable } from "../../conversions/applicability.js";
 import type { Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../model/context.js";
@@ -179,6 +180,18 @@ export function selectCsharpNativeBinaryOperation(
     return rejectCsharpOperator(
       `Source operator '${sourceOperator}' has no exact predefined C# numeric promotion for the selected operand types.`,
     );
+  }
+  if (isCsharpAssignmentOperator(sourceOperator) && sourceOperator !== "=" && numericPromotion !== undefined) {
+    const operationResult = isShift(sourceOperator) ? csharpUnaryNumericPromotion(leftType) : numericPromotion.resultType;
+    const implicitResult = selectCsharpConversion(input, operationResult, leftType, "implicit");
+    if (!csharpConversionIsApplicable(implicitResult, "implicit")) {
+      const explicitResult = selectCsharpConversion(input, operationResult, leftType, "explicit");
+      const rightConversion = selectCsharpExpressionConversion(input, right, rightType, leftType, "implicit");
+      if (!csharpConversionIsApplicable(explicitResult, "explicit") ||
+        !isShift(sourceOperator) && !csharpConversionIsApplicable(rightConversion, "implicit")) {
+        return rejectCsharpOperator(`C# compound assignment '${sourceOperator}' requires an implicit result-to-storage conversion or an exact predefined narrowing with an implicit right-to-storage conversion.`);
+      }
+    }
   }
   const nullishResultType = sourceOperator === "??" || sourceOperator === "??="
     ? selectNullishResultType(input, leftType, rightType, right)

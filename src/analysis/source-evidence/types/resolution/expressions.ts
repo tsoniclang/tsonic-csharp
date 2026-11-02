@@ -193,7 +193,8 @@ export function resolveCsharpSourceLiteralCarrier(
     if (contextual.kind !== "selected") return defaultType;
     const selected = resolveSelectedType(contextual.component.authoredTypeNode,
       contextual.component.selectedType, queries.sourceFile);
-    return selected?.kind === "source-primitive" && selected.name !== "bool" ? selected : defaultType;
+    const present = getCsharpNullableElementTargetType(selected) ?? selected;
+    return present?.kind === "source-primitive" && present.name !== "bool" ? present : defaultType;
   }
   const call = host.semanticsFor(argument.call).operations.call(argument.call);
   const bindings = call?.sourceArgumentBindings.filter(binding =>
@@ -201,7 +202,8 @@ export function resolveCsharpSourceLiteralCarrier(
   if (call === undefined || bindings.length !== 1) return defaultType;
   const selected = resolveSourceCallArgumentParameter(call, bindings[0]!, queries.sourceFile,
     new Set([argument.argumentIndex]));
-  return selected?.kind === "source-primitive" && selected.name !== "bool" ? selected : defaultType;
+  const present = getCsharpNullableElementTargetType(selected) ?? selected;
+  return present?.kind === "source-primitive" && present.name !== "bool" ? present : defaultType;
 }
 
 export function resolveMemberAccessTargetType(

@@ -57,16 +57,19 @@ export function createCsharpSourceProfileInputs(
     if (requirements.objectShapes === true && !objectShapes.has(value.expression)) objectShapes.set(value.expression,
       host.objectShapes?.resolveNode(value.expression, file) ?? host.objectShapes?.resolveTarget(carrier));
   }
-  const typeArguments = selected.map(argument => {
+  const callTypeArguments = source === undefined ? undefined : host.types.resolveSourceCallTypeArguments(source, file);
+  const genericCall = source !== undefined && selected.length > 0;
+  const typeArguments = selected.map((argument, index) => {
     if (argument.typeParameter !== undefined && !types.has(argument.typeParameter)) {
       types.set(argument.typeParameter, host.types.resolveType(argument.typeParameter, file));
     }
     return Object.freeze({ node: argument.explicitTypeNode, type: argument.selectedType,
-      carrier: host.types.resolveSelectedType(argument.explicitTypeNode, argument.selectedType, file) });
+      carrier: genericCall ? callTypeArguments?.[index]
+        : host.types.resolveSelectedType(argument.explicitTypeNode, argument.selectedType, file) });
   });
-  const resultType = host.types.resolveType(result, file);
+  const resultType = genericCall ? host.types.resolveSourceCallResult(source, file, undefined)?.selectedType
+    : host.types.resolveType(result, file);
   if (result !== undefined) types.set(result, resultType);
-  const callTypeArguments = source === undefined ? undefined : host.types.resolveSourceCallTypeArguments(source, file);
   const correspondence = source === undefined ? undefined : sourceCallArgumentCorrespondences({ ast: host.ast,
     semantics: host.semantics(file) }, source);
   const parameters = source === undefined ? [] : source.sourceSelectedSignatureParameters.map((parameter, index) => {
