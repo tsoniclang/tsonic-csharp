@@ -1,4 +1,5 @@
 import type { TargetTypeRef } from "./model.js";
+import { failTargetCompilerResourceLimit } from "@tsonic/target-api/artifacts";
 import { csharpTargetTypeComponents } from "./components.js";
 import { snapshotCsharpMetadata, csharpMetadataDescriptors, createCsharpMetadataBudget, maximumCsharpMetadataEntries, maximumCsharpMetadataDepth } from "../metadata/immutable.js";
 
@@ -13,7 +14,8 @@ export function snapshotCsharpTargetTypes(
   for (let index = 0; index < pending.length; index += 1) {
     const type = pending[index]!;
     if (visited.has(type)) continue;
-    if (visited.size >= maximumCsharpMetadataEntries || !isCsharpTargetTypeRef(type)) throw new TypeError("C# target type snapshot requires bounded valid carriers.");
+    if (visited.size >= maximumCsharpMetadataEntries) failTargetCompilerResourceLimit("tsonic-csharp", "C# target type snapshot", "entries", maximumCsharpMetadataEntries);
+    if (!isCsharpTargetTypeRef(type)) throw new TypeError("C# target type snapshot requires bounded valid carriers.");
     visited.add(type);
     const components = csharpTargetTypeComponents(type);
     budget.reserve(components.length);
@@ -61,7 +63,9 @@ export function isCsharpTargetTypeRef(value: unknown): value is TargetTypeRef {
     try { csharpMetadataDescriptors(input); return true; } catch { return false; }
   };
   const list = (input: unknown, depth: number): boolean => {
-    if (!Array.isArray(input) || input.length > maximumCsharpMetadataEntries - count || !data(input) ||
+    if (!Array.isArray(input)) return false;
+    if (input.length > maximumCsharpMetadataEntries - count) failTargetCompilerResourceLimit("tsonic-csharp", "C# target type validation", "entries", maximumCsharpMetadataEntries);
+    if (!data(input) ||
         Object.keys(input).length !== input.length) return false;
     for (let index = 0; index < input.length; index += 1) {
       if (!visit(input[index], depth + 1)) return false;
@@ -74,7 +78,9 @@ export function isCsharpTargetTypeRef(value: unknown): value is TargetTypeRef {
     return true;
   };
   const visit = (input: unknown, depth: number): boolean => {
-    if (++count > maximumCsharpMetadataEntries || depth > maximumCsharpMetadataDepth || typeof input !== "object" || input === null || active.has(input)) return false;
+    if (++count > maximumCsharpMetadataEntries) failTargetCompilerResourceLimit("tsonic-csharp", "C# target type validation", "entries", maximumCsharpMetadataEntries);
+    if (depth > maximumCsharpMetadataDepth) failTargetCompilerResourceLimit("tsonic-csharp", "C# target type validation", "depth", maximumCsharpMetadataDepth);
+    if (typeof input !== "object" || input === null || active.has(input)) return false;
     if (Array.isArray(input) || !data(input)) return false;
     const type = input as Readonly<Record<string, unknown>>;
     active.add(input);
@@ -106,16 +112,19 @@ export function isCsharpTargetTypeRef(value: unknown): value is TargetTypeRef {
     return valid;
   };
   const constraintResolution = (input: unknown, depth: number): boolean => {
-    if (typeof input !== "object" || input === null || depth > maximumCsharpMetadataDepth || Array.isArray(input) || !data(input)) return false;
+    if (depth > maximumCsharpMetadataDepth) failTargetCompilerResourceLimit("tsonic-csharp", "C# target constraint validation", "depth", maximumCsharpMetadataDepth);
+    if (typeof input !== "object" || input === null || Array.isArray(input) || !data(input)) return false;
     const resolution = input as Readonly<Record<string, unknown>>;
     const keys = Object.keys(resolution);
     if (resolution.kind === "unsupported") return keys.length === 2 && keys.includes("reason") && string(resolution.reason);
     if (resolution.kind !== "resolved" || keys.length !== 2 || !keys.includes("constraints") || !Array.isArray(resolution.constraints) ||
-        resolution.constraints.length > maximumCsharpMetadataEntries - count || !data(resolution.constraints) ||
+        !data(resolution.constraints) ||
         Object.keys(resolution.constraints).length !== resolution.constraints.length) return false;
     const constraints: readonly unknown[] = resolution.constraints;
+    if (constraints.length > maximumCsharpMetadataEntries - count) failTargetCompilerResourceLimit("tsonic-csharp", "C# target constraint validation", "entries", maximumCsharpMetadataEntries);
     for (const input of constraints) {
-      if (++count > maximumCsharpMetadataEntries || typeof input !== "object" || input === null || Array.isArray(input) || !data(input)) return false;
+      if (++count > maximumCsharpMetadataEntries) failTargetCompilerResourceLimit("tsonic-csharp", "C# target constraint validation", "entries", maximumCsharpMetadataEntries);
+      if (typeof input !== "object" || input === null || Array.isArray(input) || !data(input)) return false;
       const constraint = input as Readonly<Record<string, unknown>>;
       const keys = Object.keys(constraint);
       if (constraint.kind === "type" ? keys.length !== 2 || !keys.includes("type") || !visit(constraint.type, depth + 1)

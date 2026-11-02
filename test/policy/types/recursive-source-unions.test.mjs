@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { TargetCompilerResourceLimitFailure } from "@tsonic/target-api/artifacts";
 import { createCsharpTypeDefinitionRegistry } from "../../../dist/analysis/project-types/type-definitions.js";
 import { csharpSourceUnionTargetType } from "../../../dist/target-model/types/source-union-definitions.js";
 import { snapshotCsharpMetadata } from "../../../dist/target-model/metadata/immutable.js";
@@ -102,7 +103,8 @@ test("type snapshots preserve exact source identities without executing nested m
   assert.throws(() => snapshotCsharpTargetTypes([cyclic]), TypeError);
   let excessive = integer;
   for (let index = 0; index < 130; index += 1) excessive = { kind: "array", element: excessive };
-  assert.throws(() => snapshotCsharpTargetTypes([excessive]), /budget/u);
+  assert.throws(() => snapshotCsharpTargetTypes([excessive]), failure => failure instanceof TargetCompilerResourceLimitFailure &&
+    failure.diagnostic.code === "TSONIC_COMPILER_RESOURCE_LIMIT" && failure.diagnostic.evidence?.[0] === "depth=128");
 });
 
 function memberEvidenceUnion(kind = "present", templateDepth = 0) {

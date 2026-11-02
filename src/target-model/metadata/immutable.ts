@@ -1,3 +1,5 @@
+import { failTargetCompilerResourceLimit } from "@tsonic/target-api/artifacts";
+
 export function csharpMetadataDescriptors(input: object): Readonly<Record<string, PropertyDescriptor>> {
   const prototype = Object.getPrototypeOf(input);
   if (Array.isArray(input) ? prototype !== Array.prototype : prototype !== Object.prototype && prototype !== null) {
@@ -33,7 +35,8 @@ export function snapshotCsharpMetadata<Value>(
     active.add(input);
     let result: unknown;
     if (Array.isArray(projected)) {
-      if (projected.length > budget.remaining() || keys.length !== projected.length + 1) {
+      if (projected.length > budget.remaining()) failTargetCompilerResourceLimit("tsonic-csharp", "C# immutable metadata snapshot", "entries", maximumCsharpMetadataEntries);
+      if (keys.length !== projected.length + 1) {
         throw new TypeError("C# immutable metadata requires bounded dense arrays.");
       }
       const entries: unknown[] = [];
@@ -66,10 +69,10 @@ export function createCsharpMetadataBudget(): {
   let remaining = maximumCsharpMetadataEntries;
   return {
     reserve(entries, depth = 0): void {
-      if (!Number.isInteger(entries) || entries < 0 || entries > remaining ||
-          !Number.isInteger(depth) || depth < 0 || depth > maximumCsharpMetadataDepth) {
-        throw new TypeError("C# immutable metadata exceeds its finite resource budget.");
-      }
+      if (!Number.isInteger(entries) || entries < 0 || !Number.isInteger(depth) || depth < 0)
+        throw new TypeError("C# immutable metadata requires nonnegative integer resource accounting.");
+      if (entries > remaining) failTargetCompilerResourceLimit("tsonic-csharp", "C# immutable metadata snapshot", "entries", maximumCsharpMetadataEntries);
+      if (depth > maximumCsharpMetadataDepth) failTargetCompilerResourceLimit("tsonic-csharp", "C# immutable metadata snapshot", "depth", maximumCsharpMetadataDepth);
       remaining -= entries;
     },
     remaining: () => remaining,

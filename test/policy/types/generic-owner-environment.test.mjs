@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { TargetCompilerResourceLimitFailure } from "@tsonic/target-api/artifacts";
 import { closeCsharpOwnerTypeParameterEnvironment, csharpObjectShapeTypeParameters } from "../../../dist/analysis/source-evidence/types/resolution/owner-type-parameter-environment.js";
 import { csharpFreeTypeParameterIdentities, visitCsharpTargetTypeParameters } from "../../../dist/target-model/types/generic-references.js";
 import { isCsharpTargetTypeRef, snapshotCsharpTargetTypes } from "../../../dist/target-model/types/snapshot.js";
@@ -328,18 +329,18 @@ test("generic traversal and constraint snapshots share the existing finite work 
   budget.reserve(maximumCsharpMetadataEntries - 1);
   assert.equal(budget.remaining(), 1, "one reservation remains before the snapshot");
   assert.throws(() => snapshotCsharpTargetTypes([parameter("outer")], budget),
-    { name: "TypeError", message: "C# immutable metadata requires bounded dense arrays." },
+    failure => failure instanceof TargetCompilerResourceLimitFailure && failure.diagnostic.code === "TSONIC_COMPILER_RESOURCE_LIMIT" && failure.diagnostic.evidence?.[0] === "entries=1048576",
     "snapshots do not reset a selected traversal budget");
   assert.equal(budget.remaining(), 0, "the same budget reserved the root before rejecting its dense entries");
-  assert.throws(() => budget.reserve(1), /finite resource budget/u, "the selected budget remains exhausted after rejection");
+  assert.throws(() => budget.reserve(1), failure => failure instanceof TargetCompilerResourceLimitFailure && failure.diagnostic.evidence?.[0] === "entries=1048576", "the selected budget remains exhausted after rejection");
   const excessive = new Array(maximumCsharpMetadataEntries + 1);
-  assert.throws(() => csharpFreeTypeParameterIdentities(excessive), TypeError, "reject before pending allocation");
-  assert.throws(() => closeCsharpOwnerTypeParameterEnvironment(excessive, () => resolved([])), TypeError);
-  assert.throws(() => csharpTargetTypeComponents({ kind: "tuple", elements: excessive }), TypeError);
+  assert.throws(() => csharpFreeTypeParameterIdentities(excessive), TargetCompilerResourceLimitFailure, "reject before pending allocation");
+  assert.throws(() => closeCsharpOwnerTypeParameterEnvironment(excessive, () => resolved([])), TargetCompilerResourceLimitFailure);
+  assert.throws(() => csharpTargetTypeComponents({ kind: "tuple", elements: excessive }), TargetCompilerResourceLimitFailure);
   let nested = parameter("outer");
   for (let depth = 0; depth <= maximumCsharpMetadataDepth; depth += 1) nested = { kind: "array", element: nested };
-  assert.throws(() => visitCsharpTargetTypeParameters(nested, () => {}), TypeError, "physical walk depth guard");
-  assert.throws(() => csharpFreeTypeParameterIdentities([nested]), TypeError, "scoped free walk depth guard");
+  assert.throws(() => visitCsharpTargetTypeParameters(nested, () => {}), TargetCompilerResourceLimitFailure, "physical walk depth guard");
+  assert.throws(() => csharpFreeTypeParameterIdentities([nested]), TargetCompilerResourceLimitFailure, "scoped free walk depth guard");
   const cyclic = { kind: "array" };
   cyclic.element = cyclic;
   const parameters = [];
