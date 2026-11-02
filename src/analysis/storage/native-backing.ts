@@ -65,9 +65,10 @@ export function prepareCsharpNativeBacking(
         "Physical backing requires an exact closed all-bit-pattern native layout.");
       continue;
     }
-    for (const origin of use.origins) {
-      const originFile = policy.ast.getSourceFile(origin.call);
-      if (originFile === undefined) {
+    for (const producer of use.producers) {
+      const origin = producer.source.operation;
+      const originFile = producer.source.storage.sourceFile;
+      if (originFile !== policy.ast.getSourceFile(origin.call)) {
         reject(use.call, "The native backing descriptor and origin require exact source files.");
         continue;
       }
@@ -81,7 +82,8 @@ export function prepareCsharpNativeBacking(
       }
       const operation = operations.typedLocation.get(origin.call);
       if ((operation?.kind !== "location-allocate" && operation?.kind !== "location-address") ||
-        !targetTypeRefEquals(descriptor.pointeeType, operation.pointeeType)) {
+        !targetTypeRefEquals(descriptor.pointeeType, producer.pointeeType) ||
+        !targetTypeRefEquals(operation.pointeeType, producer.pointeeType)) {
         reject(origin.call, "The physical storage origin and layout have different exact native value types.");
         continue;
       }
