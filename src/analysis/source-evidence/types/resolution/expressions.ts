@@ -29,7 +29,7 @@ import { csharpLiteralIsRepresentableAs } from "../../../../policy/conversions/l
 import { selectCsharpLiteralDeclarationContext } from "../../../objects/native-construction-demand.js";
 import { csharpUnionLeaves } from "../../../../target-model/types/union-relations.js";
 import { getCsharpTaskResultTargetType } from "../../../../target-model/types/carriers/delegates.js";
-import { selectCsharpJsArrayMutation } from "../../../operations/collections/js-array-mutations.js";
+import { selectCsharpJsArrayLengthAssignment } from "../../../operations/collections/js-array-mutations.js";
 
 export function resolveSelectedExpressionType(
   scope: CsharpTypeResolutionScope,
@@ -200,7 +200,7 @@ export function resolveCsharpSourceLiteralCarrier(
   const operator = parent === undefined ? undefined : sourceOperatorFromKindName(host.ast.operatorKindName(parent));
   if (binary?.Right === current && operator !== undefined && isCsharpAssignmentOperator(operator)) {
     const mutation = binary.Left !== undefined && host.ast.is.IsPropertyAccessExpression(binary.Left)
-      ? selectCsharpJsArrayMutation({ ...host, projectTypes: host.projectTypes(), types: scope.policy }, parent!, queries.sourceFile)
+      ? selectCsharpJsArrayLengthAssignment({ ...host, types: scope.policy }, parent!, queries.sourceFile)
       : undefined;
     const target = mutation?.kind === "set-length" ? mutation.valueType : resolveReadStorage(binary.Left, queries.sourceFile);
     const present = getCsharpNullableElementTargetType(target) ?? target;

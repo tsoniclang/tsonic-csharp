@@ -14,7 +14,7 @@ export function selectCsharpJsArrayMutation(
   sourceFile: SourceFile,
 ): CsharpJsArrayMutationSelection {
   if (input.ast.is.IsBinaryExpression(node)) {
-    return selectCsharpTypedArrayMutation(input, node, sourceFile) ?? selectLengthAssignment(input, node, sourceFile);
+    return selectCsharpTypedArrayMutation(input, node, sourceFile) ?? selectCsharpJsArrayLengthAssignment(input, node, sourceFile);
   }
   if (input.ast.is.IsPrefixUnaryExpression(node) || input.ast.is.IsPostfixUnaryExpression(node)) {
     return selectCsharpTypedArrayMutation(input, node, sourceFile) ?? { kind: "not-js-array-mutation" };
@@ -22,8 +22,8 @@ export function selectCsharpJsArrayMutation(
   return { kind: "not-js-array-mutation" };
 }
 
-function selectLengthAssignment(
-  input: CsharpPolicyContext,
+export function selectCsharpJsArrayLengthAssignment(
+  input: Pick<CsharpPolicyContext, "ast" | "semantics" | "sourceFacts" | "types">,
   node: Node,
   sourceFile: SourceFile,
 ): CsharpJsArrayMutationSelection {
