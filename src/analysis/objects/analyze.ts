@@ -410,14 +410,26 @@ export function analyzeCsharpObjectShapes(
         if (shape.declarationTemplate !== undefined) admittedShapes.add(shape.declarationTemplate);
       }
       for (const literal of objectLiterals.keys()) propertyOrders.recordEmptyLiteral(literal);
+      const freezeShape = (shape: CsharpObjectShapeFact): CsharpObjectShapeFact => {
+        for (const member of shape.members) Object.freeze(member);
+        Object.freeze(shape.members);
+        return Object.freeze(shape);
+      };
       const completeShape = (shape: CsharpObjectShapeFact): CsharpObjectShapeFact => {
         const canonical = byTarget.get(targetTypeRefKey(shape.targetType)) ?? shape;
         const existing = completedShapes.get(canonical);
         if (existing !== undefined) return existing;
-        const selected = Object.freeze(withInterfaces(canonical)!);
+        const selected = freezeShape(withInterfaces(canonical)!);
         completedShapes.set(canonical, selected);
         return selected;
       };
+      for (const literal of objectLiterals.keys()) {
+        const shape = byNode.get(literal);
+        if (shape !== undefined) freezeShape(shape);
+        for (const result of literalResults.get(literal)?.values() ?? []) {
+          if (result.kind === "resolved") freezeShape(result.shape);
+        }
+      }
       for (const shape of admittedShapes) completeShape(shape);
       for (const [node, shape] of byNode) {
         const completed = completeShape(shape);
