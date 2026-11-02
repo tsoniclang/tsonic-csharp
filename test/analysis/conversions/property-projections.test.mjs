@@ -17,7 +17,7 @@ function fixture() {
   const member = { read: "property", property: { symbol, rootSymbols: [], optional: false }, declarations: [declaration] };
   const correspondence = { kind: "available", destination: { calls: [], constructs: [], indexes: [] },
     members: [{ kind: "present", source: member, destination: member }] };
-  const policy = { semanticsFor: () => ({ types: { nonNullableType: type => type,
+  const policy = { semanticsFor: () => ({ types: { nonNullableType: type => type, expressionType: () => sourceType,
     structuralMembers(actual, required, purpose) {
       assert.equal(purpose, "read", "property projection requires readable source values");
       assert.equal(actual === sourceType && required === destination, true, "exact selected source and destination identity");
@@ -79,4 +79,47 @@ test("native dictionary slots need no nominal field projection and unrelated car
     const rejected = selectCsharpPropertyProjections({}, source, destination, policy, { resolveTarget: () => undefined });
     assert.equal(rejected === undefined, true, "the exact string-key/closed-value dictionary admission is mandatory");
   }
+});
+
+test("property projections keep each checked expression distinct when the native shape is shared", () => {
+  const input = fixture();
+  const first = {};
+  const second = {};
+  const firstType = input.shape.sourceType;
+  const secondType = {};
+  const secondMember = input.shape.members[0];
+  const secondProperty = {
+    read: "property",
+    property: { symbol: secondMember.sourceSubjects[0], rootSymbols: [], optional: false },
+    declarations: secondMember.sourceDeclarations,
+  };
+  const secondCorrespondence = {
+    kind: "available",
+    destination: { calls: [], constructs: [], indexes: [] },
+    members: [{ kind: "present", source: secondProperty, destination: secondProperty }],
+  };
+  const types = input.policy.semanticsFor().types;
+  input.policy.semanticsFor = () => ({ types: {
+    ...types,
+    expressionType: node => node === first ? firstType : node === second ? secondType : undefined,
+    structuralMembers(actual, required, purpose) {
+      assert.equal(required === input.destination && purpose === "read", true, "same checked destination relation");
+      assert.equal(actual === firstType || actual === secondType, true, "current checked expression identity");
+      return actual === firstType ? input.correspondence : secondCorrespondence;
+    },
+  } });
+  const firstProjection = selectCsharpPropertyProjections(first, input.source, input.destination, input.policy, input.shapes);
+  const secondProjection = selectCsharpPropertyProjections(second, input.source, input.destination, input.policy, input.shapes);
+  assert.equal(firstProjection?.[0].members[0] === input.selected, true, "first expression retains its selected member");
+  assert.equal(secondProjection?.[0].members[0] === secondMember, true, "second expression never borrows the first source type");
+  assert.equal(secondProjection?.[0].source === firstProjection?.[0].source, true, "physical carrier remains shared");
+});
+
+test("property projections reject missing checked expression evidence without a carrier-global fallback", () => {
+  const input = fixture();
+  const semantics = input.policy.semanticsFor();
+  semantics.types.expressionType = () => undefined;
+  input.policy.semanticsFor = () => semantics;
+  assert.equal(selectCsharpPropertyProjections({}, input.source, input.destination, input.policy, input.shapes) === undefined,
+    true, "retained carrier provenance cannot replace missing current source evidence");
 });
