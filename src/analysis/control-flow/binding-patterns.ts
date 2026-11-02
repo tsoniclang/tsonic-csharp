@@ -53,6 +53,7 @@ import { resolveCsharpBindingSourceType } from "./binding-source-types.js";
 
 export interface CsharpBindingPatternAnalysisInput {
   readonly ast: AstReader;
+  readonly sourceFacts?: CsharpPolicyContext["sourceFacts"];
   readonly semanticsFor: (node: Node) => SourceFileSemantics;
   readonly sourceFiles: readonly SourceFile[];
   readonly participation: CsharpNativeParticipationInput["participation"];

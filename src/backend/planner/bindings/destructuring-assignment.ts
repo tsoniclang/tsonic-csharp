@@ -24,6 +24,7 @@ import { runtimeArrayHelperCall } from "../expressions/array-helpers.js";
 import { qualifiedCsharpType } from "../types/index.js";
 import type { CsharpDestructuringAssignmentPattern, CsharpDestructuringAssignmentTarget } from "../../../target-model/records/objects/value-projections.js";
 import { planCsharpAbsentValue } from "../expressions/optional-storage.js";
+import { planNativeBindingProperty } from "./native-binding-properties.js";
 
 export function isDestructuringAssignmentExpression(
   node: Node | undefined,
@@ -185,12 +186,12 @@ function planAssignmentPatternFromExpression(
         value => target(element.target, value, element.sourceNode));
     });
   }
-  if (source.kind !== "object-shape-source") return failCsharpPlannerInvariant(
+  if (source.kind !== "object-shape-source" && source.kind !== "native-source") return failCsharpPlannerInvariant(
     "Object assignment requires its admitted structural source.", pattern.sourceNode);
   return pattern.elements.flatMap(element => {
     const projection = input.program.records.bindingPatternProjection.get(element.sourceNode)?.element;
     if (element.kind === "object-rest") {
-      if (projection?.kind !== "object-shape-rest") return failCsharpPlannerInvariant(
+      if (projection?.kind !== "object-shape-rest" || source.kind !== "object-shape-source") return failCsharpPlannerInvariant(
         "Object rest assignment requires its admitted member correspondence.", element.sourceNode);
       const type = csharpConstructibleTypeFromObjectShapeFact(input, projection.restShape, diagnostics, element.sourceNode);
       if (type === undefined) failCsharpPlannerInvariant("An admitted structural rest assignment requires its native carrier rendering.", element.sourceNode);
@@ -198,6 +199,21 @@ function planAssignmentPatternFromExpression(
         kind: "AssignmentExpression", name: objectShapeStorageMemberName(projection.restShape, rest),
         expression: { kind: "SimpleMemberAccessExpression", receiver: sourceExpression, name: objectShapeStorageMemberName(source.shape, member) },
       })) }, element.sourceNode);
+    }
+    if (projection?.kind === "native-member") {
+      const value = planNativeBindingProperty(projection.property, sourceExpression, element.sourceNode, input);
+      if (element.initializer === undefined) return target(element.target, value, element.sourceNode);
+      const contract = input.program.records.bindingPatternProjection.get(element.sourceNode)?.defaultValue;
+      if (contract === undefined) return failCsharpPlannerInvariant(
+        "Native assignment default requires its admitted native default contract.", element.sourceNode);
+      const initial = planExpression(element.initializer, sourceFile, input, diagnostics, state);
+      if (initial === undefined) return failCsharpPlannerInvariant(
+        "An admitted native assignment default requires its initializer.", element.initializer);
+      const defaulted = planCsharpBindingDefaultValue(element.initializer, sourceFile, input, diagnostics,
+        value, contract, initial, state);
+      if (defaulted === undefined) return failCsharpPlannerInvariant(
+        "An admitted native assignment default requires its native completion.", element.sourceNode);
+      return consumeCsharpPlannedValue(defaulted, expression => target(element.target, expression, element.sourceNode));
     }
     if (projection?.kind === "object-shape-absence") {
       const absent = planCsharpAbsentValue(projection.carrier, input);
@@ -215,7 +231,7 @@ function planAssignmentPatternFromExpression(
       return consumeCsharpPlannedValue(selected,
         value => target(element.target, value, element.sourceNode));
     }
-    if (projection?.kind !== "object-shape-member") return failCsharpPlannerInvariant(
+    if (projection?.kind !== "object-shape-member" || source.kind !== "object-shape-source") return failCsharpPlannerInvariant(
       "Object assignment requires its admitted native member.", element.sourceNode);
     const member = projection.member;
     const value: CsharpExpression = { kind: "SimpleMemberAccessExpression", receiver: sourceExpression, name: member.targetName };
