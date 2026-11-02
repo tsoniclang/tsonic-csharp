@@ -54,7 +54,12 @@ export function selectCsharpExpressionConversion(
     (targetPrimitive.name === "float32" || targetPrimitive.name === "decimal" && Math.abs(literal.numeric.value) < 2 ** 96)) {
     return { kind: "implicit", proof: "checked-floating-literal" };
   }
-  return csharpLiteralIsRepresentableAs(literal, target)
+  const sourcePrimitive = getCsharpNullableElementTargetType(source) ?? source;
+  const floatingSource = sourcePrimitive?.kind === "source-primitive" &&
+    (sourcePrimitive.name === "float16" || sourcePrimitive.name === "float32" ||
+      sourcePrimitive.name === "float64" || sourcePrimitive.name === "decimal");
+  return !(mode === "implicit" && floatingSource && isCsharpIntegralTargetType(targetPrimitive)) &&
+    csharpLiteralIsRepresentableAs(literal, target)
     ? { kind: "implicit", proof: "literal" }
     : selected;
 }
