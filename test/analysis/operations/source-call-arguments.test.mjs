@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { assertNumericLiteralRefusal, numericCompoundRefusal } from "../../helpers/numeric-literal-rulings.mjs";
 import { csharpProgramSourceFiles } from "../../helpers/program-source-files.mjs";
 
 function calls(compiled) {
@@ -24,7 +25,7 @@ function calls(compiled) {
 }
 
 for (const surface of [undefined, "js"]) test(`source argument owner publishes every actual binding and final group on ${surface ?? "native"}`, () => {
-  const compiled = compileCsharpSource({ surface, sourceText: `
+  const originalSourceText = `
     import type { int32 } from "@tsonic/core/types.js";
     function pair(first: int32, second: int32): int32 { return first + second; }
     function maybe(first: int32, second?: int32): int32 { return first; }
@@ -34,7 +35,11 @@ for (const surface of [undefined, "js"]) test(`source argument owner publishes e
     export function collected(): number { return sum(1, 2, 3); }
     export function forwarded(values: number[]): number { return sum(...values); }
     export function mixed(values: number[]): number { return sum(1, ...values, 4); }
-  ` });
+  `;
+  assertNumericLiteralRefusal(compileCsharpSource({ surface, sourceText: originalSourceText }),
+    [numericCompoundRefusal("+=", "total += value")]);
+  const compiled = compileCsharpSource({ surface,
+    sourceText: originalSourceText.replace("let total = 0", "let total: number = 0") });
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.equal(compiled.result.diagnostics.length, 0);
   const selected = calls(compiled);
@@ -53,6 +58,82 @@ for (const surface of [undefined, "js"]) test(`source argument owner publishes e
     }
     assert.equal(Object.isFrozen(grouping) && Object.isFrozen(grouping.groups), true, `${call.text}: immutable groups`);
   }
+});
+
+for (const surface of [undefined, "js"]) {
+  for (const operator of ["+=", "-=", "*=", "/="]) {
+    test(`native compound ${operator} refuses a later float operand without retyping int64 on ${surface ?? "native"}`, () => {
+      const sourceText = `export function run(next: number): number { let value = 0; value ${operator} next; return value; }`;
+      assertNumericLiteralRefusal(compileCsharpSource({ surface, sourceText }),
+        [numericCompoundRefusal(operator, `value ${operator} next`)]);
+      const compiled = compileCsharpSource({ surface, sourceText: sourceText.replace("let value = 0", "let value: number = 0") });
+      assert.equal(compiled.result.diagnostics.length === 0 && compiled.result.program !== undefined && compiled.artifacts.size > 0, true,
+        "the own number declaration retains the supported native operation");
+    });
+  }
+  test(`native compound narrowing, shifts, integer division and one-evaluation locations remain valid on ${surface ?? "native"}`, { timeout: 300_000 }, () => {
+    executeCsharpConstruction(compileCsharpSource({ surface, sourceText: `
+      import type { uint8, int16, int32 } from "@tsonic/core/types.js";
+      export function run(): boolean {
+        let tiny: uint8 = 7; const step: uint8 = 2; tiny += step; tiny += 1;
+        let shifted: int16 = 2; const distance: int32 = 1; shifted <<= distance;
+        let divided = 5; divided /= 2;
+        let reads = 0; let writes = 0; let receivers = 0; let operands = 0; let stored: number = 3;
+        const owner = { get value(): number { reads++; return stored; }, set value(next: number) { writes++; stored = next; } };
+        function receiver(): typeof owner { receivers++; return owner; }
+        function operand(): number { operands++; return 2; }
+        receiver().value += operand();
+        return tiny === 10 && shifted === 4 && divided === 2 && stored === 5 &&
+          reads === 1 && writes === 1 && receivers === 1 && operands === 1;
+      }` }), `numeric-native-compound-${surface ?? "native"}`);
+  });
+}
+
+test("numeric assignment literals consume their own completed storage without retyping a written float", () => {
+  for (const surface of [undefined, "js"]) {
+    const sourceText = "export function reset(): boolean { let value = 0; value = 1; value += 2; value = -0; let floating: number = 0; floating = -0; return value === 0 && floating === 0; }";
+    const integral = compileCsharpSource({ surface, sourceText });
+    assert.equal(integral.result.diagnostics.length === 0 && integral.result.program !== undefined, true,
+      "an assignment literal consumes the actual native storage, not the checker's erased number");
+    const original = "export function assign(): number { let value = 0; value = 1.0; return value; }";
+    assertNumericLiteralRefusal(compileCsharpSource({ surface, sourceText: original }),
+      [{ code: "CSHARP_UNSUPPORTED_AST", message: "No exact C# implicit conversion relates 'source:float64' to 'source:int64'.", text: "1.0" }]);
+    const declared = compileCsharpSource({ surface, sourceText: original.replace("let value = 0", "let value: number = 0") });
+    assert.equal(declared.result.diagnostics.length === 0 && declared.result.program !== undefined, true,
+      "a written float never becomes an integer to satisfy an earlier inferred binding");
+  }
+});
+
+for (const surface of [undefined, "js"]) {
+  test(`selected native indexer literals use their declared parameter without admitting int64 variables on ${surface ?? "native"}`, () => {
+    const declarations = 'import { List } from "@tsonic/dotnet/System.Collections.Generic.js"; ';
+    const compiled = compileCsharpSource({ surface, sourceText: declarations +
+      "export function read(values: List<number>): number { return values[0]; }" });
+    assert.equal(compiled.result.diagnostics.length === 0 && compiled.result.program !== undefined, true,
+      "the direct index literal has its selected native int32 parameter");
+    assert.match(compiled.artifacts.get("src/Index.cs"), /return values\[0\];/u);
+    for (const [sourceText, text] of [
+      ["export function read(values: List<number>): number { const index = 0; return values[index]; }", "values[index]"],
+      ["export function read(values: List<number>): number { return values[2147483648]; }", "values[2147483648]"],
+    ]) {
+      assertNumericLiteralRefusal(compileCsharpSource({ surface, sourceText: declarations + sourceText }),
+        [{ code: "CSHARP_TARGET_ELEMENT_NOT_CLOSED", message: "No related C# provider indexer satisfies the exact selected element access.", text }]);
+    }
+  });
+}
+
+test("canonical generic calls bind an unannotated integer while own declared Promise contexts stay floating", () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+    export function untyped() { return Promise.resolve(5); }
+    export function declared(): Promise<number> { return Promise.resolve(5); }
+    export function explicit(): Promise<number> { return Promise.resolve<number>(5); }
+  ` });
+  assert.equal(compiled.result.diagnostics.length === 0 && compiled.result.program !== undefined, true,
+    "one canonical instantiation closes the actual source argument and its own declared result context");
+  const generated = compiled.artifacts.get("src/Index.cs");
+  assert.match(generated, /Task<long> untyped\(/u);
+  assert.match(generated, /Task<double> declared\(/u);
+  assert.match(generated, /Task<double> explicit\(/u);
 });
 
 test("tuple spreads preserve exact per-call refusal without admitting a prefix", () => {

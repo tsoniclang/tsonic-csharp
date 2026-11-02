@@ -1,3 +1,4 @@
+import { assertNumericLiteralRefusal, numericCompoundRefusal } from "../../helpers/numeric-literal-rulings.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { capturedCallbackAritySource } from "../../../../tsonic/test/fixtures/captured-callback-arity.mjs";
@@ -7,7 +8,11 @@ import { executeCsharpConstruction } from "../../helpers/native-construction.mjs
 for (const surface of [undefined, "js"]) {
   test(`captured native methods retain their sealed arity independently of contextual callbacks (${surface ?? "native"})`,
     { timeout: 300_000 }, () => {
-      const compiled = compileCsharpSource({ surface, sourceText: capturedCallbackAritySource });
+      const original = compileCsharpSource({ surface, sourceText: capturedCallbackAritySource });
+      assertNumericLiteralRefusal(original, ["result += first + second", "result += first", "result += first + second + third"]
+        .map(text => numericCompoundRefusal("+=", text)));
+      const compiled = compileCsharpSource({ surface, sourceText: capturedCallbackAritySource
+        .replace("let result = 0", "let result: number = 0").replace("const later = 3", "const later: number = 3") });
       assertCsharpCompilationSucceeded(compiled);
       const generated = [...compiled.artifacts.values()].join("\n");
       const program = compiled.result.program;

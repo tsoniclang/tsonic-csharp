@@ -25,6 +25,7 @@ import { numberArrayUnionFiles } from "../../../../tsonic/test/fixtures/number-a
 import { recursiveSourceUnionFiles } from "../../../../tsonic/test/fixtures/recursive-source-unions.mjs";
 import { createTsonicPlugin as nodejsCapability } from "../../../../csharp-nodejs/dist/index.js";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { assertNumericLiteralRefusal } from "../../helpers/numeric-literal-rulings.mjs";
 
 for (const surface of Array.from([undefined, "js"]).slice(0, 2)) {
 test(`type-only brands erase without removing ordinary class fields in ${surface ?? "native"}`, { timeout: 300_000 }, () => {
@@ -54,16 +55,22 @@ test(`recursive generic and mutually recursive union records execute in ${surfac
 
 for (const initializer of Array.from(["new Array<number>(3)", "[1, 2]"]).slice(0, 2)) {
 test(`dense numeric arrays reject deletion before copying for ${initializer}`, { timeout: 300_000 }, () => {
-    const compiled = compileCsharpSource({ surface: "js",
-      files: { "arrays.ts": numberArrayUnionFiles["arrays.ts"] },
-      sourceText: `import { copy } from "./arrays.js";
+    const sourceText = `import { copy } from "./arrays.js";
         export function run(): boolean {
           const values = ${initializer};
           let rejected = false;
           try { delete values[0]; } catch { rejected = true; }
           const result = copy(values);
           return rejected && 0 in values && result !== values && result[0] === values[0];
-        }`,
+        }`;
+    if (initializer === "[1, 2]") {
+      assertNumericLiteralRefusal(compileCsharpSource({ surface: "js", sourceText,
+        files: { "arrays.ts": numberArrayUnionFiles["arrays.ts"] } }), [{ code: "CSHARP_UNSUPPORTED_AST",
+        message: "C# runtime-union conversion requires the source representation to match one exact union arm.", text: "values" }]);
+    }
+    const compiled = compileCsharpSource({ surface: "js",
+      files: { "arrays.ts": numberArrayUnionFiles["arrays.ts"] },
+      sourceText: initializer === "[1, 2]" ? sourceText.replace("const values =", "const values: number[] =") : sourceText,
     });
     executeCsharpConstruction(compiled, "dense-array-deletion");
   });

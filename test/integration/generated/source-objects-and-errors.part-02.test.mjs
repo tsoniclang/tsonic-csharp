@@ -9,10 +9,18 @@ import { boundMemoryRecordProofFiles } from "../../../../tsonic/test/fixtures/bo
 import { numberArrayUnionFiles } from "../../../../tsonic/test/fixtures/number-array-unions.mjs";
 import { frozenObjectSources } from "../../../../tsonic/test/fixtures/frozen-objects.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { assertNumericLiteralRefusal } from "../../helpers/numeric-literal-rulings.mjs";
 
 for (const [name, source] of Array.from(Object.entries(frozenObjectSources)).slice(4, 7)) {
 test(`frozen reference objects preserve ${name}`, { timeout: 300_000 }, () => {
-    executeCsharpConstruction(compileCsharpSource({ surface: "js", sourceText: `${source}\nexport function run(): boolean { main(); return true; }` }), `frozen-${name}`);
+    const sourceText = `${source}\nexport function run(): boolean { main(); return true; }`;
+    if (name === "class-view" || name === "assign-and-method-write") {
+      assertNumericLiteralRefusal(compileCsharpSource({ surface: "js", sourceText }), [{ code: "CSHARP_UNSUPPORTED_AST",
+        message: "No exact C# implicit conversion relates 'target:tsonic.source:/project/index.ts\u0000264\u00000\u000068<>' to 'target:tsonic.shape:c0e83e75db5966550dbe5c642abc4033cd58ac85fa6505444b7864a03aecad86<source:float64>'.",
+        text: "counter" }]);
+    }
+    executeCsharpConstruction(compileCsharpSource({ surface: "js", sourceText:
+      name === "class-view" || name === "assign-and-method-write" ? sourceText.replace("count = 1", "count: number = 1") : sourceText }), `frozen-${name}`);
   });
 }
 
@@ -136,9 +144,9 @@ export function run(): boolean { return total === 1 && selected() === 2; }
 ` });
   executeCsharpConstruction(compiled, "constant-native-storage");
   const output = [...compiled.artifacts.values()].join("\n");
-  assert.match(output, /int value = 2;/);
-  assert.match(output, /static int total\b/);
-  assert.doesNotMatch(output, /\(int\)(?:value|total)/);
+  assert.match(output, /long value = 2L;/);
+  assert.match(output, /static long total\b/);
+  assert.doesNotMatch(output, /\((?:int|long)\)(?:value|total)/);
 });
 
 test("JavaScript error subclasses preserve constructor, call and base identity", { timeout: 300_000 }, () => {

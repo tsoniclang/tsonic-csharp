@@ -1,3 +1,4 @@
+import { assertNumericLiteralRefusal, numericCompoundRefusal } from "../../helpers/numeric-literal-rulings.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createTargetSourceProgram } from "@tsonic/target-api/source";
@@ -318,13 +319,16 @@ test("object and tuple rest facts preserve finalized member identities and neste
 });
 
 test("missing loop-head evidence keeps the actual for-of root private until demand admission", () => {
-  const { program, source, target } = publishedProgram(`
+  const originalSource = `
     export function run(rows: [number, number][]): number {
       let total = 0;
       for (const [left, right] of rows) total += left + right;
       return total;
     }
-  `, "native");
+  `;
+  assertNumericLiteralRefusal(compileCsharpSource({ surface: "native", sourceText: originalSource }),
+    [numericCompoundRefusal("+=", "total += left + right")]);
+  const { program, source, target } = publishedProgram(originalSource.replace("let total = 0", "let total: number = 0"), "native");
   const input = factsInput(program, source, target);
   const head = findNode(program, "KindVariableDeclaration", "[left, right]");
   const loop = findNode(program, "KindForOfStatement", "for (const [left, right] of rows) total += left + right;");
@@ -427,7 +431,7 @@ test("array, tuple, default and rest renderers consume only their admitted immut
 
 for (const surface of ["native", "js"]) {
   test(`binding storage and value reads share their admitted projection carrier on ${surface}`, () => {
-    const compiled = compileCsharpSource({ surface, sourceText: `
+    const originalSource = `
       type Source = { first: number; second: number };
       type Rest = { second: number };
       function consume(value: Rest): number { return value.second; }
@@ -448,7 +452,10 @@ for (const surface of ["native", "js"]) {
         for (const { first: loopFirst, ...loopRest } of [source]) loop += loopFirst + loopRest.second;
         return consume(rest) + returned.second + closure() + parameter(source) + value + head + tail[0] + nestedValue + loop;
       }
-    ` });
+    `;
+    assertNumericLiteralRefusal(compileCsharpSource({ surface, sourceText: originalSource }),
+      [numericCompoundRefusal("+=", "loop += loopFirst + loopRest.second")]);
+    const compiled = compileCsharpSource({ surface, sourceText: originalSource.replace("let loop = 0", "let loop: number = 0") });
     assert.equal(compiled.sourceDiagnosticsText, "", "rest, default, nested, parameter and iteration bindings are checked source");
     assert.equal(compiled.targetDiagnostics.length, 0,
       compiled.targetDiagnostics.map(({ code, message }) => `${code}: ${message}`).join("; "));

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { assertNumericLiteralRefusal, numericPromiseRefusal } from "../../helpers/numeric-literal-rulings.mjs";
 import { code, identity, nativeEntryCases, nativeEntryInverses, nativeOpaquePayloadCases, nativeConstructorCases, nativeConstructorInverses, sourcePosition, sourceSpan, cases, completedProjectPromiseCall, executePromiseAdoption, genericAdoptionExecution } from "./generic-adoption-admission.fixtures.mjs";
 
 function admitted(compiled, text, kind, declarationName) {
@@ -51,9 +52,13 @@ test("C# ordinary opaque callable input keeps its native value: " + name, { time
 
 for (const [name, declarations, expression] of Array.from(nativeOpaquePayloadCases).slice(13, 18)) {
 test("C# native opaque callable input is unresolved, not safe empty: " + name, { timeout: 300_000 }, () => {
-    const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText: declarations +
+    const sourceText = declarations +
       "\nexport function reject(value: Promise<number>): void { void wrap(value); }" +
-      "\nconst actual = Promise.resolve(5); reject(actual); const pending = wrap(actual); console.log(await pending);" });
+      "\nconst actual = Promise.resolve(5); reject(actual); const pending = wrap(actual); console.log(await pending);";
+    assertNumericLiteralRefusal(compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText }),
+      [numericPromiseRefusal("actual")]);
+    const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" },
+      sourceText: sourceText.replace("Promise.resolve(5)", "Promise.resolve<number>(5)") });
     const { ast, sourceNode } = admitted(compiled, "wrap(value)", "KindCallExpression", "wrap");
     assert.equal(ast.kindName(sourceNode), "KindCallExpression", "the original resolving operation owns the native contract");
     assert.equal(Buffer.from(ast.getSourceText(ast.getSourceFile(sourceNode))).subarray(ast.pos(sourceNode), ast.end(sourceNode))
@@ -106,8 +111,11 @@ test(`C# generic adoption accepts the actual Promise-valued ${name} site before 
     const execution = genericAdoptionExecution(name, invoked);
     const sourceText = `${declarations}
       export function reject(promised: Promise<number>): void { void ${invoked}(promised); }`;
+    const originalSourceText = sourceText + "\n" + execution.source;
+    assertNumericLiteralRefusal(compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText: originalSourceText }),
+      [numericPromiseRefusal("actual")]);
     const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" },
-      sourceText: sourceText + "\n" + execution.source });
+      sourceText: originalSourceText.replace("Promise.resolve(5)", "Promise.resolve<number>(5)") });
     admitted(compiled, `${invoked}(promised)`, "KindCallExpression", invoked);
     executePromiseAdoption(compiled, "promise-generic-" + name, execution.expected);
   });
@@ -125,8 +133,11 @@ test(`C# generic adoption keeps the ordinary actual for ${name}`, () => {
 test("adoption provenance carries its fixed Unicode/CRLF payload independent of the project root", { timeout: 300_000 }, () => {
   const sourceText = 'const marker = "界😀";\r\nasync function identity<Value>(value: Value) {\r\n\treturn value;\r\n}\r\n' +
     "export function reject(promised: Promise<number>): void {\r\n\tvoid identity(promised);\r\n}";
+  const originalSourceText = sourceText + "\r\nconst actual = Promise.resolve(5); reject(actual); console.log(await identity(actual));";
+  assertNumericLiteralRefusal(compileCsharpSource({ surface: "js", projectRoot: "/another/csharp/src", targetOptions: { outputType: "Exe" },
+    sourceText: originalSourceText }), [numericPromiseRefusal("actual")]);
   const compiled = compileCsharpSource({ surface: "js", projectRoot: "/another/csharp/src", targetOptions: { outputType: "Exe" },
-    sourceText: sourceText + "\r\nconst actual = Promise.resolve(5); reject(actual); console.log(await identity(actual));" });
+    sourceText: originalSourceText.replace("Promise.resolve(5)", "Promise.resolve<number>(5)") });
   const { ast, sourceNode, declaration, nodes } = admitted(compiled, "identity(promised)", "KindCallExpression", "identity");
   assert.deepEqual(sourceSpan(ast, sourceNode), { fileName: "index.ts", line: 6, column: 7, endLine: 6, endColumn: 25 },
     "exact actual instantiation coordinates, not the related declaration");
@@ -139,10 +150,14 @@ test("adoption provenance carries its fixed Unicode/CRLF payload independent of 
 });
 
 test("C# generic class adoption is refused at the checked constructor", { timeout: 300_000 }, () => {
-  const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText: `
+  const originalSourceText = `
     class Holder<Value> { constructor(readonly value: Value) {} async get(): Promise<Value> { return this.value; } }
     export function reject(promised: Promise<number>): void { void new Holder(promised); }
-  ` + "\nconst actual = Promise.resolve(5); reject(actual); console.log(await new Holder(actual).get());" });
+  ` + "\nconst actual = Promise.resolve(5); reject(actual); console.log(await new Holder(actual).get());";
+  assertNumericLiteralRefusal(compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText: originalSourceText }),
+    [numericPromiseRefusal("actual")]);
+  const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" },
+    sourceText: originalSourceText.replace("Promise.resolve(5)", "Promise.resolve<number>(5)") });
   admitted(compiled, "new Holder(promised)", "KindNewExpression", "Holder");
   executePromiseAdoption(compiled, "promise-generic-constructor", "5");
 });
@@ -261,10 +276,14 @@ test(`C# retains ${recursive ? "recursive" : "direct"} resolver/value correlatio
   });
 
 test(`C# completes the matching ${recursive ? "recursive" : "direct"} adopting resolver row in native execution`, { timeout: 300_000 }, () => {
-    const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText: `${helper}
+    const originalSourceText = `${helper}
       function wrap<Value>(value: Value): Promise<Value> { return new Promise<Value>(resolve => deliver(resolve, value, 2)); }
       export function reject(promised: Promise<number>): void { void wrap(promised); }` +
-      "\nconst actual = Promise.resolve(5); reject(actual); const pending = wrap(actual); console.log(await pending);" });
+      "\nconst actual = Promise.resolve(5); reject(actual); const pending = wrap(actual); console.log(await pending);";
+    assertNumericLiteralRefusal(compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" }, sourceText: originalSourceText }),
+      [numericPromiseRefusal("actual")]);
+    const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" },
+      sourceText: originalSourceText.replace("Promise.resolve(5)", "Promise.resolve<number>(5)") });
     admitted(compiled, "wrap(promised)", "KindCallExpression", "wrap");
     executePromiseAdoption(compiled, `promise-resolver-${recursive ? "recursive" : "direct"}`, "5");
   });

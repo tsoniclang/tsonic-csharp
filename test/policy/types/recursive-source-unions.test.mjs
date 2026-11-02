@@ -8,6 +8,7 @@ import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/c
 import { createCsharpObjectShapeMemberResolver } from "../../../dist/analysis/objects/shapes/member-evidence.js";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { assertNumericLiteralRefusal, numericCompoundRefusal } from "../../helpers/numeric-literal-rulings.mjs";
 import { recursiveSourceUnionFiles, recursiveCollectionUnionFiles, recursiveCollectionUnionIdentitySource,
   recursiveGenericCollectionUnionFiles, recursiveOptionalCollectionUnionFiles, recursiveOptionalCollectionUnionJsFiles } from "../../../../tsonic/test/fixtures/recursive-source-unions.mjs";
 
@@ -227,17 +228,28 @@ test("snapshotted member evidence still rejects foreign and stale checked corres
 });
 
 for (const surface of [undefined, "js"]) {
-  test(`recursive collection unions retain one absence state on ${surface ?? "native"} profile`, { timeout: 300_000 }, () => {
+  for (const typed of [false, true]) {
+  test(`recursive collection unions retain one absence state on ${surface ?? "native"} profile${typed ? " with declared numeric accumulators" : ""}`, { timeout: 300_000 }, () => {
     const files = surface === undefined ? recursiveOptionalCollectionUnionFiles : recursiveOptionalCollectionUnionJsFiles;
-    executeCsharpConstruction(compileCsharpSource({ surface, sourceText: files["index.ts"],
-      files: { "tree.ts": files["tree.ts"] },
-    }), `recursive-optional-collection-unions-${surface ?? "native"}`);
+    const compiled = compileCsharpSource({ surface, sourceText: files["index.ts"],
+      files: { "tree.ts": typed ? files["tree.ts"].replaceAll("let result = 0", "let result: number = 0") : files["tree.ts"] },
+    });
+    if (!typed) {
+      assertNumericLiteralRefusal(compiled, [numericCompoundRefusal("+=", "result += sum(child)"),
+        numericCompoundRefusal("+=", "result += count(child)")]);
+      return;
+    }
+    executeCsharpConstruction(compiled, `recursive-optional-collection-unions-${surface ?? "native"}`);
   });
-  test(`recursive collection union templates preserve exact instantiations on ${surface ?? "native"} profile`, { timeout: 300_000 }, () => {
-    executeCsharpConstruction(compileCsharpSource({ surface, sourceText: recursiveGenericCollectionUnionFiles["index.ts"],
-      files: { "tree.ts": recursiveGenericCollectionUnionFiles["tree.ts"] },
-    }), `recursive-generic-collection-unions-${surface ?? "native"}`);
+  test(`recursive collection union templates preserve exact instantiations on ${surface ?? "native"} profile${typed ? " with a declared numeric accumulator" : ""}`, { timeout: 300_000 }, () => {
+    const original = recursiveGenericCollectionUnionFiles["tree.ts"];
+    const compiled = compileCsharpSource({ surface, sourceText: recursiveGenericCollectionUnionFiles["index.ts"],
+      files: { "tree.ts": typed ? original.replace("let total = 0", "let total: number = 0") : original },
+    });
+    if (!typed) { assertNumericLiteralRefusal(compiled, [numericCompoundRefusal("+=", "total += sum(child)")]); return; }
+    executeCsharpConstruction(compiled, `recursive-generic-collection-unions-${surface ?? "native"}`);
   });
+  }
   test(`recursive generic and mutually recursive unions execute on ${surface ?? "native"} profile`, { timeout: 300_000 }, () => {
     executeCsharpConstruction(compileCsharpSource({ surface, sourceText: recursiveSourceUnionFiles["index.ts"],
       files: Object.fromEntries(Object.entries(recursiveSourceUnionFiles).filter(([name]) => name !== "index.ts")),
@@ -246,13 +258,18 @@ for (const surface of [undefined, "js"]) {
 }
 
 for (const surface of [undefined, "js"]) {
-  test(`recursive collection unions preserve native payloads on ${surface ?? "native"} profile`, { timeout: 300_000 }, () => {
+  for (const typed of [false, true]) {
+  test(`recursive collection unions preserve native payloads on ${surface ?? "native"} profile${typed ? " with a declared numeric accumulator" : ""}`, { timeout: 300_000 }, () => {
     const sourceText = recursiveCollectionUnionFiles["index.ts"];
-    executeCsharpConstruction(compileCsharpSource({ surface,
+    const original = recursiveCollectionUnionFiles["tree.ts"];
+    const compiled = compileCsharpSource({ surface,
       sourceText: surface === undefined ? sourceText : `${sourceText.replace("export function run()", "function values()")}
 ${recursiveCollectionUnionIdentitySource}
 export function run(): boolean { return values() && aliases(); }`,
-      files: { "tree.ts": recursiveCollectionUnionFiles["tree.ts"] },
-    }), `recursive-collection-unions-${surface ?? "native"}`);
+      files: { "tree.ts": typed ? original.replace("let total = 0", "let total: number = 0") : original },
+    });
+    if (!typed) { assertNumericLiteralRefusal(compiled, [numericCompoundRefusal("+=", "total += sum(child)")]); return; }
+    executeCsharpConstruction(compiled, `recursive-collection-unions-${surface ?? "native"}`);
   });
+  }
 }
