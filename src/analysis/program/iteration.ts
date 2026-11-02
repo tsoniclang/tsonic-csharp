@@ -242,7 +242,7 @@ export function analyzeCsharpRepresentationIteration(
     ...preparedConversions.exactLiteralRequests,
     ...expectedTypes.constructions.propertyKeyRequests,
     ...expectedTypes.nativeUseSites.requests.flatMap(request => request.kind === "requested"
-      ? [{ expression: request.expression, target: request.targetType }] : []),
+      ? [{ expression: request.expression, source: valueReads.valueRead.get(request.expression)?.source, target: request.targetType }] : []),
   ], sourceStorage.nodes);
   const expectedUse = admitCsharpExpectedNativeUses(expectedTypes, {
     ast: source.ast, exactLiteral: exactLiterals.exactLiteral, callableCreation: callableCreations.callableCreation,

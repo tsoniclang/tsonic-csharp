@@ -282,7 +282,7 @@ export function createCsharpExpectedTypePropagation(
       const propertyKey = name === undefined ? undefined : policy.semanticsFor(name).propertyNames.get(name);
       if (name === undefined || propertyKey === undefined) return failTargetAnalysisInvariant("tsonic-csharp",
         "A native dictionary key requires its canonical checked property-name selection.", property);
-      propertyKeyRequests.push(Object.freeze({ expression: name, target, propertyKey }));
+      propertyKeyRequests.push(Object.freeze({ expression: name, source: undefined, target, propertyKey }));
       bindings.push(Object.freeze({ property, name, target }));
     }
     targets.set(key, Object.freeze(bindings));

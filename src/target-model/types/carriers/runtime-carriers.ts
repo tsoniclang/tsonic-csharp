@@ -90,6 +90,7 @@ export function csharpRuntimeUnionTargetType(
     typeArguments: arms,
     ...(targetType.csharpRender !== undefined ? { csharpRender: targetType.csharpRender } : {}),
     csharpRuntimeUnionArms: arms,
+    csharpRuntimeUnionSemantics: "native-ordered",
     csharpValueType: true,
     ...(objectShapes === undefined || objectShapes.every((objectShape) => objectShape === undefined) ? {} : { csharpRuntimeUnionObjectShapes: objectShapes }),
   } satisfies CsharpRuntimeUnionTargetTypeRef;
@@ -112,7 +113,8 @@ export function combineCsharpTargetUnionMembers(
       pending.push(optional, csharpAbsenceTargetType());
       continue;
     }
-    const arms = getCsharpRuntimeUnionArms(member);
+    const arms = isCsharpRuntimeUnionTargetType(member) && member.csharpRuntimeUnionSemantics === "source-sum"
+      ? member.csharpRuntimeUnionArms : undefined;
     if (arms !== undefined) {
       pending.push(...arms);
       continue;
@@ -133,15 +135,11 @@ export function combineCsharpTargetUnionMembers(
   if (nonNullishMembers.length === 0) {
     return nullishMembers[0];
   }
-  if (nullishMembers.length === 0) {
-    return nonNullishMembers.length === 1
-      ? nonNullishMembers[0]
-      : csharpRuntimeUnionTargetType(nonNullishMembers);
-  }
-  const value = nonNullishMembers.length === 1
-    ? nonNullishMembers[0]
-    : csharpRuntimeUnionTargetType(nonNullishMembers);
-  return value === undefined ? undefined : csharpNullableTargetType(value);
+  const union = nonNullishMembers.length > 1 ? csharpRuntimeUnionTargetType(nonNullishMembers) : undefined;
+  const value = nonNullishMembers.length === 1 ? nonNullishMembers[0]
+    : union === undefined ? undefined : { ...union, csharpRuntimeUnionSemantics: "source-sum" as const };
+  return nullishMembers.length === 0 ? value
+    : value === undefined ? undefined : csharpNullableTargetType(value);
 }
 
 export function isCsharpJsValueTargetType(
@@ -182,6 +180,7 @@ export function csharpCarrierAdmitsSourceAbsence(type: TargetTypeRef | undefined
 export function isCsharpRuntimeUnionTargetType(type: TargetTypeRef | undefined): type is CsharpRuntimeUnionTargetTypeRef {
   const arms = (type as Partial<CsharpRuntimeUnionTargetTypeRef> | undefined)?.csharpRuntimeUnionArms;
   return type?.kind === "target-named" &&
+    (type.csharpRuntimeUnionSemantics === "native-ordered" || type.csharpRuntimeUnionSemantics === "source-sum") &&
     Array.isArray(arms) &&
     arms.length >= 2 &&
     arms.length <= 8;
