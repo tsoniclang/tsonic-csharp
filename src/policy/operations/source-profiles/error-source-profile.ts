@@ -208,7 +208,7 @@ function errorCallPolicy(
               9100951,
               "The exact selected Error constructor does not match its closed C# runtime constructor relation.",
               [
-                ...(cause.kind === "unresolved" ? [cause.reason] : []),
+                ...(cause?.kind === "unresolved" ? [cause.reason] : []),
                 "Error is owned by the selected source profile.",
                 "No source-name recovery or target fallback is permitted.",
               ],
